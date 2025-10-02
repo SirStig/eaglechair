@@ -8,7 +8,12 @@ from typing import Optional, Dict, Any
 from fastapi import status
 
 
-class EagleChairException(Exception):
+class BaseAppException(Exception):
+    """Base exception (alias for backward compatibility)"""
+    pass
+
+
+class EagleChairException(BaseAppException):
     """
     Base exception for all EagleChair application errors
     
