@@ -17,14 +17,12 @@ from slowapi.util import get_remote_address
 from slowapi.errors import RateLimitExceeded
 
 from backend.core.config import settings
-from backend.core.middleware import (
-    DDoSProtectionMiddleware,
-    AdvancedRateLimiter,
-    RequestValidationMiddleware,
-    SessionManager,
-    AdminSecurityMiddleware,
-    RouteProtectionMiddleware,
-)
+from backend.core.middleware.ddos_protection import DDoSProtectionMiddleware
+from backend.core.middleware.rate_limiter import AdvancedRateLimiter
+from backend.core.middleware.request_validator import RequestValidationMiddleware
+from backend.core.middleware.session_manager import SessionManager
+from backend.core.middleware.admin_security import AdminSecurityMiddleware
+from backend.core.middleware.route_protection import RouteProtectionMiddleware
 
 
 logger = logging.getLogger(__name__)

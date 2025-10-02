@@ -17,11 +17,20 @@ from fastapi import FastAPI
 from fastapi.responses import HTMLResponse
 
 from backend.core.config import settings
-from backend.core.middleware import setup_middleware
+# Import setup_middleware directly from the middleware.py module (not the package)
+import sys
+from pathlib import Path
+core_path = Path(__file__).parent / "core"
+sys.path.insert(0, str(core_path))
+try:
+    from middleware import setup_middleware
+finally:
+    sys.path.pop(0)
+
 from backend.core.logging_config import init_logging
 from backend.core.error_handlers import register_exception_handlers
 from backend.database.base import init_db, close_db
-from backend.api.v1 import routes as v1_routes
+from backend.api.v1 import router as v1_router
 from backend.api import versioning
 
 
@@ -96,7 +105,7 @@ app.include_router(
 
 # Include API v1 routes
 app.include_router(
-    v1_routes.router,
+    v1_router.router,
     prefix=settings.API_V1_PREFIX,
     responses={404: {"description": "Not found"}},
 )
