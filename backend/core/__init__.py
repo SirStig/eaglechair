@@ -1,0 +1,1 @@
+# EagleChair Core Configuration
