@@ -40,14 +40,22 @@ env/
 .ENV
 .env.local
 .env.*.local
+.env
+.env.local
+.env.development
+.env.production
+.env.staging
 
 # ============================================================================
 # Environment Variables & Secrets
 # ============================================================================
 .env
 .env.local
-.env.production
-.env.development
+.env.*.local
+# Keep template files but ignore actual environment files
+# .env.development
+# .env.production
+# .env.staging
 *.pem
 *.key
 *.crt

@@ -91,8 +91,7 @@ async def get_current_company(
 
 async def get_current_admin(
     token_payload: dict = Depends(get_current_token_payload),
-    db: AsyncSession = Depends(get_db),
-    request: Optional[Request] = None
+    db: AsyncSession = Depends(get_db)
 ) -> AdminUser:
     """
     Get current authenticated admin from token
