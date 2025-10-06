@@ -4,9 +4,41 @@ EagleChair Core Configuration Module
 Manages application settings using Pydantic BaseSettings for .env file integration
 """
 
+import os
 from functools import lru_cache
 from typing import Optional
 from pydantic_settings import BaseSettings, SettingsConfigDict
+from dotenv import load_dotenv
+
+
+def load_environment_file():
+    """
+    Load environment-specific .env file based on ENVIRONMENT variable
+    
+    Priority order:
+    1. .env.local (highest priority - for local overrides)
+    2. .env.{ENVIRONMENT} (e.g., .env.development, .env.production)
+    3. .env (fallback)
+    """
+    # Get current environment, default to 'development'
+    environment = os.getenv("ENVIRONMENT", "development")
+    
+    # Define file paths in priority order
+    env_files = [
+        ".env.local",  # Local overrides (highest priority)
+        f".env.{environment}",  # Environment-specific file
+        ".env",  # Fallback file
+    ]
+    
+    # Load files in reverse order so higher priority files override lower ones
+    for env_file in reversed(env_files):
+        if os.path.exists(env_file):
+            load_dotenv(env_file, override=True)
+            print(f"Loaded environment file: {env_file}")
+
+
+# Load environment files before creating Settings
+load_environment_file()
 
 
 class Settings(BaseSettings):
@@ -20,6 +52,7 @@ class Settings(BaseSettings):
     APP_NAME: str = "EagleChair API"
     APP_VERSION: str = "1.0.0"
     APP_DESCRIPTION: str = "Premium Chair Company Backend API"
+    ENVIRONMENT: str = "development"
     DEBUG: bool = False
     
     # API Configuration
@@ -42,7 +75,7 @@ class Settings(BaseSettings):
     CORS_ALLOW_HEADERS: list[str] = ["*"]
     
     # Database Configuration
-    DATABASE_URL: str = "postgresql+asyncpg://user:password@localhost:5432/eaglechair"
+    DATABASE_URL: str = "postgresql://postgres:postgres@postgres:5432/eaglechair"
     DATABASE_POOL_SIZE: int = 20
     DATABASE_MAX_OVERFLOW: int = 10
     DATABASE_ECHO: bool = False
@@ -101,7 +134,6 @@ class Settings(BaseSettings):
     TEST_DATABASE_URL: str = "postgresql+asyncpg://user:password@localhost:5432/eaglechair_test"
     
     model_config = SettingsConfigDict(
-        env_file=".env",
         env_file_encoding="utf-8",
         case_sensitive=True,
         extra="ignore"
@@ -110,7 +142,14 @@ class Settings(BaseSettings):
     @property
     def database_url_sync(self) -> str:
         """Get synchronous database URL for Alembic migrations"""
-        return self.DATABASE_URL.replace("+asyncpg", "")
+        return self.DATABASE_URL
+    
+    @property
+    def database_url_async(self) -> str:
+        """Get asynchronous database URL for async database operations"""
+        if "+asyncpg" not in self.DATABASE_URL:
+            return self.DATABASE_URL.replace("postgresql://", "postgresql+asyncpg://")
+        return self.DATABASE_URL
     
     @property
     def is_production(self) -> bool:

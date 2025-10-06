@@ -1,7 +1,7 @@
 """
-EagleChair Middleware Module
+EagleChair Middleware Setup Module
 
-Custom middleware for security, logging, and performance
+Configures and sets up all middleware for the application
 """
 
 import time
@@ -23,6 +23,8 @@ from backend.core.middleware.request_validator import RequestValidationMiddlewar
 from backend.core.middleware.session_manager import SessionManager
 from backend.core.middleware.admin_security import AdminSecurityMiddleware
 from backend.core.middleware.route_protection import RouteProtectionMiddleware
+from backend.core.logging_config import request_logger, security_logger
+from backend.core.exceptions import BaseAppException
 
 
 logger = logging.getLogger(__name__)
