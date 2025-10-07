@@ -69,7 +69,7 @@ class AuthenticationError(EagleChairException):
 class InvalidCredentialsError(AuthenticationError):
     """Invalid email or password"""
     def __init__(self, message: str = "The email or password you entered is incorrect. Please try again.", **kwargs):
-        super().__init__(message=message, error_code="INVALID_CREDENTIALS", **kwargs)
+        super().__init__(message=message, **kwargs)
 
 
 class TokenExpiredError(AuthenticationError):

@@ -89,6 +89,8 @@ class Quote(Base):
     
     # Relationships
     items = relationship("QuoteItem", back_populates="quote", cascade="all, delete-orphan")
+    attachments = relationship("QuoteAttachment", back_populates="quote", cascade="all, delete-orphan")
+    history = relationship("QuoteHistory", back_populates="quote", cascade="all, delete-orphan")
     
     def __repr__(self) -> str:
         return f"<Quote(id={self.id}, number={self.quote_number}, status={self.status})>"
@@ -228,4 +230,67 @@ class SavedConfiguration(Base):
     
     def __repr__(self) -> str:
         return f"<SavedConfiguration(id={self.id}, name={self.configuration_name})>"
+
+
+class QuoteAttachment(Base):
+    """
+    File attachments for quotes (images, documents, etc.)
+    """
+    __tablename__ = "quote_attachments"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    quote_id = Column(Integer, ForeignKey("quotes.id"), nullable=False)
+    quote = relationship("Quote", back_populates="attachments")
+    
+    # File information
+    file_name = Column(String(255), nullable=False)
+    file_url = Column(String(500), nullable=False)
+    file_type = Column(String(50), nullable=False)  # image/jpeg, application/pdf, etc.
+    file_size_bytes = Column(Integer, nullable=False)
+    
+    # Description
+    description = Column(Text, nullable=True)
+    attachment_type = Column(String(50), default="general", nullable=False)  # general, reference_image, floor_plan, specification, etc.
+    
+    # Metadata
+    uploaded_by = Column(String(100), nullable=True)  # company or admin
+    uploaded_at = Column(String(50), nullable=False)
+    
+    def __repr__(self) -> str:
+        return f"<QuoteAttachment(id={self.id}, file={self.file_name})>"
+
+
+class QuoteHistory(Base):
+    """
+    Audit trail for quote status changes and updates
+    """
+    __tablename__ = "quote_history"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    quote_id = Column(Integer, ForeignKey("quotes.id"), nullable=False)
+    quote = relationship("Quote", back_populates="history")
+    
+    # Change information
+    action = Column(String(100), nullable=False)  # created, updated, status_changed, etc.
+    old_value = Column(Text, nullable=True)  # JSON string of old values
+    new_value = Column(Text, nullable=True)  # JSON string of new values
+    
+    # Status changes
+    old_status = Column(String(50), nullable=True)
+    new_status = Column(String(50), nullable=True)
+    
+    # Who made the change
+    changed_by_type = Column(String(20), nullable=False)  # company, admin, system
+    changed_by_id = Column(Integer, nullable=True)
+    changed_by_name = Column(String(255), nullable=True)
+    
+    # Details
+    notes = Column(Text, nullable=True)
+    ip_address = Column(String(50), nullable=True)
+    
+    # Timestamp
+    changed_at = Column(String(50), nullable=False)
+    
+    def __repr__(self) -> str:
+        return f"<QuoteHistory(id={self.id}, action={self.action})>"
 

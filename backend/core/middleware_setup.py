@@ -183,7 +183,7 @@ def setup_middleware(app):
     # GZip compression for performance
     if settings.ENABLE_COMPRESSION:
         app.add_middleware(GZipMiddleware, minimum_size=1000)
-        logger.info("✓ GZip compression enabled")
+        logger.info("[OK] GZip compression enabled")
     
     # CORS (must be early to handle preflight requests)
     app.add_middleware(
@@ -193,7 +193,7 @@ def setup_middleware(app):
         allow_methods=settings.CORS_ALLOW_METHODS,
         allow_headers=settings.CORS_ALLOW_HEADERS,
     )
-    logger.info("✓ CORS configured")
+    logger.info("[OK] CORS configured")
     
     # ========================================================================
     # Layer 2: Security & Attack Prevention
@@ -207,14 +207,14 @@ def setup_middleware(app):
         ban_duration=300,
         suspicious_threshold=settings.RATE_LIMIT_PER_MINUTE
     )
-    logger.info("✓ DDoS protection enabled")
+    logger.info("[OK] DDoS protection enabled")
     
     # Advanced Rate Limiting
     app.add_middleware(
         AdvancedRateLimiter,
         enabled=settings.RATE_LIMIT_ENABLED
     )
-    logger.info("✓ Advanced rate limiting enabled")
+    logger.info("[OK] Advanced rate limiting enabled")
     
     # Request Validation (size, content-type, format)
     app.add_middleware(
@@ -222,7 +222,7 @@ def setup_middleware(app):
         max_body_size=10 * 1024 * 1024,  # 10MB
         max_file_size=50 * 1024 * 1024,  # 50MB
     )
-    logger.info("✓ Request validation enabled")
+    logger.info("[OK] Request validation enabled")
     
     # ========================================================================
     # Layer 3: Session & Authentication
@@ -234,7 +234,7 @@ def setup_middleware(app):
         session_timeout=3600,  # 1 hour
         validate_ip=True
     )
-    logger.info("✓ Session management enabled")
+    logger.info("[OK] Session management enabled")
     
     # Admin Security (IP whitelisting, dual tokens)
     app.add_middleware(
@@ -242,11 +242,11 @@ def setup_middleware(app):
         require_ip_whitelist=False,  # Set to True in production
         global_whitelist=[]  # Add admin IPs here
     )
-    logger.info("✓ Admin security enabled")
+    logger.info("[OK] Admin security enabled")
     
     # Route Protection (public/protected routes)
     app.add_middleware(RouteProtectionMiddleware)
-    logger.info("✓ Route protection enabled")
+    logger.info("[OK] Route protection enabled")
     
     # ========================================================================
     # Layer 4: Security Headers & Redirects
@@ -255,11 +255,11 @@ def setup_middleware(app):
     # HTTPS redirect (in production)
     if settings.HTTPS_REDIRECT and not settings.DEBUG:
         app.add_middleware(HTTPSRedirectMiddleware)
-        logger.info("✓ HTTPS redirect enabled")
+        logger.info("[OK] HTTPS redirect enabled")
     
     # Security headers
     app.add_middleware(SecurityHeadersMiddleware)
-    logger.info("✓ Security headers enabled")
+    logger.info("[OK] Security headers enabled")
     
     # ========================================================================
     # Layer 5: Logging & Error Handling
@@ -267,11 +267,11 @@ def setup_middleware(app):
     
     # Request logging
     app.add_middleware(RequestLoggingMiddleware)
-    logger.info("✓ Request logging enabled")
+    logger.info("[OK] Request logging enabled")
     
     # Error handling (outermost layer)
     app.add_middleware(ErrorHandlingMiddleware)
-    logger.info("✓ Error handling enabled")
+    logger.info("[OK] Error handling enabled")
     
     # ========================================================================
     # Additional Configuration
@@ -283,6 +283,6 @@ def setup_middleware(app):
         app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
     
     logger.info("="*60)
-    logger.info("✅ All middleware configured successfully!")
+    logger.info("[OK] All middleware configured successfully!")
     logger.info("="*60)
 

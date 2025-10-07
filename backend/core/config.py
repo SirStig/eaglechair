@@ -96,12 +96,14 @@ class Settings(BaseSettings):
     RATE_LIMIT_ENABLED: bool = True
     
     # Email Configuration
-    SMTP_SERVER: Optional[str] = None
+    SMTP_HOST: Optional[str] = None
     SMTP_PORT: int = 587
-    SMTP_USERNAME: Optional[str] = None
+    SMTP_USER: Optional[str] = None
     SMTP_PASSWORD: Optional[str] = None
-    SMTP_FROM_EMAIL: Optional[str] = None
-    SMTP_FROM_NAME: Optional[str] = None
+    SMTP_FROM_EMAIL: Optional[str] = "noreply@eaglechair.com"
+    SMTP_FROM_NAME: Optional[str] = "EagleChair"
+    SMTP_TLS: bool = True  # Use STARTTLS (True) or SSL (False)
+    ADMIN_EMAIL: str = "admin@eaglechair.com"  # For admin notifications
     
     # AWS Configuration (for media storage)
     AWS_ACCESS_KEY_ID: Optional[str] = None

@@ -82,13 +82,15 @@ def client(db_session: AsyncSession) -> TestClient:
 @pytest_asyncio.fixture
 async def async_client(db_session: AsyncSession) -> AsyncGenerator[AsyncClient, None]:
     """Create an async test client."""
+    from httpx import ASGITransport
     
     def override_get_db():
         return db_session
     
     app.dependency_overrides[get_db] = override_get_db
     
-    async with AsyncClient(app=app, base_url="http://test") as ac:
+    transport = ASGITransport(app=app)
+    async with AsyncClient(transport=transport, base_url="http://test") as ac:
         yield ac
     
     app.dependency_overrides.clear()
@@ -103,19 +105,21 @@ def sample_company_data():
     """Sample company data for testing."""
     return {
         "company_name": "Test Company Inc",
-        "contact_name": "John Doe",
-        "contact_email": "john@testcompany.com",
-        "contact_phone": "+1234567890",
-        "address_line1": "123 Test Street",
-        "address_line2": "Suite 100",
-        "city": "Test City",
-        "state": "TS",
-        "zip_code": "12345",
-        "country": "USA",
-        "website": "https://testcompany.com",
+        "legal_name": "Test Company LLC",
+        "tax_id": "12-3456789",
         "industry": "Technology",
-        "company_size": "50-100",
-        "tax_id": "12-3456789"
+        "website": "https://testcompany.com",
+        "rep_first_name": "John",
+        "rep_last_name": "Doe",
+        "rep_title": "CEO",
+        "rep_email": "john@testcompany.com",
+        "rep_phone": "+1234567890",
+        "billing_address_line1": "123 Test Street",
+        "billing_address_line2": "Suite 100",
+        "billing_city": "Test City",
+        "billing_state": "TS",
+        "billing_zip": "12345",
+        "billing_country": "USA"
     }
 
 
@@ -165,13 +169,15 @@ def sample_admin_data():
 @pytest_asyncio.fixture
 async def test_company(db_session: AsyncSession, sample_company_data):
     """Create a test company."""
-    from backend.models.company import Company
-    from backend.core.security import hash_password
+    from backend.models.company import Company, CompanyStatus
+    from backend.core.security import SecurityManager
+    
+    security_manager = SecurityManager()
     
     company = Company(
         **sample_company_data,
-        password_hash=hash_password("TestPassword123!"),
-        status="active"
+        hashed_password=security_manager.hash_password("TestPassword123!"),
+        status=CompanyStatus.ACTIVE
     )
     
     db_session.add(company)
@@ -185,11 +191,15 @@ async def test_company(db_session: AsyncSession, sample_company_data):
 async def test_admin(db_session: AsyncSession, sample_admin_data):
     """Create a test admin user."""
     from backend.models.company import AdminUser
-    from backend.core.security import hash_password
+    from backend.core.security import SecurityManager
+    
+    security_manager = SecurityManager()
+    admin_data = sample_admin_data.copy()
+    password = admin_data.pop("password")
     
     admin = AdminUser(
-        **sample_admin_data,
-        password_hash=hash_password(sample_admin_data["password"]),
+        **admin_data,
+        hashed_password=security_manager.hash_password(password),
         is_active=True
     )
     
@@ -203,22 +213,24 @@ async def test_admin(db_session: AsyncSession, sample_admin_data):
 @pytest_asyncio.fixture
 async def company_token(test_company):
     """Generate a JWT token for test company."""
-    from backend.core.security import create_access_token
+    from backend.core.security import SecurityManager
     
+    security_manager = SecurityManager()
     token_data = {
         "sub": str(test_company.id),
         "type": "company",
-        "email": test_company.contact_email
+        "email": test_company.rep_email
     }
     
-    return create_access_token(data=token_data)
+    return security_manager.create_access_token(data=token_data)
 
 
 @pytest_asyncio.fixture
 async def admin_token(test_admin):
     """Generate a JWT token for test admin."""
-    from backend.core.security import create_access_token
+    from backend.core.security import SecurityManager
     
+    security_manager = SecurityManager()
     token_data = {
         "sub": str(test_admin.id),
         "type": "admin",
@@ -226,7 +238,7 @@ async def admin_token(test_admin):
         "role": test_admin.role
     }
     
-    return create_access_token(data=token_data)
+    return security_manager.create_access_token(data=token_data)
 
 
 # ============================================================================
@@ -237,6 +249,36 @@ def assert_response_success(response, expected_status=200):
     """Assert that a response is successful."""
     assert response.status_code == expected_status
     assert "error" not in response.json()
+
+
+@pytest.fixture
+def test_user_data():
+    """Test user data for registration tests."""
+    return {
+        "company_name": "Test Company",
+        "legal_name": "Test Company LLC",
+        "tax_id": "12-3456789",
+        "industry": "Technology",
+        "website": "https://testcompany.com",
+        "rep_first_name": "John",
+        "rep_last_name": "Doe",
+        "rep_title": "CEO",
+        "rep_email": "john.doe@testcompany.com",
+        "rep_phone": "555-123-4567",
+        "password": "TestPassword123!",
+        "billing_address_line1": "123 Test St",
+        "billing_address_line2": "Suite 100",
+        "billing_city": "Test City",
+        "billing_state": "TS",
+        "billing_zip": "12345",
+        "billing_country": "United States",
+        "shipping_address_line1": "123 Test St",
+        "shipping_address_line2": "Suite 100",
+        "shipping_city": "Test City",
+        "shipping_state": "TS",
+        "shipping_zip": "12345",
+        "shipping_country": "United States"
+    }
 
 
 def assert_response_error(response, expected_status=400):

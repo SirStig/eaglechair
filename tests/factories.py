@@ -12,7 +12,7 @@ from backend.models.company import Company, AdminUser, CompanyStatus, AdminRole
 from backend.models.chair import Chair, Category, Finish, Upholstery
 from backend.models.quote import Quote, QuoteItem, Cart, CartItem, QuoteStatus
 from backend.models.content import FAQ, FAQCategory, TeamMember, CompanyInfo, ContactLocation, Catalog, Installation
-from backend.core.security import hash_password
+from backend.core.security import SecurityManager
 
 fake = Faker()
 
@@ -25,20 +25,25 @@ class CompanyFactory(SQLAlchemyModelFactory):
         sqlalchemy_session_persistence = "commit"
     
     company_name = factory.LazyFunction(lambda: fake.company())
-    contact_name = factory.LazyFunction(lambda: fake.name())
-    contact_email = factory.LazyFunction(lambda: fake.email())
-    contact_phone = factory.LazyFunction(lambda: fake.phone_number())
-    address_line1 = factory.LazyFunction(lambda: fake.street_address())
-    address_line2 = factory.LazyFunction(lambda: fake.secondary_address())
-    city = factory.LazyFunction(lambda: fake.city())
-    state = factory.LazyFunction(lambda: fake.state_abbr())
-    zip_code = factory.LazyFunction(lambda: fake.zipcode())
-    country = "USA"
-    website = factory.LazyFunction(lambda: fake.url())
-    industry = factory.LazyFunction(lambda: fake.job())
-    company_size = factory.LazyFunction(lambda: fake.random_element(["1-10", "11-50", "51-100", "100+"]))
+    legal_name = factory.LazyFunction(lambda: f"{fake.company()} LLC")
     tax_id = factory.LazyFunction(lambda: fake.bothify(text="##-#######"))
-    password_hash = factory.LazyFunction(lambda: hash_password("TestPassword123!"))
+    industry = factory.LazyFunction(lambda: fake.job())
+    website = factory.LazyFunction(lambda: fake.url())
+    
+    rep_first_name = factory.LazyFunction(lambda: fake.first_name())
+    rep_last_name = factory.LazyFunction(lambda: fake.last_name())
+    rep_title = factory.LazyFunction(lambda: fake.job())
+    rep_email = factory.LazyFunction(lambda: fake.email())
+    rep_phone = factory.LazyFunction(lambda: fake.phone_number())
+    
+    billing_address_line1 = factory.LazyFunction(lambda: fake.street_address())
+    billing_address_line2 = factory.LazyFunction(lambda: fake.secondary_address())
+    billing_city = factory.LazyFunction(lambda: fake.city())
+    billing_state = factory.LazyFunction(lambda: fake.state_abbr())
+    billing_zip = factory.LazyFunction(lambda: fake.zipcode())
+    billing_country = "USA"
+    
+    hashed_password = factory.LazyFunction(lambda: SecurityManager().hash_password("TestPassword123!"))
     status = factory.LazyFunction(lambda: fake.random_element([CompanyStatus.ACTIVE, CompanyStatus.PENDING]))
 
 
@@ -51,10 +56,10 @@ class AdminUserFactory(SQLAlchemyModelFactory):
     
     username = factory.LazyFunction(lambda: fake.user_name())
     email = factory.LazyFunction(lambda: fake.email())
-    password_hash = factory.LazyFunction(lambda: hash_password("TestPassword123!"))
+    hashed_password = factory.LazyFunction(lambda: SecurityManager().hash_password("TestPassword123!"))
     first_name = factory.LazyFunction(lambda: fake.first_name())
     last_name = factory.LazyFunction(lambda: fake.last_name())
-    role = factory.LazyFunction(lambda: fake.random_element([AdminRole.ADMIN, AdminRole.MANAGER, AdminRole.VIEWER]))
+    role = factory.LazyFunction(lambda: fake.random_element([AdminRole.ADMIN, AdminRole.EDITOR, AdminRole.VIEWER]))
     is_active = True
     last_login_ip = factory.LazyFunction(lambda: fake.ipv4())
 
@@ -71,9 +76,9 @@ class CategoryFactory(SQLAlchemyModelFactory):
         "Reception Chairs", "Dining Chairs", "Bar Stools"
     ]))
     description = factory.LazyFunction(lambda: fake.text(max_nb_chars=200))
-    slug = factory.LazyAttribute(lambda obj: obj.name.lower().replace(" ", "-"))
+    slug = factory.LazyFunction(lambda: f"{fake.word()}-{fake.random_int(min=1000, max=9999)}")
     is_active = True
-    sort_order = factory.LazyFunction(lambda: fake.random_int(min=1, max=100))
+    display_order = factory.LazyFunction(lambda: fake.random_int(min=1, max=100))
 
 
 class FinishFactory(SQLAlchemyModelFactory):
@@ -87,9 +92,10 @@ class FinishFactory(SQLAlchemyModelFactory):
         "Oak", "Walnut", "Cherry", "Maple", "Mahogany", "Pine"
     ]))
     description = factory.LazyFunction(lambda: fake.text(max_nb_chars=100))
-    color_code = factory.LazyFunction(lambda: fake.hex_color())
+    color_hex = factory.LazyFunction(lambda: fake.hex_color())
+    finish_code = factory.LazyFunction(lambda: fake.bothify(text="FIN-####"))
     is_active = True
-    sort_order = factory.LazyFunction(lambda: fake.random_int(min=1, max=100))
+    display_order = factory.LazyFunction(lambda: fake.random_int(min=1, max=100))
 
 
 class UpholsteryFactory(SQLAlchemyModelFactory):
@@ -102,10 +108,14 @@ class UpholsteryFactory(SQLAlchemyModelFactory):
     name = factory.LazyFunction(lambda: fake.random_element([
         "Leather", "Fabric", "Vinyl", "Mesh", "Suede"
     ]))
+    material_type = factory.LazyFunction(lambda: fake.random_element([
+        "Leather", "Fabric", "Vinyl", "Mesh"
+    ]))
     description = factory.LazyFunction(lambda: fake.text(max_nb_chars=100))
-    color_code = factory.LazyFunction(lambda: fake.hex_color())
+    color_hex = factory.LazyFunction(lambda: fake.hex_color())
+    material_code = factory.LazyFunction(lambda: fake.bothify(text="MAT-####"))
     is_active = True
-    sort_order = factory.LazyFunction(lambda: fake.random_int(min=1, max=100))
+    display_order = factory.LazyFunction(lambda: fake.random_int(min=1, max=100))
 
 
 class ChairFactory(SQLAlchemyModelFactory):
@@ -230,9 +240,10 @@ class FAQCategoryFactory(SQLAlchemyModelFactory):
     name = factory.LazyFunction(lambda: fake.random_element([
         "General", "Products", "Shipping", "Warranty", "Returns"
     ]))
+    slug = factory.LazyFunction(lambda: f"{fake.word()}-{fake.random_int(min=1000, max=9999)}")
     description = factory.LazyFunction(lambda: fake.text(max_nb_chars=200))
     is_active = True
-    sort_order = factory.LazyFunction(lambda: fake.random_int(min=1, max=100))
+    display_order = factory.LazyFunction(lambda: fake.random_int(min=1, max=100))
 
 
 class FAQFactory(SQLAlchemyModelFactory):
@@ -245,7 +256,7 @@ class FAQFactory(SQLAlchemyModelFactory):
     question = factory.LazyFunction(lambda: fake.sentence(nb_words=8))
     answer = factory.LazyFunction(lambda: fake.text(max_nb_chars=500))
     is_active = True
-    sort_order = factory.LazyFunction(lambda: fake.random_int(min=1, max=100))
+    display_order = factory.LazyFunction(lambda: fake.random_int(min=1, max=100))
 
 
 class TeamMemberFactory(SQLAlchemyModelFactory):
@@ -256,13 +267,13 @@ class TeamMemberFactory(SQLAlchemyModelFactory):
         sqlalchemy_session_persistence = "commit"
     
     name = factory.LazyFunction(lambda: fake.name())
-    position = factory.LazyFunction(lambda: fake.job())
+    title = factory.LazyFunction(lambda: fake.job())
     bio = factory.LazyFunction(lambda: fake.text(max_nb_chars=300))
     email = factory.LazyFunction(lambda: fake.email())
     phone = factory.LazyFunction(lambda: fake.phone_number())
-    image_url = factory.LazyFunction(lambda: fake.image_url())
+    photo_url = factory.LazyFunction(lambda: fake.image_url())
     is_active = True
-    sort_order = factory.LazyFunction(lambda: fake.random_int(min=1, max=100))
+    display_order = factory.LazyFunction(lambda: fake.random_int(min=1, max=100))
 
 
 class ContactLocationFactory(SQLAlchemyModelFactory):
@@ -272,7 +283,7 @@ class ContactLocationFactory(SQLAlchemyModelFactory):
         model = ContactLocation
         sqlalchemy_session_persistence = "commit"
     
-    name = factory.LazyFunction(lambda: fake.random_element([
+    location_name = factory.LazyFunction(lambda: fake.random_element([
         "Headquarters", "Showroom", "Warehouse", "Sales Office"
     ]))
     address_line1 = factory.LazyFunction(lambda: fake.street_address())
@@ -283,6 +294,6 @@ class ContactLocationFactory(SQLAlchemyModelFactory):
     country = "USA"
     phone = factory.LazyFunction(lambda: fake.phone_number())
     email = factory.LazyFunction(lambda: fake.email())
-    hours = factory.LazyFunction(lambda: "Monday-Friday: 9AM-5PM")
+    hours_of_operation = factory.LazyFunction(lambda: "Monday-Friday: 9AM-5PM")
     is_active = True
-    sort_order = factory.LazyFunction(lambda: fake.random_int(min=1, max=100))
+    display_order = factory.LazyFunction(lambda: fake.random_int(min=1, max=100))
