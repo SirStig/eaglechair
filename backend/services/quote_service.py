@@ -17,7 +17,9 @@ from backend.models.quote import (
     Cart,
     CartItem,
     SavedConfiguration,
-    QuoteStatus
+    QuoteStatus,
+    QuoteAttachment,
+    QuoteHistory
 )
 from backend.models.chair import Chair
 from backend.models.company import Company
@@ -564,4 +566,380 @@ class QuoteService:
         quote_number = f"Q-{today}-{count + 1:05d}"
         
         return quote_number
+    
+    # ========================================================================
+    # Quote Management (Admin & Customer)
+    # ========================================================================
+    
+    @staticmethod
+    async def update_quote_status(
+        db: AsyncSession,
+        quote_id: int,
+        new_status: QuoteStatus,
+        admin_id: Optional[int] = None,
+        notes: Optional[str] = None
+    ) -> Quote:
+        """
+        Update quote status with history tracking
+        
+        Args:
+            db: Database session
+            quote_id: Quote ID
+            new_status: New status
+            admin_id: Admin making the change (if applicable)
+            notes: Notes about the status change
+            
+        Returns:
+            Updated quote
+        """
+        result = await db.execute(
+            select(Quote).where(Quote.id == quote_id)
+        )
+        quote = result.scalar_one_or_none()
+        
+        if not quote:
+            raise ResourceNotFoundError(resource_type="Quote", resource_id=quote_id)
+        
+        old_status = quote.status
+        quote.status = new_status
+        
+        # Update timestamps based on status
+        now = datetime.utcnow().isoformat()
+        if new_status == QuoteStatus.SUBMITTED:
+            quote.submitted_at = now
+        elif new_status == QuoteStatus.QUOTED:
+            quote.quoted_at = now
+        elif new_status == QuoteStatus.ACCEPTED:
+            quote.accepted_at = now
+        
+        # Add to history
+        history = QuoteHistory(
+            quote_id=quote_id,
+            action="status_changed",
+            old_status=old_status.value if old_status else None,
+            new_status=new_status.value,
+            changed_by_type="admin" if admin_id else "system",
+            changed_by_id=admin_id,
+            notes=notes,
+            changed_at=now
+        )
+        db.add(history)
+        
+        await db.commit()
+        await db.refresh(quote)
+        
+        logger.info(f"Quote {quote_id} status changed from {old_status} to {new_status}")
+        return quote
+    
+    @staticmethod
+    async def update_quote_pricing(
+        db: AsyncSession,
+        quote_id: int,
+        quoted_price: int,
+        lead_time: Optional[str] = None,
+        notes: Optional[str] = None,
+        valid_until: Optional[str] = None,
+        admin_id: Optional[int] = None
+    ) -> Quote:
+        """
+        Update quote with pricing information (admin only)
+        
+        Args:
+            db: Database session
+            quote_id: Quote ID
+            quoted_price: Final quoted price in cents
+            lead_time: Estimated lead time
+            notes: Quote notes
+            valid_until: Quote expiration date
+            admin_id: Admin ID
+            
+        Returns:
+            Updated quote
+        """
+        result = await db.execute(
+            select(Quote).where(Quote.id == quote_id)
+        )
+        quote = result.scalar_one_or_none()
+        
+        if not quote:
+            raise ResourceNotFoundError(resource_type="Quote", resource_id=quote_id)
+        
+        quote.quoted_price = quoted_price
+        quote.quoted_lead_time = lead_time
+        quote.quote_notes = notes
+        quote.quote_valid_until = valid_until
+        quote.quoted_at = datetime.utcnow().isoformat()
+        
+        # Update status to QUOTED if not already
+        if quote.status != QuoteStatus.QUOTED:
+            await QuoteService.update_quote_status(
+                db, quote_id, QuoteStatus.QUOTED, admin_id, "Quote pricing provided"
+            )
+        
+        await db.commit()
+        await db.refresh(quote)
+        
+        logger.info(f"Quote {quote_id} pricing updated")
+        return quote
+    
+    @staticmethod
+    async def add_quote_attachment(
+        db: AsyncSession,
+        quote_id: int,
+        file_name: str,
+        file_url: str,
+        file_type: str,
+        file_size_bytes: int,
+        description: Optional[str] = None,
+        attachment_type: str = "general",
+        uploaded_by: str = "company"
+    ) -> QuoteAttachment:
+        """
+        Add attachment to quote
+        
+        Args:
+            db: Database session
+            quote_id: Quote ID
+            file_name: File name
+            file_url: URL to the file
+            file_type: MIME type
+            file_size_bytes: File size in bytes
+            description: Description of the attachment
+            attachment_type: Type of attachment
+            uploaded_by: Who uploaded (company or admin)
+            
+        Returns:
+            Created attachment
+        """
+        attachment = QuoteAttachment(
+            quote_id=quote_id,
+            file_name=file_name,
+            file_url=file_url,
+            file_type=file_type,
+            file_size_bytes=file_size_bytes,
+            description=description,
+            attachment_type=attachment_type,
+            uploaded_by=uploaded_by,
+            uploaded_at=datetime.utcnow().isoformat()
+        )
+        
+        db.add(attachment)
+        await db.commit()
+        await db.refresh(attachment)
+        
+        logger.info(f"Attachment added to quote {quote_id}: {file_name}")
+        return attachment
+    
+    @staticmethod
+    async def get_quote_attachments(
+        db: AsyncSession,
+        quote_id: int
+    ) -> List[QuoteAttachment]:
+        """Get all attachments for a quote"""
+        result = await db.execute(
+            select(QuoteAttachment)
+            .where(QuoteAttachment.quote_id == quote_id)
+            .order_by(QuoteAttachment.uploaded_at.desc())
+        )
+        return list(result.scalars().all())
+    
+    @staticmethod
+    async def delete_quote_attachment(
+        db: AsyncSession,
+        attachment_id: int,
+        quote_id: int
+    ) -> None:
+        """Delete a quote attachment"""
+        result = await db.execute(
+            select(QuoteAttachment).where(
+                QuoteAttachment.id == attachment_id,
+                QuoteAttachment.quote_id == quote_id
+            )
+        )
+        attachment = result.scalar_one_or_none()
+        
+        if not attachment:
+            raise ResourceNotFoundError(resource_type="Attachment", resource_id=attachment_id)
+        
+        await db.delete(attachment)
+        await db.commit()
+        
+        logger.info(f"Deleted attachment {attachment_id} from quote {quote_id}")
+    
+    @staticmethod
+    async def get_quote_history(
+        db: AsyncSession,
+        quote_id: int
+    ) -> List[QuoteHistory]:
+        """Get full history for a quote"""
+        result = await db.execute(
+            select(QuoteHistory)
+            .where(QuoteHistory.quote_id == quote_id)
+            .order_by(QuoteHistory.changed_at.desc())
+        )
+        return list(result.scalars().all())
+    
+    @staticmethod
+    async def add_quote_note(
+        db: AsyncSession,
+        quote_id: int,
+        notes: str,
+        note_type: str = "admin",
+        added_by_id: Optional[int] = None,
+        added_by_name: Optional[str] = None
+    ) -> QuoteHistory:
+        """Add a note to quote history"""
+        history = QuoteHistory(
+            quote_id=quote_id,
+            action="note_added",
+            notes=notes,
+            changed_by_type=note_type,
+            changed_by_id=added_by_id,
+            changed_by_name=added_by_name,
+            changed_at=datetime.utcnow().isoformat()
+        )
+        
+        db.add(history)
+        await db.commit()
+        await db.refresh(history)
+        
+        return history
+    
+    @staticmethod
+    async def get_all_quotes(
+        db: AsyncSession,
+        status: Optional[QuoteStatus] = None,
+        company_id: Optional[int] = None,
+        skip: int = 0,
+        limit: int = 50,
+        sort_by: str = "created_at",
+        sort_desc: bool = True
+    ) -> tuple[List[Quote], int]:
+        """
+        Get all quotes with filtering and pagination (admin)
+        
+        Args:
+            db: Database session
+            status: Filter by status
+            company_id: Filter by company
+            skip: Pagination offset
+            limit: Page size
+            sort_by: Sort field
+            sort_desc: Sort descending
+            
+        Returns:
+            Tuple of (quotes list, total count)
+        """
+        query = select(Quote).options(
+            selectinload(Quote.items),
+            selectinload(Quote.company)
+        )
+        
+        if status:
+            query = query.where(Quote.status == status)
+        
+        if company_id:
+            query = query.where(Quote.company_id == company_id)
+        
+        # Get total count
+        count_result = await db.execute(
+            select(Quote).where(*query.whereclause.clauses if query.whereclause else [])
+        )
+        total = len(count_result.scalars().all())
+        
+        # Apply sorting
+        if sort_desc:
+            query = query.order_by(getattr(Quote, sort_by).desc())
+        else:
+            query = query.order_by(getattr(Quote, sort_by))
+        
+        # Apply pagination
+        query = query.offset(skip).limit(limit)
+        
+        result = await db.execute(query)
+        quotes = list(result.scalars().all())
+        
+        return quotes, total
+    
+    @staticmethod
+    async def accept_quote(
+        db: AsyncSession,
+        quote_id: int,
+        company_id: int
+    ) -> Quote:
+        """Customer accepts a quote"""
+        result = await db.execute(
+            select(Quote).where(
+                Quote.id == quote_id,
+                Quote.company_id == company_id
+            )
+        )
+        quote = result.scalar_one_or_none()
+        
+        if not quote:
+            raise ResourceNotFoundError(resource_type="Quote", resource_id=quote_id)
+        
+        if quote.status != QuoteStatus.QUOTED:
+            raise BusinessLogicError("Can only accept quotes in QUOTED status")
+        
+        quote.status = QuoteStatus.ACCEPTED
+        quote.accepted_at = datetime.utcnow().isoformat()
+        
+        # Add to history
+        history = QuoteHistory(
+            quote_id=quote_id,
+            action="quote_accepted",
+            old_status=QuoteStatus.QUOTED.value,
+            new_status=QuoteStatus.ACCEPTED.value,
+            changed_by_type="company",
+            changed_by_id=company_id,
+            changed_at=datetime.utcnow().isoformat()
+        )
+        db.add(history)
+        
+        await db.commit()
+        await db.refresh(quote)
+        
+        logger.info(f"Quote {quote_id} accepted by company {company_id}")
+        return quote
+    
+    @staticmethod
+    async def decline_quote(
+        db: AsyncSession,
+        quote_id: int,
+        company_id: int,
+        reason: Optional[str] = None
+    ) -> Quote:
+        """Customer declines a quote"""
+        result = await db.execute(
+            select(Quote).where(
+                Quote.id == quote_id,
+                Quote.company_id == company_id
+            )
+        )
+        quote = result.scalar_one_or_none()
+        
+        if not quote:
+            raise ResourceNotFoundError(resource_type="Quote", resource_id=quote_id)
+        
+        quote.status = QuoteStatus.DECLINED
+        
+        # Add to history
+        history = QuoteHistory(
+            quote_id=quote_id,
+            action="quote_declined",
+            old_status=quote.status.value,
+            new_status=QuoteStatus.DECLINED.value,
+            changed_by_type="company",
+            changed_by_id=company_id,
+            notes=reason,
+            changed_at=datetime.utcnow().isoformat()
+        )
+        db.add(history)
+        
+        await db.commit()
+        await db.refresh(quote)
+        
+        logger.info(f"Quote {quote_id} declined by company {company_id}")
+        return quote
 

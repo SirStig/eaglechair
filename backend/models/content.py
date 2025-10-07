@@ -4,7 +4,7 @@ EagleChair Content Models
 Models for About Us, FAQ, Catalogs, Guides, Installation Gallery, Contact Info
 """
 
-from sqlalchemy import Column, Integer, String, Text, Boolean, ForeignKey, Enum as SQLEnum
+from sqlalchemy import Column, Integer, String, Text, Boolean, ForeignKey, Enum as SQLEnum, DateTime
 from sqlalchemy.orm import relationship
 import enum
 
@@ -269,3 +269,33 @@ class Feedback(Base):
     def __repr__(self) -> str:
         return f"<Feedback(id={self.id}, from={self.name}, type={self.feedback_type})>"
 
+
+class EmailTemplate(Base):
+    """
+    Email templates for various system emails
+    """
+    __tablename__ = "email_templates"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    
+    # Template info
+    template_type = Column(String(50), unique=True, nullable=False, index=True)
+    name = Column(String(255), nullable=False)
+    description = Column(Text, nullable=True)
+    
+    # Content
+    subject = Column(String(500), nullable=False)
+    body = Column(Text, nullable=False)
+    
+    # Variables available for this template (stored as JSON)
+    available_variables = Column(Text, nullable=True)  # JSON string of variable names and descriptions
+    
+    # Status
+    is_active = Column(Boolean, default=True, nullable=False)
+    
+    # Usage tracking
+    times_sent = Column(Integer, default=0, nullable=False)
+    last_sent_at = Column(DateTime(timezone=True), nullable=True)
+    
+    def __repr__(self) -> str:
+        return f"<EmailTemplate(id={self.id}, type={self.template_type})>"

@@ -19,7 +19,7 @@ from backend.models.content import (
     Installation,
     Feedback
 )
-from backend.core.exceptions import ResourceNotFoundError
+from backend.core.exceptions import ResourceNotFoundError, ResourceAlreadyExistsError
 
 
 logger = logging.getLogger(__name__)
@@ -133,6 +133,128 @@ class ContentService:
         
         return faq
     
+    @staticmethod
+    async def create_faq_category(
+        db: AsyncSession,
+        name: str,
+        description: Optional[str] = None,
+        display_order: int = 0,
+        is_active: bool = True
+    ) -> FAQCategory:
+        """Create a new FAQ category"""
+        category = FAQCategory(
+            name=name,
+            description=description,
+            display_order=display_order,
+            is_active=is_active
+        )
+        db.add(category)
+        await db.commit()
+        await db.refresh(category)
+        logger.info(f"Created FAQ category: {name}")
+        return category
+    
+    @staticmethod
+    async def update_faq_category(
+        db: AsyncSession,
+        category_id: int,
+        **updates
+    ) -> FAQCategory:
+        """Update FAQ category"""
+        result = await db.execute(
+            select(FAQCategory).where(FAQCategory.id == category_id)
+        )
+        category = result.scalar_one_or_none()
+        
+        if not category:
+            raise ResourceNotFoundError(resource_type="FAQ Category", resource_id=category_id)
+        
+        for key, value in updates.items():
+            if hasattr(category, key):
+                setattr(category, key, value)
+        
+        await db.commit()
+        await db.refresh(category)
+        logger.info(f"Updated FAQ category {category_id}")
+        return category
+    
+    @staticmethod
+    async def delete_faq_category(db: AsyncSession, category_id: int) -> None:
+        """Delete FAQ category"""
+        result = await db.execute(
+            select(FAQCategory).where(FAQCategory.id == category_id)
+        )
+        category = result.scalar_one_or_none()
+        
+        if not category:
+            raise ResourceNotFoundError(resource_type="FAQ Category", resource_id=category_id)
+        
+        await db.delete(category)
+        await db.commit()
+        logger.info(f"Deleted FAQ category {category_id}")
+    
+    @staticmethod
+    async def create_faq(
+        db: AsyncSession,
+        category_id: int,
+        question: str,
+        answer: str,
+        display_order: int = 0,
+        is_active: bool = True
+    ) -> FAQ:
+        """Create a new FAQ"""
+        faq = FAQ(
+            category_id=category_id,
+            question=question,
+            answer=answer,
+            display_order=display_order,
+            is_active=is_active
+        )
+        db.add(faq)
+        await db.commit()
+        await db.refresh(faq)
+        logger.info(f"Created FAQ: {question[:50]}...")
+        return faq
+    
+    @staticmethod
+    async def update_faq(
+        db: AsyncSession,
+        faq_id: int,
+        **updates
+    ) -> FAQ:
+        """Update FAQ"""
+        result = await db.execute(
+            select(FAQ).where(FAQ.id == faq_id)
+        )
+        faq = result.scalar_one_or_none()
+        
+        if not faq:
+            raise ResourceNotFoundError(resource_type="FAQ", resource_id=faq_id)
+        
+        for key, value in updates.items():
+            if hasattr(faq, key):
+                setattr(faq, key, value)
+        
+        await db.commit()
+        await db.refresh(faq)
+        logger.info(f"Updated FAQ {faq_id}")
+        return faq
+    
+    @staticmethod
+    async def delete_faq(db: AsyncSession, faq_id: int) -> None:
+        """Delete FAQ"""
+        result = await db.execute(
+            select(FAQ).where(FAQ.id == faq_id)
+        )
+        faq = result.scalar_one_or_none()
+        
+        if not faq:
+            raise ResourceNotFoundError(resource_type="FAQ", resource_id=faq_id)
+        
+        await db.delete(faq)
+        await db.commit()
+        logger.info(f"Deleted FAQ {faq_id}")
+    
     # ========================================================================
     # Team Operations
     # ========================================================================
@@ -193,6 +315,76 @@ class ContentService:
         
         return member
     
+    @staticmethod
+    async def create_team_member(
+        db: AsyncSession,
+        name: str,
+        title: str,
+        bio: Optional[str] = None,
+        email: Optional[str] = None,
+        phone: Optional[str] = None,
+        image_url: Optional[str] = None,
+        linkedin_url: Optional[str] = None,
+        display_order: int = 0,
+        is_active: bool = True
+    ) -> TeamMember:
+        """Create a new team member"""
+        member = TeamMember(
+            name=name,
+            title=title,
+            bio=bio,
+            email=email,
+            phone=phone,
+            image_url=image_url,
+            linkedin_url=linkedin_url,
+            display_order=display_order,
+            is_active=is_active
+        )
+        db.add(member)
+        await db.commit()
+        await db.refresh(member)
+        logger.info(f"Created team member: {name}")
+        return member
+    
+    @staticmethod
+    async def update_team_member(
+        db: AsyncSession,
+        member_id: int,
+        **updates
+    ) -> TeamMember:
+        """Update team member"""
+        result = await db.execute(
+            select(TeamMember).where(TeamMember.id == member_id)
+        )
+        member = result.scalar_one_or_none()
+        
+        if not member:
+            raise ResourceNotFoundError(resource_type="Team Member", resource_id=member_id)
+        
+        for key, value in updates.items():
+            if hasattr(member, key):
+                setattr(member, key, value)
+        
+        await db.commit()
+        await db.refresh(member)
+        logger.info(f"Updated team member {member_id}")
+        return member
+    
+    @staticmethod
+    async def delete_team_member(db: AsyncSession, member_id: int) -> None:
+        """Delete team member"""
+        result = await db.execute(
+            select(TeamMember).where(TeamMember.id == member_id)
+        )
+        member = result.scalar_one_or_none()
+        
+        if not member:
+            raise ResourceNotFoundError(resource_type="Team Member", resource_id=member_id)
+        
+        await db.delete(member)
+        await db.commit()
+        logger.info(f"Deleted team member {member_id}")
+    
     # ========================================================================
     # Company Info Operations
     # ========================================================================
@@ -215,6 +407,31 @@ class ContentService:
         )
         company_info = result.scalar_one_or_none()
         
+        return company_info
+    
+    @staticmethod
+    async def update_company_info(
+        db: AsyncSession,
+        **updates
+    ) -> CompanyInfo:
+        """Update company information (creates if doesn't exist)"""
+        result = await db.execute(
+            select(CompanyInfo).limit(1)
+        )
+        company_info = result.scalar_one_or_none()
+        
+        if not company_info:
+            # Create if doesn't exist
+            company_info = CompanyInfo()
+            db.add(company_info)
+        
+        for key, value in updates.items():
+            if hasattr(company_info, key):
+                setattr(company_info, key, value)
+        
+        await db.commit()
+        await db.refresh(company_info)
+        logger.info("Updated company info")
         return company_info
     
     # ========================================================================
@@ -277,6 +494,86 @@ class ContentService:
         
         return location
     
+    @staticmethod
+    async def create_contact_location(
+        db: AsyncSession,
+        name: str,
+        address_line1: str,
+        city: str,
+        state: str,
+        zip_code: str,
+        country: str = "USA",
+        address_line2: Optional[str] = None,
+        phone: Optional[str] = None,
+        fax: Optional[str] = None,
+        email: Optional[str] = None,
+        hours: Optional[str] = None,
+        is_headquarters: bool = False,
+        display_order: int = 0,
+        is_active: bool = True
+    ) -> ContactLocation:
+        """Create a new contact location"""
+        location = ContactLocation(
+            name=name,
+            address_line1=address_line1,
+            address_line2=address_line2,
+            city=city,
+            state=state,
+            zip_code=zip_code,
+            country=country,
+            phone=phone,
+            fax=fax,
+            email=email,
+            hours=hours,
+            is_headquarters=is_headquarters,
+            display_order=display_order,
+            is_active=is_active
+        )
+        db.add(location)
+        await db.commit()
+        await db.refresh(location)
+        logger.info(f"Created contact location: {name}")
+        return location
+    
+    @staticmethod
+    async def update_contact_location(
+        db: AsyncSession,
+        location_id: int,
+        **updates
+    ) -> ContactLocation:
+        """Update contact location"""
+        result = await db.execute(
+            select(ContactLocation).where(ContactLocation.id == location_id)
+        )
+        location = result.scalar_one_or_none()
+        
+        if not location:
+            raise ResourceNotFoundError(resource_type="Contact Location", resource_id=location_id)
+        
+        for key, value in updates.items():
+            if hasattr(location, key):
+                setattr(location, key, value)
+        
+        await db.commit()
+        await db.refresh(location)
+        logger.info(f"Updated contact location {location_id}")
+        return location
+    
+    @staticmethod
+    async def delete_contact_location(db: AsyncSession, location_id: int) -> None:
+        """Delete contact location"""
+        result = await db.execute(
+            select(ContactLocation).where(ContactLocation.id == location_id)
+        )
+        location = result.scalar_one_or_none()
+        
+        if not location:
+            raise ResourceNotFoundError(resource_type="Contact Location", resource_id=location_id)
+        
+        await db.delete(location)
+        await db.commit()
+        logger.info(f"Deleted contact location {location_id}")
+    
     # ========================================================================
     # Catalog Operations
     # ========================================================================
@@ -337,6 +634,96 @@ class ContentService:
         
         return catalog
     
+    @staticmethod
+    async def create_catalog(
+        db: AsyncSession,
+        title: str,
+        description: Optional[str] = None,
+        file_url: Optional[str] = None,
+        cover_image_url: Optional[str] = None,
+        file_size_mb: Optional[float] = None,
+        display_order: int = 0,
+        is_active: bool = True
+    ) -> Catalog:
+        """Create a new catalog"""
+        catalog = Catalog(
+            title=title,
+            description=description,
+            file_url=file_url,
+            cover_image_url=cover_image_url,
+            file_size_mb=file_size_mb,
+            display_order=display_order,
+            is_active=is_active
+        )
+        db.add(catalog)
+        await db.commit()
+        await db.refresh(catalog)
+        logger.info(f"Created catalog: {title}")
+        return catalog
+    
+    @staticmethod
+    async def update_catalog(
+        db: AsyncSession,
+        catalog_id: int,
+        **updates
+    ) -> Catalog:
+        """Update catalog"""
+        result = await db.execute(
+            select(Catalog).where(Catalog.id == catalog_id)
+        )
+        catalog = result.scalar_one_or_none()
+        
+        if not catalog:
+            raise ResourceNotFoundError(resource_type="Catalog", resource_id=catalog_id)
+        
+        for key, value in updates.items():
+            if hasattr(catalog, key):
+                setattr(catalog, key, value)
+        
+        # Increment download count if file_url was accessed
+        if 'download_count' in updates:
+            catalog.download_count = updates['download_count']
+        
+        await db.commit()
+        await db.refresh(catalog)
+        logger.info(f"Updated catalog {catalog_id}")
+        return catalog
+    
+    @staticmethod
+    async def delete_catalog(db: AsyncSession, catalog_id: int) -> None:
+        """Delete catalog"""
+        result = await db.execute(
+            select(Catalog).where(Catalog.id == catalog_id)
+        )
+        catalog = result.scalar_one_or_none()
+        
+        if not catalog:
+            raise ResourceNotFoundError(resource_type="Catalog", resource_id=catalog_id)
+        
+        await db.delete(catalog)
+        await db.commit()
+        logger.info(f"Deleted catalog {catalog_id}")
+    
+    @staticmethod
+    async def increment_catalog_downloads(
+        db: AsyncSession,
+        catalog_id: int
+    ) -> Catalog:
+        """Increment catalog download count"""
+        result = await db.execute(
+            select(Catalog).where(Catalog.id == catalog_id)
+        )
+        catalog = result.scalar_one_or_none()
+        
+        if not catalog:
+            raise ResourceNotFoundError(resource_type="Catalog", resource_id=catalog_id)
+        
+        catalog.download_count += 1
+        await db.commit()
+        await db.refresh(catalog)
+        
+        return catalog
+    
     # ========================================================================
     # Installation Guide Operations
     # ========================================================================
@@ -394,6 +781,92 @@ class ContentService:
         
         if not guide:
             raise ResourceNotFoundError(resource_type="Installation Guide", resource_id=guide_id)
+        
+        return guide
+    
+    @staticmethod
+    async def create_installation_guide(
+        db: AsyncSession,
+        title: str,
+        description: Optional[str] = None,
+        file_url: Optional[str] = None,
+        cover_image_url: Optional[str] = None,
+        file_size_mb: Optional[float] = None,
+        display_order: int = 0,
+        is_active: bool = True
+    ) -> Installation:
+        """Create a new installation guide"""
+        guide = Installation(
+            title=title,
+            description=description,
+            file_url=file_url,
+            cover_image_url=cover_image_url,
+            file_size_mb=file_size_mb,
+            display_order=display_order,
+            is_active=is_active
+        )
+        db.add(guide)
+        await db.commit()
+        await db.refresh(guide)
+        logger.info(f"Created installation guide: {title}")
+        return guide
+    
+    @staticmethod
+    async def update_installation_guide(
+        db: AsyncSession,
+        guide_id: int,
+        **updates
+    ) -> Installation:
+        """Update installation guide"""
+        result = await db.execute(
+            select(Installation).where(Installation.id == guide_id)
+        )
+        guide = result.scalar_one_or_none()
+        
+        if not guide:
+            raise ResourceNotFoundError(resource_type="Installation Guide", resource_id=guide_id)
+        
+        for key, value in updates.items():
+            if hasattr(guide, key):
+                setattr(guide, key, value)
+        
+        await db.commit()
+        await db.refresh(guide)
+        logger.info(f"Updated installation guide {guide_id}")
+        return guide
+    
+    @staticmethod
+    async def delete_installation_guide(db: AsyncSession, guide_id: int) -> None:
+        """Delete installation guide"""
+        result = await db.execute(
+            select(Installation).where(Installation.id == guide_id)
+        )
+        guide = result.scalar_one_or_none()
+        
+        if not guide:
+            raise ResourceNotFoundError(resource_type="Installation Guide", resource_id=guide_id)
+        
+        await db.delete(guide)
+        await db.commit()
+        logger.info(f"Deleted installation guide {guide_id}")
+    
+    @staticmethod
+    async def increment_installation_downloads(
+        db: AsyncSession,
+        guide_id: int
+    ) -> Installation:
+        """Increment installation guide download count"""
+        result = await db.execute(
+            select(Installation).where(Installation.id == guide_id)
+        )
+        guide = result.scalar_one_or_none()
+        
+        if not guide:
+            raise ResourceNotFoundError(resource_type="Installation Guide", resource_id=guide_id)
+        
+        guide.download_count += 1
+        await db.commit()
+        await db.refresh(guide)
         
         return guide
     

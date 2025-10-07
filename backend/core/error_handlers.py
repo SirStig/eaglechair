@@ -236,5 +236,5 @@ def register_exception_handlers(app):
     # Generic catch-all
     app.add_exception_handler(Exception, generic_exception_handler)
     
-    logger.info("✅ Exception handlers registered")
+    logger.info("[OK] Exception handlers registered")
 

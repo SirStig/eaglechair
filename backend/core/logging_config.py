@@ -422,7 +422,7 @@ class RequestLogger:
                 message = f"🐌 {method} {path} - {status_code} - {duration_ms}ms (SLOW)"
             else:
                 level = logging.INFO
-                message = f"✅ {method} {path} - {status_code} - {duration_ms}ms"
+                message = f"[OK] {method} {path} - {status_code} - {duration_ms}ms"
         else:
             # Windows with text indicators
             if status_code >= 500:
@@ -580,7 +580,7 @@ class SecurityLogger:
     
     def log_authentication_success(self, user_id: int, email: str, ip_address: str, user_agent: str = None):
         """Log successful authentication"""
-        icon = "✅" if platform.system() != 'Windows' else "[SECURITY]"
+        icon = "[OK]" if platform.system() != 'Windows' else "[SECURITY]"
         self.logger.info(
             f"{icon} Successful login: {email} from {ip_address}",
             extra={
