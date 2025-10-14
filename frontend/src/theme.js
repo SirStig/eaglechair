@@ -1,21 +1,42 @@
 import { createTheme } from '@mui/material/styles';
 
-// Create a custom Material UI theme
+// Create a custom Material UI theme with dark mode
 const theme = createTheme({
   palette: {
+    mode: 'dark',
     primary: {
-      main: '#1976d2',
-      light: '#42a5f5',
-      dark: '#1565c0',
+      main: '#f4a52d', // Gold
+      light: '#fbbf24',
+      dark: '#d4af37',
+      contrastText: '#1a1a1a',
     },
     secondary: {
-      main: '#dc004e',
-      light: '#e33371',
-      dark: '#9a0036',
+      main: '#dc2626', // Red
+      light: '#f87171',
+      dark: '#b91c1c',
+      contrastText: '#ffffff',
     },
     background: {
-      default: '#f5f5f5',
-      paper: '#ffffff',
+      default: '#1a1a1a', // Dark coal
+      paper: '#2d2d2d', // Card background
+    },
+    text: {
+      primary: '#d4d4d4', // Light text
+      secondary: '#a3a3a3', // Muted text
+      disabled: '#6b6b6b',
+    },
+    divider: '#525252',
+    error: {
+      main: '#dc2626',
+    },
+    warning: {
+      main: '#f4a52d',
+    },
+    info: {
+      main: '#3b82f6',
+    },
+    success: {
+      main: '#10b981',
     },
   },
   typography: {
@@ -56,7 +77,17 @@ const theme = createTheme({
     MuiCard: {
       styleOverrides: {
         root: {
-          boxShadow: '0 2px 8px rgba(0,0,0,0.1)',
+          backgroundImage: 'none',
+          backgroundColor: '#2d2d2d',
+          boxShadow: '0 2px 8px rgba(0,0,0,0.3)',
+        },
+      },
+    },
+    MuiPaper: {
+      styleOverrides: {
+        root: {
+          backgroundImage: 'none',
+          backgroundColor: '#2d2d2d',
         },
       },
     },

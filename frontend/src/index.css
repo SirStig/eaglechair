@@ -1,23 +1,198 @@
-* {
-  margin: 0;
-  padding: 0;
-  box-sizing: border-box;
+@import 'slick-carousel/slick/slick.css';
+@import 'slick-carousel/slick/slick-theme.css';
+@import 'leaflet/dist/leaflet.css';
+@import 'react-quill/dist/quill.snow.css';
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --primary-color: #f4a52d; /* Gold */
+    --secondary-color: #dc2626; /* Red */
+    --accent-color: #d4af37; /* Darker gold */
+    --background-color: #1a1a1a; /* Dark coal */
+    --surface-color: #2d2d2d; /* Card background */
+    --text-color: #d4d4d4; /* Light text */
+    --text-secondary: #a3a3a3; /* Muted text */
+    --border-color: #525252; /* Borders */
+  }
+
+  body {
+    @apply bg-dark-800 text-dark-50 antialiased;
+    font-family: 'Inter', system-ui, -apple-system, sans-serif;
+  }
+
+  h1, h2, h3, h4, h5, h6 {
+    @apply font-serif text-dark-50;
+  }
 }
 
-body {
-  margin: 0;
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto',
-    'Oxygen', 'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans',
-    'Helvetica Neue', sans-serif;
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
+@layer components {
+  .container {
+    @apply mx-auto px-4 sm:px-6 lg:px-8 max-w-7xl;
+  }
+
+  .btn {
+    @apply inline-flex items-center justify-center rounded-lg px-6 py-3 font-medium transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed;
+  }
+
+  .btn-primary {
+    @apply bg-primary-500 text-dark-900 hover:bg-primary-600 focus:ring-primary-500;
+  }
+
+  .btn-secondary {
+    @apply bg-secondary-600 text-white hover:bg-secondary-700 focus:ring-secondary-500;
+  }
+
+  .btn-outline {
+    @apply border-2 border-primary-500 text-primary-500 bg-transparent hover:bg-dark-700 focus:ring-primary-500;
+  }
+
+  .btn-transparent {
+    @apply bg-transparent text-dark-50 hover:bg-dark-700 focus:ring-primary-500;
+  }
+
+  .input {
+    @apply w-full rounded-lg border border-dark-400 bg-dark-700 text-dark-50 px-4 py-2.5 focus:border-primary-500 focus:ring-2 focus:ring-primary-500 focus:outline-none transition-all placeholder-dark-200;
+  }
+
+  .card {
+    @apply bg-dark-600 rounded-xl shadow-md hover:shadow-xl transition-shadow duration-300 border border-dark-500;
+  }
+
+  .dropdown-menu {
+    @apply absolute z-50 mt-2 rounded-lg bg-dark-600 shadow-lg ring-1 ring-dark-400 ring-opacity-50 focus:outline-none border border-dark-500;
+  }
 }
 
-code {
-  font-family: source-code-pro, Menlo, Monaco, Consolas, 'Courier New',
-    monospace;
+@layer utilities {
+  .text-balance {
+    text-wrap: balance;
+  }
+
+  .scrollbar-hide::-webkit-scrollbar {
+    display: none;
+  }
+
+  .scrollbar-hide {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
 }
 
-#root {
-  min-height: 100vh;
+/* Custom scrollbar */
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+
+::-webkit-scrollbar-track {
+  @apply bg-dark-700;
+}
+
+::-webkit-scrollbar-thumb {
+  @apply bg-primary-600 rounded-full;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  @apply bg-primary-500;
+}
+
+/* Smooth scroll */
+html {
+  scroll-behavior: smooth;
+}
+
+/* Selection */
+::selection {
+  @apply bg-primary-700 text-dark-50;
+}
+
+/* Focus visible */
+:focus-visible {
+  @apply outline-none ring-2 ring-primary-500 ring-offset-2;
+}
+
+/* Smooth infinite scroll animation for logos */
+@keyframes scroll-infinite {
+  0% {
+    transform: translateX(0);
+  }
+  100% {
+    transform: translateX(-50%);
+  }
+}
+
+.animate-scroll-infinite {
+  animation: scroll-infinite 30s linear infinite;
+  will-change: transform;
+}
+
+.animate-scroll-infinite:hover {
+  animation-play-state: paused;
+}
+
+/* Hover lift effect for buttons */
+.hover-lift {
+  -webkit-transition: transform 0.2s ease-in-out;
+  -moz-transition: transform 0.2s ease-in-out;
+  -ms-transition: transform 0.2s ease-in-out;
+  -o-transition: transform 0.2s ease-in-out;
+  transition: transform 0.2s ease-in-out;
+}
+
+.hover-lift:hover {
+  -webkit-transform: translateY(-1px);
+  -moz-transform: translateY(-1px);
+  -ms-transform: translateY(-1px);
+  -o-transform: translateY(-1px);
+  transform: translateY(-1px);
+}
+
+/* Smooth transitions with vendor prefixes */
+.transition-all {
+  -webkit-transition: all 0.2s ease-in-out;
+  -moz-transition: all 0.2s ease-in-out;
+  -ms-transition: all 0.2s ease-in-out;
+  -o-transition: all 0.2s ease-in-out;
+  transition: all 0.2s ease-in-out;
+}
+
+/* Backdrop blur support */
+.backdrop-blur-sm {
+  -webkit-backdrop-filter: blur(8px);
+  backdrop-filter: blur(8px);
+}
+
+.backdrop-blur-md {
+  -webkit-backdrop-filter: blur(12px);
+  backdrop-filter: blur(12px);
+}
+
+/* Remove default focus outline, use custom ring instead */
+button:focus {
+  outline: none;
+}
+
+button:focus-visible {
+  outline: none;
+}
+
+/* Footer link hover effects */
+.footer-link {
+  -webkit-transition: all 0.2s ease-in-out;
+  -moz-transition: all 0.2s ease-in-out;
+  -ms-transition: all 0.2s ease-in-out;
+  -o-transition: all 0.2s ease-in-out;
+  transition: all 0.2s ease-in-out;
+}
+
+.footer-link:hover {
+  -webkit-transform: scale(1.08) translateX(2px);
+  -moz-transform: scale(1.08) translateX(2px);
+  -ms-transform: scale(1.08) translateX(2px);
+  -o-transform: scale(1.08) translateX(2px);
+  transform: scale(1.08) translateX(2px);
 }
