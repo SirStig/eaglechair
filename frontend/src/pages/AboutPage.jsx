@@ -31,8 +31,8 @@ const AboutPage = () => {
   return (
     <div className="min-h-screen bg-dark-800">
       {/* Hero Section */}
-      <section className="relative h-[500px] pt-16 from-primary-700 to-primary-500 text-white">
-        <div className="absolute inset-0 opacity-20">
+      <section className="relative h-[500px] pt-16 bg-dark-900 text-white">
+        <div className="absolute inset-0 opacity-30">
           <img
             src="https://images.unsplash.com/photo-1565891741441-64926e441838?w=1920"
             alt="Workshop"
@@ -198,10 +198,10 @@ const AboutPage = () => {
       </section>
 
       {/* CTA Section */}
-      <section className="py-20 bg-gradient-to-r from-primary-700 to-primary-500 text-white">
+      <section className="py-20 bg-dark-900 border-y border-dark-700">
         <div className="container text-center">
-          <h2 className="text-4xl font-bold mb-6">Ready to Work Together?</h2>
-          <p className="text-xl mb-8 max-w-2xl mx-auto">
+          <h2 className="text-4xl font-bold mb-6 text-dark-50">Ready to Work Together?</h2>
+          <p className="text-xl mb-8 max-w-2xl mx-auto text-dark-100">
             Experience the Eagle Chair difference. Let's create something amazing for your business.
           </p>
           <div className="flex gap-4 justify-center">

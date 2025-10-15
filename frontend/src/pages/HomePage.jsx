@@ -164,7 +164,6 @@ const HomePage = () => {
               />
               <div className="absolute -bottom-6 -left-6 bg-primary-700 border-2 border-primary-500 text-white p-6 rounded-xl shadow-xl">
                 <div className="text-4xl font-bold">Since 1984</div>
-                <div className="text-sm">Years of Excellence</div>
               </div>
             </motion.div>
           </div>

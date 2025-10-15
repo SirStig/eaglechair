@@ -4,7 +4,11 @@ import { motion } from 'framer-motion';
 import ProductCard from '../components/ui/ProductCard';
 import Button from '../components/ui/Button';
 import LoadingSpinner from '../components/ui/LoadingSpinner';
+import QuickViewModal from '../components/ui/QuickViewModal';
 import { demoProducts, demoCategories, IS_DEMO } from '../data/demoData';
+import logger from '../utils/logger';
+
+const CONTEXT = 'ProductCatalogPage';
 
 const ProductCatalogPage = () => {
   const [searchParams, setSearchParams] = useSearchParams();
@@ -13,12 +17,24 @@ const ProductCatalogPage = () => {
   const [products, setProducts] = useState([]);
   const [categories, setCategories] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [quickViewProduct, setQuickViewProduct] = useState(null);
   const [filters, setFilters] = useState({
     category: searchParams.get('category') || '',
     subcategory: searchParams.get('subcategory') || '',
     search: searchParams.get('search') || '',
+    finish: searchParams.get('finish') || '',
+    material: searchParams.get('material') || '',
     sortBy: searchParams.get('sort') || 'featured',
   });
+
+  // Extract unique finishes and materials from products
+  const availableFinishes = [...new Set(demoProducts.flatMap(p => 
+    p.customizations?.finishes || p.customizations?.colors || []
+  ))].filter(Boolean);
+
+  const availableMaterials = [...new Set(demoProducts.flatMap(p => 
+    p.specs?.Material ? [p.specs.Material] : []
+  ))].filter(Boolean);
 
   useEffect(() => {
     loadData();
@@ -50,6 +66,19 @@ const ProductCatalogPage = () => {
           p.description.toLowerCase().includes(searchLower)
         );
       }
+
+      if (filters.finish) {
+        filtered = filtered.filter(p => 
+          p.customizations?.finishes?.includes(filters.finish) ||
+          p.customizations?.colors?.includes(filters.finish)
+        );
+      }
+
+      if (filters.material) {
+        filtered = filtered.filter(p => 
+          p.specs?.Material === filters.material
+        );
+      }
       
       // Sort
       switch (filters.sortBy) {
@@ -59,12 +88,17 @@ const ProductCatalogPage = () => {
         case 'name-desc':
           filtered.sort((a, b) => b.name.localeCompare(a.name));
           break;
+        case 'newest':
+          filtered.sort((a, b) => (b.isNew ? 1 : 0) - (a.isNew ? 1 : 0));
+          break;
         case 'featured':
           filtered.sort((a, b) => (b.featured ? 1 : 0) - (a.featured ? 1 : 0));
           break;
         default:
           break;
       }
+      
+      logger.debug(CONTEXT, `Filtered ${filtered.length} products`, filters);
       
       setProducts(filtered);
       setCategories(demoCategories);
@@ -102,9 +136,16 @@ const ProductCatalogPage = () => {
       category: '',
       subcategory: '',
       search: '',
+      finish: '',
+      material: '',
       sortBy: 'featured',
     });
     setSearchParams({});
+  };
+
+  const handleQuickView = (product) => {
+    setQuickViewProduct(product);
+    logger.info(CONTEXT, `Opening quick view for: ${product.name}`);
   };
 
   const activeCategory = categories.find(c => 
@@ -153,7 +194,7 @@ const ProductCatalogPage = () => {
             <div className="bg-dark-600 border border-dark-500 rounded-xl shadow-md p-6 sticky top-24">
               <div className="flex items-center justify-between mb-6">
                 <h2 className="text-xl font-semibold text-dark-50">Filters</h2>
-                {(filters.category || filters.subcategory || filters.search) && (
+                {(filters.category || filters.subcategory || filters.search || filters.finish || filters.material) && (
                   <button
                     onClick={clearFilters}
                     className="text-sm text-primary-500 hover:text-primary-400"
@@ -215,7 +256,7 @@ const ProductCatalogPage = () => {
               {/* Subcategories */}
               {activeCategory && activeCategory.subcategories && (
                 <div className="mb-6">
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                  <label className="block text-sm font-medium text-dark-100 mb-2">
                     Type
                   </label>
                   <div className="space-y-2">
@@ -225,8 +266,8 @@ const ProductCatalogPage = () => {
                         onClick={() => updateFilter('subcategory', subcat)}
                         className={`w-full text-left px-3 py-2 rounded-lg transition-colors text-sm ${
                           filters.subcategory === subcat
-                            ? 'bg-primary-50 text-primary-700 font-medium'
-                            : 'hover:bg-gray-50'
+                            ? 'bg-primary-900 text-primary-300 font-medium border border-primary-500'
+                            : 'hover:bg-dark-700 text-dark-100'
                         }`}
                       >
                         {subcat}
@@ -236,20 +277,62 @@ const ProductCatalogPage = () => {
                 </div>
               )}
 
+              {/* Finishes/Colors */}
+              {availableFinishes.length > 0 && (
+                <div className="mb-6">
+                  <label className="block text-sm font-medium text-dark-100 mb-2">
+                    Finish/Color
+                  </label>
+                  <select
+                    value={filters.finish}
+                    onChange={(e) => updateFilter('finish', e.target.value)}
+                    className="w-full px-3 py-2 border border-dark-400 bg-dark-700 text-dark-50 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
+                  >
+                    <option value="">All Finishes</option>
+                    {availableFinishes.map((finish) => (
+                      <option key={finish} value={finish}>
+                        {finish}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
+
+              {/* Materials */}
+              {availableMaterials.length > 0 && (
+                <div className="mb-6">
+                  <label className="block text-sm font-medium text-dark-100 mb-2">
+                    Material
+                  </label>
+                  <select
+                    value={filters.material}
+                    onChange={(e) => updateFilter('material', e.target.value)}
+                    className="w-full px-3 py-2 border border-dark-400 bg-dark-700 text-dark-50 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
+                  >
+                    <option value="">All Materials</option>
+                    {availableMaterials.map((material) => (
+                      <option key={material} value={material}>
+                        {material}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
+
               {/* Sort */}
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
+                <label className="block text-sm font-medium text-dark-100 mb-2">
                   Sort By
                 </label>
                 <select
                   value={filters.sortBy}
                   onChange={(e) => updateFilter('sortBy', e.target.value)}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
+                  className="w-full px-3 py-2 border border-dark-400 bg-dark-700 text-dark-50 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
                 >
                   <option value="featured">Featured</option>
+                  <option value="newest">Newest First</option>
                   <option value="name-asc">Name (A-Z)</option>
                   <option value="name-desc">Name (Z-A)</option>
-                  <option value="newest">Newest First</option>
                 </select>
               </div>
             </div>
@@ -287,8 +370,12 @@ const ProductCatalogPage = () => {
                       initial={{ opacity: 0, y: 20 }}
                       animate={{ opacity: 1, y: 0 }}
                       transition={{ delay: index * 0.05 }}
+                      className="h-full"
                     >
-                      <ProductCard product={product} />
+                      <ProductCard 
+                        product={product}
+                        onQuickView={handleQuickView}
+                      />
                     </motion.div>
                   ))}
                 </div>
@@ -297,6 +384,13 @@ const ProductCatalogPage = () => {
           </main>
         </div>
       </div>
+
+      {/* Quick View Modal */}
+      <QuickViewModal
+        product={quickViewProduct}
+        isOpen={!!quickViewProduct}
+        onClose={() => setQuickViewProduct(null)}
+      />
     </div>
   );
 };

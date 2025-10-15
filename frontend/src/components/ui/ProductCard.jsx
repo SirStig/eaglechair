@@ -15,12 +15,12 @@ const ProductCard = ({ product, onQuickView, onAddToCart }) => {
 
   return (
     <Card 
-      className="overflow-hidden group"
+      className="overflow-hidden group flex flex-col h-full"
       onMouseEnter={() => setIsHovered(true)}
       onMouseLeave={() => setIsHovered(false)}
     >
       {/* Image Container */}
-      <Link to={`/products/${product.id}`} className="block relative aspect-square overflow-hidden bg-dark-700">
+      <Link to={`/products/${product.id}`} className="block relative aspect-square overflow-hidden bg-dark-700 flex-shrink-0">
         {!imageLoaded && (
           <div className="absolute inset-0 flex items-center justify-center">
             <div className="h-8 w-8 border-4 border-dark-500 border-t-primary-500 rounded-full animate-spin" />
@@ -68,49 +68,83 @@ const ProductCard = ({ product, onQuickView, onAddToCart }) => {
       </Link>
 
       {/* Product Info */}
-      <div className="p-4">
+      <div className="p-5 flex flex-col flex-grow">
+        {/* Category */}
         {product.category && (
-          <p className="text-xs text-dark-200 uppercase tracking-wider mb-1">
+          <p className="text-xs text-dark-200 uppercase tracking-wider font-medium mb-2">
             {product.category}
           </p>
         )}
+
+        {/* Product Name */}
         <Link to={`/products/${product.id}`}>
-          <h3 className="text-lg font-semibold text-dark-50 mb-2 hover:text-primary-500 transition-colors line-clamp-2">
+          <h3 className="text-lg font-bold text-dark-50 mb-3 hover:text-primary-500 transition-colors line-clamp-2">
             {product.name}
           </h3>
         </Link>
-        {product.description && (
-          <p className="text-sm text-dark-100 mb-3 line-clamp-2">
-            {product.description}
+
+        {/* Short Description */}
+        {(product.short_description || product.description) && (
+          <p className="text-sm text-dark-100 mb-4 line-clamp-2 leading-relaxed">
+            {product.short_description || product.description}
           </p>
         )}
 
-        {/* Specs */}
-        {product.specs && (
-          <div className="flex flex-wrap gap-2 mb-3">
-            {Object.entries(product.specs).slice(0, 2).map(([key, value]) => (
-              <Badge key={key} variant="default" size="sm">
-                {key}: {value}
-              </Badge>
-            ))}
+        {/* Key Highlights */}
+        <div className="flex flex-wrap gap-2 mb-4">
+          {product.ada_compliant && (
+            <Badge variant="info" size="sm">
+              ADA
+            </Badge>
+          )}
+          {product.is_outdoor_suitable && (
+            <Badge variant="success" size="sm">
+              Outdoor
+            </Badge>
+          )}
+          {product.customizations && (product.customizations.finishes?.length > 0 || product.customizations.fabrics?.length > 0 || product.customizations.colors?.length > 0) && (
+            <Badge variant="default" size="sm">
+              Customizable
+            </Badge>
+          )}
+        </div>
+
+        {/* Dimensions - Compact */}
+        {(product.width || product.depth || product.height) && (
+          <div className="text-sm text-dark-100 mb-4">
+            {product.width && product.depth && product.height ? (
+              <span>{product.width}" × {product.depth}" × {product.height}"</span>
+            ) : (
+              <>
+                {product.width && <span>W: {product.width}" </span>}
+                {product.depth && <span>D: {product.depth}" </span>}
+                {product.height && <span>H: {product.height}"</span>}
+              </>
+            )}
           </div>
         )}
 
         {/* Action Buttons */}
-        <div className="flex gap-2">
-          <Button
-            variant="primary"
-            size="sm"
-            className="flex-1"
-            onClick={() => onAddToCart?.(product)}
-          >
-            Add to Cart
-          </Button>
-          <Link to={`/products/${product.id}`} className="flex-1">
-            <Button variant="outline" size="sm" className="w-full">
-              Details
+        <div className="mt-auto flex gap-2">
+          <Link to={`/products/${product.slug || product.id}`} className="flex-1">
+            <Button variant="primary" size="sm" className="w-full">
+              View Details
             </Button>
           </Link>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={(e) => {
+              e.preventDefault();
+              onQuickView?.(product);
+            }}
+            className="flex-shrink-0"
+          >
+            <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+            </svg>
+          </Button>
         </div>
       </div>
     </Card>
