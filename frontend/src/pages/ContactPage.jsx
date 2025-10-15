@@ -4,6 +4,7 @@ import { useForm } from 'react-hook-form';
 import Card from '../components/ui/Card';
 import Button from '../components/ui/Button';
 import Input from '../components/ui/Input';
+import { companyInfo, IS_DEMO } from '../data/demoData';
 
 const ContactPage = () => {
   const [submitStatus, setSubmitStatus] = useState(null);
@@ -30,6 +31,9 @@ const ContactPage = () => {
     }
   };
 
+  // Use demo data or API data
+  const contact = IS_DEMO ? companyInfo.contact : companyInfo.contact; // TODO: fetch from API when not in demo
+
   const contactInfo = [
     {
       icon: (
@@ -38,7 +42,7 @@ const ContactPage = () => {
         </svg>
       ),
       title: 'Phone',
-      details: ['Main: (616) 555-0100', 'Sales: (616) 555-0101']
+      details: [`Main: ${contact.phone}`, `Sales: ${contact.salesPhone}`]
     },
     {
       icon: (
@@ -47,7 +51,7 @@ const ContactPage = () => {
         </svg>
       ),
       title: 'Email',
-      details: ['info@eaglechair.com', 'sales@eaglechair.com']
+      details: [contact.email, contact.salesEmail]
     },
     {
       icon: (
@@ -57,7 +61,7 @@ const ContactPage = () => {
         </svg>
       ),
       title: 'Address',
-      details: ['123 Furniture Lane', 'Grand Rapids, MI 49504']
+      details: [contact.address.street, `${contact.address.city}, ${contact.address.state} ${contact.address.zip}`]
     },
     {
       icon: (
@@ -66,7 +70,7 @@ const ContactPage = () => {
         </svg>
       ),
       title: 'Business Hours',
-      details: ['Mon-Fri: 8:00 AM - 6:00 PM EST', 'Sat: 9:00 AM - 2:00 PM EST']
+      details: [contact.businessHours.weekdays, contact.businessHours.saturday]
     },
   ];
 
@@ -230,14 +234,36 @@ const ContactPage = () => {
 
         {/* Map Section */}
         <Card padding="none" className="overflow-hidden">
-          <div className="h-96 bg-dark-700 flex items-center justify-center">
-            <div className="text-center text-dark-200">
-              <svg className="w-16 h-16 mx-auto mb-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
-              </svg>
-              <p>Interactive Map</p>
-              <p className="text-sm">123 Furniture Lane, Grand Rapids, MI 49504</p>
+          <div className="relative">
+            {/* Map Header */}
+            <div className="bg-dark-700 border-b border-dark-600 px-6 py-4">
+              <div className="flex items-center gap-3">
+                <div className="flex-shrink-0 w-10 h-10 bg-primary-900 border-2 border-primary-500 rounded-lg flex items-center justify-center text-primary-500">
+                  <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+                  </svg>
+                </div>
+                <div>
+                  <h3 className="font-semibold text-dark-50">Visit Our Showroom</h3>
+                  <p className="text-sm text-dark-200">{contact.address.fullAddress}</p>
+                </div>
+              </div>
+            </div>
+            
+            {/* Google Maps Embed */}
+            <div className="h-96 w-full">
+              <iframe
+                title="Eagle Chair Location"
+                src={`https://www.google.com/maps/embed/v1/place?key=AIzaSyBFw0Qbyq9zTFTd-tUY6dZWTgaQzuU17R8&q=${encodeURIComponent(contact.address.fullAddress)}&zoom=15`}
+                width="100%"
+                height="100%"
+                style={{ border: 0 }}
+                allowFullScreen=""
+                loading="lazy"
+                referrerPolicy="no-referrer-when-downgrade"
+                className="grayscale"
+              />
             </div>
           </div>
         </Card>
