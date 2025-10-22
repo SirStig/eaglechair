@@ -5,25 +5,29 @@ Handles company and admin authentication
 """
 
 import logging
+
 from fastapi import APIRouter, Depends, Request
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from backend.database.base import get_db
-from backend.services.auth_service import AuthService
-from backend.api.v1.schemas.company import (
-    CompanyRegistration,
-    CompanyResponse,
-    CompanyLoginRequest,
-    TokenResponse,
-    AdminLoginRequest,
-    AdminTokenResponse,
-    PasswordChangeRequest,
+from backend.api.dependencies import (
+    get_current_admin,
+    get_current_company,
+    get_current_token_payload,
 )
 from backend.api.v1.schemas.common import MessageResponse
-from backend.api.dependencies import get_current_token_payload, get_current_company, get_current_admin
-from backend.models.company import Company, AdminUser
+from backend.api.v1.schemas.company import (
+    AdminLoginRequest,
+    AdminTokenResponse,
+    CompanyLoginRequest,
+    CompanyRegistration,
+    CompanyResponse,
+    PasswordChangeRequest,
+    TokenResponse,
+)
 from backend.core.middleware.rate_limiter import RateLimitConfig
-
+from backend.database.base import get_db
+from backend.models.company import AdminUser, Company
+from backend.services.auth_service import AuthService
 
 logger = logging.getLogger(__name__)
 
@@ -71,26 +75,66 @@ async def register_company(
 
 @router.post(
     "/auth/login",
-    response_model=TokenResponse,
-    summary="Company login",
-    description="Authenticate company and receive access tokens."
+    summary="Unified login",
+    description="Authenticate company or admin user automatically. Returns appropriate tokens based on user type."
 )
-async def login_company(
+async def unified_login(
     login_data: CompanyLoginRequest,
     request: Request,
     db: AsyncSession = Depends(get_db)
 ):
     """
-    Authenticate company and generate JWT tokens.
+    Unified login endpoint that automatically detects whether the user is an admin or company.
     
-    Returns access token and refresh token. Use access token in Authorization header
-    as `Bearer <token>` for protected endpoints.
+    - Tries admin authentication first (by email or username)
+    - Falls back to company authentication if not an admin
+    - Returns appropriate tokens based on user type
     """
     client_ip = request.client.host if request.client else None
     
-    logger.info(f"Company login attempt: {login_data.email}")
+    logger.info(f"Login attempt: {login_data.email}")
     
-    # Authenticate company
+    # First, try to authenticate as admin (check both email and username)
+    from sqlalchemy import or_, select
+
+    from backend.models.company import AdminUser
+    
+    result = await db.execute(
+        select(AdminUser).where(
+            or_(
+                AdminUser.email == login_data.email,
+                AdminUser.username == login_data.email  # Allow login with username in email field
+            )
+        )
+    )
+    admin_user = result.scalar_one_or_none()
+    
+    if admin_user:
+        # User is an admin, authenticate as admin
+        logger.info(f"Detected admin user: {admin_user.username}")
+        admin, tokens = await AuthService.authenticate_admin(
+            db=db,
+            username=admin_user.username,  # Use actual username
+            password=login_data.password,
+            ip_address=client_ip,
+            two_factor_code=None
+        )
+        # Include admin user data in response
+        return {
+            **tokens,
+            "user": {
+                "id": admin.id,
+                "username": admin.username,
+                "email": admin.email,
+                "firstName": admin.first_name,
+                "lastName": admin.last_name,
+                "role": admin.role.value,
+                "type": "admin"
+            }
+        }
+    
+    # Not an admin, try company authentication
+    logger.info(f"Attempting company authentication for: {login_data.email}")
     company, tokens = await AuthService.authenticate_company(
         db=db,
         email=login_data.email,
@@ -98,7 +142,20 @@ async def login_company(
         ip_address=client_ip
     )
     
-    return tokens
+    # Include company user data in response
+    return {
+        **tokens,
+        "user": {
+            "id": company.id,
+            "companyName": company.company_name,
+            "email": company.rep_email,
+            "firstName": company.rep_first_name,
+            "lastName": company.rep_last_name,
+            "role": "company",
+            "type": "company",
+            "status": company.status.value
+        }
+    }
 
 
 @router.post(

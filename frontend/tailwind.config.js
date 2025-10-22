@@ -54,6 +54,19 @@ export default {
           yellow: '#f4a52d',
           blue: '#3b82f6',
         },
+        // Cream colors for light theme
+        cream: {
+          50: '#faf8f5',   // Lightest cream
+          100: '#f5f2ed',  // Very light cream
+          200: '#ede7dc',  // Light cream
+          300: '#e3d9c8',  // Medium light cream
+          400: '#d6c7b0',  // Medium cream
+          500: '#c7b299',  // Main cream
+          600: '#b59d82',  // Darker cream
+          700: '#9f8a6f',  // Dark cream
+          800: '#8a775e',  // Very dark cream
+          900: '#75654f',  // Darkest cream
+        },
       },
       fontFamily: {
         sans: ['Inter', 'system-ui', 'sans-serif'],

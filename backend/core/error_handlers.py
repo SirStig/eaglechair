@@ -5,15 +5,15 @@ Centralized error handling with standardized responses
 """
 
 import logging
+
 from fastapi import Request, status
+from fastapi.exceptions import HTTPException, RequestValidationError
 from fastapi.responses import JSONResponse
-from fastapi.exceptions import RequestValidationError, HTTPException
+from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 from starlette.exceptions import HTTPException as StarletteHTTPException
-from sqlalchemy.exc import SQLAlchemyError, IntegrityError
 
-from backend.core.exceptions import EagleChairException
 from backend.core.config import settings
-
+from backend.core.exceptions import EagleChairException
 
 logger = logging.getLogger(__name__)
 
@@ -28,7 +28,7 @@ async def eaglechair_exception_handler(request: Request, exc: EagleChairExceptio
         f"Application error: {exc.error_code}",
         extra={
             "error_code": exc.error_code,
-            "message": exc.message,
+            "error_message": exc.message,  # Changed from 'message' to avoid LogRecord conflict
             "path": request.url.path,
             "method": request.method,
             "status_code": exc.status_code

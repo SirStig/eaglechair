@@ -2,15 +2,17 @@
 Route Protection Middleware
 
 Manages public and protected routes, authentication requirements
+Uses centralized route configuration
 """
 
 import logging
-from typing import Callable, Set
-from fastapi import Request, Response, HTTPException
+from typing import Callable
+from fastapi import Request, status
+from fastapi.responses import JSONResponse
 from starlette.middleware.base import BaseHTTPMiddleware
 
 from backend.core.config import settings
-from backend.core.exceptions import AuthenticationError, AuthorizationError
+from backend.core.routes_config import RouteConfig, RouteAccessLevel
 
 
 logger = logging.getLogger(__name__)
@@ -20,61 +22,20 @@ class RouteProtectionMiddleware(BaseHTTPMiddleware):
     """
     Route protection middleware
     
+    Uses centralized RouteConfig for all route access decisions.
+    Returns clean JSON error responses instead of raising exceptions.
+    
     Manages:
     - Public routes (no auth required)
     - Protected routes (auth required)
     - Admin routes (admin auth required)
-    - Role-based access control
     """
     
     def __init__(self, app, **kwargs):
         super().__init__(app)
-        
-        # Public routes (no authentication required)
-        self.public_routes: Set[str] = {
-            "/",
-            "/api/versions",
-            "/api/v1/health",
-            "/api/v1/auth/register",
-            "/api/v1/auth/login",
-            "/api/v1/products",
-            "/api/v1/categories",
-            "/api/v1/finishes",
-            "/api/v1/upholsteries",
-            "/api/v1/faqs",
-            "/api/v1/catalogs",
-            "/api/v1/installations",
-            "/api/v1/contact",
-            "/api/v1/legal",
-            "/api/v1/team",
-            "/api/v1/company-info",
-            "/docs",
-            "/redoc",
-            "/openapi.json",
-        }
-        
-        # Patterns for public route matching
-        self.public_patterns = [
-            "/api/v1/products/",
-            "/api/v1/categories/",
-            "/api/v1/finishes/",
-            "/api/v1/upholsteries/",
-            "/api/v1/faqs/",
-            "/api/v1/catalogs/",
-            "/api/v1/installations/",
-        ]
-        
-        # Admin-only routes
-        self.admin_routes: Set[str] = {
-            "/api/v1/admin",
-        }
-        
-        # Admin patterns
-        self.admin_patterns = [
-            "/api/v1/admin/",
-        ]
+        logger.info("[INIT] Route protection middleware initialized with centralized config")
     
-    async def dispatch(self, request: Request, call_next: Callable) -> Response:
+    async def dispatch(self, request: Request, call_next: Callable) -> JSONResponse:
         """Check route protection before processing"""
         
         path = request.url.path
@@ -84,53 +45,53 @@ class RouteProtectionMiddleware(BaseHTTPMiddleware):
         if method == "OPTIONS":
             return await call_next(request)
         
-        # Check if route is public
-        if self._is_public_route(path):
+        # Get required access level for this route
+        access_level = RouteConfig.get_route_access_level(path)
+        
+        # Public routes - no auth required
+        if access_level == RouteAccessLevel.PUBLIC:
             return await call_next(request)
         
-        # Check if route is admin-only
-        if self._is_admin_route(path):
+        # Admin routes - require admin authentication
+        if access_level == RouteAccessLevel.ADMIN:
             if not self._has_admin_auth(request):
-                logger.warning(f"Unauthorized admin access attempt: {path}")
-                raise AuthorizationError("Admin authentication required for this endpoint")
+                logger.warning(
+                    f"Unauthorized admin access attempt",
+                    extra={"path": path, "method": method, "ip": request.client.host if request.client else "unknown"}
+                )
+                return self._create_error_response(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    error="ADMIN_ACCESS_REQUIRED",
+                    message="This endpoint requires administrator authentication."
+                )
         
-        # All other routes require authentication
-        if not self._has_valid_auth(request):
-            logger.info(f"Unauthorized access attempt: {path}")
-            raise AuthenticationError("Authentication required for this endpoint")
+        # Authenticated routes - require user authentication
+        elif access_level == RouteAccessLevel.AUTHENTICATED:
+            if not self._has_valid_auth(request):
+                logger.info(
+                    f"Unauthorized access attempt",
+                    extra={"path": path, "method": method, "ip": request.client.host if request.client else "unknown"}
+                )
+                return self._create_error_response(
+                    status_code=status.HTTP_401_UNAUTHORIZED,
+                    error="AUTHENTICATION_REQUIRED",
+                    message="Authentication required. Please log in to access this endpoint."
+                )
         
         # Process request
         response = await call_next(request)
         return response
     
-    def _is_public_route(self, path: str) -> bool:
-        """Check if route is public"""
-        # Exact match
-        if path in self.public_routes:
-            return True
-        
-        # Pattern match
-        for pattern in self.public_patterns:
-            if path.startswith(pattern):
-                return True
-        
-        return False
-    
-    def _is_admin_route(self, path: str) -> bool:
-        """Check if route is admin-only"""
-        # Exact match
-        if path in self.admin_routes:
-            return True
-        
-        # Pattern match
-        for pattern in self.admin_patterns:
-            if path.startswith(pattern):
-                return True
-        
-        return False
-    
     def _has_valid_auth(self, request: Request) -> bool:
-        """Check if request has valid authentication"""
+        """
+        Check if request has valid authentication
+        
+        Args:
+            request: FastAPI request object
+            
+        Returns:
+            bool: True if request has valid auth token
+        """
         # Check for Authorization header
         auth_header = request.headers.get("Authorization")
         if not auth_header:
@@ -141,16 +102,50 @@ class RouteProtectionMiddleware(BaseHTTPMiddleware):
             return False
         
         # Token exists (actual validation happens in dependencies)
-        token = auth_header.split(" ", 1)[1]
+        token = auth_header.split(" ", 1)[1] if " " in auth_header else ""
         return bool(token)
     
     def _has_admin_auth(self, request: Request) -> bool:
-        """Check if request has valid admin authentication"""
+        """
+        Check if request has valid admin authentication
+        
+        Args:
+            request: FastAPI request object
+            
+        Returns:
+            bool: True if request has valid admin tokens
+        """
         # Require both session and admin tokens
         session_token = request.headers.get("X-Session-Token")
         admin_token = request.headers.get("X-Admin-Token")
         
         return bool(session_token and admin_token)
+    
+    def _create_error_response(
+        self,
+        status_code: int,
+        error: str,
+        message: str
+    ) -> JSONResponse:
+        """
+        Create a standardized error response
+        
+        Args:
+            status_code: HTTP status code
+            error: Error code
+            message: Human-readable error message
+            
+        Returns:
+            JSONResponse: Formatted error response
+        """
+        return JSONResponse(
+            status_code=status_code,
+            content={
+                "error": error,
+                "message": message,
+                "status_code": status_code
+            }
+        )
 
 
 class RoleBasedAccessControl:

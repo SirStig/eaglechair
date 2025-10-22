@@ -5,12 +5,21 @@ const ProtectedRoute = ({ children, requireAdmin = false }) => {
   const { isAuthenticated, user } = useAuthStore();
   const location = useLocation();
 
-  if (!isAuthenticated) {
+  // Not authenticated - redirect to login
+  if (!isAuthenticated || !user) {
     return <Navigate to="/login" state={{ from: location }} replace />;
   }
 
-  if (requireAdmin && user?.role !== 'admin') {
-    return <Navigate to="/dashboard" replace />;
+  // Check if admin access is required
+  if (requireAdmin) {
+    const isAdmin = user.type === 'admin' || 
+                    user.role === 'super_admin' || 
+                    user.role === 'admin' ||
+                    user.role === 'editor';
+    
+    if (!isAdmin) {
+      return <Navigate to="/dashboard" replace />;
+    }
   }
 
   return children;

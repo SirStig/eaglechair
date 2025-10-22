@@ -1,18 +1,69 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import Modal from '../components/ui/Modal';
-import { demoGalleryImages, IS_DEMO } from '../data/demoData';
+import EditableWrapper from '../components/admin/EditableWrapper';
+import { useInstallations } from '../hooks/useContent';
+import { 
+  updateInstallation, 
+  createInstallation, 
+  deleteInstallation 
+} from '../services/contentService';
+import { demoGalleryImages } from '../data/demoData';
+import LoadingSpinner from '../components/ui/LoadingSpinner';
+import logger from '../utils/logger';
+
+const CONTEXT = 'GalleryPage';
 
 const GalleryPage = () => {
-  const [images, setImages] = useState(demoGalleryImages);
   const [selectedImage, setSelectedImage] = useState(null);
   const [filter, setFilter] = useState('all');
+  const { data: installations, loading, refetch } = useInstallations();
 
-  const categories = ['all', ...new Set(images.map(img => img.category))];
+  // Use API data or fallback to demo
+  const images = installations || demoGalleryImages;
+
+  const categories = ['all', ...new Set(images.map(img => img.category || img.projectType || img.project_type))];
   
   const filteredImages = filter === 'all' 
     ? images 
-    : images.filter(img => img.category === filter);
+    : images.filter(img => (img.category || img.projectType || img.project_type) === filter);
+
+  // Handlers for CRUD operations
+  const handleUpdateInstallation = async (id, updates) => {
+    try {
+      logger.info(CONTEXT, `Updating installation ${id}`);
+      await updateInstallation(id, updates);
+      refetch();
+      logger.info(CONTEXT, 'Installation updated successfully');
+    } catch (error) {
+      logger.error(CONTEXT, 'Failed to update installation', error);
+      throw error;
+    }
+  };
+
+  const handleCreateInstallation = async (newData) => {
+    try {
+      logger.info(CONTEXT, 'Creating new installation');
+      await createInstallation(newData);
+      refetch();
+      logger.info(CONTEXT, 'Installation created successfully');
+    } catch (error) {
+      logger.error(CONTEXT, 'Failed to create installation', error);
+      throw error;
+    }
+  };
+
+  const handleDeleteInstallation = async (id) => {
+    try {
+      logger.info(CONTEXT, `Deleting installation ${id}`);
+      await deleteInstallation(id);
+      refetch();
+      logger.info(CONTEXT, 'Installation deleted successfully');
+    } catch (error) {
+      logger.error(CONTEXT, 'Failed to delete installation', error);
+      throw error;
+    }
+  };
 
   return (
     <div className="min-h-screen bg-dark-800 py-8">
@@ -44,31 +95,54 @@ const GalleryPage = () => {
         </div>
 
         {/* Masonry Gallery Grid */}
-        <div className="columns-1 sm:columns-2 lg:columns-3 xl:columns-4 gap-6 space-y-6">
-          {filteredImages.map((image, index) => (
-            <motion.div
-              key={image.id}
-              initial={{ opacity: 0, scale: 0.9 }}
-              animate={{ opacity: 1, scale: 1 }}
-              transition={{ delay: index * 0.05 }}
-              className="relative group cursor-pointer overflow-hidden rounded-xl shadow-md hover:shadow-2xl transition-shadow break-inside-avoid mb-6"
-              onClick={() => setSelectedImage(image)}
-            >
-              <img
-                src={image.url}
-                alt={image.title}
-                className="w-full h-auto object-cover group-hover:scale-105 transition-transform duration-500"
-                style={{ maxHeight: '600px' }}
-              />
-              <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/30 to-transparent opacity-0 group-hover:opacity-100 transition-opacity">
-                <div className="absolute bottom-0 left-0 right-0 p-6 text-white">
-                  <h3 className="text-xl font-semibold mb-1 text-dark-50">{image.title}</h3>
-                  <p className="text-sm text-dark-100">{image.category}</p>
-                </div>
-              </div>
-            </motion.div>
-          ))}
-        </div>
+        {loading ? (
+          <div className="flex justify-center items-center h-96">
+            <LoadingSpinner size="lg" />
+          </div>
+        ) : (
+          <div className="columns-1 sm:columns-2 lg:columns-3 xl:columns-4 gap-6 space-y-6">
+            {filteredImages.map((image, index) => {
+              const imageUrl = image.url || image.primary_image || image.primaryImage || (image.images && (typeof image.images === 'string' ? JSON.parse(image.images)[0] : image.images[0]));
+              const title = image.title || image.project_name || image.projectName;
+              const category = image.category || image.project_type || image.projectType;
+              const description = image.description;
+              const location = image.location;
+              
+              return (
+                <EditableWrapper
+                  key={image.id}
+                  id={`installation-${image.id}`}
+                  type="installation"
+                  data={image}
+                  onSave={(newData) => handleUpdateInstallation(image.id, newData)}
+                  label={`Installation: ${title}`}
+                >
+                  <motion.div
+                    initial={{ opacity: 0, scale: 0.9 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    transition={{ delay: index * 0.05 }}
+                    className="relative group cursor-pointer overflow-hidden rounded-xl shadow-md hover:shadow-2xl transition-shadow break-inside-avoid mb-6"
+                    onClick={() => setSelectedImage(image)}
+                  >
+                    <img
+                      src={imageUrl}
+                      alt={title}
+                      className="w-full h-auto object-cover group-hover:scale-105 transition-transform duration-500"
+                      style={{ maxHeight: '600px' }}
+                    />
+                    <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/30 to-transparent opacity-0 group-hover:opacity-100 transition-opacity">
+                      <div className="absolute bottom-0 left-0 right-0 p-6 text-white">
+                        <h3 className="text-xl font-semibold mb-1 text-dark-50">{title}</h3>
+                        <p className="text-sm text-dark-100">{category}</p>
+                        {location && <p className="text-xs text-dark-200">{location}</p>}
+                      </div>
+                    </div>
+                  </motion.div>
+                </EditableWrapper>
+              );
+            })}
+          </div>
+        )}
 
         {/* Image Modal */}
         <Modal

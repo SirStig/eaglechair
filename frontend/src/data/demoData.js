@@ -1,6 +1,6 @@
 // Demo mode flag - set to false to use real API
 // This is also controlled by VITE_DEMO_MODE environment variable
-export const IS_DEMO = import.meta.env.VITE_DEMO_MODE === 'true' || true;
+export const IS_DEMO = import.meta.env.VITE_DEMO_MODE === 'true';
 
 // Demo Products
 export const demoProducts = [
@@ -569,6 +569,170 @@ export const companyInfo = {
       weekdays: "Mon-Fri: 8:00 AM - 5:00 PM CST",
       saturday: "Sat: By Appointment",
       sunday: "Sun: Closed"
+    }
+  }
+};
+
+// Site Settings (for footer, header, etc.)
+export const demoSiteSettings = {
+  companyName: "Eagle Chair",
+  companyTagline: "Premium Commercial Furniture Since 1984",
+  logoUrl: "/assets/eagle-chair-logo.png",
+  primaryEmail: "info@eaglechair.com",
+  primaryPhone: "(616) 555-0100",
+  salesEmail: "sales@eaglechair.com",
+  salesPhone: "(616) 555-0101",
+  supportEmail: "support@eaglechair.com",
+  supportPhone: "(616) 555-0102",
+  addressLine1: "123 Furniture Lane",
+  city: "Grand Rapids",
+  state: "MI",
+  zipCode: "49504",
+  country: "USA",
+  businessHoursWeekdays: "Mon-Fri: 8:00 AM - 5:00 PM EST",
+  businessHoursSaturday: "Sat: By Appointment",
+  businessHoursSunday: "Sun: Closed",
+  facebookUrl: "https://facebook.com",
+  instagramUrl: "https://instagram.com",
+  linkedinUrl: "https://linkedin.com",
+  twitterUrl: null,
+  youtubeUrl: null
+};
+
+// About Page Content
+export const demoAboutContent = {
+  hero: {
+    title: "Our Story",
+    subtitle: "Family-owned and operated since 1984, continuing the Yuglich Family legacy of quality commercial furniture manufacturing in Houston, Texas."
+  },
+  story: {
+    title: "Craftsmanship & Dedication",
+    paragraphs: [
+      "Founded in Houston, Texas in 1984 by the Yuglich Family, Eagle Chair has grown into a trusted name in commercial furniture manufacturing. Under the leadership of Katarina Kac-Statton and Maximilian Kac, we've maintained our commitment to quality, craftsmanship, and customer satisfaction.",
+      "Our furniture graces thousands of restaurants, hotels, and hospitality venues across the country. Each piece is a testament to our dedication to excellence and our understanding of the demanding needs of commercial environments.",
+      "As a family-owned business, we take pride in treating every customer like family. Your success is our success, and we're here to support you every step of the way."
+    ]
+  },
+  values: [
+    {
+      title: "Quality First",
+      description: "We never compromise on materials or craftsmanship. Every piece is built to last."
+    },
+    {
+      title: "Customer Partnership",
+      description: "We build lasting relationships with our clients, supporting them every step of the way."
+    },
+    {
+      title: "American Made",
+      description: "Proudly manufacturing in the USA, supporting local communities and jobs."
+    },
+    {
+      title: "Sustainability",
+      description: "Committed to environmentally responsible practices and materials."
+    }
+  ],
+  milestones: [
+    { year: "1984", title: "Company Founded", description: "Eagle Chair was established in Houston, Texas by the Yuglich Family" },
+    { year: "1995", title: "Expansion", description: "Opened new manufacturing facility and doubled capacity" },
+    { year: "2005", title: "National Distribution", description: "Expanded distribution network to serve nationwide" },
+    { year: "2024", title: "Continued Excellence", description: "Continuing the Yuglich Family legacy of quality craftsmanship" }
+  ],
+  team: [
+    { name: "Katarina Kac-Statton", role: "Leadership", image: "/team/katarina.jpg" },
+    { name: "Maximilian Kac", role: "Leadership", image: "/team/maximilian.jpg" }
+  ]
+};
+
+// Home Page Content
+export const demoHomeContent = {
+  heroSlides: [
+    {
+      image: "https://images.unsplash.com/photo-1517248135467-4c7edcad34c4?w=1920",
+      title: "Welcome to Eagle Chair",
+      subtitle: "Premium Commercial Furniture for Restaurants & Hospitality",
+      ctaText: "Explore Products",
+      ctaLink: "/products"
+    },
+    {
+      image: "https://images.unsplash.com/photo-1555041469-a586c61ea9bc?w=1920",
+      title: "Crafted with Excellence",
+      subtitle: "Family-Owned. American-Made. Built to Last.",
+      ctaText: "Our Story",
+      ctaLink: "/about"
+    },
+    {
+      image: "https://images.unsplash.com/photo-1592078615290-033ee584e267?w=1920",
+      title: "Indoor & Outdoor Solutions",
+      subtitle: "Complete furniture solutions for every commercial space",
+      ctaText: "View Gallery",
+      ctaLink: "/gallery"
+    }
+  ],
+  whyChooseUs: [
+    {
+      title: "American Made",
+      description: "All our furniture is manufactured in the USA with premium materials and superior craftsmanship."
+    },
+    {
+      title: "Commercial Grade",
+      description: "Built to withstand heavy daily use in the most demanding commercial environments."
+    },
+    {
+      title: "Custom Options",
+      description: "Extensive customization options including finishes, fabrics, and sizes to match your vision."
+    },
+    {
+      title: "Quick Turnaround",
+      description: "Fast production and shipping to get your furniture delivered when you need it."
+    },
+    {
+      title: "Warranty Backed",
+      description: "Comprehensive warranty coverage because we stand behind the quality of our products."
+    },
+    {
+      title: "Expert Support",
+      description: "Dedicated sales representatives to help you choose the perfect furniture for your space."
+    }
+  ]
+};
+
+// Footer Links
+export const demoFooterLinks = {
+  products: [
+    { name: "Chairs", path: "/products/chairs" },
+    { name: "Barstools", path: "/products/barstools" },
+    { name: "Tables", path: "/products/tables" },
+    { name: "Booths", path: "/products/booths" },
+    { name: "Outdoor", path: "/products/outdoor" }
+  ],
+  company: [
+    { name: "About Us", path: "/about" },
+    { name: "Gallery", path: "/gallery" },
+    { name: "Find a Rep", path: "/find-a-rep" },
+    { name: "Contact", path: "/contact" }
+  ],
+  resources: [
+    { name: "Product Catalog", path: "/resources/catalog" },
+    { name: "Fabric Swatches", path: "/resources/fabrics" },
+    { name: "Installation Guides", path: "/resources/guides" },
+    { name: "CAD Files", path: "/resources/cad" }
+  ],
+  legal: [
+    { name: "Privacy Policy", path: "/privacy" },
+    { name: "Terms of Service", path: "/terms" },
+    { name: "Shipping Policy", path: "/shipping" },
+    { name: "Return Policy", path: "/returns" }
+  ]
+};
+
+// Page Content (for dynamic sections)
+export const demoPageContent = {
+  home: {
+    about: {
+      title: "About Eagle Chair",
+      subtitle: "Our commitment to excellence, American craftsmanship, and customer satisfaction sets us apart. We understand the unique demands of commercial environments and design our products to withstand the test of time, combining timeless aesthetics with robust construction.",
+      content: "Eagle Chair is a family-owned and operated commercial furniture manufacturer based in Houston, Texas. Since 1984, we've been dedicated to crafting high-quality, durable furniture solutions for restaurants, hotels, and hospitality businesses across the nation.",
+      imageUrl: "https://images.unsplash.com/photo-1506439773649-6e0eb8cfb237?w=800"
     }
   }
 };

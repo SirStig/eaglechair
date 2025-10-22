@@ -6,9 +6,8 @@ Aggregates all v1 route modules
 
 from fastapi import APIRouter
 
-from backend.api.v1.routes import auth, products, quotes, content
+from backend.api.v1.routes import auth, cms_content, content, products, quotes, upload
 from backend.api.v1.routes.admin.router import router as admin_router
-
 
 router = APIRouter()
 
@@ -23,6 +22,12 @@ router.include_router(quotes.router)
 
 # Include content routes (FAQ, team, contact, catalogs, feedback)
 router.include_router(content.router)
+
+# Include CMS content routes (hero slides, features, values, milestones, etc.)
+router.include_router(cms_content.router)
+
+# Include upload routes
+router.include_router(upload.router)
 
 # Include admin routes
 router.include_router(admin_router)

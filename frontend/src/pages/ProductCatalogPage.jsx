@@ -1,11 +1,15 @@
 import { useState, useEffect } from 'react';
-import { useSearchParams, useNavigate } from 'react-router-dom';
+import { useSearchParams, useNavigate, useLocation } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import ProductCard from '../components/ui/ProductCard';
 import Button from '../components/ui/Button';
 import LoadingSpinner from '../components/ui/LoadingSpinner';
 import QuickViewModal from '../components/ui/QuickViewModal';
+import EditableWrapper from '../components/admin/EditableWrapper';
+import { CardGridSkeleton } from '../components/ui/Skeleton';
 import { demoProducts, demoCategories, IS_DEMO } from '../data/demoData';
+import { updateProduct, deleteProduct } from '../services/contentService';
+import { useLightTheme } from '../utils/themeTransition';
 import logger from '../utils/logger';
 
 const CONTEXT = 'ProductCatalogPage';
@@ -13,6 +17,9 @@ const CONTEXT = 'ProductCatalogPage';
 const ProductCatalogPage = () => {
   const [searchParams, setSearchParams] = useSearchParams();
   const navigate = useNavigate();
+  const location = useLocation();
+  const shouldBeLightTheme = useLightTheme(location.pathname);
+  const [isLightTheme, setIsLightTheme] = useState(false);
   
   const [products, setProducts] = useState([]);
   const [categories, setCategories] = useState([]);
@@ -36,9 +43,28 @@ const ProductCatalogPage = () => {
     p.specs?.Material ? [p.specs.Material] : []
   ))].filter(Boolean);
 
+  // Load data first
   useEffect(() => {
     loadData();
   }, [filters]);
+
+  // Theme transition effect - wait for data load AND animations to complete
+  useEffect(() => {
+    if (shouldBeLightTheme && !loading) {
+      // Calculate animation duration: products.length * 50ms delay + 300ms animation duration + 200ms buffer
+      const animationDuration = (products.length * 50) + 500;
+      console.log(`Waiting ${animationDuration}ms for animations to complete before transitioning`);
+      
+      const timer = setTimeout(() => {
+        console.log('Activating light theme transition');
+        setIsLightTheme(true);
+      }, animationDuration);
+      return () => clearTimeout(timer);
+    } else if (!shouldBeLightTheme) {
+      console.log('Deactivating light theme');
+      setIsLightTheme(false);
+    }
+  }, [shouldBeLightTheme, loading, products.length]);
 
   const loadData = async () => {
     setLoading(true);
@@ -148,15 +174,44 @@ const ProductCatalogPage = () => {
     logger.info(CONTEXT, `Opening quick view for: ${product.name}`);
   };
 
+  // Product CRUD handlers
+  const handleUpdateProduct = async (id, updates) => {
+    try {
+      logger.info(CONTEXT, `Updating product ${id}`);
+      await updateProduct(id, updates);
+      loadData(); // Reload products
+      logger.info(CONTEXT, 'Product updated successfully');
+    } catch (error) {
+      logger.error(CONTEXT, 'Failed to update product', error);
+      throw error;
+    }
+  };
+
+  const handleDeleteProduct = async (id) => {
+    try {
+      logger.info(CONTEXT, `Deleting product ${id}`);
+      await deleteProduct(id);
+      loadData(); // Reload products
+      logger.info(CONTEXT, 'Product deleted successfully');
+    } catch (error) {
+      logger.error(CONTEXT, 'Failed to delete product', error);
+      throw error;
+    }
+  };
+
   const activeCategory = categories.find(c => 
     c.slug === filters.category || c.name.toLowerCase() === filters.category.toLowerCase()
   );
 
   return (
-    <div className="min-h-screen bg-dark-800 py-8">
+    <div className={`min-h-screen py-8 transition-colors duration-[1500ms] ${
+      isLightTheme 
+        ? 'bg-gradient-to-br from-cream-50 to-cream-100' 
+        : 'bg-dark-800'
+    }`}>
       <div className="container mx-auto px-4 max-w-[1600px]">
         {/* Breadcrumb */}
-        <div className="mb-6 text-sm text-dark-100">
+        <div className={`mb-6 text-sm ${isLightTheme ? 'text-slate-600' : 'text-dark-100'}`}>
           <span className="cursor-pointer hover:text-primary-500" onClick={() => navigate('/')}>
             Home
           </span>
@@ -167,33 +222,37 @@ const ProductCatalogPage = () => {
           {filters.category && (
             <>
               {' '}/{' '}
-              <span className="text-dark-50">{filters.category}</span>
+              <span className={isLightTheme ? 'text-slate-800' : 'text-dark-50'}>{filters.category}</span>
             </>
           )}
           {filters.subcategory && (
             <>
               {' '}/{' '}
-              <span className="text-dark-50">{filters.subcategory}</span>
+              <span className={isLightTheme ? 'text-slate-800' : 'text-dark-50'}>{filters.subcategory}</span>
             </>
           )}
         </div>
 
         {/* Header */}
         <div className="mb-8">
-          <h1 className="text-4xl font-bold mb-2 text-dark-50">
+          <h1 className={`text-4xl font-bold mb-2 ${isLightTheme ? 'text-slate-800' : 'text-dark-50'}`}>
             {filters.category ? `${filters.category}` : 'All Products'}
           </h1>
           {activeCategory && (
-            <p className="text-lg text-dark-100">{activeCategory.description}</p>
+            <p className={`text-lg ${isLightTheme ? 'text-slate-600' : 'text-dark-100'}`}>{activeCategory.description}</p>
           )}
         </div>
 
         <div className="grid lg:grid-cols-4 gap-8">
           {/* Sidebar Filters */}
           <aside className="lg:col-span-1">
-            <div className="bg-dark-600 border border-dark-500 rounded-xl shadow-md p-6 sticky top-24">
+            <div className={`rounded-xl shadow-md p-6 sticky top-24 ${
+              isLightTheme 
+                ? 'bg-white/90 backdrop-blur-sm border border-cream-200' 
+                : 'bg-dark-600 border border-dark-500'
+            }`}>
               <div className="flex items-center justify-between mb-6">
-                <h2 className="text-xl font-semibold text-dark-50">Filters</h2>
+                <h2 className={`text-xl font-semibold ${isLightTheme ? 'text-slate-800' : 'text-dark-50'}`}>Filters</h2>
                 {(filters.category || filters.subcategory || filters.search || filters.finish || filters.material) && (
                   <button
                     onClick={clearFilters}
@@ -206,7 +265,7 @@ const ProductCatalogPage = () => {
 
               {/* Search */}
               <div className="mb-6">
-                <label className="block text-sm font-medium text-dark-100 mb-2">
+                <label className={`block text-sm font-medium mb-2 ${isLightTheme ? 'text-slate-700' : 'text-dark-100'}`}>
                   Search
                 </label>
                 <input
@@ -214,13 +273,17 @@ const ProductCatalogPage = () => {
                   value={filters.search}
                   onChange={(e) => updateFilter('search', e.target.value)}
                   placeholder="Search products..."
-                  className="w-full px-3 py-2 border border-dark-400 bg-dark-700 text-dark-50 placeholder-dark-200 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
+                  className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 ${
+                    isLightTheme 
+                      ? 'border-cream-300 bg-white text-slate-800 placeholder-slate-400' 
+                      : 'border-dark-400 bg-dark-700 text-dark-50 placeholder-dark-200'
+                  }`}
                 />
               </div>
 
               {/* Categories */}
               <div className="mb-6">
-                <label className="block text-sm font-medium text-dark-100 mb-2">
+                <label className={`block text-sm font-medium mb-2 ${isLightTheme ? 'text-slate-700' : 'text-dark-100'}`}>
                   Category
                 </label>
                 <div className="space-y-2">
@@ -341,16 +404,14 @@ const ProductCatalogPage = () => {
           {/* Products Grid */}
           <main className="lg:col-span-3">
             {loading ? (
-              <div className="flex justify-center items-center h-96">
-                <LoadingSpinner size="lg" />
-              </div>
+              <CardGridSkeleton count={9} columns={3} />
             ) : products.length === 0 ? (
-              <div className="bg-white rounded-xl shadow-md p-12 text-center">
-                <svg className="mx-auto h-24 w-24 text-gray-400 mb-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <div className="bg-dark-800 rounded-xl shadow-md p-12 text-center">
+                <svg className="mx-auto h-24 w-24 text-dark-400 mb-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 13V6a2 2 0 00-2-2H6a2 2 0 00-2 2v7m16 0v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5m16 0h-2.586a1 1 0 00-.707.293l-2.414 2.414a1 1 0 01-.707.293h-3.172a1 1 0 01-.707-.293l-2.414-2.414A1 1 0 006.586 13H4" />
                 </svg>
-                <h3 className="text-xl font-semibold mb-2">No products found</h3>
-                <p className="text-gray-600 mb-4">
+                <h3 className="text-xl font-semibold mb-2 text-dark-50">No products found</h3>
+                <p className="text-dark-300 mb-4">
                   Try adjusting your filters or search terms
                 </p>
                 <Button onClick={clearFilters} variant="primary">
@@ -372,10 +433,18 @@ const ProductCatalogPage = () => {
                       transition={{ delay: index * 0.05 }}
                       className="h-full"
                     >
-                      <ProductCard 
-                        product={product}
-                        onQuickView={handleQuickView}
-                      />
+                      <EditableWrapper
+                        id={`product-${product.id}`}
+                        type="product"
+                        data={product}
+                        onSave={(newData) => handleUpdateProduct(product.id, newData)}
+                        label={`Product: ${product.name}`}
+                      >
+                        <ProductCard 
+                          product={product}
+                          onQuickView={handleQuickView}
+                        />
+                      </EditableWrapper>
                     </motion.div>
                   ))}
                 </div>

@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { motion, AnimatePresence } from 'framer-motion';
+import { AnimatePresence, motion as Motion } from 'framer-motion';
 import Button from '../ui/Button';
 import Dropdown from '../ui/Dropdown';
 import Badge from '../ui/Badge';
@@ -71,23 +71,29 @@ const Header = () => {
   const cartItemCount = items.reduce((sum, item) => sum + item.quantity, 0);
 
   return (
-    <header className="fixed top-0 left-0 w-full bg-dark-800/95 backdrop-blur-md shadow-lg border-b border-dark-500 z-50">
+    <header className="fixed top-0 left-0 w-full bg-dark-800/95 backdrop-blur-md shadow-lg border-b border-dark-500 z-50" style={{ '--header-height': '80px' }}>
       <div className="container mx-auto">
         {/* Main Navigation */}
         <div className="flex items-center justify-between py-4 gap-4">
           {/* Logo */}
           <Link to="/" className="flex-shrink-0">
-            <motion.div
+            <Motion.div
               whileHover={{ scale: 1.05 }}
               transition={{ type: 'spring', stiffness: 400, damping: 10 }}
-              className="flex items-center gap-2"
+              className="flex items-center gap-3"
             >
+              {/* Eagle Chair Logo Image */}
               <img 
                 src="/assets/eagle-chair-logo.png" 
                 alt="Eagle Chair" 
                 className="h-12 w-auto object-contain"
               />
-            </motion.div>
+              
+              {/* Since 1984 Text */}
+              <span className="hidden md:inline text-white/80 text-sm font-medium">
+                Since 1984
+              </span>
+            </Motion.div>
           </Link>
 
           {/* Center Navigation */}
@@ -97,7 +103,7 @@ const Header = () => {
               trigger={(isOpen) => (
                 <Button variant="transparent" className="font-medium hover-lift">
                   Products
-                  <motion.svg 
+                  <Motion.svg 
                     className="ml-1 h-4 w-4" 
                     fill="none" 
                     viewBox="0 0 24 24" 
@@ -106,10 +112,11 @@ const Header = () => {
                     transition={{ duration: 0.3, ease: [0.4, 0, 0.2, 1] }}
                   >
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                  </motion.svg>
+                  </Motion.svg>
                 </Button>
               )}
-              contentClassName="w-screen max-w-4xl"
+              contentClassName="w-screen max-w-none !rounded-none shadow-2xl !border-t-0 !border-l-0 !border-r-0"
+              align="left"
             >
               <ProductsDropdown />
             </Dropdown>
@@ -126,7 +133,7 @@ const Header = () => {
               trigger={(isOpen) => (
                 <Button variant="transparent" className="font-medium hover-lift">
                   Resources
-                  <motion.svg 
+                  <Motion.svg 
                     className="ml-1 h-4 w-4" 
                     fill="none" 
                     viewBox="0 0 24 24" 
@@ -135,7 +142,7 @@ const Header = () => {
                     transition={{ duration: 0.3, ease: [0.4, 0, 0.2, 1] }}
                   >
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                  </motion.svg>
+                  </Motion.svg>
                 </Button>
               )}
               contentClassName="w-64"
@@ -155,7 +162,7 @@ const Header = () => {
               trigger={(isOpen) => (
                 <Button variant="transparent" className="font-medium hover-lift">
                   Connect
-                  <motion.svg 
+                  <Motion.svg 
                     className="ml-1 h-4 w-4" 
                     fill="none" 
                     viewBox="0 0 24 24" 
@@ -164,7 +171,7 @@ const Header = () => {
                     transition={{ duration: 0.3, ease: [0.4, 0, 0.2, 1] }}
                   >
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                  </motion.svg>
+                  </Motion.svg>
                 </Button>
               )}
               align="right"
@@ -233,7 +240,7 @@ const Header = () => {
               {/* Search Results Dropdown */}
               <AnimatePresence>
                 {showSearchResults && searchResults.length > 0 && (
-                  <motion.div
+                  <Motion.div
                     initial={{ opacity: 0, y: -10 }}
                     animate={{ opacity: 1, y: 0 }}
                     exit={{ opacity: 0, y: -10 }}
@@ -269,7 +276,7 @@ const Header = () => {
                         View all results →
                       </button>
                     </div>
-                  </motion.div>
+                  </Motion.div>
                 )}
               </AnimatePresence>
             </form>
@@ -282,8 +289,8 @@ const Header = () => {
                     <svg className="h-5 w-5 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
                     </svg>
-                    {user.name}
-                    <motion.svg 
+                    {user.username || `${user.firstName} ${user.lastName}` || user.companyName || 'User'}
+                    <Motion.svg 
                       className="ml-1 h-4 w-4 inline-block" 
                       fill="none" 
                       viewBox="0 0 24 24" 
@@ -292,7 +299,7 @@ const Header = () => {
                       transition={{ duration: 0.3, ease: [0.4, 0, 0.2, 1] }}
                     >
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                    </motion.svg>
+                    </Motion.svg>
                   </Button>
                 )}
                 align="right"
@@ -311,7 +318,7 @@ const Header = () => {
                   >
                     My Quotes
                   </Link>
-                  {user.role === 'admin' && (
+                  {(user.role === 'super_admin' || user.role === 'admin' || user.type === 'admin') && (
                     <Link
                       to="/admin"
                       className="block px-4 py-2 text-sm text-dark-50 hover:bg-dark-700 transition-colors rounded-md"
@@ -337,7 +344,7 @@ const Header = () => {
 
             {/* Cart */}
             <Link to="/cart" className="relative">
-              <motion.div whileHover={{ scale: 1.1 }} whileTap={{ scale: 0.95 }}>
+              <Motion.div whileHover={{ scale: 1.1 }} whileTap={{ scale: 0.95 }}>
                 <Button variant="transparent" size="sm">
                   <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z" />
@@ -348,7 +355,7 @@ const Header = () => {
                     </Badge>
                   )}
                 </Button>
-              </motion.div>
+              </Motion.div>
             </Link>
 
             {/* Mobile Menu Button */}

@@ -4,35 +4,92 @@ import { useForm } from 'react-hook-form';
 import Card from '../components/ui/Card';
 import Button from '../components/ui/Button';
 import Input from '../components/ui/Input';
-import { companyInfo, IS_DEMO } from '../data/demoData';
+import EditableWrapper from '../components/admin/EditableWrapper';
+import { companyInfo } from '../data/demoData';
+import { useSiteSettings, usePageContent } from '../hooks/useContent';
+import { submitFeedback, updateSiteSettings, updatePageContent } from '../services/contentService';
+import { IS_DEMO } from '../data/demoData';
+import logger from '../utils/logger';
+
+const CONTEXT = 'ContactPage';
 
 const ContactPage = () => {
   const [submitStatus, setSubmitStatus] = useState(null);
   const { register, handleSubmit, formState: { errors }, reset } = useForm();
+  const { data: siteSettings, refetch: refetchSettings } = useSiteSettings();
+  const { data: headerSection, refetch: refetchHeader } = usePageContent('contact', 'header');
+
+  // Handler for updating site settings
+  const handleUpdateSettings = async (updates) => {
+    try {
+      logger.info(CONTEXT, 'Updating site settings');
+      await updateSiteSettings(updates);
+      refetchSettings();
+      logger.info(CONTEXT, 'Site settings updated successfully');
+    } catch (error) {
+      logger.error(CONTEXT, 'Failed to update site settings', error);
+      throw error;
+    }
+  };
+
+  // Handler for updating page content
+  const handleUpdatePageContent = async (pageSlug, sectionKey, updates) => {
+    try {
+      logger.info(CONTEXT, `Updating page content for ${pageSlug}/${sectionKey}`);
+      await updatePageContent(pageSlug, sectionKey, updates);
+      refetchHeader();
+      logger.info(CONTEXT, 'Page content updated successfully');
+    } catch (error) {
+      logger.error(CONTEXT, 'Failed to update page content', error);
+      throw error;
+    }
+  };
 
   const onSubmit = async (data) => {
     try {
-      // In demo mode or real API
-      const response = await fetch('/api/v1/contact', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(data),
-      });
-
-      if (response.ok) {
+      if (IS_DEMO) {
+        // Demo mode - simulate success
         setSubmitStatus('success');
         reset();
         setTimeout(() => setSubmitStatus(null), 5000);
       } else {
-        setSubmitStatus('error');
+        // Real API
+        await submitFeedback({
+          name: `${data.firstName} ${data.lastName}`,
+          email: data.email,
+          phone: data.phone,
+          companyName: data.company,
+          subject: data.subject,
+          message: data.message,
+          feedbackType: data.subject
+        });
+        setSubmitStatus('success');
+        reset();
+        setTimeout(() => setSubmitStatus(null), 5000);
       }
     } catch (error) {
       setSubmitStatus('error');
     }
   };
 
-  // Use demo data or API data
-  const contact = IS_DEMO ? companyInfo.contact : companyInfo.contact; // TODO: fetch from API when not in demo
+  // Use site settings or fallback to company info
+  const contact = siteSettings ? {
+    phone: siteSettings.primaryPhone,
+    salesPhone: siteSettings.salesPhone,
+    email: siteSettings.primaryEmail,
+    salesEmail: siteSettings.salesEmail,
+    address: {
+      street: siteSettings.addressLine1,
+      city: siteSettings.city,
+      state: siteSettings.state,
+      zip: siteSettings.zipCode,
+      fullAddress: `${siteSettings.addressLine1}, ${siteSettings.city}, ${siteSettings.state} ${siteSettings.zipCode}`
+    },
+    businessHours: {
+      weekdays: siteSettings.businessHoursWeekdays,
+      saturday: siteSettings.businessHoursSaturday
+    }
+  } : companyInfo.contact;
 
   const contactInfo = [
     {
@@ -74,15 +131,36 @@ const ContactPage = () => {
     },
   ];
 
+  // Header content
+  const headerTitle = headerSection?.title || "Contact Us";
+  const headerContent = headerSection?.content || "Have questions? We're here to help! Reach out to our team and we'll get back to you as soon as possible.";
+
   return (
     <div className="min-h-screen bg-dark-800 py-8">
       <div className="container">
         {/* Header */}
         <div className="text-center mb-12">
-          <h1 className="text-4xl font-bold mb-4 text-dark-50">Contact Us</h1>
-          <p className="text-lg text-dark-100 max-w-2xl mx-auto">
-            Have questions? We're here to help! Reach out to our team and we'll get back to you as soon as possible.
-          </p>
+          <EditableWrapper
+            id="contact-header-title"
+            type="text"
+            data={{ title: headerTitle }}
+            onSave={(newData) => handleUpdatePageContent('contact', 'header', { ...headerSection, ...newData })}
+            label="Header Title"
+          >
+            <h1 className="text-4xl font-bold mb-4 text-dark-50">{headerTitle}</h1>
+          </EditableWrapper>
+          
+          <EditableWrapper
+            id="contact-header-content"
+            type="textarea"
+            data={{ content: headerContent }}
+            onSave={(newData) => handleUpdatePageContent('contact', 'header', { ...headerSection, ...newData })}
+            label="Header Content"
+          >
+            <p className="text-lg text-dark-100 max-w-2xl mx-auto">
+              {headerContent}
+            </p>
+          </EditableWrapper>
         </div>
 
         <div className="grid lg:grid-cols-3 gap-8 mb-12">
@@ -193,30 +271,39 @@ const ContactPage = () => {
 
           {/* Contact Info Sidebar */}
           <div className="space-y-6">
-            {contactInfo.map((info, index) => (
-              <motion.div
-                key={index}
-                initial={{ opacity: 0, x: 20 }}
-                animate={{ opacity: 1, x: 0 }}
-                transition={{ delay: index * 0.1 }}
-              >
-                <Card>
-                  <div className="flex items-start gap-4">
-                    <div className="flex-shrink-0 w-12 h-12 bg-primary-900 border-2 border-primary-500 rounded-lg flex items-center justify-center text-primary-500">
-                      {info.icon}
+            <EditableWrapper
+              id="contact-info-settings"
+              type="company-settings"
+              data={siteSettings || {}}
+              onSave={handleUpdateSettings}
+              label="Contact Information"
+            >
+              {contactInfo.map((info, index) => (
+                <motion.div
+                  key={index}
+                  initial={{ opacity: 0, x: 20 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  transition={{ delay: index * 0.1 }}
+                  className="mb-6 last:mb-0"
+                >
+                  <Card>
+                    <div className="flex items-start gap-4">
+                      <div className="flex-shrink-0 w-12 h-12 bg-primary-900 border-2 border-primary-500 rounded-lg flex items-center justify-center text-primary-500">
+                        {info.icon}
+                      </div>
+                      <div>
+                        <h3 className="font-semibold mb-2 text-dark-50">{info.title}</h3>
+                        {info.details.map((detail, i) => (
+                          <p key={i} className="text-sm text-dark-100">
+                            {detail}
+                          </p>
+                        ))}
+                      </div>
                     </div>
-                    <div>
-                      <h3 className="font-semibold mb-2 text-dark-50">{info.title}</h3>
-                      {info.details.map((detail, i) => (
-                        <p key={i} className="text-sm text-dark-100">
-                          {detail}
-                        </p>
-                      ))}
-                    </div>
-                  </div>
-                </Card>
-              </motion.div>
-            ))}
+                  </Card>
+                </motion.div>
+              ))}
+            </EditableWrapper>
 
             <Card className="bg-gradient-to-br from-dark-700 to-dark-600 border-primary-500">
               <h3 className="font-semibold mb-2 text-dark-50">Looking for a Sales Rep?</h3>
