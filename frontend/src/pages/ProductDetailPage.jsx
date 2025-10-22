@@ -1,13 +1,15 @@
 import { useState, useEffect, useRef } from 'react';
-import { useParams, useNavigate, Link } from 'react-router-dom';
+import { useParams, useNavigate, Link, useLocation } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import Button from '../components/ui/Button';
 import Badge from '../components/ui/Badge';
-import Card from '../components/ui/Card';
 import LoadingSpinner from '../components/ui/LoadingSpinner';
 import ProductCard from '../components/ui/ProductCard';
+import EditableWrapper from '../components/admin/EditableWrapper';
 import { useCartStore } from '../store/cartStore';
 import { demoProducts, IS_DEMO } from '../data/demoData';
+import { updateProduct } from '../services/contentService';
+import { useLightTheme } from '../utils/themeTransition';
 import logger from '../utils/logger';
 
 const CONTEXT = 'ProductDetailPage';
@@ -15,8 +17,11 @@ const CONTEXT = 'ProductDetailPage';
 const ProductDetailPage = () => {
   const { id } = useParams();
   const navigate = useNavigate();
+  const location = useLocation();
   const { addItem } = useCartStore();
   const customizeRef = useRef(null);
+  const shouldBeLightTheme = useLightTheme(location.pathname);
+  const [isLightTheme, setIsLightTheme] = useState(false);
   
   const [product, setProduct] = useState(null);
   const [relatedProducts, setRelatedProducts] = useState([]);
@@ -119,9 +124,37 @@ const ProductDetailPage = () => {
     link.click();
   };
 
+  // Product update handler
+  const handleUpdateProduct = async (updates) => {
+    try {
+      logger.info(CONTEXT, `Updating product ${product.id}`);
+      await updateProduct(product.id, updates);
+      // Reload product
+      loadProduct();
+      logger.info(CONTEXT, 'Product updated successfully');
+    } catch (error) {
+      logger.error(CONTEXT, 'Failed to update product', error);
+      throw error;
+    }
+  };
+
+  // Theme transition effect - delay light theme activation for smooth transition
+  useEffect(() => {
+    if (shouldBeLightTheme) {
+      const timer = setTimeout(() => {
+        setIsLightTheme(true);
+      }, 50);
+      return () => clearTimeout(timer);
+    } else {
+      setIsLightTheme(false);
+    }
+  }, [shouldBeLightTheme]);
+
   if (loading) {
     return (
-      <div className="min-h-screen bg-dark-800 flex items-center justify-center">
+      <div className={`min-h-screen flex items-center justify-center transition-colors duration-[1500ms] ${
+        isLightTheme ? 'bg-gradient-to-br from-cream-50 to-cream-100' : 'bg-dark-800'
+      }`}>
         <LoadingSpinner size="large" />
       </div>
     );
@@ -129,9 +162,11 @@ const ProductDetailPage = () => {
 
   if (!product) {
     return (
-      <div className="min-h-screen bg-dark-800 flex items-center justify-center">
+      <div className={`min-h-screen flex items-center justify-center transition-colors duration-[1500ms] ${
+        isLightTheme ? 'bg-gradient-to-br from-cream-50 to-cream-100' : 'bg-dark-800'
+      }`}>
         <div className="text-center">
-          <h2 className="text-2xl font-bold text-dark-50 mb-4">Product Not Found</h2>
+          <h2 className={`text-2xl font-bold mb-4 ${isLightTheme ? 'text-slate-800' : 'text-dark-50'}`}>Product Not Found</h2>
           <Button onClick={() => navigate('/products')}>Back to Products</Button>
         </div>
       </div>
@@ -141,7 +176,9 @@ const ProductDetailPage = () => {
   const images = product.images || [product.image];
 
   return (
-    <div className="min-h-screen bg-dark-800">
+    <div className={`min-h-screen transition-colors duration-[1500ms] ${
+      isLightTheme ? 'bg-gradient-to-br from-cream-50 to-cream-100' : 'bg-dark-800'
+    }`}>
       {/* Success Message */}
       <AnimatePresence>
         {showSuccessMessage && (
@@ -157,10 +194,12 @@ const ProductDetailPage = () => {
       </AnimatePresence>
 
       {/* Hero Section */}
-      <section className="bg-dark-900 border-b border-dark-700">
+      <section className={`border-b transition-colors duration-[1500ms] ${
+        isLightTheme ? 'bg-cream-50/50 border-cream-200' : 'bg-dark-900 border-dark-700'
+      }`}>
         <div className="container mx-auto px-4 py-12 max-w-7xl">
           {/* Breadcrumb */}
-          <div className="mb-6 text-sm text-dark-100">
+          <div className={`mb-6 text-sm ${isLightTheme ? 'text-slate-600' : 'text-dark-100'}`}>
             <Link to="/" className="hover:text-primary-500">Home</Link>
             {' '}/{' '}
             <Link to="/products" className="hover:text-primary-500">Products</Link>
@@ -169,7 +208,7 @@ const ProductDetailPage = () => {
               {product.category}
             </Link>
             {' '}/{' '}
-            <span className="text-dark-50">{product.name}</span>
+            <span className={isLightTheme ? 'text-slate-800' : 'text-dark-50'}>{product.name}</span>
           </div>
 
           <div className="grid lg:grid-cols-2 gap-12">
@@ -177,7 +216,7 @@ const ProductDetailPage = () => {
             <div className="flex items-center justify-center">
               <div className="relative inline-block">
                 {/* Main Image */}
-                <div className="bg-dark-800 rounded-xl overflow-hidden border border-dark-600">
+                <div className="bg-\ rounded-xl overflow-hidden border border-\">
                   <img
                     src={images[selectedImage]}
                     alt={product.name}
@@ -234,25 +273,53 @@ const ProductDetailPage = () => {
               </div>
 
               {/* Title */}
-              <h1 className="text-4xl font-bold text-dark-50 mb-3">{product.name}</h1>
+              <EditableWrapper
+                id={`product-title-${product.id}`}
+                type="text"
+                data={{ name: product.name }}
+                onSave={handleUpdateProduct}
+                label="Product Name"
+              >
+                <h1 className="text-4xl font-bold text-dark-50 mb-3">{product.name}</h1>
+              </EditableWrapper>
               
               {/* Model Number */}
               {product.model_number && (
-                <p className="text-lg text-dark-200 mb-6">Model: {product.model_number}</p>
+                <EditableWrapper
+                  id={`product-model-${product.id}`}
+                  type="text"
+                  data={{ model_number: product.model_number }}
+                  onSave={handleUpdateProduct}
+                  label="Model Number"
+                >
+                  <p className="text-lg text-dark-200 mb-6">Model: {product.model_number}</p>
+                </EditableWrapper>
               )}
 
               {/* Description */}
-              <div className="text-dark-100 leading-relaxed space-y-4 mb-6">
-                {product.short_description && (
-                  <p className="text-lg">{product.short_description}</p>
-                )}
-                {product.full_description && (
-                  <p>{product.full_description}</p>
-                )}
-                {!product.short_description && !product.full_description && product.description && (
-                  <p>{product.description}</p>
-                )}
-              </div>
+              <EditableWrapper
+                id={`product-description-${product.id}`}
+                type="textarea"
+                data={{
+                  short_description: product.short_description,
+                  full_description: product.full_description,
+                  description: product.description
+                }}
+                onSave={handleUpdateProduct}
+                label="Product Description"
+              >
+                <div className="text-dark-100 leading-relaxed space-y-4 mb-6">
+                  {product.short_description && (
+                    <p className="text-lg">{product.short_description}</p>
+                  )}
+                  {product.full_description && (
+                    <p>{product.full_description}</p>
+                  )}
+                  {!product.short_description && !product.full_description && product.description && (
+                    <p>{product.description}</p>
+                  )}
+                </div>
+              </EditableWrapper>
 
               {/* Customize Now Button */}
               <Button
@@ -464,7 +531,7 @@ const ProductDetailPage = () => {
             {/* 3D Model Placeholder / Product Image */}
             <div className="flex items-center justify-center">
               <div className="relative inline-block">
-                <div className="bg-dark-800 rounded-xl overflow-hidden border border-dark-600">
+                <div className="bg-\ rounded-xl overflow-hidden border border-\">
                   <img
                     src={images[selectedImage]}
                     alt={product.name}

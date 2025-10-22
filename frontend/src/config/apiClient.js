@@ -6,7 +6,7 @@ const CONTEXT = 'APIClient';
 // Get configuration from environment variables
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
 const API_TIMEOUT = import.meta.env.VITE_API_TIMEOUT || 30000;
-export const IS_DEMO_MODE = import.meta.env.VITE_DEMO_MODE === 'true' || true;
+export const IS_DEMO_MODE = import.meta.env.VITE_DEMO_MODE === 'true';
 
 logger.info(CONTEXT, `Initializing API client - Base URL: ${API_BASE_URL}, Demo Mode: ${IS_DEMO_MODE}`);
 
@@ -22,12 +22,28 @@ const apiClient = axios.create({
 // Request interceptor - Add auth token if available
 apiClient.interceptors.request.use(
   (config) => {
-    const token = localStorage.getItem('auth-token');
-    if (token) {
-      config.headers.Authorization = `Bearer ${token}`;
+    // Get auth data from Zustand persist storage
+    const authStorage = localStorage.getItem('auth-storage');
+    if (authStorage) {
+      try {
+        const { state } = JSON.parse(authStorage);
+        if (state?.token) {
+          config.headers.Authorization = `Bearer ${state.token}`;
+        }
+        // Add admin tokens if present
+        if (state?.sessionToken) {
+          config.headers['X-Session-Token'] = state.sessionToken;
+        }
+        if (state?.adminToken) {
+          config.headers['X-Admin-Token'] = state.adminToken;
+        }
+      } catch (e) {
+        logger.error(CONTEXT, 'Error parsing auth storage', e);
+      }
     }
+    
     logger.debug(CONTEXT, `${config.method?.toUpperCase()} ${config.url}`, {
-      hasAuth: !!token,
+      hasAuth: !!config.headers.Authorization,
       params: config.params
     });
     return config;

@@ -80,19 +80,19 @@ const DashboardPage = () => {
   const statsCards = [
     {
       title: 'Total Quotes',
-      value: stats.totalQuotes,
+      value: stats?.totalQuotes || 0,
       icon: '📋',
       color: 'bg-blue-50 text-blue-600',
     },
     {
       title: 'Pending Quotes',
-      value: stats.pendingQuotes,
+      value: stats?.pendingQuotes || 0,
       icon: '⏳',
       color: 'bg-yellow-50 text-yellow-600',
     },
     {
       title: 'Active Orders',
-      value: stats.activeOrders,
+      value: stats?.activeOrders || 0,
       icon: '📦',
       color: 'bg-green-50 text-green-600',
     },
@@ -104,7 +104,7 @@ const DashboardPage = () => {
         {/* Welcome Section */}
         <div className="mb-8">
           <h1 className="text-4xl font-bold mb-2 text-dark-50">
-            Welcome back, {user?.name?.split(' ')[0] || 'User'}!
+            Welcome back, {user?.username || user?.firstName || user?.companyName || 'User'}!
           </h1>
           <p className="text-lg text-dark-100">
             Here's an overview of your account and recent activity
@@ -148,7 +148,7 @@ const DashboardPage = () => {
                 </Link>
               </div>
 
-              {quotes.length === 0 ? (
+              {!quotes || quotes.length === 0 ? (
                 <div className="text-center py-12 text-dark-200">
                   <svg className="w-16 h-16 text-dark-300 mx-auto mb-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />

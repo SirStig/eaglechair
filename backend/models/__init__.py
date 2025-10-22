@@ -41,6 +41,15 @@ from backend.models.content import (
     Installation,
     ContactLocation,
     Feedback,
+    HeroSlide,
+    ClientLogo,
+    Feature,
+    CompanyValue,
+    CompanyMilestone,
+    SalesRepresentative,
+    SiteSettings,
+    PageContent,
+    EmailTemplate,
 )
 
 # Quote and Cart models
@@ -81,6 +90,15 @@ __all__ = [
     "Installation",
     "ContactLocation",
     "Feedback",
+    "HeroSlide",
+    "ClientLogo",
+    "Feature",
+    "CompanyValue",
+    "CompanyMilestone",
+    "SalesRepresentative",
+    "SiteSettings",
+    "PageContent",
+    "EmailTemplate",
     # Quotes & Cart
     "Quote",
     "QuoteStatus",

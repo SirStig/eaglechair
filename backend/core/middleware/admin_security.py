@@ -2,20 +2,18 @@
 Admin Security Middleware
 
 Enhanced security for admin endpoints with IP whitelisting and strict validation
+Uses centralized route configuration and returns clean JSON responses
 """
 
 import logging
 import time
 from typing import Callable, Set
-from fastapi import Request, Response
+from fastapi import Request, Response, status
+from fastapi.responses import JSONResponse
 from starlette.middleware.base import BaseHTTPMiddleware
 
 from backend.core.config import settings
-from backend.core.exceptions import (
-    AdminAccessDeniedError,
-    IPNotWhitelistedError,
-    AuthenticationError
-)
+from backend.core.routes_config import RouteConfig
 from backend.core.logging_config import security_logger
 
 
@@ -36,21 +34,22 @@ class AdminSecurityMiddleware(BaseHTTPMiddleware):
         super().__init__(app)
         
         # Configuration
-        self.admin_paths = kwargs.get("admin_paths", ["/api/v1/admin", "/admin"])
         self.require_ip_whitelist = kwargs.get("require_ip_whitelist", False)
         self.global_whitelist: Set[str] = set(kwargs.get("global_whitelist", []))
         
         # Tracking
         self.admin_activity = []
         self.suspicious_admin_attempts = {}
+        
+        logger.info("[INIT] Admin security middleware initialized with centralized route config")
     
     async def dispatch(self, request: Request, call_next: Callable) -> Response:
         """Process admin requests with enhanced security"""
         
         path = request.url.path
         
-        # Check if this is an admin endpoint
-        if not self._is_admin_endpoint(path):
+        # Check if this is an admin endpoint using centralized config
+        if not RouteConfig.is_admin_route(path):
             return await call_next(request)
         
         client_ip = self._get_client_ip(request)
@@ -65,7 +64,11 @@ class AdminSecurityMiddleware(BaseHTTPMiddleware):
                     {"path": path}
                 )
                 self._log_suspicious_attempt(client_ip, "ip_not_whitelisted")
-                raise IPNotWhitelistedError()
+                return self._create_error_response(
+                    status.HTTP_403_FORBIDDEN,
+                    "IP_NOT_WHITELISTED",
+                    "Your IP address is not authorized for admin access."
+                )
         
         # Require both session token and admin token
         session_token = request.headers.get("X-Session-Token")
@@ -78,7 +81,11 @@ class AdminSecurityMiddleware(BaseHTTPMiddleware):
                 {"path": path, "has_session": bool(session_token), "has_admin": bool(admin_token)}
             )
             self._log_suspicious_attempt(client_ip, "missing_tokens")
-            raise AuthenticationError("Admin authentication requires both session and admin tokens")
+            return self._create_error_response(
+                status.HTTP_401_UNAUTHORIZED,
+                "ADMIN_AUTHENTICATION_REQUIRED",
+                "Admin authentication requires both session and admin tokens."
+            )
         
         # Additional security headers validation
         if not self._validate_security_headers(request):
@@ -87,29 +94,24 @@ class AdminSecurityMiddleware(BaseHTTPMiddleware):
                 "Invalid admin security headers",
                 {"path": path, "user_agent": request.headers.get("User-Agent")}
             )
-            raise AdminAccessDeniedError(reason="invalid security headers")
+            return self._create_error_response(
+                status.HTTP_403_FORBIDDEN,
+                "ADMIN_ACCESS_DENIED",
+                "Invalid security headers for admin access."
+            )
         
         # Log admin activity
         self._log_admin_activity(request, client_ip)
         
         # Process request
-        try:
-            response = await call_next(request)
-            
-            # Add admin-specific security headers
-            response.headers["X-Admin-Request"] = "true"
-            response.headers["Cache-Control"] = "no-store, no-cache, must-revalidate"
-            response.headers["Pragma"] = "no-cache"
-            
-            return response
-            
-        except Exception as e:
-            logger.error(f"Error processing admin request from {client_ip}: {str(e)}")
-            raise
-    
-    def _is_admin_endpoint(self, path: str) -> bool:
-        """Check if path is an admin endpoint"""
-        return any(admin_path in path for admin_path in self.admin_paths)
+        response = await call_next(request)
+        
+        # Add admin-specific security headers
+        response.headers["X-Admin-Request"] = "true"
+        response.headers["Cache-Control"] = "no-store, no-cache, must-revalidate"
+        response.headers["Pragma"] = "no-cache"
+        
+        return response
     
     def _is_ip_whitelisted(self, ip: str, user_whitelist: Set[str] = None) -> bool:
         """Check if IP is whitelisted"""
@@ -197,6 +199,32 @@ class AdminSecurityMiddleware(BaseHTTPMiddleware):
         # Alert if too many attempts
         if len(self.suspicious_admin_attempts[ip]) > 5:
             logger.error(f"Multiple suspicious admin attempts from {ip}: {reason}")
+    
+    def _create_error_response(
+        self,
+        status_code: int,
+        error: str,
+        message: str
+    ) -> JSONResponse:
+        """
+        Create a standardized error response
+        
+        Args:
+            status_code: HTTP status code
+            error: Error code
+            message: Human-readable error message
+            
+        Returns:
+            JSONResponse: Formatted error response
+        """
+        return JSONResponse(
+            status_code=status_code,
+            content={
+                "error": error,
+                "message": message,
+                "status_code": status_code
+            }
+        )
 
 
 class AdminIPWhitelistValidator:

@@ -2,19 +2,21 @@
 Advanced Rate Limiting Middleware
 
 Provides granular rate limiting for different endpoints and user types
+Uses centralized route configuration
 """
 
-import time
 import logging
-from typing import Callable, Dict, Optional
+import time
 from collections import defaultdict, deque
-from fastapi import Request, Response
+from typing import Callable, Dict, Optional
+
+from fastapi import Request, Response, status
+from fastapi.responses import JSONResponse
 from starlette.middleware.base import BaseHTTPMiddleware
 
 from backend.core.config import settings
-from backend.core.exceptions import RateLimitExceededError
 from backend.core.logging_config import security_logger
-
+from backend.core.routes_config import RouteConfig
 
 logger = logging.getLogger(__name__)
 
@@ -24,7 +26,7 @@ class RateLimitConfig:
     
     # Public endpoints (no auth required)
     PUBLIC_ENDPOINTS = {
-        "default": (30, 60),  # 30 requests per 60 seconds
+        "default": (60, 60),  # 60 requests per 60 seconds (increased for content-heavy pages)
         "/api/v1/health": (60, 60),
         "/api/v1/products": (100, 60),
         "/api/v1/categories": (100, 60),
@@ -32,14 +34,15 @@ class RateLimitConfig:
         "/api/v1/catalogs": (30, 60),
         "/api/v1/installations": (50, 60),
         "/api/v1/contact": (20, 60),
+        "/api/v1/content": (100, 60),  # Content API endpoints
     }
     
     # Authentication endpoints
     AUTH_ENDPOINTS = {
-        "/api/v1/auth/register": (5, 300),  # 5 per 5 minutes
-        "/api/v1/auth/login": (10, 300),  # 10 per 5 minutes
-        "/api/v1/auth/refresh": (20, 300),
-        "/api/v1/admin/login": (5, 600),  # 5 per 10 minutes (strict for admin)
+        "/api/v1/auth/register": (10, 300),  # 10 per 5 minutes
+        "/api/v1/auth/login": (30, 300),  # 30 per 5 minutes (increased for development)
+        "/api/v1/auth/refresh": (30, 300),
+        "/api/v1/admin/login": (20, 600),  # 20 per 10 minutes (increased for development)
     }
     
     # Authenticated company users
@@ -75,9 +78,10 @@ class AdvancedRateLimiter(BaseHTTPMiddleware):
         self.request_history: Dict[str, deque] = defaultdict(lambda: deque(maxlen=1000))
         self.burst_tracker: Dict[str, list] = defaultdict(list)
         
-        # Burst protection (10 requests within 1 second = burst)
-        self.burst_threshold = kwargs.get("burst_threshold", 10)
-        self.burst_window = kwargs.get("burst_window", 1)
+        # Burst protection (20 requests within 2 seconds = burst)
+        # Increased to accommodate legitimate page loads with multiple API calls
+        self.burst_threshold = kwargs.get("burst_threshold", 20)
+        self.burst_window = kwargs.get("burst_window", 2)
     
     async def dispatch(self, request: Request, call_next: Callable) -> Response:
         """Process request with rate limiting"""
@@ -85,10 +89,15 @@ class AdvancedRateLimiter(BaseHTTPMiddleware):
         if not self.enabled:
             return await call_next(request)
         
+        path = request.url.path
+        
+        # Skip rate limiting for exempt routes
+        if RouteConfig.is_rate_limit_exempt(path):
+            return await call_next(request)
+        
         # Get identifier (IP or user ID)
         identifier = self._get_identifier(request)
         current_time = time.time()
-        path = request.url.path
         
         # Determine user type and get limits
         user_type = self._get_user_type(request)
@@ -97,7 +106,7 @@ class AdvancedRateLimiter(BaseHTTPMiddleware):
         # Check for burst
         if self._detect_burst(identifier, current_time):
             logger.warning(f"Burst detected from {identifier}")
-            return self._rate_limit_response(0, window)
+            return self._create_rate_limit_response(0, window, "Burst traffic detected. Please slow down.")
         
         # Track request
         self.request_history[identifier].append(current_time)
@@ -112,7 +121,11 @@ class AdvancedRateLimiter(BaseHTTPMiddleware):
                 f"Rate limit exceeded on {path}",
                 {"count": recent_count, "limit": max_requests, "window": window}
             )
-            raise RateLimitExceededError(retry_after=window)
+            return self._create_rate_limit_response(
+                max(0, max_requests - recent_count),
+                window,
+                f"Rate limit exceeded. Maximum {max_requests} requests per {window} seconds allowed."
+            )
         
         # Process request
         response = await call_next(request)
@@ -153,8 +166,8 @@ class AdvancedRateLimiter(BaseHTTPMiddleware):
         """Determine user type from request"""
         path = request.url.path
         
-        # Check if admin endpoint
-        if "/admin/" in path:
+        # Use centralized route config to determine user type
+        if RouteConfig.is_admin_route(path):
             return "admin"
         
         # Check if authenticated
@@ -233,4 +246,35 @@ class AdvancedRateLimiter(BaseHTTPMiddleware):
             )
         
         return is_burst
+    
+    def _create_rate_limit_response(
+        self,
+        remaining: int,
+        retry_after: int,
+        message: str
+    ) -> JSONResponse:
+        """
+        Create a standardized rate limit error response
+        
+        Args:
+            remaining: Remaining requests
+            retry_after: Seconds until rate limit resets
+            message: Error message
+            
+        Returns:
+            JSONResponse: Formatted rate limit response
+        """
+        return JSONResponse(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            content={
+                "error": "RATE_LIMIT_EXCEEDED",
+                "message": message,
+                "status_code": status.HTTP_429_TOO_MANY_REQUESTS,
+                "retry_after": retry_after
+            },
+            headers={
+                "Retry-After": str(retry_after),
+                "X-RateLimit-Remaining": str(remaining)
+            }
+        )
 

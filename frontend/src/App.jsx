@@ -3,6 +3,8 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import Layout from './components/layout/Layout';
 import ProtectedRoute from './components/ProtectedRoute';
 import ScrollToTop from './components/ScrollToTop';
+import { EditModeProvider } from './contexts/EditModeContext';
+import EditModeToggle from './components/admin/EditModeToggle';
 
 // Pages
 import HomePage from './pages/HomePage';
@@ -18,6 +20,7 @@ import QuoteRequestPage from './pages/QuoteRequestPage';
 import LoginPage from './pages/LoginPage';
 import DashboardPage from './pages/DashboardPage';
 import AdminPanel from './pages/AdminPanel';
+import AdminDashboard from './pages/admin/AdminDashboard';
 
 // Create a client
 const queryClient = new QueryClient({
@@ -34,8 +37,10 @@ function App() {
   return (
     <QueryClientProvider client={queryClient}>
       <Router>
-        <ScrollToTop />
-        <Routes>
+        <EditModeProvider>
+          <ScrollToTop />
+          <EditModeToggle />
+          <Routes>
           {/* Public Routes */}
           <Route path="/login" element={<LoginPage />} />
 
@@ -95,11 +100,20 @@ function App() {
                 </ProtectedRoute>
               }
             />
+            <Route
+              path="/admin/dashboard"
+              element={
+                <ProtectedRoute requireAdmin={true}>
+                  <AdminDashboard />
+                </ProtectedRoute>
+              }
+            />
 
             {/* 404 */}
             <Route path="*" element={<NotFound />} />
           </Route>
         </Routes>
+        </EditModeProvider>
       </Router>
     </QueryClientProvider>
   );

@@ -2,9 +2,10 @@
 EagleChair Content Models
 
 Models for About Us, FAQ, Catalogs, Guides, Installation Gallery, Contact Info
+Fully customizable CMS-like content management
 """
 
-from sqlalchemy import Column, Integer, String, Text, Boolean, ForeignKey, Enum as SQLEnum, DateTime
+from sqlalchemy import Column, Integer, String, Text, Boolean, ForeignKey, Enum as SQLEnum, DateTime, JSON
 from sqlalchemy.orm import relationship
 import enum
 
@@ -268,6 +269,247 @@ class Feedback(Base):
     
     def __repr__(self) -> str:
         return f"<Feedback(id={self.id}, from={self.name}, type={self.feedback_type})>"
+
+
+class HeroSlide(Base):
+    """
+    Homepage hero carousel slides
+    Fully customizable hero sections
+    """
+    __tablename__ = "hero_slides"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    title = Column(String(500), nullable=False)
+    subtitle = Column(Text, nullable=True)
+    background_image_url = Column(String(500), nullable=False)
+    
+    # Call to Action
+    cta_text = Column(String(100), nullable=True)  # e.g., "Explore Products"
+    cta_link = Column(String(500), nullable=True)  # e.g., "/products"
+    cta_style = Column(String(50), default="primary", nullable=False)  # primary, outline, etc.
+    
+    # Secondary CTA (optional)
+    secondary_cta_text = Column(String(100), nullable=True)
+    secondary_cta_link = Column(String(500), nullable=True)
+    secondary_cta_style = Column(String(50), nullable=True)
+    
+    # Display
+    display_order = Column(Integer, default=0, nullable=False)
+    is_active = Column(Boolean, default=True, nullable=False)
+    
+    def __repr__(self) -> str:
+        return f"<HeroSlide(id={self.id}, title={self.title})>"
+
+
+class ClientLogo(Base):
+    """
+    Client/Partner logos for "Trusted By" section
+    """
+    __tablename__ = "client_logos"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    name = Column(String(255), nullable=False)
+    logo_url = Column(String(500), nullable=False)
+    website_url = Column(String(500), nullable=True)
+    
+    # Display
+    display_order = Column(Integer, default=0, nullable=False)
+    is_active = Column(Boolean, default=True, nullable=False)
+    
+    def __repr__(self) -> str:
+        return f"<ClientLogo(id={self.id}, name={self.name})>"
+
+
+class Feature(Base):
+    """
+    Features/Benefits for "Why Choose Us" sections
+    Reusable across different pages
+    """
+    __tablename__ = "features"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    title = Column(String(255), nullable=False)
+    description = Column(Text, nullable=False)
+    icon = Column(String(100), nullable=True)  # Icon name, emoji, or URL
+    icon_color = Column(String(50), nullable=True)  # Hex color for icon
+    
+    # Categorization for different sections
+    feature_type = Column(String(50), default="general", nullable=False)  # general, home_page, about_page, etc.
+    
+    # Display
+    display_order = Column(Integer, default=0, nullable=False)
+    is_active = Column(Boolean, default=True, nullable=False)
+    
+    def __repr__(self) -> str:
+        return f"<Feature(id={self.id}, title={self.title})>"
+
+
+class CompanyValue(Base):
+    """
+    Company values for About Us page
+    """
+    __tablename__ = "company_values"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    title = Column(String(255), nullable=False)
+    description = Column(Text, nullable=False)
+    icon = Column(String(100), nullable=True)
+    
+    # Display
+    display_order = Column(Integer, default=0, nullable=False)
+    is_active = Column(Boolean, default=True, nullable=False)
+    
+    def __repr__(self) -> str:
+        return f"<CompanyValue(id={self.id}, title={self.title})>"
+
+
+class CompanyMilestone(Base):
+    """
+    Company milestones/timeline for About Us page
+    """
+    __tablename__ = "company_milestones"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    year = Column(String(10), nullable=False)
+    title = Column(String(255), nullable=False)
+    description = Column(Text, nullable=False)
+    image_url = Column(String(500), nullable=True)
+    
+    # Display
+    display_order = Column(Integer, default=0, nullable=False)
+    is_active = Column(Boolean, default=True, nullable=False)
+    
+    def __repr__(self) -> str:
+        return f"<CompanyMilestone(id={self.id}, year={self.year}, title={self.title})>"
+
+
+class SalesRepresentative(Base):
+    """
+    Sales representatives with territory mapping
+    For Find a Rep page with interactive US map
+    """
+    __tablename__ = "sales_representatives"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    name = Column(String(255), nullable=False)
+    email = Column(String(255), nullable=False)
+    phone = Column(String(20), nullable=False)
+    title = Column(String(100), nullable=True)
+    photo_url = Column(String(500), nullable=True)
+    bio = Column(Text, nullable=True)
+    
+    # Territory
+    territory_name = Column(String(255), nullable=False)  # e.g., "Southwest Region"
+    states_covered = Column(JSON, nullable=False)  # Array of state codes: ["TX", "OK", "AR", "NM", "AZ"]
+    
+    # Additional contact
+    mobile_phone = Column(String(20), nullable=True)
+    fax = Column(String(20), nullable=True)
+    linkedin_url = Column(String(500), nullable=True)
+    
+    # Display
+    display_order = Column(Integer, default=0, nullable=False)
+    is_active = Column(Boolean, default=True, nullable=False)
+    
+    def __repr__(self) -> str:
+        return f"<SalesRepresentative(id={self.id}, name={self.name}, territory={self.territory_name})>"
+
+
+class SiteSettings(Base):
+    """
+    Global site settings - company branding, contact info, etc.
+    Single row table for site-wide configuration
+    """
+    __tablename__ = "site_settings"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    
+    # Company Branding
+    company_name = Column(String(255), default="Eagle Chair", nullable=False)
+    company_tagline = Column(String(500), nullable=True)
+    logo_url = Column(String(500), nullable=True)
+    logo_dark_url = Column(String(500), nullable=True)  # For dark backgrounds
+    favicon_url = Column(String(500), nullable=True)
+    
+    # Primary Contact Info
+    primary_email = Column(String(255), nullable=True)
+    primary_phone = Column(String(20), nullable=True)
+    sales_email = Column(String(255), nullable=True)
+    sales_phone = Column(String(20), nullable=True)
+    support_email = Column(String(255), nullable=True)
+    support_phone = Column(String(20), nullable=True)
+    
+    # Primary Address
+    address_line1 = Column(String(255), nullable=True)
+    address_line2 = Column(String(255), nullable=True)
+    city = Column(String(100), nullable=True)
+    state = Column(String(50), nullable=True)
+    zip_code = Column(String(20), nullable=True)
+    country = Column(String(100), default="USA", nullable=True)
+    
+    # Business Hours
+    business_hours_weekdays = Column(String(255), nullable=True)
+    business_hours_saturday = Column(String(255), nullable=True)
+    business_hours_sunday = Column(String(255), nullable=True)
+    
+    # Social Media
+    facebook_url = Column(String(500), nullable=True)
+    instagram_url = Column(String(500), nullable=True)
+    linkedin_url = Column(String(500), nullable=True)
+    twitter_url = Column(String(500), nullable=True)
+    youtube_url = Column(String(500), nullable=True)
+    
+    # SEO & Meta
+    meta_title = Column(String(255), nullable=True)
+    meta_description = Column(Text, nullable=True)
+    meta_keywords = Column(Text, nullable=True)
+    
+    # Theme Colors (stored as JSON)
+    theme_colors = Column(JSON, nullable=True)  # {"primary": "#8b7355", "secondary": "#627d98", ...}
+    
+    # Additional Settings (stored as JSON for flexibility)
+    additional_settings = Column(JSON, nullable=True)
+    
+    def __repr__(self) -> str:
+        return f"<SiteSettings(id={self.id}, company={self.company_name})>"
+
+
+class PageContent(Base):
+    """
+    Flexible page content sections
+    Allows creating custom content blocks for any page
+    """
+    __tablename__ = "page_contents"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    
+    # Page identification
+    page_slug = Column(String(100), nullable=False, index=True)  # e.g., "home", "about", "contact"
+    section_key = Column(String(100), nullable=False, index=True)  # e.g., "hero", "about_story", "cta"
+    
+    # Content
+    title = Column(String(500), nullable=True)
+    subtitle = Column(String(500), nullable=True)
+    content = Column(Text, nullable=True)
+    
+    # Media
+    image_url = Column(String(500), nullable=True)
+    video_url = Column(String(500), nullable=True)
+    
+    # Call to Action
+    cta_text = Column(String(100), nullable=True)
+    cta_link = Column(String(500), nullable=True)
+    cta_style = Column(String(50), nullable=True)
+    
+    # Additional data (stored as JSON for flexibility)
+    extra_data = Column(JSON, nullable=True)
+    
+    # Display
+    display_order = Column(Integer, default=0, nullable=False)
+    is_active = Column(Boolean, default=True, nullable=False)
+    
+    def __repr__(self) -> str:
+        return f"<PageContent(id={self.id}, page={self.page_slug}, section={self.section_key})>"
 
 
 class EmailTemplate(Base):

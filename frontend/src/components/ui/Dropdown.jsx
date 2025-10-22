@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
+import { AnimatePresence, motion as Motion } from 'framer-motion';
 import { clsx } from 'clsx';
 
 const Dropdown = ({ 
@@ -50,27 +50,35 @@ const Dropdown = ({
       
       <AnimatePresence>
         {isOpen && (
-          <motion.div
+          <Motion.div
             initial={{ opacity: 0, y: -10, scale: 0.95 }}
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: -10, scale: 0.95 }}
             transition={{ 
-              duration: 0.2, 
+              duration: 0.3, 
               ease: [0.4, 0, 0.2, 1] 
             }}
             className={clsx(
-              'absolute z-50 mt-2 rounded-lg bg-dark-600 border border-dark-500 shadow-xl backdrop-blur-sm overflow-hidden',
-              alignmentClasses[align],
+              'z-50 rounded-lg bg-dark-600 border border-dark-500 shadow-xl backdrop-blur-sm overflow-hidden',
+              // Special handling for full-width dropdowns - use fixed positioning
+              contentClassName?.includes('w-screen') ? 'fixed left-0 right-0' : 'absolute',
+              contentClassName?.includes('w-screen') ? '' : alignmentClasses[align],
               contentClassName
             )}
             style={{
               WebkitBackdropFilter: 'blur(8px)',
-              backdropFilter: 'blur(8px)'
+              backdropFilter: 'blur(8px)',
+              // For full-screen dropdowns, position at header bottom using fixed positioning
+              ...(contentClassName?.includes('w-screen') && {
+                top: 'var(--header-height, 80px)',
+                width: '100vw',
+                maxWidth: '100vw'
+              })
             }}
             onClick={closeDropdown}
           >
             {childrenWithProps}
-          </motion.div>
+          </Motion.div>
         )}
       </AnimatePresence>
     </div>

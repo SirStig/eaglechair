@@ -2,19 +2,17 @@
 Request Validation Middleware
 
 Validates request size, content type, and format
+Returns clean JSON error responses
 """
 
 import logging
 from typing import Callable
-from fastapi import Request, Response
+from fastapi import Request, Response, status
+from fastapi.responses import JSONResponse
 from starlette.middleware.base import BaseHTTPMiddleware
 
 from backend.core.config import settings
-from backend.core.exceptions import (
-    RequestTooLargeError,
-    UnsupportedMediaTypeError,
-    SuspiciousActivityError
-)
+from backend.core.routes_config import RouteConfig
 
 
 logger = logging.getLogger(__name__)
@@ -66,9 +64,11 @@ class RequestValidationMiddleware(BaseHTTPMiddleware):
                         f"Request body too large from {request.client.host}: "
                         f"{size} bytes (max: {max_size})"
                     )
-                    raise RequestTooLargeError(
-                        max_size_mb=max_size / (1024 * 1024),
-                        actual_size_mb=size / (1024 * 1024)
+                    return self._create_error_response(
+                        status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
+                        "REQUEST_TOO_LARGE",
+                        f"Request body too large. Maximum size is {max_size / (1024 * 1024):.1f}MB, "
+                        f"but received {size / (1024 * 1024):.1f}MB."
                     )
             except ValueError:
                 logger.warning(f"Invalid Content-Length header: {content_length}")
@@ -81,23 +81,25 @@ class RequestValidationMiddleware(BaseHTTPMiddleware):
                 allowed in content_type for allowed in self.allowed_content_types
             ):
                 logger.warning(f"Unsupported Content-Type: {content_type}")
-                raise UnsupportedMediaTypeError(
-                    content_type=content_type,
-                    supported_types=self.allowed_content_types
+                return self._create_error_response(
+                    status.HTTP_415_UNSUPPORTED_MEDIA_TYPE,
+                    "UNSUPPORTED_MEDIA_TYPE",
+                    f"Content-Type '{content_type}' is not supported. "
+                    f"Supported types: {', '.join(self.allowed_content_types)}"
                 )
         
         # Check for suspicious header patterns
         if self._has_suspicious_headers(request):
             logger.warning(f"Suspicious headers detected from {request.client.host}")
-            raise SuspiciousActivityError()
+            return self._create_error_response(
+                status.HTTP_400_BAD_REQUEST,
+                "SUSPICIOUS_REQUEST",
+                "Request contains suspicious headers."
+            )
         
         # Process request
-        try:
-            response = await call_next(request)
-            return response
-        except Exception as e:
-            logger.error(f"Error processing request: {str(e)}")
-            raise
+        response = await call_next(request)
+        return response
     
     def _is_file_upload_endpoint(self, path: str) -> bool:
         """Check if endpoint is for file uploads"""
@@ -132,6 +134,32 @@ class RequestValidationMiddleware(BaseHTTPMiddleware):
         # Implement your trusted proxy check here
         # For now, return False (can be enhanced with whitelist)
         return False
+    
+    def _create_error_response(
+        self,
+        status_code: int,
+        error: str,
+        message: str
+    ) -> JSONResponse:
+        """
+        Create a standardized error response
+        
+        Args:
+            status_code: HTTP status code
+            error: Error code
+            message: Human-readable error message
+            
+        Returns:
+            JSONResponse: Formatted error response
+        """
+        return JSONResponse(
+            status_code=status_code,
+            content={
+                "error": error,
+                "message": message,
+                "status_code": status_code
+            }
+        )
 
 
 class PayloadSanitizerMiddleware(BaseHTTPMiddleware):

@@ -1,36 +1,14 @@
 import { Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
+import { useSiteSettings } from '../../hooks/useContent';
+import { demoFooterLinks } from '../../data/demoData';
 
 const Footer = () => {
   const currentYear = new Date().getFullYear();
+  const { data: siteSettings } = useSiteSettings();
 
-  const footerLinks = {
-    products: [
-      { name: 'Chairs', path: '/products/chairs' },
-      { name: 'Barstools', path: '/products/barstools' },
-      { name: 'Tables', path: '/products/tables' },
-      { name: 'Booths', path: '/products/booths' },
-      { name: 'Outdoor', path: '/products/outdoor' },
-    ],
-    company: [
-      { name: 'About Us', path: '/about' },
-      { name: 'Gallery', path: '/gallery' },
-      { name: 'Find a Rep', path: '/find-a-rep' },
-      { name: 'Contact', path: '/contact' },
-    ],
-    resources: [
-      { name: 'Product Catalog', path: '/resources/catalog' },
-      { name: 'Fabric Swatches', path: '/resources/fabrics' },
-      { name: 'Installation Guides', path: '/resources/guides' },
-      { name: 'CAD Files', path: '/resources/cad' },
-    ],
-    legal: [
-      { name: 'Privacy Policy', path: '/privacy' },
-      { name: 'Terms of Service', path: '/terms' },
-      { name: 'Shipping Policy', path: '/shipping' },
-      { name: 'Return Policy', path: '/returns' },
-    ],
-  };
+  // Use footer links from demo data (could be made dynamic via API if needed)
+  const footerLinks = demoFooterLinks;
 
   return (
     <footer className="bg-dark-900 text-dark-100 border-t border-dark-500">
@@ -135,10 +113,14 @@ const Footer = () => {
           {/* Contact & Legal */}
           <div>
             <h4 className="text-dark-50 font-semibold mb-4">Contact</h4>
-            <p className="text-sm mb-2 text-dark-200">123 Furniture Lane</p>
-            <p className="text-sm mb-2 text-dark-200">Grand Rapids, MI 49504</p>
-            <p className="text-sm mb-2 text-dark-200">Phone: <span className="text-primary-500">(616) 555-0100</span></p>
-            <p className="text-sm mb-4 text-dark-200">Email: <span className="text-primary-500">info@eaglechair.com</span></p>
+            {siteSettings && (
+              <>
+                <p className="text-sm mb-2 text-dark-200">{siteSettings.addressLine1}</p>
+                <p className="text-sm mb-2 text-dark-200">{siteSettings.city}, {siteSettings.state} {siteSettings.zipCode}</p>
+                <p className="text-sm mb-2 text-dark-200">Phone: <span className="text-primary-500">{siteSettings.primaryPhone}</span></p>
+                <p className="text-sm mb-4 text-dark-200">Email: <span className="text-primary-500">{siteSettings.primaryEmail}</span></p>
+              </>
+            )}
             <ul className="space-y-1">
               {footerLinks.legal.map((link) => (
                 <li key={link.path}>
@@ -154,7 +136,7 @@ const Footer = () => {
         {/* Bottom Bar */}
         <div className="border-t border-dark-700 pt-8 mt-8">
           <p className="text-sm text-center text-dark-200">
-            © {currentYear} Eagle Chair. All rights reserved. Family-owned and operated since 1984.
+            © {currentYear} {siteSettings?.companyName || 'Eagle Chair'}. All rights reserved. Family-owned and operated since 1984.
           </p>
         </div>
       </div>
