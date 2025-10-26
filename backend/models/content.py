@@ -5,9 +5,20 @@ Models for About Us, FAQ, Catalogs, Guides, Installation Gallery, Contact Info
 Fully customizable CMS-like content management
 """
 
-from sqlalchemy import Column, Integer, String, Text, Boolean, ForeignKey, Enum as SQLEnum, DateTime, JSON
-from sqlalchemy.orm import relationship
 import enum
+
+from sqlalchemy import (
+    JSON,
+    Boolean,
+    Column,
+    DateTime,
+    ForeignKey,
+    Integer,
+    String,
+    Text,
+)
+from sqlalchemy import Enum as SQLEnum
+from sqlalchemy.orm import relationship
 
 from backend.database.base import Base
 
@@ -164,6 +175,17 @@ class Catalog(Base):
 class Installation(Base):
     """
     Installation gallery - showcase completed projects
+    
+    Images stored as JSON array with metadata:
+    [
+        {
+            "url": "https://...",
+            "title": "Optional image title",
+            "description": "Optional image description",
+            "order": 1
+        },
+        ...
+    ]
     """
     __tablename__ = "installations"
     
@@ -174,8 +196,9 @@ class Installation(Base):
     project_type = Column(String(100), nullable=True)  # e.g., "Restaurant", "Hotel", "Healthcare"
     description = Column(Text, nullable=True)
     
-    # Images (stored as JSON array of URLs)
-    images = Column(String, nullable=False)  # JSON array
+    # Images with metadata (JSON array of objects)
+    # Format: [{"url": "...", "title": "...", "description": "...", "order": 1}, ...]
+    images = Column(JSON, nullable=False)
     primary_image = Column(String(500), nullable=True)
     
     # Products used (JSON array of product IDs)
@@ -324,14 +347,18 @@ class Feature(Base):
     """
     Features/Benefits for "Why Choose Us" sections
     Reusable across different pages
+    Supports both icon-based and image-based features
     """
     __tablename__ = "features"
     
     id = Column(Integer, primary_key=True, index=True)
     title = Column(String(255), nullable=False)
     description = Column(Text, nullable=False)
+    
+    # Visual elements - can use icon OR image
     icon = Column(String(100), nullable=True)  # Icon name, emoji, or URL
     icon_color = Column(String(50), nullable=True)  # Hex color for icon
+    image_url = Column(String(500), nullable=True)  # For image-based features (e.g., "Why Choose Eagle Chair")
     
     # Categorization for different sections
     feature_type = Column(String(50), default="general", nullable=False)  # general, home_page, about_page, etc.
@@ -347,13 +374,18 @@ class Feature(Base):
 class CompanyValue(Base):
     """
     Company values for About Us page
+    Supports icon-based or image-based display
     """
     __tablename__ = "company_values"
     
     id = Column(Integer, primary_key=True, index=True)
     title = Column(String(255), nullable=False)
+    subtitle = Column(String(500), nullable=True)  # Optional subtitle for each value
     description = Column(Text, nullable=False)
-    icon = Column(String(100), nullable=True)
+    
+    # Visual elements - can use icon OR image
+    icon = Column(String(100), nullable=True)  # Icon name, emoji, or URL
+    image_url = Column(String(500), nullable=True)  # For image-based values display
     
     # Display
     display_order = Column(Integer, default=0, nullable=False)

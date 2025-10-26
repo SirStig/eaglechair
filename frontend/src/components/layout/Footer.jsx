@@ -12,20 +12,21 @@ const Footer = () => {
 
   return (
     <footer className="bg-dark-900 text-dark-100 border-t border-dark-500">
-      <div className="container mx-auto py-12">
+      <div className="container mx-auto py-8 sm:py-12">
         {/* Main Footer Content */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-8 mb-8">
+        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-6 sm:gap-8 mb-6 sm:mb-8 text-center sm:text-left">
           {/* Company Info */}
-          <div className="lg:col-span-1">
-            <img 
-              src="/assets/eagle-chair-logo.png" 
-              alt="Eagle Chair" 
-              className="h-12 w-auto mb-4 opacity-80"
-            />
-            <p className="text-sm mb-4 text-dark-200">
-              Family-owned manufacturer of high-quality commercial furniture since 1984.
-            </p>
-            <div className="flex space-x-4">
+          <div className="lg:col-span-1 sm:col-span-2 md:col-span-1">
+            <div className="flex flex-col items-center sm:items-start">
+              <img 
+                src="/assets/eagle-chair-logo.png" 
+                alt="Eagle Chair" 
+                className="h-10 sm:h-12 w-auto mb-3 sm:mb-4 opacity-80"
+              />
+              <p className="text-sm mb-3 sm:mb-4 text-dark-200 max-w-xs">
+                Family-owned manufacturer of high-quality commercial furniture since 1984.
+              </p>
+              <div className="flex space-x-4 justify-center sm:justify-start">
               <motion.a 
                 href="https://facebook.com" 
                 target="_blank" 
@@ -67,10 +68,11 @@ const Footer = () => {
               </motion.a>
             </div>
           </div>
+        </div>
 
-          {/* Products */}
-          <div>
-            <h4 className="text-dark-50 font-semibold mb-4">Products</h4>
+        {/* Products */}
+        <div className="px-4 sm:px-0">
+            <h4 className="text-dark-50 font-semibold mb-3 sm:mb-4">Products</h4>
             <ul className="space-y-2">
               {footerLinks.products.map((link) => (
                 <li key={link.path}>
@@ -83,8 +85,8 @@ const Footer = () => {
           </div>
 
           {/* Company */}
-          <div>
-            <h4 className="text-dark-50 font-semibold mb-4">Company</h4>
+          <div className="px-4 sm:px-0">
+            <h4 className="text-dark-50 font-semibold mb-3 sm:mb-4">Company</h4>
             <ul className="space-y-2">
               {footerLinks.company.map((link) => (
                 <li key={link.path}>
@@ -97,8 +99,8 @@ const Footer = () => {
           </div>
 
           {/* Resources */}
-          <div>
-            <h4 className="text-dark-50 font-semibold mb-4">Resources</h4>
+          <div className="px-4 sm:px-0">
+            <h4 className="text-dark-50 font-semibold mb-3 sm:mb-4">Resources</h4>
             <ul className="space-y-2">
               {footerLinks.resources.map((link) => (
                 <li key={link.path}>
@@ -111,15 +113,15 @@ const Footer = () => {
           </div>
 
           {/* Contact & Legal */}
-          <div>
-            <h4 className="text-dark-50 font-semibold mb-4">Contact</h4>
+          <div className="px-4 sm:px-0">
+            <h4 className="text-dark-50 font-semibold mb-3 sm:mb-4">Contact</h4>
             {siteSettings && (
-              <>
-                <p className="text-sm mb-2 text-dark-200">{siteSettings.addressLine1}</p>
-                <p className="text-sm mb-2 text-dark-200">{siteSettings.city}, {siteSettings.state} {siteSettings.zipCode}</p>
-                <p className="text-sm mb-2 text-dark-200">Phone: <span className="text-primary-500">{siteSettings.primaryPhone}</span></p>
-                <p className="text-sm mb-4 text-dark-200">Email: <span className="text-primary-500">{siteSettings.primaryEmail}</span></p>
-              </>
+              <div className="mb-3 sm:mb-4">
+                <p className="text-sm mb-1 sm:mb-2 text-dark-200">{siteSettings.addressLine1}</p>
+                <p className="text-sm mb-1 sm:mb-2 text-dark-200">{siteSettings.city}, {siteSettings.state} {siteSettings.zipCode}</p>
+                <p className="text-sm mb-1 sm:mb-2 text-dark-200">Phone: <span className="text-primary-500">{siteSettings.primaryPhone}</span></p>
+                <p className="text-sm mb-2 sm:mb-3 text-dark-200">Email: <span className="text-primary-500">{siteSettings.primaryEmail}</span></p>
+              </div>
             )}
             <ul className="space-y-1">
               {footerLinks.legal.map((link) => (
@@ -134,8 +136,8 @@ const Footer = () => {
         </div>
 
         {/* Bottom Bar */}
-        <div className="border-t border-dark-700 pt-8 mt-8">
-          <p className="text-sm text-center text-dark-200">
+        <div className="border-t border-dark-700 pt-6 sm:pt-8 mt-6 sm:mt-8">
+          <p className="text-sm text-center text-dark-200 px-4 sm:px-0">
             © {currentYear} {siteSettings?.companyName || 'Eagle Chair'}. All rights reserved. Family-owned and operated since 1984.
           </p>
         </div>

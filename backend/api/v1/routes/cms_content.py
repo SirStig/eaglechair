@@ -1,33 +1,44 @@
 """
 CMS Content Routes - API v1
 
-Public routes for CMS-managed content (hero slides, features, values, milestones, etc.)
-All endpoints under /content/ prefix
+Public READ-ONLY routes for CMS-managed display content:
+- Hero slides (homepage carousel)
+- Site settings (company info, contact, social links)
+- Features (product/service highlights)
+- Client logos
+- Company values and milestones
+- Sales representatives (Find a Rep page)
+- Installation gallery (photo gallery with descriptions)
+- Page content (dynamic page sections)
+- Featured products
+
+All endpoints are public GET requests. For ADMIN operations (create, update, delete)
+with static file export, see cms_admin.py.
+
+These endpoints query the database and use default_content as fallback if database
+is empty. Admin updates automatically export to static JavaScript files for instant
+frontend loading via the cms_admin.py endpoints.
 """
 
 import logging
-from typing import List, Optional
+from typing import Optional
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, Query
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.orm import selectinload
 
 from backend.database.base import get_db
 from backend.models.chair import Chair
 from backend.models.content import (
     ClientLogo,
-    CompanyInfo,
     CompanyMilestone,
     CompanyValue,
     Feature,
-    Feedback,
     HeroSlide,
     Installation,
     PageContent,
     SalesRepresentative,
     SiteSettings,
-    TeamMember,
 )
 from backend.services.default_content_service import default_content
 
@@ -303,109 +314,6 @@ async def get_company_milestones(db: AsyncSession = Depends(get_db)):
 
 
 # ============================================================================
-# Team Members
-# ============================================================================
-
-@router.get(
-    "/team-members",
-    summary="Get team members",
-    description="Retrieve team members for About page"
-)
-async def get_team_members(db: AsyncSession = Depends(get_db)):
-    """
-    Get all active team members.
-    
-    **Public endpoint** - No authentication required.
-    """
-    logger.info("Fetching team members")
-    
-    result = await db.execute(
-        select(TeamMember)
-        .where(TeamMember.is_active == True)
-        .order_by(TeamMember.display_order, TeamMember.id)
-    )
-    members = result.scalars().all()
-    
-    # Return default content if no team members in database
-    if not members:
-        return default_content.get_team_members()
-    
-    return [
-        {
-            "id": member.id,
-            "name": member.name,
-            "role": member.title,
-            "title": member.title,
-            "bio": member.bio,
-            "image": member.photo_url,
-            "email": member.email,
-            "phone": member.phone,
-            "linkedinUrl": member.linkedin_url,
-            "displayOrder": member.display_order
-        }
-        for member in members
-    ]
-
-
-# ============================================================================
-# Company Info
-# ============================================================================
-
-@router.get(
-    "/company-info",
-    summary="Get company information",
-    description="Retrieve company information sections"
-)
-async def get_company_info(
-    section_key: Optional[str] = Query(None, description="Filter by section key"),
-    db: AsyncSession = Depends(get_db)
-):
-    """
-    Get company information.
-    
-    **Public endpoint** - No authentication required.
-    
-    Can filter by section_key (e.g., 'about_us', 'mission', 'history')
-    """
-    logger.info(f"Fetching company info (section_key={section_key})")
-    
-    query = select(CompanyInfo).where(CompanyInfo.is_active == True)
-    
-    if section_key:
-        query = query.where(CompanyInfo.section_key == section_key)
-        result = await db.execute(query)
-        info = result.scalar_one_or_none()
-        
-        if not info:
-            raise HTTPException(status_code=404, detail="Company info section not found")
-        
-        return {
-            "id": info.id,
-            "sectionKey": info.section_key,
-            "title": info.title,
-            "content": info.content,
-            "imageUrl": info.image_url,
-            "displayOrder": info.display_order
-        }
-    
-    query = query.order_by(CompanyInfo.display_order, CompanyInfo.id)
-    result = await db.execute(query)
-    info_sections = result.scalars().all()
-    
-    return [
-        {
-            "id": section.id,
-            "sectionKey": section.section_key,
-            "title": section.title,
-            "content": section.content,
-            "imageUrl": section.image_url,
-            "displayOrder": section.display_order
-        }
-        for section in info_sections
-    ]
-
-
-# ============================================================================
 # Sales Representatives
 # ============================================================================
 
@@ -504,46 +412,6 @@ async def get_installations(
         }
         for installation in installations
     ]
-
-
-# ============================================================================
-# Feedback Submission
-# ============================================================================
-
-@router.post(
-    "/feedback",
-    status_code=201,
-    summary="Submit feedback",
-    description="Submit feedback or contact form"
-)
-async def submit_feedback(
-    feedback_data: dict,
-    db: AsyncSession = Depends(get_db)
-):
-    """
-    Submit feedback or contact form.
-    
-    **Public endpoint** - No authentication required.
-    """
-    logger.info(f"Feedback submission from {feedback_data.get('email')}")
-    
-    feedback = Feedback(
-        name=feedback_data.get("name"),
-        email=feedback_data.get("email"),
-        phone=feedback_data.get("phone"),
-        company_name=feedback_data.get("companyName"),
-        subject=feedback_data.get("subject"),
-        message=feedback_data.get("message"),
-        feedback_type=feedback_data.get("feedbackType", "general")
-    )
-    
-    db.add(feedback)
-    await db.commit()
-    
-    return {
-        "message": "Thank you for your feedback!",
-        "detail": "We've received your message and will get back to you as soon as possible."
-    }
 
 
 # ============================================================================
@@ -671,86 +539,4 @@ async def get_featured_products(
         }
         for product in products
     ]
-
-
-# ============================================================================
-# UPDATE ENDPOINTS (Admin Only)
-# ============================================================================
-
-from pydantic import BaseModel
-
-from backend.api.dependencies import get_current_admin
-
-
-class PageContentUpdate(BaseModel):
-    """Schema for updating page content"""
-    title: Optional[str] = None
-    subtitle: Optional[str] = None
-    content: Optional[str] = None
-    imageUrl: Optional[str] = None
-
-
-@router.patch(
-    "/page-content/{page_slug}/{section_key}",
-    summary="Update page content",
-    description="Update page content section (Admin only)"
-)
-async def update_page_content(
-    page_slug: str,
-    section_key: str,
-    updates: PageContentUpdate,
-    db: AsyncSession = Depends(get_db),
-    current_admin = Depends(get_current_admin)
-):
-    """
-    Update page content.
-    
-    **Admin only** - Requires admin authentication.
-    """
-    logger.info(f"Updating page content (page={page_slug}, section={section_key})")
-    
-    # Find existing content
-    result = await db.execute(
-        select(PageContent).where(
-            PageContent.page_slug == page_slug,
-            PageContent.section_key == section_key
-        )
-    )
-    content = result.scalar_one_or_none()
-    
-    if not content:
-        # Create new content if it doesn't exist
-        content = PageContent(
-            page_slug=page_slug,
-            section_key=section_key,
-            is_active=True
-        )
-        db.add(content)
-    
-    # Update fields
-    update_data = updates.dict(exclude_unset=True)
-    for field, value in update_data.items():
-        # Convert camelCase to snake_case
-        snake_field = ''.join(['_' + c.lower() if c.isupper() else c for c in field]).lstrip('_')
-        if hasattr(content, snake_field):
-            setattr(content, snake_field, value)
-    
-    await db.commit()
-    await db.refresh(content)
-    
-    logger.info(f"Updated page content: {page_slug}/{section_key}")
-    
-    return {
-        "success": True,
-        "message": "Content updated successfully",
-        "data": {
-            "id": content.id,
-            "pageSlug": content.page_slug,
-            "sectionKey": content.section_key,
-            "title": content.title,
-            "subtitle": content.subtitle,
-            "content": content.content,
-            "imageUrl": content.image_url
-        }
-    }
 

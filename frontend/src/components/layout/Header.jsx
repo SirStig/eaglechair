@@ -13,7 +13,7 @@ import logger from '../../utils/logger';
 
 const CONTEXT = 'Header';
 
-const Header = () => {
+const Header = ({ isMobileMenuOpen, setIsMobileMenuOpen }) => {
   const [searchQuery, setSearchQuery] = useState('');
   const [isSearchFocused, setIsSearchFocused] = useState(false);
   const [searchResults, setSearchResults] = useState([]);
@@ -53,12 +53,15 @@ const Header = () => {
     }
   }, [searchQuery]);
 
-  const handleSearch = (e) => {
+  const handleSearch = (e, options = {}) => {
     e.preventDefault();
     if (searchQuery.trim()) {
       setShowSearchResults(false);
       navigate(`/search?q=${encodeURIComponent(searchQuery)}`);
       logger.info(CONTEXT, `Navigating to search page with query: ${searchQuery}`);
+      if (options.closeMenu) {
+        setIsMobileMenuOpen(false);
+      }
     }
   };
 
@@ -74,7 +77,7 @@ const Header = () => {
     <header className="fixed top-0 left-0 w-full bg-dark-800/95 backdrop-blur-md shadow-lg border-b border-dark-500 z-50" style={{ '--header-height': '80px' }}>
       <div className="container mx-auto">
         {/* Main Navigation */}
-        <div className="flex items-center justify-between py-4 gap-4">
+        <div className="flex items-center justify-between py-4 gap-2">
           {/* Logo */}
           <Link to="/" className="flex-shrink-0">
             <Motion.div
@@ -86,7 +89,7 @@ const Header = () => {
               <img 
                 src="/assets/eagle-chair-logo.png" 
                 alt="Eagle Chair" 
-                className="h-12 w-auto object-contain"
+                className="h-10 sm:h-12 w-auto object-contain"
               />
               
               {/* Since 1984 Text */}
@@ -195,9 +198,9 @@ const Header = () => {
           </nav>
 
           {/* Right Side: Search, Account, Cart */}
-          <div className="flex items-center gap-4">
-            {/* Search with Results Dropdown */}
-            <form onSubmit={handleSearch} className="hidden md:block relative" ref={searchRef}>
+          <div className="flex items-center gap-2 sm:gap-4">
+            {/* Search with Results Dropdown - Hidden on mobile */}
+            <form onSubmit={handleSearch} className="hidden lg:block relative flex-shrink-0" ref={searchRef}>
               <div className="relative">
                 <input
                   type="text"
@@ -270,7 +273,7 @@ const Header = () => {
                         </button>
                       ))}
                       <button
-                        onClick={handleSearch}
+                        onClick={(event) => handleSearch(event)}
                         className="w-full px-4 py-2 text-sm text-primary-500 hover:bg-dark-700 transition-colors text-center border-t border-dark-500"
                       >
                         View all results →
@@ -282,72 +285,74 @@ const Header = () => {
             </form>
 
             {/* Account */}
-            {user ? (
-              <Dropdown
-                trigger={(isOpen) => (
-                  <Button variant="transparent" size="sm" className="hover-lift">
-                    <svg className="h-5 w-5 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
-                    </svg>
-                    {user.username || `${user.firstName} ${user.lastName}` || user.companyName || 'User'}
-                    <Motion.svg 
-                      className="ml-1 h-4 w-4 inline-block" 
-                      fill="none" 
-                      viewBox="0 0 24 24" 
-                      stroke="currentColor"
-                      animate={{ rotate: isOpen ? 180 : 0 }}
-                      transition={{ duration: 0.3, ease: [0.4, 0, 0.2, 1] }}
-                    >
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                    </Motion.svg>
-                  </Button>
-                )}
-                align="right"
-                contentClassName="w-48"
-              >
-                <div className="py-2">
-                  <Link
-                    to="/dashboard"
-                    className="block px-4 py-2 text-sm text-dark-50 hover:bg-dark-700 transition-colors rounded-md"
-                  >
-                    Dashboard
-                  </Link>
-                  <Link
-                    to="/quotes"
-                    className="block px-4 py-2 text-sm text-dark-50 hover:bg-dark-700 transition-colors rounded-md"
-                  >
-                    My Quotes
-                  </Link>
-                  {(user.role === 'super_admin' || user.role === 'admin' || user.type === 'admin') && (
+            <div className="hidden lg:block flex-shrink-0">
+              {user ? (
+                <Dropdown
+                  trigger={(isOpen) => (
+                    <Button variant="transparent" size="sm" className="hover-lift">
+                      <svg className="h-5 w-5 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                      </svg>
+                      {user.username || `${user.firstName} ${user.lastName}` || user.companyName || 'User'}
+                      <Motion.svg 
+                        className="ml-1 h-4 w-4 inline-block" 
+                        fill="none" 
+                        viewBox="0 0 24 24" 
+                        stroke="currentColor"
+                        animate={{ rotate: isOpen ? 180 : 0 }}
+                        transition={{ duration: 0.3, ease: [0.4, 0, 0.2, 1] }}
+                      >
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                      </Motion.svg>
+                    </Button>
+                  )}
+                  align="right"
+                  contentClassName="w-48"
+                >
+                  <div className="py-2">
                     <Link
-                      to="/admin"
+                      to="/dashboard"
                       className="block px-4 py-2 text-sm text-dark-50 hover:bg-dark-700 transition-colors rounded-md"
                     >
-                      Admin Panel
+                      Dashboard
                     </Link>
-                  )}
-                  <button
-                    onClick={logout}
-                    className="block w-full text-left px-4 py-2 text-sm text-dark-50 hover:bg-dark-700 transition-colors rounded-md"
-                  >
-                    Logout
-                  </button>
-                </div>
-              </Dropdown>
-            ) : (
-              <Link to="/login">
-                <Button variant="outline" size="sm" className="hover-lift">
-                  Login / Register
-                </Button>
-              </Link>
-            )}
+                    <Link
+                      to="/quotes"
+                      className="block px-4 py-2 text-sm text-dark-50 hover:bg-dark-700 transition-colors rounded-md"
+                    >
+                      My Quotes
+                    </Link>
+                    {(user.role === 'super_admin' || user.role === 'admin' || user.type === 'admin') && (
+                      <Link
+                        to="/admin"
+                        className="block px-4 py-2 text-sm text-dark-50 hover:bg-dark-700 transition-colors rounded-md"
+                      >
+                        Admin Panel
+                      </Link>
+                    )}
+                    <button
+                      onClick={logout}
+                      className="block w-full text-left px-4 py-2 text-sm text-dark-50 hover:bg-dark-700 transition-colors rounded-md"
+                    >
+                      Logout
+                    </button>
+                  </div>
+                </Dropdown>
+              ) : (
+                <Link to="/login" className="block">
+                  <Button variant="outline" size="sm" className="hover-lift">
+                    Login / Register
+                  </Button>
+                </Link>
+              )}
+            </div>
 
             {/* Cart */}
-            <Link to="/cart" className="relative">
+            <Link to="/cart" className="relative hidden lg:block flex-shrink-0">
               <Motion.div whileHover={{ scale: 1.1 }} whileTap={{ scale: 0.95 }}>
                 <Button variant="transparent" size="sm">
                   <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z" />
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0z" />
                   </svg>
                   {cartItemCount > 0 && (
                     <Badge variant="danger" size="sm" className="absolute -top-2 -right-2 min-w-[1.25rem] h-5 flex items-center justify-center">
@@ -359,10 +364,34 @@ const Header = () => {
             </Link>
 
             {/* Mobile Menu Button */}
-            <button className="lg:hidden text-dark-50 hover:text-primary-500 transition-colors">
-              <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
-              </svg>
+            <button
+              type="button"
+              onClick={() => setIsMobileMenuOpen((prev) => !prev)}
+              className="lg:hidden text-dark-50 hover:text-primary-500 transition-colors flex-shrink-0 p-2 -mr-2"
+              aria-label={isMobileMenuOpen ? 'Close menu' : 'Open menu'}
+              aria-expanded={isMobileMenuOpen}
+            >
+              <Motion.svg 
+                className="h-6 w-6" 
+                fill="none" 
+                viewBox="0 0 24 24" 
+                stroke="currentColor"
+                animate={{ 
+                  rotate: isMobileMenuOpen ? 90 : 0,
+                  scale: isMobileMenuOpen ? 0.9 : 1
+                }}
+                transition={{ duration: 0.2, ease: 'easeInOut' }}
+              >
+                {isMobileMenuOpen ? (
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                ) : (
+                  <>
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16" />
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 12h16" />
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 18h16" />
+                  </>
+                )}
+              </Motion.svg>
             </button>
           </div>
         </div>
@@ -372,3 +401,313 @@ const Header = () => {
 };
 
 export default Header;
+
+export const MobileMenu = ({ isMobileMenuOpen, setIsMobileMenuOpen, searchQuery, setSearchQuery, handleSearch, user, logout, cartItemCount }) => {
+  const [isProductsOpen, setIsProductsOpen] = useState(false);
+  const [isConnectOpen, setIsConnectOpen] = useState(false);
+  
+  const handleMobileLinkClick = (callback) => {
+    if (typeof callback === 'function') {
+      callback();
+    }
+    setIsMobileMenuOpen(false);
+  };
+
+  const productCategories = [
+    {
+      title: 'Chairs',
+      slug: 'chairs',
+      image: 'https://images.unsplash.com/photo-1503602642458-232111445657?w=200&h=150&fit=crop',
+      items: [
+        { name: 'Wood Chairs', category: 'chairs', subcategory: 'Wood' },
+        { name: 'Metal Chairs', category: 'chairs', subcategory: 'Metal' },
+        { name: 'Lounge Chairs', category: 'chairs', subcategory: 'Lounge' },
+        { name: 'Arm Chairs', category: 'chairs', subcategory: 'Arm' },
+        { name: 'Outdoor Chairs', category: 'chairs', subcategory: 'Outdoor' },
+      ],
+    },
+    {
+      title: 'Barstools',
+      slug: 'barstools',
+      image: 'https://images.unsplash.com/photo-1551298370-9d3d53740c72?w=200&h=150&fit=crop',
+      items: [
+        { name: 'Wood Barstools', category: 'barstools', subcategory: 'Wood' },
+        { name: 'Metal Barstools', category: 'barstools', subcategory: 'Metal' },
+        { name: 'Swivel Barstools', category: 'barstools', subcategory: 'Swivel' },
+        { name: 'Backless Barstools', category: 'barstools', subcategory: 'Backless' },
+        { name: 'Outdoor Barstools', category: 'barstools', subcategory: 'Outdoor' },
+      ],
+    },
+    {
+      title: 'Tables & Bases',
+      slug: 'tables',
+      image: 'https://images.unsplash.com/photo-1530018607912-eff2daa1bac4?w=200&h=150&fit=crop',
+      items: [
+        { name: 'Table Tops', category: 'tables', subcategory: 'Table Tops' },
+        { name: 'Table Gallery', category: 'tables', subcategory: 'Table Gallery' },
+        { name: 'Edges and Sizing', category: 'tables', subcategory: 'Edges and Sizing' },
+        { name: 'Table Bases', category: 'bases', subcategory: '' },
+        { name: 'Outdoor Bases', category: 'bases', subcategory: 'Outdoor' },
+      ],
+    },
+    {
+      title: 'Booths & Outdoor',
+      slug: 'booths',
+      image: 'https://images.unsplash.com/photo-1517248135467-4c7edcad34c4?w=200&h=150&fit=crop',
+      items: [
+        { name: 'Upholstered Booths', category: 'booths', subcategory: 'Upholstered' },
+        { name: 'Wooden Booths', category: 'booths', subcategory: 'Wooden' },
+        { name: 'Settee Benches', category: 'booths', subcategory: 'Settee' },
+        { name: 'Outdoor Seating', category: 'outdoor', subcategory: 'Chairs' },
+        { name: 'Outdoor Tables', category: 'outdoor', subcategory: 'Tables' },
+      ],
+    },
+  ];
+
+  return (
+    <AnimatePresence>
+      {isMobileMenuOpen && (
+        <>
+          <Motion.aside
+            initial={{ x: '100%' }}
+            animate={{ x: 0 }}
+            exit={{ x: '100%' }}
+            transition={{ type: 'spring', stiffness: 300, damping: 30 }}
+            className="fixed inset-y-0 right-0 z-40 w-[85vw] max-w-sm bg-dark-900 border-l border-dark-600 shadow-2xl overflow-y-auto"
+            style={{ top: '80px' }}
+          >
+            <div className="flex flex-col h-full">
+              <div className="px-4 py-4 space-y-6 flex-grow overflow-y-auto">
+                <form onSubmit={(event) => handleSearch(event, { closeMenu: true })}>
+                  <label htmlFor="mobile-search" className="sr-only">
+                    Search products
+                  </label>
+                  <div className="relative">
+                    <input
+                      id="mobile-search"
+                      type="text"
+                      placeholder="Search products..."
+                      value={searchQuery}
+                      onChange={(e) => setSearchQuery(e.target.value)}
+                      className="w-full h-10 pl-10 pr-4 rounded-lg border border-dark-600 bg-dark-800 text-dark-50 placeholder-dark-300 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent text-sm"
+                    />
+                    <svg
+                      className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-dark-300 pointer-events-none"
+                      fill="none"
+                      viewBox="0 0 24 24"
+                      stroke="currentColor"
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth={2}
+                        d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
+                      />
+                    </svg>
+                  </div>
+                </form>
+
+                <nav className="flex flex-col gap-3 text-base text-dark-50">
+                  {/* Products Dropdown */}
+                  <div>
+                    <button 
+                      onClick={() => setIsProductsOpen(!isProductsOpen)}
+                      className="flex items-center justify-between w-full py-2 hover:text-primary-400 transition-colors"
+                    >
+                      <span>Products</span>
+                      <Motion.svg 
+                        className="h-4 w-4" 
+                        fill="none" 
+                        viewBox="0 0 24 24" 
+                        stroke="currentColor"
+                        animate={{ rotate: isProductsOpen ? 180 : 0 }}
+                        transition={{ duration: 0.3 }}
+                      >
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                      </Motion.svg>
+                    </button>
+                    
+                    <AnimatePresence>
+                      {isProductsOpen && (
+                        <Motion.div
+                          initial={{ height: 0, opacity: 0 }}
+                          animate={{ height: 'auto', opacity: 1 }}
+                          exit={{ height: 0, opacity: 0 }}
+                          transition={{ duration: 0.3 }}
+                          className="overflow-hidden mt-3"
+                        >
+                          <div className="space-y-3">
+                            {productCategories.map((category) => (
+                              <div key={category.slug} className="relative">
+                                {/* Category Image Background */}
+                                <div 
+                                  className="relative h-56 bg-cover bg-center overflow-hidden"
+                                  style={{ backgroundImage: `url(${category.image})` }}
+                                >
+                                  {/* Dark Overlay */}
+                                  <div className="absolute inset-0 bg-black/60"></div>
+                                  
+                                  {/* Content Overlay */}
+                                  <div className="relative z-10 p-4 h-full flex flex-col">
+                                    {/* Category Title */}
+                                    <Link 
+                                      to={`/products?category=${category.slug}`}
+                                      onClick={() => setIsMobileMenuOpen(false)}
+                                      className="text-white font-bold text-lg mb-2 hover:text-primary-400 transition-colors"
+                                    >
+                                      {category.title}
+                                    </Link>
+                                    
+                                    {/* Category Links */}
+                                    <div className="space-y-1 flex-1">
+                                      {category.items.map((item, idx) => (
+                                        <Link
+                                          key={idx}
+                                          to={`/products?category=${item.category}${item.subcategory ? `&subcategory=${encodeURIComponent(item.subcategory)}` : ''}`}
+                                          onClick={() => setIsMobileMenuOpen(false)}
+                                          className="block text-white/90 text-sm hover:text-primary-400 transition-colors"
+                                        >
+                                          {item.name}
+                                        </Link>
+                                      ))}
+                                    </div>
+                                  </div>
+                                </div>
+                              </div>
+                            ))}
+                            
+                            {/* View All Products Button */}
+                            <div className="pt-2">
+                              <Link 
+                                to="/products" 
+                                onClick={() => setIsMobileMenuOpen(false)}
+                                className="block w-full text-center py-3 bg-primary-600 text-dark-900 font-semibold hover:bg-primary-500 transition-colors"
+                              >
+                                View All Products
+                              </Link>
+                            </div>
+                          </div>
+                        </Motion.div>
+                      )}
+                    </AnimatePresence>
+                  </div>
+                  
+                  <Link to="/gallery" onClick={() => setIsMobileMenuOpen(false)} className="py-2 hover:text-primary-400 transition-colors">
+                    Gallery
+                  </Link>
+                  <Link to="/about" onClick={() => setIsMobileMenuOpen(false)} className="py-2 hover:text-primary-400 transition-colors">
+                    About Us
+                  </Link>
+                  <Link to="/resources" onClick={() => setIsMobileMenuOpen(false)} className="py-2 hover:text-primary-400 transition-colors">
+                    Resources
+                  </Link>
+                  
+                  {/* Connect Dropdown */}
+                  <div>
+                    <button 
+                      onClick={() => setIsConnectOpen(!isConnectOpen)}
+                      className="flex items-center justify-between w-full py-2 hover:text-primary-400 transition-colors"
+                    >
+                      <span>Connect</span>
+                      <Motion.svg 
+                        className="h-4 w-4" 
+                        fill="none" 
+                        viewBox="0 0 24 24" 
+                        stroke="currentColor"
+                        animate={{ rotate: isConnectOpen ? 180 : 0 }}
+                        transition={{ duration: 0.3 }}
+                      >
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                      </Motion.svg>
+                    </button>
+                    
+                    <AnimatePresence>
+                      {isConnectOpen && (
+                        <Motion.div
+                          initial={{ height: 0, opacity: 0 }}
+                          animate={{ height: 'auto', opacity: 1 }}
+                          exit={{ height: 0, opacity: 0 }}
+                          transition={{ duration: 0.3 }}
+                          className="overflow-hidden ml-4 mt-2 space-y-2"
+                        >
+                          <Link to="/contact" onClick={() => setIsMobileMenuOpen(false)} className="block py-2 text-sm hover:text-primary-400 transition-colors">
+                            Contact Us
+                          </Link>
+                          <Link to="/find-a-rep" onClick={() => setIsMobileMenuOpen(false)} className="block py-2 text-sm hover:text-primary-400 transition-colors">
+                            Find a Rep
+                          </Link>
+                        </Motion.div>
+                      )}
+                    </AnimatePresence>
+                  </div>
+                  
+                  <Link to="/quote-request" onClick={() => setIsMobileMenuOpen(false)} className="py-2 hover:text-primary-400 transition-colors">
+                    Request a Quote
+                  </Link>
+                </nav>
+
+                <div className="border-t border-dark-700 pt-4 space-y-3">
+                  {user ? (
+                    <div className="space-y-2">
+                      <p className="text-xs text-dark-300 uppercase tracking-wide">Account</p>
+                      <Link to="/dashboard" onClick={() => setIsMobileMenuOpen(false)} className="block py-2 text-dark-50 hover:text-primary-400 transition-colors">
+                        Dashboard
+                      </Link>
+                      <Link to="/quotes" onClick={() => setIsMobileMenuOpen(false)} className="block py-2 text-dark-50 hover:text-primary-400 transition-colors">
+                        My Quotes
+                      </Link>
+                      {(user.role === 'super_admin' || user.role === 'admin' || user.type === 'admin') && (
+                        <Link to="/admin" onClick={() => setIsMobileMenuOpen(false)} className="block py-2 text-dark-50 hover:text-primary-400 transition-colors">
+                          Admin Panel
+                        </Link>
+                      )}
+                      <button
+                        type="button"
+                        onClick={() => handleMobileLinkClick(logout)}
+                        className="block text-left py-2 text-dark-50 hover:text-primary-400 transition-colors"
+                      >
+                        Logout
+                      </button>
+                    </div>
+                  ) : (
+                    <Link to="/login" onClick={() => setIsMobileMenuOpen(false)} className="inline-flex items-center justify-center w-full px-4 py-3 rounded-lg border border-primary-500 text-primary-500 font-semibold hover:bg-primary-500/10 transition-colors text-sm">
+                      Login / Register
+                    </Link>
+                  )}
+
+                  <Link
+                    to="/cart"
+                    onClick={() => setIsMobileMenuOpen(false)}
+                    className="flex items-center justify-between px-3 py-2 rounded-lg border border-dark-700 text-dark-50 hover:border-primary-500 hover:text-primary-400 transition-colors"
+                  >
+                    <span className="flex items-center gap-2">
+                      <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0z" />
+                      </svg>
+                      <span>Cart</span>
+                    </span>
+                    {cartItemCount > 0 && (
+                      <span className="inline-flex items-center justify-center rounded-full bg-primary-500 text-xs font-semibold text-white w-5 h-5">
+                        {cartItemCount}
+                      </span>
+                    )}
+                  </Link>
+                </div>
+              </div>
+            </div>
+          </Motion.aside>
+
+          <Motion.button
+            type="button"
+            aria-label="Close menu"
+            onClick={() => setIsMobileMenuOpen(false)}
+            className="fixed inset-0 z-[39] bg-black/40"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+          />
+        </>
+      )}
+    </AnimatePresence>
+  );
+};

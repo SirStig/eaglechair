@@ -1,0 +1,21 @@
+# Eagle Chair - Robots.txt
+# https://www.eaglechair.com/robots.txt
+
+User-agent: *
+Allow: /
+
+# Sitemaps
+Sitemap: https://www.eaglechair.com/sitemap.xml
+
+# Disallow admin and API paths from search engines
+Disallow: /api/
+Disallow: /admin/
+Disallow: /login
+Disallow: /signup
+
+# Allow all product and content pages
+Allow: /products/
+Allow: /gallery/
+Allow: /about
+Allow: /contact
+Allow: /find-a-rep

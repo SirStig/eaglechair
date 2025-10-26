@@ -1,31 +1,42 @@
 """
 Content Routes - API v1
 
-Public routes for site content (FAQ, team, contact, catalogs, feedback)
+Public routes for traditional content managed through ContentService:
+- FAQs and FAQ categories
+- Team members and company information  
+- Contact locations
+- Product catalogs
+- Installation guides (how-to documents)
+- Feedback/contact form submission
+
+These are distinct from CMS-managed content (hero slides, features, etc.) which
+are in cms_content.py and cms_admin.py.
+
+All endpoints are public, no authentication required except feedback optionally
+links to company account if authenticated.
 """
 
 import logging
 from typing import Optional
+
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from backend.database.base import get_db
-from backend.services.content_service import ContentService
 from backend.api.dependencies import get_optional_company
-from backend.models.company import Company
+from backend.api.v1.schemas.common import MessageResponse
 from backend.api.v1.schemas.content import (
-    FAQCategoryResponse,
-    FAQResponse,
-    TeamMemberResponse,
+    CatalogResponse,
     CompanyInfoResponse,
     ContactLocationResponse,
-    CatalogResponse,
-    InstallationResponse,
+    FAQCategoryResponse,
+    FAQResponse,
     FeedbackCreate,
-    FeedbackResponse,
+    InstallationResponse,
+    TeamMemberResponse,
 )
-from backend.api.v1.schemas.common import MessageResponse
-
+from backend.database.base import get_db
+from backend.models.company import Company
+from backend.services.content_service import ContentService
 
 logger = logging.getLogger(__name__)
 

@@ -106,7 +106,7 @@ const EditableList = ({
   };
 
   return (
-    <div className={`relative ${className}`}>
+    <div className="relative">
       {/* Add Button - Floats at top when in edit mode */}
       <AnimatePresence>
         {isEditMode && onCreate && (

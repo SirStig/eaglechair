@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import Slider from 'react-slick';
@@ -28,11 +28,22 @@ const CONTEXT = 'HomePage';
 
 const HomePage = () => {
   const [selectedQuickView, setSelectedQuickView] = useState(null);
+  const [showFullContent, setShowFullContent] = useState(false);
+  
   const { data: heroSlides, loading: heroLoading, refetch: refetchHero } = useHeroSlides();
   const { data: whyChooseUs, loading: featuresLoading, refetch: refetchFeatures } = useFeatures('home_page');
   const { data: clientLogos, loading: logosLoading, refetch: refetchLogos } = useClientLogos();
   const { data: featuredProducts, loading: productsLoading } = useFeaturedProducts(4);
   const { data: ctaSection, loading: ctaLoading, refetch: refetchCta } = usePageContent('home', 'cta');
+
+  // Progressive loading - show full content after initial load
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setShowFullContent(true);
+    }, 2000); // Show full content after 2 seconds
+    
+    return () => clearTimeout(timer);
+  }, []);
 
   // Handler for saving content updates
   const handleSaveContent = async (pageSlug, sectionKey, newData) => {
@@ -100,7 +111,7 @@ const HomePage = () => {
 
   // Hero Slider Settings
   const heroSettings = {
-    dots: true,
+    dots: false,
     infinite: true,
     speed: 1000,
     slidesToShow: 1,
@@ -108,6 +119,7 @@ const HomePage = () => {
     autoplay: true,
     autoplaySpeed: 5000,
     fade: true,
+    arrows: false,
   };
 
   // Client Logos Slider Settings
@@ -170,7 +182,7 @@ const HomePage = () => {
                     onSave={(newData) => handleUpdateHeroSlide(slide.id, newData)}
                     label={`Slide ${index + 1}`}
                   >
-                    <div className="relative h-[600px] lg:h-[700px]">
+                    <div className="relative h-[70vh] sm:h-[75vh] md:h-[80vh] lg:h-[85vh]">
                       <img
                         src={slide.background_image_url || slide.image}
                         alt={slide.title}
@@ -184,16 +196,16 @@ const HomePage = () => {
                             initial={{ opacity: 0, y: 30 }}
                             animate={{ opacity: 1, y: 0 }}
                             transition={{ delay: 0.2, duration: 0.8 }}
-                            className="max-w-2xl text-white"
+                            className="max-w-2xl text-white px-2 sm:px-0"
                           >
-                            <h1 className="text-5xl lg:text-7xl font-bold mb-4">
+                            <h1 className="text-4xl sm:text-5xl md:text-6xl lg:text-7xl font-bold mb-4 sm:mb-6 leading-tight">
                               {slide.title}
                             </h1>
-                            <p className="text-xl lg:text-2xl mb-8 text-gray-200">
+                            <p className="text-lg sm:text-xl md:text-2xl lg:text-3xl mb-6 sm:mb-8 text-gray-200 leading-relaxed">
                               {slide.subtitle}
                             </p>
                             <Link to={slide.cta_link || slide.ctaLink}>
-                              <Button size="lg" variant="primary">
+                              <Button size="md" variant="primary" className="w-full sm:w-auto px-8 py-3">
                                 {slide.cta_text || slide.ctaText || slide.cta}
                               </Button>
                             </Link>
@@ -211,27 +223,45 @@ const HomePage = () => {
 
 
       {/* Trusted By - Infinite Scrolling Logos */}
-      <section className="py-16 bg-dark-800 overflow-hidden">
+      <section className="py-8 sm:py-12 md:py-16 bg-dark-800 overflow-hidden">
         <div className="container">
-          <h2 className="text-3xl font-bold text-center mb-12 text-dark-50">
+          <h2 className="text-xl sm:text-2xl md:text-3xl font-bold text-center mb-8 sm:mb-12 text-dark-50 px-4">
             Trusted by Leading Hospitality Brands
           </h2>
           
           {/* Centered container with fading edges */}
           <div className="relative max-w-5xl mx-auto">
             {/* Left fade */}
-            <div className="absolute left-0 top-0 bottom-0 w-32 bg-gradient-to-r from-dark-800 to-transparent z-10 pointer-events-none"></div>
+            <div className="absolute left-0 top-0 bottom-0 w-16 sm:w-32 bg-gradient-to-r from-dark-800 to-transparent z-10 pointer-events-none"></div>
             
             {/* Right fade */}
-            <div className="absolute right-0 top-0 bottom-0 w-32 bg-gradient-to-l from-dark-800 to-transparent z-10 pointer-events-none"></div>
+            <div className="absolute right-0 top-0 bottom-0 w-16 sm:w-32 bg-gradient-to-l from-dark-800 to-transparent z-10 pointer-events-none"></div>
             
             {/* Scrolling container */}
             <div className="overflow-hidden">
-              <div className="flex animate-scroll-infinite">
-                {/* Double the array for seamless infinite scroll - when first set finishes, second set is identical */}
-                {clients.length > 0 && [...clients, ...clients].map((client, index) => (
-                  <div key={`${client.id}-${index}`} className="flex-shrink-0 px-8 mx-4">
-                    <div className="flex items-center justify-center h-20 w-40">
+              <div className="flex animate-scroll-infinite" style={{ width: '200%' }}>
+                {/* First set of logos */}
+                {clients.length > 0 && clients.map((client, index) => (
+                  <div key={`first-${client.id}-${index}`} className="flex-shrink-0 px-4 sm:px-8 mx-2 sm:mx-4">
+                    <div className="flex items-center justify-center h-16 sm:h-20 w-32 sm:w-40">
+                      {client.logoUrl || client.logo ? (
+                        <img
+                          src={client.logoUrl || client.logo}
+                          alt={client.name}
+                          className="max-h-full max-w-full object-contain grayscale opacity-60 hover:grayscale-0 hover:opacity-100 transition-all duration-300"
+                        />
+                      ) : (
+                        <div className="text-base font-semibold text-dark-200 text-center">
+                          {client.name}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                ))}
+                {/* Second set of logos (exact duplicate) */}
+                {clients.length > 0 && clients.map((client, index) => (
+                  <div key={`second-${client.id}-${index}`} className="flex-shrink-0 px-4 sm:px-8 mx-2 sm:mx-4">
+                    <div className="flex items-center justify-center h-16 sm:h-20 w-32 sm:w-40">
                       {client.logoUrl || client.logo ? (
                         <img
                           src={client.logoUrl || client.logo}
@@ -253,16 +283,17 @@ const HomePage = () => {
       </section>
 
       {/* Featured Products */}
-      <section className="py-20 bg-dark-700">
+      {showFullContent && (
+        <section className="py-12 sm:py-16 md:py-20 bg-cream-50">
         <div className="container">
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             whileInView={{ opacity: 1, y: 0 }}
             viewport={{ once: true }}
-            className="text-center mb-12"
+            className="text-center mb-8 sm:mb-12 px-4"
           >
-            <h2 className="text-4xl font-bold mb-4 text-dark-50">Featured Products</h2>
-            <p className="text-xl text-dark-100">
+            <h2 className="text-2xl sm:text-3xl md:text-4xl font-bold mb-3 sm:mb-4 text-slate-800">Featured Products</h2>
+            <p className="text-lg sm:text-xl text-slate-600">
               Explore our most popular commercial furniture solutions
             </p>
           </motion.div>
@@ -270,7 +301,7 @@ const HomePage = () => {
           {productsLoading ? (
             <CardGridSkeleton count={4} columns={4} />
           ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6 sm:gap-8 md:gap-10 px-4 sm:px-0">
               {products.map((product, index) => (
                 <motion.div
                   key={product.id}
@@ -282,32 +313,35 @@ const HomePage = () => {
                   <ProductCard
                     product={product}
                     onQuickView={setSelectedQuickView}
+                    darkMode={false}
                   />
                 </motion.div>
               ))}
             </div>
           )}
 
-          <div className="text-center mt-12">
+          <div className="text-center mt-8 sm:mt-12 px-4 sm:px-0">
             <Link to="/products">
-              <Button variant="primary" size="lg">
+              <Button variant="primary" size="lg" className="w-full sm:w-auto">
                 View All Products
               </Button>
             </Link>
           </div>
         </div>
       </section>
+      )}
 
       {/* Why Choose Us */}
-      <section className="py-20 bg-dark-800">
+      {showFullContent && (
+        <section className="py-12 sm:py-16 md:py-20 bg-dark-800">
         <div className="container">
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             whileInView={{ opacity: 1, y: 0 }}
             viewport={{ once: true }}
-            className="text-center mb-12"
+            className="text-center mb-8 sm:mb-12 px-4"
           >
-            <h2 className="text-4xl font-bold mb-4 text-dark-50">Why Choose Eagle Chair?</h2>
+            <h2 className="text-2xl sm:text-3xl md:text-4xl font-bold mb-3 sm:mb-4 text-dark-50">Why Choose Eagle Chair?</h2>
           </motion.div>
 
           <EditableList
@@ -342,16 +376,17 @@ const HomePage = () => {
                 <p className="text-dark-100">{feature.description}</p>
               </motion.div>
             )}
-            className="grid md:grid-cols-3 gap-8"
+            className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6 md:gap-8 px-4 sm:px-0"
           />
         </div>
       </section>
-
+      )}
 
       {/* CTA Section */}
-      <section className="py-20 bg-dark-900 border-t-2 border-primary-500/30">
+      {showFullContent && (
+        <section className="py-12 sm:py-16 md:py-20 bg-dark-900 border-t-2 border-primary-500/30">
         <div className="container">
-          <div className="max-w-3xl mx-auto text-center">
+          <div className="max-w-3xl mx-auto text-center px-4">
             <EditableWrapper
               id="home-cta-title"
               type="text"
@@ -359,7 +394,7 @@ const HomePage = () => {
               onSave={(newData) => handleSaveContent('home', 'cta', { ...ctaSection, ...newData })}
               label="CTA Title"
             >
-              <h2 className="text-4xl font-bold mb-6 text-dark-50">
+              <h2 className="text-2xl sm:text-3xl md:text-4xl font-bold mb-4 sm:mb-6 text-dark-50">
                 {ctaTitle}
               </h2>
             </EditableWrapper>
@@ -371,7 +406,7 @@ const HomePage = () => {
               onSave={(newData) => handleSaveContent('home', 'cta', { ...ctaSection, ...newData })}
               label="CTA Content"
             >
-              <p className="text-xl mb-8 text-dark-100">
+              <p className="text-lg sm:text-xl mb-6 sm:mb-8 text-dark-100 leading-relaxed">
                 {ctaContent}
               </p>
             </EditableWrapper>
@@ -388,14 +423,14 @@ const HomePage = () => {
               onSave={(newData) => handleSaveContent('home', 'cta', { ...ctaSection, ...newData })}
               label="CTA Buttons"
             >
-              <div className="flex flex-col sm:flex-row gap-4 justify-center">
-                <Link to={ctaPrimaryLink}>
-                  <button className="px-8 py-3 bg-primary-600 text-dark-900 rounded-lg font-semibold hover:bg-primary-500 transition-colors shadow-lg hover:shadow-primary-500/50">
+              <div className="flex flex-col sm:flex-row gap-3 sm:gap-4 justify-center px-4 sm:px-0">
+                <Link to={ctaPrimaryLink} className="w-full sm:w-auto">
+                  <button className="w-full sm:w-auto px-6 sm:px-8 py-3 sm:py-3 bg-primary-600 text-dark-900 rounded-lg font-semibold hover:bg-primary-500 transition-colors shadow-lg hover:shadow-primary-500/50 min-h-[48px] text-center">
                     {ctaPrimaryText}
                   </button>
                 </Link>
-                <Link to={ctaSecondaryLink}>
-                  <button className="px-8 py-3 border-2 border-primary-500 text-primary-500 rounded-lg font-semibold hover:bg-primary-500/10 transition-colors">
+                <Link to={ctaSecondaryLink} className="w-full sm:w-auto">
+                  <button className="w-full sm:w-auto px-6 sm:px-8 py-3 sm:py-3 border-2 border-primary-500 text-primary-500 rounded-lg font-semibold hover:bg-primary-500/10 transition-colors min-h-[48px] text-center">
                     {ctaSecondaryText}
                   </button>
                 </Link>
@@ -404,6 +439,7 @@ const HomePage = () => {
           </div>
         </div>
       </section>
+      )}
     </div>
   );
 };

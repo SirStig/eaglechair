@@ -1,159 +1,197 @@
 import { api } from '../config/apiClient';
 import logger from '../utils/logger';
 
+// Import static content data
+import * as staticContent from '../data/contentData';
+
 const CONTEXT = 'ContentService';
 
 /**
  * Content Service
- * Handles fetching CMS content from backend
+ * Handles fetching CMS content - uses static files for instant loading with API fallback
+ * 
+ * For static content (hero images, site settings, reps, gallery, etc.):
+ * - Primary: Static contentData.js (instant, no API call)
+ * - Fallback: API call if static content fails/missing
+ * 
+ * For dynamic content (products, FAQs, etc.):
+ * - Always uses API
  */
+
+// Check if we should use static content (can be disabled via env var)
+const USE_STATIC_CONTENT = import.meta.env.VITE_USE_STATIC_CONTENT !== 'false';
+
+/**
+ * Helper to get static content with API fallback
+ */
+const getStaticOrAPI = async (staticData, apiFetcher, contextMessage) => {
+  // If static content is disabled, use API
+  if (!USE_STATIC_CONTENT) {
+    logger.debug(CONTEXT, `${contextMessage} (API mode)`);
+    return await apiFetcher();
+  }
+
+  // Try static content first
+  try {
+    if (staticData !== undefined && staticData !== null) {
+      logger.debug(CONTEXT, `${contextMessage} (from static file)`);
+      return staticData;
+    }
+  } catch (error) {
+    logger.warn(CONTEXT, `Static content unavailable, falling back to API: ${error.message}`);
+  }
+
+  // Fallback to API
+  logger.debug(CONTEXT, `${contextMessage} (API fallback)`);
+  return await apiFetcher();
+};
 
 // Site Settings
 export const getSiteSettings = async () => {
-  try {
-    logger.debug(CONTEXT, 'Fetching site settings');
-    const response = await api.get('/api/v1/content/site-settings');
-    return response;
-  } catch (error) {
-    logger.error(CONTEXT, 'Error fetching site settings', error);
-    throw error;
-  }
+  return getStaticOrAPI(
+    staticContent.siteSettings,
+    async () => {
+      const response = await api.get('/api/v1/content/site-settings');
+      return response;
+    },
+    'Fetching site settings'
+  );
 };
 
 // Company Info
 export const getCompanyInfo = async (sectionKey = null) => {
-  try {
-    logger.debug(CONTEXT, `Fetching company info${sectionKey ? ` for ${sectionKey}` : ''}`);
-    const url = sectionKey 
-      ? `/api/v1/content/company-info/${sectionKey}`
-      : '/api/v1/content/company-info';
-    const response = await api.get(url);
-    return response;
-  } catch (error) {
-    logger.error(CONTEXT, 'Error fetching company info', error);
-    throw error;
-  }
+  return getStaticOrAPI(
+    staticContent.companyInfo,
+    async () => {
+      const url = sectionKey 
+        ? `/api/v1/content/company-info/${sectionKey}`
+        : '/api/v1/content/company-info';
+      const response = await api.get(url);
+      return response;
+    },
+    `Fetching company info${sectionKey ? ` for ${sectionKey}` : ''}`
+  );
 };
 
 // Team Members
 export const getTeamMembers = async () => {
-  try {
-    logger.debug(CONTEXT, 'Fetching team members');
-    const response = await api.get('/api/v1/content/team-members');
-    return response;
-  } catch (error) {
-    logger.error(CONTEXT, 'Error fetching team members', error);
-    throw error;
-  }
+  return getStaticOrAPI(
+    staticContent.teamMembers,
+    async () => {
+      const response = await api.get('/api/v1/content/team-members');
+      return response;
+    },
+    'Fetching team members'
+  );
 };
 
 // Company Values
 export const getCompanyValues = async () => {
-  try {
-    logger.debug(CONTEXT, 'Fetching company values');
-    const response = await api.get('/api/v1/content/company-values');
-    return response;
-  } catch (error) {
-    logger.error(CONTEXT, 'Error fetching company values', error);
-    throw error;
-  }
+  return getStaticOrAPI(
+    staticContent.companyValues,
+    async () => {
+      const response = await api.get('/api/v1/content/company-values');
+      return response;
+    },
+    'Fetching company values'
+  );
 };
 
 // Company Milestones
 export const getCompanyMilestones = async () => {
-  try {
-    logger.debug(CONTEXT, 'Fetching company milestones');
-    const response = await api.get('/api/v1/content/company-milestones');
-    return response;
-  } catch (error) {
-    logger.error(CONTEXT, 'Error fetching company milestones', error);
-    throw error;
-  }
+  return getStaticOrAPI(
+    staticContent.companyMilestones,
+    async () => {
+      const response = await api.get('/api/v1/content/company-milestones');
+      return response;
+    },
+    'Fetching company milestones'
+  );
 };
 
 // Hero Slides
 export const getHeroSlides = async () => {
-  try {
-    logger.debug(CONTEXT, 'Fetching hero slides');
-    const response = await api.get('/api/v1/content/hero-slides');
-    return response;
-  } catch (error) {
-    logger.error(CONTEXT, 'Error fetching hero slides', error);
-    throw error;
-  }
+  return getStaticOrAPI(
+    staticContent.heroSlides,
+    async () => {
+      const response = await api.get('/api/v1/content/hero-slides');
+      return response;
+    },
+    'Fetching hero slides'
+  );
 };
 
 // Features (Why Choose Us)
 export const getFeatures = async (featureType = 'general') => {
-  try {
-    logger.debug(CONTEXT, `Fetching features of type: ${featureType}`);
-    const response = await api.get(`/api/v1/content/features?type=${featureType}`);
-    return response;
-  } catch (error) {
-    logger.error(CONTEXT, 'Error fetching features', error);
-    throw error;
-  }
+  return getStaticOrAPI(
+    staticContent.features,
+    async () => {
+      const response = await api.get(`/api/v1/content/features?type=${featureType}`);
+      return response;
+    },
+    `Fetching features of type: ${featureType}`
+  );
 };
 
 // Client Logos
 export const getClientLogos = async () => {
-  try {
-    logger.debug(CONTEXT, 'Fetching client logos');
-    const response = await api.get('/api/v1/content/client-logos');
-    return response;
-  } catch (error) {
-    logger.error(CONTEXT, 'Error fetching client logos', error);
-    throw error;
-  }
+  return getStaticOrAPI(
+    staticContent.clientLogos,
+    async () => {
+      const response = await api.get('/api/v1/content/client-logos');
+      return response;
+    },
+    'Fetching client logos'
+  );
 };
 
 // Sales Representatives
 export const getSalesReps = async () => {
-  try {
-    logger.debug(CONTEXT, 'Fetching sales representatives');
-    const response = await api.get('/api/v1/content/sales-reps');
-    return response;
-  } catch (error) {
-    logger.error(CONTEXT, 'Error fetching sales reps', error);
-    throw error;
-  }
+  return getStaticOrAPI(
+    staticContent.salesReps,
+    async () => {
+      const response = await api.get('/api/v1/content/sales-reps');
+      return response;
+    },
+    'Fetching sales representatives'
+  );
 };
 
 // Get rep by state
 export const getRepByState = async (stateCode) => {
-  try {
-    logger.debug(CONTEXT, `Fetching rep for state: ${stateCode}`);
-    const response = await api.get(`/api/v1/content/sales-reps/state/${stateCode}`);
-    return response;
-  } catch (error) {
-    logger.error(CONTEXT, 'Error fetching rep by state', error);
-    throw error;
-  }
+  return getStaticOrAPI(
+    staticContent.getRepByState(stateCode),
+    async () => {
+      const response = await api.get(`/api/v1/content/sales-reps/state/${stateCode}`);
+      return response;
+    },
+    `Fetching rep for state: ${stateCode}`
+  );
 };
 
 // Installation Gallery
 export const getInstallations = async (filters = {}) => {
-  try {
-    logger.debug(CONTEXT, 'Fetching installations', filters);
-    const params = new URLSearchParams(filters).toString();
-    const response = await api.get(`/api/v1/content/installations${params ? `?${params}` : ''}`);
-    return response;
-  } catch (error) {
-    logger.error(CONTEXT, 'Error fetching installations', error);
-    throw error;
-  }
+  return getStaticOrAPI(
+    staticContent.galleryImages,
+    async () => {
+      const params = new URLSearchParams(filters).toString();
+      const response = await api.get(`/api/v1/content/installations${params ? `?${params}` : ''}`);
+      return response;
+    },
+    'Fetching installations'
+  );
 };
 
 // Contact Locations
 export const getContactLocations = async () => {
-  try {
-    logger.debug(CONTEXT, 'Fetching contact locations');
-    const response = await api.get('/api/v1/content/contact-locations');
-    return response;
-  } catch (error) {
-    logger.error(CONTEXT, 'Error fetching contact locations', error);
-    throw error;
-  }
+  return getStaticOrAPI(
+    staticContent.contactLocations,
+    async () => {
+      const response = await api.get('/api/v1/content/contact-locations');
+      return response;
+    },
+    'Fetching contact locations'
+  );
 };
 
 // FAQs
