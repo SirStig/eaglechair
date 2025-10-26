@@ -1,15 +1,14 @@
 import { useState, useEffect, useRef } from 'react';
-import { useParams, useNavigate, Link, useLocation } from 'react-router-dom';
+import { useParams, useNavigate, Link } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import Button from '../components/ui/Button';
-import Badge from '../components/ui/Badge';
+import Tag from '../components/ui/Tag';
 import LoadingSpinner from '../components/ui/LoadingSpinner';
 import ProductCard from '../components/ui/ProductCard';
 import EditableWrapper from '../components/admin/EditableWrapper';
 import { useCartStore } from '../store/cartStore';
 import { demoProducts, IS_DEMO } from '../data/demoData';
 import { updateProduct } from '../services/contentService';
-import { useLightTheme } from '../utils/themeTransition';
 import logger from '../utils/logger';
 
 const CONTEXT = 'ProductDetailPage';
@@ -17,11 +16,10 @@ const CONTEXT = 'ProductDetailPage';
 const ProductDetailPage = () => {
   const { id } = useParams();
   const navigate = useNavigate();
-  const location = useLocation();
   const { addItem } = useCartStore();
   const customizeRef = useRef(null);
-  const shouldBeLightTheme = useLightTheme(location.pathname);
-  const [isLightTheme, setIsLightTheme] = useState(false);
+  // Always use light theme on product pages
+  const isLightTheme = true;
   
   const [product, setProduct] = useState(null);
   const [relatedProducts, setRelatedProducts] = useState([]);
@@ -138,23 +136,9 @@ const ProductDetailPage = () => {
     }
   };
 
-  // Theme transition effect - delay light theme activation for smooth transition
-  useEffect(() => {
-    if (shouldBeLightTheme) {
-      const timer = setTimeout(() => {
-        setIsLightTheme(true);
-      }, 50);
-      return () => clearTimeout(timer);
-    } else {
-      setIsLightTheme(false);
-    }
-  }, [shouldBeLightTheme]);
-
   if (loading) {
     return (
-      <div className={`min-h-screen flex items-center justify-center transition-colors duration-[1500ms] ${
-        isLightTheme ? 'bg-gradient-to-br from-cream-50 to-cream-100' : 'bg-dark-800'
-      }`}>
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-cream-50 to-cream-100">
         <LoadingSpinner size="large" />
       </div>
     );
@@ -162,11 +146,11 @@ const ProductDetailPage = () => {
 
   if (!product) {
     return (
-      <div className={`min-h-screen flex items-center justify-center transition-colors duration-[1500ms] ${
-        isLightTheme ? 'bg-gradient-to-br from-cream-50 to-cream-100' : 'bg-dark-800'
+      <div className={`min-h-screen flex items-center justify-center  ${
+        'bg-gradient-to-br from-cream-50 to-cream-100'
       }`}>
         <div className="text-center">
-          <h2 className={`text-2xl font-bold mb-4 ${isLightTheme ? 'text-slate-800' : 'text-dark-50'}`}>Product Not Found</h2>
+          <h2 className="text-2xl font-bold mb-4 text-slate-800">Product Not Found</h2>
           <Button onClick={() => navigate('/products')}>Back to Products</Button>
         </div>
       </div>
@@ -176,8 +160,8 @@ const ProductDetailPage = () => {
   const images = product.images || [product.image];
 
   return (
-    <div className={`min-h-screen transition-colors duration-[1500ms] ${
-      isLightTheme ? 'bg-gradient-to-br from-cream-50 to-cream-100' : 'bg-dark-800'
+    <div className={`min-h-screen  ${
+      'bg-gradient-to-br from-cream-50 to-cream-100'
     }`}>
       {/* Success Message */}
       <AnimatePresence>
@@ -194,12 +178,12 @@ const ProductDetailPage = () => {
       </AnimatePresence>
 
       {/* Hero Section */}
-      <section className={`border-b transition-colors duration-[1500ms] ${
-        isLightTheme ? 'bg-cream-50/50 border-cream-200' : 'bg-dark-900 border-dark-700'
+      <section className={`border-b  ${
+        'bg-cream-50/50 border-cream-200'
       }`}>
-        <div className="container mx-auto px-4 py-12 max-w-7xl">
+        <div className="w-full px-4 sm:px-6 lg:px-8 xl:px-12 py-8 sm:py-12">
           {/* Breadcrumb */}
-          <div className={`mb-6 text-sm ${isLightTheme ? 'text-slate-600' : 'text-dark-100'}`}>
+          <div className="mb-4 sm:mb-6 text-xs sm:text-sm text-slate-600">
             <Link to="/" className="hover:text-primary-500">Home</Link>
             {' '}/{' '}
             <Link to="/products" className="hover:text-primary-500">Products</Link>
@@ -208,20 +192,20 @@ const ProductDetailPage = () => {
               {product.category}
             </Link>
             {' '}/{' '}
-            <span className={isLightTheme ? 'text-slate-800' : 'text-dark-50'}>{product.name}</span>
+            <span className={isLightTheme ? 'text-slate-800' : 'text-slate-800'}>{product.name}</span>
           </div>
 
-          <div className="grid lg:grid-cols-2 gap-12">
+          <div className="grid lg:grid-cols-2 gap-8 lg:gap-12">
             {/* Image Gallery */}
             <div className="flex items-center justify-center">
-              <div className="relative inline-block">
+              <div className="relative inline-block w-full">
                 {/* Main Image */}
-                <div className="bg-\ rounded-xl overflow-hidden border border-\">
+                <div className="bg-white rounded-xl overflow-hidden border border-cream-200">
                   <img
                     src={images[selectedImage]}
                     alt={product.name}
-                    className="h-auto object-contain"
-                    style={{ maxHeight: '600px', width: 'auto' }}
+                    className="w-full h-auto object-contain"
+                    style={{ maxHeight: '600px', mixBlendMode: 'multiply' }}
                   />
                 </div>
 
@@ -231,9 +215,9 @@ const ProductDetailPage = () => {
                     {/* Previous Button */}
                     <button
                       onClick={() => setSelectedImage(selectedImage === 0 ? images.length - 1 : selectedImage - 1)}
-                      className="absolute left-3 top-1/2 -translate-y-1/2 w-10 h-10 flex items-center justify-center bg-dark-900/80 hover:bg-dark-900 border border-dark-600 rounded-full transition-colors"
+                      className="absolute left-3 top-1/2 -translate-y-1/2 w-10 h-10 flex items-center justify-center bg-cream-50/80 hover:bg-cream-50 border border-cream-300 rounded-full transition-colors"
                     >
-                      <svg className="w-6 h-6 text-dark-50" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <svg className="w-6 h-6 text-slate-800" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
                       </svg>
                     </button>
@@ -241,15 +225,15 @@ const ProductDetailPage = () => {
                     {/* Next Button */}
                     <button
                       onClick={() => setSelectedImage(selectedImage === images.length - 1 ? 0 : selectedImage + 1)}
-                      className="absolute right-3 top-1/2 -translate-y-1/2 w-10 h-10 flex items-center justify-center bg-dark-900/80 hover:bg-dark-900 border border-dark-600 rounded-full transition-colors"
+                      className="absolute right-3 top-1/2 -translate-y-1/2 w-10 h-10 flex items-center justify-center bg-cream-50/80 hover:bg-cream-50 border border-cream-300 rounded-full transition-colors"
                     >
-                      <svg className="w-6 h-6 text-dark-50" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <svg className="w-6 h-6 text-slate-800" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
                       </svg>
                     </button>
 
                     {/* Image Counter */}
-                    <div className="absolute top-3 left-1/2 -translate-x-1/2 px-3 py-1.5 bg-dark-900/80 border border-dark-600 rounded-full text-sm text-dark-50">
+                    <div className="absolute top-3 left-1/2 -translate-x-1/2 px-3 py-1.5 bg-cream-50/80 border border-cream-300 rounded-full text-sm text-slate-800">
                       {selectedImage + 1} / {images.length}
                     </div>
                   </>
@@ -259,17 +243,20 @@ const ProductDetailPage = () => {
 
             {/* Product Info */}
             <div>
-              {/* Badges */}
+              {/* Tags */}
               <div className="flex flex-wrap gap-2 mb-4">
-                {product.isNew && <Badge variant="success">New</Badge>}
-                {product.featured && <Badge variant="primary">Featured</Badge>}
-                {product.is_outdoor_suitable && <Badge variant="info">Outdoor</Badge>}
+                {product.isNew && <Tag variant="new">New</Tag>}
+                {product.featured && <Tag variant="featured">Featured</Tag>}
+                {product.is_outdoor_suitable && <Tag variant="default">Outdoor</Tag>}
                 {product.stock_status && (
-                  <Badge variant={product.stock_status === 'In Stock' ? 'success' : 'warning'}>
+                  <Tag variant={product.stock_status === 'In Stock' ? 'new' : 'limited'}>
                     {product.stock_status}
-                  </Badge>
+                  </Tag>
                 )}
-                {product.ada_compliant && <Badge variant="primary">ADA Compliant</Badge>}
+                {product.ada_compliant && <Tag variant="commercial">ADA Compliant</Tag>}
+                {product.tags?.map((tag) => (
+                  <Tag key={tag} variant="commercial">{tag}</Tag>
+                ))}
               </div>
 
               {/* Title */}
@@ -280,7 +267,7 @@ const ProductDetailPage = () => {
                 onSave={handleUpdateProduct}
                 label="Product Name"
               >
-                <h1 className="text-4xl font-bold text-dark-50 mb-3">{product.name}</h1>
+                <h1 className="text-4xl font-bold text-slate-800 mb-3">{product.name}</h1>
               </EditableWrapper>
               
               {/* Model Number */}
@@ -292,7 +279,7 @@ const ProductDetailPage = () => {
                   onSave={handleUpdateProduct}
                   label="Model Number"
                 >
-                  <p className="text-lg text-dark-200 mb-6">Model: {product.model_number}</p>
+                  <p className="text-lg text-slate-600 mb-6">Model: {product.model_number}</p>
                 </EditableWrapper>
               )}
 
@@ -308,7 +295,7 @@ const ProductDetailPage = () => {
                 onSave={handleUpdateProduct}
                 label="Product Description"
               >
-                <div className="text-dark-100 leading-relaxed space-y-4 mb-6">
+                <div className="text-slate-700 leading-relaxed space-y-4 mb-6">
                   {product.short_description && (
                     <p className="text-lg">{product.short_description}</p>
                   )}
@@ -335,16 +322,16 @@ const ProductDetailPage = () => {
       </section>
 
       {/* Specifications & Resources */}
-      <section className="bg-dark-800 border-b border-dark-700">
+      <section className="bg-white border-b border-cream-200">
         <div className="container mx-auto px-4 py-16 max-w-7xl">
-          <h2 className="text-3xl font-bold text-dark-50 mb-8">Specifications & Details</h2>
+          <h2 className="text-3xl font-bold text-slate-800 mb-8">Specifications & Details</h2>
 
           <div className="grid lg:grid-cols-3 gap-8">
             {/* Features */}
             {product.features && product.features.length > 0 && (
               <div>
-                <h3 className="text-xl font-semibold text-dark-50 mb-4">Features</h3>
-                <ul className="space-y-2 text-dark-100 text-base">
+                <h3 className="text-xl font-semibold text-slate-800 mb-4">Features</h3>
+                <ul className="space-y-2 text-slate-700 text-base">
                   {product.features.map((feature, idx) => (
                     <li key={idx} className="flex items-start">
                       <span className="text-primary-500 mr-2 mt-1">•</span>
@@ -358,23 +345,23 @@ const ProductDetailPage = () => {
             {/* Available Variations */}
             {(product.customizations?.finishes || product.customizations?.fabrics || product.customizations?.colors) && (
               <div>
-                <h3 className="text-xl font-semibold text-dark-50 mb-4">Available Variations</h3>
-                <div className="space-y-2.5 text-dark-100 text-base">
+                <h3 className="text-xl font-semibold text-slate-800 mb-4">Available Variations</h3>
+                <div className="space-y-2.5 text-slate-700 text-base">
                   {product.customizations.finishes && (
                     <div>
-                      <span className="font-medium text-dark-50">Finishes:</span>
+                      <span className="font-medium text-slate-800">Finishes:</span>
                       <p className="mt-1">{product.customizations.finishes.join(', ')}</p>
                     </div>
                   )}
                   {product.customizations.fabrics && (
                     <div>
-                      <span className="font-medium text-dark-50">Upholstery:</span>
+                      <span className="font-medium text-slate-800">Upholstery:</span>
                       <p className="mt-1">{product.customizations.fabrics.join(', ')}</p>
                     </div>
                   )}
                   {product.customizations.colors && (
                     <div>
-                      <span className="font-medium text-dark-50">Colors:</span>
+                      <span className="font-medium text-slate-800">Colors:</span>
                       <p className="mt-1">{product.customizations.colors.join(', ')}</p>
                     </div>
                   )}
@@ -384,66 +371,66 @@ const ProductDetailPage = () => {
 
             {/* Dimensions & Weight */}
             <div>
-              <h3 className="text-xl font-semibold text-dark-50 mb-4">Dimensions & Weight</h3>
-              <div className="space-y-2 text-dark-100 text-base">
+              <h3 className="text-xl font-semibold text-slate-800 mb-4">Dimensions & Weight</h3>
+              <div className="space-y-2 text-slate-700 text-base">
                 {product.width && (
                   <div className="flex justify-between">
                     <span>Width:</span>
-                    <span className="font-medium text-dark-50">{product.width}"</span>
+                    <span className="font-medium text-slate-800">{product.width}"</span>
                   </div>
                 )}
                 {product.depth && (
                   <div className="flex justify-between">
                     <span>Depth:</span>
-                    <span className="font-medium text-dark-50">{product.depth}"</span>
+                    <span className="font-medium text-slate-800">{product.depth}"</span>
                   </div>
                 )}
                 {product.height && (
                   <div className="flex justify-between">
                     <span>Height:</span>
-                    <span className="font-medium text-dark-50">{product.height}"</span>
+                    <span className="font-medium text-slate-800">{product.height}"</span>
                   </div>
                 )}
                 {product.seat_width && (
                   <div className="flex justify-between">
                     <span>Seat Width:</span>
-                    <span className="font-medium text-dark-50">{product.seat_width}"</span>
+                    <span className="font-medium text-slate-800">{product.seat_width}"</span>
                   </div>
                 )}
                 {product.seat_depth && (
                   <div className="flex justify-between">
                     <span>Seat Depth:</span>
-                    <span className="font-medium text-dark-50">{product.seat_depth}"</span>
+                    <span className="font-medium text-slate-800">{product.seat_depth}"</span>
                   </div>
                 )}
                 {product.seat_height && (
                   <div className="flex justify-between">
                     <span>Seat Height:</span>
-                    <span className="font-medium text-dark-50">{product.seat_height}"</span>
+                    <span className="font-medium text-slate-800">{product.seat_height}"</span>
                   </div>
                 )}
                 {product.arm_height && (
                   <div className="flex justify-between">
                     <span>Arm Height:</span>
-                    <span className="font-medium text-dark-50">{product.arm_height}"</span>
+                    <span className="font-medium text-slate-800">{product.arm_height}"</span>
                   </div>
                 )}
                 {product.back_height && (
                   <div className="flex justify-between">
                     <span>Back Height:</span>
-                    <span className="font-medium text-dark-50">{product.back_height}"</span>
+                    <span className="font-medium text-slate-800">{product.back_height}"</span>
                   </div>
                 )}
                 {product.weight && (
                   <div className="flex justify-between">
                     <span>Weight:</span>
-                    <span className="font-medium text-dark-50">{product.weight} lbs</span>
+                    <span className="font-medium text-slate-800">{product.weight} lbs</span>
                   </div>
                 )}
                 {product.shipping_weight && (
                   <div className="flex justify-between">
                     <span>Ship Weight:</span>
-                    <span className="font-medium text-dark-50">{product.shipping_weight} lbs</span>
+                    <span className="font-medium text-slate-800">{product.shipping_weight} lbs</span>
                   </div>
                 )}
               </div>
@@ -452,12 +439,12 @@ const ProductDetailPage = () => {
           </div>
 
           {/* Additional Details Row */}
-          <div className="grid lg:grid-cols-3 gap-8 mt-8 pt-8 border-t border-dark-700">
+          <div className="grid lg:grid-cols-3 gap-8 mt-8 pt-8 border-t border-cream-200">
             {/* Construction Details */}
             {product.construction_details && (
               <div>
-                <h3 className="text-xl font-semibold text-dark-50 mb-3">Construction</h3>
-                <p className="text-dark-100 text-base leading-relaxed">{product.construction_details}</p>
+                <h3 className="text-xl font-semibold text-slate-800 mb-3">Construction</h3>
+                <p className="text-slate-700 text-base leading-relaxed">{product.construction_details}</p>
               </div>
             )}
 
@@ -465,14 +452,14 @@ const ProductDetailPage = () => {
             <div>
               {product.care_instructions && (
                 <div className="mb-4">
-                  <h3 className="text-xl font-semibold text-dark-50 mb-3">Care Instructions</h3>
-                  <p className="text-dark-100 text-base leading-relaxed">{product.care_instructions}</p>
+                  <h3 className="text-xl font-semibold text-slate-800 mb-3">Care Instructions</h3>
+                  <p className="text-slate-700 text-base leading-relaxed">{product.care_instructions}</p>
                 </div>
               )}
               {product.warranty_info && (
                 <div>
-                  <h3 className="text-xl font-semibold text-dark-50 mb-3">Warranty</h3>
-                  <p className="text-dark-100 text-base leading-relaxed">{product.warranty_info}</p>
+                  <h3 className="text-xl font-semibold text-slate-800 mb-3">Warranty</h3>
+                  <p className="text-slate-700 text-base leading-relaxed">{product.warranty_info}</p>
                 </div>
               )}
             </div>
@@ -481,8 +468,8 @@ const ProductDetailPage = () => {
             <div>
               {(product.flame_certifications || product.green_certifications || product.ada_compliant) && (
                 <div className="mb-4">
-                  <h3 className="text-xl font-semibold text-dark-50 mb-3">Certifications</h3>
-                  <div className="space-y-1.5 text-dark-100 text-base">
+                  <h3 className="text-xl font-semibold text-slate-800 mb-3">Certifications</h3>
+                  <div className="space-y-1.5 text-slate-700 text-base">
                     {product.flame_certifications && (
                       <p>{product.flame_certifications.join(', ')}</p>
                     )}
@@ -497,7 +484,7 @@ const ProductDetailPage = () => {
               )}
               {(product.spec_sheet_url || product.dimensional_drawing_url || product.cad_file_url) && (
                 <div>
-                  <h3 className="text-xl font-semibold text-dark-50 mb-3">Resources</h3>
+                  <h3 className="text-xl font-semibold text-slate-800 mb-3">Resources</h3>
                   <div className="flex flex-col gap-2 text-base">
                     {product.spec_sheet_url && (
                       <a href={product.spec_sheet_url} download className="text-primary-500 hover:text-primary-400 underline">
@@ -523,26 +510,26 @@ const ProductDetailPage = () => {
       </section>
 
       {/* Customize & Quote Section */}
-      <section ref={customizeRef} className="bg-dark-900 border-b border-dark-700 scroll-mt-20">
+      <section ref={customizeRef} className="bg-cream-50 border-b border-cream-200 scroll-mt-20">
         <div className="container mx-auto px-4 py-16 max-w-7xl">
-          <h2 className="text-3xl font-bold text-dark-50 mb-8">Customize & Request Quote</h2>
+          <h2 className="text-3xl font-bold text-slate-800 mb-8">Customize & Request Quote</h2>
 
           <div className="grid lg:grid-cols-2 gap-12">
             {/* 3D Model Placeholder / Product Image */}
             <div className="flex items-center justify-center">
               <div className="relative inline-block">
-                <div className="bg-\ rounded-xl overflow-hidden border border-\">
+                <div className="bg-white rounded-xl overflow-hidden border border-cream-200">
                   <img
                     src={images[selectedImage]}
                     alt={product.name}
                     className="h-auto object-contain"
-                    style={{ maxHeight: '600px', width: 'auto' }}
+                    style={{ maxHeight: '600px', width: 'auto', mixBlendMode: 'multiply' }}
                   />
                   
                   {/* 3D Coming Soon Badge */}
-                  <div className="absolute bottom-12 left-4 right-4 bg-dark-900/90 backdrop-blur-sm border border-primary-500 rounded-lg p-3 text-center">
+                  <div className="absolute bottom-12 left-4 right-4 bg-cream-50/90 backdrop-blur-sm border border-primary-500 rounded-lg p-3 text-center">
                     <p className="text-primary-400 font-semibold text-sm">3D Customization Coming Soon</p>
-                    <p className="text-dark-200 text-xs mt-1">Interactive 3D model viewer in development</p>
+                    <p className="text-slate-600 text-xs mt-1">Interactive 3D model viewer in development</p>
                   </div>
                 </div>
 
@@ -552,9 +539,9 @@ const ProductDetailPage = () => {
                     {/* Previous Button */}
                     <button
                       onClick={() => setSelectedImage(selectedImage === 0 ? images.length - 1 : selectedImage - 1)}
-                      className="absolute left-3 top-1/2 -translate-y-1/2 w-10 h-10 flex items-center justify-center bg-dark-900/80 hover:bg-dark-900 border border-dark-600 rounded-full transition-colors"
+                      className="absolute left-3 top-1/2 -translate-y-1/2 w-10 h-10 flex items-center justify-center bg-cream-50/80 hover:bg-cream-50 border border-cream-300 rounded-full transition-colors"
                     >
-                      <svg className="w-6 h-6 text-dark-50" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <svg className="w-6 h-6 text-slate-800" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
                       </svg>
                     </button>
@@ -562,15 +549,15 @@ const ProductDetailPage = () => {
                     {/* Next Button */}
                     <button
                       onClick={() => setSelectedImage(selectedImage === images.length - 1 ? 0 : selectedImage + 1)}
-                      className="absolute right-3 top-1/2 -translate-y-1/2 w-10 h-10 flex items-center justify-center bg-dark-900/80 hover:bg-dark-900 border border-dark-600 rounded-full transition-colors"
+                      className="absolute right-3 top-1/2 -translate-y-1/2 w-10 h-10 flex items-center justify-center bg-cream-50/80 hover:bg-cream-50 border border-cream-300 rounded-full transition-colors"
                     >
-                      <svg className="w-6 h-6 text-dark-50" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <svg className="w-6 h-6 text-slate-800" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
                       </svg>
                     </button>
 
                     {/* Image Counter */}
-                    <div className="absolute top-3 left-1/2 -translate-x-1/2 px-3 py-1.5 bg-dark-900/80 border border-dark-600 rounded-full text-sm text-dark-50">
+                    <div className="absolute top-3 left-1/2 -translate-x-1/2 px-3 py-1.5 bg-cream-50/80 border border-cream-300 rounded-full text-sm text-slate-800">
                       {selectedImage + 1} / {images.length}
                     </div>
                   </>
@@ -605,7 +592,7 @@ const ProductDetailPage = () => {
               {/* Finishes */}
               {product.customizations?.finishes && product.customizations.finishes.length > 0 && (
                 <div className="mb-6">
-                  <label className="block text-sm font-medium text-dark-100 mb-3">
+                  <label className="block text-sm font-medium text-slate-700 mb-3">
                     Select Finish
                   </label>
                   <div className="grid grid-cols-3 gap-3">
@@ -613,10 +600,10 @@ const ProductDetailPage = () => {
                       <button
                         key={idx}
                         onClick={() => setSelectedFinish(finish)}
-                        className={`p-3 rounded-lg border-2 transition-all text-sm ${
+                        className={`p-3 rounded-lg border-2 transition-all text-sm font-medium ${
                           selectedFinish === finish
-                            ? 'border-primary-500 bg-primary-900/30 text-primary-300'
-                            : 'border-dark-600 bg-dark-800 text-dark-100 hover:border-dark-500'
+                            ? 'border-primary-600 bg-primary-50 text-primary-900'
+                            : 'border-cream-300 bg-white text-slate-700 hover:border-primary-400'
                         }`}
                       >
                         {finish}
@@ -629,13 +616,13 @@ const ProductDetailPage = () => {
               {/* Upholstery/Fabrics */}
               {product.customizations?.fabrics && product.customizations.fabrics.length > 0 && (
                 <div className="mb-6">
-                  <label className="block text-sm font-medium text-dark-100 mb-3">
+                  <label className="block text-sm font-medium text-slate-700 mb-3">
                     Select Upholstery
                   </label>
                   <select
                     value={selectedUpholstery || ''}
                     onChange={(e) => setSelectedUpholstery(e.target.value)}
-                    className="w-full px-4 py-3 border border-dark-600 bg-dark-800 text-dark-50 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
+                    className="w-full px-4 py-3 border border-cream-300 bg-white text-slate-800 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
                   >
                     <option value="">Select a fabric</option>
                     {product.customizations.fabrics.map((fabric, idx) => (
@@ -648,7 +635,7 @@ const ProductDetailPage = () => {
               {/* Colors (if different from finishes) */}
               {product.customizations?.colors && product.customizations.colors.length > 0 && (
                 <div className="mb-6">
-                  <label className="block text-sm font-medium text-dark-100 mb-3">
+                  <label className="block text-sm font-medium text-slate-700 mb-3">
                     Select Color
                   </label>
                   <div className="grid grid-cols-4 gap-3">
@@ -656,10 +643,10 @@ const ProductDetailPage = () => {
                       <button
                         key={idx}
                         onClick={() => setSelectedFinish(color)}
-                        className={`p-3 rounded-lg border-2 transition-all text-sm ${
+                        className={`p-3 rounded-lg border-2 transition-all text-sm font-medium ${
                           selectedFinish === color
-                            ? 'border-primary-500 bg-primary-900/30 text-primary-300'
-                            : 'border-dark-600 bg-dark-800 text-dark-100 hover:border-dark-500'
+                            ? 'border-primary-600 bg-primary-50 text-primary-900'
+                            : 'border-cream-300 bg-white text-slate-700 hover:border-primary-400'
                         }`}
                       >
                         {color}
@@ -671,13 +658,13 @@ const ProductDetailPage = () => {
 
               {/* Quantity Selector */}
               <div className="mb-6">
-                <label className="block text-sm font-medium text-dark-100 mb-3">
+                <label className="block text-sm font-medium text-slate-700 mb-3">
                   Quantity
                 </label>
                 <div className="flex items-center gap-3">
                   <button
                     onClick={() => setQuantity(Math.max(1, quantity - 1))}
-                    className="w-12 h-12 flex items-center justify-center bg-dark-800 border border-dark-600 rounded-lg hover:bg-dark-700 transition-colors text-dark-50 font-bold text-xl"
+                    className="w-12 h-12 flex items-center justify-center bg-white border border-cream-300 rounded-lg hover:bg-dark-700 transition-colors text-slate-800 font-bold text-xl"
                   >
                     −
                   </button>
@@ -685,12 +672,12 @@ const ProductDetailPage = () => {
                     type="number"
                     value={quantity}
                     onChange={(e) => setQuantity(Math.max(1, parseInt(e.target.value) || 1))}
-                    className="w-20 h-12 text-center border border-dark-600 bg-dark-800 text-dark-50 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 font-semibold text-lg"
+                    className="w-20 h-12 text-center border border-cream-300 bg-white text-slate-800 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 font-semibold text-lg"
                     min="1"
                   />
                   <button
                     onClick={() => setQuantity(quantity + 1)}
-                    className="w-12 h-12 flex items-center justify-center bg-dark-800 border border-dark-600 rounded-lg hover:bg-dark-700 transition-colors text-dark-50 font-bold text-xl"
+                    className="w-12 h-12 flex items-center justify-center bg-white border border-cream-300 rounded-lg hover:bg-dark-700 transition-colors text-slate-800 font-bold text-xl"
                   >
                     +
                   </button>
@@ -724,7 +711,7 @@ const ProductDetailPage = () => {
 
               {/* Lead Time */}
               {product.lead_time_days && (
-                <p className="text-sm text-dark-200 mt-4 text-center">
+                <p className="text-sm text-slate-600 mt-4 text-center">
                   Estimated Lead Time: {product.lead_time_days} days
                 </p>
               )}
@@ -735,9 +722,9 @@ const ProductDetailPage = () => {
 
       {/* Related Products */}
       {relatedProducts.length > 0 && (
-        <section className="bg-dark-800">
+        <section className="bg-white">
           <div className="container mx-auto px-4 py-12 max-w-7xl">
-            <h2 className="text-3xl font-bold text-dark-50 mb-8">Recommended Products</h2>
+            <h2 className="text-3xl font-bold text-slate-800 mb-8">Recommended Products</h2>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
               {relatedProducts.map((relatedProduct) => (
                 <ProductCard
@@ -754,3 +741,6 @@ const ProductDetailPage = () => {
 };
 
 export default ProductDetailPage;
+
+
+

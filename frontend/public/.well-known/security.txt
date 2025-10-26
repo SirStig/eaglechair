@@ -1,0 +1,12 @@
+# Eagle Chair Security Contact Information
+# https://www.eaglechair.com/.well-known/security.txt
+
+Contact: mailto:security@eaglechair.com
+Expires: 2026-12-31T23:59:59.000Z
+Preferred-Languages: en
+Canonical: https://www.eaglechair.com/.well-known/security.txt
+Policy: https://www.eaglechair.com/security-policy
+Acknowledgments: https://www.eaglechair.com/security-acknowledgments
+
+# Please report security vulnerabilities to our security team
+# We appreciate responsible disclosure and will respond promptly

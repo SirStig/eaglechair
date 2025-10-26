@@ -1,0 +1,30 @@
+{
+  "name": "Eagle Chair - Premium Commercial Seating",
+  "short_name": "Eagle Chair",
+  "description": "Premium commercial seating solutions for hospitality, healthcare, and restaurant industries",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#8b7355",
+  "orientation": "portrait-primary",
+  "icons": [
+    {
+      "src": "/favicon.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/apple-touch-icon.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ],
+  "categories": [
+    "business",
+    "shopping"
+  ],
+  "lang": "en-US",
+  "dir": "ltr"
+}

@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { useSearchParams, useNavigate, useLocation } from 'react-router-dom';
+import { useSearchParams, useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import ProductCard from '../components/ui/ProductCard';
 import Button from '../components/ui/Button';
@@ -9,7 +9,6 @@ import EditableWrapper from '../components/admin/EditableWrapper';
 import { CardGridSkeleton } from '../components/ui/Skeleton';
 import { demoProducts, demoCategories, IS_DEMO } from '../data/demoData';
 import { updateProduct, deleteProduct } from '../services/contentService';
-import { useLightTheme } from '../utils/themeTransition';
 import logger from '../utils/logger';
 
 const CONTEXT = 'ProductCatalogPage';
@@ -17,9 +16,6 @@ const CONTEXT = 'ProductCatalogPage';
 const ProductCatalogPage = () => {
   const [searchParams, setSearchParams] = useSearchParams();
   const navigate = useNavigate();
-  const location = useLocation();
-  const shouldBeLightTheme = useLightTheme(location.pathname);
-  const [isLightTheme, setIsLightTheme] = useState(false);
   
   const [products, setProducts] = useState([]);
   const [categories, setCategories] = useState([]);
@@ -43,28 +39,11 @@ const ProductCatalogPage = () => {
     p.specs?.Material ? [p.specs.Material] : []
   ))].filter(Boolean);
 
-  // Load data first
+  // Load data when filters change
   useEffect(() => {
     loadData();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [filters]);
-
-  // Theme transition effect - wait for data load AND animations to complete
-  useEffect(() => {
-    if (shouldBeLightTheme && !loading) {
-      // Calculate animation duration: products.length * 50ms delay + 300ms animation duration + 200ms buffer
-      const animationDuration = (products.length * 50) + 500;
-      console.log(`Waiting ${animationDuration}ms for animations to complete before transitioning`);
-      
-      const timer = setTimeout(() => {
-        console.log('Activating light theme transition');
-        setIsLightTheme(true);
-      }, animationDuration);
-      return () => clearTimeout(timer);
-    } else if (!shouldBeLightTheme) {
-      console.log('Deactivating light theme');
-      setIsLightTheme(false);
-    }
-  }, [shouldBeLightTheme, loading, products.length]);
 
   const loadData = async () => {
     setLoading(true);
@@ -204,14 +183,10 @@ const ProductCatalogPage = () => {
   );
 
   return (
-    <div className={`min-h-screen py-8 transition-colors duration-[1500ms] ${
-      isLightTheme 
-        ? 'bg-gradient-to-br from-cream-50 to-cream-100' 
-        : 'bg-dark-800'
-    }`}>
-      <div className="container mx-auto px-4 max-w-[1600px]">
+    <div className="min-h-screen py-8 bg-gradient-to-br from-cream-50 to-cream-100">
+      <div className="w-full px-4 sm:px-6 lg:px-8 xl:px-12 2xl:px-16">
         {/* Breadcrumb */}
-        <div className={`mb-6 text-sm ${isLightTheme ? 'text-slate-600' : 'text-dark-100'}`}>
+        <div className="mb-6 text-sm text-slate-600">
           <span className="cursor-pointer hover:text-primary-500" onClick={() => navigate('/')}>
             Home
           </span>
@@ -222,37 +197,33 @@ const ProductCatalogPage = () => {
           {filters.category && (
             <>
               {' '}/{' '}
-              <span className={isLightTheme ? 'text-slate-800' : 'text-dark-50'}>{filters.category}</span>
+              <span className="text-slate-800">{filters.category}</span>
             </>
           )}
           {filters.subcategory && (
             <>
               {' '}/{' '}
-              <span className={isLightTheme ? 'text-slate-800' : 'text-dark-50'}>{filters.subcategory}</span>
+              <span className="text-slate-800">{filters.subcategory}</span>
             </>
           )}
         </div>
 
         {/* Header */}
         <div className="mb-8">
-          <h1 className={`text-4xl font-bold mb-2 ${isLightTheme ? 'text-slate-800' : 'text-dark-50'}`}>
+          <h1 className="text-4xl font-bold mb-2 text-slate-800">
             {filters.category ? `${filters.category}` : 'All Products'}
           </h1>
           {activeCategory && (
-            <p className={`text-lg ${isLightTheme ? 'text-slate-600' : 'text-dark-100'}`}>{activeCategory.description}</p>
+            <p className="text-lg text-slate-600">{activeCategory.description}</p>
           )}
         </div>
 
-        <div className="grid lg:grid-cols-4 gap-8">
+        <div className="grid lg:grid-cols-[280px_1fr] xl:grid-cols-[320px_1fr] gap-6 lg:gap-8">
           {/* Sidebar Filters */}
           <aside className="lg:col-span-1">
-            <div className={`rounded-xl shadow-md p-6 sticky top-24 ${
-              isLightTheme 
-                ? 'bg-white/90 backdrop-blur-sm border border-cream-200' 
-                : 'bg-dark-600 border border-dark-500'
-            }`}>
+            <div className="rounded-xl shadow-md p-4 sm:p-6 sticky top-24 bg-white/90 backdrop-blur-sm border border-cream-200">
               <div className="flex items-center justify-between mb-6">
-                <h2 className={`text-xl font-semibold ${isLightTheme ? 'text-slate-800' : 'text-dark-50'}`}>Filters</h2>
+                <h2 className="text-xl font-semibold text-slate-800">Filters</h2>
                 {(filters.category || filters.subcategory || filters.search || filters.finish || filters.material) && (
                   <button
                     onClick={clearFilters}
@@ -265,7 +236,7 @@ const ProductCatalogPage = () => {
 
               {/* Search */}
               <div className="mb-6">
-                <label className={`block text-sm font-medium mb-2 ${isLightTheme ? 'text-slate-700' : 'text-dark-100'}`}>
+                <label className="block text-sm font-medium mb-2 text-slate-700">
                   Search
                 </label>
                 <input
@@ -273,17 +244,13 @@ const ProductCatalogPage = () => {
                   value={filters.search}
                   onChange={(e) => updateFilter('search', e.target.value)}
                   placeholder="Search products..."
-                  className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 ${
-                    isLightTheme 
-                      ? 'border-cream-300 bg-white text-slate-800 placeholder-slate-400' 
-                      : 'border-dark-400 bg-dark-700 text-dark-50 placeholder-dark-200'
-                  }`}
+                  className="w-full px-3 py-2 border border-cream-300 bg-white text-slate-800 placeholder-slate-400 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
                 />
               </div>
 
               {/* Categories */}
               <div className="mb-6">
-                <label className={`block text-sm font-medium mb-2 ${isLightTheme ? 'text-slate-700' : 'text-dark-100'}`}>
+                <label className="block text-sm font-medium mb-2 text-slate-700">
                   Category
                 </label>
                 <div className="space-y-2">
@@ -291,8 +258,8 @@ const ProductCatalogPage = () => {
                     onClick={() => updateFilter('category', '')}
                     className={`w-full text-left px-3 py-2 rounded-lg transition-colors ${
                       !filters.category
-                        ? 'bg-primary-900 text-primary-300 font-medium border border-primary-500'
-                        : 'hover:bg-dark-700 text-dark-100'
+                        ? 'bg-primary-50 text-primary-900 font-medium border border-primary-500'
+                        : 'hover:bg-cream-100 text-slate-800'
                     }`}
                   >
                     All Categories
@@ -306,8 +273,8 @@ const ProductCatalogPage = () => {
                       }}
                       className={`w-full text-left px-3 py-2 rounded-lg transition-colors ${
                         filters.category === category.slug
-                          ? 'bg-primary-900 text-primary-300 font-medium border border-primary-500'
-                          : 'hover:bg-dark-700 text-dark-100'
+                          ? 'bg-primary-50 text-primary-900 font-medium border border-primary-500'
+                          : 'hover:bg-cream-100 text-slate-800'
                       }`}
                     >
                       {category.name}
@@ -319,7 +286,7 @@ const ProductCatalogPage = () => {
               {/* Subcategories */}
               {activeCategory && activeCategory.subcategories && (
                 <div className="mb-6">
-                  <label className="block text-sm font-medium text-dark-100 mb-2">
+                  <label className="block text-sm font-medium text-slate-700 mb-2">
                     Type
                   </label>
                   <div className="space-y-2">
@@ -329,8 +296,8 @@ const ProductCatalogPage = () => {
                         onClick={() => updateFilter('subcategory', subcat)}
                         className={`w-full text-left px-3 py-2 rounded-lg transition-colors text-sm ${
                           filters.subcategory === subcat
-                            ? 'bg-primary-900 text-primary-300 font-medium border border-primary-500'
-                            : 'hover:bg-dark-700 text-dark-100'
+                            ? 'bg-primary-50 text-primary-900 font-medium border border-primary-500'
+                            : 'hover:bg-cream-100 text-slate-800'
                         }`}
                       >
                         {subcat}
@@ -343,13 +310,13 @@ const ProductCatalogPage = () => {
               {/* Finishes/Colors */}
               {availableFinishes.length > 0 && (
                 <div className="mb-6">
-                  <label className="block text-sm font-medium text-dark-100 mb-2">
+                  <label className="block text-sm font-medium text-slate-700 mb-2">
                     Finish/Color
                   </label>
                   <select
                     value={filters.finish}
                     onChange={(e) => updateFilter('finish', e.target.value)}
-                    className="w-full px-3 py-2 border border-dark-400 bg-dark-700 text-dark-50 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
+                    className="w-full px-3 py-2 border border-cream-300 bg-white text-slate-800 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
                   >
                     <option value="">All Finishes</option>
                     {availableFinishes.map((finish) => (
@@ -364,13 +331,13 @@ const ProductCatalogPage = () => {
               {/* Materials */}
               {availableMaterials.length > 0 && (
                 <div className="mb-6">
-                  <label className="block text-sm font-medium text-dark-100 mb-2">
+                  <label className="block text-sm font-medium text-slate-700 mb-2">
                     Material
                   </label>
                   <select
                     value={filters.material}
                     onChange={(e) => updateFilter('material', e.target.value)}
-                    className="w-full px-3 py-2 border border-dark-400 bg-dark-700 text-dark-50 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
+                    className="w-full px-3 py-2 border border-cream-300 bg-white text-slate-800 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
                   >
                     <option value="">All Materials</option>
                     {availableMaterials.map((material) => (
@@ -384,13 +351,13 @@ const ProductCatalogPage = () => {
 
               {/* Sort */}
               <div>
-                <label className="block text-sm font-medium text-dark-100 mb-2">
+                <label className="block text-sm font-medium text-slate-700 mb-2">
                   Sort By
                 </label>
                 <select
                   value={filters.sortBy}
                   onChange={(e) => updateFilter('sortBy', e.target.value)}
-                  className="w-full px-3 py-2 border border-dark-400 bg-dark-700 text-dark-50 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
+                  className="w-full px-3 py-2 border border-cream-300 bg-white text-slate-800 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
                 >
                   <option value="featured">Featured</option>
                   <option value="newest">Newest First</option>
@@ -402,16 +369,16 @@ const ProductCatalogPage = () => {
           </aside>
 
           {/* Products Grid */}
-          <main className="lg:col-span-3">
+          <main className="lg:col-span-1">
             {loading ? (
               <CardGridSkeleton count={9} columns={3} />
             ) : products.length === 0 ? (
-              <div className="bg-dark-800 rounded-xl shadow-md p-12 text-center">
-                <svg className="mx-auto h-24 w-24 text-dark-400 mb-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <div className="bg-white rounded-xl shadow-md border border-cream-200 p-12 text-center">
+                <svg className="mx-auto h-24 w-24 text-slate-400 mb-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 13V6a2 2 0 00-2-2H6a2 2 0 00-2 2v7m16 0v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5m16 0h-2.586a1 1 0 00-.707.293l-2.414 2.414a1 1 0 01-.707.293h-3.172a1 1 0 01-.707-.293l-2.414-2.414A1 1 0 006.586 13H4" />
                 </svg>
-                <h3 className="text-xl font-semibold mb-2 text-dark-50">No products found</h3>
-                <p className="text-dark-300 mb-4">
+                <h3 className="text-xl font-semibold mb-2 text-slate-800">No products found</h3>
+                <p className="text-slate-600 mb-4">
                   Try adjusting your filters or search terms
                 </p>
                 <Button onClick={clearFilters} variant="primary">
@@ -420,11 +387,12 @@ const ProductCatalogPage = () => {
               </div>
             ) : (
               <>
-                <div className="mb-4 text-sm text-gray-600">
+                <div className="mb-4 text-sm text-slate-600">
                   Showing {products.length} product{products.length !== 1 ? 's' : ''}
                 </div>
                 
-                <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
+                {/* Responsive Grid: 1 col mobile, 2 col tablet, 3 col desktop */}
+                <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-5 md:gap-6 xl:gap-8">
                   {products.map((product, index) => (
                     <motion.div
                       key={product.id}

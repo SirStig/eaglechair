@@ -94,13 +94,13 @@ const GalleryPage = () => {
           ))}
         </div>
 
-        {/* Masonry Gallery Grid */}
+        {/* Gallery Grid */}
         {loading ? (
           <div className="flex justify-center items-center h-96">
             <LoadingSpinner size="lg" />
           </div>
         ) : (
-          <div className="columns-1 sm:columns-2 lg:columns-3 xl:columns-4 gap-6 space-y-6">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
             {filteredImages.map((image, index) => {
               const imageUrl = image.url || image.primary_image || image.primaryImage || (image.images && (typeof image.images === 'string' ? JSON.parse(image.images)[0] : image.images[0]));
               const title = image.title || image.project_name || image.projectName;
@@ -121,14 +121,14 @@ const GalleryPage = () => {
                     initial={{ opacity: 0, scale: 0.9 }}
                     animate={{ opacity: 1, scale: 1 }}
                     transition={{ delay: index * 0.05 }}
-                    className="relative group cursor-pointer overflow-hidden rounded-xl shadow-md hover:shadow-2xl transition-shadow break-inside-avoid mb-6"
+                    className="relative group cursor-pointer overflow-hidden rounded-xl shadow-md hover:shadow-2xl transition-shadow"
                     onClick={() => setSelectedImage(image)}
                   >
                     <img
                       src={imageUrl}
                       alt={title}
-                      className="w-full h-auto object-cover group-hover:scale-105 transition-transform duration-500"
-                      style={{ maxHeight: '600px' }}
+                      className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                      style={{ aspectRatio: '16/10', objectFit: 'cover' }}
                     />
                     <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/30 to-transparent opacity-0 group-hover:opacity-100 transition-opacity">
                       <div className="absolute bottom-0 left-0 right-0 p-6 text-white">

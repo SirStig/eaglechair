@@ -1,8 +1,28 @@
 {
   "name": "eaglechair-frontend",
-  "private": true,
+  "description": "Eagle Chair - Premium commercial seating solutions for hospitality, healthcare, and restaurant industries",
   "version": "1.0.0",
+  "private": true,
   "type": "module",
+  "author": "Eagle Chair",
+  "license": "UNLICENSED",
+  "homepage": "https://www.eaglechair.com",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/SirStig/eaglechair.git"
+  },
+  "bugs": {
+    "url": "https://github.com/SirStig/eaglechair/issues"
+  },
+  "keywords": [
+    "commercial-furniture",
+    "restaurant-seating",
+    "hotel-furniture",
+    "healthcare-seating",
+    "hospitality-furniture",
+    "custom-chairs",
+    "eagle-chair"
+  ],
   "scripts": {
     "dev": "vite",
     "build": "vite build",

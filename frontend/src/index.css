@@ -84,8 +84,15 @@
 
 /* Custom scrollbar */
 ::-webkit-scrollbar {
-  width: 10px;
-  height: 10px;
+  width: 8px;
+  height: 8px;
+}
+
+@media (min-width: 768px) {
+  ::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+  }
 }
 
 ::-webkit-scrollbar-track {
@@ -115,7 +122,7 @@ html {
   @apply outline-none ring-2 ring-primary-500 ring-offset-2;
 }
 
-/* Smooth infinite scroll animation for logos */
+/* True infinite scroll animation for logos */
 @keyframes scroll-infinite {
   0% {
     transform: translateX(0);
@@ -126,12 +133,49 @@ html {
 }
 
 .animate-scroll-infinite {
-  animation: scroll-infinite 30s linear infinite;
+  animation: scroll-infinite 40s linear infinite;
   will-change: transform;
+}
+
+/* Faster movement on mobile */
+@media (max-width: 768px) {
+  .animate-scroll-infinite {
+    animation-duration: 30s !important;
+  }
 }
 
 .animate-scroll-infinite:hover {
   animation-play-state: paused;
+}
+
+/* Fade in animation for modals */
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+.animate-fadeIn {
+  animation: fadeIn 0.2s ease-out;
+}
+
+/* Scale in animation for modal content */
+@keyframes scaleIn {
+  from {
+    opacity: 0;
+    transform: scale(0.95) translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+}
+
+.animate-scaleIn {
+  animation: scaleIn 0.3s ease-out;
 }
 
 /* Hover lift effect for buttons */
@@ -209,4 +253,64 @@ input[type="number"] {
   -ms-transform: scale(1.08) translateX(2px);
   -o-transform: scale(1.08) translateX(2px);
   transform: scale(1.08) translateX(2px);
+}
+
+/* Mobile optimizations */
+@media (max-width: 768px) {
+  /* Improve touch targets */
+  .btn, button {
+    min-height: 44px;
+    min-width: 44px;
+  }
+  
+  /* Reduce motion for better performance on mobile */
+  * {
+    animation-duration: 0.5s !important;
+    animation-delay: 0s !important;
+  }
+  
+  /* Improve scrolling performance */
+  * {
+    -webkit-overflow-scrolling: touch;
+  }
+  
+  /* Prevent zoom on inputs */
+  input, select, textarea {
+    font-size: 16px !important;
+  }
+  
+  /* Better mobile typography */
+  h1 { font-size: 2rem !important; }
+  h2 { font-size: 1.75rem !important; }
+  h3 { font-size: 1.5rem !important; }
+}
+
+/* iOS Safari specific fixes */
+@supports (-webkit-touch-callout: none) {
+  /* Fix for iOS Safari viewport units */
+  .min-h-screen {
+    min-height: -webkit-fill-available;
+  }
+  
+  /* Fix for iOS Safari bouncing */
+  body {
+    -webkit-overflow-scrolling: touch;
+    overflow-x: hidden;
+  }
+}
+
+/* Android Chrome fixes */
+@media screen and (-webkit-min-device-pixel-ratio: 0) {
+  select {
+    -webkit-appearance: none;
+    -moz-appearance: none;
+    appearance: none;
+  }
+}
+
+/* Edge/IE compatibility */
+@supports (-ms-ime-align: auto) {
+  .backdrop-blur-sm, .backdrop-blur-md {
+    background-color: rgba(0, 0, 0, 0.5) !important;
+  }
 }

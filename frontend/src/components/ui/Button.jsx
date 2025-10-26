@@ -25,10 +25,10 @@ const Button = ({
   };
 
   const sizes = {
-    xs: 'px-3 py-1.5 text-xs rounded',
-    sm: 'px-4 py-2 text-sm rounded-md',
-    md: 'px-6 py-3 text-base rounded-lg',
-    lg: 'px-8 py-4 text-lg rounded-xl',
+    xs: 'px-3 py-1.5 text-xs rounded min-h-[36px]',
+    sm: 'px-4 py-2 text-sm rounded-md min-h-[40px]',
+    md: 'px-6 py-3 text-base rounded-lg min-h-[44px]',
+    lg: 'px-8 py-4 text-lg rounded-xl min-h-[48px]',
   };
 
   return (
