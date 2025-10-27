@@ -8,7 +8,6 @@ import re
 from pathlib import Path
 from typing import Any
 
-
 # SQL File Location
 SQL_FILE_PATH = Path(__file__).parent.parent / "eaglechair_com.sql"
 
