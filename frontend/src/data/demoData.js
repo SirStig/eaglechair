@@ -703,10 +703,10 @@ export const demoSiteSettings = {
   salesPhone: "(616) 555-0101",
   supportEmail: "support@eaglechair.com",
   supportPhone: "(616) 555-0102",
-  addressLine1: "123 Furniture Lane",
-  city: "Grand Rapids",
-  state: "MI",
-  zipCode: "49504",
+  addressLine1: "4816 Campbell Rd",
+  city: "Houston",
+  state: "TX",
+  zipCode: "77041",
   country: "USA",
   businessHoursWeekdays: "Mon-Fri: 8:00 AM - 5:00 PM EST",
   businessHoursSaturday: "Sat: By Appointment",
@@ -761,6 +761,290 @@ export const demoAboutContent = {
     { name: "Maximilian Kac", role: "Leadership", image: "/team/maximilian.jpg" }
   ]
 };
+
+// Team Members (for About page)
+export const teamMembers = [
+  {
+    id: 1,
+    name: "Katarina Kac-Statton",
+    title: "Leadership",
+    bio: "Leading Eagle Chair with dedication to quality and customer satisfaction.",
+    photo_url: "/team/katarina.jpg",
+    email: null,
+    phone: null,
+    linkedin_url: null,
+    display_order: 1,
+    is_active: true,
+    is_featured: true
+  },
+  {
+    id: 2,
+    name: "Maximilian Kac",
+    title: "Leadership",
+    bio: "Continuing the Yuglich Family legacy of excellence in commercial furniture.",
+    photo_url: "/team/maximilian.jpg",
+    email: null,
+    phone: null,
+    linkedin_url: null,
+    display_order: 2,
+    is_active: true,
+    is_featured: true
+  }
+];
+
+// Company Values (for About page)
+export const companyValues = [
+  {
+    id: 1,
+    title: "Quality First",
+    subtitle: "Excellence in Every Detail",
+    description: "We never compromise on materials or craftsmanship. Every piece is built to last.",
+    icon: "⭐",
+    image_url: "https://images.unsplash.com/photo-1556912172-45b7abe8b7e1?w=400",
+    display_order: 1,
+    is_active: true
+  },
+  {
+    id: 2,
+    title: "Customer Partnership",
+    subtitle: "Your Success is Our Success",
+    description: "We build lasting relationships with our clients, supporting them every step of the way.",
+    icon: "🤝",
+    image_url: "https://images.unsplash.com/photo-1600880292203-757bb62b4baf?w=400",
+    display_order: 2,
+    is_active: true
+  },
+  {
+    id: 3,
+    title: "American Made",
+    subtitle: "Proudly Made in the USA",
+    description: "Proudly manufacturing in the USA, supporting local communities and jobs.",
+    icon: "🇺🇸",
+    image_url: "https://images.unsplash.com/photo-1565891741441-64926e441838?w=400",
+    display_order: 3,
+    is_active: true
+  },
+  {
+    id: 4,
+    title: "Sustainability",
+    subtitle: "Eco-Friendly Practices",
+    description: "Committed to environmentally responsible practices and materials.",
+    icon: "🌱",
+    image_url: "https://images.unsplash.com/photo-1542601906990-b4d3fb778b09?w=400",
+    display_order: 4,
+    is_active: true
+  }
+];
+
+// Company Milestones (for About page)
+export const companyMilestones = [
+  {
+    id: 1,
+    year: "1984",
+    title: "Company Founded",
+    description: "Eagle Chair was established in Houston, Texas by the Yuglich Family",
+    image_url: null,
+    display_order: 1,
+    is_active: true
+  },
+  {
+    id: 2,
+    year: "1995",
+    title: "Expansion",
+    description: "Opened new manufacturing facility and doubled capacity",
+    image_url: null,
+    display_order: 2,
+    is_active: true
+  },
+  {
+    id: 3,
+    year: "2005",
+    title: "National Distribution",
+    description: "Expanded distribution network to serve nationwide",
+    image_url: null,
+    display_order: 3,
+    is_active: true
+  },
+  {
+    id: 4,
+    year: "2024",
+    title: "Continued Excellence",
+    description: "Continuing the Yuglich Family legacy of quality craftsmanship",
+    image_url: null,
+    display_order: 4,
+    is_active: true
+  }
+];
+
+// Features (for home page "Why Choose Us" section)
+export const features = [
+  {
+    id: 1,
+    title: "American Made",
+    description: "All our furniture is manufactured in the USA with premium materials and superior craftsmanship.",
+    icon: "🇺🇸",
+    icon_color: "#1e40af",
+    image_url: "https://images.unsplash.com/photo-1565891741441-64926e441838?w=600",
+    feature_type: "home_page",
+    display_order: 1,
+    is_active: true
+  },
+  {
+    id: 2,
+    title: "Commercial Grade",
+    description: "Built to withstand heavy daily use in the most demanding commercial environments.",
+    icon: "🛡️",
+    icon_color: "#047857",
+    image_url: "https://images.unsplash.com/photo-1556912172-45b7abe8b7e1?w=600",
+    feature_type: "home_page",
+    display_order: 2,
+    is_active: true
+  },
+  {
+    id: 3,
+    title: "Custom Options",
+    description: "Extensive customization options including finishes, fabrics, and sizes to match your vision.",
+    icon: "🎨",
+    icon_color: "#7c3aed",
+    image_url: "https://images.unsplash.com/photo-1503602642458-232111445657?w=600",
+    feature_type: "home_page",
+    display_order: 3,
+    is_active: true
+  },
+  {
+    id: 4,
+    title: "Quick Turnaround",
+    description: "Fast production and shipping to get your furniture delivered when you need it.",
+    icon: "⚡",
+    icon_color: "#ea580c",
+    image_url: "https://images.unsplash.com/photo-1586528116311-ad8dd3c8310d?w=600",
+    feature_type: "home_page",
+    display_order: 4,
+    is_active: true
+  },
+  {
+    id: 5,
+    title: "Warranty Backed",
+    description: "Comprehensive warranty coverage because we stand behind the quality of our products.",
+    icon: "✓",
+    icon_color: "#0891b2",
+    image_url: "https://images.unsplash.com/photo-1450101499163-c8848c66ca85?w=600",
+    feature_type: "home_page",
+    display_order: 5,
+    is_active: true
+  },
+  {
+    id: 6,
+    title: "Expert Support",
+    description: "Dedicated sales representatives to help you choose the perfect furniture for your space.",
+    icon: "👥",
+    icon_color: "#dc2626",
+    image_url: "https://images.unsplash.com/photo-1600880292203-757bb62b4baf?w=600",
+    feature_type: "home_page",
+    display_order: 6,
+    is_active: true
+  }
+];
+
+// Client Logos (for home page trusted brands section)
+export const clientLogos = [
+  {
+    id: 1,
+    name: "Major Restaurant Chain",
+    logo_url: "/logos/client-1.png",
+    website_url: null,
+    display_order: 1,
+    is_active: true
+  },
+  {
+    id: 2,
+    name: "Hotel Group",
+    logo_url: "/logos/client-2.png",
+    website_url: null,
+    display_order: 2,
+    is_active: true
+  },
+  {
+    id: 3,
+    name: "Healthcare Facility",
+    logo_url: "/logos/client-3.png",
+    website_url: null,
+    display_order: 3,
+    is_active: true
+  }
+];
+
+// Contact Locations (for contact page)
+export const contactLocations = [
+  {
+    id: 1,
+    location_name: "Main Office & Showroom",
+    description: "Visit our showroom to see our furniture in person",
+    address_line1: "4816 Campbell Rd",
+    address_line2: null,
+    city: "Houston",
+    state: "Texas",
+    zip_code: "77041",
+    country: "USA",
+    phone: "(832) 555-0100",
+    fax: null,
+    email: "info@eaglechair.com",
+    toll_free: "1-800-EAGLE-01",
+    business_hours: "Mon-Fri: 8:00 AM - 5:00 PM CST\nSat: By Appointment\nSun: Closed",
+    image_url: null,
+    map_embed_url: null,
+    location_type: "office",
+    display_order: 1,
+    is_active: true,
+    is_primary: true
+  }
+];
+
+// Hero Slides (for home page carousel)
+export const heroSlides = [
+  {
+    id: 1,
+    title: "Welcome to Eagle Chair",
+    subtitle: "Premium Commercial Furniture for Restaurants & Hospitality",
+    background_image_url: "https://www.eaglechair.com/wp-content/uploads/2018/04/Carmine.6305P.install-v.10-e1691698608946-960x600.jpg",
+    cta_text: "Explore Products",
+    cta_link: "/products",
+    cta_style: "primary",
+    secondary_cta_text: null,
+    secondary_cta_link: null,
+    secondary_cta_style: null,
+    display_order: 1,
+    is_active: true
+  },
+  {
+    id: 2,
+    title: "Crafted with Excellence",
+    subtitle: "Family-Owned. American-Made. Built to Last.",
+    background_image_url: "https://www.eaglechair.com/wp-content/uploads/2014/10/Cafe-Neustadt.5001V.6016V.install-v2y-e1691698549306-960x600.jpg",
+    cta_text: "Our Story",
+    cta_link: "/about",
+    cta_style: "primary",
+    secondary_cta_text: null,
+    secondary_cta_link: null,
+    secondary_cta_style: null,
+    display_order: 2,
+    is_active: true
+  },
+  {
+    id: 3,
+    title: "Complete Furniture Solutions",
+    subtitle: "Chairs, Tables, Barstools & Booths for Every Commercial Space",
+    background_image_url: "https://www.eaglechair.com/wp-content/uploads/2017/06/Budapest-Cafe.6018V.install-v2-e1691698439957-960x600.jpg",
+    cta_text: "View Gallery",
+    cta_link: "/gallery",
+    cta_style: "primary",
+    secondary_cta_text: "Contact Us",
+    secondary_cta_link: "/contact",
+    secondary_cta_style: "outline",
+    display_order: 3,
+    is_active: true
+  }
+];
 
 // Home Page Content
 export const demoHomeContent = {
@@ -845,15 +1129,87 @@ export const demoFooterLinks = {
 };
 
 // Page Content (for dynamic sections)
-export const demoPageContent = {
-  home: {
-    about: {
-      title: "About Eagle Chair",
-      subtitle: "Our commitment to excellence, American craftsmanship, and customer satisfaction sets us apart. We understand the unique demands of commercial environments and design our products to withstand the test of time, combining timeless aesthetics with robust construction.",
-      content: "Eagle Chair is a family-owned and operated commercial furniture manufacturer based in Houston, Texas. Since 1984, we've been dedicated to crafting high-quality, durable furniture solutions for restaurants, hotels, and hospitality businesses across the nation.",
-      imageUrl: "https://images.unsplash.com/photo-1506439773649-6e0eb8cfb237?w=800"
-    }
+export const demoPageContent = [
+  {
+    id: 1,
+    page_slug: "home",
+    section_key: "cta",
+    title: "Ready to Transform Your Space?",
+    subtitle: null,
+    content: "Experience the Eagle Chair difference. Let's create something amazing for your business.",
+    image_url: null,
+    video_url: null,
+    cta_text: "Request a Quote",
+    cta_link: "/quote",
+    cta_style: "primary",
+    extra_data: null,
+    display_order: 1,
+    is_active: true
+  },
+  {
+    id: 2,
+    page_slug: "about",
+    section_key: "hero",
+    title: "Our Story",
+    subtitle: "Family-owned and operated since 1984, continuing the Yuglich Family legacy of quality commercial furniture manufacturing in Houston, Texas.",
+    content: null,
+    image_url: "https://images.unsplash.com/photo-1565891741441-64926e441838?w=1920",
+    video_url: null,
+    cta_text: null,
+    cta_link: null,
+    cta_style: null,
+    extra_data: null,
+    display_order: 1,
+    is_active: true
+  },
+  {
+    id: 3,
+    page_slug: "about",
+    section_key: "story",
+    title: "Craftsmanship & Dedication",
+    subtitle: null,
+    content: "Founded in Houston, Texas in 1984 by the Yuglich Family, Eagle Chair has grown into a trusted name in commercial furniture manufacturing. Under the leadership of Katarina Kac-Statton and Maximilian Kac, we've maintained our commitment to quality, craftsmanship, and customer satisfaction.\n\nOur furniture graces thousands of restaurants, hotels, and hospitality venues across the country. Each piece is a testament to our dedication to excellence and our understanding of the demanding needs of commercial environments.\n\nAs a family-owned business, we take pride in treating every customer like family. Your success is our success, and we're here to support you every step of the way.",
+    image_url: "https://images.unsplash.com/photo-1556912172-45b7abe8b7e1?w=800",
+    video_url: null,
+    cta_text: null,
+    cta_link: null,
+    cta_style: null,
+    extra_data: null,
+    display_order: 2,
+    is_active: true
+  },
+  {
+    id: 4,
+    page_slug: "about",
+    section_key: "cta",
+    title: "Ready to Work Together?",
+    subtitle: null,
+    content: "Experience the Eagle Chair difference. Let's create something amazing for your business.",
+    image_url: null,
+    video_url: null,
+    cta_text: "Contact Us",
+    cta_link: "/contact",
+    cta_style: "primary",
+    extra_data: null,
+    display_order: 3,
+    is_active: true
+  },
+  {
+    id: 5,
+    page_slug: "contact",
+    section_key: "hero",
+    title: "Get in Touch",
+    subtitle: "We're here to help with all your commercial furniture needs",
+    content: null,
+    image_url: null,
+    video_url: null,
+    cta_text: null,
+    cta_link: null,
+    cta_style: null,
+    extra_data: null,
+    display_order: 1,
+    is_active: true
   }
-};
+];
 
 

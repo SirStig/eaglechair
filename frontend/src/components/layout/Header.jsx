@@ -8,6 +8,7 @@ import { useAuthStore } from '../../store/authStore';
 import { useCartStore } from '../../store/cartStore';
 import ProductsDropdown from './ProductsDropdown';
 import ResourcesDropdown from './ResourcesDropdown';
+import { useSiteSettings, useProducts } from '../../hooks/useContent';
 import { demoProducts } from '../../data/demoData';
 import logger from '../../utils/logger';
 
@@ -22,6 +23,11 @@ const Header = ({ isMobileMenuOpen, setIsMobileMenuOpen }) => {
   const navigate = useNavigate();
   const { user, logout } = useAuthStore();
   const { items } = useCartStore();
+  const { data: siteSettings } = useSiteSettings();
+  const { data: products } = useProducts();
+
+  // Use products from API/static or fallback to demo
+  const availableProducts = products && products.length > 0 ? products : demoProducts;
 
   // Close search results when clicking outside
   useEffect(() => {
@@ -38,7 +44,7 @@ const Header = ({ isMobileMenuOpen, setIsMobileMenuOpen }) => {
   // Search products as user types
   useEffect(() => {
     if (searchQuery.trim().length > 1) {
-      const results = demoProducts.filter(product =>
+      const results = availableProducts.filter(product =>
         product.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
         product.category.toLowerCase().includes(searchQuery.toLowerCase()) ||
         product.description.toLowerCase().includes(searchQuery.toLowerCase())
@@ -51,7 +57,7 @@ const Header = ({ isMobileMenuOpen, setIsMobileMenuOpen }) => {
       setSearchResults([]);
       setShowSearchResults(false);
     }
-  }, [searchQuery]);
+  }, [searchQuery, availableProducts]);
 
   const handleSearch = (e, options = {}) => {
     e.preventDefault();
@@ -86,11 +92,19 @@ const Header = ({ isMobileMenuOpen, setIsMobileMenuOpen }) => {
               className="flex items-center gap-3"
             >
               {/* Eagle Chair Logo Image */}
-              <img 
-                src="/assets/eagle-chair-logo.png" 
-                alt="Eagle Chair" 
-                className="h-10 sm:h-12 w-auto object-contain"
-              />
+              {siteSettings?.logoUrl ? (
+                <img 
+                  src={siteSettings.logoUrl} 
+                  alt={siteSettings.companyName || 'Eagle Chair'}
+                  className="h-10 sm:h-12 w-auto object-contain"
+                />
+              ) : (
+                <img 
+                  src="/assets/eagle-chair-logo.png" 
+                  alt="Eagle Chair" 
+                  className="h-10 sm:h-12 w-auto object-contain"
+                />
+              )}
               
               {/* Since 1984 Text */}
               <span className="hidden md:inline text-white/80 text-sm font-medium">

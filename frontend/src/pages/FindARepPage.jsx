@@ -4,13 +4,13 @@ import Card from '../components/ui/Card';
 import USMapInteractive from '../components/USMapInteractive';
 import EditableWrapper from '../components/admin/EditableWrapper';
 import EditableList from '../components/admin/EditableList';
-import { useSalesReps } from '../hooks/useContent';
+import { useSalesReps, useSiteSettings } from '../hooks/useContent';
 import {
   updateSalesRep,
   createSalesRep,
   deleteSalesRep
 } from '../services/contentService';
-import { demoReps } from '../data/demoData';
+import { demoReps, companyInfo } from '../data/demoData';
 import logger from '../utils/logger';
 
 const CONTEXT = 'FindARepPage';
@@ -19,6 +19,7 @@ const FindARepPage = () => {
   const [selectedState, setSelectedState] = useState(null);
   const [hoveredState, setHoveredState] = useState(null);
   const { data: salesReps, refetch } = useSalesReps();
+  const { data: siteSettings } = useSiteSettings();
 
   // Use API data or fallback to demo
   const reps = salesReps || demoReps;
@@ -205,8 +206,8 @@ const FindARepPage = () => {
                 Our main office is available to assist you.
               </p>
               <div className="space-y-2 text-sm text-dark-100">
-                <p><strong className="text-primary-500">Phone:</strong> (616) 555-0100</p>
-                <p><strong className="text-primary-500">Email:</strong> info@eaglechair.com</p>
+                <p><strong className="text-primary-500">Phone:</strong> {siteSettings?.primaryPhone || companyInfo.contact.phone}</p>
+                <p><strong className="text-primary-500">Email:</strong> {siteSettings?.primaryEmail || companyInfo.contact.email}</p>
               </div>
             </Card>
           </div>

@@ -194,6 +194,18 @@ export const useInstallations = (filters = {}) => {
   );
 };
 
+export const useProducts = (filters = {}) => {
+  const filterKey = JSON.stringify(filters);
+  
+  return useContent(
+    () => contentService.getProducts(filters),
+    demoProducts,
+    `products-${filterKey}`,
+    15 * 60 * 1000,
+    [filterKey]
+  );
+};
+
 export const useFeaturedProducts = (limit = 4) => {
   const featuredDemoProducts = demoProducts.filter(p => p.featured).slice(0, limit);
   

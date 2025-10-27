@@ -12,7 +12,7 @@ const CONTEXT = 'EditModal';
  * Generic modal for editing content
  * Handles text, textarea, images, and complex objects
  */
-const EditModal = ({ isOpen, onClose, onSave, elementData, elementType, elementId, apiEndpoint }) => {
+const EditModal = ({ isOpen, onClose, onSave, elementData, elementType }) => {
   const [formData, setFormData] = useState({});
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
@@ -64,9 +64,9 @@ const EditModal = ({ isOpen, onClose, onSave, elementData, elementType, elementI
     
     try {
       await onSave(formData);
-      logger.info(CONTEXT, `Content saved for ${elementId}`);
+      logger.info(CONTEXT, `Content saved for ${elementType}`);
     } catch (err) {
-      logger.error(CONTEXT, `Error saving content for ${elementId}:`, err);
+      logger.error(CONTEXT, `Error saving content for ${elementType}:`, err);
       setError(err.message || 'Failed to save changes');
     } finally {
       setLoading(false);
@@ -91,11 +91,11 @@ const EditModal = ({ isOpen, onClose, onSave, elementData, elementType, elementI
           
           {/* Current Image */}
           {(imagePreview?.[key] || formData[key]) && (
-            <div className="relative w-full h-48 bg-dark-700 rounded-lg overflow-hidden">
+            <div className="relative w-full max-w-md mx-auto bg-dark-700 rounded-lg overflow-hidden">
               <img
                 src={imagePreview?.[key] || formData[key]}
                 alt={label}
-                className="w-full h-full object-cover"
+                className="w-full h-auto max-h-64 object-contain"
               />
             </div>
           )}
@@ -188,7 +188,7 @@ const EditModal = ({ isOpen, onClose, onSave, elementData, elementType, elementI
           initial={{ opacity: 0, scale: 0.95, y: 20 }}
           animate={{ opacity: 1, scale: 1, y: 0 }}
           exit={{ opacity: 0, scale: 0.95, y: 20 }}
-          className="relative w-full max-w-2xl max-h-[90vh] bg-dark-800 rounded-xl shadow-2xl border border-dark-600 overflow-hidden flex flex-col"
+          className="relative w-full max-w-4xl max-h-[90vh] bg-dark-800 rounded-xl shadow-2xl border border-dark-600 overflow-hidden flex flex-col"
         >
           {/* Header */}
           <div className="flex items-center justify-between px-6 py-4 border-b border-dark-600">

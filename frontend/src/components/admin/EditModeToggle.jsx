@@ -1,5 +1,5 @@
 import { motion, AnimatePresence } from 'framer-motion';
-import { useEditMode } from '../../contexts/EditModeContext';
+import { useEditMode } from '../../contexts/useEditMode';
 
 /**
  * Floating Edit Mode Toggle Button

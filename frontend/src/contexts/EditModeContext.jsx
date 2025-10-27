@@ -1,29 +1,22 @@
-import { createContext, useContext, useState, useEffect } from 'react';
-import { useAuthStore } from '../store/authStore';
+import { createContext, useState, useEffect } from 'react';
+import { useAdminAuth } from './AdminAuthContext';
 import logger from '../utils/logger';
 
 const CONTEXT = 'EditModeContext';
 
 const EditModeContext = createContext();
 
-export const useEditMode = () => {
-  const context = useContext(EditModeContext);
-  if (!context) {
-    throw new Error('useEditMode must be used within EditModeProvider');
-  }
-  return context;
-};
-
+/**
+ * Component: EditModeProvider
+ * Manages edit mode state and admin permissions
+ */
 export const EditModeProvider = ({ children }) => {
   const [isEditMode, setIsEditMode] = useState(false);
   const [editingElement, setEditingElement] = useState(null);
-  const { user } = useAuthStore();
+  const adminAuth = useAdminAuth();
 
-  // Only admins can access edit mode
-  const isAdmin = user?.type === 'admin' || 
-                  user?.role === 'super_admin' || 
-                  user?.role === 'admin' ||
-                  user?.role === 'editor';
+  // Use admin auth to check permissions
+  const isAdmin = adminAuth.isAdmin();
 
   useEffect(() => {
     // Disable edit mode if user logs out or is not admin

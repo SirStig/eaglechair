@@ -177,4 +177,6 @@ docker-compose.override.yml
 dmypy.json
 celerybeat-schedule
 celerybeat.pid
+*.sql
+alembic/
 

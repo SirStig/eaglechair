@@ -1,5 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import logger from '../utils/logger';
+import { useSiteSettings } from '../hooks/useContent';
+import { companyInfo } from '../data/demoData';
 
 const CONTEXT = 'USMapInteractive';
 
@@ -14,6 +16,7 @@ const USMapInteractive = ({
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState(null);
   const [stateElementsMap, setStateElementsMap] = useState(null);
+  const { data: siteSettings } = useSiteSettings();
 
   // Initialize map once
   useEffect(() => {
@@ -276,8 +279,8 @@ const USMapInteractive = ({
                 <strong className="text-primary-500">Need Help?</strong>
               </p>
               <p className="text-sm text-dark-200">
-                Call us at <span className="text-primary-500 font-semibold">(616) 555-0100</span> or email{' '}
-                <span className="text-primary-500 font-semibold">info@eaglechair.com</span>
+                Call us at <span className="text-primary-500 font-semibold">{siteSettings?.primaryPhone || companyInfo.contact.phone}</span> or email{' '}
+                <span className="text-primary-500 font-semibold">{siteSettings?.primaryEmail || companyInfo.contact.email}</span>
               </p>
             </div>
           </div>

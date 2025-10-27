@@ -40,6 +40,7 @@ from backend.models.content import (
     SalesRepresentative,
     SiteSettings,
 )
+from backend.models.legal import LegalDocument, ShippingPolicy, WarrantyInformation
 from backend.services.default_content_service import default_content
 
 logger = logging.getLogger(__name__)
@@ -538,5 +539,119 @@ async def get_featured_products(
             "categoryId": product.category_id
         }
         for product in products
+    ]
+
+
+# ============================================================================
+# Legal Documents (Static Data)
+# ============================================================================
+
+@router.get(
+    "/legal-documents",
+    summary="Get legal documents",
+    description="Retrieve all active legal documents from static export"
+)
+async def get_legal_documents(db: AsyncSession = Depends(get_db)):
+    """
+    Get all active legal documents.
+    
+    **Public endpoint** - No authentication required.
+    **Static export** - Data exported to contentData.js for performance.
+    """
+    logger.info("Fetching legal documents")
+    
+    result = await db.execute(
+        select(LegalDocument)
+        .where(LegalDocument.is_active.is_(True))
+        .order_by(LegalDocument.display_order, LegalDocument.title)
+    )
+    documents = result.scalars().all()
+    
+    return [
+        {
+            "id": doc.id,
+            "documentType": doc.document_type.value,
+            "title": doc.title,
+            "content": doc.content,
+            "shortDescription": doc.short_description,
+            "slug": doc.slug,
+            "version": doc.version,
+            "effectiveDate": doc.effective_date,
+            "metaTitle": doc.meta_title,
+            "metaDescription": doc.meta_description,
+            "displayOrder": doc.display_order
+        }
+        for doc in documents
+    ]
+
+
+@router.get(
+    "/warranties",
+    summary="Get warranties",
+    description="Retrieve all active warranty information from static export"
+)
+async def get_warranties(db: AsyncSession = Depends(get_db)):
+    """
+    Get all active warranties.
+    
+    **Public endpoint** - No authentication required.
+    **Static export** - Data exported to contentData.js for performance.
+    """
+    logger.info("Fetching warranties")
+    
+    result = await db.execute(
+        select(WarrantyInformation)
+        .where(WarrantyInformation.is_active.is_(True))
+        .order_by(WarrantyInformation.display_order, WarrantyInformation.id)
+    )
+    warranties = result.scalars().all()
+    
+    return [
+        {
+            "id": w.id,
+            "warrantyType": w.warranty_type,
+            "title": w.title,
+            "description": w.description,
+            "duration": w.duration,
+            "coverage": w.coverage,
+            "exclusions": w.exclusions,
+            "claimProcess": w.claim_process,
+            "displayOrder": w.display_order
+        }
+        for w in warranties
+    ]
+
+
+@router.get(
+    "/shipping-policies",
+    summary="Get shipping policies",
+    description="Retrieve all active shipping policies from static export"
+)
+async def get_shipping_policies(db: AsyncSession = Depends(get_db)):
+    """
+    Get all active shipping policies.
+    
+    **Public endpoint** - No authentication required.
+    **Static export** - Data exported to contentData.js for performance.
+    """
+    logger.info("Fetching shipping policies")
+    
+    result = await db.execute(
+        select(ShippingPolicy)
+        .where(ShippingPolicy.is_active.is_(True))
+    )
+    policies = result.scalars().all()
+    
+    return [
+        {
+            "id": p.id,
+            "policyName": p.policy_name,
+            "description": p.description,
+            "freightClassification": p.freight_classification,
+            "shippingTimeframe": p.shipping_timeframe,
+            "specialInstructions": p.special_instructions,
+            "damageClaimProcess": p.damage_claim_process
+        }
+        for p in policies
     ]
 

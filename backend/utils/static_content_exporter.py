@@ -181,6 +181,7 @@ class StaticContentExporter:
                 - clientLogos: Client/partner logos
                 - features: Why choose us features
                 - contactLocations: Contact locations
+                - pageContent: Flexible page sections
                 
         Returns:
             True if successful, False otherwise
@@ -197,6 +198,9 @@ class StaticContentExporter:
             
             # Atomic rename
             temp_file.replace(self.content_file)
+            
+            # Update cache for easier reading
+            self._update_cache(content_data)
             
             logger.info(f"Successfully exported content to {self.content_file}")
             return True
@@ -343,6 +347,118 @@ class StaticContentExporter:
         existing['galleryImages'] = images
         return self.export_all_content(existing)
     
+    def export_features(self, features_list: List[Dict[str, Any]]) -> bool:
+        """
+        Export features (Why Choose Us sections).
+        
+        Args:
+            features_list: List of feature dictionaries
+            
+        Returns:
+            True if successful
+        """
+        existing = self._read_existing_content()
+        existing['features'] = features_list
+        return self.export_all_content(existing)
+    
+    def export_company_values(self, values: List[Dict[str, Any]]) -> bool:
+        """
+        Export company values.
+        
+        Args:
+            values: List of company value dictionaries
+            
+        Returns:
+            True if successful
+        """
+        existing = self._read_existing_content()
+        existing['companyValues'] = values
+        return self.export_all_content(existing)
+    
+    def export_company_milestones(self, milestones: List[Dict[str, Any]]) -> bool:
+        """
+        Export company milestones.
+        
+        Args:
+            milestones: List of milestone dictionaries
+            
+        Returns:
+            True if successful
+        """
+        existing = self._read_existing_content()
+        existing['companyMilestones'] = milestones
+        return self.export_all_content(existing)
+    
+    def export_team_members(self, team: List[Dict[str, Any]]) -> bool:
+        """
+        Export team members.
+        
+        Args:
+            team: List of team member dictionaries
+            
+        Returns:
+            True if successful
+        """
+        existing = self._read_existing_content()
+        existing['teamMembers'] = team
+        return self.export_all_content(existing)
+    
+    def export_client_logos(self, logos: List[Dict[str, Any]]) -> bool:
+        """
+        Export client logos.
+        
+        Args:
+            logos: List of client logo dictionaries
+            
+        Returns:
+            True if successful
+        """
+        existing = self._read_existing_content()
+        existing['clientLogos'] = logos
+        return self.export_all_content(existing)
+    
+    def export_company_info(self, info: List[Dict[str, Any]]) -> bool:
+        """
+        Export company info sections.
+        
+        Args:
+            info: List of company info dictionaries
+            
+        Returns:
+            True if successful
+        """
+        existing = self._read_existing_content()
+        existing['companyInfo'] = info
+        return self.export_all_content(existing)
+    
+    def export_contact_locations(self, locations: List[Dict[str, Any]]) -> bool:
+        """
+        Export contact locations.
+        
+        Args:
+            locations: List of contact location dictionaries
+            
+        Returns:
+            True if successful
+        """
+        existing = self._read_existing_content()
+        existing['contactLocations'] = locations
+        return self.export_all_content(existing)
+    
+    def export_page_content(self, content: List[Dict[str, Any]]) -> bool:
+        """
+        Export page content sections.
+        
+        Args:
+            content: List of page content dictionaries
+            
+        Returns:
+            True if successful
+        """
+        existing = self._read_existing_content()
+        existing['pageContent'] = content
+        return self.export_all_content(existing)
+    
     def _read_existing_content(self) -> Dict[str, Any]:
         """
         Read existing content file to preserve data during partial updates.
@@ -419,6 +535,14 @@ async def export_content_after_update(content_type: str, data: Any) -> bool:
             'heroSlides': exporter.export_hero_slides,
             'salesReps': exporter.export_sales_reps,
             'galleryImages': exporter.export_gallery_images,
+            'features': exporter.export_features,
+            'companyValues': exporter.export_company_values,
+            'companyMilestones': exporter.export_company_milestones,
+            'teamMembers': exporter.export_team_members,
+            'clientLogos': exporter.export_client_logos,
+            'companyInfo': exporter.export_company_info,
+            'contactLocations': exporter.export_contact_locations,
+            'pageContent': exporter.export_page_content,
         }
         
         if content_type in export_methods:

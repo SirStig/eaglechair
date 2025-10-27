@@ -250,12 +250,34 @@ const AboutPage = () => {
                   viewport={{ once: true }}
                   transition={{ delay: index * 0.1 }}
                 >
-                  <Card className="text-center h-full">
-                    <div className="w-16 h-16 bg-primary-900 border-2 border-primary-500 rounded-lg flex items-center justify-center mx-auto mb-4">
-                      <div className="w-8 h-8 bg-primary-500 rounded"></div>
+                  <Card className="text-center h-full overflow-hidden">
+                    {/* Value Image or Icon */}
+                    {value.image_url || value.imageUrl ? (
+                      <div className="w-full h-40 overflow-hidden mb-4">
+                        <img 
+                          src={value.image_url || value.imageUrl} 
+                          alt={value.title}
+                          className="w-full h-full object-cover"
+                        />
+                      </div>
+                    ) : (
+                      <div className="w-16 h-16 bg-primary-900 border-2 border-primary-500 rounded-lg flex items-center justify-center mx-auto mb-4 mt-4">
+                        {value.icon ? (
+                          <span className="text-2xl">{value.icon}</span>
+                        ) : (
+                          <div className="w-8 h-8 bg-primary-500 rounded"></div>
+                        )}
+                      </div>
+                    )}
+                    
+                    {/* Value Content */}
+                    <div className="px-4 pb-4">
+                      <h3 className="text-xl font-semibold mb-1 text-dark-50">{value.title}</h3>
+                      {value.subtitle && (
+                        <p className="text-sm text-primary-400 mb-2">{value.subtitle}</p>
+                      )}
+                      <p className="text-dark-100">{value.description}</p>
                     </div>
-                    <h3 className="text-xl font-semibold mb-3 text-dark-50">{value.title}</h3>
-                    <p className="text-dark-100">{value.description}</p>
                   </Card>
                 </motion.div>
               )}

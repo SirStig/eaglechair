@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { useEditMode } from '../../contexts/EditModeContext';
+import { useEditMode } from '../../contexts/useEditMode';
 import EditModal from './EditModal';
 import Button from '../ui/Button';
 import logger from '../../utils/logger';
@@ -10,37 +10,39 @@ const CONTEXT = 'EditableList';
 /**
  * EditableList Component
  * 
- * Wraps an array of items to make them editable with add/edit/delete capabilities
+ * Wraps an array of items to make them editable with add/edit/delete/reorder capabilities
  * Perfect for managing lists like hero slides, features, team members, etc.
  * 
- * @param {string} id - Unique identifier for this list
  * @param {Array} items - Array of items to display
  * @param {function} onUpdate - Callback when an item is updated (itemId, newData)
  * @param {function} onCreate - Callback when a new item is created (newData)
  * @param {function} onDelete - Callback when an item is deleted (itemId)
+ * @param {function} onReorder - Callback when items are reordered (reorderedItems)
  * @param {string} itemType - Type of items in the list (e.g., 'hero-slide', 'feature')
  * @param {function} renderItem - Function to render each item (item, index)
  * @param {object} defaultNewItem - Default data structure for new items
- * @param {string} label - Label to display for this list
  * @param {string} addButtonText - Text for the add button
+ * @param {boolean} allowReorder - Whether to allow drag-and-drop reordering
  */
 const EditableList = ({
-  id,
   items = [],
   onUpdate,
   onCreate,
   onDelete,
+  onReorder,
   itemType = 'item',
   renderItem,
   defaultNewItem = {},
-  label = 'List',
   addButtonText = 'Add Item',
+  allowReorder = true,
   className = ''
 }) => {
   const { isEditMode } = useEditMode();
   const [editingItem, setEditingItem] = useState(null);
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [hoveredIndex, setHoveredIndex] = useState(null);
+  const [draggedIndex, setDraggedIndex] = useState(null);
+  const [dragOverIndex, setDragOverIndex] = useState(null);
 
   const handleEditClick = (e, item, index) => {
     if (isEditMode) {
@@ -51,7 +53,7 @@ const EditableList = ({
     }
   };
 
-  const handleDeleteClick = async (e, item, index) => {
+  const handleDeleteClick = async (e, item) => {
     if (isEditMode && onDelete) {
       e.stopPropagation();
       e.preventDefault();
@@ -68,6 +70,49 @@ const EditableList = ({
         }
       }
     }
+  };
+
+  // Drag and drop handlers
+  const handleDragStart = (e, index) => {
+    if (!allowReorder || !isEditMode) return;
+    setDraggedIndex(index);
+    e.dataTransfer.effectAllowed = 'move';
+    e.dataTransfer.setData('text/html', e.target);
+  };
+
+  const handleDragEnd = () => {
+    setDraggedIndex(null);
+    setDragOverIndex(null);
+  };
+
+  const handleDragOver = (e, index) => {
+    if (!allowReorder || draggedIndex === null || !isEditMode) return;
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'move';
+    setDragOverIndex(index);
+  };
+
+  const handleDrop = (e, dropIndex) => {
+    if (!allowReorder || draggedIndex === null || !onReorder || !isEditMode) return;
+    e.preventDefault();
+    
+    if (draggedIndex !== dropIndex) {
+      const newItems = [...items];
+      const draggedItem = newItems[draggedIndex];
+      
+      // Remove dragged item from its original position
+      newItems.splice(draggedIndex, 1);
+      
+      // Insert at new position (adjust index if dragging from earlier position)
+      const insertIndex = draggedIndex < dropIndex ? dropIndex - 1 : dropIndex;
+      newItems.splice(insertIndex, 0, draggedItem);
+      
+      onReorder(newItems);
+      logger.log(CONTEXT, `Reordered ${itemType}`, { from: draggedIndex, to: insertIndex });
+    }
+    
+    setDraggedIndex(null);
+    setDragOverIndex(null);
   };
 
   const handleAddClick = () => {
@@ -136,10 +181,30 @@ const EditableList = ({
         {items.map((item, index) => (
           <div
             key={item.id || index}
-            className="relative"
+            className={`relative ${
+              isEditMode && allowReorder ? 'cursor-move' : ''
+            } ${
+              dragOverIndex === index ? 'border-t-4 border-accent-400' : ''
+            } ${
+              draggedIndex === index ? 'opacity-50' : ''
+            }`}
+            draggable={isEditMode && allowReorder && onReorder}
+            onDragStart={(e) => handleDragStart(e, index)}
+            onDragEnd={handleDragEnd}
+            onDragOver={(e) => handleDragOver(e, index)}
+            onDrop={(e) => handleDrop(e, index)}
             onMouseEnter={() => setHoveredIndex(index)}
             onMouseLeave={() => setHoveredIndex(null)}
           >
+            {/* Drag Handle - Shows when in edit mode and reordering is allowed */}
+            {isEditMode && allowReorder && onReorder && (
+              <div className="absolute left-2 top-1/2 transform -translate-y-1/2 z-10 opacity-60 hover:opacity-100 transition-opacity">
+                <svg className="w-5 h-5 text-gray-400" fill="currentColor" viewBox="0 0 24 24">
+                  <path d="M9 3h2v2H9V3zm0 4h2v2H9V7zm0 4h2v2H9v-2zm0 4h2v2H9v-2zm0 4h2v2H9v-2zm4-16h2v2h-2V3zm0 4h2v2h-2V7zm0 4h2v2h-2v-2zm0 4h2v2h-2v-2zm0 4h2v2h-2v-2z"/>
+                </svg>
+              </div>
+            )}
+
             {/* Edit Controls Overlay */}
             <AnimatePresence>
               {isEditMode && hoveredIndex === index && (
@@ -162,7 +227,7 @@ const EditableList = ({
                   )}
                   {onDelete && (
                     <button
-                      onClick={(e) => handleDeleteClick(e, item, index)}
+                      onClick={(e) => handleDeleteClick(e, item)}
                       className="p-2 bg-red-600 hover:bg-red-700 text-white rounded-lg shadow-lg transition-all border border-red-400"
                       title="Delete"
                     >
