@@ -229,56 +229,90 @@ const HomePage = () => {
             Trusted by Leading Hospitality Brands
           </h2>
           
-          {/* Centered container with fading edges */}
-          <div className="relative max-w-5xl mx-auto">
-            {/* Left fade */}
-            <div className="absolute left-0 top-0 bottom-0 w-16 sm:w-32 bg-gradient-to-r from-dark-800 to-transparent z-10 pointer-events-none"></div>
-            
-            {/* Right fade */}
-            <div className="absolute right-0 top-0 bottom-0 w-16 sm:w-32 bg-gradient-to-l from-dark-800 to-transparent z-10 pointer-events-none"></div>
-            
-            {/* Scrolling container */}
-            <div className="overflow-hidden">
-              <div className="flex animate-scroll-infinite" style={{ width: '200%' }}>
-                {/* First set of logos */}
-                {clients.length > 0 && clients.map((client, index) => (
-                  <div key={`first-${client.id}-${index}`} className="flex-shrink-0 px-4 sm:px-8 mx-2 sm:mx-4">
-                    <div className="flex items-center justify-center h-16 sm:h-20 w-32 sm:w-40">
-                      {client.logoUrl || client.logo ? (
-                        <img
-                          src={client.logoUrl || client.logo}
-                          alt={client.name}
-                          className="max-h-full max-w-full object-contain grayscale opacity-60 hover:grayscale-0 hover:opacity-100 transition-all duration-300"
-                        />
-                      ) : (
-                        <div className="text-base font-semibold text-dark-200 text-center">
-                          {client.name}
-                        </div>
-                      )}
+          <EditableList
+            id="client-logos-list"
+            items={clients}
+            onUpdate={handleUpdateClientLogo}
+            onCreate={handleCreateClientLogo}
+            onDelete={(id) => deleteClientLogo(id).then(() => refetchLogos())}
+            itemType="client-logo"
+            label="Client Logos"
+            addButtonText="Add Client"
+            defaultNewItem={{
+              name: 'New Client',
+              logo: '',
+              logoUrl: ''
+            }}
+            renderItem={(client) => (
+              <div className="flex-shrink-0 px-4 sm:px-8 mx-2 sm:mx-4">
+                <div className="flex items-center justify-center h-16 sm:h-20 w-32 sm:w-40">
+                  {client.logoUrl || client.logo ? (
+                    <img
+                      src={client.logoUrl || client.logo}
+                      alt={client.name}
+                      className="max-h-full max-w-full object-contain grayscale opacity-60 hover:grayscale-0 hover:opacity-100 transition-all duration-300"
+                    />
+                  ) : (
+                    <div className="text-base font-semibold text-dark-200 text-center">
+                      {client.name}
                     </div>
-                  </div>
-                ))}
-                {/* Second set of logos (exact duplicate) */}
-                {clients.length > 0 && clients.map((client, index) => (
-                  <div key={`second-${client.id}-${index}`} className="flex-shrink-0 px-4 sm:px-8 mx-2 sm:mx-4">
-                    <div className="flex items-center justify-center h-16 sm:h-20 w-32 sm:w-40">
-                      {client.logoUrl || client.logo ? (
-                        <img
-                          src={client.logoUrl || client.logo}
-                          alt={client.name}
-                          className="max-h-full max-w-full object-contain grayscale opacity-60 hover:grayscale-0 hover:opacity-100 transition-all duration-300"
-                        />
-                      ) : (
-                        <div className="text-base font-semibold text-dark-200 text-center">
-                          {client.name}
-                        </div>
-                      )}
+                  )}
+                </div>
+              </div>
+            )}
+            className="relative max-w-5xl mx-auto"
+          >
+            {/* Centered container with fading edges */}
+            <div className="relative max-w-5xl mx-auto">
+              {/* Left fade */}
+              <div className="absolute left-0 top-0 bottom-0 w-16 sm:w-32 bg-gradient-to-r from-dark-800 to-transparent z-10 pointer-events-none"></div>
+              
+              {/* Right fade */}
+              <div className="absolute right-0 top-0 bottom-0 w-16 sm:w-32 bg-gradient-to-l from-dark-800 to-transparent z-10 pointer-events-none"></div>
+              
+              {/* Scrolling container */}
+              <div className="overflow-hidden">
+                <div className="flex animate-scroll-infinite" style={{ width: '200%' }}>
+                  {/* First set of logos */}
+                  {clients.length > 0 && clients.map((client, index) => (
+                    <div key={`first-${client.id}-${index}`} className="flex-shrink-0 px-4 sm:px-8 mx-2 sm:mx-4">
+                      <div className="flex items-center justify-center h-16 sm:h-20 w-32 sm:w-40">
+                        {client.logoUrl || client.logo ? (
+                          <img
+                            src={client.logoUrl || client.logo}
+                            alt={client.name}
+                            className="max-h-full max-w-full object-contain grayscale opacity-60 hover:grayscale-0 hover:opacity-100 transition-all duration-300"
+                          />
+                        ) : (
+                          <div className="text-base font-semibold text-dark-200 text-center">
+                            {client.name}
+                          </div>
+                        )}
+                      </div>
                     </div>
-                  </div>
-                ))}
+                  ))}
+                  {/* Second set of logos (exact duplicate) */}
+                  {clients.length > 0 && clients.map((client, index) => (
+                    <div key={`second-${client.id}-${index}`} className="flex-shrink-0 px-4 sm:px-8 mx-2 sm:mx-4">
+                      <div className="flex items-center justify-center h-16 sm:h-20 w-32 sm:w-40">
+                        {client.logoUrl || client.logo ? (
+                          <img
+                            src={client.logoUrl || client.logo}
+                            alt={client.name}
+                            className="max-h-full max-w-full object-contain grayscale opacity-60 hover:grayscale-0 hover:opacity-100 transition-all duration-300"
+                          />
+                        ) : (
+                          <div className="text-base font-semibold text-dark-200 text-center">
+                            {client.name}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
               </div>
             </div>
-          </div>
+          </EditableList>
         </div>
       </section>
 
@@ -367,13 +401,34 @@ const HomePage = () => {
                 whileInView={{ opacity: 1, y: 0 }}
                 viewport={{ once: true }}
                 transition={{ delay: index * 0.1 }}
-                className="bg-dark-600 border border-dark-500 p-6 rounded-xl shadow-md hover:shadow-xl transition-shadow"
+                className="bg-dark-600 border border-dark-500 rounded-xl shadow-md hover:shadow-xl transition-shadow overflow-hidden"
               >
-                <div className="w-12 h-12 bg-primary-900 border-2 border-primary-500 rounded-lg flex items-center justify-center mb-4">
-                  <div className="w-6 h-6 bg-primary-500 rounded"></div>
+                {/* Feature Image or Icon */}
+                {feature.image_url || feature.imageUrl ? (
+                  <div className="w-full h-48 overflow-hidden">
+                    <img 
+                      src={feature.image_url || feature.imageUrl} 
+                      alt={feature.title}
+                      className="w-full h-full object-cover"
+                    />
+                  </div>
+                ) : (
+                  <div className="w-full h-12 flex justify-center items-center mt-6">
+                    <div className="w-12 h-12 bg-primary-900 border-2 border-primary-500 rounded-lg flex items-center justify-center">
+                      {feature.icon ? (
+                        <span className="text-2xl">{feature.icon}</span>
+                      ) : (
+                        <div className="w-6 h-6 bg-primary-500 rounded"></div>
+                      )}
+                    </div>
+                  </div>
+                )}
+                
+                {/* Feature Content */}
+                <div className="p-6">
+                  <h3 className="text-xl font-semibold mb-2 text-dark-50">{feature.title}</h3>
+                  <p className="text-dark-100">{feature.description}</p>
                 </div>
-                <h3 className="text-xl font-semibold mb-2 text-dark-50">{feature.title}</h3>
-                <p className="text-dark-100">{feature.description}</p>
               </motion.div>
             )}
             className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6 md:gap-8 px-4 sm:px-0"

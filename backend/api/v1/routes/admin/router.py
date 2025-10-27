@@ -6,8 +6,7 @@ Aggregates all admin route modules
 
 from fastapi import APIRouter
 
-from backend.api.v1.routes.admin import products, companies, quotes, dashboard
-
+from backend.api.v1.routes.admin import catalog, companies, dashboard, products, quotes
 
 router = APIRouter(prefix="/admin", tags=["Admin"])
 
@@ -16,3 +15,4 @@ router.include_router(products.router, prefix="/products", tags=["Admin - Produc
 router.include_router(companies.router, prefix="/companies", tags=["Admin - Companies"])
 router.include_router(quotes.router, prefix="/quotes", tags=["Admin - Quotes"])
 router.include_router(dashboard.router, prefix="/dashboard", tags=["Admin - Dashboard"])
+router.include_router(catalog.router, prefix="/catalog", tags=["Admin - Catalog"])

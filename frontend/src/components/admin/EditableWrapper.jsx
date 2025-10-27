@@ -1,6 +1,7 @@
 import { useState } from 'react';
+import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { useEditMode } from '../../contexts/EditModeContext';
+import { useEditMode } from '../../contexts/useEditMode';
 import EditModal from './EditModal';
 import logger from '../../utils/logger';
 
@@ -72,57 +73,50 @@ const EditableWrapper = ({
 
   return (
     <>
-      <motion.div
+      <div
         className={`relative ${className}`}
         onClick={handleClick}
         onMouseEnter={() => setIsHovered(true)}
         onMouseLeave={() => setIsHovered(false)}
-        whileHover={{ 
-          boxShadow: '0 0 0 2px rgba(139, 115, 85, 0.4)',
+        style={{ 
+          cursor: isEditMode ? 'pointer' : 'default',
+          outline: isEditing ? '3px solid rgba(139, 115, 85, 0.8)' : 
+                   isHovered && isEditMode ? '2px solid rgba(139, 115, 85, 0.4)' : 'none',
+          outlineOffset: '2px',
+          transition: 'outline 0.2s ease',
         }}
-        animate={{
-          boxShadow: isEditing 
-            ? '0 0 0 3px rgba(139, 115, 85, 0.8)' 
-            : isHovered
-            ? '0 0 0 2px rgba(139, 115, 85, 0.4)'
-            : '0 0 0 0px rgba(139, 115, 85, 0)'
-        }}
-        transition={{ duration: 0.2 }}
-        style={{ cursor: isEditMode ? 'pointer' : 'default' }}
       >
         {children}
         
-        {/* Edit Indicator */}
-        <AnimatePresence>
-          {(isHovered || isEditing) && (
-            <motion.div
-              className="absolute top-0 right-0 -mt-2 -mr-2 z-10"
-              initial={{ scale: 0, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              exit={{ scale: 0, opacity: 0 }}
-              transition={{ type: 'spring', stiffness: 500, damping: 30 }}
-            >
-              <div className="bg-accent-600 text-white px-2 py-1 rounded-md text-xs font-medium shadow-lg flex items-center gap-1 border border-accent-400">
-                <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
-                </svg>
-                <span>{label || type}</span>
-              </div>
-            </motion.div>
-          )}
-        </AnimatePresence>
-      </motion.div>
+        {/* Edit Indicator - Bottom Left */}
+        {isEditMode && (isHovered || isEditing) && (
+          <div
+            className="absolute bottom-1 left-1 z-20 bg-accent-600 text-white px-2 py-1 rounded text-xs font-medium shadow-lg flex items-center gap-1 border border-accent-400 pointer-events-none"
+            style={{
+              animation: isEditing ? 'pulse 2s infinite' : 'none'
+            }}
+          >
+            <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+            </svg>
+            <span>{label || type}</span>
+          </div>
+        )}
+      </div>
 
-      {/* Edit Modal */}
-      <EditModal
-        isOpen={showModal}
-        onClose={handleClose}
-        onSave={handleSave}
-        elementData={data}
-        elementType={type}
-        elementId={id}
-        apiEndpoint={apiEndpoint}
-      />
+      {/* Edit Modal via Portal - Rendered at root to avoid z-index stacking issues */}
+      {showModal && createPortal(
+        <EditModal
+          isOpen={showModal}
+          onClose={handleClose}
+          onSave={handleSave}
+          elementData={data}
+          elementType={type}
+          elementId={id}
+          apiEndpoint={apiEndpoint}
+        />,
+        document.body
+      )}
     </>
   );
 };

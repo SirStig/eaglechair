@@ -4,6 +4,7 @@ import Layout from './components/layout/Layout';
 import ProtectedRoute from './components/ProtectedRoute';
 import ScrollToTop from './components/ScrollToTop';
 import { EditModeProvider } from './contexts/EditModeContext';
+import { AdminAuthProvider } from './contexts/AdminAuthContext';
 import EditModeToggle from './components/admin/EditModeToggle';
 
 // Pages
@@ -37,10 +38,11 @@ function App() {
   return (
     <QueryClientProvider client={queryClient}>
       <Router>
-        <EditModeProvider>
-          <ScrollToTop />
-          <EditModeToggle />
-          <Routes>
+        <AdminAuthProvider>
+          <EditModeProvider>
+            <ScrollToTop />
+            <EditModeToggle />
+            <Routes>
           {/* Public Routes */}
           <Route path="/login" element={<LoginPage />} />
 
@@ -112,8 +114,9 @@ function App() {
             {/* 404 */}
             <Route path="*" element={<NotFound />} />
           </Route>
-        </Routes>
-        </EditModeProvider>
+          </Routes>
+          </EditModeProvider>
+        </AdminAuthProvider>
       </Router>
     </QueryClientProvider>
   );

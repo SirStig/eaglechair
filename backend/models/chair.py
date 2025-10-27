@@ -4,7 +4,7 @@ EagleChair Product Models
 Comprehensive models for chairs, booths, tables with categories, finishes, materials, etc.
 """
 
-from sqlalchemy import Column, Integer, String, Float, Text, Boolean, JSON, ForeignKey
+from sqlalchemy import JSON, Boolean, Column, Float, ForeignKey, Integer, String, Text
 from sqlalchemy.orm import relationship
 
 from backend.database.base import Base
@@ -42,6 +42,61 @@ class Category(Base):
         return f"<Category(id={self.id}, name={self.name})>"
 
 
+class ProductSubcategory(Base):
+    """
+    Product subcategories within main categories
+    Examples: Wood, Metal, Upholstered (for Chairs); Indoor, Outdoor (for Tables)
+    """
+    __tablename__ = "product_subcategories"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    name = Column(String(255), nullable=False, index=True)
+    slug = Column(String(255), nullable=False, index=True)
+    description = Column(Text, nullable=True)
+    
+    # Category relationship
+    category_id = Column(Integer, ForeignKey("categories.id", ondelete="CASCADE"), nullable=False)
+    category = relationship("Category", backref="product_subcategories")
+    
+    # Display
+    display_order = Column(Integer, default=0, nullable=False)
+    is_active = Column(Boolean, default=True, nullable=False)
+    
+    def __repr__(self) -> str:
+        return f"<ProductSubcategory(id={self.id}, name={self.name}, category_id={self.category_id})>"
+
+
+class ProductFamily(Base):
+    """
+    Product families for grouping related products
+    Examples: Alpine Family, Café Tesla Family, Andy Family, Argento Family
+    """
+    __tablename__ = "product_families"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    name = Column(String(255), nullable=False, index=True)
+    slug = Column(String(255), unique=True, index=True, nullable=False)
+    description = Column(Text, nullable=True)
+    
+    # Category associations
+    category_id = Column(Integer, ForeignKey("categories.id", ondelete="SET NULL"), nullable=True)
+    category = relationship("Category", backref="families")
+    
+    subcategory_id = Column(Integer, ForeignKey("product_subcategories.id", ondelete="SET NULL"), nullable=True)
+    subcategory = relationship("ProductSubcategory", backref="families")
+    
+    # Display
+    family_image = Column(String(500), nullable=True)
+    banner_image_url = Column(String(500), nullable=True)
+    overview_text = Column(Text, nullable=True)
+    display_order = Column(Integer, default=0, nullable=False)
+    is_active = Column(Boolean, default=True, nullable=False)
+    is_featured = Column(Boolean, default=False, nullable=False)
+    
+    def __repr__(self) -> str:
+        return f"<ProductFamily(id={self.id}, name={self.name})>"
+
+
 class Finish(Base):
     """
     Available finishes for products (wood stains, paint colors, etc.)
@@ -52,13 +107,25 @@ class Finish(Base):
     name = Column(String(100), nullable=False, index=True)
     finish_code = Column(String(50), nullable=True, unique=True)
     description = Column(Text, nullable=True)
-    finish_type = Column(String(50), nullable=True)  # e.g., "Wood Stain", "Paint", "Metal"
+    finish_type = Column(String(50), nullable=True)  # e.g., "Wood Stain", "Paint", "Metal", "Powder Coat"
+    
+    # Color reference (NEW - references Color table)
+    color_id = Column(Integer, ForeignKey("colors.id", ondelete="SET NULL"), nullable=True)
+    color = relationship("Color", backref="finishes")
+    
+    # Display (keep color_hex for backwards compatibility)
     color_hex = Column(String(7), nullable=True)  # Hex color representation
-    image_url = Column(String(500), nullable=True)
+    image_url = Column(String(500), nullable=True)  # Finish sample image
+    
+    # Flags
     is_custom = Column(Boolean, default=False, nullable=False)
     is_to_match = Column(Boolean, default=False, nullable=False)
     is_active = Column(Boolean, default=True, nullable=False)
+    
+    # Pricing
     additional_cost = Column(Integer, default=0, nullable=False)  # In cents
+    
+    # Display
     display_order = Column(Integer, default=0, nullable=False)
     
     def __repr__(self) -> str:
@@ -67,7 +134,7 @@ class Finish(Base):
 
 class Upholstery(Base):
     """
-    Upholstery materials and fabrics
+    Upholstery materials and fabrics with grade system
     """
     __tablename__ = "upholsteries"
     
@@ -76,10 +143,24 @@ class Upholstery(Base):
     material_code = Column(String(50), nullable=True, unique=True)
     material_type = Column(String(50), nullable=False)  # e.g., "Vinyl", "Fabric", "Leather"
     description = Column(Text, nullable=True)
+    
+    # Grade System
+    grade = Column(String(20), nullable=True)  # e.g., "A", "B", "C", "Premium", "Luxury"
+    
+    # Color reference (NEW - references Color table)
+    color_id = Column(Integer, ForeignKey("colors.id", ondelete="SET NULL"), nullable=True)
+    color_relationship = relationship("Color", backref="upholsteries")
+    
+    # Pattern/Texture
+    pattern = Column(String(100), nullable=True)
+    texture_description = Column(Text, nullable=True)
+    
+    # Seat-only option (NEW - for "P" suffix products)
+    is_seat_option_only = Column(Boolean, default=False, nullable=False)
+    
+    # Display (keep for backwards compatibility)
     color = Column(String(50), nullable=True)
     color_hex = Column(String(7), nullable=True)
-    pattern = Column(String(100), nullable=True)
-    grade = Column(String(20), nullable=True)  # e.g., "Grade A", "Grade B", "Premium"
     image_url = Column(String(500), nullable=True)
     swatch_image_url = Column(String(500), nullable=True)
     
@@ -92,12 +173,21 @@ class Upholstery(Base):
     flame_rating = Column(String(50), nullable=True)
     cleanability = Column(String(50), nullable=True)
     
+    # Status
     is_active = Column(Boolean, default=True, nullable=False)
-    additional_cost = Column(Integer, default=0, nullable=False)  # In cents
+    
+    # Pricing (grade-based - NEW)
+    additional_cost = Column(Integer, default=0, nullable=False)  # In cents, base grade
+    grade_a_cost = Column(Integer, default=0, nullable=False)
+    grade_b_cost = Column(Integer, default=0, nullable=False)
+    grade_c_cost = Column(Integer, default=0, nullable=False)
+    premium_cost = Column(Integer, default=0, nullable=False)
+    
+    # Display
     display_order = Column(Integer, default=0, nullable=False)
     
     def __repr__(self) -> str:
-        return f"<Upholstery(id={self.id}, name={self.name}, type={self.material_type})>"
+        return f"<Upholstery(id={self.id}, name={self.name}, type={self.material_type}, grade={self.grade})>"
 
 
 class Chair(Base):
@@ -110,15 +200,23 @@ class Chair(Base):
     id = Column(Integer, primary_key=True, index=True)
     
     # Basic Information
-    model_number = Column(String(100), unique=True, index=True, nullable=False)
+    model_number = Column(String(100), index=True, nullable=False)  # e.g., "6246"
+    model_suffix = Column(String(50), nullable=True, index=True)  # e.g., "WB.P", "P", "W", "PF", "PB"
+    suffix_description = Column(String(255), nullable=True)  # What the suffix means
     name = Column(String(255), nullable=False, index=True)
     slug = Column(String(255), unique=True, index=True, nullable=False)
     short_description = Column(Text, nullable=True)
     full_description = Column(Text, nullable=True)
     
-    # Category
-    category_id = Column(Integer, ForeignKey("categories.id"), nullable=False)
+    # Category & Family Relationships
+    category_id = Column(Integer, ForeignKey("categories.id", ondelete="RESTRICT"), nullable=False)
     category = relationship("Category", back_populates="products")
+    
+    subcategory_id = Column(Integer, ForeignKey("product_subcategories.id", ondelete="SET NULL"), nullable=True)
+    subcategory = relationship("ProductSubcategory", backref="products")
+    
+    family_id = Column(Integer, ForeignKey("product_families.id", ondelete="SET NULL"), nullable=True)
+    family = relationship("ProductFamily", backref="products")
     
     # Pricing
     base_price = Column(Integer, nullable=False)  # In cents
@@ -153,10 +251,13 @@ class Chair(Base):
     # Available Options
     available_finishes = Column(JSON, nullable=True)  # Array of finish IDs
     available_upholsteries = Column(JSON, nullable=True)  # Array of upholstery IDs
+    available_colors = Column(JSON, nullable=True)  # Array of color IDs (NEW)
     
-    # Images (stored as JSON array of URLs)
-    images = Column(JSON, nullable=False)
-    primary_image = Column(String(500), nullable=True)
+    # Images (stored as JSON array with enhanced structure)
+    # Structure: [{"url": "...", "type": "side|front|gallery", "order": 1, "alt": "..."}, ...]
+    images = Column(JSON, nullable=False, default='[]')
+    primary_image_url = Column(String(500), nullable=True)  # Side view (main catalog image)
+    hover_image_url = Column(String(500), nullable=True)  # Front view (hover state)
     thumbnail = Column(String(500), nullable=True)
     
     # Additional media
@@ -213,11 +314,148 @@ class ProductRelation(Base):
     __tablename__ = "product_relations"
     
     id = Column(Integer, primary_key=True, index=True)
-    product_id = Column(Integer, ForeignKey("chairs.id"), nullable=False)
-    related_product_id = Column(Integer, ForeignKey("chairs.id"), nullable=False)
+    product_id = Column(Integer, ForeignKey("chairs.id", ondelete="CASCADE"), nullable=False)
+    related_product_id = Column(Integer, ForeignKey("chairs.id", ondelete="CASCADE"), nullable=False)
     relation_type = Column(String(50), default="related", nullable=False)  # e.g., "related", "alternative", "accessory"
     display_order = Column(Integer, default=0, nullable=False)
     
     def __repr__(self) -> str:
         return f"<ProductRelation(product_id={self.product_id}, related_id={self.related_product_id})>"
+
+
+class Color(Base):
+    """
+    Standalone color management
+    Used by both Finishes and Upholsteries
+    """
+    __tablename__ = "colors"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    name = Column(String(100), nullable=False, index=True)  # e.g., "Walnut Brown", "Black", "Charcoal Gray"
+    color_code = Column(String(50), unique=True, nullable=True)  # e.g., "WB-001", "BLK", "CG-100"
+    hex_value = Column(String(7), nullable=True)  # e.g., "#A0522D"
+    
+    # Category (wood/metal/fabric/paint)
+    category = Column(String(50), nullable=True)
+    
+    # Display
+    image_url = Column(String(500), nullable=True)  # Color swatch image
+    display_order = Column(Integer, default=0, nullable=False)
+    is_active = Column(Boolean, default=True, nullable=False)
+    
+    def __repr__(self) -> str:
+        return f"<Color(id={self.id}, name={self.name}, code={self.color_code})>"
+
+
+class ProductVariation(Base):
+    """
+    Specific combinations of finish, upholstery, and color for a product
+    Example: "Alpine Chair #6246 in Walnut finish with Grade A Black Vinyl"
+    """
+    __tablename__ = "product_variations"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    
+    # Product relationship
+    product_id = Column(Integer, ForeignKey("chairs.id", ondelete="CASCADE"), nullable=False)
+    product = relationship("Chair", backref="variations")
+    
+    # SKU (unique identifier for this variation)
+    sku = Column(String(100), unique=True, nullable=False, index=True)
+    
+    # Variation components
+    finish_id = Column(Integer, ForeignKey("finishes.id", ondelete="SET NULL"), nullable=True)
+    finish = relationship("Finish", backref="variations")
+    
+    upholstery_id = Column(Integer, ForeignKey("upholsteries.id", ondelete="SET NULL"), nullable=True)
+    upholstery = relationship("Upholstery", backref="variations")
+    
+    color_id = Column(Integer, ForeignKey("colors.id", ondelete="SET NULL"), nullable=True)
+    color = relationship("Color", backref="variations")
+    
+    # Pricing
+    price_adjustment = Column(Integer, default=0, nullable=False)  # In cents (+/-)
+    
+    # Images specific to this variation
+    # JSON array: [{"url": "...", "type": "side|front|gallery", "order": 1}, ...]
+    images = Column(JSON, nullable=True, default='[]')
+    primary_image_url = Column(String(500), nullable=True)
+    
+    # Inventory
+    stock_status = Column(String(50), default="Available", nullable=False)
+    is_available = Column(Boolean, default=True, nullable=False)
+    lead_time_days = Column(Integer, nullable=True)
+    
+    # Display
+    display_order = Column(Integer, default=0, nullable=False)
+    
+    def __repr__(self) -> str:
+        return f"<ProductVariation(id={self.id}, sku={self.sku}, product_id={self.product_id})>"
+
+
+class CustomOption(Base):
+    """
+    Custom options/add-ons for products
+    Examples: Back handles, special glides, custom dimensions
+    """
+    __tablename__ = "custom_options"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    name = Column(String(255), nullable=False, index=True)
+    option_code = Column(String(50), unique=True, nullable=True)
+    description = Column(Text, nullable=True)
+    
+    # Option type
+    option_type = Column(String(100), nullable=False)  # "back_handle", "special_glide", "custom_dimension", etc.
+    
+    # Applicability (which categories can use this option)
+    applicable_categories = Column(JSON, nullable=True)  # Array of category IDs
+    
+    # Pricing
+    price_adjustment = Column(Integer, default=0, nullable=False)  # In cents
+    requires_quote = Column(Boolean, default=False, nullable=False)  # Some options need manual quoting
+    
+    # Admin
+    admin_notes = Column(Text, nullable=True)
+    
+    # Display
+    is_active = Column(Boolean, default=True, nullable=False)
+    display_order = Column(Integer, default=0, nullable=False)
+    
+    def __repr__(self) -> str:
+        return f"<CustomOption(id={self.id}, name={self.name}, type={self.option_type})>"
+
+
+class ProductTag(Base):
+    """
+    Flexible tagging system for products
+    Examples: "Stackable", "Ganging", "Swivel", "Commercial Grade", "Healthcare"
+    """
+    __tablename__ = "product_tags"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    tag_name = Column(String(100), nullable=False, index=True)
+    tag_type = Column(String(50), nullable=True)  # "feature", "material", "style", "use_case"
+    description = Column(Text, nullable=True)
+    slug = Column(String(100), unique=True, nullable=False, index=True)
+    
+    # Display
+    is_active = Column(Boolean, default=True, nullable=False)
+    
+    def __repr__(self) -> str:
+        return f"<ProductTag(id={self.id}, name={self.tag_name}, type={self.tag_type})>"
+
+
+# Many-to-many association table for Product and ProductTag
+class ProductTagAssociation(Base):
+    """
+    Association table for Product and ProductTag many-to-many relationship
+    """
+    __tablename__ = "product_tag_associations"
+    
+    product_id = Column(Integer, ForeignKey("chairs.id", ondelete="CASCADE"), primary_key=True)
+    tag_id = Column(Integer, ForeignKey("product_tags.id", ondelete="CASCADE"), primary_key=True)
+    
+    def __repr__(self) -> str:
+        return f"<ProductTagAssociation(product_id={self.product_id}, tag_id={self.tag_id})>"
 

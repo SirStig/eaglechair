@@ -1,7 +1,8 @@
-import { useState, useEffect } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
+import { useState } from 'react';
+import { motion } from 'framer-motion';
 import Modal from '../components/ui/Modal';
 import EditableWrapper from '../components/admin/EditableWrapper';
+import EditableList from '../components/admin/EditableList';
 import { useInstallations } from '../hooks/useContent';
 import { 
   updateInstallation, 
@@ -65,6 +66,28 @@ const GalleryPage = () => {
     }
   };
 
+  const handleReorderInstallations = async (reorderedItems) => {
+    try {
+      logger.info(CONTEXT, 'Reordering gallery installations');
+      // Update the order property for each item
+      const updatedItems = reorderedItems.map((item, index) => ({
+        ...item,
+        order: index
+      }));
+      
+      // Update each item individually with the new order
+      for (const item of updatedItems) {
+        await updateInstallation(item.id, { order: item.order });
+      }
+      
+      refetch();
+      logger.info(CONTEXT, 'Gallery installations reordered successfully');
+    } catch (error) {
+      logger.error(CONTEXT, 'Failed to reorder installations', error);
+      throw error;
+    }
+  };
+
   return (
     <div className="min-h-screen bg-dark-800 py-8">
       <div className="mx-auto px-4 sm:px-6 lg:px-8 max-w-[1800px]">
@@ -100,65 +123,72 @@ const GalleryPage = () => {
             <LoadingSpinner size="lg" />
           </div>
         ) : (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-            {filteredImages.map((image, index) => {
-              const imageUrl = image.url || image.primary_image || image.primaryImage || (image.images && (typeof image.images === 'string' ? JSON.parse(image.images)[0] : image.images[0]));
+          <EditableList
+            items={filteredImages}
+            onUpdate={handleUpdateInstallation}
+            onCreate={handleCreateInstallation}
+            onDelete={handleDeleteInstallation}
+            onReorder={handleReorderInstallations}
+            addButtonText="Add New Image"
+            allowReorder={true}
+            renderItem={(image, index) => {
+              const imageUrl = image.url || image.primary_image || image.primaryImage || 
+                (image.images && (typeof image.images === 'string' ? JSON.parse(image.images)[0] : image.images[0]));
               const title = image.title || image.project_name || image.projectName;
               const category = image.category || image.project_type || image.projectType;
-              const description = image.description;
               const location = image.location;
               
               return (
-                <EditableWrapper
-                  key={image.id}
-                  id={`installation-${image.id}`}
-                  type="installation"
-                  data={image}
-                  onSave={(newData) => handleUpdateInstallation(image.id, newData)}
-                  label={`Installation: ${title}`}
+                <motion.div
+                  initial={{ opacity: 0, scale: 0.9 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  transition={{ delay: index * 0.05 }}
+                  className="relative group cursor-pointer overflow-hidden rounded-xl shadow-md hover:shadow-2xl transition-shadow"
+                  onClick={() => setSelectedImage(image)}
                 >
-                  <motion.div
-                    initial={{ opacity: 0, scale: 0.9 }}
-                    animate={{ opacity: 1, scale: 1 }}
-                    transition={{ delay: index * 0.05 }}
-                    className="relative group cursor-pointer overflow-hidden rounded-xl shadow-md hover:shadow-2xl transition-shadow"
-                    onClick={() => setSelectedImage(image)}
-                  >
-                    <img
-                      src={imageUrl}
-                      alt={title}
-                      className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
-                      style={{ aspectRatio: '16/10', objectFit: 'cover' }}
-                    />
-                    <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/30 to-transparent opacity-0 group-hover:opacity-100 transition-opacity">
-                      <div className="absolute bottom-0 left-0 right-0 p-6 text-white">
-                        <h3 className="text-xl font-semibold mb-1 text-dark-50">{title}</h3>
-                        <p className="text-sm text-dark-100">{category}</p>
-                        {location && <p className="text-xs text-dark-200">{location}</p>}
-                      </div>
+                  <img
+                    src={imageUrl}
+                    alt={title}
+                    className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                    style={{ aspectRatio: '16/10', objectFit: 'cover' }}
+                  />
+                  <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/30 to-transparent opacity-0 group-hover:opacity-100 transition-opacity">
+                    <div className="absolute bottom-0 left-0 right-0 p-6 text-white">
+                      <h3 className="text-xl font-semibold mb-1 text-dark-50">{title}</h3>
+                      <p className="text-sm text-dark-100">{category}</p>
+                      {location && <p className="text-xs text-dark-200">{location}</p>}
                     </div>
-                  </motion.div>
-                </EditableWrapper>
+                  </div>
+                </motion.div>
               );
-            })}
-          </div>
+            }}
+            className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6"
+          />
         )}
 
         {/* Image Modal */}
         <Modal
           isOpen={!!selectedImage}
           onClose={() => setSelectedImage(null)}
-          size="xl"
+          size="lg"
           title={selectedImage?.title}
         >
           {selectedImage && (
-            <div>
+            <div className="max-h-[70vh] overflow-auto">
               <img
                 src={selectedImage.url}
                 alt={selectedImage.title}
-                className="w-full rounded-lg"
+                className="w-full h-auto max-h-[60vh] object-contain rounded-lg"
               />
-              <p className="mt-4 text-dark-100">{selectedImage.category}</p>
+              <div className="mt-4 space-y-2">
+                <p className="text-dark-100 font-medium">{selectedImage.category}</p>
+                {selectedImage.location && (
+                  <p className="text-dark-200 text-sm">{selectedImage.location}</p>
+                )}
+                {selectedImage.description && (
+                  <p className="text-dark-300 text-sm">{selectedImage.description}</p>
+                )}
+              </div>
             </div>
           )}
         </Modal>

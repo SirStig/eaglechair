@@ -4,10 +4,11 @@ EagleChair Company and Admin User Models
 Models for company accounts (B2B customers) and admin users with enhanced security
 """
 
-from sqlalchemy import Column, Integer, String, Boolean, Text, ForeignKey, JSON
-from sqlalchemy.orm import relationship
-from sqlalchemy import Enum as SQLEnum
 import enum
+
+from sqlalchemy import JSON, Boolean, Column, Date, ForeignKey, Integer, String, Text
+from sqlalchemy import Enum as SQLEnum
+from sqlalchemy.orm import relationship
 
 from backend.database.base import Base
 
@@ -18,6 +19,48 @@ class CompanyStatus(str, enum.Enum):
     ACTIVE = "active"
     SUSPENDED = "suspended"
     INACTIVE = "inactive"
+
+
+class CompanyPricing(Base):
+    """
+    Company-specific pricing tiers (NEW)
+    
+    Allows admin to assign custom pricing to companies:
+    - Default: 0% (normal pricing)
+    - Gold Tier: +10% markup
+    - Silver Tier: +5% markup
+    - Discount Tier: -10% discount
+    - Custom tiers as needed
+    """
+    __tablename__ = "company_pricing"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    company_id = Column(Integer, ForeignKey("companies.id", ondelete="CASCADE"), nullable=False)
+    
+    # Pricing Configuration
+    pricing_tier_name = Column(String(100), nullable=True)  # e.g., "Gold", "Silver", "Wholesale"
+    percentage_adjustment = Column(Integer, nullable=False, default=0)  # e.g., 0, 10, -10 for 0%, +10%, -10%
+    
+    # Scope
+    applies_to_all_products = Column(Boolean, default=True, nullable=False)
+    specific_categories = Column(JSON, nullable=True)  # Array of category IDs if not all products
+    
+    # Date Range
+    effective_from = Column(Date, nullable=True)
+    expires_at = Column(Date, nullable=True)
+    
+    # Status
+    is_active = Column(Boolean, default=True, nullable=False)
+    
+    # Admin Notes
+    admin_notes = Column(Text, nullable=True)
+    
+    # Relationships
+    # Use foreign_keys to explicitly specify which FK to use for this relationship
+    company = relationship("Company", foreign_keys=[company_id], backref="pricing_tiers")
+    
+    def __repr__(self) -> str:
+        return f"<CompanyPricing(id={self.id}, company_id={self.company_id}, tier={self.pricing_tier_name}, adjustment={self.percentage_adjustment}%)>"
 
 
 class Company(Base):
@@ -71,6 +114,12 @@ class Company(Base):
     resale_certificate = Column(String(100), nullable=True)
     credit_limit = Column(Integer, nullable=True)  # In cents
     payment_terms = Column(String(100), nullable=True)  # e.g., "Net 30"
+    
+    # Pricing Tier (NEW - references CompanyPricing)
+    # Note: This creates a circular FK with CompanyPricing.company_id
+    # The backref on CompanyPricing is 'assigned_companies' to avoid conflicts
+    pricing_tier_id = Column(Integer, ForeignKey("company_pricing.id", ondelete="SET NULL", use_alter=True, name="fk_company_pricing_tier"), nullable=True)
+    pricing_tier = relationship("CompanyPricing", foreign_keys=[pricing_tier_id], backref="assigned_companies")
     
     # Additional contacts (stored as JSON array)
     additional_contacts = Column(JSON, nullable=True)

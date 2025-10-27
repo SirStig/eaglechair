@@ -32,6 +32,12 @@ from backend.api.dependencies import get_current_admin
 from backend.api.v1.schemas.common import MessageResponse
 from backend.database.base import get_db
 from backend.models.company import Company
+from backend.models.legal import (
+    LegalDocument,
+    LegalDocumentType,
+    ShippingPolicy,
+    WarrantyInformation,
+)
 from backend.services.cms_admin_service import CMSAdminService
 
 logger = logging.getLogger(__name__)
@@ -607,4 +613,350 @@ async def export_all_content(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to export content: {str(e)}"
+        )
+
+
+# ============================================================================
+# Legal Documents Management
+# ============================================================================
+
+class LegalDocumentCreate(BaseModel):
+    """Legal document creation request"""
+    document_type: str = Field(..., description="Type of legal document")
+    title: str = Field(..., max_length=255)
+    content: str = Field(..., description="Full document content (HTML/Markdown)")
+    short_description: str | None = Field(None, description="Brief description")
+    slug: str = Field(..., max_length=255, description="URL-friendly slug")
+    version: str = Field(default="1.0", max_length=20)
+    effective_date: str | None = None
+    meta_title: str | None = Field(None, max_length=255)
+    meta_description: str | None = None
+    display_order: int = Field(default=0, ge=0)
+    is_active: bool = True
+
+
+class LegalDocumentUpdate(BaseModel):
+    """Legal document update request"""
+    title: str | None = Field(None, max_length=255)
+    content: str | None = None
+    short_description: str | None = None
+    slug: str | None = Field(None, max_length=255)
+    version: str | None = Field(None, max_length=20)
+    effective_date: str | None = None
+    meta_title: str | None = Field(None, max_length=255)
+    meta_description: str | None = None
+    display_order: int | None = Field(None, ge=0)
+    is_active: bool | None = None
+
+
+class WarrantyCreate(BaseModel):
+    """Warranty information creation request"""
+    warranty_type: str = Field(..., max_length=100)
+    title: str = Field(..., max_length=255)
+    description: str
+    duration: str | None = Field(None, max_length=100)
+    coverage: str | None = None
+    exclusions: str | None = None
+    claim_process: str | None = None
+    display_order: int = Field(default=0, ge=0)
+    is_active: bool = True
+
+
+class WarrantyUpdate(BaseModel):
+    """Warranty information update request"""
+    warranty_type: str | None = Field(None, max_length=100)
+    title: str | None = Field(None, max_length=255)
+    description: str | None = None
+    duration: str | None = Field(None, max_length=100)
+    coverage: str | None = None
+    exclusions: str | None = None
+    claim_process: str | None = None
+    display_order: int | None = Field(None, ge=0)
+    is_active: bool | None = None
+
+
+@router.get(
+    "/legal-documents",
+    summary="Get all legal documents (Admin)",
+    description="Retrieve all legal documents for admin management"
+)
+async def admin_get_legal_documents(
+    admin: Company = Depends(get_current_admin),
+    db: AsyncSession = Depends(get_db)
+):
+    """Get all legal documents. Admin only."""
+    logger.info(f"Admin {admin.id} fetching all legal documents")
+    
+    result = await CMSAdminService.get_all_legal_documents(db)
+    return result
+
+
+@router.post(
+    "/legal-documents",
+    status_code=status.HTTP_201_CREATED,
+    summary="Create legal document (Admin)",
+    description="Create a new legal document and export to static file"
+)
+async def admin_create_legal_document(
+    data: LegalDocumentCreate,
+    admin: Company = Depends(get_current_admin),
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    Create a new legal document.
+    
+    **Admin only** - Automatically exports to static JS file.
+    """
+    logger.info(f"Admin {admin.id} creating legal document: {data.title}")
+    
+    try:
+        # Validate document type
+        try:
+            doc_type = LegalDocumentType(data.document_type)
+        except ValueError:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Invalid document type. Must be one of: {', '.join([t.value for t in LegalDocumentType])}"
+            )
+        
+        document = await CMSAdminService.create_legal_document(
+            db=db,
+            document_type=doc_type,
+            title=data.title,
+            content=data.content,
+            short_description=data.short_description,
+            slug=data.slug,
+            version=data.version,
+            effective_date=data.effective_date,
+            meta_title=data.meta_title,
+            meta_description=data.meta_description,
+            display_order=data.display_order,
+            is_active=data.is_active
+        )
+        
+        return {
+            "id": document.id,
+            "documentType": document.document_type.value,
+            "title": document.title,
+            "slug": document.slug,
+            "message": "Legal document created and exported successfully"
+        }
+        
+    except Exception as e:
+        logger.error(f"Failed to create legal document: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=str(e)
+        )
+
+
+@router.put(
+    "/legal-documents/{document_id}",
+    summary="Update legal document (Admin)",
+    description="Update an existing legal document and re-export"
+)
+async def admin_update_legal_document(
+    document_id: int,
+    data: LegalDocumentUpdate,
+    admin: Company = Depends(get_current_admin),
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    Update a legal document.
+    
+    **Admin only** - Automatically re-exports to static JS file.
+    """
+    logger.info(f"Admin {admin.id} updating legal document {document_id}")
+    
+    try:
+        document = await CMSAdminService.update_legal_document(
+            db=db,
+            document_id=document_id,
+            **data.model_dump(exclude_unset=True)
+        )
+        
+        return {
+            "id": document.id,
+            "documentType": document.document_type.value,
+            "title": document.title,
+            "slug": document.slug,
+            "message": "Legal document updated and exported successfully"
+        }
+        
+    except Exception as e:
+        logger.error(f"Failed to update legal document: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=str(e)
+        )
+
+
+@router.delete(
+    "/legal-documents/{document_id}",
+    summary="Delete legal document (Admin)",
+    description="Delete a legal document and re-export"
+)
+async def admin_delete_legal_document(
+    document_id: int,
+    admin: Company = Depends(get_current_admin),
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    Delete a legal document.
+    
+    **Admin only** - Automatically re-exports to static JS file.
+    """
+    logger.info(f"Admin {admin.id} deleting legal document {document_id}")
+    
+    try:
+        await CMSAdminService.delete_legal_document(db=db, document_id=document_id)
+        
+        return MessageResponse(
+            message="Legal document deleted and content re-exported successfully"
+        )
+        
+    except Exception as e:
+        logger.error(f"Failed to delete legal document: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=str(e)
+        )
+
+
+# ============================================================================
+# Warranty Information Management
+# ============================================================================
+
+@router.get(
+    "/warranties",
+    summary="Get all warranties (Admin)",
+    description="Retrieve all warranty information for admin management"
+)
+async def admin_get_warranties(
+    admin: Company = Depends(get_current_admin),
+    db: AsyncSession = Depends(get_db)
+):
+    """Get all warranties. Admin only."""
+    logger.info(f"Admin {admin.id} fetching all warranties")
+    
+    result = await CMSAdminService.get_all_warranties(db)
+    return result
+
+
+@router.post(
+    "/warranties",
+    status_code=status.HTTP_201_CREATED,
+    summary="Create warranty (Admin)",
+    description="Create new warranty information and export to static file"
+)
+async def admin_create_warranty(
+    data: WarrantyCreate,
+    admin: Company = Depends(get_current_admin),
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    Create a new warranty.
+    
+    **Admin only** - Automatically exports to static JS file.
+    """
+    logger.info(f"Admin {admin.id} creating warranty: {data.title}")
+    
+    try:
+        warranty = await CMSAdminService.create_warranty(
+            db=db,
+            warranty_type=data.warranty_type,
+            title=data.title,
+            description=data.description,
+            duration=data.duration,
+            coverage=data.coverage,
+            exclusions=data.exclusions,
+            claim_process=data.claim_process,
+            display_order=data.display_order,
+            is_active=data.is_active
+        )
+        
+        return {
+            "id": warranty.id,
+            "warrantyType": warranty.warranty_type,
+            "title": warranty.title,
+            "message": "Warranty created and exported successfully"
+        }
+        
+    except Exception as e:
+        logger.error(f"Failed to create warranty: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=str(e)
+        )
+
+
+@router.put(
+    "/warranties/{warranty_id}",
+    summary="Update warranty (Admin)",
+    description="Update existing warranty and re-export"
+)
+async def admin_update_warranty(
+    warranty_id: int,
+    data: WarrantyUpdate,
+    admin: Company = Depends(get_current_admin),
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    Update a warranty.
+    
+    **Admin only** - Automatically re-exports to static JS file.
+    """
+    logger.info(f"Admin {admin.id} updating warranty {warranty_id}")
+    
+    try:
+        warranty = await CMSAdminService.update_warranty(
+            db=db,
+            warranty_id=warranty_id,
+            **data.model_dump(exclude_unset=True)
+        )
+        
+        return {
+            "id": warranty.id,
+            "warrantyType": warranty.warranty_type,
+            "title": warranty.title,
+            "message": "Warranty updated and exported successfully"
+        }
+        
+    except Exception as e:
+        logger.error(f"Failed to update warranty: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=str(e)
+        )
+
+
+@router.delete(
+    "/warranties/{warranty_id}",
+    summary="Delete warranty (Admin)",
+    description="Delete warranty and re-export"
+)
+async def admin_delete_warranty(
+    warranty_id: int,
+    admin: Company = Depends(get_current_admin),
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    Delete a warranty.
+    
+    **Admin only** - Automatically re-exports to static JS file.
+    """
+    logger.info(f"Admin {admin.id} deleting warranty {warranty_id}")
+    
+    try:
+        await CMSAdminService.delete_warranty(db=db, warranty_id=warranty_id)
+        
+        return MessageResponse(
+            message="Warranty deleted and content re-exported successfully"
+        )
+        
+    except Exception as e:
+        logger.error(f"Failed to delete warranty: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=str(e)
         )
