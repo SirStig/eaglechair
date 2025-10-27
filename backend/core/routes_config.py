@@ -4,8 +4,8 @@ Centralized Route Configuration
 Single source of truth for route protection and access control
 """
 
-from typing import Set, List, Dict
 from enum import Enum
+from typing import Dict, List, Set
 
 
 class RouteAccessLevel(str, Enum):
@@ -41,6 +41,7 @@ class RouteConfig:
         "/docs",
         "/redoc",
         "/openapi.json",
+        "/api-docs",
         
         # Static assets
         "/favicon.ico",
@@ -262,6 +263,9 @@ class RouteConfig:
         if cls.is_admin_route(path):
             return RouteAccessLevel.ADMIN
         elif cls.is_public_route(path):
+            return RouteAccessLevel.PUBLIC
+        # SPA routing: treat any non-API, non-admin path as public (will be served by React)
+        elif not path.startswith("/api/") and not path.startswith("/admin/"):
             return RouteAccessLevel.PUBLIC
         else:
             return RouteAccessLevel.AUTHENTICATED

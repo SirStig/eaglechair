@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { useSearchParams, useNavigate } from 'react-router-dom';
+import { useSearchParams, useNavigate, useParams } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import ProductCard from '../components/ui/ProductCard';
 import Button from '../components/ui/Button';
@@ -7,8 +7,8 @@ import LoadingSpinner from '../components/ui/LoadingSpinner';
 import QuickViewModal from '../components/ui/QuickViewModal';
 import EditableWrapper from '../components/admin/EditableWrapper';
 import { CardGridSkeleton } from '../components/ui/Skeleton';
-import { demoProducts, demoCategories, IS_DEMO } from '../data/demoData';
 import { updateProduct, deleteProduct } from '../services/contentService';
+import productService from '../services/productService';
 import logger from '../utils/logger';
 
 const CONTEXT = 'ProductCatalogPage';
@@ -16,111 +16,110 @@ const CONTEXT = 'ProductCatalogPage';
 const ProductCatalogPage = () => {
   const [searchParams, setSearchParams] = useSearchParams();
   const navigate = useNavigate();
+  const { category: categoryParam, subcategory: subcategoryParam } = useParams();
   
+  // State
   const [products, setProducts] = useState([]);
   const [categories, setCategories] = useState([]);
   const [loading, setLoading] = useState(true);
   const [quickViewProduct, setQuickViewProduct] = useState(null);
+  const [pagination, setPagination] = useState({
+    page: 1,
+    limit: 20,
+    total: 0,
+    pages: 0
+  });
+  
+  // Filters from URL params
   const [filters, setFilters] = useState({
-    category: searchParams.get('category') || '',
-    subcategory: searchParams.get('subcategory') || '',
+    category_id: searchParams.get('category_id') || '',
     search: searchParams.get('search') || '',
-    finish: searchParams.get('finish') || '',
-    material: searchParams.get('material') || '',
-    sortBy: searchParams.get('sort') || 'featured',
+    featured: searchParams.get('featured') === 'true' || false,
+    new: searchParams.get('new') === 'true' || false,
+    sortBy: searchParams.get('sort') || 'display_order',
   });
 
-  // Extract unique finishes and materials from products
-  const availableFinishes = [...new Set(demoProducts.flatMap(p => 
-    p.customizations?.finishes || p.customizations?.colors || []
-  ))].filter(Boolean);
-
-  const availableMaterials = [...new Set(demoProducts.flatMap(p => 
-    p.specs?.Material ? [p.specs.Material] : []
-  ))].filter(Boolean);
-
-  // Load data when filters change
+  // Load categories on mount
   useEffect(() => {
-    loadData();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [filters]);
+    loadCategories();
+  }, []);
 
-  const loadData = async () => {
+  // Load products when filters or page changes
+  useEffect(() => {
+    loadProducts();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [filters, pagination.page]);
+
+  // Update category filter when URL params change
+  useEffect(() => {
+    if (categoryParam) {
+      // Find category by slug
+      const category = categories.find(c => c.slug === categoryParam);
+      if (category) {
+        setFilters(prev => ({ ...prev, category_id: category.id }));
+      }
+    }
+  }, [categoryParam, categories]);
+
+  const loadCategories = async () => {
+    try {
+      const categoriesData = await productService.getCategories();
+      setCategories(Array.isArray(categoriesData) ? categoriesData : []);
+    } catch (error) {
+      logger.error(CONTEXT, 'Error loading categories', error);
+      setCategories([]);
+    }
+  };
+
+  const loadProducts = async () => {
     setLoading(true);
     
-    if (IS_DEMO) {
-      // Demo mode - filter products locally
-      let filtered = [...demoProducts];
+    try {
+      // Build params object
+      const params = {
+        page: pagination.page,
+        per_page: pagination.limit
+      };
       
-      if (filters.category) {
-        filtered = filtered.filter(p => 
-          p.category.toLowerCase() === filters.category.toLowerCase()
-        );
+      // Add filters
+      if (filters.category_id) {
+        params.category_id = parseInt(filters.category_id, 10);
       }
       
-      if (filters.subcategory) {
-        filtered = filtered.filter(p => 
-          p.subcategory?.toLowerCase() === filters.subcategory.toLowerCase()
-        );
+      if (filters.search && filters.search.trim() !== '') {
+        params.search = filters.search.trim();
       }
       
-      if (filters.search) {
-        const searchLower = filters.search.toLowerCase();
-        filtered = filtered.filter(p =>
-          p.name.toLowerCase().includes(searchLower) ||
-          p.description.toLowerCase().includes(searchLower)
-        );
-      }
-
-      if (filters.finish) {
-        filtered = filtered.filter(p => 
-          p.customizations?.finishes?.includes(filters.finish) ||
-          p.customizations?.colors?.includes(filters.finish)
-        );
-      }
-
-      if (filters.material) {
-        filtered = filtered.filter(p => 
-          p.specs?.Material === filters.material
-        );
+      if (filters.featured) {
+        params.featured = true;
       }
       
-      // Sort
-      switch (filters.sortBy) {
-        case 'name-asc':
-          filtered.sort((a, b) => a.name.localeCompare(b.name));
-          break;
-        case 'name-desc':
-          filtered.sort((a, b) => b.name.localeCompare(a.name));
-          break;
-        case 'newest':
-          filtered.sort((a, b) => (b.isNew ? 1 : 0) - (a.isNew ? 1 : 0));
-          break;
-        case 'featured':
-          filtered.sort((a, b) => (b.featured ? 1 : 0) - (a.featured ? 1 : 0));
-          break;
-        default:
-          break;
+      if (filters.new) {
+        params.new = true;
       }
       
-      logger.debug(CONTEXT, `Filtered ${filtered.length} products`, filters);
+      // Add sort parameter
+      if (filters.sortBy) {
+        params.sort = filters.sortBy;
+      }
       
-      setProducts(filtered);
-      setCategories(demoCategories);
+      // Fetch products
+      const response = await productService.getProducts(params);
+      
+      logger.debug(CONTEXT, `Loaded ${response.total} products`, response);
+      
+      setProducts(response.data || []);
+      setPagination(prev => ({
+        ...prev,
+        total: response.total || 0,
+        pages: response.pages || 0
+      }));
+    } catch (error) {
+      logger.error(CONTEXT, 'Error loading products', error);
+      setProducts([]);
+      setPagination(prev => ({ ...prev, total: 0, pages: 0 }));
+    } finally {
       setLoading(false);
-    } else {
-      // Real API mode
-      try {
-        const queryParams = new URLSearchParams(filters).toString();
-        const response = await fetch(`/api/v1/products?${queryParams}`);
-        const data = await response.json();
-        setProducts(data.products || []);
-        setCategories(data.categories || []);
-      } catch (error) {
-        console.error('Error loading products:', error);
-      } finally {
-        setLoading(false);
-      }
     }
   };
 
@@ -128,24 +127,34 @@ const ProductCatalogPage = () => {
     const newFilters = { ...filters, [key]: value };
     setFilters(newFilters);
     
+    // Reset to page 1 when filters change
+    setPagination(prev => ({ ...prev, page: 1 }));
+    
     // Update URL params
     const params = new URLSearchParams();
     Object.entries(newFilters).forEach(([k, v]) => {
-      if (v) params.set(k, v);
+      if (v && v !== false && v !== '') {
+        params.set(k, v);
+      }
     });
     setSearchParams(params);
   };
 
   const clearFilters = () => {
     setFilters({
-      category: '',
-      subcategory: '',
+      category_id: '',
       search: '',
-      finish: '',
-      material: '',
-      sortBy: 'featured',
+      featured: false,
+      new: false,
+      sortBy: 'display_order',
     });
+    setPagination(prev => ({ ...prev, page: 1 }));
     setSearchParams({});
+  };
+
+  const handlePageChange = (newPage) => {
+    setPagination(prev => ({ ...prev, page: newPage }));
+    window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
   const handleQuickView = (product) => {
@@ -158,7 +167,7 @@ const ProductCatalogPage = () => {
     try {
       logger.info(CONTEXT, `Updating product ${id}`);
       await updateProduct(id, updates);
-      loadData(); // Reload products
+      loadProducts(); // Reload products
       logger.info(CONTEXT, 'Product updated successfully');
     } catch (error) {
       logger.error(CONTEXT, 'Failed to update product', error);
@@ -170,7 +179,7 @@ const ProductCatalogPage = () => {
     try {
       logger.info(CONTEXT, `Deleting product ${id}`);
       await deleteProduct(id);
-      loadData(); // Reload products
+      loadProducts(); // Reload products
       logger.info(CONTEXT, 'Product deleted successfully');
     } catch (error) {
       logger.error(CONTEXT, 'Failed to delete product', error);
@@ -178,9 +187,11 @@ const ProductCatalogPage = () => {
     }
   };
 
-  const activeCategory = categories.find(c => 
-    c.slug === filters.category || c.name.toLowerCase() === filters.category.toLowerCase()
-  );
+  // Get active category details
+  const activeCategory = categories.find(c => c.id === parseInt(filters.category_id));
+
+  // Get subcategories for active category
+  const subcategories = activeCategory?.children || [];
 
   return (
     <div className="min-h-screen py-8 bg-gradient-to-br from-cream-50 to-cream-100">
@@ -194,16 +205,16 @@ const ProductCatalogPage = () => {
           <span className="cursor-pointer hover:text-primary-500" onClick={() => navigate('/products')}>
             Products
           </span>
-          {filters.category && (
+          {activeCategory && (
             <>
               {' '}/{' '}
-              <span className="text-slate-800">{filters.category}</span>
+              <span className="text-slate-800">{activeCategory.name}</span>
             </>
           )}
-          {filters.subcategory && (
+          {subcategoryParam && (
             <>
               {' '}/{' '}
-              <span className="text-slate-800">{filters.subcategory}</span>
+              <span className="text-slate-800">{subcategoryParam}</span>
             </>
           )}
         </div>
@@ -211,9 +222,9 @@ const ProductCatalogPage = () => {
         {/* Header */}
         <div className="mb-8">
           <h1 className="text-4xl font-bold mb-2 text-slate-800">
-            {filters.category ? `${filters.category}` : 'All Products'}
+            {activeCategory ? activeCategory.name : 'All Products'}
           </h1>
-          {activeCategory && (
+          {activeCategory && activeCategory.description && (
             <p className="text-lg text-slate-600">{activeCategory.description}</p>
           )}
         </div>
@@ -224,7 +235,7 @@ const ProductCatalogPage = () => {
             <div className="rounded-xl shadow-md p-4 sm:p-6 sticky top-24 bg-white/90 backdrop-blur-sm border border-cream-200">
               <div className="flex items-center justify-between mb-6">
                 <h2 className="text-xl font-semibold text-slate-800">Filters</h2>
-                {(filters.category || filters.subcategory || filters.search || filters.finish || filters.material) && (
+                {(filters.category_id || filters.search || filters.featured || filters.new) && (
                   <button
                     onClick={clearFilters}
                     className="text-sm text-primary-500 hover:text-primary-400"
@@ -255,9 +266,9 @@ const ProductCatalogPage = () => {
                 </label>
                 <div className="space-y-2">
                   <button
-                    onClick={() => updateFilter('category', '')}
+                    onClick={() => updateFilter('category_id', '')}
                     className={`w-full text-left px-3 py-2 rounded-lg transition-colors ${
-                      !filters.category
+                      !filters.category_id
                         ? 'bg-primary-50 text-primary-900 font-medium border border-primary-500'
                         : 'hover:bg-cream-100 text-slate-800'
                     }`}
@@ -267,87 +278,79 @@ const ProductCatalogPage = () => {
                   {categories.map((category) => (
                     <button
                       key={category.id}
-                      onClick={() => {
-                        updateFilter('category', category.slug);
-                        updateFilter('subcategory', '');
-                      }}
+                      onClick={() => updateFilter('category_id', category.id)}
                       className={`w-full text-left px-3 py-2 rounded-lg transition-colors ${
-                        filters.category === category.slug
+                        filters.category_id === category.id || filters.category_id === String(category.id)
                           ? 'bg-primary-50 text-primary-900 font-medium border border-primary-500'
                           : 'hover:bg-cream-100 text-slate-800'
                       }`}
                     >
-                      {category.name}
+                      <div className="flex items-center justify-between">
+                        <span>{category.name}</span>
+                        {category.product_count > 0 && (
+                          <span className="text-xs text-slate-500">({category.product_count})</span>
+                        )}
+                      </div>
                     </button>
                   ))}
                 </div>
               </div>
 
               {/* Subcategories */}
-              {activeCategory && activeCategory.subcategories && (
+              {subcategories.length > 0 && (
                 <div className="mb-6">
                   <label className="block text-sm font-medium text-slate-700 mb-2">
-                    Type
+                    Subcategory
                   </label>
                   <div className="space-y-2">
-                    {activeCategory.subcategories.map((subcat) => (
+                    {subcategories.map((subcat) => (
                       <button
-                        key={subcat}
-                        onClick={() => updateFilter('subcategory', subcat)}
+                        key={subcat.id}
+                        onClick={() => updateFilter('category_id', subcat.id)}
                         className={`w-full text-left px-3 py-2 rounded-lg transition-colors text-sm ${
-                          filters.subcategory === subcat
+                          filters.category_id === subcat.id || filters.category_id === String(subcat.id)
                             ? 'bg-primary-50 text-primary-900 font-medium border border-primary-500'
                             : 'hover:bg-cream-100 text-slate-800'
                         }`}
                       >
-                        {subcat}
+                        <div className="flex items-center justify-between">
+                          <span>{subcat.name}</span>
+                          {subcat.product_count > 0 && (
+                            <span className="text-xs text-slate-500">({subcat.product_count})</span>
+                          )}
+                        </div>
                       </button>
                     ))}
                   </div>
                 </div>
               )}
 
-              {/* Finishes/Colors */}
-              {availableFinishes.length > 0 && (
-                <div className="mb-6">
-                  <label className="block text-sm font-medium text-slate-700 mb-2">
-                    Finish/Color
+              {/* Quick Filters */}
+              <div className="mb-6">
+                <label className="block text-sm font-medium text-slate-700 mb-2">
+                  Quick Filters
+                </label>
+                <div className="space-y-2">
+                  <label className="flex items-center cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={filters.featured}
+                      onChange={(e) => updateFilter('featured', e.target.checked)}
+                      className="mr-2 h-4 w-4 text-primary-600 border-cream-300 rounded focus:ring-primary-500"
+                    />
+                    <span className="text-sm text-slate-700">Featured Only</span>
                   </label>
-                  <select
-                    value={filters.finish}
-                    onChange={(e) => updateFilter('finish', e.target.value)}
-                    className="w-full px-3 py-2 border border-cream-300 bg-white text-slate-800 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
-                  >
-                    <option value="">All Finishes</option>
-                    {availableFinishes.map((finish) => (
-                      <option key={finish} value={finish}>
-                        {finish}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-              )}
-
-              {/* Materials */}
-              {availableMaterials.length > 0 && (
-                <div className="mb-6">
-                  <label className="block text-sm font-medium text-slate-700 mb-2">
-                    Material
+                  <label className="flex items-center cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={filters.new}
+                      onChange={(e) => updateFilter('new', e.target.checked)}
+                      className="mr-2 h-4 w-4 text-primary-600 border-cream-300 rounded focus:ring-primary-500"
+                    />
+                    <span className="text-sm text-slate-700">New Products</span>
                   </label>
-                  <select
-                    value={filters.material}
-                    onChange={(e) => updateFilter('material', e.target.value)}
-                    className="w-full px-3 py-2 border border-cream-300 bg-white text-slate-800 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
-                  >
-                    <option value="">All Materials</option>
-                    {availableMaterials.map((material) => (
-                      <option key={material} value={material}>
-                        {material}
-                      </option>
-                    ))}
-                  </select>
                 </div>
-              )}
+              </div>
 
               {/* Sort */}
               <div>
@@ -359,10 +362,12 @@ const ProductCatalogPage = () => {
                   onChange={(e) => updateFilter('sortBy', e.target.value)}
                   className="w-full px-3 py-2 border border-cream-300 bg-white text-slate-800 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
                 >
+                  <option value="display_order">Default Order</option>
                   <option value="featured">Featured</option>
-                  <option value="newest">Newest First</option>
                   <option value="name-asc">Name (A-Z)</option>
                   <option value="name-desc">Name (Z-A)</option>
+                  <option value="price-asc">Price (Low to High)</option>
+                  <option value="price-desc">Price (High to Low)</option>
                 </select>
               </div>
             </div>
@@ -387,12 +392,15 @@ const ProductCatalogPage = () => {
               </div>
             ) : (
               <>
-                <div className="mb-4 text-sm text-slate-600">
-                  Showing {products.length} product{products.length !== 1 ? 's' : ''}
+                {/* Results Summary */}
+                <div className="mb-4 flex items-center justify-between text-sm text-slate-600">
+                  <div>
+                    Showing {((pagination.page - 1) * pagination.limit) + 1} - {Math.min(pagination.page * pagination.limit, pagination.total)} of {pagination.total} product{pagination.total !== 1 ? 's' : ''}
+                  </div>
                 </div>
                 
                 {/* Responsive Grid: 1 col mobile, 2 col tablet, 3 col desktop */}
-                <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-5 md:gap-6 xl:gap-8">
+                <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-5 md:gap-6 xl:gap-8 mb-8">
                   {products.map((product, index) => (
                     <motion.div
                       key={product.id}
@@ -416,6 +424,61 @@ const ProductCatalogPage = () => {
                     </motion.div>
                   ))}
                 </div>
+
+                {/* Pagination */}
+                {pagination.pages > 1 && (
+                  <div className="flex items-center justify-center gap-2">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => handlePageChange(pagination.page - 1)}
+                      disabled={pagination.page === 1}
+                    >
+                      Previous
+                    </Button>
+                    
+                    <div className="flex gap-1">
+                      {[...Array(pagination.pages)].map((_, i) => {
+                        const page = i + 1;
+                        // Show first, last, current, and adjacent pages
+                        if (
+                          page === 1 ||
+                          page === pagination.pages ||
+                          (page >= pagination.page - 1 && page <= pagination.page + 1)
+                        ) {
+                          return (
+                            <button
+                              key={page}
+                              onClick={() => handlePageChange(page)}
+                              className={`px-3 py-1 rounded ${
+                                page === pagination.page
+                                  ? 'bg-primary-500 text-white font-semibold'
+                                  : 'bg-white text-slate-700 hover:bg-cream-100 border border-cream-300'
+                              }`}
+                            >
+                              {page}
+                            </button>
+                          );
+                        } else if (
+                          page === pagination.page - 2 ||
+                          page === pagination.page + 2
+                        ) {
+                          return <span key={page} className="px-2">...</span>;
+                        }
+                        return null;
+                      })}
+                    </div>
+                    
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => handlePageChange(pagination.page + 1)}
+                      disabled={pagination.page === pagination.pages}
+                    >
+                      Next
+                    </Button>
+                  </div>
+                )}
               </>
             )}
           </main>
@@ -433,5 +496,3 @@ const ProductCatalogPage = () => {
 };
 
 export default ProductCatalogPage;
-
-

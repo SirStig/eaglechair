@@ -153,7 +153,8 @@ const HomePage = () => {
   const slides = heroSlides || demoHomeContent.heroSlides;
   const features = whyChooseUs || demoHomeContent.whyChooseUs;
   const clients = clientLogos || [];
-  const products = featuredProducts || [];
+  // Extract products array from response object
+  const products = (featuredProducts?.data || featuredProducts) || [];
   
   // CTA section content
   const ctaTitle = ctaSection?.title || "Ready to Furnish Your Space?";

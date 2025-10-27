@@ -4,12 +4,12 @@ Content Schemas - Version 1
 Schemas for About Us, FAQ, Catalogs, Guides, Installations, Contact Info
 """
 
-from typing import Optional
-from pydantic import BaseModel, EmailStr, Field
 from enum import Enum
+from typing import List, Optional, Union
+
+from pydantic import BaseModel, EmailStr, Field, field_validator
 
 from backend.api.v1.schemas.common import TimestampSchema
-
 
 # ============================================================================
 # Enums
@@ -254,13 +254,33 @@ class InstallationBase(BaseModel):
     location: Optional[str] = Field(None, max_length=255)
     project_type: Optional[str] = Field(None, max_length=100)
     description: Optional[str] = None
-    images: list[str]
+    # Images can be list of URLs or structured items with metadata
+    class InstallationImageItem(BaseModel):
+        url: str
+        title: Optional[str] = None
+        description: Optional[str] = None
+        order: Optional[int] = None
+
+    images: Union[List[str], List[InstallationImageItem]]
     primary_image: Optional[str] = Field(None, max_length=500)
     products_used: Optional[list[int]] = None
     completion_date: Optional[str] = Field(None, max_length=50)
     display_order: int = 0
     is_active: bool = True
     is_featured: bool = False
+    
+    model_config = {"from_attributes": True}
+    
+    @field_validator('images', mode='before')
+    @classmethod
+    def validate_images(cls, v):
+        """Ensure images is always a list, even if it's an empty string or None"""
+        if v is None or v == '' or v == '[]':
+            return []
+        if isinstance(v, list):
+            return v
+        # If it's a string like '[]' or JSON, return empty list
+        return []
 
 
 class InstallationCreate(InstallationBase):
@@ -275,7 +295,7 @@ class InstallationUpdate(BaseModel):
     location: Optional[str] = Field(None, max_length=255)
     project_type: Optional[str] = Field(None, max_length=100)
     description: Optional[str] = None
-    images: Optional[list[str]] = None
+    images: Optional[Union[List[str], List[InstallationBase.InstallationImageItem]]] = None
     primary_image: Optional[str] = Field(None, max_length=500)
     products_used: Optional[list[int]] = None
     completion_date: Optional[str] = Field(None, max_length=50)
@@ -289,8 +309,7 @@ class InstallationResponse(InstallationBase, TimestampSchema):
     id: int
     view_count: int
     
-    class Config:
-        from_attributes = True
+    model_config = {"from_attributes": True}
 
 
 # ============================================================================

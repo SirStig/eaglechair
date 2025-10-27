@@ -11,6 +11,7 @@ Public READ-ONLY routes for CMS-managed display content:
 - Installation gallery (photo gallery with descriptions)
 - Page content (dynamic page sections)
 - Featured products
+- Static content file (contentData.js)
 
 All endpoints are public GET requests. For ADMIN operations (create, update, delete)
 with static file export, see cms_admin.py.
@@ -21,9 +22,11 @@ frontend loading via the cms_admin.py endpoints.
 """
 
 import logging
+from pathlib import Path
 from typing import Optional
 
 from fastapi import APIRouter, Depends, Query
+from fastapi.responses import PlainTextResponse
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -655,3 +658,79 @@ async def get_shipping_policies(db: AsyncSession = Depends(get_db)):
         for p in policies
     ]
 
+
+# ============================================================================
+# Static Content Data File (for development)
+# ============================================================================
+
+@router.get(
+    "/contentData.js",
+    response_class=PlainTextResponse,
+    summary="Get static content data file",
+    description="Serves the generated contentData.js file for development mode",
+    include_in_schema=True
+)
+async def get_content_data_file():
+    """
+    Serve the contentData.js file.
+    
+    This endpoint allows the frontend to fetch the static content file
+    in development mode via API call. In production, the file should be
+    served from the dist folder directly.
+    
+    Returns:
+        JavaScript file content with all CMS data
+    """
+    # Try to find the contentData.js file
+    base_dir = Path(__file__).resolve().parent.parent.parent.parent
+    
+    # Check dist folder first (production build)
+    dist_file = base_dir / "frontend" / "dist" / "data" / "contentData.js"
+    if dist_file.exists():
+        logger.debug(f"Serving contentData from dist: {dist_file}")
+        with open(dist_file, 'r', encoding='utf-8') as f:
+            return f.read()
+    
+    # Check src folder (development)
+    src_file = base_dir / "frontend" / "src" / "data" / "contentData.js"
+    if src_file.exists():
+        logger.debug(f"Serving contentData from src: {src_file}")
+        with open(src_file, 'r', encoding='utf-8') as f:
+            return f.read()
+    
+    # File not found - return empty default
+    logger.warning("contentData.js not found, returning empty defaults")
+    return """
+/**
+ * Static CMS Content Data - Empty Defaults
+ * 
+ * This file has not been generated yet.
+ * To populate it:
+ * 1. Ensure backend is connected to database
+ * 2. Access CMS admin panel and create content
+ * 3. Or call POST /api/v1/cms-admin/export-all endpoint
+ */
+
+export const siteSettings = null;
+export const heroSlides = [];
+export const companyInfo = [];
+export const teamMembers = [];
+export const companyValues = [];
+export const companyMilestones = [];
+export const salesReps = [];
+export const galleryImages = [];
+export const clientLogos = [];
+export const features = [];
+export const contactLocations = [];
+export const pageContent = [];
+
+export const getSiteSetting = (key, defaultValue = null) => defaultValue;
+export const getRepByState = (stateCode) => null;
+export const getPageContent = (pageSlug, sectionKey) => null;
+
+export const CONTENT_METADATA = {
+  lastUpdated: 'never',
+  version: '1.0.0',
+  generatedBy: 'Not yet generated'
+};
+"""

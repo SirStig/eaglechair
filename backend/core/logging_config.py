@@ -4,15 +4,15 @@ EagleChair Logging System
 Comprehensive logging with environment-specific configurations
 """
 
+import json
 import logging
 import logging.handlers
-import sys
 import os
 import platform
+import sys
 from datetime import datetime
 from pathlib import Path
 from typing import Optional
-import json
 
 from backend.core.config import settings
 
@@ -341,8 +341,14 @@ class LoggingConfig:
         logging.getLogger("uvicorn.access").setLevel(logging.WARNING)
         logging.getLogger("uvicorn.error").setLevel(logging.INFO)
         logging.getLogger("fastapi").setLevel(logging.INFO)
-        logging.getLogger("sqlalchemy").setLevel(logging.WARNING)
-        logging.getLogger("sqlalchemy.engine").setLevel(logging.WARNING)
+        
+        # SQLAlchemy - silence all engine logs unless in debug mode with specific need
+        logging.getLogger("sqlalchemy").setLevel(logging.ERROR)
+        logging.getLogger("sqlalchemy.engine").setLevel(logging.ERROR)
+        logging.getLogger("sqlalchemy.engine.Engine").setLevel(logging.ERROR)
+        logging.getLogger("sqlalchemy.pool").setLevel(logging.ERROR)
+        logging.getLogger("sqlalchemy.dialects").setLevel(logging.ERROR)
+        logging.getLogger("sqlalchemy.orm").setLevel(logging.ERROR)
         
         # In production, be even more restrictive
         if not settings.DEBUG:

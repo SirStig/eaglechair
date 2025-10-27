@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import Button from './Button';
 import Tag from './Tag';
 import { useCartStore } from '../../store/cartStore';
+import { getProductImages, buildProductUrl } from '../../utils/apiHelpers';
 import logger from '../../utils/logger';
 
 const CONTEXT = 'QuickViewModal';
@@ -58,7 +59,9 @@ const QuickViewModal = ({ product, isOpen, onClose }) => {
 
   if (!product) return null;
 
-  const images = product.images || [product.image];
+  // Get properly formatted image URLs from the product
+  const images = getProductImages(product);
+  const productUrl = buildProductUrl(product);
 
   return (
     <>
@@ -318,7 +321,7 @@ const QuickViewModal = ({ product, isOpen, onClose }) => {
                         </svg>
                         Add {quantity} to Cart
                       </Button>
-                      <Link to={`/products/${product.slug || product.id}`} onClick={onClose} className="block">
+                      <Link to={productUrl} onClick={onClose} className="block">
                         <Button
                           variant="outline"
                           className="w-full text-base py-3 px-6"

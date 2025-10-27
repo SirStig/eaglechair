@@ -51,10 +51,14 @@ function App() {
             {/* Home */}
             <Route path="/" element={<HomePage />} />
 
-            {/* Products */}
+            {/* Products - ORDER MATTERS! More specific routes first */}
             <Route path="/products" element={<ProductCatalogPage />} />
+            <Route path="/products/category/:category" element={<ProductCatalogPage />} />
+            <Route path="/products/category/:category/:subcategory" element={<ProductCatalogPage />} />
+            {/* Product detail with full category path */}
+            <Route path="/products/:categorySlug/:subcategorySlug/:productSlug" element={<ProductDetailPage />} />
+            {/* Fallback for direct ID/slug access */}
             <Route path="/products/:id" element={<ProductDetailPage />} />
-            <Route path="/products/:category/:subcategory" element={<ProductCatalogPage />} />
             <Route path="/search" element={<SearchPage />} />
 
             {/* Info Pages */}

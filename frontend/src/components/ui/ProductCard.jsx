@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import Tag from './Tag';
 import Button from './Button';
+import { formatPrice, getProductImage, buildProductUrl } from '../../utils/apiHelpers';
 
 const ProductCard = ({ product, onQuickView, darkMode = false }) => {
   const [imageLoaded, setImageLoaded] = useState(false);
@@ -11,20 +12,20 @@ const ProductCard = ({ product, onQuickView, darkMode = false }) => {
     setImageLoaded(true);
   };
 
-  // Use angled view by default, switch to front view on hover
-  const displayImage = isHovered && product.imageFront 
-    ? product.imageFront 
-    : product.imageAngle || product.image;
+  // Get images using new schema
+  const primaryImage = getProductImage(product, 0);
+  const secondaryImage = getProductImage(product, 1);
+  
+  // Use primary image by default, switch to secondary on hover if available
+  const displayImage = isHovered && secondaryImage 
+    ? secondaryImage 
+    : primaryImage;
 
-  // Format price display
-  const formatPrice = (price) => {
-    if (!price) return null;
-    return `$${price.toFixed(2)}`;
-  };
-
+  // Format price using transformed product data (base_price in cents)
+  // priceRange is added by transformProduct helper with { min, max } in dollars
   const priceDisplay = product.priceRange?.min && product.priceRange?.max && product.priceRange.min !== product.priceRange.max
-    ? `${formatPrice(product.priceRange.min)} - ${formatPrice(product.priceRange.max)}`
-    : formatPrice(product.price || product.priceRange?.min);
+    ? `$${product.priceRange.min.toFixed(2)} - $${product.priceRange.max.toFixed(2)}`
+    : (product.base_price ? formatPrice(product.base_price) : null);
 
   // Get swatches - show first 4 options
   const swatches = product.customizations?.finishes?.slice(0, 4) || 
@@ -46,6 +47,9 @@ const ProductCard = ({ product, onQuickView, darkMode = false }) => {
   const textPriceNote = darkMode ? 'text-dark-300' : 'text-slate-500';
   const spinnerBorder = darkMode ? 'border-dark-600' : 'border-cream-300';
 
+  // Build product URL with category path
+  const productUrl = buildProductUrl(product);
+
   return (
     <div 
       className="group flex flex-col h-full bg-transparent"
@@ -53,7 +57,7 @@ const ProductCard = ({ product, onQuickView, darkMode = false }) => {
       onMouseLeave={() => setIsHovered(false)}
     >
       {/* Image Container - No borders, full bleed, taller aspect ratio for Eagle Chair products */}
-      <Link to={`/products/${product.slug || product.id}`} className={`block relative aspect-[3/4] overflow-hidden ${bgImage} flex-shrink-0 rounded-lg`}>
+      <Link to={productUrl} className={`block relative aspect-[3/4] overflow-hidden ${bgImage} flex-shrink-0 rounded-lg`}>
         {!imageLoaded && (
           <div className="absolute inset-0 flex items-center justify-center">
             <div className={`h-8 w-8 border-4 ${spinnerBorder} border-t-primary-500 rounded-full animate-spin`} />
@@ -90,8 +94,8 @@ const ProductCard = ({ product, onQuickView, darkMode = false }) => {
 
         {/* Tags */}
         <div className="absolute top-2 left-2 flex flex-col gap-1.5">
-          {product.isNew && <Tag variant="new" size="sm">New</Tag>}
-          {product.featured && <Tag variant="featured" size="sm">Featured</Tag>}
+          {product.is_new && <Tag variant="new" size="sm">New</Tag>}
+          {product.is_featured && <Tag variant="featured" size="sm">Featured</Tag>}
         </div>
       </Link>
 
@@ -104,18 +108,18 @@ const ProductCard = ({ product, onQuickView, darkMode = false }) => {
               {product.category}
             </span>
           )}
-          {product.type && (
+          {product.product_type && (
             <>
               <span className={`${textSeparator} hidden sm:inline`}>•</span>
               <span className={`text-[10px] sm:text-xs ${textType} font-medium truncate`}>
-                {product.type}
+                {product.product_type}
               </span>
             </>
           )}
         </div>
 
         {/* Product Name */}
-        <Link to={`/products/${product.slug || product.id}`}>
+        <Link to={productUrl}>
           <h3 className={`text-base sm:text-lg font-semibold ${textTitle} mb-1.5 sm:mb-2 ${textTitleHover} transition-colors line-clamp-2`}>
             {product.name}
           </h3>
@@ -176,7 +180,7 @@ const ProductCard = ({ product, onQuickView, darkMode = false }) => {
 
         {/* Action Buttons */}
         <div className="mt-auto flex gap-2">
-          <Link to={`/products/${product.slug || product.id}`} className="flex-1">
+          <Link to={productUrl} className="flex-1">
             <Button variant="primary" size="sm" className="w-full text-xs sm:text-sm">
               View Details
             </Button>

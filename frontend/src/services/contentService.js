@@ -277,8 +277,10 @@ export const submitFeedback = async (feedbackData) => {
 export const getFeaturedProducts = async (limit = 4) => {
   try {
     logger.info(CONTEXT, `Fetching featured products (limit=${limit})`);
-    const response = await api.get(`/api/v1/content/featured-products?limit=${limit}`);
-    return response;
+    
+    // Use productService for consistency - it handles both demo and real API
+    const { default: productService } = await import('./productService');
+    return await productService.getFeaturedProducts(limit);
   } catch (error) {
     logger.error(CONTEXT, 'Error fetching featured products', error);
     throw error;
