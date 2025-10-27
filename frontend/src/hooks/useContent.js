@@ -207,7 +207,7 @@ export const useProducts = (filters = {}) => {
 };
 
 export const useFeaturedProducts = (limit = 4) => {
-  const featuredDemoProducts = demoProducts.filter(p => p.featured).slice(0, limit);
+  const featuredDemoProducts = demoProducts.filter(p => p.is_featured).slice(0, limit);
   
   return useContent(
     () => contentService.getFeaturedProducts(limit),

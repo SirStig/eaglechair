@@ -421,7 +421,8 @@ class CMSAdminService:
         
         gallery_data = []
         for inst in installations:
-            images = json.loads(inst.images) if inst.images else []
+            # images field is already a list (JSON type auto-deserializes)
+            images = inst.images if inst.images else []
             primary_image = inst.primary_image or (images[0] if images else None)
             
             gallery_data.append({

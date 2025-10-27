@@ -13,17 +13,19 @@ A production-ready FastAPI backend with:
 
 import logging
 from contextlib import asynccontextmanager
+from pathlib import Path
+
 from fastapi import FastAPI
 from fastapi.responses import HTMLResponse
+from fastapi.staticfiles import StaticFiles
 
-from backend.core.config import settings
-from backend.core.middleware import setup_middleware
-from backend.core.logging_config import init_logging
-from backend.core.error_handlers import register_exception_handlers
-from backend.database.base import init_db, close_db
-from backend.api.v1 import router as v1_router
 from backend.api import versioning
-
+from backend.api.v1 import router as v1_router
+from backend.core.config import settings
+from backend.core.error_handlers import register_exception_handlers
+from backend.core.logging_config import init_logging
+from backend.core.middleware import setup_middleware
+from backend.database.base import close_db, init_db
 
 # Initialize logging system
 init_logging()
@@ -46,6 +48,27 @@ async def lifespan(app: FastAPI):
         logger.info("[OK] Database initialized")
     except Exception as e:
         logger.error(f"❌ Database initialization failed: {e}")
+    
+    # Export CMS content to static files on startup
+    try:
+        from backend.database.base import get_db
+        from backend.services.cms_admin_service import CMSAdminService
+        
+        # Get database session
+        async for db in get_db():
+            try:
+                logger.info("📦 Exporting CMS content to static files...")
+                success = await CMSAdminService.export_all_static_content(db)
+                if success:
+                    logger.info("[OK] CMS content exported to frontend")
+                else:
+                    logger.warning("[WARN] CMS content export had issues")
+            except Exception as e:
+                logger.warning(f"[WARN] Could not export CMS content: {e}")
+            finally:
+                break  # Only need one iteration
+    except Exception as e:
+        logger.warning(f"[WARN] CMS export setup failed: {e}")
     
     # TODO: Initialize Redis cache connection
     # TODO: Initialize any other services
@@ -107,9 +130,74 @@ app.include_router(
 #     prefix=settings.API_V2_PREFIX,
 # )
 
+# ============================================================================
+# Static File Serving
+# ============================================================================
 
-@app.get("/", response_class=HTMLResponse, include_in_schema=False)
-async def root():
+# Mount uploads directory for user-uploaded files (images, documents, etc.)
+uploads_path = Path(__file__).parent.parent / "uploads"
+if uploads_path.exists():
+    app.mount("/uploads", StaticFiles(directory=str(uploads_path)), name="uploads")
+    logger.info("[OK] Uploads directory mounted at /uploads")
+else:
+    # Create uploads directory if it doesn't exist
+    uploads_path.mkdir(parents=True, exist_ok=True)
+    app.mount("/uploads", StaticFiles(directory=str(uploads_path)), name="uploads")
+    logger.info("[OK] Created and mounted uploads directory at /uploads")
+
+# ============================================================================
+# Frontend SPA Serving
+# ============================================================================
+
+frontend_dist_path = Path(__file__).parent.parent / "frontend" / "dist"
+
+if frontend_dist_path.exists() and (frontend_dist_path / "index.html").exists():
+    logger.info(f"[OK] Frontend dist found at {frontend_dist_path}")
+    
+    # Mount static assets
+    if (frontend_dist_path / "assets").exists():
+        app.mount("/assets", StaticFiles(directory=str(frontend_dist_path / "assets")), name="assets")
+    
+    # Mount data directory if it exists (for contentData.js)
+    if (frontend_dist_path / "data").exists():
+        app.mount("/data", StaticFiles(directory=str(frontend_dist_path / "data")), name="data")
+        logger.info("[OK] Data directory mounted at /data")
+    
+    # Override root to serve frontend
+    @app.get("/", response_class=HTMLResponse, include_in_schema=False)
+    async def root():
+        """Serve React SPA frontend"""
+        try:
+            with open(frontend_dist_path / "index.html", "r", encoding="utf-8") as f:
+                return f.read()
+        except Exception as e:
+            logger.error(f"Error reading index.html: {e}")
+            return "<h1>Frontend not available</h1>"
+    
+    @app.get("/{full_path:path}", response_class=HTMLResponse, include_in_schema=False)
+    async def serve_spa(full_path: str):
+        """Serve SPA for all non-API routes (enables client-side routing)"""
+        # Don't intercept API routes
+        if full_path.startswith("api/"):
+            return {"detail": "Not found"}, 404
+        if full_path in ["docs", "redoc", "openapi.json"]:
+            return {"detail": "Not found"}, 404
+        
+        # Serve index.html for SPA routing
+        try:
+            with open(frontend_dist_path / "index.html", "r", encoding="utf-8") as f:
+                return f.read()
+        except Exception as e:
+            logger.error(f"Error serving index.html: {e}")
+            return "<h1>Frontend not available</h1>"
+
+else:
+    logger.warning(f"Frontend dist NOT found at {frontend_dist_path}")
+    logger.warning("Build frontend with: cd frontend && npm run build")
+
+
+@app.get("/api-docs", response_class=HTMLResponse, include_in_schema=False)
+async def root_old():
     """
     Welcome page for EagleChair API
     """

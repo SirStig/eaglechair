@@ -40,6 +40,11 @@ class StaticContentExporter:
         self.data_dir = self.frontend_path / "src" / "data"
         self.content_file = self.data_dir / "contentData.js"
         
+        # Also track dist directory for production builds
+        self.dist_dir = self.frontend_path / "dist"
+        self.dist_data_dir = self.dist_dir / "data"
+        self.dist_content_file = self.dist_data_dir / "contentData.js"
+        
         # Ensure data directory exists
         self.data_dir.mkdir(parents=True, exist_ok=True)
         
@@ -167,6 +172,7 @@ class StaticContentExporter:
         Export all CMS content to contentData.js file.
         
         This is the main method called after content updates.
+        Writes to both src/data (for dev) and dist/data (for production).
         
         Args:
             content_data: Dictionary containing all content sections:
@@ -190,14 +196,14 @@ class StaticContentExporter:
             # Generate the JavaScript file content
             js_content = self._generate_js_file(content_data)
             
-            # Write to file with atomic operation
-            temp_file = self.content_file.with_suffix('.tmp')
+            # Write to src/data (for development)
+            self._write_content_file(self.content_file, js_content)
             
-            with open(temp_file, 'w', encoding='utf-8') as f:
-                f.write(js_content)
-            
-            # Atomic rename
-            temp_file.replace(self.content_file)
+            # Write to dist/data (for production builds) if dist exists
+            if self.dist_dir.exists():
+                self.dist_data_dir.mkdir(parents=True, exist_ok=True)
+                self._write_content_file(self.dist_content_file, js_content)
+                logger.info(f"Also exported to production dist: {self.dist_content_file}")
             
             # Update cache for easier reading
             self._update_cache(content_data)
@@ -208,6 +214,22 @@ class StaticContentExporter:
         except Exception as e:
             logger.error(f"Failed to export content: {e}", exc_info=True)
             return False
+    
+    def _write_content_file(self, file_path: Path, content: str):
+        """
+        Write content to file with atomic operation.
+        
+        Args:
+            file_path: Path to write to
+            content: Content to write
+        """
+        temp_file = file_path.with_suffix('.tmp')
+        
+        with open(temp_file, 'w', encoding='utf-8') as f:
+            f.write(content)
+        
+        # Atomic rename
+        temp_file.replace(file_path)
     
     def _generate_js_file(self, content_data: Dict[str, Any]) -> str:
         """

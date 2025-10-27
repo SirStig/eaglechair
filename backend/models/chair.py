@@ -393,6 +393,34 @@ class ProductVariation(Base):
         return f"<ProductVariation(id={self.id}, sku={self.sku}, product_id={self.product_id})>"
 
 
+class ProductImage(Base):
+    """
+    Standalone product image records for admin management
+    This complements the Chair.images JSON for granular CRUD in admin APIs
+    """
+    __tablename__ = "product_images"
+
+    id = Column(Integer, primary_key=True, index=True)
+
+    # Relationships
+    product_id = Column(Integer, ForeignKey("chairs.id", ondelete="CASCADE"), nullable=False)
+    product = relationship("Chair", backref="image_records")
+
+    variation_id = Column(Integer, ForeignKey("product_variations.id", ondelete="SET NULL"), nullable=True)
+    # Use a distinct backref name to avoid clashing with ProductVariation.images JSON column
+    variation = relationship("ProductVariation", backref="variation_images")
+
+    # Image data
+    image_url = Column(String(500), nullable=False)
+    image_type = Column(String(50), nullable=False, default="gallery")  # primary|hover|gallery|side|front|back|detail
+    alt_text = Column(String(255), nullable=True)
+    display_order = Column(Integer, nullable=False, default=0)
+    is_active = Column(Boolean, nullable=False, default=True)
+
+    def __repr__(self) -> str:
+        return f"<ProductImage(id={self.id}, product_id={self.product_id}, type={self.image_type})>"
+
+
 class CustomOption(Base):
     """
     Custom options/add-ons for products

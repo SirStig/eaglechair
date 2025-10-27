@@ -1,5 +1,6 @@
 import { api, IS_DEMO_MODE } from '../config/apiClient';
 import { demoProducts, demoCategories } from '../data/demoData';
+import { transformProducts, transformProduct } from '../utils/apiHelpers';
 
 /**
  * Product Service
@@ -10,7 +11,7 @@ import { demoProducts, demoCategories } from '../data/demoData';
 export const productService = {
   /**
    * Get all products with optional filters
-   * @param {Object} params - Query parameters (category, search, sort, page, limit)
+   * @param {Object} params - Query parameters (category_id, search, sort, page, limit)
    * @returns {Promise<Object>} Products and metadata
    */
   getProducts: async (params = {}) => {
@@ -18,11 +19,17 @@ export const productService = {
       // Demo mode - return filtered demo data
       let products = [...demoProducts];
       
-      // Apply filters
-      if (params.category) {
-        products = products.filter(p => 
-          p.category.toLowerCase() === params.category.toLowerCase()
-        );
+      // Apply filters (handle both old 'category' and new 'category_id' params)
+      const categoryFilter = params.category_id || params.category;
+      if (categoryFilter) {
+        products = products.filter(p => {
+          // Support both category_id (new) and category (legacy)
+          if (typeof categoryFilter === 'number') {
+            return p.category_id === categoryFilter;
+          } else {
+            return p.category?.toLowerCase() === categoryFilter.toLowerCase();
+          }
+        });
       }
       
       if (params.subcategory) {
@@ -38,6 +45,16 @@ export const productService = {
           p.description.toLowerCase().includes(searchLower)
         );
       }
+
+      // Filter by is_active
+      if (params.is_active !== undefined) {
+        products = products.filter(p => p.is_active === params.is_active);
+      }
+
+      // Filter by is_featured
+      if (params.is_featured) {
+        products = products.filter(p => p.is_featured);
+      }
       
       // Apply sorting
       switch (params.sort) {
@@ -47,26 +64,100 @@ export const productService = {
         case 'name-desc':
           products.sort((a, b) => b.name.localeCompare(a.name));
           break;
-        case 'featured':
-          products.sort((a, b) => (b.featured ? 1 : 0) - (a.featured ? 1 : 0));
+        case 'price-asc':
+          products.sort((a, b) => (a.base_price || 0) - (b.base_price || 0));
           break;
+        case 'price-desc':
+          products.sort((a, b) => (b.base_price || 0) - (a.base_price || 0));
+          break;
+        case 'featured':
+          products.sort((a, b) => (b.is_featured ? 1 : 0) - (a.is_featured ? 1 : 0));
+          break;
+        case 'display_order':
+          products.sort((a, b) => (a.display_order || 999) - (b.display_order || 999));
+          break;
+        default:
+          // Default sort by display_order then by name
+          products.sort((a, b) => {
+            const orderDiff = (a.display_order || 999) - (b.display_order || 999);
+            return orderDiff !== 0 ? orderDiff : a.name.localeCompare(b.name);
+          });
       }
+
+      // Apply pagination
+      const page = params.page || 1;
+      const limit = params.limit || 20;
+      const startIndex = (page - 1) * limit;
+      const endIndex = startIndex + limit;
+      const paginatedProducts = products.slice(startIndex, endIndex);
       
       return {
-        products,
+        data: transformProducts(paginatedProducts), // Transform to include legacy fields
         total: products.length,
-        page: params.page || 1,
-        limit: params.limit || 20,
+        page,
+        limit,
+        pages: Math.ceil(products.length / limit),
       };
     }
     
     // Real API mode
-    return await api.get('/api/v1/products', { params });
+    // Backend uses 'per_page' instead of 'limit', handle sorting client-side
+    const { sort, limit, ...apiParams } = params;
+    
+    // Map limit to per_page for backend
+    if (limit) {
+      apiParams.per_page = limit;
+    }
+    
+    const response = await api.get('/api/v1/products', { params: apiParams });
+    
+    // Backend returns PaginatedResponse[ChairResponse]:
+    // { items: [...], total: int, page: int, per_page: int, total_pages: int, has_next: bool, has_prev: bool }
+    let products = response.items || [];
+    
+    // Apply client-side sorting if sort param was provided
+    if (sort) {
+      switch (sort) {
+        case 'name-asc':
+          products.sort((a, b) => a.name.localeCompare(b.name));
+          break;
+        case 'name-desc':
+          products.sort((a, b) => b.name.localeCompare(a.name));
+          break;
+        case 'price-asc':
+          products.sort((a, b) => (a.base_price || 0) - (b.base_price || 0));
+          break;
+        case 'price-desc':
+          products.sort((a, b) => (b.base_price || 0) - (a.base_price || 0));
+          break;
+        case 'featured':
+          products.sort((a, b) => (b.is_featured ? 1 : 0) - (a.is_featured ? 1 : 0));
+          break;
+        case 'display_order':
+          products.sort((a, b) => (a.display_order || 999) - (b.display_order || 999));
+          break;
+        default:
+          // Default sort already applied by backend
+          break;
+      }
+    }
+    
+    // Transform products to include legacy fields for backward compatibility
+    // Return in expected format: { data: [...], total, page, limit/per_page, pages/total_pages }
+    return {
+      data: transformProducts(products),
+      total: response.total || 0,
+      page: response.page || 1,
+      limit: response.per_page || params.per_page || 20,
+      pages: response.total_pages || 0,
+      has_next: response.has_next || false,
+      has_prev: response.has_prev || false,
+    };
   },
 
   /**
-   * Get single product by ID
-   * @param {string|number} id - Product ID
+   * Get single product by ID or slug
+   * @param {string|number} id - Product ID or slug
    * @returns {Promise<Object>} Product details
    */
   getProductById: async (id) => {
@@ -76,15 +167,35 @@ export const productService = {
         throw { message: 'Product not found', status: 404 };
       }
       
-      // Get related products
+      // Get related products (same category, different product)
       const related = demoProducts
-        .filter(p => p.category === product.category && p.id !== product.id)
+        .filter(p => p.category_id === product.category_id && p.id !== product.id && p.is_active)
         .slice(0, 4);
       
-      return { product, related };
+      return { 
+        data: transformProduct(product),
+        related: transformProducts(related)
+      };
     }
     
-    return await api.get(`/api/v1/products/${id}`);
+    // Determine if ID is numeric or a slug
+    const isNumericId = !isNaN(parseInt(id)) && parseInt(id).toString() === id.toString();
+    
+    // Use appropriate endpoint
+    const endpoint = isNumericId 
+      ? `/api/v1/products/${id}` 
+      : `/api/v1/products/slug/${id}`;
+    
+    const response = await api.get(endpoint);
+    
+    // Backend returns ChairDetailResponse directly (not wrapped)
+    // ChairDetailResponse includes: product data + category + related_products
+    const productData = response;
+    
+    return {
+      data: transformProduct(productData),
+      related: productData.related_products ? transformProducts(productData.related_products) : []
+    };
   },
 
   /**
@@ -96,7 +207,11 @@ export const productService = {
       return demoCategories;
     }
     
-    return await api.get('/api/v1/categories');
+    // Backend returns list[CategoryResponse] directly (not paginated)
+    const response = await api.get('/api/v1/categories');
+    
+    // Response is an array of categories
+    return Array.isArray(response) ? response : [];
   },
 
   /**
@@ -107,14 +222,45 @@ export const productService = {
   searchProducts: async (query) => {
     if (IS_DEMO_MODE) {
       const searchLower = query.toLowerCase();
-      return demoProducts.filter(p =>
-        p.name.toLowerCase().includes(searchLower) ||
-        p.description.toLowerCase().includes(searchLower) ||
-        p.category.toLowerCase().includes(searchLower)
+      const results = demoProducts.filter(p =>
+        p.is_active && (
+          p.name.toLowerCase().includes(searchLower) ||
+          p.description.toLowerCase().includes(searchLower) ||
+          p.category?.toLowerCase().includes(searchLower) ||
+          p.model_number?.toLowerCase().includes(searchLower)
+        )
       );
+      return transformProducts(results);
     }
     
-    return await api.get('/api/v1/products/search', { params: { q: query } });
+    // Backend returns list[ChairResponse] directly (not paginated)
+    const response = await api.get('/api/v1/products/search', { params: { q: query } });
+    
+    // Response is an array of products
+    return transformProducts(Array.isArray(response) ? response : []);
+  },
+
+  /**
+   * Get featured products
+   * @param {number} limit - Maximum number of products to return
+   * @returns {Promise<Array>} Featured products
+   */
+  getFeaturedProducts: async (limit = 6) => {
+    if (IS_DEMO_MODE) {
+      const featured = demoProducts
+        .filter(p => p.is_featured && p.is_active)
+        .slice(0, limit);
+      return transformProducts(featured);
+    }
+
+    // Backend returns PaginatedResponse, need to map per_page
+    const response = await api.get('/api/v1/products', { 
+      params: { featured: true, per_page: limit } 
+    });
+    
+    // Extract items from paginated response
+    const products = response.items || [];
+    return transformProducts(products);
   },
 };
 

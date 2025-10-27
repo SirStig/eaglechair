@@ -4,11 +4,11 @@ Product Schemas - Version 1
 Schemas for chairs, categories, finishes, and upholsteries
 """
 
-from typing import Optional
-from pydantic import BaseModel, Field
+from typing import Any, List, Optional, Union
+
+from pydantic import BaseModel, Field, field_validator
 
 from backend.api.v1.schemas.common import TimestampSchema
-
 
 # ============================================================================
 # Category Schemas
@@ -50,6 +50,7 @@ class CategoryUpdate(BaseModel):
 class CategoryResponse(CategoryBase, TimestampSchema):
     """Schema for category response"""
     id: int
+    parent_slug: Optional[str] = None  # Computed from parent relationship
     
     class Config:
         from_attributes = True
@@ -172,6 +173,14 @@ class UpholsteryResponse(UpholsteryBase, TimestampSchema):
 # Chair/Product Schemas
 # ============================================================================
 
+class ProductImageItem(BaseModel):
+    """Structured product image item"""
+    url: str
+    type: Optional[str] = None  # side|front|gallery|primary|hover|detail
+    order: Optional[int] = None
+    alt: Optional[str] = None
+
+
 class ChairBase(BaseModel):
     """Base chair schema"""
     model_number: str = Field(..., max_length=100)
@@ -207,8 +216,8 @@ class ChairBase(BaseModel):
     available_finishes: Optional[list[int]] = None
     available_upholsteries: Optional[list[int]] = None
     
-    # Images
-    images: list[str]
+    # Images (accepts either list of URLs or list of structured items)
+    images: Union[List[str], List[ProductImageItem]]
     primary_image: Optional[str] = Field(None, max_length=500)
     thumbnail: Optional[str] = Field(None, max_length=500)
     
@@ -244,6 +253,19 @@ class ChairBase(BaseModel):
     is_new: bool = False
     is_custom_only: bool = False
     display_order: int = 0
+    
+    model_config = {"from_attributes": True}
+    
+    @field_validator('images', mode='before')
+    @classmethod
+    def validate_images(cls, v):
+        """Ensure images is always a list, even if it's an empty string or None"""
+        if v is None or v == '' or v == '[]':
+            return []
+        if isinstance(v, list):
+            return v
+        # If it's a string like '[]' or JSON, return empty list
+        return []
 
 
 class ChairCreate(ChairBase):
@@ -277,7 +299,8 @@ class ChairUpdate(BaseModel):
     features: Optional[list[str]] = None
     available_finishes: Optional[list[int]] = None
     available_upholsteries: Optional[list[int]] = None
-    images: Optional[list[str]] = None
+    # Accept both URL lists and structured items when updating
+    images: Optional[Union[List[str], List[ProductImageItem]]] = None
     primary_image: Optional[str] = Field(None, max_length=500)
     thumbnail: Optional[str] = Field(None, max_length=500)
     dimensional_drawing_url: Optional[str] = Field(None, max_length=500)
@@ -309,8 +332,7 @@ class ChairResponse(ChairBase, TimestampSchema):
     view_count: int
     quote_count: int
     
-    class Config:
-        from_attributes = True
+    model_config = {"from_attributes": True}
 
 
 class ChairDetailResponse(ChairResponse):

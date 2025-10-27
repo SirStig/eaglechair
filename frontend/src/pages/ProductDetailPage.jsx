@@ -1,25 +1,29 @@
 import { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
-import { motion, AnimatePresence } from 'framer-motion';
+import { AnimatePresence } from 'framer-motion';
 import Button from '../components/ui/Button';
 import Tag from '../components/ui/Tag';
 import LoadingSpinner from '../components/ui/LoadingSpinner';
 import ProductCard from '../components/ui/ProductCard';
 import EditableWrapper from '../components/admin/EditableWrapper';
 import { useCartStore } from '../store/cartStore';
-import { demoProducts, IS_DEMO } from '../data/demoData';
 import { updateProduct } from '../services/contentService';
+import productService from '../services/productService';
+import { getProductImages } from '../utils/apiHelpers';
 import logger from '../utils/logger';
 
 const CONTEXT = 'ProductDetailPage';
 
 const ProductDetailPage = () => {
-  const { id } = useParams();
+  const { id, categorySlug, subcategorySlug, productSlug } = useParams();
   const navigate = useNavigate();
   const { addItem } = useCartStore();
   const customizeRef = useRef(null);
   // Always use light theme on product pages
   const isLightTheme = true;
+  
+  // Determine product identifier - priority: productSlug > id
+  const productId = productSlug || id;
   
   const [product, setProduct] = useState(null);
   const [relatedProducts, setRelatedProducts] = useState([]);
@@ -32,51 +36,51 @@ const ProductDetailPage = () => {
 
   useEffect(() => {
     loadProduct();
-  }, [id]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [productId]);
 
   const loadProduct = async () => {
     setLoading(true);
     
-    if (IS_DEMO) {
-      const foundProduct = demoProducts.find(p => p.id === parseInt(id) || p.slug === id);
+    try {
+      logger.info(CONTEXT, `Loading product with ID/slug: ${productId}`);
       
-      if (foundProduct) {
-        setProduct(foundProduct);
-        logger.info(CONTEXT, `Loaded product: ${foundProduct.name}`);
+      // Use productService which handles both demo and real API modes
+      const response = await productService.getProductById(productId);
+      
+      logger.debug(CONTEXT, 'Product service response:', response);
+      
+      if (response && response.data) {
+        setProduct(response.data);
+        setRelatedProducts(response.related || []);
         
-        // Find related products in same category
-        const related = demoProducts
-          .filter(p => p.category === foundProduct.category && p.id !== foundProduct.id)
-          .slice(0, 4);
-        setRelatedProducts(related);
+        logger.info(CONTEXT, `Successfully loaded product: ${response.data.name}`);
         
         // Initialize selections
-        if (foundProduct.customizations?.finishes?.[0]) {
-          setSelectedFinish(foundProduct.customizations.finishes[0]);
+        if (response.data.customizations?.finishes?.[0]) {
+          setSelectedFinish(response.data.customizations.finishes[0]);
+        } else if (response.data.customizations?.colors?.[0]) {
+          setSelectedFinish(response.data.customizations.colors[0]);
         }
-        if (foundProduct.customizations?.fabrics?.[0]) {
-          setSelectedUpholstery(foundProduct.customizations.fabrics[0]);
+        
+        if (response.data.customizations?.fabrics?.[0]) {
+          setSelectedUpholstery(response.data.customizations.fabrics[0]);
+        } else if (response.data.customizations?.upholstery?.[0]) {
+          setSelectedUpholstery(response.data.customizations.upholstery[0]);
         }
       } else {
+        logger.warn(CONTEXT, `Product not found: ${productId}`, response);
         navigate('/products');
       }
+    } catch (error) {
+      logger.error(CONTEXT, `Error loading product ${productId}:`, error);
+      // Don't navigate away immediately if it's just a network error
+      // Only navigate if product truly doesn't exist (404)
+      if (error.status === 404 || error.message?.includes('not found')) {
+        navigate('/products');
+      }
+    } finally {
       setLoading(false);
-    } else {
-      try {
-        const response = await fetch(`/api/v1/products/${id}`);
-        if (response.ok) {
-          const data = await response.json();
-          setProduct(data.product);
-          setRelatedProducts(data.related || []);
-        } else {
-          navigate('/products');
-        }
-      } catch (error) {
-        logger.error(CONTEXT, 'Error loading product:', error);
-        navigate('/products');
-      } finally {
-        setLoading(false);
-      }
     }
   };
 
@@ -157,7 +161,8 @@ const ProductDetailPage = () => {
     );
   }
 
-  const images = product.images || [product.image];
+  // Get properly formatted image URLs from the product
+  const images = getProductImages(product);
 
   return (
     <div className={`min-h-screen  ${
@@ -187,10 +192,20 @@ const ProductDetailPage = () => {
             <Link to="/" className="hover:text-primary-500">Home</Link>
             {' '}/{' '}
             <Link to="/products" className="hover:text-primary-500">Products</Link>
-            {' '}/{' '}
-            <Link to={`/products?category=${product.category}`} className="hover:text-primary-500">
-              {product.category}
-            </Link>
+            {product.category && (
+              <>
+                {' '}/{' '}
+                <Link 
+                  to={typeof product.category === 'object' && product.category.slug 
+                    ? `/products/category/${product.category.parent_slug || product.category.slug}`
+                    : '/products'
+                  } 
+                  className="hover:text-primary-500"
+                >
+                  {typeof product.category === 'object' ? product.category.name : product.category}
+                </Link>
+              </>
+            )}
             {' '}/{' '}
             <span className={isLightTheme ? 'text-slate-800' : 'text-slate-800'}>{product.name}</span>
           </div>

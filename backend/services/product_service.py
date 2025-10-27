@@ -155,11 +155,13 @@ class ProductService:
         Returns:
             Paginated response dictionary
         """
-        query = select(Chair).options(selectinload(Chair.category))
+        query = select(Chair).options(
+            selectinload(Chair.category).selectinload(Category.parent)
+        )
         
         # Apply filters
         if not include_inactive:
-            query = query.where(Chair.is_active == True)
+            query = query.where(Chair.is_active)
         
         if category_id:
             query = query.where(Chair.category_id == category_id)
@@ -186,6 +188,11 @@ class ProductService:
         
         # Paginate
         result = await paginate(db, query, pagination)
+        
+        # Populate parent_slug for all products with categories
+        for product in result['items']:
+            if product.category and product.category.parent:
+                product.category.parent_slug = product.category.parent.slug
         
         logger.info(
             f"Retrieved {len(result['items'])} products (page {pagination.page}, "
@@ -216,13 +223,17 @@ class ProductService:
         """
         result = await db.execute(
             select(Chair)
-            .options(selectinload(Chair.category))
+            .options(selectinload(Chair.category).selectinload(Category.parent))
             .where(Chair.id == product_id)
         )
         product = result.scalar_one_or_none()
         
         if not product:
             raise ResourceNotFoundError(resource_type="Product", resource_id=product_id)
+        
+        # Populate parent_slug for frontend routing
+        if product.category and product.category.parent:
+            product.category.parent_slug = product.category.parent.slug
         
         # Increment view count
         if increment_view:
@@ -282,13 +293,17 @@ class ProductService:
         """
         result = await db.execute(
             select(Chair)
-            .options(selectinload(Chair.category))
+            .options(selectinload(Chair.category).selectinload(Category.parent))
             .where(Chair.slug == slug)
         )
         product = result.scalar_one_or_none()
         
         if not product:
             raise ResourceNotFoundError(resource_type="Product", resource_id=slug)
+        
+        # Populate parent_slug for frontend routing
+        if product.category and product.category.parent:
+            product.category.parent_slug = product.category.parent.slug
         
         return product
     

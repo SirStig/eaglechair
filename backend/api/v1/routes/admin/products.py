@@ -20,8 +20,9 @@ from backend.api.v1.schemas.common import MessageResponse
 from backend.api.v1.schemas.product import ChairResponse
 from backend.core.exceptions import ResourceNotFoundError, ValidationError
 from backend.database.base import get_db
+from backend.models.chair import Chair as Product
+from backend.models.chair import ProductImage, ProductVariation
 from backend.models.company import AdminRole, AdminUser
-from backend.models.product import ProductImage, ProductVariation
 from backend.services.admin_service import AdminService
 
 logger = logging.getLogger(__name__)
@@ -247,7 +248,7 @@ async def create_product_variation(
     """
     from sqlalchemy import select
 
-    from backend.models.product import Product
+    # Product model already imported as `Product`
     
     logger.info(f"Admin {admin.username} creating variation for product {product_id}")
     
@@ -466,7 +467,7 @@ async def add_product_image(
     """
     from sqlalchemy import select
 
-    from backend.models.product import Product
+    # Product model already imported as `Product`
     
     logger.info(f"Admin {admin.username} adding image to product {product_id}")
     

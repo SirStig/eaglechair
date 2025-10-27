@@ -3,6 +3,7 @@
 export const IS_DEMO = import.meta.env.VITE_DEMO_MODE === 'true';
 
 // Demo Products - Based on actual Eagle Chair products
+// Structure matches backend ChairResponse schema
 export const demoProducts = [
   // ===== CHAIRS - WOOD =====
   {
@@ -10,26 +11,20 @@ export const demoProducts = [
     name: "Model 6010 Wood Chair",
     slug: "model-6010-wood-chair",
     model_number: "6010",
-    category: "chairs",
-    subcategory: "Wood",
-    type: "Dining Chair",
-    tags: ["Commercial Grade", "European Beech", "Indoor"],
-    price: 89.99,
-    priceRange: { min: 89.99, max: 129.99 },
+    category_id: 1, // Chairs
+    base_price: 8999, // $89.99 in cents
+    msrp: 12999, // $129.99 in cents
     short_description: "Classic European beech wood dining chair with upholstered seat.",
     full_description: "European Alpine beech construction with FSC certification. Commercial-grade design perfect for restaurants and dining spaces.",
-    description: "Classic European beech wood dining chair with upholstered seat. FSC certified sustainable wood.",
-    image: "https://www.eaglechair.com/wp-content/uploads/2013/04/6010V-antiqued-2015-v345-copy.png",
-    imageAngle: "https://www.eaglechair.com/wp-content/uploads/2013/04/6010V-antiqued-2015-v345-copy.png",
-    imageFront: "https://www.eaglechair.com/wp-content/uploads/2013/04/6010V-antiqued-2015-v345-copy.png",
-    images: [
-      "https://www.eaglechair.com/wp-content/uploads/2013/04/6010V-antiqued-2015-v345-copy.png",
-    ],
+    
+    // Dimensions
     width: 18,
     depth: 20,
     height: 36,
     seat_height: 18,
     weight: 12,
+    
+    // Materials
     frame_material: "European Alpine Beech",
     features: [
       "FSC certified European beech",
@@ -37,109 +32,165 @@ export const demoProducts = [
       "Multiple finish options",
       "Upholstered seat available"
     ],
-    customizations: {
-      finishes: ["Natural", "Walnut", "Espresso", "Antique", "Cherry"],
-      fabrics: ["Commercial Vinyl", "Grade A Fabric"],
-      colors: ["Black", "Brown", "Tan", "Gray"]
-    },
+    
+    // Images (using string array format)
+    images: [
+      "https://www.eaglechair.com/wp-content/uploads/2013/04/6010V-antiqued-2015-v345-copy.png",
+    ],
+    primary_image: "https://www.eaglechair.com/wp-content/uploads/2013/04/6010V-antiqued-2015-v345-copy.png",
+    
+    // Inventory
     stock_status: "In Stock",
     lead_time_days: 14,
-    isNew: false,
-    featured: true,
+    minimum_order_quantity: 1,
+    
+    // Certifications
+    flame_certifications: [],
+    green_certifications: ["FSC Certified"],
+    ada_compliant: false,
+    
+    // Usage
     is_outdoor_suitable: false,
+    
+    // Status
+    is_active: true,
+    is_featured: true,
+    is_new: false,
+    is_custom_only: false,
+    display_order: 1,
+    
+    // Metadata
+    view_count: 0,
+    quote_count: 0,
+    created_at: "2024-01-01T00:00:00Z",
+    updated_at: "2024-01-01T00:00:00Z",
+    
+    // Legacy fields for compatibility (can be removed later)
+    category: "chairs",
+    subcategory: "Wood",
+    type: "Dining Chair",
+    tags: ["Commercial Grade", "European Beech", "Indoor"],
+    price: 89.99,
+    priceRange: { min: 89.99, max: 129.99 },
   },
   {
     id: 2,
     name: "Model 6016 Wood Chair",
     slug: "model-6016-wood-chair",
     model_number: "6016",
-    category: "chairs",
-    subcategory: "Wood",
-    type: "Dining Chair",
-    tags: ["Commercial Grade", "European Beech", "Indoor"],
-    price: 95.99,
-    priceRange: { min: 95.99, max: 139.99 },
+    category_id: 1,
+    base_price: 9599,
+    msrp: 13999,
     short_description: "European beech wood chair with elegant design.",
-    description: "Premium European beech construction with commercial-grade durability. Perfect for upscale dining establishments.",
-    image: "https://www.eaglechair.com/wp-content/uploads/2013/04/6016P-v87.jpg",
-    imageAngle: "https://www.eaglechair.com/wp-content/uploads/2013/04/6016P-v87.jpg",
-    imageFront: "https://www.eaglechair.com/wp-content/uploads/2013/04/6016P-v87.jpg",
-    images: ["https://www.eaglechair.com/wp-content/uploads/2013/04/6016P-v87.jpg"],
+    full_description: "Premium European beech construction with commercial-grade durability. Perfect for upscale dining establishments.",
+    
     seat_height: 18,
     weight: 14,
     frame_material: "European Alpine Beech",
-    customizations: {
-      finishes: ["Natural", "Walnut", "Cherry", "Mahogany"],
-      fabrics: ["Commercial Vinyl", "Grade A Fabric"],
-      colors: ["Black", "Brown", "Tan"]
-    },
+    
+    images: ["https://www.eaglechair.com/wp-content/uploads/2013/04/6016P-v87.jpg"],
+    primary_image: "https://www.eaglechair.com/wp-content/uploads/2013/04/6016P-v87.jpg",
+    
     stock_status: "In Stock",
     lead_time_days: 14,
-    featured: true,
+    minimum_order_quantity: 1,
+    
     is_outdoor_suitable: false,
+    is_active: true,
+    is_featured: true,
+    is_new: false,
+    is_custom_only: false,
+    display_order: 2,
+    view_count: 0,
+    quote_count: 0,
+    created_at: "2024-01-01T00:00:00Z",
+    updated_at: "2024-01-01T00:00:00Z",
+    
+    // Legacy fields
+    category: "chairs",
+    subcategory: "Wood",
+    price: 95.99,
+    priceRange: { min: 95.99, max: 139.99 },
   },
   {
     id: 3,
     name: "Model 6020 Wood Chair",
     slug: "model-6020-wood-chair",
     model_number: "6020",
-    category: "chairs",
-    subcategory: "Wood",
-    type: "Dining Chair",
-    tags: ["Commercial Grade", "European Beech", "Indoor"],
-    price: 92.99,
-    priceRange: { min: 92.99, max: 135.99 },
+    category_id: 1,
+    base_price: 9299,
+    msrp: 13599,
     short_description: "Classic vertical slat back design with European beech construction.",
-    description: "Premium European Alpine beech dining chair with traditional vertical slat back. FSC certified sustainable wood, commercial-grade durability.",
-    image: "https://www.eaglechair.com/wp-content/uploads/2013/04/6020P-v31.jpg",
-    imageAngle: "https://www.eaglechair.com/wp-content/uploads/2013/04/6020P-v31.jpg",
-    imageFront: "https://www.eaglechair.com/wp-content/uploads/2013/04/6020P-v32.jpg",
-    images: ["https://www.eaglechair.com/wp-content/uploads/2013/04/6020P-v31.jpg", "https://www.eaglechair.com/wp-content/uploads/2013/04/6020P-v32.jpg"],
+    full_description: "Premium European Alpine beech dining chair with traditional vertical slat back. FSC certified sustainable wood, commercial-grade durability.",
+    
     seat_height: 18,
     weight: 15,
     frame_material: "European Alpine Beech",
-    customizations: {
-      finishes: ["Natural", "Walnut", "Cherry", "Dark Stain"],
-      fabrics: ["Wood Seat", "Padded Seat"],
-      colors: ["Natural", "Brown", "Black"]
-    },
+    
+    images: [
+      "https://www.eaglechair.com/wp-content/uploads/2013/04/6020P-v31.jpg",
+      "https://www.eaglechair.com/wp-content/uploads/2013/04/6020P-v32.jpg"
+    ],
+    primary_image: "https://www.eaglechair.com/wp-content/uploads/2013/04/6020P-v31.jpg",
+    
     stock_status: "In Stock",
     lead_time_days: 14,
-    featured: false,
+    minimum_order_quantity: 1,
+    
     is_outdoor_suitable: false,
+    is_active: true,
+    is_featured: false,
+    is_new: false,
+    is_custom_only: false,
+    display_order: 3,
+    view_count: 0,
+    quote_count: 0,
+    created_at: "2024-01-01T00:00:00Z",
+    updated_at: "2024-01-01T00:00:00Z",
+    
+    // Legacy fields
+    category: "chairs",
+    subcategory: "Wood",
+    price: 92.99,
   },
   {
     id: 4,
     name: "Model 6088 Wood Chair",
     slug: "model-6088-wood-chair",
     model_number: "6088",
-    category: "chairs",
-    subcategory: "Wood",
-    type: "Dining Chair",
-    tags: ["Commercial Grade", "European Beech", "Indoor", "Wine Cellar"],
-    price: 99.99,
-    priceRange: { min: 99.99, max: 149.99 },
+    category_id: 1,
+    base_price: 9999,
+    msrp: 14999,
     short_description: "Elegant curved back design, perfect for wine cellars and upscale dining.",
-    description: "European Alpine beech chair with distinctive curved back. FSC certified sustainable wood. Ideal for wine cellars, fine dining, and upscale restaurants.",
-    image: "https://www.eaglechair.com/wp-content/uploads/2019/07/6088P-gray-wine-cellar-v37-copy.png",
-    imageAngle: "https://www.eaglechair.com/wp-content/uploads/2019/07/6088P-gray-wine-cellar-v37-copy.png",
-    imageFront: "https://www.eaglechair.com/wp-content/uploads/2019/07/6088P-gray-wine-cellar-v37-copy.png",
-    images: ["https://www.eaglechair.com/wp-content/uploads/2019/07/6088P-gray-wine-cellar-v37-copy.png"],
+    full_description: "European Alpine beech chair with distinctive curved back. FSC certified sustainable wood. Ideal for wine cellars, fine dining, and upscale restaurants.",
+    
     seat_height: 18,
     weight: 17,
     frame_material: "European Alpine Beech",
-    customizations: {
-      finishes: ["Gray Stain", "Natural", "Dark Walnut", "Espresso"],
-      fabrics: ["Wood Seat", "Padded Seat"],
-      colors: ["Gray", "Natural", "Dark Brown", "Black"]
-    },
+    
+    images: ["https://www.eaglechair.com/wp-content/uploads/2019/07/6088P-gray-wine-cellar-v37-copy.png"],
+    primary_image: "https://www.eaglechair.com/wp-content/uploads/2019/07/6088P-gray-wine-cellar-v37-copy.png",
+    
     stock_status: "In Stock",
     lead_time_days: 14,
-    featured: true,
+    minimum_order_quantity: 1,
+    
     is_outdoor_suitable: false,
+    is_active: true,
+    is_featured: true,
+    is_new: false,
+    is_custom_only: false,
+    display_order: 4,
+    view_count: 0,
+    quote_count: 0,
+    created_at: "2024-01-01T00:00:00Z",
+    updated_at: "2024-01-01T00:00:00Z",
+    
+    // Legacy fields
+    category: "chairs",
+    subcategory: "Wood",
+    price: 99.99,
   },
-
-  // ===== CHAIRS - METAL =====
 
   // ===== BARSTOOLS - WOOD =====
   {
@@ -147,91 +198,119 @@ export const demoProducts = [
     name: "Model 5310 Wood Barstool",
     slug: "model-5310-wood-barstool",
     model_number: "5310",
-    category: "barstools",
-    subcategory: "Wood",
-    type: "Bar Stool",
-    tags: ["Commercial Grade", "European Beech", "Indoor"],
-    price: 129.99,
-    priceRange: { min: 129.99, max: 179.99 },
+    category_id: 2, // Barstools
+    base_price: 12999,
+    msrp: 17999,
     short_description: "European beech barstool with elegant design and FSC certification.",
-    description: "Premium European Alpine beech barstool with commercial-grade construction. FSC certified sustainable wood. Perfect for bars, restaurants, and counter seating.",
-    image: "https://www.eaglechair.com/wp-content/uploads/2019/05/5310P-Xanos-antiqued-v3115-copy-e1588268654510.png",
-    imageAngle: "https://www.eaglechair.com/wp-content/uploads/2019/05/5310P-Xanos-antiqued-v3115-copy-e1588268654510.png",
-    imageFront: "https://www.eaglechair.com/wp-content/uploads/2019/05/5310P-Xanos-antiqued-v3115-copy-e1588268654510.png",
-    images: ["https://www.eaglechair.com/wp-content/uploads/2019/05/5310P-Xanos-antiqued-v3115-copy-e1588268654510.png"],
+    full_description: "Premium European Alpine beech barstool with commercial-grade construction. FSC certified sustainable wood. Perfect for bars, restaurants, and counter seating.",
+    
     seat_height: 30,
     weight: 18,
     frame_material: "European Alpine Beech",
-    customizations: {
-      finishes: ["Antiqued", "Natural", "Walnut", "Espresso"],
-      seatOptions: ["Wood Seat", "Padded Seat"],
-      colors: ["Natural", "Brown", "Black"]
-    },
+    
+    images: ["https://www.eaglechair.com/wp-content/uploads/2019/05/5310P-Xanos-antiqued-v3115-copy-e1588268654510.png"],
+    primary_image: "https://www.eaglechair.com/wp-content/uploads/2019/05/5310P-Xanos-antiqued-v3115-copy-e1588268654510.png",
+    
     stock_status: "In Stock",
     lead_time_days: 14,
-    featured: true,
+    minimum_order_quantity: 1,
+    
     is_outdoor_suitable: false,
+    is_active: true,
+    is_featured: true,
+    is_new: false,
+    is_custom_only: false,
+    display_order: 7,
+    view_count: 0,
+    quote_count: 0,
+    created_at: "2024-01-01T00:00:00Z",
+    updated_at: "2024-01-01T00:00:00Z",
+    
+    // Legacy fields
+    category: "barstools",
+    subcategory: "Wood",
+    price: 129.99,
   },
   {
     id: 8,
     name: "Model 5311 Wood Barstool",
     slug: "model-5311-wood-barstool",
     model_number: "5311",
-    category: "barstools",
-    subcategory: "Wood",
-    type: "Bar Stool",
-    tags: ["Commercial Grade", "European Beech", "Indoor"],
-    price: 119.99,
-    priceRange: { min: 119.99, max: 169.99 },
+    category_id: 2,
+    base_price: 11999,
+    msrp: 16999,
     short_description: "European beech barstool with clean design and multiple finish options.",
-    description: "FSC certified European Alpine beech barstool with commercial durability. Available with wood or padded seat. Perfect for bars, cafes, and counter seating.",
-    image: "https://www.eaglechair.com/wp-content/uploads/2014/03/5311P-v65-copy.jpg",
-    imageAngle: "https://www.eaglechair.com/wp-content/uploads/2014/03/5311P-v65-copy.jpg",
-    imageFront: "https://www.eaglechair.com/wp-content/uploads/2014/03/5311P-v65-copy.jpg",
-    images: ["https://www.eaglechair.com/wp-content/uploads/2014/03/5311P-v65-copy.jpg"],
+    full_description: "FSC certified European Alpine beech barstool with commercial durability. Available with wood or padded seat. Perfect for bars, cafes, and counter seating.",
+    
     seat_height: 30,
     weight: 16,
     frame_material: "European Alpine Beech",
-    customizations: {
-      finishes: ["Natural", "Walnut", "Cherry", "Dark Stain"],
-      seatOptions: ["Wood Seat", "Padded Seat"],
-      colors: ["Natural", "Brown", "Black"]
-    },
+    
+    images: ["https://www.eaglechair.com/wp-content/uploads/2014/03/5311P-v65-copy.jpg"],
+    primary_image: "https://www.eaglechair.com/wp-content/uploads/2014/03/5311P-v65-copy.jpg",
+    
     stock_status: "In Stock",
     lead_time_days: 14,
-    featured: false,
+    minimum_order_quantity: 1,
+    
     is_outdoor_suitable: false,
+    is_active: true,
+    is_featured: false,
+    is_new: false,
+    is_custom_only: false,
+    display_order: 8,
+    view_count: 0,
+    quote_count: 0,
+    created_at: "2024-01-01T00:00:00Z",
+    updated_at: "2024-01-01T00:00:00Z",
+    
+    // Legacy fields
+    category: "barstools",
+    subcategory: "Wood",
+    price: 119.99,
   },
+  
   // ===== BARSTOOLS - METAL =====
   {
     id: 9,
     name: "Model 4405 Metal Barstool",
     slug: "model-4405-metal-barstool",
     model_number: "4405",
-    category: "barstools",
-    subcategory: "Metal",
-    type: "Bar Stool",
-    tags: ["Commercial Grade", "Modern", "Indoor/Outdoor"],
-    price: 109.99,
-    priceRange: { min: 109.99, max: 149.99 },
+    category_id: 2,
+    base_price: 10999,
+    msrp: 14999,
     short_description: "Commercial-grade metal barstool with sleek contemporary design.",
-    description: "Heavy-duty steel construction with powder-coated finish. Built with exceptional strength for commercial environments. Perfect for bars, restaurants, and cafes.",
-    image: "https://www.eaglechair.com/wp-content/uploads/2014/03/4405P-v81e-e1588692286256.jpg",
-    imageAngle: "https://www.eaglechair.com/wp-content/uploads/2014/03/4405P-v81e-e1588692286256.jpg",
-    imageFront: "https://www.eaglechair.com/wp-content/uploads/2014/03/4405P-v225-e1588692284793.jpg",
-    images: ["https://www.eaglechair.com/wp-content/uploads/2014/03/4405P-v81e-e1588692286256.jpg", "https://www.eaglechair.com/wp-content/uploads/2014/03/4405P.png"],
+    full_description: "Heavy-duty steel construction with powder-coated finish. Built with exceptional strength for commercial environments. Perfect for bars, restaurants, and cafes.",
+    
     seat_height: 30,
     weight: 15,
     frame_material: "Commercial Steel",
-    customizations: {
-      finishes: ["Black Powder Coat", "Chrome", "Bronze", "Silver"],
-      seatOptions: ["Metal Seat", "Padded Seat"],
-      colors: ["Black", "Chrome", "Bronze"]
-    },
+    
+    images: [
+      "https://www.eaglechair.com/wp-content/uploads/2014/03/4405P-v81e-e1588692286256.jpg",
+      "https://www.eaglechair.com/wp-content/uploads/2014/03/4405P.png"
+    ],
+    primary_image: "https://www.eaglechair.com/wp-content/uploads/2014/03/4405P-v81e-e1588692286256.jpg",
+    
     stock_status: "In Stock",
     lead_time_days: 7,
-    featured: true,
+    minimum_order_quantity: 1,
+    
     is_outdoor_suitable: true,
+    is_active: true,
+    is_featured: true,
+    is_new: false,
+    is_custom_only: false,
+    display_order: 9,
+    view_count: 0,
+    quote_count: 0,
+    created_at: "2024-01-01T00:00:00Z",
+    updated_at: "2024-01-01T00:00:00Z",
+    
+    // Legacy fields
+    category: "barstools",
+    subcategory: "Metal",
+    price: 109.99,
   },
   
   // ===== BOOTHS =====
@@ -240,114 +319,126 @@ export const demoProducts = [
     name: "Custom Upholstered Booth",
     slug: "custom-upholstered-booth",
     model_number: "Custom Booth",
-    category: "booths",
-    subcategory: "Upholstered",
-    type: "Booth",
-    tags: ["Custom", "Commercial Grade", "Indoor"],
-    price: 550.00,
-    priceRange: { min: 450.00, max: 950.00 },
+    category_id: 5, // Booths
+    base_price: 55000, // $550.00 in cents
+    msrp: 95000,
     short_description: "Custom manufactured booth seating with premium upholstery and solid construction.",
-    description: "Eagle Chair manufactures high-quality booths to each order. Custom sizes and configurations available. Solid hardwood frame with commercial-grade upholstery. Singles, doubles, banquettes, L-booths, U-booths, and specialty designs available.",
-    image: "https://www.eaglechair.com/wp-content/uploads/2020/10/8622-48-single-v468-1536x1536.jpg",
-    imageAngle: "https://www.eaglechair.com/wp-content/uploads/2020/10/8622-48-single-v468-1536x1536.jpg",
-    imageFront: "https://www.eaglechair.com/wp-content/uploads/2020/10/8622-48-single-v468-1536x1536.jpg",
-    images: ["https://www.eaglechair.com/wp-content/uploads/2020/10/8622-48-single-v468-1536x1536.jpg"],
+    full_description: "Eagle Chair manufactures high-quality booths to each order. Custom sizes and configurations available. Solid hardwood frame with commercial-grade upholstery. Singles, doubles, banquettes, L-booths, U-booths, and specialty designs available.",
+    
     width: 48,
     seat_height: 18,
     weight: 75,
     frame_material: "Solid Hardwood Frame",
-    customizations: {
-      styles: ["Single", "Double", "Banquette", "L-Booth", "U-Booth", "Corner"],
-      fabrics: ["Commercial Vinyl", "Premium Leather", "Grade A Fabric"],
-      colors: ["Black", "Brown", "Burgundy", "Navy", "Gray", "Custom"]
-    },
+    
+    images: ["https://www.eaglechair.com/wp-content/uploads/2020/10/8622-48-single-v468-1536x1536.jpg"],
+    primary_image: "https://www.eaglechair.com/wp-content/uploads/2020/10/8622-48-single-v468-1536x1536.jpg",
+    
     stock_status: "Made to Order",
     lead_time_days: 35,
-    featured: true,
+    minimum_order_quantity: 1,
+    
     is_outdoor_suitable: false,
+    is_active: true,
+    is_featured: true,
+    is_new: false,
+    is_custom_only: true,
+    display_order: 10,
+    view_count: 0,
+    quote_count: 0,
+    created_at: "2024-01-01T00:00:00Z",
+    updated_at: "2024-01-01T00:00:00Z",
+    
+    // Legacy fields
+    category: "booths",
+    subcategory: "Upholstered",
+    price: 550.00,
   },
   {
     id: 11,
     name: "Custom Wood-Core Laminate Table Top",
     slug: "custom-wood-core-laminate-table",
-    category: "tables",
-    subcategory: "Table Tops",
-    type: "Table Top",
-    tags: ["Custom", "Laminate", "Indoor"],
-    price: 195.00,
-    priceRange: { min: 145.00, max: 385.00 },
-    description: "Custom manufactured wood-core laminated table top. Extremely dense industrial particle board core with high-pressure laminate top and bottom. Any size can be made with various edge options including wood, rubber, aluminum, or padded edges.",
-    image: "https://www.eaglechair.com/wp-content/uploads/2023/05/370-768x762.png",
-    imageAngle: "https://www.eaglechair.com/wp-content/uploads/2023/05/370-768x762.png",
-    imageFront: "https://www.eaglechair.com/wp-content/uploads/2023/05/370-768x762.png",
+    model_number: "Custom Table",
+    category_id: 3, // Tables
+    base_price: 19500,
+    msrp: 38500,
+    short_description: "Custom manufactured wood-core laminated table top.",
+    full_description: "Custom manufactured wood-core laminated table top. Extremely dense industrial particle board core with high-pressure laminate top and bottom. Any size can be made with various edge options including wood, rubber, aluminum, or padded edges.",
+    
     images: ["https://www.eaglechair.com/wp-content/uploads/2023/05/370-768x762.png"],
-    specs: {
-      "Available Sizes": "24\"-48\" diameter, 24x24\" to 36x72\" rectangular",
-      "Thickness": "1.25\"",
-      "Material": "Wood-Core High-Pressure Laminate"
-    },
-    customizations: {
-      sizes: ["24\"", "30\"", "36\"", "42\"", "24x24\"", "30x30\"", "30x48\"", "36x36\"", "Custom"],
-      shapes: ["Round", "Square", "Rectangle", "Oval"],
-      edges: ["Wood Edge", "Rubber Edge", "Aluminum Edge", "Padded"],
-      finishes: ["Natural", "Dark Walnut", "Espresso", "Bayou Oak", "Weathered Barnside"]
-    },
+    primary_image: "https://www.eaglechair.com/wp-content/uploads/2023/05/370-768x762.png",
+    
     stock_status: "Made to Order",
     lead_time_days: 21,
+    minimum_order_quantity: 1,
+    
     is_outdoor_suitable: false,
+    is_active: true,
+    is_featured: false,
+    is_new: false,
+    is_custom_only: true,
+    display_order: 11,
+    view_count: 0,
+    quote_count: 0,
+    created_at: "2024-01-01T00:00:00Z",
+    updated_at: "2024-01-01T00:00:00Z",
+    
+    // Legacy fields
+    category: "tables",
+    subcategory: "Table Tops",
+    price: 195.00,
   },
   {
     id: 12,
     name: "Eagle Chair Table Base",
     slug: "eagle-chair-table-base",
-    category: "bases",
-    subcategory: "Table Bases",
-    type: "Table Base",
-    tags: ["Metal", "Commercial Grade", "Indoor"],
-    price: 195.00,
-    priceRange: { min: 145.00, max: 295.00 },
-    description: "Commercial-grade table base with heavy-duty construction. Eagle Chair offers a large selection organized by color, material, type, and series. Suitable for various table top sizes and styles.",
-    image: "https://www.eaglechair.com/wp-content/uploads/2019/01/3T-24-w.4-tube-v486.png",
-    imageAngle: "https://www.eaglechair.com/wp-content/uploads/2019/01/3T-24-w.4-tube-v486.png",
-    imageFront: "https://www.eaglechair.com/wp-content/uploads/2019/01/3T-24-w.4-tube-v486.png",
+    model_number: "Table Base",
+    category_id: 4, // Bases
+    base_price: 19500,
+    msrp: 29500,
+    short_description: "Commercial-grade table base with heavy-duty construction.",
+    full_description: "Commercial-grade table base with heavy-duty construction. Eagle Chair offers a large selection organized by color, material, type, and series. Suitable for various table top sizes and styles.",
+    
     images: ["https://www.eaglechair.com/wp-content/uploads/2019/01/3T-24-w.4-tube-v486.png"],
-    specs: {
-      "Base Type": "Various styles available",
-      "Height Options": "Standard (29\"), Counter (36\"), Bar (42\")",
-      "Material": "Steel or Cast Iron"
-    },
-    customizations: {
-      finishes: ["Black", "Chrome", "Bronze", "White", "Brushed Steel"],
-      types: ["Pedestal", "X-Base", "T-Base", "Disc Base"],
-      heights: ["Bar Height (42\")", "Counter Height (36\")", "Standard (29\")"]
-    },
+    primary_image: "https://www.eaglechair.com/wp-content/uploads/2019/01/3T-24-w.4-tube-v486.png",
+    
     stock_status: "In Stock",
     lead_time_days: 7,
+    minimum_order_quantity: 1,
+    
     is_outdoor_suitable: true,
+    is_active: true,
+    is_featured: false,
+    is_new: false,
+    is_custom_only: false,
+    display_order: 12,
+    view_count: 0,
+    quote_count: 0,
+    created_at: "2024-01-01T00:00:00Z",
+    updated_at: "2024-01-01T00:00:00Z",
+    
+    // Legacy fields
+    category: "bases",
+    subcategory: "Table Bases",
+    price: 195.00,
   },
   {
     id: 13,
     name: "Outdoor Metal Chair",
     slug: "outdoor-metal-chair",
-    category: "outdoor",
-    subcategory: "Chairs",
-    type: "Outdoor Chair",
-    tags: ["Weather Resistant", "Commercial Grade", "Outdoor"],
-    price: 99.99,
-    priceRange: { min: 89.99, max: 139.99 },
-    description: "Weather-resistant metal chair designed for outdoor commercial use. Powder-coated finish withstands the elements. Stackable design for easy storage. Perfect for patios, outdoor dining areas, and cafes.",
-    image: "https://www.eaglechair.com/wp-content/uploads/2023/10/3245M-Alita-anthracite-v719-e1722028636477.png",
-    imageAngle: "https://www.eaglechair.com/wp-content/uploads/2023/10/3245M-Alita-anthracite-v719-e1722028636477.png",
-    imageFront: "https://www.eaglechair.com/wp-content/uploads/2023/10/3245M-Alita-anthracite-v719-e1722028636477.png",
-    images: ["https://www.eaglechair.com/wp-content/uploads/2023/10/3245M-Alita-anthracite-v719-e1722028636477.png", "https://www.eaglechair.com/wp-content/uploads/2023/10/3245M-Alita-barney-purple-v719.png"],
-    specs: {
-      "Width": "17\"",
-      "Depth": "19\"",
-      "Height": "33\"",
-      "Seat Height": "18\"",
-      "Weight": "12 lbs",
-      "Material": "Powder-Coated Steel"
-    },
+    model_number: "3245M",
+    category_id: 6, // Outdoor
+    base_price: 9999,
+    msrp: 13999,
+    short_description: "Weather-resistant metal chair designed for outdoor commercial use.",
+    full_description: "Weather-resistant metal chair designed for outdoor commercial use. Powder-coated finish withstands the elements. Stackable design for easy storage. Perfect for patios, outdoor dining areas, and cafes.",
+    
+    width: 17,
+    depth: 19,
+    height: 33,
+    seat_height: 18,
+    weight: 12,
+    frame_material: "Powder-Coated Steel",
+    
     features: [
       "Weather-resistant powder coating",
       "Commercial-grade construction",
@@ -355,126 +446,126 @@ export const demoProducts = [
       "UV resistant finish",
       "Indoor/outdoor use"
     ],
-    customizations: {
-      colors: ["Black", "Silver", "White", "Bronze"],
-      seatOptions: ["Metal Seat", "Wood Seat", "Padded"]
-    },
-    featured: false,
+    
+    images: [
+      "https://www.eaglechair.com/wp-content/uploads/2023/10/3245M-Alita-anthracite-v719-e1722028636477.png",
+      "https://www.eaglechair.com/wp-content/uploads/2023/10/3245M-Alita-barney-purple-v719.png"
+    ],
+    primary_image: "https://www.eaglechair.com/wp-content/uploads/2023/10/3245M-Alita-anthracite-v719-e1722028636477.png",
+    
+    stock_status: "In Stock",
+    lead_time_days: 7,
+    minimum_order_quantity: 1,
+    
     is_outdoor_suitable: true,
-  },
-  {
-    id: 7,
-    name: "Swivel Barstool with Back",
-    slug: "swivel-barstool-back",
-    category: "Barstools",
-    subcategory: "Swivel",
-    description: "Comfortable swivel barstool with upholstered back and seat. 360-degree swivel mechanism.",
-    image: "https://www.eaglechair.com/wp-content/uploads/2016/02/4305P-47-black.pomegranate-seat-v48.png",
-    images: [
-      "https://www.eaglechair.com/wp-content/uploads/2016/02/4305P-47-black.pomegranate-seat-v48.png",
-    ],
-    specs: {
-      "Width": "18\"",
-      "Depth": "19\"",
-      "Height": "45\"",
-      "Seat Height": "30\"",
-      "Weight": "22 lbs",
-      "Material": "Wood & Metal"
-    },
-    features: [
-      "360-degree swivel",
-      "Upholstered seat and back",
-      "Footrest ring",
-      "Commercial-grade mechanism",
-      "Multiple finish options"
-    ],
-    customizations: {
-      finishes: ["Natural", "Walnut", "Cherry", "Espresso"],
-      fabrics: ["Vinyl", "Leather"],
-      colors: ["Black", "Brown", "Gray"]
-    },
-  },
-  {
-    id: 8,
-    name: "Wooden Booth Bench",
-    slug: "wooden-booth-bench",
-    category: "Booths",
-    subcategory: "Wooden",
-    description: "Solid wood booth bench with traditional styling. Perfect for classic restaurant interiors.",
-    image: "https://www.eaglechair.com/wp-content/uploads/2015/02/8601-42-single-v296-1024x1024.png",
-    images: [
-      "https://www.eaglechair.com/wp-content/uploads/2015/02/8601-42-single-v296-1024x1024.png",
-    ],
-    specs: {
-      "Width": "48\"",
-      "Depth": "24\"",
-      "Height": "36\"",
-      "Seat Height": "18\"",
-      "Material": "Solid Wood"
-    },
-    features: [
-      "Solid hardwood construction",
-      "Traditional design",
-      "Durable finish",
-      "Custom sizing available",
-      "Matching backs available"
-    ],
-    customizations: {
-      finishes: ["Natural Oak", "Dark Walnut", "Cherry", "Mahogany"],
-      sizes: ["36\"", "48\"", "60\"", "Custom"]
-    },
+    is_active: true,
+    is_featured: false,
+    is_new: false,
+    is_custom_only: false,
+    display_order: 13,
+    view_count: 0,
+    quote_count: 0,
+    created_at: "2024-01-01T00:00:00Z",
+    updated_at: "2024-01-01T00:00:00Z",
+    
+    // Legacy fields
+    category: "outdoor",
+    subcategory: "Chairs",
+    price: 99.99,
   },
 ];
 
-// Demo Categories
+// Demo Categories - Match backend CategoryResponse schema
 export const demoCategories = [
   {
     id: 1,
     name: "Chairs",
     slug: "chairs",
     description: "Commercial-grade chairs for restaurants and dining spaces",
-    image: "https://images.unsplash.com/photo-1503602642458-232111445657?w=800",
-    subcategories: ["Wood", "Metal", "Lounge", "Outdoor"]
+    parent_id: null,
+    display_order: 1,
+    is_active: true,
+    icon_url: "https://images.unsplash.com/photo-1503602642458-232111445657?w=800",
+    banner_image_url: null,
+    meta_title: "Commercial Dining Chairs - Eagle Chair",
+    meta_description: "Shop our selection of commercial-grade dining chairs",
+    created_at: "2024-01-01T00:00:00Z",
+    updated_at: "2024-01-01T00:00:00Z",
   },
   {
     id: 2,
     name: "Barstools",
     slug: "barstools",
     description: "Stylish and durable barstools for bars and high-top dining",
-    image: "https://images.unsplash.com/photo-1551298370-9d3d53740c72?w=800",
-    subcategories: ["Wood", "Metal", "Swivel", "Backless", "Outdoor"]
+    parent_id: null,
+    display_order: 2,
+    is_active: true,
+    icon_url: "https://images.unsplash.com/photo-1551298370-9d3d53740c72?w=800",
+    banner_image_url: null,
+    meta_title: "Commercial Barstools - Eagle Chair",
+    meta_description: "Browse commercial barstools for bars and restaurants",
+    created_at: "2024-01-01T00:00:00Z",
+    updated_at: "2024-01-01T00:00:00Z",
   },
   {
     id: 3,
     name: "Tables",
     slug: "tables",
     description: "Premium table tops in various materials and sizes",
-    image: "https://images.unsplash.com/photo-1530018607912-eff2daa1bac4?w=800",
-    subcategories: ["Table Tops", "Table Gallery", "Edges and Sizing"]
+    parent_id: null,
+    display_order: 3,
+    is_active: true,
+    icon_url: "https://images.unsplash.com/photo-1530018607912-eff2daa1bac4?w=800",
+    banner_image_url: null,
+    meta_title: "Commercial Table Tops - Eagle Chair",
+    meta_description: "Custom commercial table tops for restaurants",
+    created_at: "2024-01-01T00:00:00Z",
+    updated_at: "2024-01-01T00:00:00Z",
   },
   {
     id: 4,
     name: "Bases",
     slug: "bases",
     description: "Sturdy table bases for commercial applications",
-    image: "https://images.unsplash.com/photo-1615066390971-03e4e1c36ddf?w=800",
-    subcategories: ["By Color", "By Material", "By Type", "Outdoor"]
+    parent_id: null,
+    display_order: 4,
+    is_active: true,
+    icon_url: "https://images.unsplash.com/photo-1615066390971-03e4e1c36ddf?w=800",
+    banner_image_url: null,
+    meta_title: "Commercial Table Bases - Eagle Chair",
+    meta_description: "Heavy-duty table bases for commercial use",
+    created_at: "2024-01-01T00:00:00Z",
+    updated_at: "2024-01-01T00:00:00Z",
   },
   {
     id: 5,
     name: "Booths",
     slug: "booths",
     description: "Comfortable booth seating for restaurants",
-    image: "https://images.unsplash.com/photo-1517248135467-4c7edcad34c4?w=800",
-    subcategories: ["Upholstered", "Wooden", "Settee", "Bar Booths"]
+    parent_id: null,
+    display_order: 5,
+    is_active: true,
+    icon_url: "https://images.unsplash.com/photo-1517248135467-4c7edcad34c4?w=800",
+    banner_image_url: null,
+    meta_title: "Commercial Booths - Eagle Chair",
+    meta_description: "Custom booth seating for restaurants",
+    created_at: "2024-01-01T00:00:00Z",
+    updated_at: "2024-01-01T00:00:00Z",
   },
   {
     id: 6,
     name: "Outdoor",
     slug: "outdoor",
     description: "Weather-resistant outdoor furniture",
-    image: "https://images.unsplash.com/photo-1592078615290-033ee584e267?w=800",
-    subcategories: ["Chairs", "Barstools", "Tables", "Bases"]
+    parent_id: null,
+    display_order: 6,
+    is_active: true,
+    icon_url: "https://images.unsplash.com/photo-1592078615290-033ee584e267?w=800",
+    banner_image_url: null,
+    meta_title: "Outdoor Commercial Furniture - Eagle Chair",
+    meta_description: "Weather-resistant outdoor furniture for commercial spaces",
+    created_at: "2024-01-01T00:00:00Z",
+    updated_at: "2024-01-01T00:00:00Z",
   },
 ];
 
