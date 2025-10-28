@@ -63,6 +63,16 @@ function App() {
           <Route path="/forgot-password" element={<ForgotPasswordPage />} />
           <Route path="/reset-password" element={<ResetPasswordPage />} />
 
+          {/* Admin Routes (No Layout - Full Screen) */}
+          <Route
+            path="/admin/*"
+            element={
+              <ProtectedRoute requireAdmin={true}>
+                <NewAdminDashboard />
+              </ProtectedRoute>
+            }
+          />
+
           {/* Routes with Layout */}
           <Route element={<Layout />}>
             {/* Home */}
@@ -124,16 +134,6 @@ function App() {
               element={
                 <ProtectedRoute>
                   <DashboardPage />
-                </ProtectedRoute>
-              }
-            />
-
-            {/* Admin Routes */}
-            <Route
-              path="/admin/dashboard"
-              element={
-                <ProtectedRoute requireAdmin={true}>
-                  <NewAdminDashboard />
                 </ProtectedRoute>
               }
             />

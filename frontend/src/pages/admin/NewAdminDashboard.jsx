@@ -1,7 +1,23 @@
-import { useState } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
-import { Navigate } from 'react-router-dom';
+import { useState, useEffect } from 'react';
+import { AnimatePresence } from 'framer-motion';
+import { Navigate, useNavigate, useLocation } from 'react-router-dom';
 import { useAuthStore } from '../../store/authStore';
+import { 
+  LayoutDashboard, 
+  TrendingUp, 
+  Package, 
+  Tags, 
+  Users2, 
+  Palette, 
+  Armchair, 
+  Building2, 
+  FileText, 
+  Settings,
+  ChevronLeft,
+  ChevronRight,
+  ExternalLink,
+  User
+} from 'lucide-react';
 
 // Import admin sections
 import DashboardOverview from '../../components/admin/sections/DashboardOverview';
@@ -27,9 +43,44 @@ import Analytics from '../../components/admin/sections/Analytics';
  */
 const NewAdminDashboard = () => {
   const { user } = useAuthStore();
-  const [activeSection, setActiveSection] = useState('overview');
+  const navigate = useNavigate();
+  const location = useLocation();
   const [selectedProduct, setSelectedProduct] = useState(null);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+
+  // Determine active section from URL
+  const getActiveSectionFromPath = () => {
+    const path = location.pathname;
+    if (path.includes('/admin/analytics')) return 'analytics';
+    if (path.includes('/admin/catalog')) return 'catalog';
+    if (path.includes('/admin/categories')) return 'categories';
+    if (path.includes('/admin/families')) return 'families';
+    if (path.includes('/admin/finishes')) return 'finishes';
+    if (path.includes('/admin/upholstery')) return 'upholstery';
+    if (path.includes('/admin/companies')) return 'companies';
+    if (path.includes('/admin/quotes')) return 'quotes';
+    if (path.includes('/admin/settings')) return 'settings';
+    return 'overview';
+  };
+
+  const [activeSection, setActiveSection] = useState(getActiveSectionFromPath());
+
+  // Sync active section with URL
+  useEffect(() => {
+    const path = location.pathname;
+    let section = 'overview';
+    if (path.includes('/admin/analytics')) section = 'analytics';
+    else if (path.includes('/admin/catalog')) section = 'catalog';
+    else if (path.includes('/admin/categories')) section = 'categories';
+    else if (path.includes('/admin/families')) section = 'families';
+    else if (path.includes('/admin/finishes')) section = 'finishes';
+    else if (path.includes('/admin/upholstery')) section = 'upholstery';
+    else if (path.includes('/admin/companies')) section = 'companies';
+    else if (path.includes('/admin/quotes')) section = 'quotes';
+    else if (path.includes('/admin/settings')) section = 'settings';
+    
+    setActiveSection(section);
+  }, [location.pathname]);
 
   // Check if user is admin
   const isAdmin = user?.type === 'admin' || 
@@ -41,40 +92,40 @@ const NewAdminDashboard = () => {
     return <Navigate to="/" replace />;
   }
 
-  // Navigation sections
+  // Navigation sections with paths
   const navSections = [
     {
       id: 'main',
       title: 'Main',
       items: [
-        { id: 'overview', label: 'Dashboard', icon: '📊' },
-        { id: 'analytics', label: 'Analytics', icon: '📈' },
+        { id: 'overview', label: 'Dashboard', icon: LayoutDashboard, path: '/admin' },
+        { id: 'analytics', label: 'Analytics', icon: TrendingUp, path: '/admin/analytics' },
       ]
     },
     {
       id: 'products',
       title: 'Product Management',
       items: [
-        { id: 'catalog', label: 'Product Catalog', icon: '📦' },
-        { id: 'categories', label: 'Categories', icon: '🏷️' },
-        { id: 'families', label: 'Product Families', icon: '👨‍👩‍👧‍👦' },
-        { id: 'finishes', label: 'Finishes', icon: '🎨' },
-        { id: 'upholstery', label: 'Upholstery', icon: '🪑' },
+        { id: 'catalog', label: 'Product Catalog', icon: Package, path: '/admin/catalog' },
+        { id: 'categories', label: 'Categories', icon: Tags, path: '/admin/categories' },
+        { id: 'families', label: 'Product Families', icon: Users2, path: '/admin/families' },
+        { id: 'finishes', label: 'Finishes', icon: Palette, path: '/admin/finishes' },
+        { id: 'upholstery', label: 'Upholstery', icon: Armchair, path: '/admin/upholstery' },
       ]
     },
     {
       id: 'business',
       title: 'Business',
       items: [
-        { id: 'companies', label: 'Companies', icon: '🏢' },
-        { id: 'quotes', label: 'Quotes', icon: '📋' },
+        { id: 'companies', label: 'Companies', icon: Building2, path: '/admin/companies' },
+        { id: 'quotes', label: 'Quotes', icon: FileText, path: '/admin/quotes' },
       ]
     },
     {
       id: 'system',
       title: 'System',
       items: [
-        { id: 'settings', label: 'Site Settings', icon: '⚙️' },
+        { id: 'settings', label: 'Site Settings', icon: Settings, path: '/admin/settings' },
       ]
     }
   ];
@@ -116,38 +167,27 @@ const NewAdminDashboard = () => {
   };
 
   return (
-    <div className="flex h-screen bg-dark-900 overflow-hidden">
+    <div className="flex min-h-screen bg-dark-900">
       {/* Sidebar */}
-      <motion.aside
-        initial={false}
-        animate={{ width: sidebarCollapsed ? 80 : 280 }}
-        transition={{ duration: 0.3 }}
-        className="bg-dark-800 border-r border-dark-600 flex flex-col overflow-hidden"
+      <div
+        style={{ width: sidebarCollapsed ? 80 : 280 }}
+        className="bg-dark-800 border-r border-dark-600 flex flex-col sticky top-0 h-screen transition-all duration-300"
       >
         {/* Logo / Header */}
         <div className="p-6 border-b border-dark-600">
-          <motion.div
-            initial={false}
-            animate={{ opacity: sidebarCollapsed ? 0 : 1 }}
-            className="flex items-center gap-3"
-          >
-            {!sidebarCollapsed && (
-              <>
-                <div className="w-10 h-10 bg-gradient-to-br from-primary-500 to-accent-500 rounded-lg flex items-center justify-center">
-                  <span className="text-2xl">🦅</span>
-                </div>
-                <div>
-                  <h1 className="text-xl font-bold text-dark-50">Eagle Chair</h1>
-                  <p className="text-xs text-dark-300">Admin Panel</p>
-                </div>
-              </>
-            )}
-            {sidebarCollapsed && (
-              <div className="w-10 h-10 bg-gradient-to-br from-primary-500 to-accent-500 rounded-lg flex items-center justify-center mx-auto">
-                <span className="text-2xl">🦅</span>
+          {!sidebarCollapsed ? (
+            <div className="flex items-center gap-3">
+              <img src="/favicon.svg" alt="Eagle Chair" className="w-10 h-10" />
+              <div>
+                <h1 className="text-xl font-bold text-dark-50">Eagle Chair</h1>
+                <p className="text-xs text-dark-300">Admin Panel</p>
               </div>
-            )}
-          </motion.div>
+            </div>
+          ) : (
+            <div className="flex justify-center">
+              <img src="/favicon.svg" alt="Eagle Chair" className="w-10 h-10" />
+            </div>
+          )}
         </div>
 
         {/* Navigation */}
@@ -160,28 +200,31 @@ const NewAdminDashboard = () => {
                 </h3>
               )}
               <div className="space-y-1">
-                {section.items.map((item) => (
-                  <button
-                    key={item.id}
-                    onClick={() => {
-                      setActiveSection(item.id);
-                      setSelectedProduct(null);
-                    }}
-                    className={`
-                      w-full flex items-center gap-3 px-4 py-2.5 rounded-lg
-                      transition-all duration-200 group
-                      ${activeSection === item.id && !selectedProduct
-                        ? 'bg-primary-900 border border-primary-500 text-primary-500'
-                        : 'text-dark-200 hover:bg-dark-700 hover:text-dark-50'
-                      }
-                    `}
-                  >
-                    <span className="text-xl">{item.icon}</span>
-                    {!sidebarCollapsed && (
-                      <span className="font-medium text-sm">{item.label}</span>
-                    )}
-                  </button>
-                ))}
+                {section.items.map((item) => {
+                  const Icon = item.icon;
+                  return (
+                    <button
+                      key={item.id}
+                      onClick={() => {
+                        navigate(item.path);
+                        setSelectedProduct(null);
+                      }}
+                      className={`
+                        w-full flex items-center gap-3 px-4 py-2.5 rounded-lg
+                        transition-all duration-200 group
+                        ${activeSection === item.id && !selectedProduct
+                          ? 'bg-primary-900 border border-primary-500 text-primary-400'
+                          : 'text-dark-200 hover:bg-dark-700 hover:text-dark-50'
+                        }
+                      `}
+                    >
+                      <Icon className="w-5 h-5 flex-shrink-0" />
+                      {!sidebarCollapsed && (
+                        <span className="font-medium text-sm">{item.label}</span>
+                      )}
+                    </button>
+                  );
+                })}
               </div>
             </div>
           ))}
@@ -193,16 +236,16 @@ const NewAdminDashboard = () => {
             onClick={() => setSidebarCollapsed(!sidebarCollapsed)}
             className="w-full flex items-center justify-center gap-2 px-4 py-2 rounded-lg text-dark-300 hover:bg-dark-700 hover:text-dark-50 transition-colors"
           >
-            <span>{sidebarCollapsed ? '→' : '←'}</span>
+            {sidebarCollapsed ? <ChevronRight className="w-5 h-5" /> : <ChevronLeft className="w-5 h-5" />}
             {!sidebarCollapsed && <span className="text-sm">Collapse</span>}
           </button>
         </div>
-      </motion.aside>
+      </div>
 
       {/* Main Content */}
-      <main className="flex-1 overflow-hidden flex flex-col">
+      <main className="flex-1 flex flex-col min-h-screen">
         {/* Top Bar */}
-        <header className="bg-dark-800 border-b border-dark-600 px-8 py-4">
+        <header className="bg-dark-800 border-b border-dark-600 px-8 py-4 sticky top-0 z-10">
           <div className="flex items-center justify-between">
             <div>
               <h2 className="text-2xl font-bold text-dark-50">
@@ -222,8 +265,9 @@ const NewAdminDashboard = () => {
                 href="/"
                 target="_blank"
                 rel="noopener noreferrer"
-                className="px-4 py-2 text-sm font-medium text-dark-200 hover:text-dark-50 border border-dark-600 rounded-lg hover:border-dark-500 transition-all"
+                className="px-4 py-2 text-sm font-medium text-dark-200 hover:text-dark-50 border border-dark-600 rounded-lg hover:border-dark-500 transition-all flex items-center gap-2"
               >
+                <ExternalLink className="w-4 h-4" />
                 View Site
               </a>
               <div className="flex items-center gap-3 pl-4 border-l border-dark-600">
@@ -231,8 +275,8 @@ const NewAdminDashboard = () => {
                   <p className="text-sm font-medium text-dark-50">{user?.username || 'Admin'}</p>
                   <p className="text-xs text-dark-400">{user?.role || 'Administrator'}</p>
                 </div>
-                <div className="w-10 h-10 bg-gradient-to-br from-accent-500 to-primary-500 rounded-full flex items-center justify-center text-dark-900 font-bold">
-                  {(user?.username || 'A')[0].toUpperCase()}
+                <div className="w-10 h-10 bg-gradient-to-br from-accent-500 to-primary-500 rounded-full flex items-center justify-center text-dark-900">
+                  <User className="w-5 h-5" />
                 </div>
               </div>
             </div>
@@ -240,18 +284,13 @@ const NewAdminDashboard = () => {
         </header>
 
         {/* Content Area */}
-        <div className="flex-1 overflow-y-auto bg-dark-900">
+        <div className="flex-1 bg-dark-900">
           <AnimatePresence mode="wait">
-            <motion.div
+            <div
               key={selectedProduct ? 'editor' : activeSection}
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -20 }}
-              transition={{ duration: 0.2 }}
-              className="h-full"
             >
               {renderSection()}
-            </motion.div>
+            </div>
           </AnimatePresence>
         </div>
       </main>

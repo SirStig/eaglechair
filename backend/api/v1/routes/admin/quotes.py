@@ -27,7 +27,7 @@ router = APIRouter(tags=["Admin - Quotes"])
 
 
 @router.get(
-    "/quotes",
+    "",
     summary="Get all quotes (Admin)",
     description="Retrieve all quotes with pagination and filtering"
 )
@@ -69,7 +69,7 @@ async def get_all_quotes(
 
 
 @router.get(
-    "/quotes/{quote_id}",
+    "/{quote_id}",
     summary="Get quote by ID (Admin)",
     description="Retrieve a specific quote"
 )
@@ -96,7 +96,7 @@ async def get_quote(
 
 
 @router.patch(
-    "/quotes/{quote_id}/status",
+    "/{quote_id}/status",
     summary="Update quote status (Admin)",
     description="Update quote status, pricing, and notes"
 )
@@ -132,7 +132,7 @@ async def update_quote_status(
 
 
 @router.post(
-    "/quotes/{quote_id}/assign",
+    "/{quote_id}/assign",
     summary="Assign quote to admin (Admin)",
     description="Assign a quote to a specific admin for handling"
 )

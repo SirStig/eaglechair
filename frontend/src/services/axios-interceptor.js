@@ -39,25 +39,36 @@ axios.interceptors.response.use(
       originalRequest._retry = true;
       isRefreshing = true;
 
-      const { token: currentToken, logout } = useAuthStore.getState();
+      const { refreshToken, logout } = useAuthStore.getState();
       
-      // Try to refresh the token
+      // If no refresh token, logout immediately
+      if (!refreshToken) {
+        isRefreshing = false;
+        logout();
+        if (typeof window !== 'undefined') {
+          window.location.href = '/login';
+        }
+        return Promise.reject(error);
+      }
+      
+      // Try to refresh the token using the refresh token
       try {
         const response = await axios.post(
           '/api/v1/auth/refresh',
           {},
           {
             headers: {
-              'Authorization': `Bearer ${currentToken}`
+              'Authorization': `Bearer ${refreshToken}`
             }
           }
         );
 
-        const { access_token } = response.data;
+        const { access_token, refresh_token } = response.data;
         
-        // Update auth store
+        // Update auth store with new tokens
         useAuthStore.setState({
           token: access_token,
+          refreshToken: refresh_token || refreshToken, // Use new refresh token if provided, otherwise keep existing
         });
         
         // Update axios headers

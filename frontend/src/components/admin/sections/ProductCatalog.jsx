@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { motion } from 'framer-motion';
+import { Package, Edit2, Eye, EyeOff, Trash2, TrendingUp, MessageSquareQuote } from 'lucide-react';
 import Card from '../../ui/Card';
 import Button from '../../ui/Button';
 import axios from 'axios';
@@ -27,6 +27,7 @@ const ProductCatalog = ({ onEdit }) => {
   useEffect(() => {
     fetchProducts();
     fetchCategories();
+    // eslint-disable-next-line
   }, [page, search, categoryFilter, statusFilter]);
 
   const fetchProducts = async () => {
@@ -71,13 +72,24 @@ const ProductCatalog = ({ onEdit }) => {
   };
 
   const handleDelete = async (productId) => {
-    if (!confirm('Are you sure you want to delete this product?')) return;
+    const product = products.find(p => p.id === productId);
+    const confirmMessage = `Are you sure you want to delete "${product?.name}"?\n\nThis action cannot be undone and will permanently remove:\n- Product information\n- All variations\n- All images\n- Associated analytics data\n\nType "DELETE" to confirm.`;
+    
+    const userInput = prompt(confirmMessage);
+    if (userInput !== 'DELETE') {
+      if (userInput !== null) {
+        alert('Deletion cancelled. You must type DELETE to confirm.');
+      }
+      return;
+    }
     
     try {
       await axios.delete(`/api/v1/admin/products/${productId}`);
+      alert('Product deleted successfully');
       fetchProducts();
     } catch (error) {
       console.error('Failed to delete product:', error);
+      alert('Failed to delete product. Please try again.');
     }
   };
 
@@ -264,16 +276,26 @@ const ProductCatalog = ({ onEdit }) => {
                   <th className="px-4 py-3 text-left text-sm font-medium text-dark-300">Model</th>
                   <th className="px-4 py-3 text-left text-sm font-medium text-dark-300">Category</th>
                   <th className="px-4 py-3 text-left text-sm font-medium text-dark-300">Price</th>
+                  <th className="px-4 py-3 text-center text-sm font-medium text-dark-300">
+                    <div className="flex items-center justify-center gap-1">
+                      <TrendingUp className="w-4 h-4" />
+                      Views
+                    </div>
+                  </th>
+                  <th className="px-4 py-3 text-center text-sm font-medium text-dark-300">
+                    <div className="flex items-center justify-center gap-1">
+                      <MessageSquareQuote className="w-4 h-4" />
+                      Quotes
+                    </div>
+                  </th>
                   <th className="px-4 py-3 text-left text-sm font-medium text-dark-300">Status</th>
                   <th className="px-4 py-3 text-right text-sm font-medium text-dark-300">Actions</th>
                 </tr>
               </thead>
               <tbody>
                 {products.map((product) => (
-                  <motion.tr
+                  <tr
                     key={product.id}
-                    initial={{ opacity: 0 }}
-                    animate={{ opacity: 1 }}
                     className="border-b border-dark-700 hover:bg-dark-700/50 transition-colors"
                   >
                     <td className="px-4 py-4">
@@ -289,11 +311,11 @@ const ProductCatalog = ({ onEdit }) => {
                         <img
                           src={product.primary_image_url}
                           alt={product.name}
-                          className="w-16 h-16 object-cover rounded-lg"
+                          className="w-16 h-16 object-contain bg-dark-700 rounded-lg border border-dark-600"
                         />
                       ) : (
                         <div className="w-16 h-16 bg-dark-600 rounded-lg flex items-center justify-center">
-                          <span className="text-2xl">📦</span>
+                          <Package className="w-8 h-8 text-dark-400" />
                         </div>
                       )}
                     </td>
@@ -307,6 +329,12 @@ const ProductCatalog = ({ onEdit }) => {
                     <td className="px-4 py-4 text-dark-200">{product.category?.name || 'N/A'}</td>
                     <td className="px-4 py-4 text-dark-200">
                       ${(product.base_price / 100).toFixed(2)}
+                    </td>
+                    <td className="px-4 py-4 text-center">
+                      <span className="text-dark-200 font-medium">{product.view_count || 0}</span>
+                    </td>
+                    <td className="px-4 py-4 text-center">
+                      <span className="text-dark-200 font-medium">{product.quote_count || 0}</span>
                     </td>
                     <td className="px-4 py-4">
                       <span className={`
@@ -326,25 +354,25 @@ const ProductCatalog = ({ onEdit }) => {
                           className="p-2 text-primary-500 hover:bg-primary-900/20 rounded-lg transition-colors"
                           title="Edit"
                         >
-                          ✏️
+                          <Edit2 className="w-4 h-4" />
                         </button>
                         <button
                           onClick={() => handleToggleActive(product.id, product.is_active)}
                           className="p-2 text-accent-500 hover:bg-accent-900/20 rounded-lg transition-colors"
                           title={product.is_active ? 'Deactivate' : 'Activate'}
                         >
-                          {product.is_active ? '👁️' : '🚫'}
+                          {product.is_active ? <Eye className="w-4 h-4" /> : <EyeOff className="w-4 h-4" />}
                         </button>
                         <button
                           onClick={() => handleDelete(product.id)}
                           className="p-2 text-red-500 hover:bg-red-900/20 rounded-lg transition-colors"
                           title="Delete"
                         >
-                          🗑️
+                          <Trash2 className="w-4 h-4" />
                         </button>
                       </div>
                     </td>
-                  </motion.tr>
+                  </tr>
                 ))}
               </tbody>
             </table>

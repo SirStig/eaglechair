@@ -33,7 +33,7 @@ router = APIRouter(tags=["Admin - Companies"])
 
 
 @router.get(
-    "/companies",
+    "",
     summary="Get all companies (Admin)",
     description="Retrieve all companies with pagination and filtering"
 )
@@ -75,7 +75,7 @@ async def get_all_companies(
 
 
 @router.get(
-    "/companies/{company_id}",
+    "/{company_id}",
     summary="Get company by ID (Admin)",
     description="Retrieve a specific company"
 )
@@ -102,7 +102,7 @@ async def get_company(
 
 
 @router.patch(
-    "/companies/{company_id}/status",
+    "/{company_id}/status",
     response_model=CompanyResponse,
     summary="Update company status (Admin)",
     description="Update company status and add admin notes"
@@ -136,7 +136,7 @@ async def update_company_status(
 
 
 @router.delete(
-    "/companies/{company_id}",
+    "/{company_id}",
     response_model=MessageResponse,
     summary="Suspend company (Admin)",
     description="Suspend a company account"
@@ -174,7 +174,7 @@ async def suspend_company(
 # ============================================================================
 
 @router.get(
-    "/companies/{company_id}/pricing-tier",
+    "/{company_id}/pricing-tier",
     summary="Get company pricing tier (Admin)",
     description="Get the currently assigned pricing tier for a company"
 )
@@ -217,7 +217,7 @@ async def get_company_pricing_tier(
 
 
 @router.post(
-    "/companies/{company_id}/pricing-tier",
+    "/{company_id}/pricing-tier",
     summary="Assign pricing tier to company (Admin)",
     description="Create and assign a new pricing tier to a company"
 )
@@ -303,7 +303,7 @@ async def assign_pricing_tier(
 
 
 @router.put(
-    "/companies/{company_id}/pricing-tier/{tier_id}",
+    "/{company_id}/pricing-tier/{tier_id}",
     summary="Update pricing tier (Admin)",
     description="Update an existing pricing tier"
 )
@@ -379,7 +379,7 @@ async def update_pricing_tier(
 
 
 @router.delete(
-    "/companies/{company_id}/pricing-tier",
+    "/{company_id}/pricing-tier",
     response_model=MessageResponse,
     summary="Remove pricing tier from company (Admin)",
     description="Remove pricing tier assignment (revert to standard pricing)"

@@ -5,15 +5,13 @@ Handles file uploads (images, documents, etc.)
 """
 
 import logging
-import os
+import time
 from pathlib import Path
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
-from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 
 from backend.api.dependencies import get_current_admin
-from backend.core.config import settings
 
 logger = logging.getLogger(__name__)
 
@@ -31,14 +29,13 @@ class DeleteImageRequest(BaseModel):
 
 
 @router.post(
-    "/upload/image",
+    "/image",
     summary="Upload an image",
     description="Upload an image file to the server (Admin only)"
 )
 async def upload_image(
     file: UploadFile = File(...),
-    subfolder: str = Form("general"),
-    filename: str = Form(None),
+    subfolder: str = Form("products"),
     current_admin = Depends(get_current_admin)
 ):
     """
@@ -73,24 +70,16 @@ async def upload_image(
         upload_dir = UPLOAD_BASE_DIR / "images" / subfolder
         upload_dir.mkdir(parents=True, exist_ok=True)
         
-        # Use provided filename or original
-        if not filename:
-            filename = file.filename
-        
-        # Sanitize filename
-        filename = "".join(c for c in filename if c.isalnum() or c in ".-_")
+        # Generate unique filename with timestamp
+        timestamp = int(time.time())
+        file_ext = Path(file.filename).suffix.lower()
+        base_name = Path(file.filename).stem
+        # Sanitize base name
+        base_name = "".join(c for c in base_name if c.isalnum() or c in "-_")
+        filename = f"{base_name}_{timestamp}{file_ext}"
         
         # Full file path
         file_path = upload_dir / filename
-        
-        # Check if file already exists
-        if file_path.exists():
-            # Add timestamp to make it unique
-            import time
-            timestamp = int(time.time())
-            name, ext = filename.rsplit('.', 1)
-            filename = f"{name}_{timestamp}.{ext}"
-            file_path = upload_dir / filename
         
         # Write file
         with open(file_path, "wb") as f:
@@ -117,7 +106,7 @@ async def upload_image(
 
 
 @router.delete(
-    "/upload/image",
+    "/image",
     summary="Delete an image",
     description="Delete an image file from the server (Admin only)"
 )

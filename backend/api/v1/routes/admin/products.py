@@ -33,7 +33,7 @@ router = APIRouter(tags=["Admin - Products"])
 
 
 @router.get(
-    "/products",
+    "",
     summary="Get all products (Admin)",
     description="Retrieve all products with pagination and filtering"
 )
@@ -77,7 +77,7 @@ async def get_all_products(
 
 
 @router.post(
-    "/products",
+    "",
     summary="Create product (Admin)",
     description="Create a new product"
 )
@@ -106,7 +106,7 @@ async def create_product(
 
 
 @router.get(
-    "/products/{product_id}",
+    "/{product_id}",
     summary="Get product by ID (Admin)",
     description="Retrieve a specific product"
 )
@@ -133,7 +133,7 @@ async def get_product(
 
 
 @router.patch(
-    "/products/{product_id}",
+    "/{product_id}",
     summary="Update product (Admin)",
     description="Update a product"
 )
@@ -165,7 +165,7 @@ async def update_product(
 
 
 @router.delete(
-    "/products/{product_id}",
+    "/{product_id}",
     response_model=MessageResponse,
     summary="Delete product (Admin)",
     description="Delete a product (soft delete)"
@@ -198,7 +198,7 @@ async def delete_product(
 # ============================================================================
 
 @router.get(
-    "/products/{product_id}/variations",
+    "/{product_id}/variations",
     summary="Get product variations (Admin)",
     description="Get all variations for a specific product"
 )
@@ -227,7 +227,7 @@ async def get_product_variations(
 
 
 @router.post(
-    "/products/{product_id}/variations",
+    "/{product_id}/variations",
     summary="Create product variation (Admin)",
     description="Add a new variation to a product"
 )
@@ -284,7 +284,7 @@ async def create_product_variation(
 
 
 @router.put(
-    "/products/{product_id}/variations/{variation_id}",
+    "/{product_id}/variations/{variation_id}",
     summary="Update product variation (Admin)",
     description="Update an existing product variation"
 )
@@ -346,7 +346,7 @@ async def update_product_variation(
 
 
 @router.delete(
-    "/products/{product_id}/variations/{variation_id}",
+    "/{product_id}/variations/{variation_id}",
     response_model=MessageResponse,
     summary="Delete product variation (Admin)",
     description="Delete a product variation (soft delete)"
@@ -406,7 +406,7 @@ async def delete_product_variation(
 # ============================================================================
 
 @router.get(
-    "/products/{product_id}/images",
+    "/{product_id}/images",
     summary="Get product images (Admin)",
     description="Get all images for a specific product"
 )
@@ -439,7 +439,7 @@ async def get_product_images_admin(
 
 
 @router.post(
-    "/products/{product_id}/images",
+    "/{product_id}/images",
     summary="Add product image (Admin)",
     description="Upload a new image for a product"
 )
@@ -516,7 +516,7 @@ async def add_product_image(
 
 
 @router.put(
-    "/products/{product_id}/images/{image_id}",
+    "/{product_id}/images/{image_id}",
     summary="Update product image (Admin)",
     description="Update an existing product image"
 )
@@ -572,7 +572,7 @@ async def update_product_image(
 
 
 @router.delete(
-    "/products/{product_id}/images/{image_id}",
+    "/{product_id}/images/{image_id}",
     response_model=MessageResponse,
     summary="Delete product image (Admin)",
     description="Delete a product image"
@@ -611,3 +611,4 @@ async def delete_product_image(
     return MessageResponse(
         message=f"Image {image_id} has been deleted successfully"
     )
+
