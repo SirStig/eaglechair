@@ -8,6 +8,7 @@ import logging
 from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi.responses import JSONResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from backend.api.dependencies import get_current_admin, require_role
@@ -24,6 +25,7 @@ from backend.models.chair import Chair as Product
 from backend.models.chair import ProductImage, ProductVariation
 from backend.models.company import AdminRole, AdminUser
 from backend.services.admin_service import AdminService
+from backend.utils.serializers import orm_list_to_dict_list, orm_to_dict
 
 logger = logging.getLogger(__name__)
 
@@ -32,7 +34,6 @@ router = APIRouter(tags=["Admin - Products"])
 
 @router.get(
     "/products",
-    response_model=ProductListResponse,
     summary="Get all products (Admin)",
     description="Retrieve all products with pagination and filtering"
 )
@@ -61,18 +62,22 @@ async def get_all_products(
         is_active=is_active
     )
     
-    return ProductListResponse(
-        items=products,
-        total=total_count,
-        page=page,
-        page_size=page_size,
-        pages=(total_count + page_size - 1) // page_size
-    )
+    # Convert ORM objects to dicts
+    products_data = orm_list_to_dict_list(products)
+    
+    response_data = {
+        "items": products_data,
+        "total": total_count,
+        "page": page,
+        "page_size": page_size,
+        "pages": (total_count + page_size - 1) // page_size
+    }
+    
+    return response_data
 
 
 @router.post(
     "/products",
-    response_model=ChairResponse,
     summary="Create product (Admin)",
     description="Create a new product"
 )
@@ -93,8 +98,8 @@ async def create_product(
             db=db,
             product_data=product_data.dict()
         )
-        
-        return product
+
+        return orm_to_dict(product)
         
     except ValidationError as e:
         raise HTTPException(status_code=400, detail=str(e))
@@ -102,7 +107,6 @@ async def create_product(
 
 @router.get(
     "/products/{product_id}",
-    response_model=ChairResponse,
     summary="Get product by ID (Admin)",
     description="Retrieve a specific product"
 )
@@ -122,7 +126,7 @@ async def get_product(
         # Use existing product service for single product retrieval
         from backend.services.product_service import ProductService
         product = await ProductService.get_product_by_id(db, product_id)
-        return product
+        return orm_to_dict(product)
         
     except ResourceNotFoundError as e:
         raise HTTPException(status_code=404, detail=str(e))
@@ -130,7 +134,6 @@ async def get_product(
 
 @router.patch(
     "/products/{product_id}",
-    response_model=ChairResponse,
     summary="Update product (Admin)",
     description="Update a product"
 )
@@ -153,8 +156,7 @@ async def update_product(
             product_id=product_id,
             update_data=update_data.dict(exclude_unset=True)
         )
-        
-        return product
+        return orm_to_dict(product)
         
     except ResourceNotFoundError as e:
         raise HTTPException(status_code=404, detail=str(e))
@@ -221,7 +223,7 @@ async def get_product_variations(
     result = await db.execute(query)
     variations = result.scalars().all()
     
-    return variations
+    return orm_list_to_dict_list(variations)
 
 
 @router.post(
@@ -278,7 +280,7 @@ async def create_product_variation(
     
     logger.info(f"Created variation {variation.id} ({model_suffix}) for product {product.name}")
     
-    return variation
+    return orm_to_dict(variation)
 
 
 @router.put(
@@ -340,7 +342,7 @@ async def update_product_variation(
     await db.commit()
     await db.refresh(variation)
     
-    return variation
+    return orm_to_dict(variation)
 
 
 @router.delete(
@@ -433,7 +435,7 @@ async def get_product_images_admin(
     result = await db.execute(query)
     images = result.scalars().all()
     
-    return images
+    return orm_list_to_dict_list(images)
 
 
 @router.post(
@@ -510,7 +512,7 @@ async def add_product_image(
     
     logger.info(f"Added {image_type} image {image.id} to product {product.name}")
     
-    return image
+    return orm_to_dict(image)
 
 
 @router.put(
@@ -566,7 +568,7 @@ async def update_product_image(
     await db.commit()
     await db.refresh(image)
     
-    return image
+    return orm_to_dict(image)
 
 
 @router.delete(

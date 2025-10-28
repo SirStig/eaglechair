@@ -26,8 +26,7 @@ import TermsOfServicePage from './pages/TermsOfServicePage';
 import PrivacyPolicyPage from './pages/PrivacyPolicyPage';
 import GeneralInformationPage from './pages/GeneralInformationPage';
 import DashboardPage from './pages/DashboardPage';
-import AdminPanel from './pages/AdminPanel';
-import AdminDashboard from './pages/admin/AdminDashboard';
+import NewAdminDashboard from './pages/admin/NewAdminDashboard';
 
 // Resource Pages
 import VirtualCatalogsPage from './pages/VirtualCatalogsPage';
@@ -131,18 +130,10 @@ function App() {
 
             {/* Admin Routes */}
             <Route
-              path="/admin"
-              element={
-                <ProtectedRoute requireAdmin={true}>
-                  <AdminPanel />
-                </ProtectedRoute>
-              }
-            />
-            <Route
               path="/admin/dashboard"
               element={
                 <ProtectedRoute requireAdmin={true}>
-                  <AdminDashboard />
+                  <NewAdminDashboard />
                 </ProtectedRoute>
               }
             />

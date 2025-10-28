@@ -6,22 +6,30 @@ Handles admin operations for products, companies, quotes, and content management
 
 import logging
 from datetime import datetime, timedelta
-from typing import List, Optional, Dict, Any, Tuple
+from typing import Any, Dict, List, Optional, Tuple
+
+from sqlalchemy import and_, asc, desc, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, and_, or_, func, desc, asc
 from sqlalchemy.orm import selectinload
 
-from backend.models.chair import Chair, Category, Finish, Upholstery
-from backend.models.company import Company, AdminUser, CompanyStatus
-from backend.models.quote import Quote, QuoteItem, QuoteStatus
-from backend.models.content import FAQ, FAQCategory, TeamMember, CompanyInfo, ContactLocation, Catalog, Installation
 from backend.core.exceptions import (
+    AuthorizationError,
+    BusinessLogicError,
     ResourceNotFoundError,
     ValidationError,
-    BusinessLogicError,
-    AuthorizationError,
 )
-
+from backend.models.chair import Category, Chair, Finish, Upholstery
+from backend.models.company import AdminUser, Company, CompanyStatus
+from backend.models.content import (
+    FAQ,
+    Catalog,
+    CompanyInfo,
+    ContactLocation,
+    FAQCategory,
+    Installation,
+    TeamMember,
+)
+from backend.models.quote import Quote, QuoteItem, QuoteStatus
 
 logger = logging.getLogger(__name__)
 
@@ -465,7 +473,7 @@ class AdminService:
         total_quotes = quotes_result.scalar()
         
         pending_quotes_result = await db.execute(
-            select(func.count(Quote.id)).where(Quote.status == QuoteStatus.PENDING)
+            select(func.count(Quote.id)).where(Quote.status == QuoteStatus.SUBMITTED)
         )
         pending_quotes = pending_quotes_result.scalar()
         
@@ -485,6 +493,28 @@ class AdminService:
         )
         recent_companies = recent_companies_result.scalars().all()
         
+        # Convert recent quotes to dicts
+        recent_quotes_data = []
+        for quote in recent_quotes:
+            recent_quotes_data.append({
+                "id": quote.id,
+                "company_id": quote.company_id,
+                "company_name": quote.company.company_name if quote.company else None,
+                "status": quote.status.value if quote.status else None,
+                "total_price": quote.total_price,
+                "created_at": quote.created_at.isoformat() if quote.created_at else None
+            })
+        
+        # Convert recent companies to dicts
+        recent_companies_data = []
+        for company in recent_companies:
+            recent_companies_data.append({
+                "id": company.id,
+                "name": company.company_name,
+                "status": company.status.value if company.status else None,
+                "created_at": company.created_at.isoformat() if company.created_at else None
+            })
+        
         stats = {
             "companies": {
                 "total": total_companies,
@@ -500,8 +530,8 @@ class AdminService:
                 "total": total_quotes,
                 "pending": pending_quotes
             },
-            "recent_quotes": list(recent_quotes),
-            "recent_companies": list(recent_companies)
+            "recent_quotes": recent_quotes_data,
+            "recent_companies": recent_companies_data
         }
         
         logger.info("Retrieved dashboard statistics")

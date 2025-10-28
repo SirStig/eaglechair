@@ -180,7 +180,7 @@ async def refresh_token(
     raw_token, token_payload = await get_current_token_and_payload(credentials)
     
     # Verify it's a refresh token
-    if token_payload.get("type") != "refresh":
+    if token_payload.get("token_type") != "refresh":
         from backend.core.exceptions import InvalidTokenError
         raise InvalidTokenError("Invalid token type. Refresh token required.")
     
