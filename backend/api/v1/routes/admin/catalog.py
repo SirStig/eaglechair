@@ -14,6 +14,7 @@ import logging
 from typing import List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi.responses import JSONResponse
 from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -30,6 +31,7 @@ from backend.models.chair import (
     Upholstery,
 )
 from backend.models.company import AdminRole, AdminUser
+from backend.utils.serializers import orm_list_to_dict_list, orm_to_dict
 
 logger = logging.getLogger(__name__)
 
@@ -67,7 +69,7 @@ async def get_colors(
     result = await db.execute(query)
     colors = result.scalars().all()
     
-    return list(colors)
+    return orm_list_to_dict_list(colors)
 
 
 @router.post(
@@ -104,7 +106,7 @@ async def create_color(
     await db.commit()
     await db.refresh(color)
     
-    return color
+    return orm_to_dict(color, status_code=status.HTTP_201_CREATED)
 
 
 @router.put(
@@ -152,7 +154,7 @@ async def update_color(
     await db.commit()
     await db.refresh(color)
     
-    return color
+    return orm_to_dict(color)
 
 
 @router.delete(
@@ -220,7 +222,7 @@ async def get_finishes(
     result = await db.execute(query)
     finishes = result.scalars().all()
     
-    return list(finishes)
+    return orm_list_to_dict_list(finishes)
 
 
 @router.post(
@@ -263,7 +265,7 @@ async def create_finish(
     await db.commit()
     await db.refresh(finish)
     
-    return finish
+    return orm_to_dict(finish, status_code=status.HTTP_201_CREATED)
 
 
 @router.put(
@@ -320,7 +322,7 @@ async def update_finish(
     await db.commit()
     await db.refresh(finish)
     
-    return finish
+    return orm_to_dict(finish)
 
 
 @router.delete(
@@ -392,7 +394,7 @@ async def get_upholsteries(
     result = await db.execute(query)
     upholsteries = result.scalars().all()
     
-    return list(upholsteries)
+    return orm_list_to_dict_list(upholsteries)
 
 
 @router.post(
@@ -465,7 +467,7 @@ async def create_upholstery(
     await db.commit()
     await db.refresh(upholstery)
     
-    return upholstery
+    return orm_to_dict(upholstery, status_code=status.HTTP_201_CREATED)
 
 
 @router.put(
@@ -534,7 +536,7 @@ async def update_upholstery(
     await db.commit()
     await db.refresh(upholstery)
     
-    return upholstery
+    return orm_to_dict(upholstery)
 
 
 @router.delete(
@@ -602,7 +604,7 @@ async def get_custom_options(
     result = await db.execute(query)
     options = result.scalars().all()
     
-    return list(options)
+    return orm_list_to_dict_list(options)
 
 
 @router.post(
@@ -645,7 +647,7 @@ async def create_custom_option(
     await db.commit()
     await db.refresh(custom_option)
     
-    return custom_option
+    return orm_to_dict(custom_option, status_code=status.HTTP_201_CREATED)
 
 
 @router.put(
@@ -702,7 +704,7 @@ async def update_custom_option(
     await db.commit()
     await db.refresh(custom_option)
     
-    return custom_option
+    return orm_to_dict(custom_option)
 
 
 @router.delete(
@@ -770,7 +772,7 @@ async def get_families(
     result = await db.execute(query)
     families = result.scalars().all()
     
-    return list(families)
+    return orm_list_to_dict_list(families)
 
 
 @router.post(
@@ -815,7 +817,7 @@ async def create_family(
     await db.commit()
     await db.refresh(family)
     
-    return family
+    return orm_to_dict(family, status_code=status.HTTP_201_CREATED)
 
 
 @router.put(
@@ -875,7 +877,7 @@ async def update_family(
     await db.commit()
     await db.refresh(family)
     
-    return family
+    return orm_to_dict(family)
 
 
 @router.delete(
@@ -943,7 +945,7 @@ async def get_subcategories(
     result = await db.execute(query)
     subcategories = result.scalars().all()
     
-    return list(subcategories)
+    return orm_list_to_dict_list(subcategories)
 
 
 @router.post(
@@ -978,7 +980,7 @@ async def create_subcategory(
     await db.commit()
     await db.refresh(subcategory)
     
-    return subcategory
+    return orm_to_dict(subcategory, status_code=status.HTTP_201_CREATED)
 
 
 @router.put(
@@ -1023,7 +1025,7 @@ async def update_subcategory(
     await db.commit()
     await db.refresh(subcategory)
     
-    return subcategory
+    return orm_to_dict(subcategory)
 
 
 @router.delete(

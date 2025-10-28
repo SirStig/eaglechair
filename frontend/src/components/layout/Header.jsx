@@ -333,7 +333,7 @@ const Header = ({ isMobileMenuOpen, setIsMobileMenuOpen }) => {
                     </Link>
                     {(user.role === 'super_admin' || user.role === 'admin' || user.type === 'admin') && (
                       <Link
-                        to="/admin"
+                        to="/admin/dashboard"
                         className="block px-4 py-2 text-sm text-dark-50 hover:bg-dark-700 transition-colors rounded-md"
                       >
                         Admin Panel
@@ -666,7 +666,7 @@ export const MobileMenu = ({ isMobileMenuOpen, setIsMobileMenuOpen, searchQuery,
                         My Quotes
                       </Link>
                       {(user.role === 'super_admin' || user.role === 'admin' || user.type === 'admin') && (
-                        <Link to="/admin" onClick={() => setIsMobileMenuOpen(false)} className="block py-2 text-dark-50 hover:text-primary-400 transition-colors">
+                        <Link to="/admin/dashboard" onClick={() => setIsMobileMenuOpen(false)} className="block py-2 text-dark-50 hover:text-primary-400 transition-colors">
                           Admin Panel
                         </Link>
                       )}

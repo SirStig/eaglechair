@@ -8,6 +8,7 @@ import logging
 from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi.responses import JSONResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from backend.api.dependencies import get_current_admin, require_role
@@ -24,6 +25,7 @@ from backend.models.company import (
     CompanyStatus,
 )
 from backend.services.admin_service import AdminService
+from backend.utils.serializers import orm_list_to_dict_list, orm_to_dict
 
 logger = logging.getLogger(__name__)
 
@@ -32,7 +34,6 @@ router = APIRouter(tags=["Admin - Companies"])
 
 @router.get(
     "/companies",
-    response_model=CompanyListResponse,
     summary="Get all companies (Admin)",
     description="Retrieve all companies with pagination and filtering"
 )
@@ -59,18 +60,22 @@ async def get_all_companies(
         status=status
     )
     
-    return CompanyListResponse(
-        items=companies,
-        total=total_count,
-        page=page,
-        page_size=page_size,
-        pages=(total_count + page_size - 1) // page_size
-    )
+    # Convert ORM objects to dicts
+    companies_data = orm_list_to_dict_list(companies)
+    
+    response_data = {
+        "items": companies_data,
+        "total": total_count,
+        "page": page,
+        "page_size": page_size,
+        "pages": (total_count + page_size - 1) // page_size
+    }
+    
+    return response_data
 
 
 @router.get(
     "/companies/{company_id}",
-    response_model=CompanyResponse,
     summary="Get company by ID (Admin)",
     description="Retrieve a specific company"
 )
@@ -90,7 +95,7 @@ async def get_company(
         # Use existing auth service for company retrieval
         from backend.services.auth_service import AuthService
         company = await AuthService.get_company_by_id(db, company_id)
-        return company
+        return orm_to_dict(company)
         
     except ResourceNotFoundError as e:
         raise HTTPException(status_code=404, detail=str(e))
@@ -122,8 +127,7 @@ async def update_company_status(
             status=status_data.status,
             admin_notes=status_data.admin_notes
         )
-        
-        return company
+        return orm_to_dict(company)
         
     except ResourceNotFoundError as e:
         raise HTTPException(status_code=404, detail=str(e))
@@ -204,11 +208,11 @@ async def get_company_pricing_tier(
             "pricing_tier": None,
             "message": "No pricing tier assigned (standard pricing)"
         }
-    
+
     return {
         "company_id": company_id,
         "company_name": company.company_name,
-        "pricing_tier": pricing_tier
+        "pricing_tier": orm_to_dict(pricing_tier)
     }
 
 
@@ -292,8 +296,8 @@ async def assign_pricing_tier(
     )
     
     return {
-        "message": f"Pricing tier assigned successfully",
-        "pricing_tier": pricing_tier,
+        "message": "Pricing tier assigned successfully",
+        "pricing_tier": orm_to_dict(pricing_tier),
         "company_name": company.company_name
     }
 
@@ -371,7 +375,7 @@ async def update_pricing_tier(
     await db.commit()
     await db.refresh(pricing_tier)
     
-    return pricing_tier
+    return orm_to_dict(pricing_tier)
 
 
 @router.delete(

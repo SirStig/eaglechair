@@ -6,22 +6,20 @@ Admin-only endpoints for quote management
 
 import logging
 from typing import Optional
-from fastapi import APIRouter, Depends, Query, HTTPException
+
+from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi.responses import JSONResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from backend.database.base import get_db
 from backend.api.dependencies import get_current_admin, require_role
-from backend.services.admin_service import AdminService
+from backend.api.v1.schemas.admin import QuoteListResponse, QuoteStatusUpdate
+from backend.api.v1.schemas.quote import QuoteResponse
+from backend.core.exceptions import ResourceNotFoundError, ValidationError
+from backend.database.base import get_db
 from backend.models.company import AdminRole, AdminUser
 from backend.models.quote import QuoteStatus
-from backend.api.v1.schemas.quote import QuoteResponse
-from backend.api.v1.schemas.admin import (
-    QuoteListResponse,
-    QuoteStatusUpdate
-)
-from backend.api.v1.schemas.common import MessageResponse
-from backend.core.exceptions import ResourceNotFoundError, ValidationError
-
+from backend.services.admin_service import AdminService
+from backend.utils.serializers import orm_list_to_dict_list, orm_to_dict
 
 logger = logging.getLogger(__name__)
 
@@ -30,7 +28,6 @@ router = APIRouter(tags=["Admin - Quotes"])
 
 @router.get(
     "/quotes",
-    response_model=QuoteListResponse,
     summary="Get all quotes (Admin)",
     description="Retrieve all quotes with pagination and filtering"
 )
@@ -57,18 +54,22 @@ async def get_all_quotes(
         company_id=company_id
     )
     
-    return QuoteListResponse(
-        items=quotes,
-        total=total_count,
-        page=page,
-        page_size=page_size,
-        pages=(total_count + page_size - 1) // page_size
-    )
+    # Convert ORM objects to dicts
+    quotes_data = orm_list_to_dict_list(quotes)
+    
+    response_data = {
+        "items": quotes_data,
+        "total": total_count,
+        "page": page,
+        "page_size": page_size,
+        "pages": (total_count + page_size - 1) // page_size
+    }
+    
+    return response_data
 
 
 @router.get(
     "/quotes/{quote_id}",
-    response_model=QuoteResponse,
     summary="Get quote by ID (Admin)",
     description="Retrieve a specific quote"
 )
@@ -88,7 +89,7 @@ async def get_quote(
         # Use existing quote service for single quote retrieval
         from backend.services.quote_service import QuoteService
         quote = await QuoteService.get_quote_by_id(db, quote_id, admin_id=admin.id)
-        return quote
+        return orm_to_dict(quote)
         
     except ResourceNotFoundError as e:
         raise HTTPException(status_code=404, detail=str(e))
@@ -96,7 +97,6 @@ async def get_quote(
 
 @router.patch(
     "/quotes/{quote_id}/status",
-    response_model=QuoteResponse,
     summary="Update quote status (Admin)",
     description="Update quote status, pricing, and notes"
 )
@@ -123,8 +123,7 @@ async def update_quote_status(
             quote_notes=status_data.quote_notes,
             admin_notes=status_data.admin_notes
         )
-        
-        return quote
+        return orm_to_dict(quote)
         
     except ResourceNotFoundError as e:
         raise HTTPException(status_code=404, detail=str(e))
@@ -134,7 +133,6 @@ async def update_quote_status(
 
 @router.post(
     "/quotes/{quote_id}/assign",
-    response_model=QuoteResponse,
     summary="Assign quote to admin (Admin)",
     description="Assign a quote to a specific admin for handling"
 )
@@ -157,13 +155,13 @@ async def assign_quote(
             status=QuoteStatus.PENDING,  # Keep current status
             admin_notes=f"Assigned to admin {admin.username}"
         )
-        
+
         # Update assigned admin
         quote.assigned_to_admin_id = admin.id
         await db.commit()
         await db.refresh(quote)
-        
-        return quote
+
+        return orm_to_dict(quote)
         
     except ResourceNotFoundError as e:
         raise HTTPException(status_code=404, detail=str(e))

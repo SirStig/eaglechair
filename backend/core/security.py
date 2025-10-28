@@ -82,7 +82,8 @@ class SecurityManager:
                     minutes=settings.COMPANY_ACCESS_TOKEN_EXPIRE_MINUTES
                 )
         
-        to_encode.update({"exp": expire, "type": "access"})
+        # Set expiration and token_type (keep user type from data)
+        to_encode.update({"exp": expire, "token_type": "access"})
         encoded_jwt = jwt.encode(
             to_encode,
             settings.SECRET_KEY,
@@ -121,7 +122,8 @@ class SecurityManager:
                     days=settings.COMPANY_REFRESH_TOKEN_EXPIRE_DAYS
                 )
         
-        to_encode.update({"exp": expire, "type": "refresh"})
+        # Set expiration and token_type (keep user type from data)
+        to_encode.update({"exp": expire, "token_type": "refresh"})
         encoded_jwt = jwt.encode(
             to_encode,
             settings.SECRET_KEY,
