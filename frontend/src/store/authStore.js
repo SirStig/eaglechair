@@ -28,17 +28,20 @@ export const useAuthStore = create(
     (set, get) => ({
       user: null,
       token: null,
+      refreshToken: null,
       sessionToken: null,
       adminToken: null,
       isAuthenticated: false,
 
       login: async (credentials) => {
         try {
-          const response = await axios.post('http://localhost:8000/api/v1/auth/login', credentials);
+          // Use relative URL - Vite proxy handles dev, same origin in production
+          const response = await axios.post('/api/v1/auth/login', credentials);
           const data = response.data;
           
           // Extract data from response
           const accessToken = data.access_token;
+          const refreshToken = data.refresh_token;
           const user = data.user;
           const sessionToken = data.session_token;
           const adminToken = data.admin_token;
@@ -50,7 +53,8 @@ export const useAuthStore = create(
           
           set({ 
             user, 
-            token: accessToken, 
+            token: accessToken,
+            refreshToken: refreshToken,
             sessionToken,
             adminToken,
             isAuthenticated: true 
@@ -82,7 +86,7 @@ export const useAuthStore = create(
       register: async (userData) => {
         try {
           const response = await axios.post('/api/v1/auth/register', userData);
-          const { access_token, user } = response.data;
+          const { access_token, refresh_token, user } = response.data;
           
           // Validate user data
           if (!isValidUser(user)) {
@@ -91,7 +95,8 @@ export const useAuthStore = create(
           
           set({ 
             user, 
-            token: access_token, 
+            token: access_token,
+            refreshToken: refresh_token,
             isAuthenticated: true 
           });
           
@@ -110,6 +115,7 @@ export const useAuthStore = create(
         set({ 
           user: null, 
           token: null,
+          refreshToken: null,
           sessionToken: null,
           adminToken: null,
           isAuthenticated: false 
@@ -171,6 +177,7 @@ export const useAuthStore = create(
       partialize: (state) => ({ 
         user: state.user, 
         token: state.token,
+        refreshToken: state.refreshToken,
         sessionToken: state.sessionToken,
         adminToken: state.adminToken,
         isAuthenticated: state.isAuthenticated 

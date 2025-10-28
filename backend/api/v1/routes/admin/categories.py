@@ -5,17 +5,21 @@ Admin-only endpoints for managing categories and subcategories
 """
 
 import logging
-from typing import Optional
+from typing import List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
-from fastapi.responses import JSONResponse
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from backend.api.dependencies import get_current_admin, require_role
 from backend.api.v1.schemas.common import MessageResponse
+from backend.api.v1.schemas.product import (
+    CategoryCreate,
+    CategoryUpdate,
+    CategoryWithSubcategories,
+)
 from backend.database.base import get_db
-from backend.models.chair import Category
+from backend.models.chair import Category, ProductSubcategory
 from backend.models.company import AdminRole, AdminUser
 from backend.utils.slug import slugify
 
@@ -29,9 +33,10 @@ router = APIRouter(tags=["Admin - Categories"])
 # ============================================================================
 
 @router.get(
-    "/categories",
+    "",
     summary="List all categories (Admin)",
-    description="Get all categories with subcategories"
+    description="Get all categories with subcategories",
+    response_model=List[CategoryWithSubcategories]
 )
 async def get_categories_admin(
     is_active: Optional[bool] = Query(None, description="Filter by active status"),
@@ -51,18 +56,20 @@ async def get_categories_admin(
     result = await db.execute(query)
     categories = result.scalars().all()
     
-    # Load subcategories and convert to dicts
-    categories_data = []
+    # Build response with subcategories
+    response_data = []
     for category in categories:
+        # Load subcategories from ProductSubcategory table (not Category.parent_id)
         subcat_query = (
-            select(Category)
-            .where(Category.parent_id == category.id)
-            .order_by(Category.display_order, Category.name)
+            select(ProductSubcategory)
+            .where(ProductSubcategory.category_id == category.id)
+            .order_by(ProductSubcategory.display_order, ProductSubcategory.name)
         )
         subcat_result = await db.execute(subcat_query)
         subcategories = subcat_result.scalars().all()
         
-        category_dict = {
+        # Build dict manually to avoid lazy loading issues
+        cat_dict = {
             "id": category.id,
             "name": category.name,
             "slug": category.slug,
@@ -74,55 +81,52 @@ async def get_categories_admin(
             "banner_image_url": category.banner_image_url,
             "meta_title": category.meta_title,
             "meta_description": category.meta_description,
+            "created_at": category.created_at,
+            "updated_at": category.updated_at,
             "subcategories": [
                 {
                     "id": sub.id,
                     "name": sub.name,
                     "slug": sub.slug,
                     "description": sub.description,
-                    "parent_id": sub.parent_id,
+                    "parent_id": None,  # ProductSubcategory uses category_id, not parent_id
                     "display_order": sub.display_order,
                     "is_active": sub.is_active,
-                    "icon_url": sub.icon_url,
-                    "banner_image_url": sub.banner_image_url,
-                    "meta_title": sub.meta_title,
-                    "meta_description": sub.meta_description
+                    "icon_url": None,  # ProductSubcategory doesn't have icon_url
+                    "banner_image_url": None,  # ProductSubcategory doesn't have banner_image_url
+                    "meta_title": None,  # ProductSubcategory doesn't have meta fields
+                    "meta_description": None,
+                    "created_at": sub.created_at if hasattr(sub, 'created_at') else None,
+                    "updated_at": sub.updated_at if hasattr(sub, 'updated_at') else None,
+                    "subcategories": []
                 }
                 for sub in subcategories
             ]
         }
-        categories_data.append(category_dict)
+        response_data.append(cat_dict)
     
-    # Return as JSONResponse
-    return categories_data
+    return response_data
 
 
 @router.post(
-    "/categories",
+    "",
     status_code=status.HTTP_201_CREATED,
     summary="Create category (Admin)",
-    description="Create a new product category"
+    description="Create a new product category",
+    response_model=CategoryWithSubcategories
 )
 async def create_category(
-    name: str,
-    slug: Optional[str] = None,
-    description: Optional[str] = None,
-    parent_id: Optional[int] = None,
-    icon_url: Optional[str] = None,
-    banner_image_url: Optional[str] = None,
-    meta_title: Optional[str] = None,
-    meta_description: Optional[str] = None,
-    display_order: int = 0,
-    is_active: bool = True,
+    category_data: CategoryCreate,
     admin: AdminUser = Depends(require_role(AdminRole.ADMIN)),
     db: AsyncSession = Depends(get_db)
 ):
     """Create a new category. Admin only."""
-    logger.info(f"Admin {admin.username} creating category: {name}")
+    logger.info(f"Admin {admin.username} creating category: {category_data.name}")
     
     # Generate slug if not provided
+    slug = category_data.slug
     if not slug:
-        slug = slugify(name)
+        slug = slugify(category_data.name)
     
     # Check if slug is unique
     existing = await db.execute(
@@ -135,24 +139,24 @@ async def create_category(
         )
     
     # Validate parent_id if provided
-    if parent_id:
+    if category_data.parent_id:
         parent = await db.execute(
-            select(Category).where(Category.id == parent_id)
+            select(Category).where(Category.id == category_data.parent_id)
         )
         if not parent.scalar_one_or_none():
-            raise HTTPException(status_code=404, detail=f"Parent category {parent_id} not found")
+            raise HTTPException(status_code=404, detail=f"Parent category {category_data.parent_id} not found")
     
     category = Category(
-        name=name,
+        name=category_data.name,
         slug=slug,
-        description=description,
-        parent_id=parent_id,
-        icon_url=icon_url,
-        banner_image_url=banner_image_url,
-        meta_title=meta_title,
-        meta_description=meta_description,
-        display_order=display_order,
-        is_active=is_active
+        description=category_data.description,
+        parent_id=category_data.parent_id,
+        icon_url=category_data.icon_url,
+        banner_image_url=category_data.banner_image_url,
+        meta_title=category_data.meta_title,
+        meta_description=category_data.meta_description,
+        display_order=category_data.display_order,
+        is_active=category_data.is_active
     )
     
     db.add(category)
@@ -160,8 +164,8 @@ async def create_category(
     await db.refresh(category)
 
     logger.info(f"Created category: {category.name} (ID: {category.id})")
-
-    category_dict = {
+    
+    return {
         "id": category.id,
         "name": category.name,
         "slug": category.slug,
@@ -173,28 +177,21 @@ async def create_category(
         "banner_image_url": category.banner_image_url,
         "meta_title": category.meta_title,
         "meta_description": category.meta_description,
+        "created_at": category.created_at,
+        "updated_at": category.updated_at,
+        "subcategories": []
     }
-
-    return category_dict
 
 
 @router.put(
-    "/categories/{category_id}",
+    "/{category_id}",
     summary="Update category (Admin)",
-    description="Update an existing category"
+    description="Update an existing category",
+    response_model=CategoryWithSubcategories
 )
 async def update_category(
     category_id: int,
-    name: Optional[str] = None,
-    slug: Optional[str] = None,
-    description: Optional[str] = None,
-    parent_id: Optional[int] = None,
-    icon_url: Optional[str] = None,
-    banner_image_url: Optional[str] = None,
-    meta_title: Optional[str] = None,
-    meta_description: Optional[str] = None,
-    display_order: Optional[int] = None,
-    is_active: Optional[bool] = None,
+    category_data: CategoryUpdate,
     admin: AdminUser = Depends(require_role(AdminRole.ADMIN)),
     db: AsyncSession = Depends(get_db)
 ):
@@ -208,50 +205,47 @@ async def update_category(
     if not category:
         raise HTTPException(status_code=404, detail=f"Category {category_id} not found")
     
-    # Update fields
-    if name is not None:
-        category.name = name
-    if slug is not None:
-        # Check uniqueness
-        existing = await db.execute(
-            select(Category).where(
-                Category.slug == slug,
-                Category.id != category_id
+    # Update fields using Pydantic model (exclude_unset to only update provided fields)
+    update_data = category_data.model_dump(exclude_unset=True)
+    
+    for field, value in update_data.items():
+        if field == 'slug' and value is not None:
+            # Check uniqueness for slug
+            existing = await db.execute(
+                select(Category).where(
+                    Category.slug == value,
+                    Category.id != category_id
+                )
             )
-        )
-        if existing.scalar_one_or_none():
-            raise HTTPException(
-                status_code=400,
-                detail=f"Category with slug '{slug}' already exists"
-            )
-        category.slug = slug
-    if description is not None:
-        category.description = description
-    if parent_id is not None:
-        # Validate parent exists and prevent circular reference
-        if parent_id == category_id:
-            raise HTTPException(status_code=400, detail="Category cannot be its own parent")
-        parent = await db.execute(select(Category).where(Category.id == parent_id))
-        if not parent.scalar_one_or_none():
-            raise HTTPException(status_code=404, detail=f"Parent category {parent_id} not found")
-        category.parent_id = parent_id
-    if icon_url is not None:
-        category.icon_url = icon_url
-    if banner_image_url is not None:
-        category.banner_image_url = banner_image_url
-    if meta_title is not None:
-        category.meta_title = meta_title
-    if meta_description is not None:
-        category.meta_description = meta_description
-    if display_order is not None:
-        category.display_order = display_order
-    if is_active is not None:
-        category.is_active = is_active
+            if existing.scalar_one_or_none():
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"Category with slug '{value}' already exists"
+                )
+        
+        if field == 'parent_id' and value is not None:
+            # Validate parent exists and prevent circular reference
+            if value == category_id:
+                raise HTTPException(status_code=400, detail="Category cannot be its own parent")
+            parent = await db.execute(select(Category).where(Category.id == value))
+            if not parent.scalar_one_or_none():
+                raise HTTPException(status_code=404, detail=f"Parent category {value} not found")
+        
+        setattr(category, field, value)
     
     await db.commit()
     await db.refresh(category)
-
-    category_dict = {
+    
+    # Load subcategories from ProductSubcategory table (not Category.parent_id)
+    subcat_query = (
+        select(ProductSubcategory)
+        .where(ProductSubcategory.category_id == category.id)
+        .order_by(ProductSubcategory.display_order, ProductSubcategory.name)
+    )
+    subcat_result = await db.execute(subcat_query)
+    subcategories = subcat_result.scalars().all()
+    
+    return {
         "id": category.id,
         "name": category.name,
         "slug": category.slug,
@@ -263,13 +257,32 @@ async def update_category(
         "banner_image_url": category.banner_image_url,
         "meta_title": category.meta_title,
         "meta_description": category.meta_description,
+        "created_at": category.created_at,
+        "updated_at": category.updated_at,
+        "subcategories": [
+            {
+                "id": sub.id,
+                "name": sub.name,
+                "slug": sub.slug,
+                "description": sub.description,
+                "parent_id": None,  # ProductSubcategory uses category_id, not parent_id
+                "display_order": sub.display_order,
+                "is_active": sub.is_active,
+                "icon_url": None,  # ProductSubcategory doesn't have these fields
+                "banner_image_url": None,
+                "meta_title": None,
+                "meta_description": None,
+                "created_at": sub.created_at if hasattr(sub, 'created_at') else None,
+                "updated_at": sub.updated_at if hasattr(sub, 'updated_at') else None,
+                "subcategories": []
+            }
+            for sub in subcategories
+        ]
     }
-
-    return category_dict
 
 
 @router.delete(
-    "/categories/{category_id}",
+    "/{category_id}",
     response_model=MessageResponse,
     summary="Delete category (Admin)",
     description="Delete a category (soft delete by default)"
@@ -292,9 +305,9 @@ async def delete_category(
     
     # Check if category has products
     if not hard_delete:
-        # Check for subcategories
+        # Check for subcategories in ProductSubcategory table
         subcat_check = await db.execute(
-            select(Category).where(Category.parent_id == category_id)
+            select(ProductSubcategory).where(ProductSubcategory.category_id == category_id)
         )
         if subcat_check.first():
             raise HTTPException(
@@ -315,7 +328,7 @@ async def delete_category(
 
 
 @router.post(
-    "/categories/{category_id}/reorder",
+    "/{category_id}/reorder",
     summary="Reorder categories (Admin)",
     description="Update display order for categories"
 )

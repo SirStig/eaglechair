@@ -1,15 +1,20 @@
 import { motion, AnimatePresence } from 'framer-motion';
+import { useLocation } from 'react-router-dom';
 import { useEditMode } from '../../contexts/useEditMode';
 
 /**
  * Floating Edit Mode Toggle Button
- * Pinned to top-left corner, visible only to admins
+ * Pinned to top-left corner, visible only to admins on public pages
  */
 const EditModeToggle = () => {
   const { isAdmin, isEditMode, toggleEditMode } = useEditMode();
+  const location = useLocation();
 
   // Don't render if user is not admin
   if (!isAdmin) return null;
+
+  // Don't render on admin pages
+  if (location.pathname.startsWith('/admin')) return null;
 
   return (
     <motion.div

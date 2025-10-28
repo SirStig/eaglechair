@@ -13,7 +13,6 @@ from backend.api.v1.routes import (
     content,
     products,
     quotes,
-    upload,
 )
 from backend.api.v1.routes.admin.router import router as admin_router
 
@@ -36,9 +35,6 @@ router.include_router(cms_content.router)
 
 # Include CMS admin routes (admin-only content management with static export)
 router.include_router(cms_admin.router)
-
-# Include upload routes
-router.include_router(upload.router)
 
 # Include admin routes
 router.include_router(admin_router)

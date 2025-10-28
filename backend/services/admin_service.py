@@ -66,8 +66,8 @@ class AdminService:
         """
         query = select(Chair).options(
             selectinload(Chair.category),
-            selectinload(Chair.finishes),
-            selectinload(Chair.upholsteries)
+            selectinload(Chair.subcategory),
+            selectinload(Chair.family)
         )
         
         # Apply filters

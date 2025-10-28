@@ -5,12 +5,12 @@ Pydantic schemas for admin operations
 """
 
 from datetime import datetime
-from typing import Optional, List, Dict, Any
+from typing import Any, Dict, List, Optional
+
 from pydantic import BaseModel, Field
 
 from backend.models.company import CompanyStatus
 from backend.models.quote import QuoteStatus
-
 
 # ============================================================================
 # Dashboard Schemas

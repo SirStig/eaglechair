@@ -6,16 +6,16 @@ Handles analytics tracking and dashboard statistics
 
 import logging
 from datetime import datetime, timedelta
-from typing import List, Optional, Dict, Any
+from typing import Any, Dict, List, Optional
+
+from sqlalchemy import and_, desc, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, func, and_, or_, desc
 from sqlalchemy.orm import selectinload
 
-from backend.models.chair import Chair, Category
+from backend.models.chair import Category, Chair
 from backend.models.company import Company, CompanyStatus
-from backend.models.quote import Quote, QuoteStatus, QuoteItem
 from backend.models.content import FAQ, Catalog, Installation
-
+from backend.models.quote import Quote, QuoteItem, QuoteStatus
 
 logger = logging.getLogger(__name__)
 
@@ -43,7 +43,7 @@ class AnalyticsService:
         stats['pending_companies'] = pending_companies.scalar()
         
         active_companies = await db.execute(
-            select(func.count(Company.id)).where(Company.status == CompanyStatus.APPROVED)
+            select(func.count(Company.id)).where(Company.status == CompanyStatus.ACTIVE)
         )
         stats['active_companies'] = active_companies.scalar()
         
@@ -91,7 +91,7 @@ class AnalyticsService:
         stats['active_products'] = active_products.scalar()
         
         # Recent Activity (last 30 days)
-        thirty_days_ago = (datetime.utcnow() - timedelta(days=30)).isoformat()
+        thirty_days_ago = datetime.utcnow() - timedelta(days=30)
         
         recent_quotes = await db.execute(
             select(func.count(Quote.id)).where(Quote.created_at >= thirty_days_ago)
@@ -126,27 +126,27 @@ class AnalyticsService:
         query = (
             select(
                 Chair,
-                func.count(QuoteItem.id).label('quote_count'),
+                func.count(QuoteItem.id).label('item_quote_count'),
                 func.sum(QuoteItem.quantity).label('total_quantity')
             )
             .join(QuoteItem, QuoteItem.product_id == Chair.id)
             .join(Quote, Quote.id == QuoteItem.quote_id)
             .group_by(Chair.id)
-            .order_by(desc('quote_count'))
+            .order_by(desc('item_quote_count'))
             .limit(limit)
         )
         
         if days:
-            cutoff_date = (datetime.utcnow() - timedelta(days=days)).isoformat()
+            cutoff_date = datetime.utcnow() - timedelta(days=days)
             query = query.where(Quote.created_at >= cutoff_date)
         
         result = await db.execute(query)
         
         popular_products = []
-        for chair, quote_count, total_quantity in result:
+        for chair, item_quote_count, total_quantity in result:
             popular_products.append({
                 'product': chair,
-                'quote_count': quote_count,
+                'quote_count': item_quote_count,
                 'total_quantity': total_quantity
             })
         
@@ -194,7 +194,7 @@ class AnalyticsService:
         Returns:
             Dictionary with daily quote counts
         """
-        cutoff_date = (datetime.utcnow() - timedelta(days=days)).isoformat()
+        cutoff_date = datetime.utcnow() - timedelta(days=days)
         
         # Get quotes by status over time
         result = await db.execute(

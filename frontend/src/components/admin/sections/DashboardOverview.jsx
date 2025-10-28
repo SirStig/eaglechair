@@ -3,6 +3,17 @@ import { motion } from 'framer-motion';
 import Card from '../../ui/Card';
 import Button from '../../ui/Button';
 import axios from 'axios';
+import { 
+  Package, 
+  FileText, 
+  Building2, 
+  TrendingUp, 
+  PlusCircle, 
+  Tags, 
+  ClipboardList, 
+  Settings as SettingsIcon,
+  ArrowRight
+} from 'lucide-react';
 
 /**
  * Dashboard Overview
@@ -32,40 +43,44 @@ const DashboardOverview = ({ onNavigate }) => {
   };
 
   const quickActions = [
-    { label: 'Add Product', icon: '➕', action: () => onNavigate('catalog'), color: 'primary' },
-    { label: 'Manage Categories', icon: '🏷️', action: () => onNavigate('categories'), color: 'accent' },
-    { label: 'View Quotes', icon: '📋', action: () => onNavigate('quotes'), color: 'green' },
-    { label: 'Site Settings', icon: '⚙️', action: () => onNavigate('settings'), color: 'blue' },
+    { label: 'Add Product', icon: PlusCircle, action: () => onNavigate('catalog'), color: 'primary' },
+    { label: 'Manage Categories', icon: Tags, action: () => onNavigate('categories'), color: 'accent' },
+    { label: 'View Quotes', icon: ClipboardList, action: () => onNavigate('quotes'), color: 'green' },
+    { label: 'Site Settings', icon: SettingsIcon, action: () => onNavigate('settings'), color: 'blue' },
   ];
 
   const statCards = [
     {
       title: 'Total Products',
-      value: stats?.products?.total || 0,
-      change: `${stats?.products?.active || 0} active`,
-      icon: '📦',
+      value: stats?.total_products || 0,
+      change: `${stats?.active_products || 0} active`,
+      icon: Package,
       color: 'primary',
+      bgGradient: 'from-primary-500/10 to-primary-600/5',
     },
     {
       title: 'Pending Quotes',
-      value: stats?.quotes?.pending || 0,
-      change: `${stats?.quotes?.total || 0} total quotes`,
-      icon: '📋',
+      value: stats?.pending_quotes || 0,
+      change: `${stats?.total_quotes || 0} total quotes`,
+      icon: FileText,
       color: 'accent',
+      bgGradient: 'from-accent-500/10 to-accent-600/5',
     },
     {
       title: 'Active Companies',
-      value: stats?.companies?.active || 0,
-      change: `${stats?.companies?.total || 0} total companies`,
-      icon: '🏢',
+      value: stats?.active_companies || 0,
+      change: `${stats?.total_companies || 0} total companies`,
+      icon: Building2,
       color: 'green',
+      bgGradient: 'from-green-500/10 to-green-600/5',
     },
     {
       title: 'Total Quotes',
-      value: stats?.quotes?.total || 0,
-      change: `${stats?.quotes?.pending || 0} pending`,
-      icon: '📋',
+      value: stats?.total_quotes || 0,
+      change: `${stats?.pending_quotes || 0} pending`,
+      icon: TrendingUp,
       color: 'blue',
+      bgGradient: 'from-blue-500/10 to-blue-600/5',
     },
   ];
 
@@ -79,52 +94,58 @@ const DashboardOverview = ({ onNavigate }) => {
 
       {/* Stats Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-        {statCards.map((stat, index) => (
-          <motion.div
-            key={stat.title}
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: index * 0.1 }}
-          >
-            <Card className="relative overflow-hidden">
-              <div className={`absolute top-0 right-0 w-32 h-32 bg-gradient-to-br from-${stat.color}-500/10 to-transparent rounded-bl-full`} />
-              <div className="relative">
-                <div className="flex items-center justify-between mb-4">
-                  <div className={`p-3 bg-${stat.color}-900 border border-${stat.color}-500 rounded-lg`}>
-                    <span className="text-2xl">{stat.icon}</span>
+        {statCards.map((stat, index) => {
+          const Icon = stat.icon;
+          return (
+            <motion.div
+              key={stat.title}
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: index * 0.1 }}
+            >
+              <Card className="relative overflow-hidden group hover:shadow-lg transition-shadow duration-300">
+                <div className={`absolute top-0 right-0 w-32 h-32 bg-gradient-to-br ${stat.bgGradient} rounded-bl-full opacity-50`} />
+                <div className="relative">
+                  <div className="flex items-center justify-between mb-4">
+                    <div className={`p-3 bg-${stat.color}-900/30 border border-${stat.color}-500/50 rounded-lg group-hover:border-${stat.color}-500 transition-colors`}>
+                      <Icon className={`w-6 h-6 text-${stat.color}-500`} />
+                    </div>
+                    {loading && <div className="w-4 h-4 border-2 border-dark-600 border-t-primary-500 rounded-full animate-spin" />}
                   </div>
-                  {loading && <div className="w-4 h-4 border-2 border-dark-600 border-t-primary-500 rounded-full animate-spin" />}
+                  <p className="text-sm text-dark-300 mb-1">{stat.title}</p>
+                  <p className="text-3xl font-bold text-dark-50 mb-2">{stat.value}</p>
+                  <p className="text-xs text-dark-400">{stat.change}</p>
                 </div>
-                <p className="text-sm text-dark-300 mb-1">{stat.title}</p>
-                <p className="text-3xl font-bold text-dark-50 mb-2">{stat.value}</p>
-                <p className="text-xs text-dark-400">{stat.change}</p>
-              </div>
-            </Card>
-          </motion.div>
-        ))}
+              </Card>
+            </motion.div>
+          );
+        })}
       </div>
 
       {/* Quick Actions */}
       <Card>
         <h2 className="text-xl font-bold text-dark-50 mb-4">Quick Actions</h2>
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-          {quickActions.map((action) => (
-            <button
-              key={action.label}
-              onClick={action.action}
-              className={`
-                p-6 rounded-lg border-2 border-dashed
-                hover:border-${action.color}-500 hover:bg-${action.color}-900/10
-                transition-all duration-200 group
-                flex flex-col items-center gap-3
-              `}
-            >
-              <span className="text-4xl">{action.icon}</span>
-              <span className="font-medium text-dark-200 group-hover:text-dark-50 transition-colors">
-                {action.label}
-              </span>
-            </button>
-          ))}
+          {quickActions.map((action) => {
+            const Icon = action.icon;
+            return (
+              <button
+                key={action.label}
+                onClick={action.action}
+                className={`
+                  p-6 rounded-lg border-2 border-dashed border-dark-600
+                  hover:border-${action.color}-500 hover:bg-${action.color}-900/10
+                  transition-all duration-200 group
+                  flex flex-col items-center gap-3
+                `}
+              >
+                <Icon className="w-8 h-8 text-dark-300 group-hover:text-${action.color}-500 transition-colors" />
+                <span className="font-medium text-dark-200 group-hover:text-dark-50 transition-colors">
+                  {action.label}
+                </span>
+              </button>
+            );
+          })}
         </div>
       </Card>
 
@@ -132,7 +153,7 @@ const DashboardOverview = ({ onNavigate }) => {
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <Card>
           <h3 className="text-lg font-bold text-dark-50 mb-4 flex items-center gap-2">
-            <span>📊</span>
+            <FileText className="w-5 h-5 text-accent-500" />
             Recent Quotes
           </h3>
           <div className="space-y-3">
@@ -169,12 +190,13 @@ const DashboardOverview = ({ onNavigate }) => {
             onClick={() => onNavigate('quotes')}
           >
             View All Quotes
+            <ArrowRight className="w-4 h-4 ml-2" />
           </Button>
         </Card>
 
         <Card>
           <h3 className="text-lg font-bold text-dark-50 mb-4 flex items-center gap-2">
-            <span>🏢</span>
+            <Building2 className="w-5 h-5 text-green-500" />
             Recent Companies
           </h3>
           <div className="space-y-3">
@@ -211,6 +233,7 @@ const DashboardOverview = ({ onNavigate }) => {
             onClick={() => onNavigate('companies')}
           >
             View All Companies
+            <ArrowRight className="w-4 h-4 ml-2" />
           </Button>
         </Card>
       </div>
