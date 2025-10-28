@@ -410,8 +410,6 @@ class CMSAdminService:
     @staticmethod
     async def _export_all_gallery_images(db: AsyncSession):
         """Export all installation gallery images to static file."""
-        import json
-        
         result = await db.execute(
             select(Installation)
             .where(Installation.is_active)

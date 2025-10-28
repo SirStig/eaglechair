@@ -174,9 +174,9 @@ const LoginPage = () => {
 
           {!isRegistering && (
             <div className="mt-4 text-center">
-              <a href="#" className="text-sm text-primary-600 hover:text-primary-700">
+              <Link to="/forgot-password" className="text-sm text-primary-600 hover:text-primary-700">
                 Forgot your password?
-              </a>
+              </Link>
             </div>
           )}
 

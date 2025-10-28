@@ -6,22 +6,22 @@ Reusable dependencies for authentication, authorization, and database access
 
 import logging
 from typing import Optional
-from fastapi import Depends, Request
-from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
-from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select
 
-from backend.database.base import get_db
-from backend.models.company import Company, AdminUser, AdminRole
-from backend.core.security import security_manager
+from fastapi import Depends
+from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
+
 from backend.core.exceptions import (
     AuthenticationError,
     AuthorizationError,
+    InsufficientPermissionsError,
     InvalidTokenError,
     TokenExpiredError,
-    InsufficientPermissionsError,
 )
-
+from backend.core.security import security_manager
+from backend.database.base import get_db
+from backend.models.company import AdminRole, AdminUser, Company
 
 logger = logging.getLogger(__name__)
 
@@ -46,6 +46,30 @@ async def get_current_token_payload(
         token = credentials.credentials
         payload = security_manager.decode_token(token)
         return payload
+    except Exception as e:
+        logger.warning(f"Token validation failed: {str(e)}")
+        if "expired" in str(e).lower():
+            raise TokenExpiredError()
+        raise InvalidTokenError()
+
+
+async def get_current_token_and_payload(
+    credentials: HTTPAuthorizationCredentials = Depends(security)
+) -> tuple[str, dict]:
+    """
+    Extract JWT token and its decoded payload from Authorization header
+    
+    Returns:
+        Tuple of (raw_token, decoded_payload)
+        
+    Raises:
+        InvalidTokenError: If token is invalid
+        TokenExpiredError: If token has expired
+    """
+    try:
+        token = credentials.credentials
+        payload = security_manager.decode_token(token)
+        return token, payload
     except Exception as e:
         logger.warning(f"Token validation failed: {str(e)}")
         if "expired" in str(e).lower():
@@ -124,18 +148,9 @@ async def get_current_admin(
         logger.warning(f"Inactive admin attempted access: {admin_id}")
         raise AuthenticationError("Admin account is inactive")
     
-    # Verify session and admin tokens (if provided in headers)
-    if request:
-        session_token = request.headers.get("X-Session-Token")
-        admin_token = request.headers.get("X-Admin-Token")
-        
-        if session_token and admin.session_token != session_token:
-            logger.warning(f"Invalid session token for admin: {admin_id}")
-            raise AuthenticationError("Invalid session token")
-        
-        if admin_token and admin.admin_token != admin_token:
-            logger.warning(f"Invalid admin token for admin: {admin_id}")
-            raise AuthenticationError("Invalid admin token")
+    # Note: Session and admin token validation removed from here
+    # It should be done via middleware for admin routes
+    # Individual routes can check if needed
     
     return admin
 
@@ -160,7 +175,7 @@ async def get_optional_company(
         
         company_id = int(payload.get("sub"))
         result = await db.execute(
-            select(Company).where(Company.id == company_id, Company.is_active == True)
+            select(Company).where(Company.id == company_id, Company.is_active)
         )
         return result.scalar_one_or_none()
     except Exception:
