@@ -19,11 +19,24 @@ import FindARepPage from './pages/FindARepPage';
 import CartPage from './pages/CartPage';
 import QuoteRequestPage from './pages/QuoteRequestPage';
 import LoginPage from './pages/LoginPage';
+import RegisterPage from './pages/RegisterPage';
 import ForgotPasswordPage from './pages/ForgotPasswordPage';
 import ResetPasswordPage from './pages/ResetPasswordPage';
+import TermsOfServicePage from './pages/TermsOfServicePage';
+import PrivacyPolicyPage from './pages/PrivacyPolicyPage';
+import GeneralInformationPage from './pages/GeneralInformationPage';
 import DashboardPage from './pages/DashboardPage';
 import AdminPanel from './pages/AdminPanel';
 import AdminDashboard from './pages/admin/AdminDashboard';
+
+// Resource Pages
+import VirtualCatalogsPage from './pages/VirtualCatalogsPage';
+import WoodFinishesPage from './pages/WoodFinishesPage';
+import HardwarePage from './pages/HardwarePage';
+import LaminatesPage from './pages/LaminatesPage';
+import UpholsteryPage from './pages/UpholsteryPage';
+import GuidesPage from './pages/GuidesPage';
+import SeatBackTermsPage from './pages/SeatBackTermsPage';
 
 // Create a client
 const queryClient = new QueryClient({
@@ -47,6 +60,7 @@ function App() {
             <Routes>
           {/* Public Routes */}
           <Route path="/login" element={<LoginPage />} />
+          <Route path="/register" element={<RegisterPage />} />
           <Route path="/forgot-password" element={<ForgotPasswordPage />} />
           <Route path="/reset-password" element={<ResetPasswordPage />} />
 
@@ -54,6 +68,11 @@ function App() {
           <Route element={<Layout />}>
             {/* Home */}
             <Route path="/" element={<HomePage />} />
+
+            {/* Legal & Information Pages */}
+            <Route path="/terms" element={<TermsOfServicePage />} />
+            <Route path="/privacy" element={<PrivacyPolicyPage />} />
+            <Route path="/general-information" element={<GeneralInformationPage />} />
 
             {/* Products - ORDER MATTERS! More specific routes first */}
             <Route path="/products" element={<ProductCatalogPage />} />
@@ -65,13 +84,22 @@ function App() {
             <Route path="/products/:id" element={<ProductDetailPage />} />
             <Route path="/search" element={<SearchPage />} />
 
-            {/* Info Pages */}
-            <Route path="/gallery" element={<GalleryPage />} />
-            <Route path="/about" element={<AboutPage />} />
-            <Route path="/contact" element={<ContactPage />} />
-            <Route path="/find-a-rep" element={<FindARepPage />} />
+          {/* Info Pages */}
+          <Route path="/gallery" element={<GalleryPage />} />
+          <Route path="/about" element={<AboutPage />} />
+          <Route path="/contact" element={<ContactPage />} />
+          <Route path="/find-a-rep" element={<FindARepPage />} />
 
-            {/* Shopping & Quotes */}
+          {/* Resource Pages */}
+          <Route path="/virtual-catalogs" element={<VirtualCatalogsPage />} />
+          <Route path="/resources/guides" element={<GuidesPage />} />
+          <Route path="/resources/woodfinishes" element={<WoodFinishesPage />} />
+          <Route path="/resources/hardware" element={<HardwarePage />} />
+          <Route path="/resources/laminates" element={<LaminatesPage />} />
+          <Route path="/resources/upholstery" element={<UpholsteryPage />} />
+          <Route path="/resources/seat-back-terms" element={<SeatBackTermsPage />} />
+
+          {/* Shopping & Quotes */}
             <Route path="/cart" element={<CartPage />} />
             <Route path="/quote-request" element={<QuoteRequestPage />} />
 

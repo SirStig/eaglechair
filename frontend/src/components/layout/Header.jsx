@@ -96,20 +96,15 @@ const Header = ({ isMobileMenuOpen, setIsMobileMenuOpen }) => {
                 <img 
                   src={siteSettings.logoUrl} 
                   alt={siteSettings.companyName || 'Eagle Chair'}
-                  className="h-10 sm:h-12 w-auto object-contain"
+                  className="h-16 sm:h-18 w-auto object-contain"
                 />
               ) : (
                 <img 
                   src="/assets/eagle-chair-logo.png" 
                   alt="Eagle Chair" 
-                  className="h-10 sm:h-12 w-auto object-contain"
+                  className="h-16 sm:h-18 w-auto object-contain"
                 />
               )}
-              
-              {/* Since 1984 Text */}
-              <span className="hidden md:inline text-white/80 text-sm font-medium">
-                Since 1984
-              </span>
             </Motion.div>
           </Link>
 
@@ -612,7 +607,7 @@ export const MobileMenu = ({ isMobileMenuOpen, setIsMobileMenuOpen, searchQuery,
                   <Link to="/about" onClick={() => setIsMobileMenuOpen(false)} className="py-2 hover:text-primary-400 transition-colors">
                     About Us
                   </Link>
-                  <Link to="/resources" onClick={() => setIsMobileMenuOpen(false)} className="py-2 hover:text-primary-400 transition-colors">
+                  <Link to="/virtual-catalogs" onClick={() => setIsMobileMenuOpen(false)} className="py-2 hover:text-primary-400 transition-colors">
                     Resources
                   </Link>
                   

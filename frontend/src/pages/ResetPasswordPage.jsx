@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { useNavigate, useSearchParams, Link } from 'react-router-dom';
+import { motion } from 'framer-motion';
 import axios from 'axios';
 import Button from '../components/ui/Button';
 import Input from '../components/ui/Input';
@@ -73,106 +74,149 @@ const ResetPasswordPage = () => {
 
   if (!token) {
     return (
-      <div className="min-h-screen bg-dark-800 flex items-center justify-center py-12 px-4">
-        <Card className="max-w-md w-full text-center p-8">
-          <div className="mb-4 text-red-500">
-            <svg className="w-16 h-16 mx-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
-            </svg>
+      <div className="min-h-screen bg-gradient-to-br from-dark-900 via-dark-800 to-dark-900 flex items-center justify-center py-12 px-4">
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="w-full max-w-md"
+        >
+          <div className="text-center mb-8">
+            <Link to="/" className="inline-block mb-4">
+              <motion.img 
+                src="/assets/eagle-chair-logo.png" 
+                alt="Eagle Chair" 
+                className="h-16 w-auto mx-auto"
+                whileHover={{ scale: 1.05 }}
+                transition={{ type: "spring", stiffness: 300 }}
+              />
+            </Link>
           </div>
-          <h2 className="text-2xl font-bold mb-4 text-dark-50">Invalid Reset Link</h2>
-          <p className="text-dark-100 mb-6">
-            This password reset link is invalid or has expired. Reset links are only valid for 1 hour.
-          </p>
-          <Link to="/forgot-password">
-            <Button variant="primary" className="w-full mb-3">
-              Request New Link
-            </Button>
-          </Link>
-          <Link to="/login">
-            <Button variant="secondary" className="w-full">
-              Back to Login
-            </Button>
-          </Link>
-        </Card>
+
+          <Card className="bg-dark-800 border-dark-700 text-center">
+            <motion.div
+              initial={{ scale: 0 }}
+              animate={{ scale: 1 }}
+              transition={{ type: "spring", duration: 0.5 }}
+              className="mb-6 text-red-500"
+            >
+              <svg className="w-20 h-20 mx-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+              </svg>
+            </motion.div>
+            <h2 className="text-3xl font-bold mb-4 text-dark-50">Invalid Reset Link</h2>
+            <p className="text-dark-200 mb-8">
+              This password reset link is invalid or has expired. Reset links are only valid for 1 hour.
+            </p>
+            <div className="space-y-3">
+              <Link to="/forgot-password">
+                <Button variant="primary" size="lg" className="w-full">
+                  Request New Link
+                </Button>
+              </Link>
+              <Link to="/login">
+                <Button variant="secondary" size="md" className="w-full">
+                  Back to Login
+                </Button>
+              </Link>
+            </div>
+          </Card>
+        </motion.div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-dark-800 flex items-center justify-center py-12 px-4">
-      <Card className="max-w-md w-full p-8">
-        <h2 className="text-2xl font-bold mb-2 text-dark-50">Set New Password</h2>
-        <p className="text-dark-100 mb-6">
-          Enter your new password below. Make sure it's strong and secure.
-        </p>
-
-        {error && (
-          <div className="bg-red-900/30 border-2 border-red-600 text-red-300 px-4 py-3 rounded-lg mb-6">
-            <p className="font-semibold">Error</p>
-            <p className="text-sm">{error}</p>
-          </div>
-        )}
-
-        <form onSubmit={handleSubmit} className="space-y-4">
-          <div>
-            <Input
-              label="New Password"
-              type="password"
-              value={password}
-              onChange={(e) => {
-                setPassword(e.target.value);
-                setValidationErrors({});
-              }}
-              placeholder="Enter new password"
-              required
-              autoComplete="new-password"
-              className="w-full"
+    <div className="min-h-screen bg-gradient-to-br from-dark-900 via-dark-800 to-dark-900 flex items-center justify-center py-12 px-4">
+      <motion.div
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        className="w-full max-w-md"
+      >
+        <div className="text-center mb-8">
+          <Link to="/" className="inline-block mb-4">
+            <motion.img 
+              src="/assets/eagle-chair-logo.png" 
+              alt="Eagle Chair" 
+              className="h-16 w-auto mx-auto"
+              whileHover={{ scale: 1.05 }}
+              transition={{ type: "spring", stiffness: 300 }}
             />
-            {validationErrors.password && (
-              <p className="mt-1 text-sm text-red-400">{validationErrors.password}</p>
-            )}
-            <p className="mt-1 text-xs text-dark-300">
-              Must be at least 8 characters with uppercase, lowercase, and a number
-            </p>
-          </div>
-
-          <div>
-            <Input
-              label="Confirm Password"
-              type="password"
-              value={confirmPassword}
-              onChange={(e) => {
-                setConfirmPassword(e.target.value);
-                setValidationErrors({});
-              }}
-              placeholder="Confirm new password"
-              required
-              autoComplete="new-password"
-              className="w-full"
-            />
-            {validationErrors.confirmPassword && (
-              <p className="mt-1 text-sm text-red-400">{validationErrors.confirmPassword}</p>
-            )}
-          </div>
-
-          <Button 
-            type="submit" 
-            variant="primary" 
-            size="lg" 
-            className="w-full"
-            disabled={isSubmitting}
-          >
-            {isSubmitting ? 'Resetting Password...' : 'Reset Password'}
-          </Button>
-        </form>
-
-        <div className="mt-6 text-center">
-          <Link to="/login" className="text-sm text-primary-500 hover:text-primary-400 transition-colors">
-            Back to Login
           </Link>
+          <h2 className="text-3xl font-bold mb-2 text-dark-50">Set New Password</h2>
+          <p className="text-dark-200">
+            Create a strong and secure password
+          </p>
         </div>
-      </Card>
+
+        <Card className="bg-dark-800 border-dark-700">
+          {error && (
+            <motion.div
+              initial={{ opacity: 0, y: -10 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="bg-red-900/30 border-2 border-red-600 text-red-300 px-4 py-3 rounded-lg mb-6"
+            >
+              {error}
+            </motion.div>
+          )}
+
+          <form onSubmit={handleSubmit} className="space-y-4">
+            <div>
+              <Input
+                label="New Password"
+                type="password"
+                value={password}
+                onChange={(e) => {
+                  setPassword(e.target.value);
+                  setValidationErrors({});
+                }}
+                placeholder="Enter new password"
+                required
+                autoComplete="new-password"
+              />
+              {validationErrors.password && (
+                <p className="mt-1 text-sm text-red-400">{validationErrors.password}</p>
+              )}
+              <p className="mt-1 text-xs text-dark-300">
+                Must be at least 8 characters with uppercase, lowercase, and a number
+              </p>
+            </div>
+
+            <div>
+              <Input
+                label="Confirm Password"
+                type="password"
+                value={confirmPassword}
+                onChange={(e) => {
+                  setConfirmPassword(e.target.value);
+                  setValidationErrors({});
+                }}
+                placeholder="Confirm new password"
+                required
+                autoComplete="new-password"
+              />
+              {validationErrors.confirmPassword && (
+                <p className="mt-1 text-sm text-red-400">{validationErrors.confirmPassword}</p>
+              )}
+            </div>
+
+            <Button 
+              type="submit" 
+              variant="primary" 
+              size="lg" 
+              className="w-full"
+              disabled={isSubmitting}
+            >
+              {isSubmitting ? 'Resetting Password...' : 'Reset Password'}
+            </Button>
+          </form>
+
+          <div className="mt-6 pt-6 border-t border-dark-700 text-center">
+            <Link to="/login" className="text-sm text-primary-500 hover:text-primary-400 transition-colors">
+              ← Back to Login
+            </Link>
+          </div>
+        </Card>
+      </motion.div>
     </div>
   );
 };

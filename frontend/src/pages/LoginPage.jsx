@@ -12,22 +12,23 @@ const LoginPage = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const { login } = useAuthStore();
-  const [isRegistering, setIsRegistering] = useState(false);
   const [error, setError] = useState(null);
+  const [successMessage, setSuccessMessage] = useState(location.state?.message || null);
   
-  const { register, handleSubmit, formState: { errors }, watch } = useForm();
+  const { register, handleSubmit, formState: { errors } } = useForm();
 
   const from = location.state?.from?.pathname || '/dashboard';
 
   const onSubmit = async (data) => {
     setError(null);
+    setSuccessMessage(null);
     
     if (IS_DEMO) {
       // Demo mode - simple email check
       const isAdmin = data.email.includes('admin');
       const demoUserData = isAdmin ? demoAdminUser : demoUser;
       
-      const result = await login({
+      await login({
         email: data.email,
         password: data.password,
       });
@@ -60,7 +61,7 @@ const LoginPage = () => {
   };
 
   return (
-    <div className="min-h-screen bg-dark-800 flex items-center justify-center py-12 px-4">
+    <div className="min-h-screen bg-gradient-to-br from-dark-900 via-dark-800 to-dark-900 flex items-center justify-center py-12 px-4">
       <motion.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
@@ -68,27 +69,37 @@ const LoginPage = () => {
       >
         <div className="text-center mb-8">
           <Link to="/" className="inline-block mb-4">
-            <img 
+            <motion.img 
               src="/assets/eagle-chair-logo.png" 
               alt="Eagle Chair" 
-              className="h-16 w-auto mx-auto opacity-80"
+              className="h-16 w-auto mx-auto"
+              whileHover={{ scale: 1.05 }}
+              transition={{ type: "spring", stiffness: 300 }}
             />
           </Link>
-          <h2 className="text-2xl font-bold mb-2 text-dark-50">
-            {isRegistering ? 'Create Account' : 'Welcome Back'}
-          </h2>
-          <p className="text-dark-100">
-            {isRegistering 
-              ? 'Register your business account to get started' 
-              : 'Sign in to manage quotes and orders'}
-          </p>
+          <h2 className="text-3xl font-bold mb-2 text-dark-50">Welcome Back</h2>
+          <p className="text-dark-200">Sign in to manage your account and orders</p>
         </div>
 
-        <Card>
+        <Card className="bg-dark-800 border-dark-700">
+          {successMessage && (
+            <motion.div
+              initial={{ opacity: 0, y: -10 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="bg-green-900/30 border-2 border-green-600 text-green-300 px-4 py-3 rounded-lg mb-6"
+            >
+              {successMessage}
+            </motion.div>
+          )}
+
           {error && (
-            <div className="bg-secondary-900 border-2 border-secondary-600 text-secondary-300 px-4 py-3 rounded-lg mb-6">
+            <motion.div
+              initial={{ opacity: 0, y: -10 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="bg-red-900/30 border-2 border-red-600 text-red-300 px-4 py-3 rounded-lg mb-6"
+            >
               {error}
-            </div>
+            </motion.div>
           )}
 
           {IS_DEMO && (
@@ -99,31 +110,11 @@ const LoginPage = () => {
           )}
 
           <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
-            {isRegistering && (
-              <>
-                <div className="grid grid-cols-2 gap-4">
-                  <Input
-                    label="First Name"
-                    {...register('firstName', { required: isRegistering })}
-                    error={errors.firstName?.message}
-                  />
-                  <Input
-                    label="Last Name"
-                    {...register('lastName', { required: isRegistering })}
-                    error={errors.lastName?.message}
-                  />
-                </div>
-                <Input
-                  label="Company Name"
-                  {...register('company', { required: isRegistering })}
-                  error={errors.company?.message}
-                />
-              </>
-            )}
-
             <Input
               label="Email Address"
               type="email"
+              autoComplete="email"
+              placeholder="you@company.com"
               {...register('email', {
                 required: 'Email is required',
                 pattern: {
@@ -137,68 +128,38 @@ const LoginPage = () => {
             <Input
               label="Password"
               type="password"
+              autoComplete="current-password"
+              placeholder="Enter your password"
               {...register('password', {
-                required: 'Password is required',
-                minLength: {
-                  value: isRegistering ? 6 : 1,
-                  message: 'Password must be at least 6 characters'
-                }
+                required: 'Password is required'
               })}
               error={errors.password?.message}
             />
 
-            {isRegistering && (
-              <>
-                <Input
-                  label="Confirm Password"
-                  type="password"
-                  {...register('confirmPassword', {
-                    required: isRegistering,
-                    validate: (value) =>
-                      value === watch('password') || 'Passwords do not match'
-                  })}
-                  error={errors.confirmPassword?.message}
-                />
-                <Input
-                  label="Phone Number"
-                  type="tel"
-                  {...register('phone')}
-                />
-              </>
-            )}
-
             <Button type="submit" variant="primary" size="lg" className="w-full">
-              {isRegistering ? 'Create Account' : 'Sign In'}
+              Sign In
             </Button>
           </form>
 
-          {!isRegistering && (
-            <div className="mt-4 text-center">
-              <Link to="/forgot-password" className="text-sm text-primary-600 hover:text-primary-700">
-                Forgot your password?
-              </Link>
-            </div>
-          )}
+          <div className="mt-4 text-center">
+            <Link to="/forgot-password" className="text-sm text-primary-500 hover:text-primary-400 transition-colors">
+              Forgot your password?
+            </Link>
+          </div>
 
-          <div className="mt-6 pt-6 border-t border-dark-500 text-center">
-            <p className="text-sm text-dark-100">
-              {isRegistering ? 'Already have an account?' : "Don't have an account?"}
-              {' '}
-              <button
-                type="button"
-                onClick={() => {
-                  setIsRegistering(!isRegistering);
-                  setError(null);
-                }}
-                className="text-primary-500 hover:text-primary-400 font-medium"
-              >
-                {isRegistering ? 'Sign In' : 'Register'}
-              </button>
+          <div className="mt-6 pt-6 border-t border-dark-700 text-center">
+            <p className="text-sm text-dark-200 mb-3">
+              Don't have an account?
             </p>
+            <Link to="/register">
+              <Button variant="secondary" size="md" className="w-full">
+                Create Account
+              </Button>
+            </Link>
           </div>
         </Card>
 
-        <p className="text-center text-sm text-dark-100 mt-6">
+        <p className="text-center text-sm text-dark-300 mt-6">
           Need help?{' '}
           <Link to="/contact" className="text-primary-500 hover:text-primary-400">
             Contact Support

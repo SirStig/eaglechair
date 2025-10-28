@@ -1,0 +1,381 @@
+"""
+Eagle Chair Legal Content Seeding Script
+
+Seeds all legal documents, policies, warranties, and terms from the current Eagle Chair website.
+This content mirrors the General Information page at https://www.eaglechair.com/generalinformation/
+"""
+
+import asyncio
+import sys
+from pathlib import Path
+
+# Add project root to path
+project_root = Path(__file__).parent.parent.parent
+sys.path.insert(0, str(project_root))
+
+from sqlalchemy import select
+
+from backend.database.base import AsyncSessionLocal
+from backend.models.legal import LegalDocument, LegalDocumentType
+
+
+async def seed_legal_documents():
+    """Seed all legal documents from Eagle Chair's current general information page"""
+    
+    legal_docs = [
+        {
+            "document_type": LegalDocumentType.PRICE_LIST,
+            "title": "Price List",
+            "slug": "price-list",
+            "short_description": "Pricing policies and terms for Eagle Chair products",
+            "content": """Prices effective January 1, 2020. This Price List supersedes all prior lists and catalogs. We reserve the right to change any price at any time without prior notice. All prices are F.O.B. factory and do not include freight, installation, duties or sales and use tax. Prices are per unit unless otherwise noted. All pricing is subject to change without prior notice and at the sole discretion of Eagle Chair. Possession of this price list does not constitute an offer to sell. All sales are subject to Conditions of Sale.""",
+            "version": "2020.1",
+            "effective_date": "January 1, 2020",
+            "display_order": 1
+        },
+        {
+            "document_type": LegalDocumentType.DIMENSIONS_SIZES,
+            "title": "Dimensions and Sizes",
+            "slug": "dimensions-sizes",
+            "short_description": "Dimensional specifications and tolerances",
+            "content": """All seating dimensions shown in sales literature are approximate. Due to various fabric buildups, widths can vary as much as 3/4″. We assume no responsibility for overall dimensions unless specific limitations are clearly spelled out on the purchase order. All width and depth dimensions are listed as architectural dimensions, i.e, how much space the item takes in an installation. Arm and seat dimensions are actual, subject to limitations listed above.""",
+            "display_order": 2
+        },
+        {
+            "document_type": LegalDocumentType.ORDERS,
+            "title": "Orders",
+            "slug": "orders",
+            "short_description": "Order requirements and procedures",
+            "content": """The following information is required: All orders must be in writing, with quantity and style number, wood or metal frame finish, upholstery selection, routing and collect or prepaid freight, and the desired shipping date. Telephone orders will be taken as a courtesy; however a written-purchase order, clearly marked "CONFIRMATION" must follow immediately. Faxed orders are accepted as a written order. Duplicate orders not marked as "CONFIRMATION" are the responsibility of the customer. Order Acknowledgements will be made for each and every order received, It is the customer's responsibility to check the accuracy of each and every Order Acknowledgement sent by the factory. We will, of course, make every effort to find inadvertent errors, but will execute the order as approved and cannot accept responsibility for errors made by the customer.
+
+Orders cannot be processed until they contain all information required for production. Once all information is received and the order is approved, only then it will be scheduled into production. Accepted orders are subject to the terms and conditions set-forth herein and on our Order Acknowledgement, notwithstanding any variance in terms and conditions set forth on buyer's order form.""",
+            "display_order": 3
+        },
+        {
+            "document_type": LegalDocumentType.COM_COL_ORDERS,
+            "title": "C.O.M. / C.O.L. Orders",
+            "slug": "com-col-orders",
+            "short_description": "Customer's Own Material and Leather order policies",
+            "content": """Eagle Chair reserves the right to refuse C.O.M.(Customer's Own Material); in any case all C.O.M. orders will be processed without any responsibility on our part. We require that a C.O.M. sample be submitted prior to receiving merchandise. Explicit instructions as to the direction match up and the correct side of the fabric facing up, must be received by us prior to production. All C.O.M. is to be shipped to us Freight Prepaid and must be marked with the Eagle Chair Order Acknowledgement number, buyer's name and P.O. number. Allow the factory to estimate yardage requirements for all C.O.M. orders. Our normal yardage is based on 54" workable width, plain or small patterns, textures, and reasonable workability in both directions. Materials that have distinct textures, variable densities, stripes, patterns or other factors that may influence pattern layout may require additional yardage. Generally, 20% extra yardage should be included to allow for matching stripes, plaids, or large size patterns. Orders specified with COM or COL material will not be assigned a completion date until the material is received.
+
+Railroading: As this term is often applied erroneously to both the upholstery direction a fabric is applied and to the fabric pattern orientation itself, please clearly specify which way your pattern needs to be applied.
+
+C.O.L. (leather) ORDERS: Same conditions as COM apply to all COL orders. In addition a 10% upcharge over COM pricing will apply to items requiring the COL application.""",
+            "display_order": 4
+        },
+        {
+            "document_type": LegalDocumentType.MINIMUM_ORDER,
+            "title": "Minimum Order",
+            "slug": "minimum-order",
+            "short_description": "Minimum order quantities and surcharges",
+            "content": """Seating: Minimum order is 12 pieces, for booth seating minimum order is 12 linear feet. For orders 6 to 12 pieces or 6 to 12 linear feet, add 10% set up charge. For orders less than 6 pieces or 6 linear feet, add 20% set up charge and /or a Special Handling Charge of $250 Net.
+
+Tables: Minimum order is 5 pieces. For orders less than 5 pieces add 10% set up charge and the one sheet laminate charge.
+
+Outdoors: Most outdoor does not have a minimum order. Outdoor booth seating follows the same as indoor booth minimum requirements.
+
+Different types of items may be combined to exceed minimum limits. For example 4 barstools, can be combined with 7 chairs and one table. In this example 1 sheet laminate charge will still apply; 10% surcharge would not.""",
+            "display_order": 5
+        },
+        {
+            "document_type": LegalDocumentType.PAYMENTS,
+            "title": "Payments and Credit Cards",
+            "slug": "payments-credit-cards",
+            "short_description": "Payment methods and credit terms",
+            "content": """We accept ACHs, wire transfers and company checks. As a manufacturer, not a retailer, Credit Card payments shall incur the 3% processing fee reflecting our actual costs. Limit for Credit Card payments is $10,000, per order.""",
+            "display_order": 6
+        },
+        {
+            "document_type": LegalDocumentType.TERMS,
+            "title": "Payment Terms",
+            "slug": "payment-terms",
+            "short_description": "Credit terms and late payment policies",
+            "content": """Net 30 days when credit granted by Eagle Chair. Customers without an established line of credit are required to place minimum 50% deposit when placing an order, the balance due before shipment. A service charge of 1.5% per month (18%APR) will be added on all past due accounts. In the event that a collection agency, attorney or court must be used to collect, the Customer agrees to pay all fees and costs. Where these terms and conditions conflict with the terms and conditions of the Customer's contract, the terms and conditions herein shall prevail. Terms and conditions not particularly mentioned herein are excluded from the customer's contract and are specifically disclaimed by Eagle Chair. Credit may be established upon receipt of five trade references and one bank reference, subject of approval by our Credit Department.""",
+            "display_order": 7
+        },
+        {
+            "document_type": LegalDocumentType.TAXES,
+            "title": "Taxes",
+            "slug": "taxes",
+            "short_description": "Tax responsibilities and obligations",
+            "content": """Any and all taxes which Eagle Chair may be required to pay or collect under any applicable law, existing or future, including but not limited to, regarding the sale, purchase, delivery, use or consumption of any product or material provided or handled by Eagle Chair, shall be sole responsibility of the buyer.
+
+As the condition of sale the buyer shall promptly pay the amount thereof upon demand.""",
+            "display_order": 8
+        },
+        {
+            "document_type": LegalDocumentType.LEGAL_COSTS,
+            "title": "Costs and Attorney Fees; Choice of Law; Consent to Jurisdiction",
+            "slug": "legal-costs-jurisdiction",
+            "short_description": "Legal fees, governing law, and jurisdiction",
+            "content": """Buyer will pay all costs, collection agency commissions, expenses, and reasonable attorney fees (including at trial and on appeal) Eagle Chair may incur in any manner of collection of any sums past due. In case of any suit, arbitration, or other proceeding or if buyer becomes the subject of any bankruptcy proceeding (including with respect to any motion for relief from the automatic stay, objection to a plan or reorganization, or confirmation or other similar proceeding), Eagle Chair will be entitled to its costs and attorney fees, whether incurred in the proceeding or in any post-judgment proceeding. Texas law, without resort to its choice of law provisions, will govern. The Buyer consents to the jurisdiction of and venue in any state or federal court located in Harris County, Texas.""",
+            "display_order": 9
+        },
+        {
+            "document_type": LegalDocumentType.QUOTATIONS,
+            "title": "Quotations",
+            "slug": "quotations",
+            "short_description": "Quote validity period",
+            "content": """All written quotations are valid for 60 days from date of issue.""",
+            "display_order": 10
+        },
+        {
+            "document_type": LegalDocumentType.WARRANTY,
+            "title": "Limited Warranty",
+            "slug": "limited-warranty",
+            "short_description": "Product warranty terms and conditions",
+            "content": """We, (Eagle, or Eagle Chair, or Eagle Chair Inc. or Manufacturer) warranty the original purchaser any product manufactured by us for five years from date of such product is manufactured, or the date product leaves Manufacturer's control, whichever is later, that such product shall under normal single shift use, normal wear and tear, use and operation be free of substantial defects in materials and workmanship.
+
+Items destined for outdoor use are warranted for one year.
+
+This warranty shall be null and void if our product has been repaired or altered by anyone other than the manufacturer. This warranty shall expressly exclude and shall not apply to any Eagle Chair product that has been: installed, used, maintained, modified, repaired or operated in a manner inconsistent with that intended or contemplated by manufacturer; or, damaged because of accident, fire, wind, water or other catastrophic or other sudden unforeseen occurrence, or due to neglect or misuse. In addition, the foregoing warranty shall not apply to any component(s) of the product that is damaged during shipment, distribution, or during unauthorized adjustment, repair or service.
+
+No warranty is issued on upholstery materials; they are covered by warranties, if any, by the upholstery mills. No warranties whatsoever are made by Eagle Chair on C.O.M. or any other upholstery materials supplied by us, as they are covered by separate warranties issued by their manufacturers.
+
+This warranty is in lieu of all other warranties and any obligations, expressed or implied, and Eagle Chair neither assumes nor authorizes any person to accept liability whatsoever on our behalf. Negligence and/or failure to follow maintenance instructions, misuse, freight damage or accidents will make this warranty null and void. Neither does this warranty apply to damage from normal wear and tear such as dents, nicks, scratches, and improper maintenance. Our wood seating is produced for use in indoor environments only. Damage due to exposure to elements of climate, such as salt air, is not covered by this warranty. Even when the Manufacturer has been made aware of the final destination of an order, Eagle Chair is not liable under this warranty, if the merchandise was damaged due to exposure to the elements. Nor shall this warranty apply to furniture that has been exposed to harsh cleaning agents or processes.
+
+Our obligation under the warranty is limited to credit for, or replacement of the defective item, or repairing, at our facility or on-site, at our discretion, any product or part thereof that is found by us not to conform to this Limited Warranty. In no event shall liability under this warranty exceed the original purchase price of the product. Eagle Chair will not assume any labor charges for unauthorized field repairs, any transportation or handling costs, nor rental of replacement furniture. Eagle Chair shall have a reasonable period of time to make such replacements or repairs and all labor associated therewith shall be performed subject to reasonable working conditions. This warranty is effective only if customer gives prompt written notice to Eagle Chair of any alleged defects in the materials or workmanship of the product, which notice shall specifically describe the complained-of problem and shall state the date of sale and the location of the purchase of such complained-of product.
+
+To make a claim under this warranty, contact Eagle Chair for a written Return Authorization Number and further instructions. If Eagle Chair elects to conduct repair or replacement at our facility, then customer shall prepay transportation charges. If returned Products are repaired or replaced pursuant to the terms of this Limited Warranty, then manufacturer will prepay transportation charges back to customer; otherwise, customer shall pay transportation charges in both directions. Under no circumstance will manufacturer pay for freight charges outside of the forty- eight (48) contiguous United States.
+
+This warranty may be voided if proper maintenance procedures are not followed.
+
+CANE & RUSH SEATS: Warranty does not cover cane or rush seats, nor do we recommend use of cane or rush seats for commercial use. All of Eagle Chair products, unless specifically labeled, are for indoor use only; any damage caused by exposure to elements will void this warranty immediately as will any exposure to any harsh, acidic or caustic agents or elements. Only items specifically described and labeled as designed for outdoor use, such as OUTDOOR aluminum chairs, barstools and tables are covered under this warranty for 1 year.""",
+            "display_order": 11
+        },
+        {
+            "document_type": LegalDocumentType.FLAMMABILITY,
+            "title": "Flammability Specification",
+            "slug": "flammability-specification",
+            "short_description": "Fire safety and flammability standards",
+            "content": """We use high density foam, meeting California Technical Bulletin 117-2013 flammability specifications in every upholstered seat or back produced by us. This component and most of other components meet or exceed technical and other common standards. However, due to differences in technical specifications, regulatory requirements and/or laws in different states (such as California 133) or different countries, should a product be required to meet certain specifications or if a certification is required, please specify the particular needs prior to placing an order to the factory. Such a requirement may result in an additional upcharge.
+
+Failure to state these requirements will be considered equivalent to a signed waiver.""",
+            "display_order": 12
+        },
+        {
+            "document_type": LegalDocumentType.CUSTOM_FINISHES,
+            "title": "Custom and To-Match Finishes",
+            "slug": "custom-finishes",
+            "short_description": "Custom finish options and requirements",
+            "content": """In order to keep our manufacturing costs and prices as reasonable as possible, Eagle Chair has standardized the finishes to several water based stains; however, on most wood items we are capable of finishing to match, or as specified, for an additional modest up charge. The customer, in writing prior to production, must approve a sample color chip from the factory. All metal items are powder coated or plated. All items that are powder coated can be furnished in virtually any color. A surcharge may apply depending on quantity. If any order is to match a previous order, it must be clearly stated. Please supply original invoice number and date.""",
+            "display_order": 13
+        },
+        {
+            "document_type": LegalDocumentType.PARTIAL_SHIPMENTS,
+            "title": "Partial Shipments",
+            "slug": "partial-shipments",
+            "short_description": "Partial shipment policy",
+            "content": """We reserve the right to make partial shipments, invoice these shipments, and to be paid as the invoices become due.""",
+            "display_order": 14
+        },
+        {
+            "document_type": LegalDocumentType.STORAGE,
+            "title": "Storage",
+            "slug": "storage",
+            "short_description": "Storage fees and conditions",
+            "content": """When merchandise is ready as per purchase order and the buyer is not ready to accept the shipment, we reserve the right to transfer goods to storage. Costs of transfer and storage will be charged to the buyer and we will deem such date of transfer as date of shipping and invoice on the same date. Should the factory elect to store the goods in one of our own warehouses, the above procedures and charges will apply.""",
+            "display_order": 15
+        },
+        {
+            "document_type": LegalDocumentType.RETURNS,
+            "title": "Returns",
+            "slug": "returns",
+            "short_description": "Return authorization and restocking policy",
+            "content": """No returns will be accepted unless the item to be returned has been authorized for return by us in writing. All returns will be subject to a restocking charge. No Authorized Returns will be accepted unless shipped prepaid and accompanied by a Return Authorization Number. CUSTOM ORDERS ARE NOT RETURNABLE.""",
+            "display_order": 16
+        },
+        {
+            "document_type": LegalDocumentType.CANCELLATIONS,
+            "title": "Cancellations",
+            "slug": "cancellations",
+            "short_description": "Order cancellation policy",
+            "content": """As all of our production is custom made to order, orders once started cannot be cancelled. Orders scheduled for production, ie where materials and components have been already ordered and/or have been paid for, but the actual order not gone into production, are still liable for the costs of these materials and components.""",
+            "display_order": 17
+        },
+        {
+            "document_type": LegalDocumentType.MAINTENANCE,
+            "title": "Maintenance",
+            "slug": "maintenance",
+            "short_description": "Product care and maintenance instructions",
+            "content": """As with any other product, to insure durability, safety, and customer satisfaction, timely and regular maintenance is required. This involves inspecting your furniture, tightening all screws and bolts every month, and cleaning and waxing as necessary. For cleaning wood products we suggest Old English Dark Oil on the darker finishes such as walnut, mahogany, etc.; on the light finishes such as natural, maple or cherry, we recommend lemon oil; NEVER, EVER USE WATER. The dealer and any other specifying and reselling party must instruct the user about the maintenance requirements and that the chairs and barstools should only be used for sitting: THEY ARE NOT TO BE USED AS STOOLS, LADDERS, OR COAT HANGERS. The latter will affect the balance of the product.
+
+Wood: Particular care should be taken in inspecting the seat rails and bottoms, and front side rails for loose joints and fasteners. A loose joint will transfer all forces on other joints, which will also loosen, with the resultant possibility of the chair/barstool collapsing.
+
+Inspections should become more frequent when chairs are over 3 years old, or whenever signs of frame weakness arise. Examinations must include, but not be limited to, structural joints, corner blocks, screws, fasteners, welds and any areas of stress. Missing leg glides or loose casters must be replaced. Chairs exhibiting any of the above should be removed from service and repaired to original standard, or discarded.
+
+ANY CHAIR OR BARSTOOL WITH A LOOSE JOINT OR A FASTENER MUST BE TAKEN OUT OF SERVICE IMMEDIATELY.
+
+Steel: Chrome can be cleaned with good automotive chrome cleaner. For touch up of small areas, rust-inhibiting chrome paint can be used. For powder/epoxy finishes use a mild solution of soap and water. Use automotive touch-up paint for small damaged areas after the preparing the area by sanding.
+
+Metal frame members bent at different angles from original are an indication of over stressing and could render frame unstable or prone to sudden failure.
+
+Chairs with bent frames should be removed from service; do not attempt to straighten. Rebending frames may further weaken metal and increase potential for failure.
+
+Upholstery: Always work from edges to the center to avoid a halo effect.
+
+Vinyl can be cleaned with good automotive vinyl cleaner. Prompt action is necessary, as some types of stains, such as ink, can become permanent if allowed to set.
+
+Suede type vinyl should be not be rubbed but dabbed with mild solution of soap and water.
+
+Fabric – because of differences in materials used in our fabrics, it is necessary to determine the type of yarn used to manufacture the particular fabric and then use the recommended cleaning agent for that type of fabric. Use of the wrong agent may result in damage to the fabric.
+
+21/7TM or Krypton®: to remove excess soiling, immediately blot area with dry cloth. To remove remaining stain, spray a light mist of soap solution and rub gently in circular motion with a clean cloth or a toothbrush. Pat dry with cloth. Do not use petroleum or alcohol based cleaners.
+
+Routine Care For Laminate: To clean the surface, use a damp cloth or sponge and a mild soap or detergent. Difficult stains such as coffee or tea can be removed using a mild household cleaner/detergent and a soft bristle brush, repeating as necessary. If a stain persists, use a paste of baking soda and water and apply with a soft bristled brush. Light scrubbing for 10 to 20 strokes should remove most stains. Although baking soda is a low abrasive, excessive scrubbing or exerting too much force could damage the decorative surface, especially if it has a gloss finish. Stubborn stains that resist any of the above cleaning methods may require the use of undiluted household bleach or nail polish remover. Apply the bleach or nail polish remover to the stain and let stand no longer than two minutes. Rinse thoroughly with warm water and wipe dry. This step may be repeated if the stain appears to be going away and the color of the laminate has not been affected.
+
+WARNING: Prolonged exposure of the laminate surface to bleach will cause discoloration. Special Tips: always rinse laminate surfaces after cleaning! Failure to rinse after cleaning is the single greatest cause of damage to a laminate surface. If even a small amount of cleaning solution remains on the surface, moisture from cups or dishes can reactivate it and result in permanently etched scars. Always rinse thoroughly with clean water and a clean cloth. Sharp knives can damage the surface of laminate. To keep the surface beautiful, use a non-oily furniture spray. Furniture polish can also help hide fine scratches in the surface.
+
+Table Bases: Particular care should be taken in inspecting for missing glides and loose table bases. A loose base can be tightened by flipping the base upside down upon a soft surface, protecting the table top, making sure that all parts are aligned and fitted properly, the center nut holding the tie rod can now be secured. Always pick up table bases before moving them. Sliding table bases will cause damage to the table glides. Use at least two people to lift a table. Some sizes may require more.
+
+CASTERS: Casters are not recommended on hard surfaced floors. Chairs may move too freely and lead to injury. Chairs with four casters are not recommended for elderly care or for persons with impaired ability to seat themselves.
+
+BOOTHS: With few exceptions all of our booth designs can be made to special sizes, angles, with various trims, treatments, cutouts, seats, shapes, custom sewing, etc. All circles and banquettes are standard with unfinished outside backs – if some are to be finished – please specify and add cost of outside back panels. On any special orders, always send plan with "Written In" dimensions. Eagle Chair will also custom manufacture to your specifications. Please allow sufficient time to finalize the design and fabrication of special units.""",
+            "display_order": 18
+        },
+        {
+            "document_type": LegalDocumentType.SPECIAL_SERVICE,
+            "title": "Special Service",
+            "slug": "special-service",
+            "short_description": "Special repair and refurbishment services",
+            "content": """In order to show our appreciation to our loyal customers we will reglue, rescrew and repin any of the chairs manufactured by us, at no charge to the customer, except for the reupholstery if requested. The freight to and from the plant will be responsibility of the customer.""",
+            "display_order": 19
+        },
+        {
+            "document_type": LegalDocumentType.SHIPMENTS_DAMAGE,
+            "title": "Shipments and Damage Claims",
+            "slug": "shipments-damage-claims",
+            "short_description": "Shipping terms and damage claim procedures",
+            "content": """Shipping will be "best way" unless carrier preference is indicated and only as long as the carrier indicated serves Company's point of shipment. We do not assume any responsibility for any differences in freight charges. We are not responsible for any damage in transit, or any delay in transit. Any variances as to quantities or specifications of goods received must be communicated to us within three days of receipt of merchandise. Any shortage, or sign of damage, MUST be noted on the freight bill before accepting delivery. If damage is discovered after delivery, purchaser MUST notify carrier at once to request inspection and claim instructions within FIVE days of receipt of shipment. Refusal to accept goods from carrier does not relieve purchaser of responsibility of filing claims with carrier or of payment for the merchandise. Title and risk of loss of the products shall pass to the customer upon Eagle Chair delivery to the carrier. All goods are shipped FOB factory and are the property of purchaser upon our transfer of merchandise to carrier. Therefore, if shipment is damaged, buyer must both file a claim and look to carrier for adjustment without relieving customer of his obligations for the goods shipped. Eagle Chair assumes no responsibility for warehousing or demurrage charges when the Customer is specified routing. Customer pickups must be arranged in advance by contacting Eagle Shipping Department.""",
+            "display_order": 20
+        },
+        {
+            "document_type": LegalDocumentType.FREIGHT_CLASSIFICATION,
+            "title": "Freight Shipment Classification",
+            "slug": "freight-classification",
+            "short_description": "Freight classification and rates",
+            "content": """Our common carrier LTL (less than a truckload) shipments are use the National MFC #80580 classification, determined by density per the general guidelines noted below:
+
+- Assembled Wood Chairs: Class 250
+- Aluminum Chairs: Class 300
+- Steel Chairs: Class 250
+- Counter Seats: Class 250
+- Booths & Soft Seating: Class 200
+- Assembled Table Bases: Class 125
+- Tables: Class 70
+
+General guidelines, subject to actual dimensions. Freight quotes, due to rapid changes by freight carriers, are primarily informational, valid for 30 days and are definitely subject to change prior to shipment.""",
+            "display_order": 21
+        },
+        {
+            "document_type": LegalDocumentType.IP_DISCLAIMER,
+            "title": "Intellectual Property Disclaimer",
+            "slug": "intellectual-property-disclaimer",
+            "short_description": "IP indemnification and customer responsibilities",
+            "content": """When an order is for product not in its standard line, Eagle Chair sole responsibility is to provide the product meeting the specifications of the customer or its agents and representatives. Eagle Chair specifically disclaims any obligation to indemnify or defend customer, property owners, architects, designers, specifiers, customer agents or others for claims alleging infringement of trademarks, copyrights, patents, designs or any other issues collectively described as intellectual property. Customer confirms that it is the originator of specifications for this product and has clear title to said intellectual property and will indemnify and hold harmless Eagle Chair for any claims, liabilities and expenses (including expenses and reasonable attorney fees) in connection with such infringement.""",
+            "display_order": 22
+        },
+        {
+            "document_type": LegalDocumentType.IP_ASSIGNMENT,
+            "title": "Intellectual Property Assignment",
+            "slug": "intellectual-property-assignment",
+            "short_description": "Eagle Chair intellectual property rights",
+            "content": """Eagle Chair's photography, graphics, text, literature, patents, trademarks, guides, instructions, layouts and product designs are defined as Intellectual Property. This Intellectual Property may not be copied; reproduced; modified; published; displayed; uploaded; posted; reposted; distributed; transmitted; used to create a derivative work, or otherwise used for public or commercial purposes without Eagle Chair's prior written permission. This Intellectual Property is owned by Eagle Chair, except as otherwise expressly stated herein, users are not granted any license to use, or right in, any such Intellectual Property.
+
+Nothing in Eagle Chair literature, pricelist or website shall be deemed to grant any license or right in, or to any patent, copyright, trademark, trade secret or other proprietary right of Eagle Chair.
+
+Eagle Chair is presently holding, is licensed, or is assigned the following exclusive patents:
+
+Patent Numbers | Eagle Chair Model #
+- US D660,620 S | 3360
+- US D699,493 S | 6541
+- US D699,494 S | 6541
+- US D739,663 S | 6242
+- US D781,603 S | 6880
+- US D828,603 S | 6546
+- US D834,345 S | 6627
+- US D834,359 S | 6542
+- US D834,847 S | 6628""",
+            "display_order": 23
+        },
+        {
+            "document_type": LegalDocumentType.CONDITIONS_OF_SALE,
+            "title": "Conditions of Sale",
+            "slug": "conditions-of-sale",
+            "short_description": "Complete terms and conditions of sale",
+            "content": """Every Sales Order is entered into the Eagle Chair Inc system with prior approval from the Buyer. It is the customer's responsibility to check the accuracy of each and every Order Acknowledgement sent. Orders cannot be processed until they contain all information required for production.
+
+Applicant agrees to be bound by each of the following terms and conditions:
+
+1. TERMS OF SALE AND CREDIT. All orders are subject to acceptance by Eagle Chair, Inc. All goods will be sold F.O.B. Houston plant unless otherwise provided on the invoice. All prices are exclusive of sales taxes, shipping, and handling; all such taxes and charges will be paid by Applicant. Eagle Chair may immediately terminate Applicant's ability, if any, to purchase goods on credit at any time at Eagle Chair's sole discretion.
+
+2. TERMS OF PAYMENT. Payment for all goods sold on open account will be due and payable pursuant to the terms and conditions stated on each invoice. Any sums not paid within the invoice terms are subject to a service charge of 1.5% per month or the maximum rate permitted by law, whichever is lower. Applicant will be ineligible for any discount if Applicant has an overdue balance. Failure to promptly pay any invoice according to its terms will constitute a default by Applicant under all invoices issued by Eagle Chair. Such a default will entitle Eagle Chair to withhold and reclaim goods described in all invoices and purchase orders.
+
+3. PRICES. Prices are subject to change without notice. All orders received by Eagle Chair are accepted by Order/Acknowledgement. Orders will be invoiced at the prices shown in Order Acknowledgment. The amount reflected in any Eagle Chair invoice will be deemed accepted and conclusively binding upon Applicant as an account stated unless Applicant notifies Eagle Chair in writing or by fax within 24 hours days after the date of the Order/Acknowledgement.
+
+4. SECURITY AGREEMENT. To secure payment and performance of all of Eagle Chair's current and future obligations to Eagle Chair, Applicant grants to Eagle Chair a security interest in all inventory and equipment that Applicant has purchased or will at any time in the future purchase from Supplier, and in all accounts, other forms of receivables, documents, instruments, returns, and general intangibles that are related in any way to the inventory and equipment. A copy of this Application may be filed as a financing statement, in which case Applicant is the debtor and Eagle Chair, Inc. is the secured party.
+
+5. LIMITED WARRANTY. We warranty to the original purchaser any product manufactured by us for three years from date of purchase under normal use. Some metal frames, as shown in the price list, are warranted for five years. No warranty is issued on upholstery materials; they are covered by warranties, if any, by the upholstery mills. No warranties whatsoever are made on C.O.M. This warranty shall be null and void if our product has been repaired or altered by anyone other than the manufacturer. This warranty is in lieu of all other warranties and any obligations, expressed or implied, and Eagle Chair neither assumes nor authorizes any person to accept liability whatsoever on our behalf. Negligence and/or failure to follow maintenance instructions will make this warranty null and void. Warranty does not cover cane seats, nor do we recommend use of cane seats for commercial use. All of Eagle Chair products unless specifically labeled are for indoor use only; any damage caused by exposure to elements will void this warranty immediately as will any exposure to any harsh, acidic or caustic agents or elements. Only items specifically described and labeled as designed for outdoor use, such as OUTDOOR aluminum chairs, barstools and tables are covered under this warranty for 1 year. Our obligation under the warranty is limited to credit for, or replacement of the defective item. In no event shall liability under this warranty exceed the original purchase price of the product. Eagle Chair will not assume labor charges for unauthorized field repairs. To make a claim under this warranty, contact Eagle Chair for a written Return Authorization Number and further instructions. This warranty may be voided if proper maintenance procedures are not followed.
+
+6. FORCE MAJEURE. If a delivery date is specified, that date will be extended to the extent that delivery is delayed by reason of fire, flood, war, riot, strike, natural disaster, or any other event.
+
+7. SHIPMENTS AND DAMAGE CLAIMS. Shipping will be "best way" unless carrier preference is indicated and only as long as the carrier indicated serves Company point of shipment. Eagle Chair does not assume any responsibility for any differences in freight charges. We are not responsible for any damage in transit, or any delay in transit. Any variances as to quantities or specifications of goods received must be communicated to Eagle Chair within three days of receipt of merchandise. Any shortage, or sign of damage, MUST be noted on the freight bill before accepting delivery. If damage is discovered after delivery, purchaser MUST notify carrier at once to request inspection and claim instructions within five days of receipt of shipment. Refusal to accept goods from carrier does not relieve purchaser of responsibility of filing claims with carrier or of payment for the merchandise. Title and risk of loss of the products shall pass to the customer upon Eagle Chair delivery to the carrier. All goods are property of purchaser upon our transfer of merchandise to carrier.
+
+8. STORAGE. When merchandise is ready as per Purchase Order and the buyer is not ready to accept the shipment, we reserve the right to transfer goods to storage. Costs of transfer and storage will be charged to the buyer and we will deem such date of transfer as date of shipping and invoice on the same date. Should the factory elect to store the goods in one of our own warehouses, the above procedures and charges will apply.
+
+9. MISCELLANEOUS. Any portion of this Application that is found to be unenforceable will not invalidate the remainder of this Application. Any delay in enforcing or any failure to enforce any provision of this Application will not be deemed a waiver of any other or subsequent breach of this Application unless the waiver is in writing and is signed by an officer of Eagle Chair, Inc. Caption headings are for convenience of reference only and will not affect the interpretation of this Application. Applicant has had the opportunity to consult with an attorney with respect to this Application and has either reviewed this Application with its attorney or waived the right. Therefore, ambiguous terms will be construed without regard to authorship. The terms "including" and "includes" are not limiting in any way.
+
+10. COSTS AND ATTORNEY FEES; CHOICE OF LAW; CONSENT TO JURISDICTION. Applicant will pay all costs, collection agency commissions, expenses, and reasonable attorney fees (including at trial and on appeal) Eagle Chair, Inc. may incur in any manner of collection of any sums past due. If this Application becomes the subject of any suit, arbitration, or other proceeding or if Applicant becomes the subject of any bankruptcy proceeding (including with respect to any motion for relief from the automatic stay, objection to a plan or reorganization, or confirmation or other similar proceeding), Eagle Chair, Inc. will be entitled to its costs and attorney fees, whether incurred in the proceeding or in any post-judgment proceeding. Texas law, without resort to its choice of law provisions, will govern. The parties consent to the non-exclusive jurisdiction of and venue in any state or federal court located in Harris County, Texas. This means that Eagle Chair may file suit against Applicant in any court located in Harris County, Texas.
+
+11. ENTIRE AGREEMENT; MODIFICATIONS. This Application, together with Supplier's invoices, contains the entire understanding between the parties. Applicant acknowledges that there are no other terms, conditions, warranties, or representations other than those contained in this Application and Eagle Chair's invoices. No supplement, modification, or amendment of this Application will be binding unless it is executed in writing by an officer of EagleChair, Inc.""",
+            "display_order": 24
+        },
+    ]
+    
+    print("🔨 Seeding legal documents...")
+    
+    async with AsyncSessionLocal() as db:
+        for doc_data in legal_docs:
+            # Check if document already exists
+            result = await db.execute(
+                select(LegalDocument).filter(
+                    LegalDocument.document_type == doc_data["document_type"]
+                )
+            )
+            existing = result.scalar_one_or_none()
+            
+            if existing:
+                print(f"   ⚠️  {doc_data['title']} already exists, updating...")
+                for key, value in doc_data.items():
+                    setattr(existing, key, value)
+                existing.is_active = True
+            else:
+                print(f"   ✅ Creating {doc_data['title']}")
+                doc = LegalDocument(**doc_data)
+                doc.is_active = True
+                db.add(doc)
+        
+        await db.commit()
+        print(f"✅ Successfully seeded {len(legal_docs)} legal documents")
+
+
+async def main():
+    """Main seeding function"""
+    print("=" * 60)
+    print("Eagle Chair Legal Content Seeding")
+    print("=" * 60)
+    
+    try:
+        await seed_legal_documents()
+        print("\n" + "=" * 60)
+        print("✅ Legal content seeding completed successfully!")
+        print("=" * 60)
+    except Exception as e:
+        print(f"\n❌ Error seeding legal content: {e}")
+        import traceback
+        traceback.print_exc()
+        raise
+
+
+if __name__ == "__main__":
+    asyncio.run(main())

@@ -544,6 +544,110 @@ class PageContent(Base):
         return f"<PageContent(id={self.id}, page={self.page_slug}, section={self.section_key})>"
 
 
+class Hardware(Base):
+    """
+    Hardware options and specifications
+    Displays various hardware components used in furniture
+    """
+    __tablename__ = "hardware"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    
+    # Hardware info
+    name = Column(String(255), nullable=False, index=True)
+    category = Column(String(100), nullable=True)  # e.g., "Glides", "Casters", "Table Bases", "Fasteners"
+    description = Column(Text, nullable=True)
+    
+    # Specifications
+    material = Column(String(100), nullable=True)  # e.g., "Steel", "Nylon", "Chrome Plated"
+    finish = Column(String(100), nullable=True)  # e.g., "Polished", "Brushed", "Black Powder Coat"
+    dimensions = Column(String(255), nullable=True)  # e.g., "1.5 inch diameter"
+    weight_capacity = Column(String(100), nullable=True)  # e.g., "500 lbs"
+    
+    # Product codes
+    model_number = Column(String(100), nullable=True)
+    sku = Column(String(100), nullable=True)
+    
+    # Media
+    image_url = Column(String(500), nullable=True)
+    thumbnail_url = Column(String(500), nullable=True)
+    
+    # Additional images (stored as JSON array)
+    additional_images = Column(JSON, nullable=True)  # [{"url": "...", "caption": "..."}, ...]
+    
+    # Compatibility notes
+    compatible_with = Column(Text, nullable=True)  # Which products/categories this works with
+    installation_notes = Column(Text, nullable=True)
+    
+    # Pricing (optional - may be quote-only)
+    list_price = Column(Integer, nullable=True)  # In cents
+    
+    # Display
+    display_order = Column(Integer, default=0, nullable=False)
+    is_active = Column(Boolean, default=True, nullable=False)
+    is_featured = Column(Boolean, default=False, nullable=False)
+    
+    def __repr__(self) -> str:
+        return f"<Hardware(id={self.id}, name={self.name}, category={self.category})>"
+
+
+class Laminate(Base):
+    """
+    Laminate options and suppliers
+    Displays laminate brands and patterns available for table tops
+    """
+    __tablename__ = "laminates"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    
+    # Laminate info
+    brand = Column(String(255), nullable=False, index=True)  # e.g., "Wilsonart", "Formica", "Pionite"
+    pattern_name = Column(String(255), nullable=False)
+    pattern_code = Column(String(100), nullable=True)  # Manufacturer's pattern code
+    
+    # Description
+    description = Column(Text, nullable=True)
+    color_family = Column(String(100), nullable=True)  # e.g., "Woodgrain", "Solid", "Stone Look"
+    
+    # Specifications
+    finish_type = Column(String(100), nullable=True)  # e.g., "Matte", "Gloss", "Textured"
+    thickness = Column(String(50), nullable=True)  # e.g., "0.048 inch"
+    grade = Column(String(50), nullable=True)  # e.g., "HGS (High Grade Specialty)"
+    
+    # Supplier info
+    supplier_name = Column(String(255), nullable=True)
+    supplier_website = Column(String(500), nullable=True)
+    supplier_contact = Column(String(255), nullable=True)
+    
+    # Media
+    swatch_image_url = Column(String(500), nullable=True)  # Small swatch image
+    full_image_url = Column(String(500), nullable=True)  # Larger sample image
+    
+    # Additional images (stored as JSON array)
+    additional_images = Column(JSON, nullable=True)  # [{"url": "...", "type": "installed"}, ...]
+    
+    # Availability
+    is_in_stock = Column(Boolean, default=True, nullable=False)
+    lead_time_days = Column(Integer, nullable=True)
+    minimum_order = Column(String(100), nullable=True)  # e.g., "1 sheet", "5 sheets"
+    
+    # Pricing (optional)
+    price_per_sheet = Column(Integer, nullable=True)  # In cents
+    
+    # Product compatibility
+    recommended_for = Column(Text, nullable=True)  # Which table types this is best for
+    care_instructions = Column(Text, nullable=True)
+    
+    # Display
+    display_order = Column(Integer, default=0, nullable=False)
+    is_active = Column(Boolean, default=True, nullable=False)
+    is_featured = Column(Boolean, default=False, nullable=False)
+    is_popular = Column(Boolean, default=False, nullable=False)
+    
+    def __repr__(self) -> str:
+        return f"<Laminate(id={self.id}, brand={self.brand}, pattern={self.pattern_name})>"
+
+
 class EmailTemplate(Base):
     """
     Email templates for various system emails

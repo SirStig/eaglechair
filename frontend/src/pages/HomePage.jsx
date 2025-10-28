@@ -1,14 +1,15 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { Link } from 'react-router-dom';
+// eslint-disable-next-line no-unused-vars
 import { motion } from 'framer-motion';
 import Slider from 'react-slick';
 import Button from '../components/ui/Button';
 import ProductCard from '../components/ui/ProductCard';
-import Card from '../components/ui/Card';
-import { HeroSkeleton, ContentSkeleton, CardGridSkeleton } from '../components/ui/Skeleton';
+import { HeroSkeleton, CardGridSkeleton } from '../components/ui/Skeleton';
 import EditableWrapper from '../components/admin/EditableWrapper';
 import EditableList from '../components/admin/EditableList';
 import { demoHomeContent } from '../data/demoData';
+import { heroSlides as staticHeroSlides, features as staticFeatures, clientLogos as staticClientLogos, pageContent as staticPageContent } from '../data/contentData';
 import { useHeroSlides, useFeatures, useClientLogos, useFeaturedProducts, usePageContent } from '../hooks/useContent';
 import { 
   updatePageContent,
@@ -28,22 +29,12 @@ const CONTEXT = 'HomePage';
 
 const HomePage = () => {
   const [selectedQuickView, setSelectedQuickView] = useState(null);
-  const [showFullContent, setShowFullContent] = useState(false);
   
   const { data: heroSlides, loading: heroLoading, refetch: refetchHero } = useHeroSlides();
-  const { data: whyChooseUs, loading: featuresLoading, refetch: refetchFeatures } = useFeatures('home_page');
-  const { data: clientLogos, loading: logosLoading, refetch: refetchLogos } = useClientLogos();
+  const { data: whyChooseUs, refetch: refetchFeatures } = useFeatures('home_page');
+  const { data: clientLogos, refetch: refetchLogos } = useClientLogos();
   const { data: featuredProducts, loading: productsLoading } = useFeaturedProducts(4);
-  const { data: ctaSection, loading: ctaLoading, refetch: refetchCta } = usePageContent('home', 'cta');
-
-  // Progressive loading - show full content after initial load
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      setShowFullContent(true);
-    }, 2000); // Show full content after 2 seconds
-    
-    return () => clearTimeout(timer);
-  }, []);
+  const { data: ctaSection, refetch: refetchCta } = usePageContent('home', 'cta');
 
   // Handler for saving content updates
   const handleSaveContent = async (pageSlug, sectionKey, newData) => {
@@ -149,20 +140,22 @@ const HomePage = () => {
     ]
   };
 
-  // Use API data or fallback to demo
-  const slides = heroSlides || demoHomeContent.heroSlides;
-  const features = whyChooseUs || demoHomeContent.whyChooseUs;
-  const clients = clientLogos || [];
+  // Use API data, fallback to static content, then demo
+  const slides = heroSlides || staticHeroSlides || demoHomeContent.heroSlides;
+  const features = whyChooseUs || staticFeatures.filter(f => !f.feature_type || f.feature_type === 'home_page') || demoHomeContent.whyChooseUs;
+  const clients = clientLogos || staticClientLogos || [];
+  
   // Extract products array from response object
   const products = (featuredProducts?.data || featuredProducts) || [];
   
-  // CTA section content
-  const ctaTitle = ctaSection?.title || "Ready to Furnish Your Space?";
-  const ctaContent = ctaSection?.content || "Get a custom quote for your restaurant or hospitality project. Our team is ready to help you create the perfect atmosphere.";
-  const ctaPrimaryText = ctaSection?.cta_text || "Request a Quote";
-  const ctaPrimaryLink = ctaSection?.cta_link || "/quote-request";
-  const ctaSecondaryText = ctaSection?.secondary_cta_text || "Find a Rep";
-  const ctaSecondaryLink = ctaSection?.secondary_cta_link || "/find-a-rep";
+  // CTA section content - use static data as fallback
+  const staticCtaSection = staticPageContent.find(p => p.page_slug === 'home' && p.section_key === 'cta');
+  const ctaTitle = ctaSection?.title || staticCtaSection?.title || "Ready to Furnish Your Space?";
+  const ctaContent = ctaSection?.content || staticCtaSection?.content || "Get a custom quote for your restaurant or hospitality project. Our team is ready to help you create the perfect atmosphere.";
+  const ctaPrimaryText = ctaSection?.cta_text || staticCtaSection?.cta_text || "Request a Quote";
+  const ctaPrimaryLink = ctaSection?.cta_link || staticCtaSection?.cta_link || "/quote-request";
+  const ctaSecondaryText = ctaSection?.secondary_cta_text || staticCtaSection?.secondary_cta_text || "Find a Rep";
+  const ctaSecondaryLink = ctaSection?.secondary_cta_link || staticCtaSection?.secondary_cta_link || "/find-a-rep";
 
   return (
     <div className="min-h-screen">
@@ -318,8 +311,7 @@ const HomePage = () => {
       </section>
 
       {/* Featured Products */}
-      {showFullContent && (
-        <section className="py-12 sm:py-16 md:py-20 bg-cream-50">
+      <section className="py-12 sm:py-16 md:py-20 bg-cream-50">
         <div className="container">
           <motion.div
             initial={{ opacity: 0, y: 20 }}
@@ -364,11 +356,9 @@ const HomePage = () => {
           </div>
         </div>
       </section>
-      )}
 
       {/* Why Choose Us */}
-      {showFullContent && (
-        <section className="py-12 sm:py-16 md:py-20 bg-dark-800">
+      <section className="py-12 sm:py-16 md:py-20 bg-dark-800">
         <div className="container">
           <motion.div
             initial={{ opacity: 0, y: 20 }}
@@ -436,11 +426,9 @@ const HomePage = () => {
           />
         </div>
       </section>
-      )}
 
       {/* CTA Section */}
-      {showFullContent && (
-        <section className="py-12 sm:py-16 md:py-20 bg-dark-900 border-t-2 border-primary-500/30">
+      <section className="py-12 sm:py-16 md:py-20 bg-dark-900 border-t-2 border-primary-500/30">
         <div className="container">
           <div className="max-w-3xl mx-auto text-center px-4">
             <EditableWrapper
@@ -495,7 +483,6 @@ const HomePage = () => {
           </div>
         </div>
       </section>
-      )}
     </div>
   );
 };

@@ -108,7 +108,7 @@ class CMSAdminService:
                 'youtubeUrl': settings.youtube_url,
             }
             
-            await export_content_after_update('siteSettings', settings_dict)
+            await export_content_after_update('siteSettings', db)
             
             logger.info("Site settings updated and exported")
             return settings
@@ -218,7 +218,7 @@ class CMSAdminService:
             for slide in slides
         ]
         
-        await export_content_after_update('heroSlides', slides_data)
+        await export_content_after_update('heroSlides', db)
     
     # ========================================================================
     # Sales Representatives
@@ -323,7 +323,7 @@ class CMSAdminService:
             for rep in reps
         ]
         
-        await export_content_after_update('salesReps', reps_data)
+        await export_content_after_update('salesReps', db)
     
     # ========================================================================
     # Gallery/Installation Images
@@ -432,7 +432,7 @@ class CMSAdminService:
                 'images': images,
             })
         
-        await export_content_after_update('galleryImages', gallery_data)
+        await export_content_after_update('galleryImages', db)
     
     # ========================================================================
     # Page Content Operations
@@ -537,7 +537,7 @@ class CMSAdminService:
                 'displayOrder': pc.display_order
             }
         
-        await export_content_after_update('pageContent', pages_data)
+        await export_content_after_update('pageContent', db)
     
     # ========================================================================
     # Features
@@ -632,7 +632,7 @@ class CMSAdminService:
             for f in features
         ]
         
-        await export_content_after_update('features', features_data)
+        await export_content_after_update('features', db)
     
     # ========================================================================
     # Company Values
@@ -724,7 +724,7 @@ class CMSAdminService:
             for v in values
         ]
         
-        await export_content_after_update('companyValues', values_data)
+        await export_content_after_update('companyValues', db)
     
     # ========================================================================
     # Team Members
@@ -822,7 +822,7 @@ class CMSAdminService:
             for m in members
         ]
         
-        await export_content_after_update('teamMembers', members_data)
+        await export_content_after_update('teamMembers', db)
     
     # ========================================================================
     # Client Logos
@@ -908,7 +908,7 @@ class CMSAdminService:
             for logo in logos
         ]
         
-        await export_content_after_update('clientLogos', logos_data)
+        await export_content_after_update('clientLogos', db)
     
     # ========================================================================
     # Company Milestones
@@ -997,7 +997,7 @@ class CMSAdminService:
             for m in milestones
         ]
         
-        await export_content_after_update('companyMilestones', milestones_data)
+        await export_content_after_update('companyMilestones', db)
     
     # ========================================================================
     # Bulk Export (for initial setup or full refresh)
@@ -1016,32 +1016,26 @@ class CMSAdminService:
             True if successful
         """
         try:
-            # Export each content type
-            await CMSAdminService._export_all_hero_slides(db)
-            await CMSAdminService._export_all_sales_reps(db)
-            await CMSAdminService._export_all_gallery_images(db)
-            await CMSAdminService._export_all_page_content(db)
-            await CMSAdminService._export_all_features(db)
-            await CMSAdminService._export_all_company_values(db)
-            await CMSAdminService._export_all_team_members(db)
-            await CMSAdminService._export_all_client_logos(db)
-            await CMSAdminService._export_all_company_milestones(db)
-            
-            # Export site settings
-            result = await db.execute(select(SiteSettings).limit(1))
-            settings = result.scalar_one_or_none()
-            if settings:
-                settings_dict = {
-                    'companyName': settings.company_name,
-                    'companyTagline': settings.company_tagline,
-                    'logoUrl': settings.logo_url,
-                    'primaryEmail': settings.primary_email,
-                    'primaryPhone': settings.primary_phone,
-                    'salesEmail': settings.sales_email,
-                    'salesPhone': settings.sales_phone,
-                    # ... (include all fields)
-                }
-                await export_content_after_update('siteSettings', settings_dict)
+            # Export each content type using the new auto-fetch export function
+            await export_content_after_update('siteSettings', db)
+            await export_content_after_update('heroSlides', db)
+            await export_content_after_update('salesReps', db)
+            await export_content_after_update('galleryImages', db)
+            await export_content_after_update('pageContent', db)
+            await export_content_after_update('features', db)
+            await export_content_after_update('companyValues', db)
+            await export_content_after_update('companyMilestones', db)
+            await export_content_after_update('teamMembers', db)
+            await export_content_after_update('clientLogos', db)
+            await export_content_after_update('legalDocuments', db)
+            await export_content_after_update('warranties', db)
+            await export_content_after_update('faqs', db)
+            await export_content_after_update('faqCategories', db)
+            await export_content_after_update('catalogs', db)
+            await export_content_after_update('finishes', db)
+            await export_content_after_update('upholsteries', db)
+            await export_content_after_update('hardware', db)
+            await export_content_after_update('laminates', db)
             
             logger.info("Successfully exported all static content")
             return True
@@ -1190,7 +1184,7 @@ class CMSAdminService:
             for doc in documents
         ]
         
-        await export_content_after_update('legalDocuments', documents_data)
+        await export_content_after_update('legalDocuments', db)
         logger.info(f"Exported {len(documents)} legal documents to static file")
     
     # ========================================================================
@@ -1327,5 +1321,5 @@ class CMSAdminService:
             for w in warranties
         ]
         
-        await export_content_after_update('warranties', warranties_data)
+        await export_content_after_update('warranties', db)
         logger.info(f"Exported {len(warranties)} warranties to static file")
