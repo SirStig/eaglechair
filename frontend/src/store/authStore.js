@@ -2,6 +2,27 @@ import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import axios from 'axios';
 
+// Helper function to decode JWT and check expiration
+const isTokenExpired = (token) => {
+  if (!token) return true;
+  
+  try {
+    const payload = JSON.parse(atob(token.split('.')[1]));
+    const exp = payload.exp * 1000; // Convert to milliseconds
+    return Date.now() >= exp;
+  } catch (error) {
+    console.error('Error decoding token:', error);
+    return true;
+  }
+};
+
+// Helper function to validate user object
+const isValidUser = (user) => {
+  if (!user || typeof user !== 'object') return false;
+  // Check for required fields
+  return user.id && (user.email || user.username);
+};
+
 export const useAuthStore = create(
   persist(
     (set, get) => ({
@@ -22,8 +43,9 @@ export const useAuthStore = create(
           const sessionToken = data.session_token;
           const adminToken = data.admin_token;
           
-          if (!user) {
-            throw new Error('Invalid response: user data missing');
+          // Validate user data
+          if (!isValidUser(user)) {
+            throw new Error('Invalid user data received from server');
           }
           
           set({ 
@@ -48,6 +70,8 @@ export const useAuthStore = create(
           return { success: true, user };
         } catch (error) {
           console.error('Login error:', error);
+          // Clear any partial state
+          get().logout();
           return { 
             success: false, 
             error: error.response?.data?.detail || error.message || 'Login failed' 
@@ -59,6 +83,11 @@ export const useAuthStore = create(
         try {
           const response = await axios.post('/api/v1/auth/register', userData);
           const { access_token, user } = response.data;
+          
+          // Validate user data
+          if (!isValidUser(user)) {
+            throw new Error('Invalid user data received from server');
+          }
           
           set({ 
             user, 
@@ -96,9 +125,36 @@ export const useAuthStore = create(
         }));
       },
 
+      // Validate and clean up auth state
+      validateAndCleanup: () => {
+        const { token, user, logout } = get();
+        
+        // Check if user data is valid
+        if (!isValidUser(user)) {
+          console.warn('Invalid user data detected, clearing auth state');
+          logout();
+          return false;
+        }
+        
+        // Check if token is expired
+        if (isTokenExpired(token)) {
+          console.warn('Token expired, clearing auth state');
+          logout();
+          return false;
+        }
+        
+        return true;
+      },
+
       // Initialize axios with stored token
       initAuth: () => {
-        const { token, sessionToken, adminToken } = get();
+        const { token, sessionToken, adminToken, validateAndCleanup } = get();
+        
+        // Validate state before initializing
+        if (!validateAndCleanup()) {
+          return;
+        }
+        
         if (token) {
           axios.defaults.headers.common['Authorization'] = `Bearer ${token}`;
         }

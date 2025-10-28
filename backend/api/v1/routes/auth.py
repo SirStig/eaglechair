@@ -7,11 +7,12 @@ Handles company and admin authentication
 import logging
 
 from fastapi import APIRouter, Depends, Request
+from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from backend.api.dependencies import (
-    get_current_admin,
     get_current_company,
+    get_current_token_and_payload,
     get_current_token_payload,
 )
 from backend.api.v1.schemas.common import MessageResponse
@@ -22,9 +23,10 @@ from backend.api.v1.schemas.company import (
     CompanyRegistration,
     CompanyResponse,
     PasswordChangeRequest,
+    PasswordReset,
+    PasswordResetRequest,
     TokenResponse,
 )
-from backend.core.middleware.rate_limiter import RateLimitConfig
 from backend.database.base import get_db
 from backend.models.company import AdminUser, Company
 from backend.services.auth_service import AuthService
@@ -32,6 +34,7 @@ from backend.services.auth_service import AuthService
 logger = logging.getLogger(__name__)
 
 router = APIRouter(tags=["Authentication"])
+security = HTTPBearer()
 
 
 # ============================================================================
@@ -165,7 +168,7 @@ async def unified_login(
     description="Use refresh token to get new access token."
 )
 async def refresh_token(
-    token_payload: dict = Depends(get_current_token_payload),
+    credentials: HTTPAuthorizationCredentials = Depends(security),
     db: AsyncSession = Depends(get_db)
 ):
     """
@@ -173,6 +176,9 @@ async def refresh_token(
     
     Send refresh token in Authorization header.
     """
+    # Get both token and payload
+    raw_token, token_payload = await get_current_token_and_payload(credentials)
+    
     # Verify it's a refresh token
     if token_payload.get("type") != "refresh":
         from backend.core.exceptions import InvalidTokenError
@@ -180,10 +186,11 @@ async def refresh_token(
     
     logger.info(f"Token refresh request for user: {token_payload.get('sub')}")
     
-    # Generate new tokens
+    # Generate new tokens (pass raw token for validation)
     tokens = await AuthService.refresh_access_token(
         db=db,
-        token_payload=token_payload
+        token_payload=token_payload,
+        provided_refresh_token=raw_token
     )
     
     return tokens
@@ -267,6 +274,83 @@ async def change_password(
     return MessageResponse(
         message="Password changed successfully",
         detail="Your password has been updated. Please use your new password for future logins."
+    )
+
+
+@router.post(
+    "/auth/password/reset-request",
+    response_model=MessageResponse,
+    summary="Request password reset",
+    description="Request password reset link for company accounts (not admin)."
+)
+async def request_password_reset(
+    reset_request: PasswordResetRequest,
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    Request password reset for company account.
+    
+    **Public endpoint** - No authentication required.
+    **Company accounts only** - Admins cannot reset passwords via this endpoint.
+    
+    An email with a reset link will be sent if the email exists.
+    For security, we don't reveal whether an email is registered.
+    """
+    logger.info(f"Password reset requested for: {reset_request.email}")
+    
+    # Generate reset token
+    reset_token = await AuthService.request_password_reset(
+        db=db,
+        email=reset_request.email
+    )
+    
+    # TODO: Send email with reset link
+    # For now, we'll log it (in production, send via email service)
+    if reset_token:
+        reset_url = f"http://localhost:5173/reset-password?token={reset_token}"
+        logger.info(f"Password reset link: {reset_url}")
+        # await EmailService.send_password_reset_email(
+        #     db=db,
+        #     to_email=reset_request.email,
+        #     reset_link=reset_url
+        # )
+    
+    return MessageResponse(
+        message="Password reset requested",
+        detail="If an account exists with this email, you will receive a password reset link."
+    )
+
+
+@router.post(
+    "/auth/password/reset",
+    response_model=MessageResponse,
+    summary="Reset password",
+    description="Reset password using reset token."
+)
+async def reset_password(
+    reset_data: PasswordReset,
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    Reset password using token from reset email.
+    
+    **Public endpoint** - No authentication required.
+    **Company accounts only**.
+    """
+    logger.info("Password reset attempt with token")
+    
+    # Reset password
+    await AuthService.reset_password(
+        db=db,
+        token=reset_data.token,
+        new_password=reset_data.new_password
+    )
+    
+    logger.info("Password reset successful")
+    
+    return MessageResponse(
+        message="Password reset successful",
+        detail="Your password has been reset. You can now log in with your new password."
     )
 
 

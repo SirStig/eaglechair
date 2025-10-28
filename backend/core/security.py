@@ -5,14 +5,14 @@ Handles authentication, password hashing, JWT tokens, and security utilities
 """
 
 from datetime import datetime, timedelta
-from typing import Optional, Any
+from typing import Any, Optional
+
+from fastapi import Depends, HTTPException, status
+from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from jose import JWTError, jwt
 from passlib.context import CryptContext
-from fastapi import HTTPException, status, Depends
-from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 
 from backend.core.config import settings
-
 
 # Password hashing context
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
@@ -71,9 +71,16 @@ class SecurityManager:
         if expires_delta:
             expire = datetime.utcnow() + expires_delta
         else:
-            expire = datetime.utcnow() + timedelta(
-                minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES
-            )
+            # Use different expiration based on user type
+            user_type = data.get("type", "company")
+            if user_type == "admin":
+                expire = datetime.utcnow() + timedelta(
+                    minutes=settings.ADMIN_ACCESS_TOKEN_EXPIRE_MINUTES
+                )
+            else:
+                expire = datetime.utcnow() + timedelta(
+                    minutes=settings.COMPANY_ACCESS_TOKEN_EXPIRE_MINUTES
+                )
         
         to_encode.update({"exp": expire, "type": "access"})
         encoded_jwt = jwt.encode(
@@ -103,11 +110,46 @@ class SecurityManager:
         if expires_delta:
             expire = datetime.utcnow() + expires_delta
         else:
-            expire = datetime.utcnow() + timedelta(
-                days=settings.REFRESH_TOKEN_EXPIRE_DAYS
-            )
+            # Use different expiration based on user type
+            user_type = data.get("type", "company")
+            if user_type == "admin":
+                expire = datetime.utcnow() + timedelta(
+                    days=settings.ADMIN_REFRESH_TOKEN_EXPIRE_DAYS
+                )
+            else:
+                expire = datetime.utcnow() + timedelta(
+                    days=settings.COMPANY_REFRESH_TOKEN_EXPIRE_DAYS
+                )
         
         to_encode.update({"exp": expire, "type": "refresh"})
+        encoded_jwt = jwt.encode(
+            to_encode,
+            settings.SECRET_KEY,
+            algorithm=settings.ALGORITHM
+        )
+        return encoded_jwt
+    
+    @staticmethod
+    def create_password_reset_token(email: str) -> str:
+        """
+        Create a password reset token
+        
+        Args:
+            email: User email address
+            
+        Returns:
+            str: Encoded JWT token
+        """
+        expire = datetime.utcnow() + timedelta(
+            hours=settings.PASSWORD_RESET_TOKEN_EXPIRE_HOURS
+        )
+        
+        to_encode = {
+            "sub": email,
+            "type": "password_reset",
+            "exp": expire
+        }
+        
         encoded_jwt = jwt.encode(
             to_encode,
             settings.SECRET_KEY,

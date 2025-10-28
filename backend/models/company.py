@@ -89,6 +89,14 @@ class Company(Base):
     # Authentication
     hashed_password = Column(String(255), nullable=False)
     
+    # Token Management
+    refresh_token = Column(String(500), nullable=True)  # Store current valid refresh token
+    refresh_token_expires = Column(String(50), nullable=True)  # ISO format datetime string
+    
+    # Password Reset
+    password_reset_token = Column(String(500), nullable=True)
+    password_reset_expires = Column(String(50), nullable=True)
+    
     # Business Address
     billing_address_line1 = Column(String(255), nullable=False)
     billing_address_line2 = Column(String(255), nullable=True)
@@ -176,9 +184,13 @@ class AdminUser(Base):
     last_login = Column(String(50), nullable=True)
     last_login_ip = Column(String(50), nullable=True)
     
-    # Password Reset
-    password_reset_token = Column(String(255), nullable=True)
-    password_reset_expires = Column(String(50), nullable=True)
+    # Token Management
+    refresh_token = Column(String(500), nullable=True)  # Store current valid refresh token
+    refresh_token_expires = Column(String(50), nullable=True)  # ISO format datetime string
+    
+    # Password Reset (admins don't get password reset - security policy)
+    # password_reset_token = Column(String(500), nullable=True)
+    # password_reset_expires = Column(String(50), nullable=True)
     
     # Failed login tracking
     failed_login_attempts = Column(Integer, default=0, nullable=False)

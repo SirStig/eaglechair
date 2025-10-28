@@ -7,21 +7,20 @@ Handles user authentication, token generation, and password management
 import logging
 from datetime import datetime, timedelta
 from typing import Optional
-from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select
 
-from backend.models.company import Company, AdminUser
-from backend.core.security import security_manager
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
+
 from backend.core.exceptions import (
-    InvalidCredentialsError,
     AccountSuspendedError,
-    AccountNotVerifiedError,
+    InvalidCredentialsError,
+    InvalidInputError,
     ResourceAlreadyExistsError,
     ResourceNotFoundError,
-    InvalidInputError,
 )
 from backend.core.logging_config import security_logger
-
+from backend.core.security import security_manager
+from backend.models.company import AdminUser, Company
 
 logger = logging.getLogger(__name__)
 
@@ -143,6 +142,13 @@ class AuthService:
         access_token = security_manager.create_access_token(token_data)
         refresh_token = security_manager.create_refresh_token(token_data)
         
+        # Store refresh token and expiration in database
+        from backend.core.config import settings
+        refresh_expires = datetime.utcnow() + timedelta(days=settings.COMPANY_REFRESH_TOKEN_EXPIRE_DAYS)
+        company.refresh_token = refresh_token
+        company.refresh_token_expires = refresh_expires.isoformat()
+        await db.commit()
+        
         logger.info(f"Successful login for company: {company.company_name} (ID: {company.id})")
         
         return company, {
@@ -253,9 +259,13 @@ class AuthService:
         session_token = str(uuid.uuid4())
         admin_token = str(uuid.uuid4())
         
-        # Store tokens in database
+        # Store tokens in database (including refresh token)
+        from backend.core.config import settings
+        refresh_expires = datetime.utcnow() + timedelta(days=settings.ADMIN_REFRESH_TOKEN_EXPIRE_DAYS)
         admin.session_token = session_token
         admin.admin_token = admin_token
+        admin.refresh_token = refresh_token
+        admin.refresh_token_expires = refresh_expires.isoformat()
         await db.commit()
         
         logger.info(f"Successful admin login: {username} (ID: {admin.id}, Role: {admin.role.value})")
@@ -277,7 +287,8 @@ class AuthService:
     @staticmethod
     async def refresh_access_token(
         db: AsyncSession,
-        token_payload: dict
+        token_payload: dict,
+        provided_refresh_token: str
     ) -> dict:
         """
         Refresh access token using refresh token payload
@@ -285,6 +296,7 @@ class AuthService:
         Args:
             db: Database session
             token_payload: Decoded refresh token payload
+            provided_refresh_token: The actual refresh token string (for validation)
             
         Returns:
             New tokens dictionary
@@ -292,6 +304,7 @@ class AuthService:
         Raises:
             ResourceNotFoundError: If user not found
             AccountSuspendedError: If account is inactive
+            InvalidCredentialsError: If refresh token doesn't match stored token
         """
         user_id = int(token_payload.get("sub"))
         user_type = token_payload.get("type", "company")
@@ -315,6 +328,22 @@ class AuthService:
         if not user.is_active:
             raise AccountSuspendedError()
         
+        # Validate the refresh token matches the stored one
+        if user.refresh_token != provided_refresh_token:
+            logger.warning(f"Token refresh failed: Invalid refresh token for user {user_id}")
+            raise InvalidCredentialsError("Invalid refresh token")
+        
+        # Check if refresh token has expired
+        if user.refresh_token_expires:
+            token_expires = datetime.fromisoformat(user.refresh_token_expires)
+            if datetime.utcnow() > token_expires:
+                logger.warning(f"Token refresh failed: Expired refresh token for user {user_id}")
+                # Clear expired token
+                user.refresh_token = None
+                user.refresh_token_expires = None
+                await db.commit()
+                raise InvalidCredentialsError("Refresh token has expired. Please log in again.")
+        
         # Generate new tokens with updated data
         if user_type == "admin":
             token_data = {
@@ -334,6 +363,17 @@ class AuthService:
         
         access_token = security_manager.create_access_token(token_data)
         refresh_token = security_manager.create_refresh_token(token_data)
+        
+        # Update stored refresh token
+        from backend.core.config import settings
+        if user_type == "admin":
+            refresh_expires = datetime.utcnow() + timedelta(days=settings.ADMIN_REFRESH_TOKEN_EXPIRE_DAYS)
+        else:
+            refresh_expires = datetime.utcnow() + timedelta(days=settings.COMPANY_REFRESH_TOKEN_EXPIRE_DAYS)
+        
+        user.refresh_token = refresh_token
+        user.refresh_token_expires = refresh_expires.isoformat()
+        await db.commit()
         
         logger.info(f"Token refreshed for {user_type} user ID: {user_id}")
         
@@ -393,6 +433,126 @@ class AuthService:
         await db.commit()
         
         logger.info(f"Password changed successfully for {user_type} user ID: {user_id}")
+        
+        return True
+    
+    @staticmethod
+    async def request_password_reset(
+        db: AsyncSession,
+        email: str
+    ) -> str:
+        """
+        Generate password reset token for company user
+        
+        Args:
+            db: Database session
+            email: Company email address
+            
+        Returns:
+            Password reset token
+            
+        Raises:
+            ResourceNotFoundError: If company not found
+        """
+        logger.info(f"Password reset requested for email: {email}")
+        
+        # Find company by email
+        result = await db.execute(
+            select(Company).where(Company.rep_email == email)
+        )
+        company = result.scalar_one_or_none()
+        
+        if not company:
+            # Don't reveal if email exists or not (security best practice)
+            logger.warning(f"Password reset attempted for non-existent email: {email}")
+            # Return success but don't actually do anything
+            return ""
+        
+        # Generate password reset token
+        reset_token = security_manager.create_password_reset_token(email)
+        
+        # Store token and expiration
+        from backend.core.config import settings
+        expires = datetime.utcnow() + timedelta(hours=settings.PASSWORD_RESET_TOKEN_EXPIRE_HOURS)
+        company.password_reset_token = reset_token
+        company.password_reset_expires = expires.isoformat()
+        await db.commit()
+        
+        logger.info(f"Password reset token generated for company ID: {company.id}")
+        
+        return reset_token
+    
+    @staticmethod
+    async def reset_password(
+        db: AsyncSession,
+        token: str,
+        new_password: str
+    ) -> bool:
+        """
+        Reset password using reset token
+        
+        Args:
+            db: Database session
+            token: Password reset token
+            new_password: New password
+            
+        Returns:
+            True if successful
+            
+        Raises:
+            InvalidCredentialsError: If token is invalid or expired
+            ResourceNotFoundError: If company not found
+        """
+        # Decode token to get email
+        try:
+            payload = security_manager.decode_token(token)
+            if payload.get("type") != "password_reset":
+                raise InvalidCredentialsError("Invalid reset token")
+            email = payload.get("sub")
+        except Exception as e:
+            logger.warning(f"Invalid password reset token: {str(e)}")
+            raise InvalidCredentialsError("Invalid or expired reset token")
+        
+        # Find company by email
+        result = await db.execute(
+            select(Company).where(Company.rep_email == email)
+        )
+        company = result.scalar_one_or_none()
+        
+        if not company:
+            logger.warning(f"Password reset failed: Company not found for email {email}")
+            raise ResourceNotFoundError(resource_type="Company", resource_id=email)
+        
+        # Verify token matches stored token
+        if company.password_reset_token != token:
+            logger.warning(f"Password reset failed: Token mismatch for company {company.id}")
+            raise InvalidCredentialsError("Invalid reset token")
+        
+        # Check if token has expired
+        if company.password_reset_expires:
+            expires = datetime.fromisoformat(company.password_reset_expires)
+            if datetime.utcnow() > expires:
+                logger.warning(f"Password reset failed: Expired token for company {company.id}")
+                # Clear expired token
+                company.password_reset_token = None
+                company.password_reset_expires = None
+                await db.commit()
+                raise InvalidCredentialsError("Reset token has expired. Please request a new one.")
+        
+        # Update password
+        company.hashed_password = security_manager.hash_password(new_password)
+        
+        # Clear reset token
+        company.password_reset_token = None
+        company.password_reset_expires = None
+        
+        # Invalidate existing refresh tokens (force re-login)
+        company.refresh_token = None
+        company.refresh_token_expires = None
+        
+        await db.commit()
+        
+        logger.info(f"Password reset successful for company ID: {company.id}")
         
         return True
 

@@ -4,12 +4,12 @@ Company and Admin Schemas - Version 1
 Schemas for company accounts and admin users
 """
 
-from typing import Optional
-from pydantic import BaseModel, EmailStr, Field, validator
 from enum import Enum
+from typing import Optional
 
-from backend.api.v1.schemas.common import TimestampSchema, AddressBase
+from pydantic import BaseModel, EmailStr, Field, validator
 
+from backend.api.v1.schemas.common import TimestampSchema
 
 # ============================================================================
 # Enums
@@ -225,6 +225,28 @@ class TokenResponse(BaseModel):
 class PasswordChangeRequest(BaseModel):
     """Schema for password change"""
     current_password: str
+    new_password: str = Field(..., min_length=8)
+    
+    @validator('new_password')
+    def password_strength(cls, v):
+        """Validate password strength"""
+        if not any(char.isdigit() for char in v):
+            raise ValueError('Password must contain at least one digit')
+        if not any(char.isupper() for char in v):
+            raise ValueError('Password must contain at least one uppercase letter')
+        if not any(char.islower() for char in v):
+            raise ValueError('Password must contain at least one lowercase letter')
+        return v
+
+
+class PasswordResetRequest(BaseModel):
+    """Schema for password reset request"""
+    email: EmailStr
+
+
+class PasswordReset(BaseModel):
+    """Schema for password reset (with token)"""
+    token: str
     new_password: str = Field(..., min_length=8)
     
     @validator('new_password')

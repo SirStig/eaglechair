@@ -7,8 +7,9 @@ Manages application settings using Pydantic BaseSettings for .env file integrati
 import os
 from functools import lru_cache
 from typing import Optional
-from pydantic_settings import BaseSettings, SettingsConfigDict
+
 from dotenv import load_dotenv
+from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 def load_environment_file():
@@ -87,8 +88,17 @@ class Settings(BaseSettings):
     # Security Configuration
     SECRET_KEY: str = "your-secret-key-change-this-in-production"
     ALGORITHM: str = "HS256"
-    ACCESS_TOKEN_EXPIRE_MINUTES: int = 30
-    REFRESH_TOKEN_EXPIRE_DAYS: int = 7
+    
+    # Token Expiration - Company Users (longer sessions for business users)
+    COMPANY_ACCESS_TOKEN_EXPIRE_MINUTES: int = 60  # 1 hour
+    COMPANY_REFRESH_TOKEN_EXPIRE_DAYS: int = 30  # 30 days
+    
+    # Token Expiration - Admin Users (shorter sessions for security)
+    ADMIN_ACCESS_TOKEN_EXPIRE_MINUTES: int = 30  # 30 minutes
+    ADMIN_REFRESH_TOKEN_EXPIRE_DAYS: int = 1  # 1 day
+    
+    # Password Reset
+    PASSWORD_RESET_TOKEN_EXPIRE_HOURS: int = 1  # 1 hour
     PASSWORD_MIN_LENGTH: int = 8
     
     # Rate Limiting

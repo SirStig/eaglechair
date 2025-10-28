@@ -19,6 +19,8 @@ import FindARepPage from './pages/FindARepPage';
 import CartPage from './pages/CartPage';
 import QuoteRequestPage from './pages/QuoteRequestPage';
 import LoginPage from './pages/LoginPage';
+import ForgotPasswordPage from './pages/ForgotPasswordPage';
+import ResetPasswordPage from './pages/ResetPasswordPage';
 import DashboardPage from './pages/DashboardPage';
 import AdminPanel from './pages/AdminPanel';
 import AdminDashboard from './pages/admin/AdminDashboard';
@@ -45,6 +47,8 @@ function App() {
             <Routes>
           {/* Public Routes */}
           <Route path="/login" element={<LoginPage />} />
+          <Route path="/forgot-password" element={<ForgotPasswordPage />} />
+          <Route path="/reset-password" element={<ResetPasswordPage />} />
 
           {/* Routes with Layout */}
           <Route element={<Layout />}>
