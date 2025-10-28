@@ -23,7 +23,7 @@ const GalleryPage = () => {
   // Use API data or fallback to demo
   const images = installations || demoGalleryImages;
 
-  const categories = ['all', ...new Set(images.map(img => img.category || img.projectType || img.project_type))];
+  const categories = ['all', ...new Set(images.map(img => img.category || img.projectType || img.project_type).filter(Boolean))];
   
   const filteredImages = filter === 'all' 
     ? images 

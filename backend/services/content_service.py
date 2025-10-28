@@ -6,21 +6,22 @@ Handles content management (FAQs, team, company info, contact, catalogs, etc.)
 
 import logging
 from typing import List, Optional
-from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, and_
 
+from sqlalchemy import and_, select
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from backend.core.exceptions import ResourceAlreadyExistsError, ResourceNotFoundError
 from backend.models.content import (
     FAQ,
-    FAQCategory,
-    TeamMember,
+    Catalog,
     CompanyInfo,
     ContactLocation,
-    Catalog,
+    FAQCategory,
+    Feedback,
     Installation,
-    Feedback
+    TeamMember,
 )
-from backend.core.exceptions import ResourceNotFoundError, ResourceAlreadyExistsError
-
+from backend.utils.static_content_exporter import export_content_after_update
 
 logger = logging.getLogger(__name__)
 
@@ -152,6 +153,10 @@ class ContentService:
         await db.commit()
         await db.refresh(category)
         logger.info(f"Created FAQ category: {name}")
+        
+        # Export updated FAQ categories
+        await export_content_after_update('faqCategories', db)
+        
         return category
     
     @staticmethod
@@ -176,6 +181,10 @@ class ContentService:
         await db.commit()
         await db.refresh(category)
         logger.info(f"Updated FAQ category {category_id}")
+        
+        # Export updated FAQ categories
+        await export_content_after_update('faqCategories', db)
+        
         return category
     
     @staticmethod
@@ -192,6 +201,9 @@ class ContentService:
         await db.delete(category)
         await db.commit()
         logger.info(f"Deleted FAQ category {category_id}")
+        
+        # Export updated FAQ categories
+        await export_content_after_update('faqCategories', db)
     
     @staticmethod
     async def create_faq(
@@ -214,6 +226,10 @@ class ContentService:
         await db.commit()
         await db.refresh(faq)
         logger.info(f"Created FAQ: {question[:50]}...")
+        
+        # Export updated FAQs
+        await export_content_after_update('faqs', db)
+        
         return faq
     
     @staticmethod
@@ -238,6 +254,10 @@ class ContentService:
         await db.commit()
         await db.refresh(faq)
         logger.info(f"Updated FAQ {faq_id}")
+        
+        # Export updated FAQs
+        await export_content_after_update('faqs', db)
+        
         return faq
     
     @staticmethod
@@ -254,6 +274,9 @@ class ContentService:
         await db.delete(faq)
         await db.commit()
         logger.info(f"Deleted FAQ {faq_id}")
+        
+        # Export updated FAQs
+        await export_content_after_update('faqs', db)
     
     # ========================================================================
     # Team Operations
@@ -659,6 +682,10 @@ class ContentService:
         await db.commit()
         await db.refresh(catalog)
         logger.info(f"Created catalog: {title}")
+        
+        # Export updated catalogs
+        await export_content_after_update('catalogs', db)
+        
         return catalog
     
     @staticmethod
@@ -687,6 +714,10 @@ class ContentService:
         await db.commit()
         await db.refresh(catalog)
         logger.info(f"Updated catalog {catalog_id}")
+        
+        # Export updated catalogs
+        await export_content_after_update('catalogs', db)
+        
         return catalog
     
     @staticmethod
@@ -703,6 +734,9 @@ class ContentService:
         await db.delete(catalog)
         await db.commit()
         logger.info(f"Deleted catalog {catalog_id}")
+        
+        # Export updated catalogs
+        await export_content_after_update('catalogs', db)
     
     @staticmethod
     async def increment_catalog_downloads(
@@ -809,6 +843,10 @@ class ContentService:
         await db.commit()
         await db.refresh(guide)
         logger.info(f"Created installation guide: {title}")
+        
+        # Export updated installations/gallery
+        await export_content_after_update('galleryImages', db)
+        
         return guide
     
     @staticmethod
@@ -833,6 +871,10 @@ class ContentService:
         await db.commit()
         await db.refresh(guide)
         logger.info(f"Updated installation guide {guide_id}")
+        
+        # Export updated installations/gallery
+        await export_content_after_update('galleryImages', db)
+        
         return guide
     
     @staticmethod
@@ -849,6 +891,9 @@ class ContentService:
         await db.delete(guide)
         await db.commit()
         logger.info(f"Deleted installation guide {guide_id}")
+        
+        # Export updated installations/gallery
+        await export_content_after_update('galleryImages', db)
     
     @staticmethod
     async def increment_installation_downloads(

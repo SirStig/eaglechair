@@ -13,7 +13,10 @@ import logging
 import os
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import TYPE_CHECKING, Any, Dict, List, Optional
+
+if TYPE_CHECKING:
+    from sqlalchemy.ext.asyncio import AsyncSession
 
 logger = logging.getLogger(__name__)
 
@@ -188,6 +191,14 @@ class StaticContentExporter:
                 - features: Why choose us features
                 - contactLocations: Contact locations
                 - pageContent: Flexible page sections
+                - legalDocuments: Legal docs, policies, warranties
+                - faqs: Frequently asked questions
+                - faqCategories: FAQ categories
+                - catalogs: Virtual catalogs and guides
+                - finishes: Wood finish options
+                - upholsteries: Upholstery fabric options
+                - hardware: Hardware components and specs
+                - laminates: Laminate brands and patterns
                 
         Returns:
             True if successful, False otherwise
@@ -273,6 +284,14 @@ class StaticContentExporter:
             ("features", "Features - Why choose us / benefits"),
             ("contactLocations", "Contact Locations - Office and showroom locations"),
             ("pageContent", "Page Content - Dynamic page sections"),
+            ("legalDocuments", "Legal Documents - Terms, policies, warranties"),
+            ("faqs", "FAQs - Frequently asked questions"),
+            ("faqCategories", "FAQ Categories - FAQ organization"),
+            ("catalogs", "Catalogs - Virtual catalogs and guides"),
+            ("finishes", "Finishes - Wood finish options and swatches"),
+            ("upholsteries", "Upholsteries - Upholstery fabric options"),
+            ("hardware", "Hardware - Hardware components and specifications"),
+            ("laminates", "Laminates - Laminate brands and patterns"),
         ]
         
         for key, description in sections:
@@ -481,6 +500,132 @@ class StaticContentExporter:
         existing['pageContent'] = content
         return self.export_all_content(existing)
     
+    def export_legal_documents(self, documents: List[Dict[str, Any]]) -> bool:
+        """
+        Export legal documents.
+        
+        Args:
+            documents: List of legal document dictionaries
+            
+        Returns:
+            True if successful
+        """
+        existing = self._read_existing_content()
+        existing['legalDocuments'] = documents
+        return self.export_all_content(existing)
+    
+    def export_faqs(self, faqs: List[Dict[str, Any]]) -> bool:
+        """
+        Export FAQs.
+        
+        Args:
+            faqs: List of FAQ dictionaries
+            
+        Returns:
+            True if successful
+        """
+        existing = self._read_existing_content()
+        existing['faqs'] = faqs
+        return self.export_all_content(existing)
+    
+    def export_faq_categories(self, categories: List[Dict[str, Any]]) -> bool:
+        """
+        Export FAQ categories.
+        
+        Args:
+            categories: List of FAQ category dictionaries
+            
+        Returns:
+            True if successful
+        """
+        existing = self._read_existing_content()
+        existing['faqCategories'] = categories
+        return self.export_all_content(existing)
+    
+    def export_catalogs(self, catalogs: List[Dict[str, Any]]) -> bool:
+        """
+        Export catalogs and guides.
+        
+        Args:
+            catalogs: List of catalog dictionaries
+            
+        Returns:
+            True if successful
+        """
+        existing = self._read_existing_content()
+        existing['catalogs'] = catalogs
+        return self.export_all_content(existing)
+    
+    def export_finishes(self, finishes: List[Dict[str, Any]]) -> bool:
+        """
+        Export wood finishes.
+        
+        Args:
+            finishes: List of finish dictionaries
+            
+        Returns:
+            True if successful
+        """
+        existing = self._read_existing_content()
+        existing['finishes'] = finishes
+        return self.export_all_content(existing)
+    
+    def export_upholsteries(self, upholsteries: List[Dict[str, Any]]) -> bool:
+        """
+        Export upholstery options.
+        
+        Args:
+            upholsteries: List of upholstery dictionaries
+            
+        Returns:
+            True if successful
+        """
+        existing = self._read_existing_content()
+        existing['upholsteries'] = upholsteries
+        return self.export_all_content(existing)
+    
+    def export_hardware(self, hardware: List[Dict[str, Any]]) -> bool:
+        """
+        Export hardware options.
+        
+        Args:
+            hardware: List of hardware dictionaries
+            
+        Returns:
+            True if successful
+        """
+        existing = self._read_existing_content()
+        existing['hardware'] = hardware
+        return self.export_all_content(existing)
+    
+    def export_laminates(self, laminates: List[Dict[str, Any]]) -> bool:
+        """
+        Export laminate options.
+        
+        Args:
+            laminates: List of laminate dictionaries
+            
+        Returns:
+            True if successful
+        """
+        existing = self._read_existing_content()
+        existing['laminates'] = laminates
+        return self.export_all_content(existing)
+    
+    def export_warranty_information(self, warranties: List[Dict[str, Any]]) -> bool:
+        """
+        Export warranty information.
+        
+        Args:
+            warranties: List of warranty information dictionaries
+            
+        Returns:
+            True if successful
+        """
+        existing = self._read_existing_content()
+        existing['warranties'] = warranties
+        return self.export_all_content(existing)
+    
     def _read_existing_content(self) -> Dict[str, Any]:
         """
         Read existing content file to preserve data during partial updates.
@@ -535,45 +680,425 @@ def get_exporter() -> StaticContentExporter:
     return _exporter_instance
 
 
-async def export_content_after_update(content_type: str, data: Any) -> bool:
+async def export_content_after_update(content_type: str, db: "AsyncSession") -> bool:
     """
     Convenience function to export content after database update.
     
     This should be called after successful database commits.
+    QUERIES DATABASE to get fresh data.
     
     Args:
         content_type: Type of content (siteSettings, heroSlides, salesReps, etc.)
-        data: The data to export (dict or list)
+        db: Database session (required)
         
     Returns:
         True if export successful
     """
+    from sqlalchemy import select
+
+    from backend.models.chair import Finish, Upholstery
+    from backend.models.content import (
+        FAQ,
+        Catalog,
+        ClientLogo,
+        CompanyMilestone,
+        CompanyValue,
+        FAQCategory,
+        Feature,
+        Hardware,
+        HeroSlide,
+        Installation,
+        Laminate,
+        PageContent,
+        SalesRepresentative,
+        SiteSettings,
+        TeamMember,
+    )
+    from backend.models.legal import LegalDocument, WarrantyInformation
+    
     try:
         exporter = get_exporter()
         
-        # Route to appropriate export method
-        export_methods = {
-            'siteSettings': exporter.export_site_settings,
-            'heroSlides': exporter.export_hero_slides,
-            'salesReps': exporter.export_sales_reps,
-            'galleryImages': exporter.export_gallery_images,
-            'features': exporter.export_features,
-            'companyValues': exporter.export_company_values,
-            'companyMilestones': exporter.export_company_milestones,
-            'teamMembers': exporter.export_team_members,
-            'clientLogos': exporter.export_client_logos,
-            'companyInfo': exporter.export_company_info,
-            'contactLocations': exporter.export_contact_locations,
-            'pageContent': exporter.export_page_content,
-        }
+        # Database session is required (passed from calling service)
         
-        if content_type in export_methods:
-            return export_methods[content_type](data)
-        else:
-            # Generic export - update and export all
-            existing = exporter._read_existing_content()
-            existing[content_type] = data
-            return exporter.export_all_content(existing)
+        # Map content type to model and query
+        async def fetch_and_export():
+            if content_type == 'siteSettings':
+                result = await db.execute(select(SiteSettings).limit(1))
+                settings = result.scalar_one_or_none()
+                data = {
+                    'companyName': settings.company_name if settings else 'Eagle Chair',
+                    'companyTagline': settings.company_tagline if settings else '',
+                    'primaryEmail': settings.primary_email if settings else '',
+                    'primaryPhone': settings.primary_phone if settings else '',
+                    # ... add all fields
+                } if settings else {}
+                return exporter.export_site_settings(data)
+                
+            elif content_type == 'heroSlides':
+                result = await db.execute(
+                    select(HeroSlide)
+                    .where(HeroSlide.is_active == True)
+                    .order_by(HeroSlide.display_order, HeroSlide.id)
+                )
+                slides = result.scalars().all()
+                data = [
+                    {
+                        'id': s.id,
+                        'title': s.title,
+                        'subtitle': s.subtitle,
+                        'image': s.background_image_url,
+                        'ctaText': s.cta_text,
+                        'ctaLink': s.cta_link,
+                        'displayOrder': s.display_order
+                    }
+                    for s in slides
+                ]
+                return exporter.export_hero_slides(data)
+                
+            elif content_type == 'salesReps':
+                result = await db.execute(
+                    select(SalesRepresentative)
+                    .where(SalesRepresentative.is_active == True)
+                    .order_by(SalesRepresentative.territory_name)
+                )
+                reps = result.scalars().all()
+                data = [
+                    {
+                        'id': r.id,
+                        'name': r.name,
+                        'territory': r.territory_name,
+                        'states': r.states_covered,
+                        'email': r.email,
+                        'phone': r.phone,
+                        'photoUrl': r.photo_url
+                    }
+                    for r in reps
+                ]
+                return exporter.export_sales_reps(data)
+                
+            elif content_type == 'galleryImages':
+                result = await db.execute(
+                    select(Installation)
+                    .where(Installation.is_active == True)
+                    .order_by(Installation.display_order.desc())
+                )
+                installations = result.scalars().all()
+                data = [
+                    {
+                        'id': i.id,
+                        'title': i.project_name,
+                        'category': i.project_type,
+                        'url': i.primary_image,
+                        'images': i.images,
+                        'description': i.description,
+                        'location': i.location,
+                        'clientName': i.client_name
+                    }
+                    for i in installations
+                ]
+                return exporter.export_gallery_images(data)
+                
+            elif content_type == 'features':
+                result = await db.execute(
+                    select(Feature)
+                    .where(Feature.is_active == True)
+                    .order_by(Feature.display_order)
+                )
+                features = result.scalars().all()
+                data = [
+                    {
+                        'id': f.id,
+                        'title': f.title,
+                        'description': f.description,
+                        'icon': f.icon
+                    }
+                    for f in features
+                ]
+                return exporter.export_features(data)
+                
+            elif content_type == 'companyValues':
+                result = await db.execute(
+                    select(CompanyValue)
+                    .where(CompanyValue.is_active == True)
+                    .order_by(CompanyValue.display_order)
+                )
+                values = result.scalars().all()
+                data = [
+                    {
+                        'id': v.id,
+                        'title': v.title,
+                        'description': v.description,
+                        'icon': v.icon
+                    }
+                    for v in values
+                ]
+                return exporter.export_company_values(data)
+                
+            elif content_type == 'companyMilestones':
+                result = await db.execute(
+                    select(CompanyMilestone)
+                    .where(CompanyMilestone.is_active == True)
+                    .order_by(CompanyMilestone.year)
+                )
+                milestones = result.scalars().all()
+                data = [
+                    {
+                        'id': m.id,
+                        'year': m.year,
+                        'title': m.title,
+                        'description': m.description
+                    }
+                    for m in milestones
+                ]
+                return exporter.export_company_milestones(data)
+                
+            elif content_type == 'teamMembers':
+                result = await db.execute(
+                    select(TeamMember)
+                    .where(TeamMember.is_active == True)
+                    .order_by(TeamMember.display_order)
+                )
+                members = result.scalars().all()
+                data = [
+                    {
+                        'id': m.id,
+                        'name': m.name,
+                        'title': m.title,
+                        'bio': m.bio,
+                        'email': m.email,
+                        'phone': m.phone,
+                        'image': m.photo_url,
+                        'linkedinUrl': m.linkedin_url
+                    }
+                    for m in members
+                ]
+                return exporter.export_team_members(data)
+                
+            elif content_type == 'clientLogos':
+                result = await db.execute(
+                    select(ClientLogo)
+                    .where(ClientLogo.is_active == True)
+                    .order_by(ClientLogo.display_order)
+                )
+                logos = result.scalars().all()
+                data = [
+                    {
+                        'id': l.id,
+                        'name': l.name,
+                        'logoUrl': l.logo_url,
+                        'websiteUrl': l.website_url
+                    }
+                    for l in logos
+                ]
+                return exporter.export_client_logos(data)
+                
+            elif content_type == 'pageContent':
+                result = await db.execute(
+                    select(PageContent)
+                    .where(PageContent.is_active == True)
+                    .order_by(PageContent.page_slug, PageContent.display_order)
+                )
+                pages = result.scalars().all()
+                data = [
+                    {
+                        'id': p.id,
+                        'pageSlug': p.page_slug,
+                        'sectionKey': p.section_key,
+                        'title': p.title,
+                        'content': p.content,
+                        'imageUrl': p.image_url
+                    }
+                    for p in pages
+                ]
+                return exporter.export_page_content(data)
+                
+            elif content_type == 'legalDocuments':
+                result = await db.execute(
+                    select(LegalDocument)
+                    .where(LegalDocument.is_active == True)
+                    .order_by(LegalDocument.display_order)
+                )
+                docs = result.scalars().all()
+                data = [
+                    {
+                        'id': d.id,
+                        'documentType': d.document_type.value,
+                        'title': d.title,
+                        'content': d.content,
+                        'slug': d.slug,
+                        'version': d.version,
+                        'effectiveDate': d.effective_date,
+                        'shortDescription': d.short_description,
+                        'isActive': d.is_active,
+                        'displayOrder': d.display_order
+                    }
+                    for d in docs
+                ]
+                return exporter.export_legal_documents(data)
+                
+            elif content_type == 'faqs':
+                result = await db.execute(
+                    select(FAQ)
+                    .where(FAQ.is_active == True)
+                    .order_by(FAQ.category_id, FAQ.display_order)
+                )
+                faqs = result.scalars().all()
+                data = [
+                    {
+                        'id': f.id,
+                        'categoryId': f.category_id,
+                        'question': f.question,
+                        'answer': f.answer
+                    }
+                    for f in faqs
+                ]
+                return exporter.export_faqs(data)
+                
+            elif content_type == 'faqCategories':
+                result = await db.execute(
+                    select(FAQCategory)
+                    .where(FAQCategory.is_active == True)
+                    .order_by(FAQCategory.display_order)
+                )
+                categories = result.scalars().all()
+                data = [
+                    {
+                        'id': c.id,
+                        'name': c.name,
+                        'description': c.description
+                    }
+                    for c in categories
+                ]
+                return exporter.export_faq_categories(data)
+                
+            elif content_type == 'catalogs':
+                result = await db.execute(
+                    select(Catalog)
+                    .where(Catalog.is_active == True)
+                    .order_by(Catalog.display_order)
+                )
+                catalogs = result.scalars().all()
+                data = [
+                    {
+                        'id': c.id,
+                        'title': c.title,
+                        'description': c.description,
+                        'fileUrl': c.file_url,
+                        'coverImageUrl': c.cover_image_url
+                    }
+                    for c in catalogs
+                ]
+                return exporter.export_catalogs(data)
+                
+            elif content_type == 'finishes':
+                result = await db.execute(
+                    select(Finish)
+                    .where(Finish.is_active == True)
+                    .order_by(Finish.name)
+                )
+                finishes = result.scalars().all()
+                data = [
+                    {
+                        'id': f.id,
+                        'name': f.name,
+                        'description': f.description,
+                        'imageUrl': f.image_url,
+                        'category': f.category
+                    }
+                    for f in finishes
+                ]
+                return exporter.export_finishes(data)
+                
+            elif content_type == 'upholsteries':
+                result = await db.execute(
+                    select(Upholstery)
+                    .where(Upholstery.is_active == True)
+                    .order_by(Upholstery.name)
+                )
+                upholsteries = result.scalars().all()
+                data = [
+                    {
+                        'id': u.id,
+                        'name': u.name,
+                        'materialType': u.material_type,
+                        'description': u.description,
+                        'imageUrl': u.image_url,
+                        'swatchImageUrl': u.swatch_image_url,
+                        'grade': u.grade,
+                        'color': u.color,
+                        'colorHex': u.color_hex
+                    }
+                    for u in upholsteries
+                ]
+                return exporter.export_upholsteries(data)
+                
+            elif content_type == 'hardware':
+                result = await db.execute(
+                    select(Hardware)
+                    .where(Hardware.is_active == True)
+                    .order_by(Hardware.name)
+                )
+                hardware_items = result.scalars().all()
+                data = [
+                    {
+                        'id': h.id,
+                        'name': h.name,
+                        'description': h.description,
+                        'imageUrl': h.image_url,
+                        'category': h.category
+                    }
+                    for h in hardware_items
+                ]
+                return exporter.export_hardware(data)
+                
+            elif content_type == 'laminates':
+                result = await db.execute(
+                    select(Laminate)
+                    .where(Laminate.is_active == True)
+                    .order_by(Laminate.brand, Laminate.pattern_name)
+                )
+                laminates = result.scalars().all()
+                data = [
+                    {
+                        'id': lam.id,
+                        'patternName': lam.pattern_name,
+                        'brand': lam.brand,
+                        'description': lam.description,
+                        'swatchImageUrl': lam.swatch_image_url,
+                        'fullImageUrl': lam.full_image_url,
+                        'colorFamily': lam.color_family,
+                        'finishType': lam.finish_type
+                    }
+                    for lam in laminates
+                ]
+                return exporter.export_laminates(data)
+                
+            elif content_type == 'warranties':
+                result = await db.execute(
+                    select(WarrantyInformation)
+                    .where(WarrantyInformation.is_active == True)
+                    .order_by(WarrantyInformation.display_order)
+                )
+                warranties = result.scalars().all()
+                data = [
+                    {
+                        'id': w.id,
+                        'warrantyType': w.warranty_type,
+                        'title': w.title,
+                        'description': w.description,
+                        'duration': w.duration,
+                        'coverage': w.coverage
+                    }
+                    for w in warranties
+                ]
+                return exporter.export_warranty_information(data)
+                
+            else:
+                logger.warning(f"Unknown content type: {content_type}")
+                return False
+        
+        return await fetch_and_export()
             
     except Exception as e:
         logger.error(f"Export failed for {content_type}: {e}", exc_info=True)

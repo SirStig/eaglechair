@@ -18,9 +18,9 @@ const Footer = () => {
           <div className="lg:col-span-1 sm:col-span-2 md:col-span-1 text-center sm:text-left">
             <div className="flex flex-col items-center sm:items-start">
               {siteSettings?.logoUrl ? (
-                <img src={siteSettings.logoUrl} alt={siteSettings.companyName || 'Eagle Chair'} className="h-10 sm:h-12 w-auto mb-3 sm:mb-4 opacity-80" />
+                <img src={siteSettings.logoUrl} alt={siteSettings.companyName || 'Eagle Chair'} className="h-14 sm:h-16 w-auto mb-3 sm:mb-4 opacity-80" />
               ) : (
-                <img src="/assets/eagle-chair-logo.png" alt="Eagle Chair" className="h-10 sm:h-12 w-auto mb-3 sm:mb-4 opacity-80" />
+                <img src="/assets/eagle-chair-logo.png" alt="Eagle Chair" className="h-14 sm:h-16 w-auto mb-3 sm:mb-4 opacity-80" />
               )}
               <p className="text-sm mb-3 sm:mb-4 text-dark-200 max-w-xs">Family-owned manufacturer since 1984.</p>
               <div className="flex space-x-4 justify-center sm:justify-start">
