@@ -83,9 +83,131 @@ const EditModal = ({ isOpen, onClose, onSave, elementData, elementType }) => {
       return null;
     }
 
-    // Skip arrays (like images array) - too complex for simple form
+    // Special case: Sales rep states_covered field - render state selector
+    if (elementType === 'sales-rep' && (key === 'states_covered' || key === 'statesCovered')) {
+      const statesByRegion = {
+        'Northeast': ['ME', 'NH', 'VT', 'MA', 'RI', 'CT', 'NY', 'NJ', 'PA'],
+        'Southeast': ['MD', 'DE', 'VA', 'WV', 'KY', 'NC', 'SC', 'TN', 'GA', 'FL', 'AL', 'MS', 'LA'],
+        'Midwest': ['OH', 'IN', 'IL', 'MI', 'WI', 'MN', 'IA', 'MO', 'ND', 'SD', 'NE', 'KS'],
+        'Southwest': ['TX', 'OK', 'AR', 'NM', 'AZ'],
+        'West': ['CO', 'WY', 'MT', 'ID', 'UT', 'NV', 'CA', 'OR', 'WA', 'AK', 'HI'],
+      };
+      
+      const allStates = Object.values(statesByRegion).flat();
+      const currentStates = formData[key] || [];
+      
+      const toggleState = (stateCode) => {
+        const newStates = currentStates.includes(stateCode)
+          ? currentStates.filter(s => s !== stateCode)
+          : [...currentStates, stateCode];
+        setFormData(prev => ({ ...prev, [key]: newStates }));
+      };
+      
+      const selectRegion = (states) => {
+        setFormData(prev => ({ ...prev, [key]: states }));
+      };
+      
+      return (
+        <div key={key} className="space-y-3">
+          <label className="block text-sm font-medium text-dark-100">
+            {label}
+          </label>
+          
+          {/* Quick selection buttons */}
+          <div className="flex gap-2 flex-wrap">
+            <button
+              type="button"
+              onClick={() => selectRegion(allStates)}
+              className="px-3 py-1 text-xs bg-primary-600 hover:bg-primary-700 text-dark-900 rounded transition-colors font-semibold"
+            >
+              Select All
+            </button>
+            <button
+              type="button"
+              onClick={() => selectRegion([])}
+              className="px-3 py-1 text-xs bg-dark-600 text-dark-100 rounded hover:bg-dark-500 transition-colors"
+            >
+              Clear
+            </button>
+            {Object.entries(statesByRegion).map(([region, states]) => (
+              <button
+                key={region}
+                type="button"
+                onClick={() => selectRegion(states)}
+                className="px-3 py-1 text-xs bg-dark-600 text-dark-100 rounded hover:bg-dark-500 transition-colors"
+              >
+                {region}
+              </button>
+            ))}
+          </div>
+          
+          {/* Selection summary */}
+          <div className="bg-dark-700 p-3 rounded-lg">
+            <div className="text-sm text-dark-100">
+              <strong className="text-dark-50">Selected:</strong> {currentStates.length > 0 ? (
+                <span className="text-primary-500 font-medium">{currentStates.sort().join(', ')}</span>
+              ) : (
+                <span className="text-dark-300">None</span>
+              )}
+            </div>
+          </div>
+          
+          {/* State grid by region */}
+          <div className="space-y-3 max-h-80 overflow-y-auto pr-2">
+            {Object.entries(statesByRegion).map(([region, states]) => (
+              <div key={region} className="bg-dark-700 p-3 rounded-lg">
+                <h4 className="text-sm font-semibold text-dark-50 mb-2">{region}</h4>
+                <div className="grid grid-cols-4 sm:grid-cols-6 gap-2">
+                  {states.map(stateCode => {
+                    const isSelected = currentStates.includes(stateCode);
+                    return (
+                      <button
+                        key={stateCode}
+                        type="button"
+                        onClick={() => toggleState(stateCode)}
+                        className={`
+                          px-2 py-1.5 rounded text-xs font-medium transition-all
+                          ${isSelected 
+                            ? 'bg-primary-600 text-dark-900 border-2 border-primary-500 shadow-lg' 
+                            : 'bg-dark-600 text-dark-100 border-2 border-dark-500 hover:bg-dark-500 hover:border-dark-400'
+                          }
+                        `}
+                      >
+                        {stateCode}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      );
+    }
+
+    // Skip other arrays (like images array) - too complex for simple form
     if (Array.isArray(value)) {
       return null;
+    }
+
+    // Exclude LinkedIn/social URLs from image detection
+    if (key === 'linkedin_url' || key === 'linkedinUrl') {
+      return (
+        <div key={key} className="space-y-2">
+          <label htmlFor={key} className="block text-sm font-medium text-dark-100">
+            {label}
+          </label>
+          <input
+            id={key}
+            name={key}
+            type="url"
+            value={formData[key] ?? ''}
+            onChange={handleChange}
+            placeholder="https://linkedin.com/in/username"
+            className="w-full px-4 py-2 bg-dark-700 border border-dark-500 rounded-lg text-dark-50 placeholder-dark-300 focus:outline-none focus:ring-2 focus:ring-accent-500 focus:border-transparent"
+          />
+        </div>
+      );
     }
 
     // Detect if this is an image field - either by field name OR by value being an image URL

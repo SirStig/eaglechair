@@ -9,7 +9,9 @@ import { HeroSkeleton, CardGridSkeleton } from '../components/ui/Skeleton';
 import EditableWrapper from '../components/admin/EditableWrapper';
 import EditableList from '../components/admin/EditableList';
 import EditModal from '../components/admin/EditModal';
+import ConfirmModal from '../components/ui/ConfirmModal';
 import { useEditMode } from '../contexts/useEditMode';
+import { useToast } from '../contexts/ToastContext';
 import { demoHomeContent } from '../data/demoData';
 import { heroSlides as staticHeroSlides, features as staticFeatures, clientLogos as staticClientLogos, pageContent as staticPageContent } from '../data/contentData';
 import { useHeroSlides, useFeatures, useClientLogos, useFeaturedProducts, usePageContent } from '../hooks/useContent';
@@ -33,7 +35,9 @@ const CONTEXT = 'HomePage';
 const HomePage = () => {
   const [selectedQuickView, setSelectedQuickView] = useState(null);
   const [isCreatingLogo, setIsCreatingLogo] = useState(false);
+  const [confirmModal, setConfirmModal] = useState({ isOpen: false, onConfirm: null, message: '', title: '' });
   const { isEditMode } = useEditMode();
+  const toast = useToast();
   
   const { data: heroSlides, loading: heroLoading, refetch: refetchHero } = useHeroSlides();
   const { data: whyChooseUs, refetch: refetchFeatures } = useFeatures('home_page');
@@ -46,6 +50,12 @@ const HomePage = () => {
     try {
       logger.info(CONTEXT, `Saving content for ${pageSlug}/${sectionKey}`, newData);
       await updatePageContent(pageSlug, sectionKey, newData);
+      
+      // Invalidate cache for this specific section
+      const cacheKey = `page-content-${pageSlug}-${sectionKey}`;
+      const invalidated = invalidateCache(cacheKey);
+      logger.debug(CONTEXT, `Invalidated ${invalidated} cache entries for ${cacheKey}`);
+      
       // Refetch the data to show updated content
       if (pageSlug === 'home' && sectionKey === 'cta') {
         refetchCta();
@@ -60,38 +70,45 @@ const HomePage = () => {
   // Hero Slides Handlers
   const handleUpdateHeroSlide = async (id, updates) => {
     await updateHeroSlide(id, updates);
+    invalidateCache('hero-slides');
     refetchHero();
   };
 
   const handleCreateHeroSlide = async (newData) => {
     await createHeroSlide(newData);
+    invalidateCache('hero-slides');
     refetchHero();
   };
 
   const handleDeleteHeroSlide = async (id) => {
     await deleteHeroSlide(id);
+    invalidateCache('hero-slides');
     refetchHero();
   };
 
   // Features Handlers
   const handleUpdateFeature = async (id, updates) => {
     await updateFeature(id, updates);
+    invalidateCache('features-*');
     refetchFeatures();
   };
 
   const handleCreateFeature = async (newData) => {
     await createFeature({ ...newData, feature_type: 'home_page' });
+    invalidateCache('features-*');
     refetchFeatures();
   };
 
   const handleDeleteFeature = async (id) => {
     await deleteFeature(id);
+    invalidateCache('features-*');
     refetchFeatures();
   };
 
   // Client Logos Handlers
   const handleUpdateClientLogo = async (id, updates) => {
     await updateClientLogo(id, updates);
+    invalidateCache('client-logos');
     refetchLogos();
   };
 
@@ -331,10 +348,20 @@ const HomePage = () => {
                         <button
                           onClick={async (e) => {
                             e.stopPropagation();
-                            if (window.confirm(`Delete ${client.name}?`)) {
-                              await deleteClientLogo(client.id);
-                              refetchLogos();
-                            }
+                            setConfirmModal({
+                              isOpen: true,
+                              title: 'Delete Client Logo',
+                              message: `Are you sure you want to delete ${client.name}? This action cannot be undone.`,
+                              onConfirm: async () => {
+                                try {
+                                  await deleteClientLogo(client.id);
+                                  refetchLogos();
+                                  toast.success(`${client.name} deleted successfully`);
+                                } catch (error) {
+                                  toast.error('Failed to delete client logo');
+                                }
+                              }
+                            });
                           }}
                           className="absolute top-0 right-0 p-1 bg-red-600 hover:bg-red-700 text-white rounded opacity-0 group-hover:opacity-100 transition-opacity z-30"
                           title="Delete"
@@ -674,6 +701,17 @@ const HomePage = () => {
           </div>
         </div>
       </section>
+
+      {/* Confirmation Modal */}
+      <ConfirmModal
+        isOpen={confirmModal.isOpen}
+        onClose={() => setConfirmModal({ ...confirmModal, isOpen: false })}
+        onConfirm={confirmModal.onConfirm}
+        title={confirmModal.title}
+        message={confirmModal.message}
+        variant="danger"
+        confirmButtonVariant="danger"
+      />
     </div>
   );
 };

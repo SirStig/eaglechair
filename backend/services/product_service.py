@@ -135,28 +135,62 @@ class ProductService:
         db: AsyncSession,
         pagination: PaginationParams,
         category_id: Optional[int] = None,
+        subcategory_id: Optional[int] = None,
+        family_id: Optional[int] = None,
         search_query: Optional[str] = None,
         is_featured: Optional[bool] = None,
         is_new: Optional[bool] = None,
+        finish_ids: Optional[List[int]] = None,
+        upholstery_ids: Optional[List[int]] = None,
+        color_ids: Optional[List[int]] = None,
+        min_seat_height: Optional[float] = None,
+        max_seat_height: Optional[float] = None,
+        min_width: Optional[float] = None,
+        max_width: Optional[float] = None,
+        is_stackable: Optional[bool] = None,
+        is_outdoor: Optional[bool] = None,
+        is_ada_compliant: Optional[bool] = None,
+        max_lead_time_days: Optional[int] = None,
+        in_stock_only: bool = False,
+        exclude_variations: bool = False,
+        smart_sort: bool = False,
         include_inactive: bool = False
     ) -> Dict[str, Any]:
         """
-        Get paginated products with filters
+        Get paginated products with comprehensive filters and smart sorting
         
         Args:
             db: Database session
             pagination: Pagination parameters
             category_id: Filter by category
-            search_query: Search in name, description, model number
+            subcategory_id: Filter by subcategory
+            family_id: Filter by product family
+            search_query: Search in name, description, model number (uses fuzzy search)
             is_featured: Filter featured products
             is_new: Filter new products
+            finish_ids: Filter by finish IDs
+            upholstery_ids: Filter by upholstery IDs
+            color_ids: Filter by color IDs
+            min_seat_height: Minimum seat height filter
+            max_seat_height: Maximum seat height filter
+            min_width: Minimum width filter
+            max_width: Maximum width filter
+            is_stackable: Filter stackable products
+            is_outdoor: Filter outdoor products
+            is_ada_compliant: Filter ADA compliant products
+            max_lead_time_days: Maximum lead time in days
+            in_stock_only: Show only in-stock products
+            exclude_variations: Exclude product variations, show only base products
+            smart_sort: Use smart sorting (featured → new → popular → rest)
             include_inactive: Include inactive products
             
         Returns:
             Paginated response dictionary
         """
         query = select(Chair).options(
-            selectinload(Chair.category).selectinload(Category.parent)
+            selectinload(Chair.category).selectinload(Category.parent),
+            selectinload(Chair.family),
+            selectinload(Chair.subcategory)
         )
         
         # Apply filters
@@ -166,12 +200,71 @@ class ProductService:
         if category_id:
             query = query.where(Chair.category_id == category_id)
         
+        if subcategory_id:
+            query = query.where(Chair.subcategory_id == subcategory_id)
+        
+        if family_id:
+            query = query.where(Chair.family_id == family_id)
+        
         if is_featured is not None:
             query = query.where(Chair.is_featured == is_featured)
         
         if is_new is not None:
             query = query.where(Chair.is_new == is_new)
         
+        # Exclude variations (show only base products)
+        if exclude_variations:
+            query = query.where(
+                or_(
+                    Chair.model_suffix.is_(None),
+                    Chair.model_suffix == ""
+                )
+            )
+        
+        # Finish filters
+        if finish_ids:
+            query = query.where(Chair.finish_id.in_(finish_ids))
+        
+        # Upholstery filters
+        if upholstery_ids:
+            query = query.where(Chair.upholstery_id.in_(upholstery_ids))
+        
+        # Color filters  
+        if color_ids:
+            query = query.where(Chair.primary_color_id.in_(color_ids))
+        
+        # Dimension filters
+        if min_seat_height is not None:
+            query = query.where(Chair.seat_height >= min_seat_height)
+        
+        if max_seat_height is not None:
+            query = query.where(Chair.seat_height <= max_seat_height)
+        
+        if min_width is not None:
+            query = query.where(Chair.width >= min_width)
+        
+        if max_width is not None:
+            query = query.where(Chair.width <= max_width)
+        
+        # Feature filters
+        if is_stackable is not None:
+            query = query.where(Chair.is_stackable == is_stackable)
+        
+        if is_outdoor is not None:
+            query = query.where(Chair.is_outdoor == is_outdoor)
+        
+        if is_ada_compliant is not None:
+            query = query.where(Chair.is_ada_compliant == is_ada_compliant)
+        
+        # Lead time filter
+        if max_lead_time_days is not None:
+            query = query.where(Chair.lead_time_days <= max_lead_time_days)
+        
+        # Stock filter
+        if in_stock_only:
+            query = query.where(Chair.stock_quantity > 0)
+        
+        # Search query (basic ILIKE, fuzzy search handled separately via cache)
         if search_query:
             search_term = f"%{search_query}%"
             query = query.where(
@@ -183,8 +276,18 @@ class ProductService:
                 )
             )
         
-        # Default ordering
-        query = query.order_by(Chair.display_order, Chair.name)
+        # Smart sorting algorithm: featured → new → popular (view_count) → display_order → name
+        if smart_sort:
+            query = query.order_by(
+                Chair.is_featured.desc(),
+                Chair.is_new.desc(),
+                Chair.view_count.desc(),
+                Chair.display_order,
+                Chair.name
+            )
+        else:
+            # Default ordering
+            query = query.order_by(Chair.display_order, Chair.name)
         
         # Paginate
         result = await paginate(db, query, pagination)
@@ -196,7 +299,7 @@ class ProductService:
         
         logger.info(
             f"Retrieved {len(result['items'])} products (page {pagination.page}, "
-            f"total {result['total']})"
+            f"total {result['total']}, filters applied: {len([f for f in [category_id, subcategory_id, family_id, search_query] if f])})"
         )
         
         return result
@@ -311,19 +414,65 @@ class ProductService:
     async def search_products_fuzzy(
         db: AsyncSession,
         search_query: str,
-        limit: int = 10
+        limit: int = 50,
+        threshold: int = 75
     ) -> List[Chair]:
         """
-        Fuzzy search for products (simple implementation)
+        Fuzzy search for products using YokedCache
         
         Args:
             db: Database session
             search_query: Search query
             limit: Maximum results
+            threshold: Minimum similarity score (0-100)
             
         Returns:
-            List of matching products
+            List of matching products sorted by relevance
         """
+        from backend.services.cache_service import cache_service
+        
+        # Try fuzzy search from cache first
+        cache_results = await cache_service.fuzzy_search(
+            query=search_query,
+            threshold=threshold,
+            max_results=limit,
+            tags=["products"]
+        )
+        
+        # If we have cached results, fetch the full products
+        if cache_results:
+            product_ids = []
+            for result in cache_results:
+                # Extract product ID from cache key (format: "eaglechair:product_search:123")
+                try:
+                    key_parts = result['key'].split(':')
+                    if len(key_parts) >= 3 and key_parts[1] == 'product_search':
+                        product_ids.append(int(key_parts[2]))
+                except (ValueError, IndexError):
+                    continue
+            
+            if product_ids:
+                query = (
+                    select(Chair)
+                    .options(selectinload(Chair.category))
+                    .where(
+                        and_(
+                            Chair.id.in_(product_ids),
+                            Chair.is_active
+                        )
+                    )
+                )
+                result = await db.execute(query)
+                products = list(result.scalars().all())
+                
+                # Sort by fuzzy search score
+                product_score_map = {pid: score for pid, score in zip(product_ids, [r['score'] for r in cache_results[:len(product_ids)]])}
+                products.sort(key=lambda p: product_score_map.get(p.id, 0), reverse=True)
+                
+                logger.info(f"Fuzzy search (cached) for '{search_query}' returned {len(products)} results")
+                return products
+        
+        # Fallback to database ILIKE search
         search_term = f"%{search_query}%"
         
         query = (
@@ -331,11 +480,12 @@ class ProductService:
             .options(selectinload(Chair.category))
             .where(
                 and_(
-                    Chair.is_active == True,
+                    Chair.is_active,
                     or_(
                         Chair.name.ilike(search_term),
                         Chair.model_number.ilike(search_term),
-                        Chair.short_description.ilike(search_term)
+                        Chair.short_description.ilike(search_term),
+                        Chair.full_description.ilike(search_term)
                     )
                 )
             )
@@ -343,11 +493,37 @@ class ProductService:
         )
         
         result = await db.execute(query)
-        products = result.scalars().all()
+        products = list(result.scalars().all())
         
-        logger.info(f"Fuzzy search for '{search_query}' returned {len(products)} results")
+        # Lazy cache population: Index products found via database search
+        # This ensures future searches will use the cache
+        for product in products:
+            searchable_parts = [
+                product.name or "",
+                product.model_number or "",
+                product.short_description or "",
+                product.full_description or ""
+            ]
+            
+            if product.category:
+                searchable_parts.append(product.category.name or "")
+            
+            searchable_text = " ".join(filter(None, searchable_parts))
+            
+            # Index asynchronously (don't await to avoid slowing down the response)
+            try:
+                await cache_service.index_product_for_search(
+                    product_id=product.id,
+                    searchable_text=searchable_text,
+                    ttl=3600
+                )
+            except Exception as e:
+                # Don't let cache errors affect search results
+                logger.debug(f"Failed to cache product {product.id} for search: {e}")
         
-        return list(products)
+        logger.info(f"Fuzzy search (database fallback) for '{search_query}' returned {len(products)} results")
+        
+        return products
     
     # ========================================================================
     # Finish Operations
@@ -825,4 +1001,73 @@ class ProductService:
         
         result = await db.execute(query)
         return list(result.scalars().all())
+    
+    # ========================================================================
+    # Search Index Management
+    # ========================================================================
+    
+    @staticmethod
+    async def warm_search_cache(db: AsyncSession) -> int:
+        """
+        Populate the search cache with all active products
+        
+        This should be called during application startup to enable
+        fast fuzzy search. Products are indexed with searchable text
+        (name, model number, descriptions) for YokedCache fuzzy matching.
+        
+        Args:
+            db: Database session
+            
+        Returns:
+            int: Number of products indexed
+        """
+        from backend.services.cache_service import cache_service
+        
+        logger.info("Starting product search cache warm-up...")
+        
+        try:
+            # Fetch all active products
+            query = (
+                select(Chair)
+                .where(Chair.is_active == True)
+                .options(selectinload(Chair.category))
+            )
+            
+            result = await db.execute(query)
+            products = list(result.scalars().all())
+            
+            indexed_count = 0
+            
+            for product in products:
+                # Build searchable text from multiple fields
+                searchable_parts = [
+                    product.name or "",
+                    product.model_number or "",
+                    product.short_description or "",
+                    product.full_description or ""
+                ]
+                
+                # Add category name if available
+                if product.category:
+                    searchable_parts.append(product.category.name or "")
+                
+                searchable_text = " ".join(filter(None, searchable_parts))
+                
+                # Index for fuzzy search
+                success = await cache_service.index_product_for_search(
+                    product_id=product.id,
+                    searchable_text=searchable_text,
+                    ttl=3600  # 1 hour
+                )
+                
+                if success:
+                    indexed_count += 1
+            
+            logger.info(f"Product search cache warm-up complete: {indexed_count} products indexed")
+            return indexed_count
+            
+        except Exception as e:
+            logger.error(f"Error warming search cache: {e}")
+            return 0
+
 

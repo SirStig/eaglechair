@@ -1,6 +1,8 @@
 import { useState, useEffect, useCallback } from 'react';
 import Card from '../../ui/Card';
 import Button from '../../ui/Button';
+import ConfirmModal from '../../ui/ConfirmModal';
+import { useToast } from '../../../contexts/ToastContext';
 import axios from 'axios';
 import { Edit, Trash2, Armchair, X } from 'lucide-react';
 import UpholsteryEditor from './UpholsteryEditor';
@@ -9,6 +11,7 @@ import UpholsteryEditor from './UpholsteryEditor';
  * Upholstery Management - Table Layout with Separate Editor
  */
 const UpholsteryManagement = () => {
+  const toast = useToast();
   const [upholsteries, setUpholsteries] = useState([]);
   const [colors, setColors] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -16,6 +19,7 @@ const UpholsteryManagement = () => {
   const [filterType, setFilterType] = useState('');
   const [filterGrade, setFilterGrade] = useState('');
   const [filterActive, setFilterActive] = useState('all');
+  const [confirmModal, setConfirmModal] = useState({ isOpen: false, onConfirm: null, message: '', title: '' });
 
   const fetchUpholsteries = useCallback(async () => {
     try {
@@ -64,16 +68,22 @@ const UpholsteryManagement = () => {
     fetchUpholsteries();
   };
 
-  const handleDelete = async (upholsteryId) => {
-    if (!confirm('Are you sure you want to delete this upholstery option?')) return;
-    
-    try {
-      await axios.delete(`/api/v1/admin/upholsteries/${upholsteryId}`);
-      fetchUpholsteries();
-    } catch (error) {
-      console.error('Failed to delete upholstery:', error);
-      alert(error.response?.data?.detail || 'Failed to delete upholstery');
-    }
+  const handleDelete = async (upholstery) => {
+    setConfirmModal({
+      isOpen: true,
+      title: 'Delete Upholstery',
+      message: `Are you sure you want to delete "${upholstery.name}"? This action cannot be undone.`,
+      onConfirm: async () => {
+        try {
+          await axios.delete(`/api/v1/admin/upholsteries/${upholstery.id}`);
+          fetchUpholsteries();
+          toast.success(`${upholstery.name} deleted successfully`);
+        } catch (error) {
+          console.error('Failed to delete upholstery:', error);
+          toast.error(error.response?.data?.detail || 'Failed to delete upholstery');
+        }
+      }
+    });
   };
 
   const getColorName = (colorId) => {
@@ -325,7 +335,7 @@ const UpholsteryManagement = () => {
                           <Edit className="w-4 h-4" />
                         </button>
                         <button
-                          onClick={() => handleDelete(upholstery.id)}
+                          onClick={() => handleDelete(upholstery)}
                           className="p-2 text-red-400 hover:bg-red-900/20 rounded transition-colors"
                           title="Delete upholstery"
                         >
@@ -340,6 +350,17 @@ const UpholsteryManagement = () => {
           </div>
         )}
       </Card>
+
+      {/* Confirmation Modal */}
+      <ConfirmModal
+        isOpen={confirmModal.isOpen}
+        onClose={() => setConfirmModal({ ...confirmModal, isOpen: false })}
+        onConfirm={confirmModal.onConfirm}
+        title={confirmModal.title}
+        message={confirmModal.message}
+        variant="danger"
+        confirmButtonVariant="danger"
+      />
     </div>
   );
 };

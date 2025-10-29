@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import Card from '../../ui/Card';
 import Button from '../../ui/Button';
+import { useToast } from '../../../contexts/ToastContext';
 import axios from 'axios';
 import { 
   FileText, 
@@ -36,6 +37,7 @@ import {
  * - SEO & Analytics
  */
 const ProductEditor = ({ product, onBack }) => {
+  const toast = useToast();
   const [activeTab, setActiveTab] = useState('basic');
   const [formData, setFormData] = useState({
     name: '',
@@ -217,11 +219,11 @@ const ProductEditor = ({ product, onBack }) => {
       } else {
         await axios.patch(`/api/v1/admin/products/${product.id}`, saveData);
       }
-      alert('Product saved successfully!');
+      toast.success('Product saved successfully!');
       onBack();
     } catch (error) {
       console.error('Failed to save product:', error);
-      alert('Failed to save product');
+      toast.error('Failed to save product');
     } finally {
       setSaving(false);
     }

@@ -1,0 +1,33 @@
+# Backend-specific .gitignore
+
+# Environment files (secrets)
+.env
+.env.local
+.env.*.local
+.env.production
+.env.staging
+.env.development
+
+# Keep these committed (safe defaults):
+# .env.example (template)
+# .env.development (dev defaults)
+# .env.production (prod defaults)
+
+# Python cache
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+
+# Alembic generated files
+alembic/versions/*.py
+!alembic/versions/.gitkeep
+
+# Logs
+*.log
+logs/
+
+# Database files (if using SQLite locally)
+*.db
+*.sqlite
+*.sqlite3

@@ -67,6 +67,11 @@ const ProductCard = ({ product, onQuickView, darkMode = false }) => {
           src={displayImage || '/placeholder-product.jpg'}
           alt={product.name}
           onLoad={handleImageLoad}
+          onError={(e) => {
+            e.target.onerror = null; // Prevent infinite loop
+            e.target.src = '/placeholder-product.jpg';
+            setImageLoaded(true); // Show the placeholder
+          }}
           className={`w-full h-full object-contain transition-all duration-500 ${
             imageLoaded ? 'opacity-100' : 'opacity-0'
           } group-hover:scale-105`}

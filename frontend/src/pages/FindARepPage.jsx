@@ -10,6 +10,7 @@ import {
   createSalesRep,
   deleteSalesRep
 } from '../services/contentService';
+import { invalidateCache } from '../utils/cache';
 import { demoReps, companyInfo } from '../data/demoData';
 import logger from '../utils/logger';
 
@@ -37,6 +38,7 @@ const FindARepPage = () => {
     try {
       logger.info(CONTEXT, `Updating sales rep ${id}`);
       await updateSalesRep(id, updates);
+      invalidateCache('sales-reps');
       refetch();
       logger.info(CONTEXT, 'Sales rep updated successfully');
     } catch (error) {
@@ -49,6 +51,7 @@ const FindARepPage = () => {
     try {
       logger.info(CONTEXT, 'Creating new sales rep');
       await createSalesRep(newData);
+      invalidateCache('sales-reps');
       refetch();
       logger.info(CONTEXT, 'Sales rep created successfully');
     } catch (error) {
@@ -61,6 +64,7 @@ const FindARepPage = () => {
     try {
       logger.info(CONTEXT, `Deleting sales rep ${id}`);
       await deleteSalesRep(id);
+      invalidateCache('sales-reps');
       refetch();
       logger.info(CONTEXT, 'Sales rep deleted successfully');
     } catch (error) {
@@ -229,9 +233,9 @@ const FindARepPage = () => {
               name: 'New Representative',
               email: 'rep@eaglechair.com',
               phone: '(555) 000-0000',
-              territory_name: 'New Territory',
-              states_covered: ['TX'],
-              display_order: reps.length
+              territoryName: 'New Territory',
+              statesCovered: ['TX'],
+              displayOrder: reps.length
             }}
             renderItem={(rep) => {
               const states = rep.states_covered || rep.statesCovered || rep.states;

@@ -19,6 +19,7 @@ import {
 import { demoAboutContent } from '../data/demoData';
 import LoadingSpinner from '../components/ui/LoadingSpinner';
 import logger from '../utils/logger';
+import { invalidateCache } from '../utils/cache';
 
 const CONTEXT = 'AboutPage';
 
@@ -38,12 +39,12 @@ const AboutPage = () => {
   // Hero content
   const heroTitle = heroSection?.title || demoAboutContent.hero.title;
   const heroSubtitle = heroSection?.subtitle || demoAboutContent.hero.subtitle;
-  const heroImage = heroSection?.image_url || "https://images.unsplash.com/photo-1565891741441-64926e441838?w=1920";
+  const heroImage = heroSection?.imageUrl || "https://images.unsplash.com/photo-1565891741441-64926e441838?w=1920";
 
   // Story content
   const storyTitle = storySection?.title || demoAboutContent.story.title;
   const storyContent = storySection?.content || demoAboutContent.story.paragraphs.join('\n\n');
-  const storyImage = storySection?.image_url || "https://images.unsplash.com/photo-1556912172-45b7abe8b7e1?w=800";
+  const storyImage = storySection?.imageUrl || "https://images.unsplash.com/photo-1556912172-45b7abe8b7e1?w=800";
 
   // CTA content
   const ctaTitle = ctaSection?.title || "Ready to Work Together?";
@@ -54,6 +55,13 @@ const AboutPage = () => {
     try {
       logger.info(CONTEXT, `Saving content for ${pageSlug}/${sectionKey}`);
       await updatePageContent(pageSlug, sectionKey, newData);
+      
+      // Invalidate cache for this specific section
+      const cacheKey = `page-content-${pageSlug}-${sectionKey}`;
+      const invalidated = invalidateCache(cacheKey);
+      logger.debug(CONTEXT, `Invalidated ${invalidated} cache entries for ${cacheKey}`);
+      
+      // Refetch to update UI
       refetchFn();
       logger.info(CONTEXT, 'Content saved successfully');
     } catch (error) {
@@ -65,48 +73,57 @@ const AboutPage = () => {
   // Values handlers
   const handleUpdateValue = async (id, updates) => {
     await updateCompanyValue(id, updates);
+    invalidateCache('company-values');
     refetchValues();
   };
 
   const handleCreateValue = async (newData) => {
     await createCompanyValue(newData);
+    invalidateCache('company-values');
     refetchValues();
   };
 
   const handleDeleteValue = async (id) => {
     await deleteCompanyValue(id);
+    invalidateCache('company-values');
     refetchValues();
   };
 
   // Milestones handlers
   const handleUpdateMilestone = async (id, updates) => {
     await updateCompanyMilestone(id, updates);
+    invalidateCache('company-milestones');
     refetchMilestones();
   };
 
   const handleCreateMilestone = async (newData) => {
     await createCompanyMilestone(newData);
+    invalidateCache('company-milestones');
     refetchMilestones();
   };
 
   const handleDeleteMilestone = async (id) => {
     await deleteCompanyMilestone(id);
+    invalidateCache('company-milestones');
     refetchMilestones();
   };
 
   // Team handlers
   const handleUpdateTeamMember = async (id, updates) => {
     await updateTeamMember(id, updates);
+    invalidateCache('team-members');
     refetchTeam();
   };
 
   const handleCreateTeamMember = async (newData) => {
     await createTeamMember(newData);
+    invalidateCache('team-members');
     refetchTeam();
   };
 
   const handleDeleteTeamMember = async (id) => {
     await deleteTeamMember(id);
+    invalidateCache('team-members');
     refetchTeam();
   };
 
@@ -156,7 +173,7 @@ const AboutPage = () => {
             <EditableWrapper
               id="about-hero-image"
               type="image"
-              data={{ image_url: heroImage }}
+              data={{ imageUrl: heroImage }}
               onSave={(newData) => handleSaveContent('about', 'hero', { ...heroSection, ...newData }, refetchHero)}
               label="Hero Background Image"
             >
@@ -180,7 +197,7 @@ const AboutPage = () => {
               <EditableWrapper
                 id="about-story-image"
                 type="image"
-                data={{ image_url: storyImage }}
+                data={{ imageUrl: storyImage }}
                 onSave={(newData) => handleSaveContent('about', 'story', { ...storySection, ...newData }, refetchStory)}
                 label="Story Image"
               >

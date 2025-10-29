@@ -39,24 +39,25 @@ ENV/
 env/
 .venv
 .ENV
-.env.local
-.env.*.local
-.env
-.env.local
-.env.development
-.env.production
-.env.staging
 
 # ============================================================================
 # Environment Variables & Secrets
 # ============================================================================
+# Actual environment files (contain secrets)
 .env
 .env.local
 .env.*.local
-# Keep template files but ignore actual environment files
-# .env.development
-# .env.production
-# .env.staging
+
+# Keep these committed (safe defaults):
+# .env.example (template)
+# .env.development (dev defaults)
+# .env.production (prod defaults)
+
+# Legacy env files (deprecated but keep gitignored)
+env.example
+environment.example
+
+# Certificates and keys
 *.pem
 *.key
 *.crt

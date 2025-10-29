@@ -62,6 +62,80 @@ class CategoryWithSubcategories(CategoryResponse):
 
 
 # ============================================================================
+# Product Subcategory Schemas
+# ============================================================================
+
+class ProductSubcategoryBase(BaseModel):
+    """Base product subcategory schema"""
+    name: str = Field(..., max_length=255)
+    slug: str = Field(..., max_length=255)
+    description: Optional[str] = None
+    category_id: int
+    display_order: int = 0
+    is_active: bool = True
+
+
+class ProductSubcategoryResponse(ProductSubcategoryBase, TimestampSchema):
+    """Schema for product subcategory response"""
+    id: int
+    product_count: Optional[int] = 0  # Computed field for product count
+    
+    class Config:
+        from_attributes = True
+
+
+# ============================================================================
+# Product Family Schemas
+# ============================================================================
+
+class ProductFamilyBase(BaseModel):
+    """Base product family schema"""
+    name: str = Field(..., max_length=255)
+    slug: str = Field(..., max_length=255)
+    description: Optional[str] = None
+    category_id: Optional[int] = None
+    subcategory_id: Optional[int] = None
+    family_image: Optional[str] = Field(None, max_length=500)
+    banner_image_url: Optional[str] = Field(None, max_length=500)
+    overview_text: Optional[str] = None
+    display_order: int = 0
+    is_active: bool = True
+    is_featured: bool = False
+
+
+class ProductFamilyResponse(ProductFamilyBase, TimestampSchema):
+    """Schema for product family response"""
+    id: int
+    product_count: Optional[int] = 0  # Computed field for product count
+    
+    class Config:
+        from_attributes = True
+
+
+# ============================================================================
+# Color Schemas
+# ============================================================================
+
+class ColorBase(BaseModel):
+    """Base color schema"""
+    name: str = Field(..., max_length=100)
+    color_code: Optional[str] = Field(None, max_length=50)
+    hex_value: Optional[str] = Field(None, max_length=7)
+    category: Optional[str] = Field(None, max_length=50)  # wood/metal/fabric/paint
+    image_url: Optional[str] = Field(None, max_length=500)
+    display_order: int = 0
+    is_active: bool = True
+
+
+class ColorResponse(ColorBase, TimestampSchema):
+    """Schema for color response"""
+    id: int
+    
+    class Config:
+        from_attributes = True
+
+
+# ============================================================================
 # Finish Schemas
 # ============================================================================
 

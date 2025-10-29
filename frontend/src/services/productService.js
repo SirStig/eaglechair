@@ -42,7 +42,9 @@ export const productService = {
         const searchLower = params.search.toLowerCase();
         products = products.filter(p =>
           p.name.toLowerCase().includes(searchLower) ||
-          p.description.toLowerCase().includes(searchLower)
+          p.model_number?.toLowerCase().includes(searchLower) ||
+          p.short_description?.toLowerCase().includes(searchLower) ||
+          p.full_description?.toLowerCase().includes(searchLower)
         );
       }
 
@@ -215,26 +217,127 @@ export const productService = {
   },
 
   /**
-   * Search products
+   * Get product families
+   * @param {Object} params - Query parameters (category_id, featured_only)
+   * @returns {Promise<Array>} Product families with counts
+   */
+  getFamilies: async (params = {}) => {
+    if (IS_DEMO_MODE) {
+      // Return mock data for demo mode
+      return [];
+    }
+    
+    // Backend returns list[ProductFamilyResponse] with product_count
+    const response = await api.get('/api/v1/families', { params });
+    
+    return Array.isArray(response) ? response : [];
+  },
+
+  /**
+   * Get family by ID or slug
+   * @param {string|number} id - Family ID or slug
+   * @returns {Promise<Object>} Family details with product count
+   */
+  getFamilyById: async (id) => {
+    if (IS_DEMO_MODE) {
+      throw { message: 'Family not found', status: 404 };
+    }
+    
+    // Determine if ID is numeric or a slug
+    const isNumericId = !isNaN(parseInt(id)) && parseInt(id).toString() === id.toString();
+    
+    const endpoint = isNumericId 
+      ? `/api/v1/families/${id}` 
+      : `/api/v1/families/slug/${id}`;
+    
+    const response = await api.get(endpoint);
+    return response;
+  },
+
+  /**
+   * Get product subcategories
+   * @param {Object} params - Query parameters (category_id)
+   * @returns {Promise<Array>} Subcategories with counts
+   */
+  getSubcategories: async (params = {}) => {
+    if (IS_DEMO_MODE) {
+      return [];
+    }
+    
+    const response = await api.get('/api/v1/subcategories', { params });
+    return Array.isArray(response) ? response : [];
+  },
+
+  /**
+   * Get available finishes
+   * @param {Object} params - Query parameters (finish_type)
+   * @returns {Promise<Array>} Finishes
+   */
+  getFinishes: async (params = {}) => {
+    if (IS_DEMO_MODE) {
+      return [];
+    }
+    
+    const response = await api.get('/api/v1/finishes', { params });
+    return Array.isArray(response) ? response : [];
+  },
+
+  /**
+   * Get available upholsteries
+   * @param {Object} params - Query parameters (material_type)
+   * @returns {Promise<Array>} Upholsteries
+   */
+  getUpholsteries: async (params = {}) => {
+    if (IS_DEMO_MODE) {
+      return [];
+    }
+    
+    const response = await api.get('/api/v1/upholsteries', { params });
+    return Array.isArray(response) ? response : [];
+  },
+
+  /**
+   * Get available colors
+   * @param {Object} params - Query parameters (category: wood/metal/fabric/paint)
+   * @returns {Promise<Array>} Colors
+   */
+  getColors: async (params = {}) => {
+    if (IS_DEMO_MODE) {
+      return [];
+    }
+    
+    const response = await api.get('/api/v1/colors', { params });
+    return Array.isArray(response) ? response : [];
+  },
+
+  /**
+   * Search products with fuzzy matching
    * @param {string} query - Search query
+   * @param {Object} options - Search options (limit, threshold)
    * @returns {Promise<Array>} Matching products
    */
-  searchProducts: async (query) => {
+  searchProducts: async (query, options = {}) => {
     if (IS_DEMO_MODE) {
       const searchLower = query.toLowerCase();
       const results = demoProducts.filter(p =>
         p.is_active && (
           p.name.toLowerCase().includes(searchLower) ||
-          p.description.toLowerCase().includes(searchLower) ||
-          p.category?.toLowerCase().includes(searchLower) ||
+          p.short_description?.toLowerCase().includes(searchLower) ||
+          p.full_description?.toLowerCase().includes(searchLower) ||
           p.model_number?.toLowerCase().includes(searchLower)
         )
       );
       return transformProducts(results);
     }
     
-    // Backend returns list[ChairResponse] directly (not paginated)
-    const response = await api.get('/api/v1/products/search', { params: { q: query } });
+    // Use fuzzy search endpoint with threshold
+    const params = { 
+      q: query,
+      limit: options.limit || 10,
+      threshold: options.threshold || 75
+    };
+    
+    const response = await api.get('/api/v1/products/search', { params });
     
     // Response is an array of products
     return transformProducts(Array.isArray(response) ? response : []);

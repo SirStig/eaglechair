@@ -70,8 +70,22 @@ async def lifespan(app: FastAPI):
     except Exception as e:
         logger.warning(f"[WARN] CMS export setup failed: {e}")
     
-    # TODO: Initialize Redis cache connection
-    # TODO: Initialize any other services
+    # Warm up product search cache for fast fuzzy search
+    try:
+        from backend.database.base import get_db
+        from backend.services.product_service import ProductService
+        
+        async for db in get_db():
+            try:
+                logger.info("🔍 Warming product search cache...")
+                indexed_count = await ProductService.warm_search_cache(db)
+                logger.info(f"[OK] Product search cache ready: {indexed_count} products indexed")
+            except Exception as e:
+                logger.warning(f"[WARN] Product search cache warm-up failed: {e}")
+            finally:
+                break  # Only need one iteration
+    except Exception as e:
+        logger.warning(f"[WARN] Search cache setup failed: {e}")
     
     logger.info(f"🎯 API v1 available at: {settings.API_V1_PREFIX}")
     logger.info("✨ EagleChair API is ready!")

@@ -5,6 +5,7 @@ import Card from '../ui/Card';
 import Input from '../ui/Input';
 import { getSiteSettingsAdmin, updateSiteSettings } from '../../services/contentService';
 import { uploadImage } from '../../utils/imageUpload';
+import { useToast } from '../../contexts/ToastContext';
 import logger from '../../utils/logger';
 
 const CONTEXT = 'SiteSettingsManager';
@@ -25,6 +26,7 @@ const SiteSettingsManager = () => {
   const [saving, setSaving] = useState(false);
   const [uploadingLogo, setUploadingLogo] = useState(false);
   const [success, setSuccess] = useState(false);
+  const toast = useToast();
 
   // Fetch site settings from API (admin version - always gets DB data)
   const fetchSettings = async () => {
@@ -57,9 +59,10 @@ const SiteSettingsManager = () => {
       const url = await uploadImage(file, 'logos');
       setFormData(prev => ({ ...prev, [fieldName]: url }));
       logger.info(CONTEXT, `Logo uploaded: ${url}`);
+      toast.success('Logo uploaded successfully');
     } catch (error) {
       logger.error(CONTEXT, 'Logo upload failed', error);
-      alert('Failed to upload logo: ' + error.message);
+      toast.error('Failed to upload logo: ' + error.message);
     } finally {
       setUploadingLogo(false);
     }
@@ -75,10 +78,11 @@ const SiteSettingsManager = () => {
       await fetchSettings(); // Refresh data after update
       setSuccess(true);
       setTimeout(() => setSuccess(false), 3000);
+      toast.success('Settings updated successfully');
       logger.info(CONTEXT, 'Site settings updated successfully');
     } catch (error) {
       logger.error(CONTEXT, 'Failed to update site settings', error);
-      alert('Failed to update settings: ' + error.message);
+      toast.error('Failed to update settings: ' + error.message);
     } finally {
       setSaving(false);
     }

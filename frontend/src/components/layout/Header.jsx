@@ -7,9 +7,10 @@ import Badge from '../ui/Badge';
 import { useAuthStore } from '../../store/authStore';
 import { useCartStore } from '../../store/cartStore';
 import ProductsDropdown from './ProductsDropdown';
+import MobileProductsMenu from './MobileProductsMenu';
 import ResourcesDropdown from './ResourcesDropdown';
-import { useSiteSettings, useProducts } from '../../hooks/useContent';
-import { demoProducts } from '../../data/demoData';
+import { useSiteSettings } from '../../hooks/useContent';
+import productService from '../../services/productService';
 import logger from '../../utils/logger';
 
 const CONTEXT = 'Header';
@@ -24,10 +25,34 @@ const Header = ({ isMobileMenuOpen, setIsMobileMenuOpen }) => {
   const { user, logout } = useAuthStore();
   const { items } = useCartStore();
   const { data: siteSettings } = useSiteSettings();
-  const { data: products } = useProducts();
 
-  // Use products from API/static or fallback to demo
-  const availableProducts = products && products.length > 0 ? products : demoProducts;
+  // Search products as user types using fuzzy search
+  useEffect(() => {
+    const searchProductsAsync = async () => {
+      if (searchQuery.trim().length > 1) {
+        try {
+          const results = await productService.searchProducts(searchQuery.trim(), {
+            limit: 5,
+            threshold: 60
+          });
+          
+          setSearchResults(results || []);
+          setShowSearchResults(true);
+          logger.debug(CONTEXT, `Search for "${searchQuery}" found ${results?.length || 0} results`);
+        } catch (error) {
+          logger.error(CONTEXT, 'Error searching products', error);
+          setSearchResults([]);
+          setShowSearchResults(false);
+        }
+      } else {
+        setSearchResults([]);
+        setShowSearchResults(false);
+      }
+    };
+
+    const timeoutId = setTimeout(searchProductsAsync, 300); // Debounce
+    return () => clearTimeout(timeoutId);
+  }, [searchQuery]);
 
   // Close search results when clicking outside
   useEffect(() => {
@@ -40,24 +65,6 @@ const Header = ({ isMobileMenuOpen, setIsMobileMenuOpen }) => {
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
-
-  // Search products as user types
-  useEffect(() => {
-    if (searchQuery.trim().length > 1) {
-      const results = availableProducts.filter(product =>
-        product.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        product.category.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        product.description.toLowerCase().includes(searchQuery.toLowerCase())
-      ).slice(0, 5);
-      
-      setSearchResults(results);
-      setShowSearchResults(true);
-      logger.debug(CONTEXT, `Search for "${searchQuery}" found ${results.length} results`);
-    } else {
-      setSearchResults([]);
-      setShowSearchResults(false);
-    }
-  }, [searchQuery, availableProducts]);
 
   const handleSearch = (e, options = {}) => {
     e.preventDefault();
@@ -267,16 +274,20 @@ const Header = ({ isMobileMenuOpen, setIsMobileMenuOpen }) => {
                           className="w-full px-4 py-3 flex items-center gap-3 hover:bg-dark-700 transition-colors text-left"
                         >
                           <img
-                            src={product.image}
+                            src={product.image || '/placeholder-product.png'}
                             alt={product.name}
                             className="w-12 h-12 object-cover rounded"
+                            onError={(e) => {
+                              e.target.onerror = null; // Prevent infinite loop
+                              e.target.src = '/placeholder-product.png';
+                            }}
                           />
                           <div className="flex-1 min-w-0">
                             <p className="text-sm font-medium text-dark-50 truncate">
                               {product.name}
                             </p>
                             <p className="text-xs text-dark-200">
-                              {product.category}
+                              {product.category || 'Product'}
                             </p>
                           </div>
                         </button>
@@ -422,57 +433,6 @@ export const MobileMenu = ({ isMobileMenuOpen, setIsMobileMenuOpen, searchQuery,
     setIsMobileMenuOpen(false);
   };
 
-  const productCategories = [
-    {
-      title: 'Chairs',
-      slug: 'chairs',
-      image: 'https://images.unsplash.com/photo-1503602642458-232111445657?w=200&h=150&fit=crop',
-      items: [
-        { name: 'Wood Chairs', category: 'chairs', subcategory: 'Wood' },
-        { name: 'Metal Chairs', category: 'chairs', subcategory: 'Metal' },
-        { name: 'Lounge Chairs', category: 'chairs', subcategory: 'Lounge' },
-        { name: 'Arm Chairs', category: 'chairs', subcategory: 'Arm' },
-        { name: 'Outdoor Chairs', category: 'chairs', subcategory: 'Outdoor' },
-      ],
-    },
-    {
-      title: 'Barstools',
-      slug: 'barstools',
-      image: 'https://images.unsplash.com/photo-1551298370-9d3d53740c72?w=200&h=150&fit=crop',
-      items: [
-        { name: 'Wood Barstools', category: 'barstools', subcategory: 'Wood' },
-        { name: 'Metal Barstools', category: 'barstools', subcategory: 'Metal' },
-        { name: 'Swivel Barstools', category: 'barstools', subcategory: 'Swivel' },
-        { name: 'Backless Barstools', category: 'barstools', subcategory: 'Backless' },
-        { name: 'Outdoor Barstools', category: 'barstools', subcategory: 'Outdoor' },
-      ],
-    },
-    {
-      title: 'Tables & Bases',
-      slug: 'tables',
-      image: 'https://images.unsplash.com/photo-1530018607912-eff2daa1bac4?w=200&h=150&fit=crop',
-      items: [
-        { name: 'Table Tops', category: 'tables', subcategory: 'Table Tops' },
-        { name: 'Table Gallery', category: 'tables', subcategory: 'Table Gallery' },
-        { name: 'Edges and Sizing', category: 'tables', subcategory: 'Edges and Sizing' },
-        { name: 'Table Bases', category: 'bases', subcategory: '' },
-        { name: 'Outdoor Bases', category: 'bases', subcategory: 'Outdoor' },
-      ],
-    },
-    {
-      title: 'Booths & Outdoor',
-      slug: 'booths',
-      image: 'https://images.unsplash.com/photo-1517248135467-4c7edcad34c4?w=200&h=150&fit=crop',
-      items: [
-        { name: 'Upholstered Booths', category: 'booths', subcategory: 'Upholstered' },
-        { name: 'Wooden Booths', category: 'booths', subcategory: 'Wooden' },
-        { name: 'Settee Benches', category: 'booths', subcategory: 'Settee' },
-        { name: 'Outdoor Seating', category: 'outdoor', subcategory: 'Chairs' },
-        { name: 'Outdoor Tables', category: 'outdoor', subcategory: 'Tables' },
-      ],
-    },
-  ];
-
   return (
     <AnimatePresence>
       {isMobileMenuOpen && (
@@ -536,69 +496,10 @@ export const MobileMenu = ({ isMobileMenuOpen, setIsMobileMenuOpen, searchQuery,
                       </Motion.svg>
                     </button>
                     
-                    <AnimatePresence>
-                      {isProductsOpen && (
-                        <Motion.div
-                          initial={{ height: 0, opacity: 0 }}
-                          animate={{ height: 'auto', opacity: 1 }}
-                          exit={{ height: 0, opacity: 0 }}
-                          transition={{ duration: 0.3 }}
-                          className="overflow-hidden mt-3"
-                        >
-                          <div className="space-y-3">
-                            {productCategories.map((category) => (
-                              <div key={category.slug} className="relative">
-                                {/* Category Image Background */}
-                                <div 
-                                  className="relative h-56 bg-cover bg-center overflow-hidden"
-                                  style={{ backgroundImage: `url(${category.image})` }}
-                                >
-                                  {/* Dark Overlay */}
-                                  <div className="absolute inset-0 bg-black/60"></div>
-                                  
-                                  {/* Content Overlay */}
-                                  <div className="relative z-10 p-4 h-full flex flex-col">
-                                    {/* Category Title */}
-                                    <Link 
-                                      to={`/products?category=${category.slug}`}
-                                      onClick={() => setIsMobileMenuOpen(false)}
-                                      className="text-white font-bold text-lg mb-2 hover:text-primary-400 transition-colors"
-                                    >
-                                      {category.title}
-                                    </Link>
-                                    
-                                    {/* Category Links */}
-                                    <div className="space-y-1 flex-1">
-                                      {category.items.map((item, idx) => (
-                                        <Link
-                                          key={idx}
-                                          to={`/products?category=${item.category}${item.subcategory ? `&subcategory=${encodeURIComponent(item.subcategory)}` : ''}`}
-                                          onClick={() => setIsMobileMenuOpen(false)}
-                                          className="block text-white/90 text-sm hover:text-primary-400 transition-colors"
-                                        >
-                                          {item.name}
-                                        </Link>
-                                      ))}
-                                    </div>
-                                  </div>
-                                </div>
-                              </div>
-                            ))}
-                            
-                            {/* View All Products Button */}
-                            <div className="pt-2">
-                              <Link 
-                                to="/products" 
-                                onClick={() => setIsMobileMenuOpen(false)}
-                                className="block w-full text-center py-3 bg-primary-600 text-dark-900 font-semibold hover:bg-primary-500 transition-colors"
-                              >
-                                View All Products
-                              </Link>
-                            </div>
-                          </div>
-                        </Motion.div>
-                      )}
-                    </AnimatePresence>
+                    <MobileProductsMenu 
+                      isOpen={isProductsOpen} 
+                      onNavigate={() => setIsMobileMenuOpen(false)} 
+                    />
                   </div>
                   
                   <Link to="/gallery" onClick={() => setIsMobileMenuOpen(false)} className="py-2 hover:text-primary-400 transition-colors">

@@ -10,6 +10,7 @@ import { useCartStore } from '../store/cartStore';
 import { updateProduct } from '../services/contentService';
 import productService from '../services/productService';
 import { getProductImages } from '../utils/apiHelpers';
+import { useToast } from '../contexts/ToastContext';
 import logger from '../utils/logger';
 
 const CONTEXT = 'ProductDetailPage';
@@ -19,6 +20,7 @@ const ProductDetailPage = () => {
   const navigate = useNavigate();
   const { addItem } = useCartStore();
   const customizeRef = useRef(null);
+  const toast = useToast();
   // Always use light theme on product pages
   const isLightTheme = true;
   
@@ -114,7 +116,7 @@ const ProductDetailPage = () => {
     } else {
       // Fallback: copy to clipboard
       navigator.clipboard.writeText(url);
-      alert('Link copied to clipboard!');
+      toast.success('Link copied to clipboard!');
     }
   };
 

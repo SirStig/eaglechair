@@ -5,7 +5,7 @@ Public routes for browsing product catalog (chairs, categories, finishes, uphols
 """
 
 import logging
-from typing import Optional
+from typing import List, Optional
 
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -15,7 +15,10 @@ from backend.api.v1.schemas.product import (
     CategoryResponse,
     ChairDetailResponse,
     ChairResponse,
+    ColorResponse,
     FinishResponse,
+    ProductFamilyResponse,
+    ProductSubcategoryResponse,
     UpholsteryResponse,
 )
 from backend.database.base import get_db
@@ -116,32 +119,63 @@ async def get_category_by_slug(
     "/products",
     response_model=PaginatedResponse[ChairResponse],
     summary="Get products",
-    description="Retrieve paginated list of products with optional filters"
+    description="Retrieve paginated list of products with comprehensive filters"
 )
 async def get_products(
     page: int = Query(1, ge=1, description="Page number"),
     per_page: int = Query(20, ge=1, le=100, description="Items per page"),
     category_id: Optional[int] = Query(None, description="Filter by category ID"),
+    subcategory_id: Optional[int] = Query(None, description="Filter by subcategory ID"),
+    family_id: Optional[int] = Query(None, description="Filter by product family ID"),
     search: Optional[str] = Query(None, description="Search in name, model, description"),
     featured: Optional[bool] = Query(None, description="Filter featured products"),
     new: Optional[bool] = Query(None, description="Filter new products"),
+    finish_ids: Optional[str] = Query(None, description="Comma-separated finish IDs"),
+    upholstery_ids: Optional[str] = Query(None, description="Comma-separated upholstery IDs"),
+    color_ids: Optional[str] = Query(None, description="Comma-separated color IDs"),
+    min_seat_height: Optional[float] = Query(None, description="Minimum seat height"),
+    max_seat_height: Optional[float] = Query(None, description="Maximum seat height"),
+    min_width: Optional[float] = Query(None, description="Minimum width"),
+    max_width: Optional[float] = Query(None, description="Maximum width"),
+    stackable: Optional[bool] = Query(None, description="Filter stackable products"),
+    outdoor: Optional[bool] = Query(None, description="Filter outdoor products"),
+    ada_compliant: Optional[bool] = Query(None, description="Filter ADA compliant products"),
+    max_lead_time: Optional[int] = Query(None, description="Maximum lead time in days"),
+    in_stock_only: bool = Query(False, description="Show only in-stock products"),
+    exclude_variations: bool = Query(False, description="Exclude variations, show only base products"),
+    smart_sort: bool = Query(False, description="Use smart sorting (featured→new→popular)"),
     db: AsyncSession = Depends(get_db)
 ):
     """
-    Get paginated list of products.
+    Get paginated list of products with comprehensive filtering.
     
     **Public endpoint** - No authentication required.
     
-    Supports filtering by:
-    - Category
+    **Filtering Options:**
+    - Category, Subcategory, Family
     - Search query (name, model number, description)
-    - Featured products
-    - New products
+    - Featured/New products
+    - Finishes, Upholstery, Colors (comma-separated IDs)
+    - Dimensions (seat height, width)
+    - Features (stackable, outdoor, ADA compliant)
+    - Lead time and stock availability
+    
+    **Smart Sorting:**
+    When smart_sort=true, products are ordered by:
+    1. Featured products first
+    2. New products second
+    3. Popular products (by view count)
+    4. Then by display order and name
     """
     logger.info(
         f"Fetching products (page={page}, per_page={per_page}, "
-        f"category_id={category_id}, search='{search}')"
+        f"category_id={category_id}, family_id={family_id}, search='{search}')"
     )
+    
+    # Parse comma-separated IDs
+    finish_id_list = [int(id.strip()) for id in finish_ids.split(",")] if finish_ids else None
+    upholstery_id_list = [int(id.strip()) for id in upholstery_ids.split(",")] if upholstery_ids else None
+    color_id_list = [int(id.strip()) for id in color_ids.split(",")] if color_ids else None
     
     pagination = PaginationParams(page=page, per_page=per_page)
     
@@ -149,13 +183,66 @@ async def get_products(
         db=db,
         pagination=pagination,
         category_id=category_id,
+        subcategory_id=subcategory_id,
+        family_id=family_id,
         search_query=search,
         is_featured=featured,
         is_new=new,
+        finish_ids=finish_id_list,
+        upholstery_ids=upholstery_id_list,
+        color_ids=color_id_list,
+        min_seat_height=min_seat_height,
+        max_seat_height=max_seat_height,
+        min_width=min_width,
+        max_width=max_width,
+        is_stackable=stackable,
+        is_outdoor=outdoor,
+        is_ada_compliant=ada_compliant,
+        max_lead_time_days=max_lead_time,
+        in_stock_only=in_stock_only,
+        exclude_variations=exclude_variations,
+        smart_sort=smart_sort,
         include_inactive=False
     )
     
     return result
+
+
+@router.get(
+    "/products/search",
+    response_model=list[ChairResponse],
+    summary="Fuzzy search products",
+    description="Fuzzy search for products using YokedCache (autocomplete/typeahead)"
+)
+async def search_products(
+    q: str = Query(..., min_length=2, description="Search query"),
+    limit: int = Query(10, ge=1, le=50, description="Maximum results"),
+    threshold: int = Query(75, ge=0, le=100, description="Fuzzy match threshold (0-100)"),
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    Fuzzy search for products with cache-powered relevance scoring.
+    
+    **Public endpoint** - No authentication required.
+    
+    Uses YokedCache fuzzy search for intelligent matching and ranking.
+    Useful for autocomplete/typeahead functionality with typo tolerance.
+    
+    **Parameters:**
+    - q: Search query (minimum 2 characters)
+    - limit: Maximum number of results (1-50)
+    - threshold: Similarity threshold 0-100 (higher = stricter matching)
+    """
+    logger.info(f"Fuzzy searching products with query '{q}' (threshold={threshold})")
+    
+    products = await ProductService.search_products_fuzzy(
+        db=db,
+        search_query=q,
+        limit=limit,
+        threshold=threshold
+    )
+    
+    return products
 
 
 @router.get(
@@ -234,35 +321,6 @@ async def get_product_by_model(
     )
     
     return product
-
-
-@router.get(
-    "/products/search",
-    response_model=list[ChairResponse],
-    summary="Fuzzy search products",
-    description="Fuzzy search for products (autocomplete/typeahead)"
-)
-async def search_products(
-    q: str = Query(..., min_length=2, description="Search query"),
-    limit: int = Query(10, ge=1, le=50, description="Maximum results"),
-    db: AsyncSession = Depends(get_db)
-):
-    """
-    Fuzzy search for products.
-    
-    **Public endpoint** - No authentication required.
-    
-    Useful for autocomplete/typeahead functionality.
-    """
-    logger.info(f"Searching products with query '{q}'")
-    
-    products = await ProductService.search_products_fuzzy(
-        db=db,
-        search_query=q,
-        limit=limit
-    )
-    
-    return products
 
 
 # ============================================================================
@@ -376,13 +434,14 @@ async def get_upholstery(
 
 
 # ============================================================================
-# Product Families & Subcategories (NEW)
+# Product Families & Subcategories
 # ============================================================================
 
 @router.get(
     "/families",
+    response_model=list[ProductFamilyResponse],
     summary="Get product families",
-    description="Retrieve product families with optional filters"
+    description="Retrieve product families with optional filters and product counts"
 )
 async def get_families(
     category_id: Optional[int] = Query(None, description="Filter by category ID"),
@@ -393,9 +452,16 @@ async def get_families(
     Get product families.
     
     **Public endpoint** - No authentication required.
+    
+    Returns families with product counts for catalog browsing.
     """
     logger.info(f"Fetching families (category_id={category_id}, featured_only={featured_only})")
     
+    from sqlalchemy import func, select
+
+    from backend.models.chair import Chair, ProductFamily
+    
+    # Get families with product counts
     families = await ProductService.get_families(
         db=db,
         category_id=category_id,
@@ -403,13 +469,105 @@ async def get_families(
         include_inactive=False
     )
     
+    # Add product counts
+    for family in families:
+        count_stmt = select(func.count(Chair.id)).where(
+            Chair.family_id == family.id,
+            Chair.is_active == True
+        )
+        count_result = await db.execute(count_stmt)
+        family.product_count = count_result.scalar() or 0
+    
     return families
 
 
 @router.get(
+    "/families/{family_id}",
+    response_model=ProductFamilyResponse,
+    summary="Get family by ID",
+    description="Retrieve a specific product family by ID with product count"
+)
+async def get_family_by_id(
+    family_id: int,
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    Get a specific product family by ID.
+    
+    **Public endpoint** - No authentication required.
+    """
+    logger.info(f"Fetching family {family_id}")
+    
+    from sqlalchemy import func, select
+
+    from backend.core.exceptions import ResourceNotFoundError
+    from backend.models.chair import Chair, ProductFamily
+    
+    # Get family
+    stmt = select(ProductFamily).where(ProductFamily.id == family_id)
+    result = await db.execute(stmt)
+    family = result.scalar_one_or_none()
+    
+    if not family:
+        raise ResourceNotFoundError(resource_type="ProductFamily", resource_id=family_id)
+    
+    # Add product count
+    count_stmt = select(func.count(Chair.id)).where(
+        Chair.family_id == family.id,
+        Chair.is_active == True
+    )
+    count_result = await db.execute(count_stmt)
+    family.product_count = count_result.scalar() or 0
+    
+    return family
+
+
+@router.get(
+    "/families/slug/{slug}",
+    response_model=ProductFamilyResponse,
+    summary="Get family by slug",
+    description="Retrieve a specific product family by slug with product count"
+)
+async def get_family_by_slug(
+    slug: str,
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    Get a specific product family by slug.
+    
+    **Public endpoint** - No authentication required.
+    """
+    logger.info(f"Fetching family with slug '{slug}'")
+    
+    from sqlalchemy import func, select
+
+    from backend.core.exceptions import ResourceNotFoundError
+    from backend.models.chair import Chair, ProductFamily
+    
+    # Get family
+    stmt = select(ProductFamily).where(ProductFamily.slug == slug)
+    result = await db.execute(stmt)
+    family = result.scalar_one_or_none()
+    
+    if not family:
+        raise ResourceNotFoundError(resource_type="ProductFamily", resource_id=slug)
+    
+    # Add product count
+    count_stmt = select(func.count(Chair.id)).where(
+        Chair.family_id == family.id,
+        Chair.is_active == True
+    )
+    count_result = await db.execute(count_stmt)
+    family.product_count = count_result.scalar() or 0
+    
+    return family
+
+
+@router.get(
     "/subcategories",
+    response_model=list[ProductSubcategoryResponse],
     summary="Get product subcategories",
-    description="Retrieve product subcategories with optional filters"
+    description="Retrieve product subcategories with optional filters and product counts"
 )
 async def get_subcategories(
     category_id: Optional[int] = Query(None, description="Filter by category ID"),
@@ -419,20 +577,77 @@ async def get_subcategories(
     Get product subcategories.
     
     **Public endpoint** - No authentication required.
+    
+    Returns subcategories with product counts for catalog browsing.
     """
     logger.info(f"Fetching subcategories (category_id={category_id})")
     
+    from sqlalchemy import func, select
+
+    from backend.models.chair import Chair, ProductSubcategory
+    
+    # Get subcategories with product counts
     subcategories = await ProductService.get_subcategories(
         db=db,
         category_id=category_id,
         include_inactive=False
     )
     
+    # Add product counts
+    for subcategory in subcategories:
+        count_stmt = select(func.count(Chair.id)).where(
+            Chair.subcategory_id == subcategory.id,
+            Chair.is_active == True
+        )
+        count_result = await db.execute(count_stmt)
+        subcategory.product_count = count_result.scalar() or 0
+    
     return subcategories
 
 
 # ============================================================================
-# Product Variations & Options (NEW)
+# Colors
+# ============================================================================
+
+@router.get(
+    "/colors",
+    response_model=list[ColorResponse],
+    summary="Get colors",
+    description="Retrieve all available colors for filtering"
+)
+async def get_colors(
+    category: Optional[str] = Query(None, description="Filter by category (wood/metal/fabric/paint)"),
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    Get all available colors.
+    
+    **Public endpoint** - No authentication required.
+    
+    Returns colors organized by category (wood, metal, fabric, paint).
+    """
+    logger.info(f"Fetching colors (category={category})")
+    
+    from sqlalchemy import select
+
+    from backend.models.chair import Color
+    
+    query = select(Color).where(Color.is_active == True)
+    
+    if category:
+        query = query.where(Color.category == category)
+    
+    query = query.order_by(Color.display_order, Color.name)
+    
+    result = await db.execute(query)
+    colors = result.scalars().all()
+    
+    logger.info(f"Retrieved {len(colors)} colors")
+    return list(colors)
+
+
+# ============================================================================
+# Product Families & Subcategories (NEW)
 # ============================================================================
 
 @router.get(

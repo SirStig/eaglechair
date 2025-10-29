@@ -1222,88 +1222,96 @@ export const demoFooterLinks = {
 };
 
 // Page Content (for dynamic sections)
-export const demoPageContent = [
-  {
-    id: 1,
-    page_slug: "home",
-    section_key: "cta",
-    title: "Ready to Transform Your Space?",
-    subtitle: null,
-    content: "Experience the Eagle Chair difference. Let's create something amazing for your business.",
-    image_url: null,
-    video_url: null,
-    cta_text: "Request a Quote",
-    cta_link: "/quote",
-    cta_style: "primary",
-    extra_data: null,
-    display_order: 1,
-    is_active: true
+// Page Content - Structured by page and section for easy lookup
+// Matches PageContent model from backend
+export const demoPageContent = {
+  home: {
+    cta: {
+      id: 1,
+      page_slug: "home",
+      section_key: "cta",
+      title: "Ready to Transform Your Space?",
+      subtitle: null,
+      content: "Experience the Eagle Chair difference. Let's create something amazing for your business.",
+      image_url: null,
+      video_url: null,
+      cta_text: "Request a Quote",
+      cta_link: "/quote",
+      cta_style: "primary",
+      extra_data: null,
+      display_order: 1,
+      is_active: true
+    }
   },
-  {
-    id: 2,
-    page_slug: "about",
-    section_key: "hero",
-    title: "Our Story",
-    subtitle: "Family-owned and operated since 1984, continuing the Yuglich Family legacy of quality commercial furniture manufacturing in Houston, Texas.",
-    content: null,
-    image_url: "https://images.unsplash.com/photo-1565891741441-64926e441838?w=1920",
-    video_url: null,
-    cta_text: null,
-    cta_link: null,
-    cta_style: null,
-    extra_data: null,
-    display_order: 1,
-    is_active: true
+  about: {
+    hero: {
+      id: 2,
+      page_slug: "about",
+      section_key: "hero",
+      title: "Our Story",
+      subtitle: "Family-owned and operated since 1984, continuing the Yuglich Family legacy of quality commercial furniture manufacturing in Houston, Texas.",
+      content: null,
+      image_url: "https://images.unsplash.com/photo-1565891741441-64926e441838?w=1920",
+      video_url: null,
+      cta_text: null,
+      cta_link: null,
+      cta_style: null,
+      extra_data: null,
+      display_order: 1,
+      is_active: true
+    },
+    story: {
+      id: 3,
+      page_slug: "about",
+      section_key: "story",
+      title: "Craftsmanship & Dedication",
+      subtitle: null,
+      content: "Founded in Houston, Texas in 1984 by the Yuglich Family, Eagle Chair has grown into a trusted name in commercial furniture manufacturing. Under the leadership of Katarina Kac-Statton and Maximilian Kac, we've maintained our commitment to quality, craftsmanship, and customer satisfaction.\n\nOur furniture graces thousands of restaurants, hotels, and hospitality venues across the country. Each piece is a testament to our dedication to excellence and our understanding of the demanding needs of commercial environments.\n\nAs a family-owned business, we take pride in treating every customer like family. Your success is our success, and we're here to support you every step of the way.",
+      image_url: "https://images.unsplash.com/photo-1556912172-45b7abe8b7e1?w=800",
+      video_url: null,
+      cta_text: null,
+      cta_link: null,
+      cta_style: null,
+      extra_data: null,
+      display_order: 2,
+      is_active: true
+    },
+    cta: {
+      id: 4,
+      page_slug: "about",
+      section_key: "cta",
+      title: "Ready to Work Together?",
+      subtitle: null,
+      content: "Experience the Eagle Chair difference. Let's create something amazing for your business.",
+      image_url: null,
+      video_url: null,
+      cta_text: "Contact Us",
+      cta_link: "/contact",
+      cta_style: "primary",
+      extra_data: null,
+      display_order: 3,
+      is_active: true
+    }
   },
-  {
-    id: 3,
-    page_slug: "about",
-    section_key: "story",
-    title: "Craftsmanship & Dedication",
-    subtitle: null,
-    content: "Founded in Houston, Texas in 1984 by the Yuglich Family, Eagle Chair has grown into a trusted name in commercial furniture manufacturing. Under the leadership of Katarina Kac-Statton and Maximilian Kac, we've maintained our commitment to quality, craftsmanship, and customer satisfaction.\n\nOur furniture graces thousands of restaurants, hotels, and hospitality venues across the country. Each piece is a testament to our dedication to excellence and our understanding of the demanding needs of commercial environments.\n\nAs a family-owned business, we take pride in treating every customer like family. Your success is our success, and we're here to support you every step of the way.",
-    image_url: "https://images.unsplash.com/photo-1556912172-45b7abe8b7e1?w=800",
-    video_url: null,
-    cta_text: null,
-    cta_link: null,
-    cta_style: null,
-    extra_data: null,
-    display_order: 2,
-    is_active: true
-  },
-  {
-    id: 4,
-    page_slug: "about",
-    section_key: "cta",
-    title: "Ready to Work Together?",
-    subtitle: null,
-    content: "Experience the Eagle Chair difference. Let's create something amazing for your business.",
-    image_url: null,
-    video_url: null,
-    cta_text: "Contact Us",
-    cta_link: "/contact",
-    cta_style: "primary",
-    extra_data: null,
-    display_order: 3,
-    is_active: true
-  },
-  {
-    id: 5,
-    page_slug: "contact",
-    section_key: "hero",
-    title: "Get in Touch",
-    subtitle: "We're here to help with all your commercial furniture needs",
-    content: null,
-    image_url: null,
-    video_url: null,
-    cta_text: null,
-    cta_link: null,
-    cta_style: null,
-    extra_data: null,
-    display_order: 1,
-    is_active: true
+  contact: {
+    hero: {
+      id: 5,
+      page_slug: "contact",
+      section_key: "hero",
+      title: "Get in Touch",
+      subtitle: "We're here to help with all your commercial furniture needs",
+      content: null,
+      image_url: null,
+      video_url: null,
+      cta_text: null,
+      cta_link: null,
+      cta_style: null,
+      extra_data: null,
+      display_order: 1,
+      is_active: true
+    }
   }
-];
+};
 
 // Legal Documents - All policies, warranties, terms, and conditions
 // Matches LegalDocument model from backend
