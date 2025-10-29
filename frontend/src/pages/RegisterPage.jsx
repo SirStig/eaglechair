@@ -6,9 +6,11 @@ import axios from 'axios';
 import Button from '../components/ui/Button';
 import Input from '../components/ui/Input';
 import Card from '../components/ui/Card';
+import { useSiteSettings } from '../hooks/useContent';
 
 const RegisterPage = () => {
   const navigate = useNavigate();
+  const { data: siteSettings } = useSiteSettings();
   const [step, setStep] = useState(1);
   const [error, setError] = useState(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -139,15 +141,15 @@ const RegisterPage = () => {
         <div className="text-center mb-8">
           <Link to="/" className="inline-block mb-4">
             <motion.img 
-              src="/assets/eagle-chair-logo.png" 
-              alt="Eagle Chair" 
+              src={siteSettings?.logoUrl || "/assets/eagle-chair-logo.png"}
+              alt={siteSettings?.companyName || "Eagle Chair"}
               className="h-16 w-auto mx-auto"
               whileHover={{ scale: 1.05 }}
               transition={{ type: "spring", stiffness: 300 }}
             />
           </Link>
           <h1 className="text-3xl font-bold mb-2 text-dark-50">Create Your Account</h1>
-          <p className="text-dark-200">Join Eagle Chair for exclusive trade pricing and services</p>
+          <p className="text-dark-200">Join {siteSettings?.companyName || "Eagle Chair"} for exclusive trade pricing and services</p>
         </div>
 
         {/* Progress Bar */}

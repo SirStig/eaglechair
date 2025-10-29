@@ -4,6 +4,7 @@ import { useEditMode } from '../../contexts/useEditMode';
 import EditModal from './EditModal';
 import Button from '../ui/Button';
 import logger from '../../utils/logger';
+import { invalidateCache } from '../../utils/cache';
 
 const CONTEXT = 'EditableList';
 
@@ -18,6 +19,8 @@ const CONTEXT = 'EditableList';
  * @param {function} onCreate - Callback when a new item is created (newData)
  * @param {function} onDelete - Callback when an item is deleted (itemId)
  * @param {function} onReorder - Callback when items are reordered (reorderedItems)
+ * @param {function} refetch - Callback to refetch data after changes
+ * @param {string} cacheKey - Cache key pattern to invalidate after changes
  * @param {string} itemType - Type of items in the list (e.g., 'hero-slide', 'feature')
  * @param {function} renderItem - Function to render each item (item, index)
  * @param {object} defaultNewItem - Default data structure for new items
@@ -30,6 +33,8 @@ const EditableList = ({
   onCreate,
   onDelete,
   onReorder,
+  refetch,
+  cacheKey,
   itemType = 'item',
   renderItem,
   defaultNewItem = {},
@@ -63,6 +68,19 @@ const EditableList = ({
         try {
           logger.info(CONTEXT, `Deleting ${itemType} ${item.id}`);
           await onDelete(item.id);
+          
+          // Invalidate cache if key provided
+          if (cacheKey) {
+            const invalidated = invalidateCache(cacheKey);
+            logger.debug(CONTEXT, `Invalidated ${invalidated} cache entries for pattern: ${cacheKey}`);
+          }
+          
+          // Refetch data
+          if (refetch) {
+            logger.debug(CONTEXT, `Refetching after delete`);
+            await refetch();
+          }
+          
           logger.info(CONTEXT, `Successfully deleted ${itemType}`);
         } catch (error) {
           logger.error(CONTEXT, `Failed to delete ${itemType}`, error);
@@ -127,6 +145,19 @@ const EditableList = ({
       if (onUpdate && editingItem) {
         logger.info(CONTEXT, `Updating ${itemType} ${editingItem.id}`);
         await onUpdate(editingItem.id, newData);
+        
+        // Invalidate cache if key provided
+        if (cacheKey) {
+          const invalidated = invalidateCache(cacheKey);
+          logger.debug(CONTEXT, `Invalidated ${invalidated} cache entries for pattern: ${cacheKey}`);
+        }
+        
+        // Refetch data
+        if (refetch) {
+          logger.debug(CONTEXT, `Refetching after update`);
+          await refetch();
+        }
+        
         logger.info(CONTEXT, `Successfully updated ${itemType}`);
       }
       setEditingItem(null);
@@ -141,6 +172,19 @@ const EditableList = ({
       if (onCreate) {
         logger.info(CONTEXT, `Creating new ${itemType}`);
         await onCreate(newData);
+        
+        // Invalidate cache if key provided
+        if (cacheKey) {
+          const invalidated = invalidateCache(cacheKey);
+          logger.debug(CONTEXT, `Invalidated ${invalidated} cache entries for pattern: ${cacheKey}`);
+        }
+        
+        // Refetch data
+        if (refetch) {
+          logger.debug(CONTEXT, `Refetching after create`);
+          await refetch();
+        }
+        
         logger.info(CONTEXT, `Successfully created ${itemType}`);
       }
       setShowCreateModal(false);

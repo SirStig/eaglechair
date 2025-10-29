@@ -7,11 +7,13 @@ import Input from '../components/ui/Input';
 import Card from '../components/ui/Card';
 import { useAuthStore } from '../store/authStore';
 import { demoUser, demoAdminUser, IS_DEMO } from '../data/demoData';
+import { useSiteSettings } from '../hooks/useContent';
 
 const LoginPage = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const { login } = useAuthStore();
+  const { data: siteSettings } = useSiteSettings();
   const [error, setError] = useState(null);
   const [successMessage, setSuccessMessage] = useState(location.state?.message || null);
   
@@ -70,8 +72,8 @@ const LoginPage = () => {
         <div className="text-center mb-8">
           <Link to="/" className="inline-block mb-4">
             <motion.img 
-              src="/assets/eagle-chair-logo.png" 
-              alt="Eagle Chair" 
+              src={siteSettings?.logoUrl || "/assets/eagle-chair-logo.png"}
+              alt={siteSettings?.companyName || "Eagle Chair"}
               className="h-16 w-auto mx-auto"
               whileHover={{ scale: 1.05 }}
               transition={{ type: "spring", stiffness: 300 }}

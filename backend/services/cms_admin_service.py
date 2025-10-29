@@ -1005,6 +1005,140 @@ class CMSAdminService:
         await export_content_after_update('companyMilestones', db)
     
     # ========================================================================
+    # Contact Locations
+    # ========================================================================
+    
+    @staticmethod
+    async def create_contact_location(
+        db: AsyncSession,
+        **location_data
+    ) -> ContactLocation:
+        """Create contact location and export to static file."""
+        location = ContactLocation(**location_data)
+        db.add(location)
+        await db.commit()
+        await db.refresh(location)
+        
+        # Export to static file
+        await export_content_after_update('contactLocations', db)
+        
+        logger.info(f"Created contact location: {location.location_name}")
+        return location
+    
+    @staticmethod
+    async def update_contact_location(
+        db: AsyncSession,
+        location_id: int,
+        **updates
+    ) -> ContactLocation:
+        """Update contact location and export to static file."""
+        result = await db.execute(
+            select(ContactLocation).where(ContactLocation.id == location_id)
+        )
+        location = result.scalar_one_or_none()
+        
+        if not location:
+            raise ResourceNotFoundError(f"Contact location {location_id} not found")
+        
+        for key, value in updates.items():
+            setattr(location, key, value)
+        
+        await db.commit()
+        await db.refresh(location)
+        
+        # Export to static file
+        await export_content_after_update('contactLocations', db)
+        
+        logger.info(f"Updated contact location: {location.location_name}")
+        return location
+    
+    @staticmethod
+    async def delete_contact_location(db: AsyncSession, location_id: int) -> None:
+        """Delete contact location and export to static file."""
+        result = await db.execute(
+            select(ContactLocation).where(ContactLocation.id == location_id)
+        )
+        location = result.scalar_one_or_none()
+        
+        if not location:
+            raise ResourceNotFoundError(f"Contact location {location_id} not found")
+        
+        await db.delete(location)
+        await db.commit()
+        
+        # Export to static file
+        await export_content_after_update('contactLocations', db)
+        
+        logger.info(f"Deleted contact location: {location.location_name}")
+    
+    # ========================================================================
+    # Company Info
+    # ========================================================================
+    
+    @staticmethod
+    async def create_company_info(
+        db: AsyncSession,
+        **info_data
+    ) -> CompanyInfo:
+        """Create company info section and export to static file."""
+        info = CompanyInfo(**info_data)
+        db.add(info)
+        await db.commit()
+        await db.refresh(info)
+        
+        # Export to static file
+        await export_content_after_update('companyInfo', db)
+        
+        logger.info(f"Created company info: {info.section_key}")
+        return info
+    
+    @staticmethod
+    async def update_company_info(
+        db: AsyncSession,
+        info_id: int,
+        **updates
+    ) -> CompanyInfo:
+        """Update company info section and export to static file."""
+        result = await db.execute(
+            select(CompanyInfo).where(CompanyInfo.id == info_id)
+        )
+        info = result.scalar_one_or_none()
+        
+        if not info:
+            raise ResourceNotFoundError(f"Company info {info_id} not found")
+        
+        for key, value in updates.items():
+            setattr(info, key, value)
+        
+        await db.commit()
+        await db.refresh(info)
+        
+        # Export to static file
+        await export_content_after_update('companyInfo', db)
+        
+        logger.info(f"Updated company info: {info.section_key}")
+        return info
+    
+    @staticmethod
+    async def delete_company_info(db: AsyncSession, info_id: int) -> None:
+        """Delete company info section and export to static file."""
+        result = await db.execute(
+            select(CompanyInfo).where(CompanyInfo.id == info_id)
+        )
+        info = result.scalar_one_or_none()
+        
+        if not info:
+            raise ResourceNotFoundError(f"Company info {info_id} not found")
+        
+        await db.delete(info)
+        await db.commit()
+        
+        # Export to static file
+        await export_content_after_update('companyInfo', db)
+        
+        logger.info(f"Deleted company info: {info.section_key}")
+    
+    # ========================================================================
     # Bulk Export (for initial setup or full refresh)
     # ========================================================================
     

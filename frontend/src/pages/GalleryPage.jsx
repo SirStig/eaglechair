@@ -1,4 +1,5 @@
 import { useState } from 'react';
+// eslint-disable-next-line no-unused-vars
 import { motion } from 'framer-motion';
 import Modal from '../components/ui/Modal';
 import EditableWrapper from '../components/admin/EditableWrapper';
@@ -33,7 +34,14 @@ const GalleryPage = () => {
   const handleUpdateInstallation = async (id, updates) => {
     try {
       logger.info(CONTEXT, `Updating installation ${id}`);
-      await updateInstallation(id, updates);
+      
+      // Sync primary_image with images array if primary_image changed
+      const dataToSend = { ...updates };
+      if (updates.primary_image && (!updates.images || updates.images.length === 0)) {
+        dataToSend.images = [updates.primary_image];
+      }
+      
+      await updateInstallation(id, dataToSend);
       refetch();
       logger.info(CONTEXT, 'Installation updated successfully');
     } catch (error) {
@@ -45,7 +53,23 @@ const GalleryPage = () => {
   const handleCreateInstallation = async (newData) => {
     try {
       logger.info(CONTEXT, 'Creating new installation');
-      await createInstallation(newData);
+      
+      // Ensure images array is not empty (backend requires at least 1 image)
+      const dataToSend = {
+        ...newData,
+        images: Array.isArray(newData.images) && newData.images.length > 0 
+          ? newData.images 
+          : newData.primary_image 
+            ? [newData.primary_image] 
+            : []
+      };
+      
+      // Backend requires at least 1 image
+      if (dataToSend.images.length === 0) {
+        throw new Error('At least one image is required. Please upload an image first.');
+      }
+      
+      await createInstallation(dataToSend);
       refetch();
       logger.info(CONTEXT, 'Installation created successfully');
     } catch (error) {
@@ -130,7 +154,21 @@ const GalleryPage = () => {
             onDelete={handleDeleteInstallation}
             onReorder={handleReorderInstallations}
             addButtonText="Add New Image"
+            itemType="installation"
             allowReorder={true}
+            defaultNewItem={{
+              project_name: 'New Installation',
+              client_name: '',
+              location: '',
+              project_type: 'restaurant',
+              description: '',
+              primary_image: '',
+              images: [],
+              completion_date: '',
+              display_order: filteredImages.length,
+              is_active: true,
+              is_featured: false
+            }}
             renderItem={(image, index) => {
               const imageUrl = image.url || image.primary_image || image.primaryImage || 
                 (image.images && (typeof image.images === 'string' ? JSON.parse(image.images)[0] : image.images[0]));

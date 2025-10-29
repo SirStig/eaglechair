@@ -5,8 +5,10 @@ import axios from 'axios';
 import Button from '../components/ui/Button';
 import Input from '../components/ui/Input';
 import Card from '../components/ui/Card';
+import { useSiteSettings } from '../hooks/useContent';
 
 const ForgotPasswordPage = () => {
+  const { data: siteSettings } = useSiteSettings();
   const [email, setEmail] = useState('');
   const [success, setSuccess] = useState(false);
   const [error, setError] = useState(null);
@@ -40,8 +42,8 @@ const ForgotPasswordPage = () => {
           <div className="text-center mb-8">
             <Link to="/" className="inline-block mb-4">
               <motion.img 
-                src="/assets/eagle-chair-logo.png" 
-                alt="Eagle Chair" 
+                src={siteSettings?.logoUrl || "/assets/eagle-chair-logo.png"}
+                alt={siteSettings?.companyName || "Eagle Chair"}
                 className="h-16 w-auto mx-auto"
                 whileHover={{ scale: 1.05 }}
                 transition={{ type: "spring", stiffness: 300 }}
@@ -88,8 +90,8 @@ const ForgotPasswordPage = () => {
         <div className="text-center mb-8">
           <Link to="/" className="inline-block mb-4">
             <motion.img 
-              src="/assets/eagle-chair-logo.png" 
-              alt="Eagle Chair" 
+              src={siteSettings?.logoUrl || "/assets/eagle-chair-logo.png"}
+              alt={siteSettings?.companyName || "Eagle Chair"}
               className="h-16 w-auto mx-auto"
               whileHover={{ scale: 1.05 }}
               transition={{ type: "spring", stiffness: 300 }}
