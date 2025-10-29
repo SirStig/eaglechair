@@ -125,3 +125,36 @@ export const cachedFetch = async (key, fetchFn, ttl) => {
   return data;
 };
 
+/**
+ * Invalidate cache entries by pattern
+ * @param {string} pattern - Pattern to match cache keys (supports wildcards)
+ * @returns {number} Number of entries invalidated
+ */
+export const invalidateCache = (pattern) => {
+  let count = 0;
+  
+  if (pattern === '*') {
+    // Clear all cache
+    cache.clear();
+    return cache.size();
+  }
+  
+  // Convert pattern to regex
+  const regex = new RegExp('^' + pattern.replace(/\*/g, '.*') + '$');
+  
+  // Find and delete matching keys
+  const keysToDelete = [];
+  for (const key of cache.cache.keys()) {
+    if (regex.test(key)) {
+      keysToDelete.push(key);
+    }
+  }
+  
+  keysToDelete.forEach(key => {
+    cache.delete(key);
+    count++;
+  });
+  
+  return count;
+};
+

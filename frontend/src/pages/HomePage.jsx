@@ -8,6 +8,8 @@ import ProductCard from '../components/ui/ProductCard';
 import { HeroSkeleton, CardGridSkeleton } from '../components/ui/Skeleton';
 import EditableWrapper from '../components/admin/EditableWrapper';
 import EditableList from '../components/admin/EditableList';
+import EditModal from '../components/admin/EditModal';
+import { useEditMode } from '../contexts/useEditMode';
 import { demoHomeContent } from '../data/demoData';
 import { heroSlides as staticHeroSlides, features as staticFeatures, clientLogos as staticClientLogos, pageContent as staticPageContent } from '../data/contentData';
 import { useHeroSlides, useFeatures, useClientLogos, useFeaturedProducts, usePageContent } from '../hooks/useContent';
@@ -24,11 +26,14 @@ import {
   deleteClientLogo
 } from '../services/contentService';
 import logger from '../utils/logger';
+import { invalidateCache } from '../utils/cache';
 
 const CONTEXT = 'HomePage';
 
 const HomePage = () => {
   const [selectedQuickView, setSelectedQuickView] = useState(null);
+  const [isCreatingLogo, setIsCreatingLogo] = useState(false);
+  const { isEditMode } = useEditMode();
   
   const { data: heroSlides, loading: heroLoading, refetch: refetchHero } = useHeroSlides();
   const { data: whyChooseUs, refetch: refetchFeatures } = useFeatures('home_page');
@@ -91,12 +96,22 @@ const HomePage = () => {
   };
 
   const handleCreateClientLogo = async (newData) => {
-    await createClientLogo(newData);
-    refetchLogos();
+    try {
+      await createClientLogo(newData);
+      const invalidated = invalidateCache('client-logos');
+      logger.debug(CONTEXT, `Invalidated ${invalidated} cache entries for client-logos`);
+      await refetchLogos();
+      setIsCreatingLogo(false);
+    } catch (error) {
+      logger.error(CONTEXT, 'Failed to create client logo', error);
+      throw error;
+    }
   };
 
   const handleDeleteClientLogo = async (id) => {
     await deleteClientLogo(id);
+    const invalidated = invalidateCache('client-logos');
+    logger.debug(CONTEXT, `Invalidated ${invalidated} cache entries for client-logos`);
     refetchLogos();
   };
 
@@ -174,6 +189,8 @@ const HomePage = () => {
                     type="hero-slide"
                     data={slide}
                     onSave={(newData) => handleUpdateHeroSlide(slide.id, newData)}
+                    refetch={refetchHero}
+                    cacheKey="hero-slides"
                     label={`Slide ${index + 1}`}
                   >
                     <div className="relative h-[70vh] sm:h-[75vh] md:h-[80vh] lg:h-[85vh]">
@@ -223,90 +240,256 @@ const HomePage = () => {
             Trusted by Leading Hospitality Brands
           </h2>
           
-          <EditableList
-            id="client-logos-list"
-            items={clients}
-            onUpdate={handleUpdateClientLogo}
-            onCreate={handleCreateClientLogo}
-            onDelete={(id) => deleteClientLogo(id).then(() => refetchLogos())}
-            itemType="client-logo"
-            label="Client Logos"
-            addButtonText="Add Client"
-            defaultNewItem={{
-              name: 'New Client',
-              logo: '',
-              logoUrl: ''
-            }}
-            renderItem={(client) => (
-              <div className="flex-shrink-0 px-4 sm:px-8 mx-2 sm:mx-4">
-                <div className="flex items-center justify-center h-16 sm:h-20 w-32 sm:w-40">
-                  {client.logoUrl || client.logo ? (
-                    <img
-                      src={client.logoUrl || client.logo}
-                      alt={client.name}
-                      className="max-h-full max-w-full object-contain grayscale opacity-60 hover:grayscale-0 hover:opacity-100 transition-all duration-300"
-                    />
-                  ) : (
-                    <div className="text-base font-semibold text-dark-200 text-center">
-                      {client.name}
-                    </div>
-                  )}
-                </div>
+          {/* Centered container with fading edges */}
+          <div className="relative max-w-5xl mx-auto">
+            {/* Edit Mode Add Button */}
+            {isEditMode && (
+              <div className="mb-4 flex justify-center">
+                <Button
+                  onClick={() => setIsCreatingLogo(true)}
+                  variant="primary"
+                  size="sm"
+                  className="flex items-center gap-2"
+                >
+                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                  </svg>
+                  Add Client Logo
+                </Button>
               </div>
             )}
-            className="relative max-w-5xl mx-auto"
-          >
-            {/* Centered container with fading edges */}
-            <div className="relative max-w-5xl mx-auto">
-              {/* Left fade */}
-              <div className="absolute left-0 top-0 bottom-0 w-16 sm:w-32 bg-gradient-to-r from-dark-800 to-transparent z-10 pointer-events-none"></div>
-              
-              {/* Right fade */}
-              <div className="absolute right-0 top-0 bottom-0 w-16 sm:w-32 bg-gradient-to-l from-dark-800 to-transparent z-10 pointer-events-none"></div>
-              
-              {/* Scrolling container */}
-              <div className="overflow-hidden">
-                <div className="flex animate-scroll-infinite" style={{ width: '200%' }}>
-                  {/* First set of logos */}
-                  {clients.length > 0 && clients.map((client, index) => (
-                    <div key={`first-${client.id}-${index}`} className="flex-shrink-0 px-4 sm:px-8 mx-2 sm:mx-4">
-                      <div className="flex items-center justify-center h-16 sm:h-20 w-32 sm:w-40">
-                        {client.logoUrl || client.logo ? (
-                          <img
-                            src={client.logoUrl || client.logo}
-                            alt={client.name}
-                            className="max-h-full max-w-full object-contain grayscale opacity-60 hover:grayscale-0 hover:opacity-100 transition-all duration-300"
-                          />
-                        ) : (
-                          <div className="text-base font-semibold text-dark-200 text-center">
-                            {client.name}
-                          </div>
-                        )}
-                      </div>
+            
+            {/* Create Logo Modal */}
+            <EditModal
+              isOpen={isCreatingLogo}
+              onClose={() => setIsCreatingLogo(false)}
+              onSave={handleCreateClientLogo}
+              elementData={{ name: '', logo_url: '', display_order: 0 }}
+              elementType="client-logo"
+            />
+            
+            {/* Left fade */}
+            <div className="absolute left-0 top-0 bottom-0 w-16 sm:w-32 bg-gradient-to-r from-dark-800 to-transparent z-10 pointer-events-none"></div>
+            
+            {/* Right fade */}
+            <div className="absolute right-0 top-0 bottom-0 w-16 sm:w-32 bg-gradient-to-l from-dark-800 to-transparent z-10 pointer-events-none"></div>
+            
+            {/* Scrolling container */}
+            <div className="overflow-hidden">
+              {/* Calculate width and animation duration based on number of logo sets for seamless scrolling */}
+              <div 
+                className={`flex ${!isEditMode ? 'animate-scroll-infinite' : ''}`} 
+                style={{ 
+                  width: isEditMode 
+                    ? 'auto' 
+                    : clients.length < 5 
+                      ? '800%'  // 8 sets for very few logos (1-4)
+                      : clients.length < 8 
+                        ? '600%'  // 6 sets for few logos (5-7)
+                        : '200%',  // 2 sets for normal amount (8+)
+                  // Slow down animation significantly for fewer logos to prevent gaps
+                  animationDuration: !isEditMode 
+                    ? clients.length < 3 
+                      ? '120s'  // Very slow for 1-2 logos
+                      : clients.length < 5
+                        ? '80s'   // Slow for 3-4 logos
+                        : clients.length < 8
+                          ? '60s'   // Medium for 5-7 logos
+                          : '40s'   // Normal for 8+ logos
+                    : undefined
+                }}
+              >
+                {/* First set of logos */}
+                {clients.length > 0 && clients.map((client, index) => (
+                  <EditableWrapper
+                    key={`first-${client.id}-${index}`}
+                    id={`client-logo-${client.id}`}
+                    type="client-logo"
+                    data={client}
+                    onSave={(newData) => handleUpdateClientLogo(client.id, newData)}
+                    refetch={refetchLogos}
+                    cacheKey="client-logos"
+                    label={`Logo: ${client.name}`}
+                    className={`flex-shrink-0 px-4 sm:px-8 mx-2 sm:mx-4 ${isEditMode ? 'inline-block' : ''}`}
+                  >
+                    <div className="flex items-center justify-center h-16 sm:h-20 w-32 sm:w-40 relative group">
+                      {client.logoUrl || client.logo ? (
+                        <img
+                          src={client.logoUrl || client.logo}
+                          alt={client.name}
+                          className="max-h-full max-w-full object-contain transition-all duration-300"
+                          style={{ filter: 'invert(1) hue-rotate(180deg) brightness(1.2) contrast(0.9)' }}
+                        />
+                      ) : (
+                        <div className="text-base font-semibold text-dark-200 text-center">
+                          {client.name}
+                        </div>
+                      )}
+                      
+                      {/* Delete button in edit mode */}
+                      {isEditMode && (
+                        <button
+                          onClick={async (e) => {
+                            e.stopPropagation();
+                            if (window.confirm(`Delete ${client.name}?`)) {
+                              await deleteClientLogo(client.id);
+                              refetchLogos();
+                            }
+                          }}
+                          className="absolute top-0 right-0 p-1 bg-red-600 hover:bg-red-700 text-white rounded opacity-0 group-hover:opacity-100 transition-opacity z-30"
+                          title="Delete"
+                        >
+                          <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                          </svg>
+                        </button>
+                      )}
                     </div>
-                  ))}
-                  {/* Second set of logos (exact duplicate) */}
-                  {clients.length > 0 && clients.map((client, index) => (
-                    <div key={`second-${client.id}-${index}`} className="flex-shrink-0 px-4 sm:px-8 mx-2 sm:mx-4">
-                      <div className="flex items-center justify-center h-16 sm:h-20 w-32 sm:w-40">
-                        {client.logoUrl || client.logo ? (
-                          <img
-                            src={client.logoUrl || client.logo}
-                            alt={client.name}
-                            className="max-h-full max-w-full object-contain grayscale opacity-60 hover:grayscale-0 hover:opacity-100 transition-all duration-300"
-                          />
-                        ) : (
-                          <div className="text-base font-semibold text-dark-200 text-center">
-                            {client.name}
-                          </div>
-                        )}
-                      </div>
+                  </EditableWrapper>
+                ))}
+                
+                {/* Second set of logos (duplicate for infinite scroll) - Only show when NOT in edit mode */}
+                {!isEditMode && clients.length > 0 && clients.map((client, index) => (
+                  <div key={`second-${client.id}-${index}`} className="flex-shrink-0 px-4 sm:px-8 mx-2 sm:mx-4">
+                    <div className="flex items-center justify-center h-16 sm:h-20 w-32 sm:w-40">
+                      {client.logoUrl || client.logo ? (
+                        <img
+                          src={client.logoUrl || client.logo}
+                          alt={client.name}
+                          className="max-h-full max-w-full object-contain transition-all duration-300"
+                          style={{ filter: 'invert(1) hue-rotate(180deg) brightness(1.2) contrast(0.9)' }}
+                        />
+                      ) : (
+                        <div className="text-base font-semibold text-dark-200 text-center">
+                          {client.name}
+                        </div>
+                      )}
                     </div>
-                  ))}
-                </div>
+                  </div>
+                ))}
+                
+                {/* Third set (for seamless loop when few logos) */}
+                {!isEditMode && clients.length > 0 && clients.length < 8 && clients.map((client, index) => (
+                  <div key={`third-${client.id}-${index}`} className="flex-shrink-0 px-4 sm:px-8 mx-2 sm:mx-4">
+                    <div className="flex items-center justify-center h-16 sm:h-20 w-32 sm:w-40">
+                      {client.logoUrl || client.logo ? (
+                        <img
+                          src={client.logoUrl || client.logo}
+                          alt={client.name}
+                          className="max-h-full max-w-full object-contain transition-all duration-300"
+                          style={{ filter: 'invert(1) hue-rotate(180deg) brightness(1.2) contrast(0.9)' }}
+                        />
+                      ) : (
+                        <div className="text-base font-semibold text-dark-200 text-center">
+                          {client.name}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                ))}
+                
+                {/* Fourth set (for very few logos) */}
+                {!isEditMode && clients.length > 0 && clients.length < 5 && clients.map((client, index) => (
+                  <div key={`fourth-${client.id}-${index}`} className="flex-shrink-0 px-4 sm:px-8 mx-2 sm:mx-4">
+                    <div className="flex items-center justify-center h-16 sm:h-20 w-32 sm:w-40">
+                      {client.logoUrl || client.logo ? (
+                        <img
+                          src={client.logoUrl || client.logo}
+                          alt={client.name}
+                          className="max-h-full max-w-full object-contain transition-all duration-300"
+                          style={{ filter: 'invert(1) hue-rotate(180deg) brightness(1.2) contrast(0.9)' }}
+                        />
+                      ) : (
+                        <div className="text-base font-semibold text-dark-200 text-center">
+                          {client.name}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                ))}
+                
+                {/* Fifth set (for few logos 5-7) */}
+                {!isEditMode && clients.length > 0 && clients.length < 8 && clients.map((client, index) => (
+                  <div key={`fifth-${client.id}-${index}`} className="flex-shrink-0 px-4 sm:px-8 mx-2 sm:mx-4">
+                    <div className="flex items-center justify-center h-16 sm:h-20 w-32 sm:w-40">
+                      {client.logoUrl || client.logo ? (
+                        <img
+                          src={client.logoUrl || client.logo}
+                          alt={client.name}
+                          className="max-h-full max-w-full object-contain transition-all duration-300"
+                          style={{ filter: 'invert(1) hue-rotate(180deg) brightness(1.2) contrast(0.9)' }}
+                        />
+                      ) : (
+                        <div className="text-base font-semibold text-dark-200 text-center">
+                          {client.name}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                ))}
+                
+                {/* Sixth set (for few logos 5-7) */}
+                {!isEditMode && clients.length > 0 && clients.length < 8 && clients.map((client, index) => (
+                  <div key={`sixth-${client.id}-${index}`} className="flex-shrink-0 px-4 sm:px-8 mx-2 sm:mx-4">
+                    <div className="flex items-center justify-center h-16 sm:h-20 w-32 sm:w-40">
+                      {client.logoUrl || client.logo ? (
+                        <img
+                          src={client.logoUrl || client.logo}
+                          alt={client.name}
+                          className="max-h-full max-w-full object-contain transition-all duration-300"
+                          style={{ filter: 'invert(1) hue-rotate(180deg) brightness(1.2) contrast(0.9)' }}
+                        />
+                      ) : (
+                        <div className="text-base font-semibold text-dark-200 text-center">
+                          {client.name}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                ))}
+                
+                {/* Seventh set (for very few logos 1-4) */}
+                {!isEditMode && clients.length > 0 && clients.length < 5 && clients.map((client, index) => (
+                  <div key={`seventh-${client.id}-${index}`} className="flex-shrink-0 px-4 sm:px-8 mx-2 sm:mx-4">
+                    <div className="flex items-center justify-center h-16 sm:h-20 w-32 sm:w-40">
+                      {client.logoUrl || client.logo ? (
+                        <img
+                          src={client.logoUrl || client.logo}
+                          alt={client.name}
+                          className="max-h-full max-w-full object-contain transition-all duration-300"
+                          style={{ filter: 'invert(1) hue-rotate(180deg) brightness(1.2) contrast(0.9)' }}
+                        />
+                      ) : (
+                        <div className="text-base font-semibold text-dark-200 text-center">
+                          {client.name}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                ))}
+                
+                {/* Eighth set (for very few logos 1-4) */}
+                {!isEditMode && clients.length > 0 && clients.length < 5 && clients.map((client, index) => (
+                  <div key={`eighth-${client.id}-${index}`} className="flex-shrink-0 px-4 sm:px-8 mx-2 sm:mx-4">
+                    <div className="flex items-center justify-center h-16 sm:h-20 w-32 sm:w-40">
+                      {client.logoUrl || client.logo ? (
+                        <img
+                          src={client.logoUrl || client.logo}
+                          alt={client.name}
+                          className="max-h-full max-w-full object-contain transition-all duration-300"
+                          style={{ filter: 'invert(1) hue-rotate(180deg) brightness(1.2) contrast(0.9)' }}
+                        />
+                      ) : (
+                        <div className="text-base font-semibold text-dark-200 text-center">
+                          {client.name}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                ))}
               </div>
             </div>
-          </EditableList>
+          </div>
         </div>
       </section>
 
@@ -375,6 +558,8 @@ const HomePage = () => {
             onUpdate={handleUpdateFeature}
             onCreate={handleCreateFeature}
             onDelete={handleDeleteFeature}
+            refetch={refetchFeatures}
+            cacheKey="features-home_page"
             itemType="feature"
             label="Features"
             addButtonText="Add Feature"
@@ -436,6 +621,8 @@ const HomePage = () => {
               type="text"
               data={{ title: ctaTitle }}
               onSave={(newData) => handleSaveContent('home', 'cta', { ...ctaSection, ...newData })}
+              refetch={refetchCta}
+              cacheKey="page-content-home-cta"
               label="CTA Title"
             >
               <h2 className="text-2xl sm:text-3xl md:text-4xl font-bold mb-4 sm:mb-6 text-dark-50">
@@ -448,6 +635,8 @@ const HomePage = () => {
               type="textarea"
               data={{ content: ctaContent }}
               onSave={(newData) => handleSaveContent('home', 'cta', { ...ctaSection, ...newData })}
+              refetch={refetchCta}
+              cacheKey="page-content-home-cta"
               label="CTA Content"
             >
               <p className="text-lg sm:text-xl mb-6 sm:mb-8 text-dark-100 leading-relaxed">
@@ -465,6 +654,8 @@ const HomePage = () => {
                 secondary_cta_link: ctaSecondaryLink
               }}
               onSave={(newData) => handleSaveContent('home', 'cta', { ...ctaSection, ...newData })}
+              refetch={refetchCta}
+              cacheKey="page-content-home-cta"
               label="CTA Buttons"
             >
               <div className="flex flex-col sm:flex-row gap-3 sm:gap-4 justify-center px-4 sm:px-0">

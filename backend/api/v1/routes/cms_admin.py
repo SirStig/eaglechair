@@ -30,14 +30,17 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from backend.api.dependencies import get_current_admin
 from backend.api.v1.schemas.common import MessageResponse
+from backend.api.v1.schemas.content import (
+    CompanyInfoCreate,
+    CompanyInfoUpdate,
+    ContactLocationCreate,
+    ContactLocationUpdate,
+    TeamMemberCreate,
+    TeamMemberUpdate,
+)
 from backend.database.base import get_db
 from backend.models.company import Company
-from backend.models.legal import (
-    LegalDocument,
-    LegalDocumentType,
-    ShippingPolicy,
-    WarrantyInformation,
-)
+from backend.models.legal import LegalDocumentType
 from backend.services.cms_admin_service import CMSAdminService
 
 logger = logging.getLogger(__name__)
@@ -49,6 +52,95 @@ router = APIRouter(tags=["CMS Admin"], prefix="/cms-admin")
 # Request/Response Schemas
 # ============================================================================
 
+# Features
+class FeatureCreate(BaseModel):
+    """Feature creation request"""
+    title: str = Field(..., max_length=255)
+    subtitle: str | None = Field(None, max_length=500)
+    description: str | None = None
+    icon: str | None = Field(None, max_length=100)
+    icon_color: str | None = Field(None, max_length=50)
+    image_url: str | None = Field(None, max_length=500)
+    feature_type: str = Field(default="general", max_length=100)
+    display_order: int = Field(default=0, ge=0)
+    is_active: bool = True
+
+
+class FeatureUpdate(BaseModel):
+    """Feature update request"""
+    title: str | None = Field(None, max_length=255)
+    subtitle: str | None = Field(None, max_length=500)
+    description: str | None = None
+    icon: str | None = Field(None, max_length=100)
+    icon_color: str | None = Field(None, max_length=50)
+    image_url: str | None = Field(None, max_length=500)
+    feature_type: str | None = Field(None, max_length=100)
+    display_order: int | None = Field(None, ge=0)
+    is_active: bool | None = None
+
+
+# Client Logos
+class ClientLogoCreate(BaseModel):
+    """Client logo creation request"""
+    name: str = Field(..., max_length=255)
+    logo_url: str = Field(..., max_length=500)
+    website_url: str | None = Field(None, max_length=500)
+    display_order: int = Field(default=0, ge=0)
+
+
+class ClientLogoUpdate(BaseModel):
+    """Client logo update request"""
+    name: str | None = Field(None, max_length=255)
+    logo_url: str | None = Field(None, max_length=500)
+    website_url: str | None = Field(None, max_length=500)
+    display_order: int | None = Field(None, ge=0)
+
+
+# Company Values
+class CompanyValueCreate(BaseModel):
+    """Company value creation request"""
+    title: str = Field(..., max_length=255)
+    subtitle: str | None = Field(None, max_length=500)
+    description: str | None = None
+    icon: str | None = Field(None, max_length=100)
+    image_url: str | None = Field(None, max_length=500)
+    display_order: int = Field(default=0, ge=0)
+    is_active: bool = True
+
+
+class CompanyValueUpdate(BaseModel):
+    """Company value update request"""
+    title: str | None = Field(None, max_length=255)
+    subtitle: str | None = Field(None, max_length=500)
+    description: str | None = None
+    icon: str | None = Field(None, max_length=100)
+    image_url: str | None = Field(None, max_length=500)
+    display_order: int | None = Field(None, ge=0)
+    is_active: bool | None = None
+
+
+# Company Milestones
+class CompanyMilestoneCreate(BaseModel):
+    """Company milestone creation request"""
+    year: str = Field(..., max_length=20)
+    title: str = Field(..., max_length=255)
+    description: str | None = None
+    image_url: str | None = Field(None, max_length=500)
+    display_order: int = Field(default=0, ge=0)
+    is_active: bool = True
+
+
+class CompanyMilestoneUpdate(BaseModel):
+    """Company milestone update request"""
+    year: str | None = Field(None, max_length=20)
+    title: str | None = Field(None, max_length=255)
+    description: str | None = None
+    image_url: str | None = Field(None, max_length=500)
+    display_order: int | None = Field(None, ge=0)
+    is_active: bool | None = None
+
+
+# Site Settings
 class SiteSettingsUpdate(BaseModel):
     """Site settings update request"""
     company_name: str | None = None
@@ -264,6 +356,12 @@ async def create_hero_slide(
     summary="Update hero slide",
     description="Update a hero slide and export"
 )
+@router.patch(
+    "/hero-slides/{slide_id}",
+    response_model=MessageResponse,
+    summary="Update hero slide (PATCH)",
+    description="Partially update a hero slide and export"
+)
 async def update_hero_slide(
     slide_id: int,
     slide: HeroSlideUpdate,
@@ -364,6 +462,12 @@ async def create_sales_rep(
     response_model=MessageResponse,
     summary="Update sales representative",
     description="Update a sales rep and export"
+)
+@router.patch(
+    "/sales-reps/{rep_id}",
+    response_model=MessageResponse,
+    summary="Update sales representative (PATCH)",
+    description="Partially update a sales rep and export"
 )
 async def update_sales_rep(
     rep_id: int,
@@ -619,6 +723,715 @@ async def export_all_content(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to export content: {str(e)}"
+        )
+
+
+
+
+# ============================================================================
+# Features Endpoints
+# ============================================================================
+
+@router.post(
+    "/features",
+    response_model=MessageResponse,
+    status_code=status.HTTP_201_CREATED,
+    summary="Create feature",
+    description="Create a new feature (Why Choose Us) and export"
+)
+async def create_feature(
+    feature: FeatureCreate,
+    db: AsyncSession = Depends(get_db),
+    admin: Company = Depends(get_current_admin)
+):
+    """Create feature and export to static file."""
+    logger.info(f"Admin {admin.id} creating feature: {feature.title}")
+    
+    try:
+        await CMSAdminService.create_feature(db, **feature.dict())
+        
+        return MessageResponse(
+            message="Feature created and exported successfully"
+        )
+        
+    except Exception as e:
+        logger.error(f"Failed to create feature: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to create feature: {str(e)}"
+        )
+
+
+@router.patch(
+    "/features/{feature_id}",
+    response_model=MessageResponse,
+    summary="Update feature",
+    description="Update a feature and export"
+)
+async def update_feature(
+    feature_id: int,
+    feature: FeatureUpdate,
+    db: AsyncSession = Depends(get_db),
+    admin: Company = Depends(get_current_admin)
+):
+    """Update feature and export to static file."""
+    logger.info(f"Admin {admin.id} updating feature {feature_id}")
+    
+    try:
+        updates = {k: v for k, v in feature.dict().items() if v is not None}
+        
+        if not updates:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="No updates provided"
+            )
+        
+        await CMSAdminService.update_feature(db, feature_id, **updates)
+        
+        return MessageResponse(
+            message="Feature updated and exported successfully"
+        )
+        
+    except Exception as e:
+        logger.error(f"Failed to update feature: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to update feature: {str(e)}"
+        )
+
+
+@router.delete(
+    "/features/{feature_id}",
+    response_model=MessageResponse,
+    summary="Delete feature",
+    description="Delete a feature and export"
+)
+async def delete_feature(
+    feature_id: int,
+    db: AsyncSession = Depends(get_db),
+    admin: Company = Depends(get_current_admin)
+):
+    """Delete feature and export to static file."""
+    logger.info(f"Admin {admin.id} deleting feature {feature_id}")
+    
+    try:
+        await CMSAdminService.delete_feature(db, feature_id)
+        
+        return MessageResponse(
+            message="Feature deleted and exported successfully"
+        )
+        
+    except Exception as e:
+        logger.error(f"Failed to delete feature: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to delete feature: {str(e)}"
+        )
+
+
+# ============================================================================
+# Client Logos Endpoints
+# ============================================================================
+
+@router.post(
+    "/client-logos",
+    response_model=MessageResponse,
+    status_code=status.HTTP_201_CREATED,
+    summary="Create client logo",
+    description="Create a new client logo and export"
+)
+async def create_client_logo(
+    logo: ClientLogoCreate,
+    db: AsyncSession = Depends(get_db),
+    admin: Company = Depends(get_current_admin)
+):
+    """Create client logo and export to static file."""
+    logger.info(f"Admin {admin.id} creating client logo: {logo.name}")
+    
+    try:
+        await CMSAdminService.create_client_logo(db, **logo.dict())
+        
+        return MessageResponse(
+            message="Client logo created and exported successfully"
+        )
+        
+    except Exception as e:
+        logger.error(f"Failed to create client logo: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to create client logo: {str(e)}"
+        )
+
+
+@router.patch(
+    "/client-logos/{logo_id}",
+    response_model=MessageResponse,
+    summary="Update client logo",
+    description="Update a client logo and export"
+)
+async def update_client_logo(
+    logo_id: int,
+    logo: ClientLogoUpdate,
+    db: AsyncSession = Depends(get_db),
+    admin: Company = Depends(get_current_admin)
+):
+    """Update client logo and export to static file."""
+    logger.info(f"Admin {admin.id} updating client logo {logo_id}")
+    
+    try:
+        updates = {k: v for k, v in logo.dict().items() if v is not None}
+        
+        if not updates:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="No updates provided"
+            )
+        
+        await CMSAdminService.update_client_logo(db, logo_id, **updates)
+        
+        return MessageResponse(
+            message="Client logo updated and exported successfully"
+        )
+        
+    except Exception as e:
+        logger.error(f"Failed to update client logo: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to update client logo: {str(e)}"
+        )
+
+
+@router.delete(
+    "/client-logos/{logo_id}",
+    response_model=MessageResponse,
+    summary="Delete client logo",
+    description="Delete a client logo and export"
+)
+async def delete_client_logo(
+    logo_id: int,
+    db: AsyncSession = Depends(get_db),
+    admin: Company = Depends(get_current_admin)
+):
+    """Delete client logo and export to static file."""
+    logger.info(f"Admin {admin.id} deleting client logo {logo_id}")
+    
+    try:
+        await CMSAdminService.delete_client_logo(db, logo_id)
+        
+        return MessageResponse(
+            message="Client logo deleted and exported successfully"
+        )
+        
+    except Exception as e:
+        logger.error(f"Failed to delete client logo: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to delete client logo: {str(e)}"
+        )
+
+
+# ============================================================================
+# Team Members Endpoints
+# ============================================================================
+
+@router.post(
+    "/team-members",
+    response_model=MessageResponse,
+    status_code=status.HTTP_201_CREATED,
+    summary="Create team member",
+    description="Create a new team member and export"
+)
+async def create_team_member(
+    member: TeamMemberCreate,
+    db: AsyncSession = Depends(get_db),
+    admin: Company = Depends(get_current_admin)
+):
+    """Create team member and export to static file."""
+    logger.info(f"Admin {admin.id} creating team member: {member.name}")
+    
+    try:
+        await CMSAdminService.create_team_member(db, **member.dict())
+        
+        return MessageResponse(
+            message="Team member created and exported successfully"
+        )
+        
+    except Exception as e:
+        logger.error(f"Failed to create team member: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to create team member: {str(e)}"
+        )
+
+
+@router.patch(
+    "/team-members/{member_id}",
+    response_model=MessageResponse,
+    summary="Update team member",
+    description="Update a team member and export"
+)
+async def update_team_member(
+    member_id: int,
+    member: TeamMemberUpdate,
+    db: AsyncSession = Depends(get_db),
+    admin: Company = Depends(get_current_admin)
+):
+    """Update team member and export to static file."""
+    logger.info(f"Admin {admin.id} updating team member {member_id}")
+    
+    try:
+        updates = {k: v for k, v in member.dict().items() if v is not None}
+        
+        if not updates:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="No updates provided"
+            )
+        
+        await CMSAdminService.update_team_member(db, member_id, **updates)
+        
+        return MessageResponse(
+            message="Team member updated and exported successfully"
+        )
+        
+    except Exception as e:
+        logger.error(f"Failed to update team member: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to update team member: {str(e)}"
+        )
+
+
+@router.delete(
+    "/team-members/{member_id}",
+    response_model=MessageResponse,
+    summary="Delete team member",
+    description="Delete a team member and export"
+)
+async def delete_team_member(
+    member_id: int,
+    db: AsyncSession = Depends(get_db),
+    admin: Company = Depends(get_current_admin)
+):
+    """Delete team member and export to static file."""
+    logger.info(f"Admin {admin.id} deleting team member {member_id}")
+    
+    try:
+        await CMSAdminService.delete_team_member(db, member_id)
+        
+        return MessageResponse(
+            message="Team member deleted and exported successfully"
+        )
+        
+    except Exception as e:
+        logger.error(f"Failed to delete team member: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to delete team member: {str(e)}"
+        )
+
+
+# ============================================================================
+# Company Values Endpoints
+# ============================================================================
+
+@router.post(
+    "/company-values",
+    response_model=MessageResponse,
+    status_code=status.HTTP_201_CREATED,
+    summary="Create company value",
+    description="Create a new company value and export"
+)
+async def create_company_value(
+    value: CompanyValueCreate,
+    db: AsyncSession = Depends(get_db),
+    admin: Company = Depends(get_current_admin)
+):
+    """Create company value and export to static file."""
+    logger.info(f"Admin {admin.id} creating company value: {value.title}")
+    
+    try:
+        await CMSAdminService.create_company_value(db, **value.dict())
+        
+        return MessageResponse(
+            message="Company value created and exported successfully"
+        )
+        
+    except Exception as e:
+        logger.error(f"Failed to create company value: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to create company value: {str(e)}"
+        )
+
+
+@router.patch(
+    "/company-values/{value_id}",
+    response_model=MessageResponse,
+    summary="Update company value",
+    description="Update a company value and export"
+)
+async def update_company_value(
+    value_id: int,
+    value: CompanyValueUpdate,
+    db: AsyncSession = Depends(get_db),
+    admin: Company = Depends(get_current_admin)
+):
+    """Update company value and export to static file."""
+    logger.info(f"Admin {admin.id} updating company value {value_id}")
+    
+    try:
+        updates = {k: v for k, v in value.dict().items() if v is not None}
+        
+        if not updates:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="No updates provided"
+            )
+        
+        await CMSAdminService.update_company_value(db, value_id, **updates)
+        
+        return MessageResponse(
+            message="Company value updated and exported successfully"
+        )
+        
+    except Exception as e:
+        logger.error(f"Failed to update company value: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to update company value: {str(e)}"
+        )
+
+
+@router.delete(
+    "/company-values/{value_id}",
+    response_model=MessageResponse,
+    summary="Delete company value",
+    description="Delete a company value and export"
+)
+async def delete_company_value(
+    value_id: int,
+    db: AsyncSession = Depends(get_db),
+    admin: Company = Depends(get_current_admin)
+):
+    """Delete company value and export to static file."""
+    logger.info(f"Admin {admin.id} deleting company value {value_id}")
+    
+    try:
+        await CMSAdminService.delete_company_value(db, value_id)
+        
+        return MessageResponse(
+            message="Company value deleted and exported successfully"
+        )
+        
+    except Exception as e:
+        logger.error(f"Failed to delete company value: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to delete company value: {str(e)}"
+        )
+
+
+# ============================================================================
+# Company Milestones Endpoints
+# ============================================================================
+
+@router.post(
+    "/company-milestones",
+    response_model=MessageResponse,
+    status_code=status.HTTP_201_CREATED,
+    summary="Create company milestone",
+    description="Create a new company milestone and export"
+)
+async def create_company_milestone(
+    milestone: CompanyMilestoneCreate,
+    db: AsyncSession = Depends(get_db),
+    admin: Company = Depends(get_current_admin)
+):
+    """Create company milestone and export to static file."""
+    logger.info(f"Admin {admin.id} creating company milestone: {milestone.title}")
+    
+    try:
+        await CMSAdminService.create_company_milestone(db, **milestone.dict())
+        
+        return MessageResponse(
+            message="Company milestone created and exported successfully"
+        )
+        
+    except Exception as e:
+        logger.error(f"Failed to create company milestone: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to create company milestone: {str(e)}"
+        )
+
+
+@router.patch(
+    "/company-milestones/{milestone_id}",
+    response_model=MessageResponse,
+    summary="Update company milestone",
+    description="Update a company milestone and export"
+)
+async def update_company_milestone(
+    milestone_id: int,
+    milestone: CompanyMilestoneUpdate,
+    db: AsyncSession = Depends(get_db),
+    admin: Company = Depends(get_current_admin)
+):
+    """Update company milestone and export to static file."""
+    logger.info(f"Admin {admin.id} updating company milestone {milestone_id}")
+    
+    try:
+        updates = {k: v for k, v in milestone.dict().items() if v is not None}
+        
+        if not updates:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="No updates provided"
+            )
+        
+        await CMSAdminService.update_company_milestone(db, milestone_id, **updates)
+        
+        return MessageResponse(
+            message="Company milestone updated and exported successfully"
+        )
+        
+    except Exception as e:
+        logger.error(f"Failed to update company milestone: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to update company milestone: {str(e)}"
+        )
+
+
+@router.delete(
+    "/company-milestones/{milestone_id}",
+    response_model=MessageResponse,
+    summary="Delete company milestone",
+    description="Delete a company milestone and export"
+)
+async def delete_company_milestone(
+    milestone_id: int,
+    db: AsyncSession = Depends(get_db),
+    admin: Company = Depends(get_current_admin)
+):
+    """Delete company milestone and export to static file."""
+    logger.info(f"Admin {admin.id} deleting company milestone {milestone_id}")
+    
+    try:
+        await CMSAdminService.delete_company_milestone(db, milestone_id)
+        
+        return MessageResponse(
+            message="Company milestone deleted and exported successfully"
+        )
+        
+    except Exception as e:
+        logger.error(f"Failed to delete company milestone: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to delete company milestone: {str(e)}"
+        )
+
+
+# ============================================================================
+# Contact Locations Endpoints  
+# ============================================================================
+
+@router.post(
+    "/contact-locations",
+    response_model=MessageResponse,
+    status_code=status.HTTP_201_CREATED,
+    summary="Create contact location",
+    description="Create a new contact location and export"
+)
+async def create_contact_location(
+    location: ContactLocationCreate,
+    db: AsyncSession = Depends(get_db),
+    admin: Company = Depends(get_current_admin)
+):
+    """Create contact location and export to static file."""
+    logger.info(f"Admin {admin.id} creating contact location: {location.location_name}")
+    
+    try:
+        await CMSAdminService.create_contact_location(db, **location.dict())
+        
+        return MessageResponse(
+            message="Contact location created and exported successfully"
+        )
+        
+    except Exception as e:
+        logger.error(f"Failed to create contact location: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to create contact location: {str(e)}"
+        )
+
+
+@router.patch(
+    "/contact-locations/{location_id}",
+    response_model=MessageResponse,
+    summary="Update contact location",
+    description="Update a contact location and export"
+)
+async def update_contact_location(
+    location_id: int,
+    location: ContactLocationUpdate,
+    db: AsyncSession = Depends(get_db),
+    admin: Company = Depends(get_current_admin)
+):
+    """Update contact location and export to static file."""
+    logger.info(f"Admin {admin.id} updating contact location {location_id}")
+    
+    try:
+        updates = {k: v for k, v in location.dict().items() if v is not None}
+        
+        if not updates:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="No updates provided"
+            )
+        
+        await CMSAdminService.update_contact_location(db, location_id, **updates)
+        
+        return MessageResponse(
+            message="Contact location updated and exported successfully"
+        )
+        
+    except Exception as e:
+        logger.error(f"Failed to update contact location: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to update contact location: {str(e)}"
+        )
+
+
+@router.delete(
+    "/contact-locations/{location_id}",
+    response_model=MessageResponse,
+    summary="Delete contact location",
+    description="Delete a contact location and export"
+)
+async def delete_contact_location(
+    location_id: int,
+    db: AsyncSession = Depends(get_db),
+    admin: Company = Depends(get_current_admin)
+):
+    """Delete contact location and export to static file."""
+    logger.info(f"Admin {admin.id} deleting contact location {location_id}")
+    
+    try:
+        await CMSAdminService.delete_contact_location(db, location_id)
+        
+        return MessageResponse(
+            message="Contact location deleted and exported successfully"
+        )
+        
+    except Exception as e:
+        logger.error(f"Failed to delete contact location: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to delete contact location: {str(e)}"
+        )
+
+
+# ============================================================================
+# Company Info Endpoints
+# ============================================================================
+
+@router.post(
+    "/company-info",
+    response_model=MessageResponse,
+    status_code=status.HTTP_201_CREATED,
+    summary="Create company info section",
+    description="Create a new company info section and export"
+)
+async def create_company_info(
+    info: CompanyInfoCreate,
+    db: AsyncSession = Depends(get_db),
+    admin: Company = Depends(get_current_admin)
+):
+    """Create company info section and export to static file."""
+    logger.info(f"Admin {admin.id} creating company info: {info.section_key}")
+    
+    try:
+        await CMSAdminService.create_company_info(db, **info.dict())
+        
+        return MessageResponse(
+            message="Company info created and exported successfully"
+        )
+        
+    except Exception as e:
+        logger.error(f"Failed to create company info: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to create company info: {str(e)}"
+        )
+
+
+@router.patch(
+    "/company-info/{info_id}",
+    response_model=MessageResponse,
+    summary="Update company info section",
+    description="Update a company info section and export"
+)
+async def update_company_info(
+    info_id: int,
+    info: CompanyInfoUpdate,
+    db: AsyncSession = Depends(get_db),
+    admin: Company = Depends(get_current_admin)
+):
+    """Update company info section and export to static file."""
+    logger.info(f"Admin {admin.id} updating company info {info_id}")
+    
+    try:
+        updates = {k: v for k, v in info.dict().items() if v is not None}
+        
+        if not updates:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="No updates provided"
+            )
+        
+        await CMSAdminService.update_company_info(db, info_id, **updates)
+        
+        return MessageResponse(
+            message="Company info updated and exported successfully"
+        )
+        
+    except Exception as e:
+        logger.error(f"Failed to update company info: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to update company info: {str(e)}"
+        )
+
+
+@router.delete(
+    "/company-info/{info_id}",
+    response_model=MessageResponse,
+    summary="Delete company info section",
+    description="Delete a company info section and export"
+)
+async def delete_company_info(
+    info_id: int,
+    db: AsyncSession = Depends(get_db),
+    admin: Company = Depends(get_current_admin)
+):
+    """Delete company info section and export to static file."""
+    logger.info(f"Admin {admin.id} deleting company info {info_id}")
+    
+    try:
+        await CMSAdminService.delete_company_info(db, info_id)
+        
+        return MessageResponse(
+            message="Company info deleted and exported successfully"
+        )
+        
+    except Exception as e:
+        logger.error(f"Failed to delete company info: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to delete company info: {str(e)}"
         )
 
 

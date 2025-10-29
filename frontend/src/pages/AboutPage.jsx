@@ -1,3 +1,4 @@
+// eslint-disable-next-line no-unused-vars
 import { motion } from 'framer-motion';
 import Card from '../components/ui/Card';
 import EditableWrapper from '../components/admin/EditableWrapper';
@@ -25,8 +26,11 @@ const AboutPage = () => {
   const { data: values, loading: valuesLoading, refetch: refetchValues } = useCompanyValues();
   const { data: milestones, loading: milestonesLoading, refetch: refetchMilestones } = useCompanyMilestones();
   const { data: team, loading: teamLoading, refetch: refetchTeam } = useTeamMembers();
+  // eslint-disable-next-line no-unused-vars
   const { data: heroSection, loading: heroLoading, refetch: refetchHero } = usePageContent('about', 'hero');
+  // eslint-disable-next-line no-unused-vars
   const { data: storySection, loading: storyLoading, refetch: refetchStory } = usePageContent('about', 'story');
+  // eslint-disable-next-line no-unused-vars
   const { data: ctaSection, loading: ctaLoading, refetch: refetchCta } = usePageContent('about', 'cta');
 
   const loading = valuesLoading || milestonesLoading || teamLoading;
@@ -110,21 +114,14 @@ const AboutPage = () => {
     <div className="min-h-screen bg-dark-800">
       {/* Hero Section */}
       <section className="relative h-[500px] pt-16 bg-dark-900 text-white">
-        <EditableWrapper
-          id="about-hero-image"
-          type="image"
-          data={{ image_url: heroImage }}
-          onSave={(newData) => handleSaveContent('about', 'hero', { ...heroSection, ...newData }, refetchHero)}
-          label="Hero Background"
-        >
-          <div className="absolute inset-0 opacity-30">
-            <img
-              src={heroImage}
-              alt="Workshop"
-              className="w-full h-full object-cover"
-            />
-          </div>
-        </EditableWrapper>
+        <div className="absolute inset-0 opacity-30">
+          <img
+            src={heroImage}
+            alt="Workshop"
+            className="w-full h-full object-cover"
+          />
+        </div>
+        
         <div className="relative container h-full flex items-center">
           <motion.div
             initial={{ opacity: 0, y: 30 }}
@@ -154,6 +151,18 @@ const AboutPage = () => {
               <p className="text-xl lg:text-2xl">
                 {heroSubtitle}
               </p>
+            </EditableWrapper>
+            
+            <EditableWrapper
+              id="about-hero-image"
+              type="image"
+              data={{ image_url: heroImage }}
+              onSave={(newData) => handleSaveContent('about', 'hero', { ...heroSection, ...newData }, refetchHero)}
+              label="Hero Background Image"
+            >
+              <button className="mt-4 px-4 py-2 bg-accent-600/90 hover:bg-accent-700 text-white rounded-lg text-sm font-semibold backdrop-blur-sm border border-accent-400 transition-all">
+                📷 Change Background Image
+              </button>
             </EditableWrapper>
           </motion.div>
         </div>

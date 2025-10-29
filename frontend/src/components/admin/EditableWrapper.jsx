@@ -4,6 +4,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { useEditMode } from '../../contexts/useEditMode';
 import EditModal from './EditModal';
 import logger from '../../utils/logger';
+import { invalidateCache } from '../../utils/cache';
 
 const CONTEXT = 'EditableWrapper';
 
@@ -17,6 +18,8 @@ const CONTEXT = 'EditableWrapper';
  * @param {string} type - Type of content (text, textarea, image, rich-text, array)
  * @param {object} data - Current data for this element
  * @param {function} onSave - Callback when content is saved
+ * @param {function} refetch - Optional callback to refetch data after save
+ * @param {string} cacheKey - Optional cache key pattern to invalidate after save
  * @param {string} apiEndpoint - API endpoint to save to (e.g., '/api/v1/content/hero-slides/1')
  * @param {string} label - Label to display in edit indicator
  * @param {ReactNode} children - The content to wrap
@@ -25,7 +28,9 @@ const EditableWrapper = ({
   id, 
   type = 'text',
   data, 
-  onSave, 
+  onSave,
+  refetch,
+  cacheKey,
   apiEndpoint,
   label,
   children,
@@ -58,6 +63,19 @@ const EditableWrapper = ({
       if (onSave) {
         await onSave(newData);
       }
+      
+      // Invalidate cache if key provided
+      if (cacheKey) {
+        const invalidated = invalidateCache(cacheKey);
+        logger.debug(CONTEXT, `Invalidated ${invalidated} cache entries for pattern: ${cacheKey}`);
+      }
+      
+      // Trigger refetch if provided
+      if (refetch) {
+        logger.debug(CONTEXT, `Refetching data for ${id}`);
+        await refetch();
+      }
+      
       setShowModal(false);
       stopEditing();
     } catch (error) {

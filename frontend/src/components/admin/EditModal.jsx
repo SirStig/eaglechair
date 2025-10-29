@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+// eslint-disable-next-line no-unused-vars
 import { motion, AnimatePresence } from 'framer-motion';
 import Button from '../ui/Button';
 import { uploadImage, previewImage } from '../../utils/imageUpload';
@@ -24,8 +25,9 @@ const EditModal = ({ isOpen, onClose, onSave, elementData, elementType }) => {
       setFormData(elementData);
       setError(null);
       setImagePreview(null);
+      logger.debug(CONTEXT, `Modal opened with elementType: ${elementType}, data:`, elementData);
     }
-  }, [isOpen, elementData]);
+  }, [isOpen, elementData, elementType]);
 
   const handleChange = (e) => {
     const { name, value } = e.target;
@@ -74,33 +76,60 @@ const EditModal = ({ isOpen, onClose, onSave, elementData, elementType }) => {
   };
 
   const renderField = (key, value) => {
-    const label = key.charAt(0).toUpperCase() + key.slice(1).replace(/([A-Z])/g, ' $1');
+    const label = key.charAt(0).toUpperCase() + key.slice(1).replace(/([A-Z])/g, ' $1').replace(/_/g, ' ');
     
-    // Skip certain fields
-    if (['id', 'createdAt', 'updatedAt', 'displayOrder', 'isActive'].includes(key)) {
+    // Skip certain fields - auto-generated or internal
+    if (['id', 'created_at', 'updated_at', 'createdAt', 'updatedAt', 'view_count', 'viewCount', 'index'].includes(key)) {
       return null;
     }
 
-    // Image fields
-    if (key.toLowerCase().includes('image') || key.toLowerCase().includes('photo') || key.toLowerCase().includes('logo') || key.toLowerCase().includes('url') && value?.startsWith('/uploads')) {
+    // Skip arrays (like images array) - too complex for simple form
+    if (Array.isArray(value)) {
+      return null;
+    }
+
+    // Detect if this is an image field - either by field name OR by value being an image URL
+    const imageFieldNames = ['primary_image', 'primaryImage', 'background_image_url', 'backgroundImageUrl', 
+                             'image_url', 'imageUrl', 'logo_url', 'logoUrl', 'photo_url', 'photoUrl',
+                             'url', 'logo', 'image', 'photo', 'background', 'backgroundImage', 'cta_image'];
+    const isImageFieldByName = imageFieldNames.some(name => key.toLowerCase().includes(name.toLowerCase()));
+    const isImageURL = typeof value === 'string' && (
+      value.startsWith('http://') || 
+      value.startsWith('https://') || 
+      value.startsWith('/uploads/') ||
+      value.match(/\.(jpg|jpeg|png|gif|webp|svg)$/i)
+    );
+    const isImageField = isImageFieldByName || isImageURL;
+    
+    if (isImageField) {
+      const currentImage = imagePreview?.[key] || formData[key];
+      
       return (
         <div key={key} className="space-y-2">
           <label className="block text-sm font-medium text-dark-100">
             {label}
           </label>
           
-          {/* Current Image */}
-          {(imagePreview?.[key] || formData[key]) && (
-            <div className="relative w-full max-w-md mx-auto bg-dark-700 rounded-lg overflow-hidden">
+          {/* Current Image Preview */}
+          {currentImage && (
+            <div className="relative w-full max-w-md mx-auto bg-dark-700 rounded-lg overflow-hidden border-2 border-dark-500">
               <img
-                src={imagePreview?.[key] || formData[key]}
+                src={currentImage}
                 alt={label}
                 className="w-full h-auto max-h-64 object-contain"
+                onError={(e) => {
+                  // If image fails to load, hide the preview
+                  e.target.style.display = 'none';
+                }}
               />
+              {/* Image overlay showing it's the current image */}
+              <div className="absolute top-2 left-2 px-2 py-1 bg-dark-900/80 text-dark-50 text-xs rounded">
+                Current Image
+              </div>
             </div>
           )}
           
-          {/* Upload Button */}
+          {/* Upload/Replace Button */}
           <div className="flex items-center gap-2">
             <label className="cursor-pointer">
               <input
@@ -110,17 +139,20 @@ const EditModal = ({ isOpen, onClose, onSave, elementData, elementType }) => {
                 className="hidden"
                 disabled={uploadingImage}
               />
-              <div className="px-4 py-2 bg-dark-700 hover:bg-dark-600 text-dark-50 rounded-lg transition-colors border border-dark-500 text-sm font-medium">
-                {uploadingImage ? 'Uploading...' : 'Choose Image'}
+              <div className="px-4 py-2 bg-primary-600 hover:bg-primary-700 text-dark-900 rounded-lg transition-colors border border-primary-500 text-sm font-semibold">
+                {uploadingImage ? 'Uploading...' : currentImage ? 'Replace Image' : 'Upload Image'}
               </div>
             </label>
             {formData[key] && (
               <button
                 type="button"
-                onClick={() => setFormData(prev => ({ ...prev, [key]: '' }))}
+                onClick={() => {
+                  setFormData(prev => ({ ...prev, [key]: '' }));
+                  setImagePreview(prev => ({ ...prev, [key]: null }));
+                }}
                 className="px-4 py-2 bg-red-900/50 hover:bg-red-900/70 text-red-100 rounded-lg transition-colors border border-red-700 text-sm font-medium"
               >
-                Remove
+                Remove Image
               </button>
             )}
           </div>
@@ -128,27 +160,29 @@ const EditModal = ({ isOpen, onClose, onSave, elementData, elementType }) => {
       );
     }
 
-    // Long text fields (textarea)
-    if (typeof value === 'string' && (value.length > 100 || key.toLowerCase().includes('description') || key.toLowerCase().includes('content') || key.toLowerCase().includes('bio'))) {
+    // Boolean fields (checkboxes) - check key name pattern
+    const booleanFields = ['is_active', 'is_featured', 'isActive', 'isFeatured', 'is_published', 'isPublished'];
+    if (booleanFields.includes(key) || typeof value === 'boolean') {
       return (
-        <div key={key} className="space-y-2">
-          <label htmlFor={key} className="block text-sm font-medium text-dark-100">
-            {label}
-          </label>
-          <textarea
+        <div key={key} className="flex items-center gap-3">
+          <input
             id={key}
             name={key}
-            value={formData[key] || ''}
-            onChange={handleChange}
-            rows={key.toLowerCase().includes('content') || key.toLowerCase().includes('description') ? 6 : 4}
-            className="w-full px-4 py-2 bg-dark-700 border border-dark-500 rounded-lg text-dark-50 placeholder-dark-300 focus:outline-none focus:ring-2 focus:ring-accent-500 focus:border-transparent resize-none"
+            type="checkbox"
+            checked={formData[key] || false}
+            onChange={(e) => setFormData(prev => ({ ...prev, [key]: e.target.checked }))}
+            className="w-5 h-5 bg-dark-700 border border-dark-500 rounded text-accent-500 focus:ring-2 focus:ring-accent-500"
           />
+          <label htmlFor={key} className="text-sm font-medium text-dark-100">
+            {label}
+          </label>
         </div>
       );
     }
 
-    // Regular text fields
-    if (typeof value === 'string' || typeof value === 'number') {
+    // Number fields - check key name or if value is a number
+    const numberFields = ['display_order', 'displayOrder', 'order', 'sort_order', 'sortOrder'];
+    if (numberFields.includes(key) || (typeof value === 'number' && !booleanFields.includes(key))) {
       return (
         <div key={key} className="space-y-2">
           <label htmlFor={key} className="block text-sm font-medium text-dark-100">
@@ -157,8 +191,50 @@ const EditModal = ({ isOpen, onClose, onSave, elementData, elementType }) => {
           <input
             id={key}
             name={key}
-            type={typeof value === 'number' ? 'number' : 'text'}
-            value={formData[key] || ''}
+            type="number"
+            value={formData[key] ?? ''}
+            onChange={handleChange}
+            className="w-full px-4 py-2 bg-dark-700 border border-dark-500 rounded-lg text-dark-50 placeholder-dark-300 focus:outline-none focus:ring-2 focus:ring-accent-500 focus:border-transparent"
+          />
+        </div>
+      );
+    }
+
+    // Long text fields (textarea) - check key name or length
+    const textareaFields = ['description', 'content', 'bio', 'full_description', 'fullDescription'];
+    const shouldBeTextarea = textareaFields.some(field => key.toLowerCase().includes(field)) || 
+                            (typeof value === 'string' && value.length > 100);
+    
+    if (shouldBeTextarea) {
+      return (
+        <div key={key} className="space-y-2">
+          <label htmlFor={key} className="block text-sm font-medium text-dark-100">
+            {label}
+          </label>
+          <textarea
+            id={key}
+            name={key}
+            value={formData[key] ?? ''}
+            onChange={handleChange}
+            rows={6}
+            className="w-full px-4 py-2 bg-dark-700 border border-dark-500 rounded-lg text-dark-50 placeholder-dark-300 focus:outline-none focus:ring-2 focus:ring-accent-500 focus:border-transparent resize-none"
+          />
+        </div>
+      );
+    }
+
+    // Default: Regular text fields (includes null/undefined values)
+    if (value === null || value === undefined || typeof value === 'string') {
+      return (
+        <div key={key} className="space-y-2">
+          <label htmlFor={key} className="block text-sm font-medium text-dark-100">
+            {label}
+          </label>
+          <input
+            id={key}
+            name={key}
+            type="text"
+            value={formData[key] ?? ''}
             onChange={handleChange}
             className="w-full px-4 py-2 bg-dark-700 border border-dark-500 rounded-lg text-dark-50 placeholder-dark-300 focus:outline-none focus:ring-2 focus:ring-accent-500 focus:border-transparent"
           />
@@ -207,7 +283,13 @@ const EditModal = ({ isOpen, onClose, onSave, elementData, elementType }) => {
 
           {/* Content */}
           <form onSubmit={handleSubmit} className="flex-1 overflow-y-auto px-6 py-4 space-y-4">
-            {elementData && Object.keys(elementData).map(key => renderField(key, elementData[key]))}
+            {elementData && Object.keys(elementData).length > 0 ? (
+              Object.keys(elementData).map(key => renderField(key, elementData[key]))
+            ) : (
+              <div className="text-center py-8 text-dark-300">
+                No editable fields available for this {elementType}
+              </div>
+            )}
             
             {error && (
               <div className="p-4 bg-red-900/20 border border-red-700 rounded-lg text-red-100 text-sm">

@@ -787,7 +787,7 @@ export const companyInfo = {
 export const demoSiteSettings = {
   companyName: "Eagle Chair",
   companyTagline: "Premium Commercial Furniture Since 1984",
-  logoUrl: "/assets/eagle-chair-logo.png",
+  logoUrl: "/uploads/images/logos/eagle-chair-logo_1761709955.png",
   primaryEmail: "info@eaglechair.com",
   primaryPhone: "(616) 555-0100",
   salesEmail: "sales@eaglechair.com",
