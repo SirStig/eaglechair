@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import Card from '../../ui/Card';
 import Button from '../../ui/Button';
 import axios from 'axios';
@@ -149,8 +149,8 @@ const CategoryManagement = () => {
                   const isExpanded = expandedCategories.has(category.id);
                   
                   return (
-                    <>
-                      <tr key={category.id} className="hover:bg-dark-750 transition-colors">
+                    <React.Fragment key={category.id}>
+                      <tr className="hover:bg-dark-750 transition-colors">
                         {/* Icon */}
                         <td className="px-6 py-4">
                           <div className="flex items-center gap-2">
@@ -337,7 +337,7 @@ const CategoryManagement = () => {
                           </td>
                         </tr>
                       ))}
-                    </>
+                    </React.Fragment>
                   );
                 })}
               </tbody>

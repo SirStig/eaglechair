@@ -104,9 +104,10 @@ async def get_site_settings(db: AsyncSession = Depends(get_db)):
         "linkedinUrl": settings.linkedin_url,
         "twitterUrl": settings.twitter_url,
         "youtubeUrl": settings.youtube_url,
-        "googleMapsUrl": settings.google_maps_url,
+        "metaTitle": settings.meta_title,
         "metaDescription": settings.meta_description,
-        "metaKeywords": settings.meta_keywords
+        "metaKeywords": settings.meta_keywords,
+        "logoDarkUrl": settings.logo_dark_url
     }
 
 

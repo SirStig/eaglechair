@@ -4,11 +4,12 @@ Admin Colors Routes
 CRUD operations for colors
 """
 
+from typing import Optional
+
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
-from typing import Optional
 
 from backend.database.base import get_db
 from backend.models.chair import Color

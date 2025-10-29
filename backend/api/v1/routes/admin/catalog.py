@@ -19,6 +19,12 @@ from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from backend.api.dependencies import get_current_admin, require_role
+from backend.api.v1.schemas.admin import (
+    FamilyCreate,
+    FamilyUpdate,
+    SubcategoryCreate,
+    SubcategoryUpdate,
+)
 from backend.api.v1.schemas.common import MessageResponse
 from backend.core.exceptions import ResourceNotFoundError
 from backend.database.base import get_db
@@ -106,7 +112,7 @@ async def create_color(
     await db.commit()
     await db.refresh(color)
     
-    return orm_to_dict(color, status_code=status.HTTP_201_CREATED)
+    return orm_to_dict(color)
 
 
 @router.put(
@@ -265,7 +271,7 @@ async def create_finish(
     await db.commit()
     await db.refresh(finish)
     
-    return orm_to_dict(finish, status_code=status.HTTP_201_CREATED)
+    return orm_to_dict(finish)
 
 
 @router.put(
@@ -467,7 +473,7 @@ async def create_upholstery(
     await db.commit()
     await db.refresh(upholstery)
     
-    return orm_to_dict(upholstery, status_code=status.HTTP_201_CREATED)
+    return orm_to_dict(upholstery)
 
 
 @router.put(
@@ -647,7 +653,7 @@ async def create_custom_option(
     await db.commit()
     await db.refresh(custom_option)
     
-    return orm_to_dict(custom_option, status_code=status.HTTP_201_CREATED)
+    return orm_to_dict(custom_option)
 
 
 @router.put(
@@ -782,42 +788,20 @@ async def get_families(
     description="Create a new product family"
 )
 async def create_family(
-    name: str,
-    slug: str,
-    description: Optional[str] = None,
-    category_id: Optional[int] = None,
-    subcategory_id: Optional[int] = None,
-    family_image: Optional[str] = None,
-    banner_image_url: Optional[str] = None,
-    overview_text: Optional[str] = None,
-    display_order: int = 0,
-    is_active: bool = True,
-    is_featured: bool = False,
+    family_data: FamilyCreate,
     admin: AdminUser = Depends(require_role(AdminRole.ADMIN)),
     db: AsyncSession = Depends(get_db)
 ):
     """Create a new product family. Admin only."""
-    logger.info(f"Admin {admin.username} creating family: {name}")
+    logger.info(f"Admin {admin.username} creating family: {family_data.name}")
     
-    family = ProductFamily(
-        name=name,
-        slug=slug,
-        description=description,
-        category_id=category_id,
-        subcategory_id=subcategory_id,
-        family_image=family_image,
-        banner_image_url=banner_image_url,
-        overview_text=overview_text,
-        display_order=display_order,
-        is_active=is_active,
-        is_featured=is_featured
-    )
+    family = ProductFamily(**family_data.dict())
     
     db.add(family)
     await db.commit()
     await db.refresh(family)
     
-    return orm_to_dict(family, status_code=status.HTTP_201_CREATED)
+    return orm_to_dict(family)
 
 
 @router.put(
@@ -827,17 +811,7 @@ async def create_family(
 )
 async def update_family(
     family_id: int,
-    name: Optional[str] = None,
-    slug: Optional[str] = None,
-    description: Optional[str] = None,
-    category_id: Optional[int] = None,
-    subcategory_id: Optional[int] = None,
-    family_image: Optional[str] = None,
-    banner_image_url: Optional[str] = None,
-    overview_text: Optional[str] = None,
-    display_order: Optional[int] = None,
-    is_active: Optional[bool] = None,
-    is_featured: Optional[bool] = None,
+    family_data: FamilyUpdate,
     admin: AdminUser = Depends(require_role(AdminRole.ADMIN)),
     db: AsyncSession = Depends(get_db)
 ):
@@ -851,28 +825,10 @@ async def update_family(
     if not family:
         raise HTTPException(status_code=404, detail=f"Family {family_id} not found")
     
-    if name is not None:
-        family.name = name
-    if slug is not None:
-        family.slug = slug
-    if description is not None:
-        family.description = description
-    if category_id is not None:
-        family.category_id = category_id
-    if subcategory_id is not None:
-        family.subcategory_id = subcategory_id
-    if family_image is not None:
-        family.family_image = family_image
-    if banner_image_url is not None:
-        family.banner_image_url = banner_image_url
-    if overview_text is not None:
-        family.overview_text = overview_text
-    if display_order is not None:
-        family.display_order = display_order
-    if is_active is not None:
-        family.is_active = is_active
-    if is_featured is not None:
-        family.is_featured = is_featured
+    # Update only provided fields
+    update_dict = family_data.dict(exclude_unset=True)
+    for key, value in update_dict.items():
+        setattr(family, key, value)
     
     await db.commit()
     await db.refresh(family)
@@ -955,32 +911,20 @@ async def get_subcategories(
     description="Create a new subcategory"
 )
 async def create_subcategory(
-    name: str,
-    slug: str,
-    category_id: int,
-    description: Optional[str] = None,
-    display_order: int = 0,
-    is_active: bool = True,
+    subcategory_data: SubcategoryCreate,
     admin: AdminUser = Depends(require_role(AdminRole.ADMIN)),
     db: AsyncSession = Depends(get_db)
 ):
     """Create a new subcategory. Admin only."""
-    logger.info(f"Admin {admin.username} creating subcategory: {name}")
+    logger.info(f"Admin {admin.username} creating subcategory: {subcategory_data.name}")
     
-    subcategory = ProductSubcategory(
-        name=name,
-        slug=slug,
-        category_id=category_id,
-        description=description,
-        display_order=display_order,
-        is_active=is_active
-    )
+    subcategory = ProductSubcategory(**subcategory_data.dict())
     
     db.add(subcategory)
     await db.commit()
     await db.refresh(subcategory)
     
-    return orm_to_dict(subcategory, status_code=status.HTTP_201_CREATED)
+    return orm_to_dict(subcategory)
 
 
 @router.put(
@@ -990,12 +934,7 @@ async def create_subcategory(
 )
 async def update_subcategory(
     subcategory_id: int,
-    name: Optional[str] = None,
-    slug: Optional[str] = None,
-    category_id: Optional[int] = None,
-    description: Optional[str] = None,
-    display_order: Optional[int] = None,
-    is_active: Optional[bool] = None,
+    subcategory_data: SubcategoryUpdate,
     admin: AdminUser = Depends(require_role(AdminRole.ADMIN)),
     db: AsyncSession = Depends(get_db)
 ):
@@ -1009,18 +948,10 @@ async def update_subcategory(
     if not subcategory:
         raise HTTPException(status_code=404, detail=f"Subcategory {subcategory_id} not found")
     
-    if name is not None:
-        subcategory.name = name
-    if slug is not None:
-        subcategory.slug = slug
-    if category_id is not None:
-        subcategory.category_id = category_id
-    if description is not None:
-        subcategory.description = description
-    if display_order is not None:
-        subcategory.display_order = display_order
-    if is_active is not None:
-        subcategory.is_active = is_active
+    # Update only provided fields
+    update_dict = subcategory_data.dict(exclude_unset=True)
+    for key, value in update_dict.items():
+        setattr(subcategory, key, value)
     
     await db.commit()
     await db.refresh(subcategory)

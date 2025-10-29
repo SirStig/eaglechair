@@ -68,6 +68,48 @@ export const getSiteSettings = async () => {
   );
 };
 
+// Site Settings (Admin - always fetch from DB)
+export const getSiteSettingsAdmin = async () => {
+  logger.info(CONTEXT, 'Fetching site settings (admin)');
+  const response = await api.get('/api/v1/content/site-settings');
+  
+  // Convert camelCase to snake_case for form compatibility
+  if (response) {
+    return {
+      id: response.id,
+      company_name: response.companyName,
+      company_tagline: response.companyTagline,
+      logo_url: response.logoUrl,
+      logo_dark_url: response.logoDarkUrl,
+      favicon_url: response.faviconUrl,
+      primary_email: response.primaryEmail,
+      primary_phone: response.primaryPhone,
+      sales_email: response.salesEmail,
+      sales_phone: response.salesPhone,
+      support_email: response.supportEmail,
+      support_phone: response.supportPhone,
+      address_line1: response.addressLine1,
+      address_line2: response.addressLine2,
+      city: response.city,
+      state: response.state,
+      zip_code: response.zipCode,
+      country: response.country,
+      business_hours_weekdays: response.businessHoursWeekdays,
+      business_hours_saturday: response.businessHoursSaturday,
+      business_hours_sunday: response.businessHoursSunday,
+      facebook_url: response.facebookUrl,
+      instagram_url: response.instagramUrl,
+      linkedin_url: response.linkedinUrl,
+      twitter_url: response.twitterUrl,
+      youtube_url: response.youtubeUrl,
+      meta_title: response.metaTitle,
+      meta_description: response.metaDescription,
+      meta_keywords: response.metaKeywords
+    };
+  }
+  return response;
+};
+
 // Company Info
 export const getCompanyInfo = async (sectionKey = null) => {
   return getStaticOrAPI(
@@ -296,7 +338,7 @@ export const updatePageContent = async (pageSlug, sectionKey, updates) => {
       return handleDemoWrite('UPDATE', 'PageContent');
     }
     logger.info(CONTEXT, `Updating page content (${pageSlug}/${sectionKey})`);
-    const response = await api.patch(`/api/v1/cms-content/page-content/${pageSlug}/${sectionKey}`, updates);
+    const response = await api.patch(`/api/v1/cms-admin/page-content/${pageSlug}/${sectionKey}`, updates);
     return response;
   } catch (error) {
     logger.error(CONTEXT, 'Error updating page content', error);
@@ -311,7 +353,9 @@ export const updateSiteSettings = async (updates) => {
       return handleDemoWrite('UPDATE', 'SiteSettings');
     }
     logger.info(CONTEXT, 'Updating site settings');
-    const response = await api.patch('/api/v1/cms-content/site-settings', updates);
+    
+    // Backend expects snake_case, form data is already in snake_case, send as-is
+    const response = await api.patch('/api/v1/cms-admin/site-settings', updates);
     return response;
   } catch (error) {
     logger.error(CONTEXT, 'Error updating site settings', error);
@@ -326,7 +370,7 @@ export const updateCompanyInfo = async (id, updates) => {
       return handleDemoWrite('UPDATE', 'CompanyInfo', id);
     }
     logger.info(CONTEXT, `Updating company info ${id}`);
-    const response = await api.patch(`/api/v1/cms-content/company-info/${id}`, updates);
+    const response = await api.patch(`/api/v1/cms-admin/company-info/${id}`, updates);
     return response;
   } catch (error) {
     logger.error(CONTEXT, 'Error updating company info', error);
@@ -341,7 +385,7 @@ export const updateTeamMember = async (id, updates) => {
       return handleDemoWrite('UPDATE', 'TeamMember', id);
     }
     logger.info(CONTEXT, `Updating team member ${id}`);
-    const response = await api.patch(`/api/v1/cms-content/team-members/${id}`, updates);
+    const response = await api.patch(`/api/v1/cms-admin/team-members/${id}`, updates);
     return response;
   } catch (error) {
     logger.error(CONTEXT, 'Error updating team member', error);
@@ -356,7 +400,7 @@ export const updateHeroSlide = async (id, updates) => {
       return handleDemoWrite('UPDATE', 'HeroSlide', id);
     }
     logger.info(CONTEXT, `Updating hero slide ${id}`);
-    const response = await api.patch(`/api/v1/cms-content/hero-slides/${id}`, updates);
+    const response = await api.patch(`/api/v1/cms-admin/hero-slides/${id}`, updates);
     return response;
   } catch (error) {
     logger.error(CONTEXT, 'Error updating hero slide', error);
@@ -371,7 +415,7 @@ export const updateFeature = async (id, updates) => {
       return handleDemoWrite('UPDATE', 'Feature', id);
     }
     logger.info(CONTEXT, `Updating feature ${id}`);
-    const response = await api.patch(`/api/v1/cms-content/features/${id}`, updates);
+    const response = await api.patch(`/api/v1/cms-admin/features/${id}`, updates);
     return response;
   } catch (error) {
     logger.error(CONTEXT, 'Error updating feature', error);
@@ -386,7 +430,7 @@ export const updateClientLogo = async (id, updates) => {
       return handleDemoWrite('UPDATE', 'ClientLogo', id);
     }
     logger.info(CONTEXT, `Updating client logo ${id}`);
-    const response = await api.patch(`/api/v1/cms-content/client-logos/${id}`, updates);
+    const response = await api.patch(`/api/v1/cms-admin/client-logos/${id}`, updates);
     return response;
   } catch (error) {
     logger.error(CONTEXT, 'Error updating client logo', error);
@@ -401,7 +445,7 @@ export const updateSalesRep = async (id, updates) => {
       return handleDemoWrite('UPDATE', 'SalesRep', id);
     }
     logger.info(CONTEXT, `Updating sales rep ${id}`);
-    const response = await api.patch(`/api/v1/cms-content/sales-reps/${id}`, updates);
+    const response = await api.patch(`/api/v1/cms-admin/sales-reps/${id}`, updates);
     return response;
   } catch (error) {
     logger.error(CONTEXT, 'Error updating sales rep', error);
@@ -431,7 +475,7 @@ export const updateContactLocation = async (id, updates) => {
       return handleDemoWrite('UPDATE', 'ContactLocation', id);
     }
     logger.info(CONTEXT, `Updating contact location ${id}`);
-    const response = await api.patch(`/api/v1/cms-content/contact-locations/${id}`, updates);
+    const response = await api.patch(`/api/v1/cms-admin/contact-locations/${id}`, updates);
     return response;
   } catch (error) {
     logger.error(CONTEXT, 'Error updating contact location', error);
@@ -446,7 +490,7 @@ export const updateCompanyValue = async (id, updates) => {
       return handleDemoWrite('UPDATE', 'CompanyValue', id);
     }
     logger.info(CONTEXT, `Updating company value ${id}`);
-    const response = await api.patch(`/api/v1/cms-content/company-values/${id}`, updates);
+    const response = await api.patch(`/api/v1/cms-admin/company-values/${id}`, updates);
     return response;
   } catch (error) {
     logger.error(CONTEXT, 'Error updating company value', error);
@@ -461,7 +505,7 @@ export const updateCompanyMilestone = async (id, updates) => {
       return handleDemoWrite('UPDATE', 'CompanyMilestone', id);
     }
     logger.info(CONTEXT, `Updating company milestone ${id}`);
-    const response = await api.patch(`/api/v1/cms-content/company-milestones/${id}`, updates);
+    const response = await api.patch(`/api/v1/cms-admin/company-milestones/${id}`, updates);
     return response;
   } catch (error) {
     logger.error(CONTEXT, 'Error updating company milestone', error);
@@ -478,7 +522,7 @@ export const createTeamMember = async (data) => {
       return handleDemoWrite('CREATE', 'TeamMember');
     }
     logger.info(CONTEXT, 'Creating team member');
-    const response = await api.post('/api/v1/cms-content/team-members', data);
+    const response = await api.post('/api/v1/cms-admin/team-members', data);
     return response;
   } catch (error) {
     logger.error(CONTEXT, 'Error creating team member', error);
@@ -493,7 +537,7 @@ export const createHeroSlide = async (data) => {
       return handleDemoWrite('CREATE', 'HeroSlide');
     }
     logger.info(CONTEXT, 'Creating hero slide');
-    const response = await api.post('/api/v1/cms-content/hero-slides', data);
+    const response = await api.post('/api/v1/cms-admin/hero-slides', data);
     return response;
   } catch (error) {
     logger.error(CONTEXT, 'Error creating hero slide', error);
@@ -508,7 +552,7 @@ export const createFeature = async (data) => {
       return handleDemoWrite('CREATE', 'Feature');
     }
     logger.info(CONTEXT, 'Creating feature');
-    const response = await api.post('/api/v1/cms-content/features', data);
+    const response = await api.post('/api/v1/cms-admin/features', data);
     return response;
   } catch (error) {
     logger.error(CONTEXT, 'Error creating feature', error);
@@ -523,7 +567,7 @@ export const createClientLogo = async (data) => {
       return handleDemoWrite('CREATE', 'ClientLogo');
     }
     logger.info(CONTEXT, 'Creating client logo');
-    const response = await api.post('/api/v1/cms-content/client-logos', data);
+    const response = await api.post('/api/v1/cms-admin/client-logos', data);
     return response;
   } catch (error) {
     logger.error(CONTEXT, 'Error creating client logo', error);
@@ -538,7 +582,7 @@ export const createSalesRep = async (data) => {
       return handleDemoWrite('CREATE', 'SalesRep');
     }
     logger.info(CONTEXT, 'Creating sales rep');
-    const response = await api.post('/api/v1/cms-content/sales-reps', data);
+    const response = await api.post('/api/v1/cms-admin/sales-reps', data);
     return response;
   } catch (error) {
     logger.error(CONTEXT, 'Error creating sales rep', error);
@@ -568,7 +612,7 @@ export const createContactLocation = async (data) => {
       return handleDemoWrite('CREATE', 'ContactLocation');
     }
     logger.info(CONTEXT, 'Creating contact location');
-    const response = await api.post('/api/v1/cms-content/contact-locations', data);
+    const response = await api.post('/api/v1/cms-admin/contact-locations', data);
     return response;
   } catch (error) {
     logger.error(CONTEXT, 'Error creating contact location', error);
@@ -583,7 +627,7 @@ export const createCompanyValue = async (data) => {
       return handleDemoWrite('CREATE', 'CompanyValue');
     }
     logger.info(CONTEXT, 'Creating company value');
-    const response = await api.post('/api/v1/cms-content/company-values', data);
+    const response = await api.post('/api/v1/cms-admin/company-values', data);
     return response;
   } catch (error) {
     logger.error(CONTEXT, 'Error creating company value', error);
@@ -598,7 +642,7 @@ export const createCompanyMilestone = async (data) => {
       return handleDemoWrite('CREATE', 'CompanyMilestone');
     }
     logger.info(CONTEXT, 'Creating company milestone');
-    const response = await api.post('/api/v1/cms-content/company-milestones', data);
+    const response = await api.post('/api/v1/cms-admin/company-milestones', data);
     return response;
   } catch (error) {
     logger.error(CONTEXT, 'Error creating company milestone', error);
@@ -610,7 +654,7 @@ export const createCompanyMilestone = async (data) => {
 export const createCompanyInfo = async (data) => {
   try {
     logger.info(CONTEXT, 'Creating company info');
-    const response = await api.post('/api/v1/cms-content/company-info', data);
+    const response = await api.post('/api/v1/cms-admin/company-info', data);
     return response;
   } catch (error) {
     logger.error(CONTEXT, 'Error creating company info', error);
@@ -627,7 +671,7 @@ export const deleteTeamMember = async (id) => {
       return handleDemoWrite('DELETE', 'TeamMember', id);
     }
     logger.info(CONTEXT, `Deleting team member ${id}`);
-    const response = await api.delete(`/api/v1/cms-content/team-members/${id}`);
+    const response = await api.delete(`/api/v1/cms-admin/team-members/${id}`);
     return response;
   } catch (error) {
     logger.error(CONTEXT, 'Error deleting team member', error);
@@ -642,7 +686,7 @@ export const deleteHeroSlide = async (id) => {
       return handleDemoWrite('DELETE', 'HeroSlide', id);
     }
     logger.info(CONTEXT, `Deleting hero slide ${id}`);
-    const response = await api.delete(`/api/v1/cms-content/hero-slides/${id}`);
+    const response = await api.delete(`/api/v1/cms-admin/hero-slides/${id}`);
     return response;
   } catch (error) {
     logger.error(CONTEXT, 'Error deleting hero slide', error);
@@ -657,7 +701,7 @@ export const deleteFeature = async (id) => {
       return handleDemoWrite('DELETE', 'Feature', id);
     }
     logger.info(CONTEXT, `Deleting feature ${id}`);
-    const response = await api.delete(`/api/v1/cms-content/features/${id}`);
+    const response = await api.delete(`/api/v1/cms-admin/features/${id}`);
     return response;
   } catch (error) {
     logger.error(CONTEXT, 'Error deleting feature', error);
@@ -672,7 +716,7 @@ export const deleteClientLogo = async (id) => {
       return handleDemoWrite('DELETE', 'ClientLogo', id);
     }
     logger.info(CONTEXT, `Deleting client logo ${id}`);
-    const response = await api.delete(`/api/v1/cms-content/client-logos/${id}`);
+    const response = await api.delete(`/api/v1/cms-admin/client-logos/${id}`);
     return response;
   } catch (error) {
     logger.error(CONTEXT, 'Error deleting client logo', error);
@@ -687,7 +731,7 @@ export const deleteSalesRep = async (id) => {
       return handleDemoWrite('DELETE', 'SalesRep', id);
     }
     logger.info(CONTEXT, `Deleting sales rep ${id}`);
-    const response = await api.delete(`/api/v1/cms-content/sales-reps/${id}`);
+    const response = await api.delete(`/api/v1/cms-admin/sales-reps/${id}`);
     return response;
   } catch (error) {
     logger.error(CONTEXT, 'Error deleting sales rep', error);
@@ -717,7 +761,7 @@ export const deleteContactLocation = async (id) => {
       return handleDemoWrite('DELETE', 'ContactLocation', id);
     }
     logger.info(CONTEXT, `Deleting contact location ${id}`);
-    const response = await api.delete(`/api/v1/cms-content/contact-locations/${id}`);
+    const response = await api.delete(`/api/v1/cms-admin/contact-locations/${id}`);
     return response;
   } catch (error) {
     logger.error(CONTEXT, 'Error deleting contact location', error);
@@ -732,7 +776,7 @@ export const deleteCompanyValue = async (id) => {
       return handleDemoWrite('DELETE', 'CompanyValue', id);
     }
     logger.info(CONTEXT, `Deleting company value ${id}`);
-    const response = await api.delete(`/api/v1/cms-content/company-values/${id}`);
+    const response = await api.delete(`/api/v1/cms-admin/company-values/${id}`);
     return response;
   } catch (error) {
     logger.error(CONTEXT, 'Error deleting company value', error);
@@ -747,7 +791,7 @@ export const deleteCompanyMilestone = async (id) => {
       return handleDemoWrite('DELETE', 'CompanyMilestone', id);
     }
     logger.info(CONTEXT, `Deleting company milestone ${id}`);
-    const response = await api.delete(`/api/v1/cms-content/company-milestones/${id}`);
+    const response = await api.delete(`/api/v1/cms-admin/company-milestones/${id}`);
     return response;
   } catch (error) {
     logger.error(CONTEXT, 'Error deleting company milestone', error);
@@ -762,7 +806,7 @@ export const deleteCompanyInfo = async (id) => {
       return handleDemoWrite('DELETE', 'CompanyInfo', id);
     }
     logger.info(CONTEXT, `Deleting company info ${id}`);
-    const response = await api.delete(`/api/v1/cms-content/company-info/${id}`);
+    const response = await api.delete(`/api/v1/cms-admin/company-info/${id}`);
     return response;
   } catch (error) {
     logger.error(CONTEXT, 'Error deleting company info', error);
@@ -960,4 +1004,5 @@ export default {
   createCategory,
   deleteCategory
 };
+
 

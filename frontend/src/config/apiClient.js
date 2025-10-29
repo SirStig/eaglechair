@@ -14,9 +14,7 @@ logger.info(CONTEXT, `Initializing API client - Base URL: ${API_BASE_URL}, Demo 
 const apiClient = axios.create({
   baseURL: API_BASE_URL,
   timeout: API_TIMEOUT,
-  headers: {
-    'Content-Type': 'application/json',
-  },
+  // Don't set default Content-Type - let axios auto-detect based on request data
 });
 
 // Request interceptor - Add auth token if available

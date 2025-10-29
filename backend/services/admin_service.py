@@ -173,9 +173,16 @@ class AdminService:
         if not product:
             raise ResourceNotFoundError(resource_type="Product", resource_id=product_id)
         
-        # Update fields
+        # Read-only fields that should not be updated via this method
+        read_only_fields = {
+            'id', 'created_at', 'updated_at', 'view_count', 'quote_count',
+            'variations', 'cart_items', 'quote_items', 'image_records',
+            'category', 'subcategory', 'family'  # These are relationships, not direct fields
+        }
+        
+        # Update fields (excluding read-only)
         for key, value in update_data.items():
-            if hasattr(product, key):
+            if key not in read_only_fields and hasattr(product, key):
                 setattr(product, key, value)
         
         await db.commit()
