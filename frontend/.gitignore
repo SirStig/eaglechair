@@ -24,8 +24,15 @@ dist-ssr
 *.sw?
 
 # Environment variables
+# Actual environment files (contain secrets or runtime config)
 .env
 .env.local
-.env.development.local
-.env.test.local
-.env.production.local
+.env.*.local
+
+# Keep these committed (safe defaults):
+# .env.example (template)
+# .env.development (dev defaults)
+# .env.production (prod defaults)
+
+# Legacy env files (deprecated but keep gitignored)
+demo.env

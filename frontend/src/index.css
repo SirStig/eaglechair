@@ -178,6 +178,36 @@ html {
   animation: scaleIn 0.3s ease-out;
 }
 
+/* Toast slide down animation */
+@keyframes slideDown {
+  from {
+    opacity: 0;
+    transform: translateY(-100%);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animate-slide-down {
+  animation: slideDown 0.3s ease-out;
+}
+
+/* Toast progress bar animation */
+@keyframes progress {
+  from {
+    width: 100%;
+  }
+  to {
+    width: 0%;
+  }
+}
+
+.animate-progress {
+  animation: progress linear forwards;
+}
+
 /* Hover lift effect for buttons */
 .hover-lift {
   -webkit-transition: transform 0.2s ease-in-out;

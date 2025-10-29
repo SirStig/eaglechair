@@ -35,6 +35,7 @@ from backend.api.v1.schemas.content import (
     CompanyInfoUpdate,
     ContactLocationCreate,
     ContactLocationUpdate,
+    PageContentUpdate,
     TeamMemberCreate,
     TeamMemberUpdate,
 )
@@ -201,16 +202,19 @@ class SalesRepCreate(BaseModel):
     name: str = Field(..., max_length=255)
     email: str = Field(..., max_length=255)
     phone: str = Field(..., max_length=20)
-    territory_name: str = Field(..., max_length=255)
-    states_covered: List[str] = Field(..., min_items=1)
+    territory_name: str = Field(..., max_length=255, alias='territoryName')
+    states_covered: List[str] = Field(..., min_items=1, alias='statesCovered')
     title: str | None = Field(None, max_length=100)
-    photo_url: str | None = Field(None, max_length=500)
+    photo_url: str | None = Field(None, max_length=500, alias='photoUrl')
     bio: str | None = None
-    mobile_phone: str | None = Field(None, max_length=20)
+    mobile_phone: str | None = Field(None, max_length=20, alias='mobilePhone')
     fax: str | None = Field(None, max_length=20)
-    linkedin_url: str | None = Field(None, max_length=500)
-    display_order: int = Field(default=0, ge=0)
-    is_active: bool = True
+    linkedin_url: str | None = Field(None, max_length=500, alias='linkedinUrl')
+    display_order: int = Field(default=0, ge=0, alias='displayOrder')
+    is_active: bool = Field(default=True, alias='isActive')
+    
+    class Config:
+        populate_by_name = True  # Accept both snake_case and camelCase
 
 
 class SalesRepUpdate(BaseModel):
@@ -218,16 +222,19 @@ class SalesRepUpdate(BaseModel):
     name: str | None = Field(None, max_length=255)
     email: str | None = Field(None, max_length=255)
     phone: str | None = Field(None, max_length=20)
-    territory_name: str | None = Field(None, max_length=255)
-    states_covered: List[str] | None = None
+    territory_name: str | None = Field(None, max_length=255, alias='territoryName')
+    states_covered: List[str] | None = Field(None, alias='statesCovered')
     title: str | None = Field(None, max_length=100)
-    photo_url: str | None = Field(None, max_length=500)
+    photo_url: str | None = Field(None, max_length=500, alias='photoUrl')
     bio: str | None = None
-    mobile_phone: str | None = Field(None, max_length=20)
+    mobile_phone: str | None = Field(None, max_length=20, alias='mobilePhone')
     fax: str | None = Field(None, max_length=20)
-    linkedin_url: str | None = Field(None, max_length=500)
-    display_order: int | None = Field(None, ge=0)
-    is_active: bool | None = None
+    linkedin_url: str | None = Field(None, max_length=500, alias='linkedinUrl')
+    display_order: int | None = Field(None, ge=0, alias='displayOrder')
+    is_active: bool | None = Field(None, alias='isActive')
+    
+    class Config:
+        populate_by_name = True  # Accept both snake_case and camelCase
 
 
 class InstallationCreate(BaseModel):
@@ -644,10 +651,7 @@ async def delete_installation(
 async def update_page_content(
     page_slug: str,
     section_key: str,
-    title: Optional[str] = None,
-    subtitle: Optional[str] = None,
-    content: Optional[str] = None,
-    image_url: Optional[str] = None,
+    updates: "PageContentUpdate",
     db: AsyncSession = Depends(get_db),
     admin: Company = Depends(get_current_admin)
 ):
@@ -659,15 +663,15 @@ async def update_page_content(
     logger.info(f"Admin {admin.id} updating page content: {page_slug}/{section_key}")
     
     try:
+        # Convert updates to dict and filter out None values
+        update_data = updates.model_dump(exclude_unset=True)
+        
         # Update page content
         result = await CMSAdminService.update_page_content(
             db=db,
             page_slug=page_slug,
             section_key=section_key,
-            title=title,
-            subtitle=subtitle,
-            content=content,
-            image_url=image_url
+            **update_data
         )
         
         return {

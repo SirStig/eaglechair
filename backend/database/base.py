@@ -1,21 +1,21 @@
 """
 EagleChair Database Base Module
 
-Configures async SQLAlchemy with PostgreSQL support
+Configures async SQLAlchemy with PostgreSQL support and YokedCache integration
 """
 
+import logging
+from datetime import datetime
 from typing import AsyncGenerator
-from sqlalchemy.ext.asyncio import (
-    AsyncSession,
-    create_async_engine,
-    async_sessionmaker
-)
+
+from sqlalchemy import Column, DateTime
+from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 from sqlalchemy.orm import DeclarativeBase, declared_attr
 from sqlalchemy.pool import NullPool
-from datetime import datetime
-from sqlalchemy import Column, DateTime
 
 from backend.core.config import settings
+
+logger = logging.getLogger(__name__)
 
 
 # Create async engine

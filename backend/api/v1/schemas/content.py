@@ -415,6 +415,55 @@ class FeedbackUpdate(BaseModel):
 
 
 # ============================================================================
+# Page Content Schemas
+# ============================================================================
+
+class PageContentBase(BaseModel):
+    """Base page content schema"""
+    page_slug: str = Field(..., max_length=100)
+    section_key: str = Field(..., max_length=100)
+    title: Optional[str] = Field(None, max_length=500)
+    subtitle: Optional[str] = Field(None, max_length=500)
+    content: Optional[str] = None
+    image_url: Optional[str] = Field(None, max_length=500)
+    video_url: Optional[str] = Field(None, max_length=500)
+    cta_text: Optional[str] = Field(None, max_length=100)
+    cta_link: Optional[str] = Field(None, max_length=500)
+    cta_style: Optional[str] = Field(None, max_length=50)
+    extra_data: Optional[dict] = None
+    display_order: int = 0
+    is_active: bool = True
+
+
+class PageContentCreate(PageContentBase):
+    """Schema for creating page content"""
+    pass
+
+
+class PageContentUpdate(BaseModel):
+    """Schema for updating page content"""
+    title: Optional[str] = Field(None, max_length=500)
+    subtitle: Optional[str] = Field(None, max_length=500)
+    content: Optional[str] = None
+    image_url: Optional[str] = Field(None, max_length=500)
+    video_url: Optional[str] = Field(None, max_length=500)
+    cta_text: Optional[str] = Field(None, max_length=100)
+    cta_link: Optional[str] = Field(None, max_length=500)
+    cta_style: Optional[str] = Field(None, max_length=50)
+    extra_data: Optional[dict] = None
+    display_order: Optional[int] = None
+    is_active: Optional[bool] = None
+
+
+class PageContentResponse(PageContentBase, TimestampSchema):
+    """Schema for page content response"""
+    id: int
+    
+    class Config:
+        from_attributes = True
+
+
+# ============================================================================
 # List Response Schemas
 # ============================================================================
 

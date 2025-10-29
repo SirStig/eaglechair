@@ -58,8 +58,11 @@ class RouteConfig:
         # Public product/catalog endpoints
         "/api/v1/products",
         "/api/v1/categories",
+        "/api/v1/families",
+        "/api/v1/subcategories",
         "/api/v1/finishes",
         "/api/v1/upholsteries",
+        "/api/v1/colors",
         
         # Public content endpoints
         "/api/v1/faqs",
@@ -101,8 +104,11 @@ class RouteConfig:
     PUBLIC_PATTERNS: List[str] = [
         "/api/v1/products/",
         "/api/v1/categories/",
+        "/api/v1/families/",
+        "/api/v1/subcategories/",
         "/api/v1/finishes/",
         "/api/v1/upholsteries/",
+        "/api/v1/colors/",
         "/api/v1/faqs/",
         "/api/v1/catalogs/",
         "/api/v1/installations/",

@@ -17,18 +17,23 @@ def load_environment_file():
     Load environment-specific .env file based on ENVIRONMENT variable
     
     Priority order:
-    1. .env.local (highest priority - for local overrides)
-    2. .env.{ENVIRONMENT} (e.g., .env.development, .env.production)
-    3. .env (fallback)
+    1. backend/.env.local (highest priority - for local overrides)
+    2. backend/.env.{ENVIRONMENT} (e.g., .env.development, .env.production)
+    3. backend/.env (fallback)
+    
+    Environment files should be located in the backend/ directory
     """
+    # Get the backend directory path
+    backend_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    
     # Get current environment, default to 'development'
     environment = os.getenv("ENVIRONMENT", "development")
     
-    # Define file paths in priority order
+    # Define file paths in priority order (relative to backend directory)
     env_files = [
-        ".env.local",  # Local overrides (highest priority)
-        f".env.{environment}",  # Environment-specific file
-        ".env",  # Fallback file
+        os.path.join(backend_dir, ".env.local"),  # Local overrides (highest priority)
+        os.path.join(backend_dir, f".env.{environment}"),  # Environment-specific file
+        os.path.join(backend_dir, ".env"),  # Fallback file
     ]
     
     # Load files in reverse order so higher priority files override lower ones

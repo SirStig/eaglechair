@@ -31,6 +31,7 @@ import FinishManagement from '../../components/admin/sections/FinishManagement';
 import UpholsteryManagement from '../../components/admin/sections/UpholsteryManagement';
 import CompanyManagement from '../../components/admin/sections/CompanyManagement';
 import QuoteManagement from '../../components/admin/sections/QuoteManagement';
+import LegalDocumentManagement from '../../components/admin/sections/LegalDocumentManagement';
 import SiteSettings from '../../components/admin/sections/SiteSettings';
 import Analytics from '../../components/admin/sections/Analytics';
 
@@ -62,6 +63,7 @@ const NewAdminDashboard = () => {
     if (path.includes('/admin/upholstery')) return 'upholstery';
     if (path.includes('/admin/companies')) return 'companies';
     if (path.includes('/admin/quotes')) return 'quotes';
+    if (path.includes('/admin/legal-documents')) return 'legal-documents';
     if (path.includes('/admin/settings')) return 'settings';
     return 'overview';
   };
@@ -81,6 +83,7 @@ const NewAdminDashboard = () => {
     else if (path.includes('/admin/upholstery')) section = 'upholstery';
     else if (path.includes('/admin/companies')) section = 'companies';
     else if (path.includes('/admin/quotes')) section = 'quotes';
+    else if (path.includes('/admin/legal-documents')) section = 'legal-documents';
     else if (path.includes('/admin/settings')) section = 'settings';
     
     setActiveSection(section);
@@ -124,6 +127,7 @@ const NewAdminDashboard = () => {
       items: [
         { id: 'companies', label: 'Companies', icon: Building2, path: '/admin/companies' },
         { id: 'quotes', label: 'Quotes', icon: FileText, path: '/admin/quotes' },
+        { id: 'legal-documents', label: 'Legal Documents', icon: FileText, path: '/admin/legal-documents' },
       ]
     },
     {
@@ -166,6 +170,8 @@ const NewAdminDashboard = () => {
         return <CompanyManagement />;
       case 'quotes':
         return <QuoteManagement />;
+      case 'legal-documents':
+        return <LegalDocumentManagement />;
       case 'settings':
         return <SiteSettings />;
       default:

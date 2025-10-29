@@ -21,7 +21,7 @@ const TermsOfServicePage = () => {
       <motion.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
-        className="max-w-4xl mx-auto py-12 px-4"
+        className="max-w-[1400px] mx-auto py-12 px-4"
       >
         <div className="bg-dark-800 rounded-lg shadow-xl p-8 md:p-12 border border-dark-700">
           <Link to="/" className="inline-block mb-6 text-primary-500 hover:text-primary-400">

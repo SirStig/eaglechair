@@ -451,7 +451,14 @@ class CMSAdminService:
         title: Optional[str] = None,
         subtitle: Optional[str] = None,
         content: Optional[str] = None,
-        image_url: Optional[str] = None
+        image_url: Optional[str] = None,
+        video_url: Optional[str] = None,
+        cta_text: Optional[str] = None,
+        cta_link: Optional[str] = None,
+        cta_style: Optional[str] = None,
+        extra_data: Optional[dict] = None,
+        display_order: Optional[int] = None,
+        is_active: Optional[bool] = None
     ) -> dict:
         """
         Update page content section and export to static files.
@@ -464,6 +471,13 @@ class CMSAdminService:
             subtitle: Optional subtitle update
             content: Optional content update
             image_url: Optional image URL update
+            video_url: Optional video URL update
+            cta_text: Optional CTA text update
+            cta_link: Optional CTA link update
+            cta_style: Optional CTA style update
+            extra_data: Optional extra data (JSON)
+            display_order: Optional display order
+            is_active: Optional active status
             
         Returns:
             Updated page content data
@@ -495,6 +509,20 @@ class CMSAdminService:
             page_content.content = content
         if image_url is not None:
             page_content.image_url = image_url
+        if video_url is not None:
+            page_content.video_url = video_url
+        if cta_text is not None:
+            page_content.cta_text = cta_text
+        if cta_link is not None:
+            page_content.cta_link = cta_link
+        if cta_style is not None:
+            page_content.cta_style = cta_style
+        if extra_data is not None:
+            page_content.extra_data = extra_data
+        if display_order is not None:
+            page_content.display_order = display_order
+        if is_active is not None:
+            page_content.is_active = is_active
         
         await db.commit()
         await db.refresh(page_content)
@@ -511,7 +539,14 @@ class CMSAdminService:
             "title": page_content.title,
             "subtitle": page_content.subtitle,
             "content": page_content.content,
-            "imageUrl": page_content.image_url
+            "imageUrl": page_content.image_url,
+            "videoUrl": page_content.video_url,
+            "ctaText": page_content.cta_text,
+            "ctaLink": page_content.cta_link,
+            "ctaStyle": page_content.cta_style,
+            "extraData": page_content.extra_data,
+            "displayOrder": page_content.display_order,
+            "isActive": page_content.is_active
         }
     
     @staticmethod

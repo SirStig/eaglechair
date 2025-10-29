@@ -5,12 +5,14 @@ import ProtectedRoute from './components/ProtectedRoute';
 import ScrollToTop from './components/ScrollToTop';
 import { EditModeProvider } from './contexts/EditModeContext';
 import { AdminAuthProvider } from './contexts/AdminAuthContext';
+import { ToastProvider } from './contexts/ToastContext';
 import EditModeToggle from './components/admin/EditModeToggle';
 
 // Pages
 import HomePage from './pages/HomePage';
 import ProductCatalogPage from './pages/ProductCatalogPage';
 import ProductDetailPage from './pages/ProductDetailPage';
+import ProductFamilyDetailPage from './pages/ProductFamilyDetailPage';
 import SearchPage from './pages/SearchPage';
 import GalleryPage from './pages/GalleryPage';
 import AboutPage from './pages/AboutPage';
@@ -54,9 +56,10 @@ function App() {
       <Router>
         <AdminAuthProvider>
           <EditModeProvider>
-            <ScrollToTop />
-            <EditModeToggle />
-            <Routes>
+            <ToastProvider>
+              <ScrollToTop />
+              <EditModeToggle />
+              <Routes>
           {/* Public Routes */}
           <Route path="/login" element={<LoginPage />} />
           <Route path="/register" element={<RegisterPage />} />
@@ -87,6 +90,10 @@ function App() {
             <Route path="/products" element={<ProductCatalogPage />} />
             <Route path="/products/category/:category" element={<ProductCatalogPage />} />
             <Route path="/products/category/:category/:subcategory" element={<ProductCatalogPage />} />
+            
+            {/* Product Families */}
+            <Route path="/families/:familySlug" element={<ProductFamilyDetailPage />} />
+            
             {/* Product detail with full category path */}
             <Route path="/products/:categorySlug/:subcategorySlug/:productSlug" element={<ProductDetailPage />} />
             {/* Fallback for direct ID/slug access */}
@@ -142,6 +149,7 @@ function App() {
             <Route path="*" element={<NotFound />} />
           </Route>
           </Routes>
+            </ToastProvider>
           </EditModeProvider>
         </AdminAuthProvider>
       </Router>

@@ -815,11 +815,18 @@ async def export_content_after_update(content_type: str, db: "AsyncSession") -> 
                     {
                         'id': r.id,
                         'name': r.name,
-                        'territory': r.territory_name,
-                        'states': r.states_covered,
+                        'territoryName': r.territory_name,
+                        'statesCovered': r.states_covered,
                         'email': r.email,
                         'phone': r.phone,
-                        'photoUrl': r.photo_url
+                        'photoUrl': r.photo_url,
+                        'title': r.title,
+                        'bio': r.bio,
+                        'mobilePhone': r.mobile_phone,
+                        'fax': r.fax,
+                        'linkedinUrl': r.linkedin_url,
+                        'displayOrder': r.display_order,
+                        'isActive': r.is_active
                     }
                     for r in reps
                 ]
@@ -954,8 +961,16 @@ async def export_content_after_update(content_type: str, db: "AsyncSession") -> 
                         'pageSlug': p.page_slug,
                         'sectionKey': p.section_key,
                         'title': p.title,
+                        'subtitle': p.subtitle,
                         'content': p.content,
-                        'imageUrl': p.image_url
+                        'imageUrl': p.image_url,
+                        'videoUrl': p.video_url,
+                        'ctaText': p.cta_text,
+                        'ctaLink': p.cta_link,
+                        'ctaStyle': p.cta_style,
+                        'extraData': p.extra_data,
+                        'displayOrder': p.display_order,
+                        'isActive': p.is_active
                     }
                     for p in pages
                 ]
