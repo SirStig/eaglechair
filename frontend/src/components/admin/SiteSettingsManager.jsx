@@ -3,8 +3,7 @@ import { motion } from 'framer-motion';
 import Button from '../ui/Button';
 import Card from '../ui/Card';
 import Input from '../ui/Input';
-import { useSiteSettings } from '../../hooks/useContent';
-import { updateSiteSettings } from '../../services/contentService';
+import { getSiteSettingsAdmin, updateSiteSettings } from '../../services/contentService';
 import { uploadImage } from '../../utils/imageUpload';
 import logger from '../../utils/logger';
 
@@ -21,17 +20,28 @@ const CONTEXT = 'SiteSettingsManager';
  * - Social media links
  */
 const SiteSettingsManager = () => {
-  const { data: siteSettings, loading, refetch } = useSiteSettings();
+  const [loading, setLoading] = useState(true);
   const [formData, setFormData] = useState({});
   const [saving, setSaving] = useState(false);
   const [uploadingLogo, setUploadingLogo] = useState(false);
   const [success, setSuccess] = useState(false);
 
-  useEffect(() => {
-    if (siteSettings) {
-      setFormData(siteSettings);
+  // Fetch site settings from API (admin version - always gets DB data)
+  const fetchSettings = async () => {
+    try {
+      setLoading(true);
+      const data = await getSiteSettingsAdmin();
+      setFormData(data);
+    } catch (error) {
+      logger.error(CONTEXT, 'Failed to fetch site settings', error);
+    } finally {
+      setLoading(false);
     }
-  }, [siteSettings]);
+  };
+
+  useEffect(() => {
+    fetchSettings();
+  }, []);
 
   const handleChange = (e) => {
     const { name, value } = e.target;
@@ -62,7 +72,7 @@ const SiteSettingsManager = () => {
       setSaving(true);
       logger.info(CONTEXT, 'Updating site settings');
       await updateSiteSettings(formData);
-      refetch();
+      await fetchSettings(); // Refresh data after update
       setSuccess(true);
       setTimeout(() => setSuccess(false), 3000);
       logger.info(CONTEXT, 'Site settings updated successfully');

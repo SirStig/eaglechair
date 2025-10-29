@@ -7,11 +7,12 @@ Admin-only endpoints for upholstery management
 import logging
 from typing import Optional
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from backend.api.dependencies import get_current_admin
+from backend.api.v1.schemas.admin import UpholsteryCreate, UpholsteryUpdate
 from backend.database.base import get_db
 from backend.models.chair import Upholstery
 from backend.models.company import AdminUser
@@ -105,20 +106,12 @@ async def get_upholstery(
 
 @router.post(
     "",
+    status_code=status.HTTP_201_CREATED,
     summary="Create upholstery (Admin)",
     description="Create a new upholstery material"
 )
 async def create_upholstery(
-    name: str,
-    material_type: str,
-    material_code: Optional[str] = None,
-    description: Optional[str] = None,
-    grade: Optional[str] = None,
-    color: Optional[str] = None,
-    color_hex: Optional[str] = None,
-    pattern: Optional[str] = None,
-    durability_rating: Optional[str] = None,
-    is_com: bool = False,
+    upholstery_data: UpholsteryCreate,
     admin: AdminUser = Depends(get_current_admin),
     db: AsyncSession = Depends(get_db)
 ):
@@ -127,20 +120,9 @@ async def create_upholstery(
     
     **Admin only** - Requires admin authentication.
     """
-    logger.info(f"Admin {admin.username} creating upholstery: {name}")
+    logger.info(f"Admin {admin.username} creating upholstery: {upholstery_data.name}")
     
-    upholstery = Upholstery(
-        name=name,
-        material_type=material_type,
-        material_code=material_code,
-        description=description,
-        grade=grade,
-        color=color,
-        color_hex=color_hex,
-        pattern=pattern,
-        durability_rating=durability_rating,
-        is_com=is_com
-    )
+    upholstery = Upholstery(**upholstery_data.dict())
     
     db.add(upholstery)
     await db.commit()
@@ -148,10 +130,7 @@ async def create_upholstery(
     
     logger.info(f"Created upholstery: {upholstery.name} (ID: {upholstery.id})")
     
-    return {
-        "message": "Upholstery created successfully",
-        "upholstery": orm_to_dict(upholstery)
-    }
+    return orm_to_dict(upholstery)
 
 
 @router.put(
@@ -161,16 +140,7 @@ async def create_upholstery(
 )
 async def update_upholstery(
     upholstery_id: int,
-    name: Optional[str] = None,
-    material_type: Optional[str] = None,
-    material_code: Optional[str] = None,
-    description: Optional[str] = None,
-    grade: Optional[str] = None,
-    color: Optional[str] = None,
-    color_hex: Optional[str] = None,
-    pattern: Optional[str] = None,
-    durability_rating: Optional[str] = None,
-    is_com: Optional[bool] = None,
+    upholstery_data: UpholsteryUpdate,
     admin: AdminUser = Depends(get_current_admin),
     db: AsyncSession = Depends(get_db)
 ):
@@ -188,37 +158,17 @@ async def update_upholstery(
     if not upholstery:
         raise HTTPException(status_code=404, detail=f"Upholstery {upholstery_id} not found")
     
-    # Update fields if provided
-    if name is not None:
-        upholstery.name = name
-    if material_type is not None:
-        upholstery.material_type = material_type
-    if material_code is not None:
-        upholstery.material_code = material_code
-    if description is not None:
-        upholstery.description = description
-    if grade is not None:
-        upholstery.grade = grade
-    if color is not None:
-        upholstery.color = color
-    if color_hex is not None:
-        upholstery.color_hex = color_hex
-    if pattern is not None:
-        upholstery.pattern = pattern
-    if durability_rating is not None:
-        upholstery.durability_rating = durability_rating
-    if is_com is not None:
-        upholstery.is_com = is_com
+    # Update only provided fields
+    update_data = upholstery_data.dict(exclude_unset=True)
+    for field, value in update_data.items():
+        setattr(upholstery, field, value)
     
     await db.commit()
     await db.refresh(upholstery)
     
     logger.info(f"Updated upholstery: {upholstery.name} (ID: {upholstery.id})")
     
-    return {
-        "message": "Upholstery updated successfully",
-        "upholstery": orm_to_dict(upholstery)
-    }
+    return orm_to_dict(upholstery)
 
 
 @router.delete(

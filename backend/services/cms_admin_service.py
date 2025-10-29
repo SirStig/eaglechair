@@ -86,6 +86,8 @@ class CMSAdminService:
                 'companyName': settings.company_name,
                 'companyTagline': settings.company_tagline,
                 'logoUrl': settings.logo_url,
+                'logoDarkUrl': settings.logo_dark_url,
+                'faviconUrl': settings.favicon_url,
                 'primaryEmail': settings.primary_email,
                 'primaryPhone': settings.primary_phone,
                 'salesEmail': settings.sales_email,
@@ -106,6 +108,9 @@ class CMSAdminService:
                 'linkedinUrl': settings.linkedin_url,
                 'twitterUrl': settings.twitter_url,
                 'youtubeUrl': settings.youtube_url,
+                'metaTitle': settings.meta_title,
+                'metaDescription': settings.meta_description,
+                'metaKeywords': settings.meta_keywords,
             }
             
             await export_content_after_update('siteSettings', db)

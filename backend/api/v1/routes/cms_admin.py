@@ -180,6 +180,12 @@ class InstallationUpdate(BaseModel):
     summary="Update site settings",
     description="Update site-wide settings (logo, contact info, etc.) and export to static file"
 )
+@router.patch(
+    "/site-settings",
+    response_model=MessageResponse,
+    summary="Update site settings (PATCH)",
+    description="Partially update site-wide settings and export to static file"
+)
 async def update_site_settings(
     settings: SiteSettingsUpdate,
     db: AsyncSession = Depends(get_db),

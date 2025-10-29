@@ -8,14 +8,14 @@ Uses centralized route configuration and returns clean JSON responses
 import logging
 import time
 from typing import Callable, Set
+
 from fastapi import Request, Response, status
 from fastapi.responses import JSONResponse
 from starlette.middleware.base import BaseHTTPMiddleware
 
 from backend.core.config import settings
-from backend.core.routes_config import RouteConfig
 from backend.core.logging_config import security_logger
-
+from backend.core.routes_config import RouteConfig
 
 logger = logging.getLogger(__name__)
 
@@ -50,6 +50,10 @@ class AdminSecurityMiddleware(BaseHTTPMiddleware):
         
         # Check if this is an admin endpoint using centralized config
         if not RouteConfig.is_admin_route(path):
+            return await call_next(request)
+        
+        # Allow OPTIONS requests (CORS preflight) without authentication
+        if request.method == "OPTIONS":
             return await call_next(request)
         
         client_ip = self._get_client_ip(request)

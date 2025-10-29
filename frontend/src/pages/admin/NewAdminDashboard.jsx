@@ -9,6 +9,7 @@ import {
   Tags, 
   Users2, 
   Palette, 
+  Droplet,
   Armchair, 
   Building2, 
   FileText, 
@@ -25,6 +26,7 @@ import ProductCatalog from '../../components/admin/sections/ProductCatalog';
 import ProductEditor from '../../components/admin/sections/ProductEditor';
 import CategoryManagement from '../../components/admin/sections/CategoryManagement';
 import FamilyManagement from '../../components/admin/sections/FamilyManagement';
+import ColorManagement from '../../components/admin/sections/ColorManagement';
 import FinishManagement from '../../components/admin/sections/FinishManagement';
 import UpholsteryManagement from '../../components/admin/sections/UpholsteryManagement';
 import CompanyManagement from '../../components/admin/sections/CompanyManagement';
@@ -55,6 +57,7 @@ const NewAdminDashboard = () => {
     if (path.includes('/admin/catalog')) return 'catalog';
     if (path.includes('/admin/categories')) return 'categories';
     if (path.includes('/admin/families')) return 'families';
+    if (path.includes('/admin/colors')) return 'colors';
     if (path.includes('/admin/finishes')) return 'finishes';
     if (path.includes('/admin/upholstery')) return 'upholstery';
     if (path.includes('/admin/companies')) return 'companies';
@@ -73,6 +76,7 @@ const NewAdminDashboard = () => {
     else if (path.includes('/admin/catalog')) section = 'catalog';
     else if (path.includes('/admin/categories')) section = 'categories';
     else if (path.includes('/admin/families')) section = 'families';
+    else if (path.includes('/admin/colors')) section = 'colors';
     else if (path.includes('/admin/finishes')) section = 'finishes';
     else if (path.includes('/admin/upholstery')) section = 'upholstery';
     else if (path.includes('/admin/companies')) section = 'companies';
@@ -109,6 +113,7 @@ const NewAdminDashboard = () => {
         { id: 'catalog', label: 'Product Catalog', icon: Package, path: '/admin/catalog' },
         { id: 'categories', label: 'Categories', icon: Tags, path: '/admin/categories' },
         { id: 'families', label: 'Product Families', icon: Users2, path: '/admin/families' },
+        { id: 'colors', label: 'Colors', icon: Droplet, path: '/admin/colors' },
         { id: 'finishes', label: 'Finishes', icon: Palette, path: '/admin/finishes' },
         { id: 'upholstery', label: 'Upholstery', icon: Armchair, path: '/admin/upholstery' },
       ]
@@ -151,6 +156,8 @@ const NewAdminDashboard = () => {
         return <CategoryManagement />;
       case 'families':
         return <FamilyManagement />;
+      case 'colors':
+        return <ColorManagement />;
       case 'finishes':
         return <FinishManagement />;
       case 'upholstery':

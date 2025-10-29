@@ -239,8 +239,24 @@ class StaticContentExporter:
         with open(temp_file, 'w', encoding='utf-8') as f:
             f.write(content)
         
-        # Atomic rename
-        temp_file.replace(file_path)
+        # Atomic rename with retry on Windows
+        max_retries = 3
+        for attempt in range(max_retries):
+            try:
+                temp_file.replace(file_path)
+                break
+            except PermissionError:
+                if attempt < max_retries - 1:
+                    import time
+                    time.sleep(0.1)  # Brief delay before retry
+                else:
+                    # Fallback: try deleting first then renaming
+                    try:
+                        file_path.unlink(missing_ok=True)
+                        temp_file.rename(file_path)
+                    except Exception as e:
+                        logger.error(f"Failed to write content file after {max_retries} attempts: {e}")
+                        raise
     
     def _generate_js_file(self, content_data: Dict[str, Any]) -> str:
         """
@@ -727,11 +743,43 @@ async def export_content_after_update(content_type: str, db: "AsyncSession") -> 
                 result = await db.execute(select(SiteSettings).limit(1))
                 settings = result.scalar_one_or_none()
                 data = {
+                    # Company Branding
                     'companyName': settings.company_name if settings else 'Eagle Chair',
-                    'companyTagline': settings.company_tagline if settings else '',
-                    'primaryEmail': settings.primary_email if settings else '',
-                    'primaryPhone': settings.primary_phone if settings else '',
-                    # ... add all fields
+                    'companyTagline': settings.company_tagline if settings else None,
+                    'logoUrl': settings.logo_url if settings else None,
+                    'logoDarkUrl': settings.logo_dark_url if settings else None,
+                    'faviconUrl': settings.favicon_url if settings else None,
+                    # Primary Contact Info
+                    'primaryEmail': settings.primary_email if settings else None,
+                    'primaryPhone': settings.primary_phone if settings else None,
+                    'salesEmail': settings.sales_email if settings else None,
+                    'salesPhone': settings.sales_phone if settings else None,
+                    'supportEmail': settings.support_email if settings else None,
+                    'supportPhone': settings.support_phone if settings else None,
+                    # Primary Address
+                    'addressLine1': settings.address_line1 if settings else None,
+                    'addressLine2': settings.address_line2 if settings else None,
+                    'city': settings.city if settings else None,
+                    'state': settings.state if settings else None,
+                    'zipCode': settings.zip_code if settings else None,
+                    'country': settings.country if settings else 'USA',
+                    # Business Hours
+                    'businessHoursWeekdays': settings.business_hours_weekdays if settings else None,
+                    'businessHoursSaturday': settings.business_hours_saturday if settings else None,
+                    'businessHoursSunday': settings.business_hours_sunday if settings else None,
+                    # Social Media
+                    'facebookUrl': settings.facebook_url if settings else None,
+                    'instagramUrl': settings.instagram_url if settings else None,
+                    'linkedinUrl': settings.linkedin_url if settings else None,
+                    'twitterUrl': settings.twitter_url if settings else None,
+                    'youtubeUrl': settings.youtube_url if settings else None,
+                    # SEO & Meta
+                    'metaTitle': settings.meta_title if settings else None,
+                    'metaDescription': settings.meta_description if settings else None,
+                    'metaKeywords': settings.meta_keywords if settings else None,
+                    # Theme & Additional
+                    'themeColors': settings.theme_colors if settings else None,
+                    'additionalSettings': settings.additional_settings if settings else None
                 } if settings else {}
                 return exporter.export_site_settings(data)
                 
@@ -1002,9 +1050,14 @@ async def export_content_after_update(content_type: str, db: "AsyncSession") -> 
                     {
                         'id': f.id,
                         'name': f.name,
+                        'finishCode': f.finish_code,
                         'description': f.description,
+                        'finishType': f.finish_type,
+                        'colorHex': f.color_hex,
                         'imageUrl': f.image_url,
-                        'category': f.category
+                        'isCustom': f.is_custom,
+                        'isToMatch': f.is_to_match,
+                        'additionalCost': f.additional_cost
                     }
                     for f in finishes
                 ]

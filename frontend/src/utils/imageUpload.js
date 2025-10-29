@@ -5,6 +5,7 @@
  * Both frontend and backend are on the same server
  */
 
+import { api } from '../config/apiClient';
 import logger from './logger';
 
 const CONTEXT = 'ImageUpload';
@@ -45,20 +46,12 @@ export const uploadImage = async (file, subfolder = 'general') => {
     formData.append('subfolder', subfolder);
     formData.append('filename', filename);
     
-    // Upload to backend endpoint
-    const response = await fetch('/api/v1/upload/image', {
-      method: 'POST',
-      body: formData,
-      // Don't set Content-Type header - browser will set it with boundary
-    });
+    // Upload to backend endpoint using axios (includes auth token)
+    // Note: Must delete Content-Type header so axios auto-detects FormData and sets proper boundary
+    const response = await api.post('/api/v1/admin/upload/image', formData);
     
-    if (!response.ok) {
-      const error = await response.json();
-      throw new Error(error.detail || 'Upload failed');
-    }
-    
-    const data = await response.json();
-    const imageUrl = data.url || `${UPLOAD_DIR}/${subfolder}/${filename}`;
+    // apiClient interceptor already unwraps response.data, so response IS the data
+    const imageUrl = response.url || `${UPLOAD_DIR}/${subfolder}/${filename}`;
     
     logger.info(CONTEXT, `Image uploaded successfully: ${imageUrl}`);
     return imageUrl;
@@ -78,17 +71,10 @@ export const deleteImage = async (imageUrl) => {
   try {
     logger.info(CONTEXT, `Deleting image: ${imageUrl}`);
     
-    const response = await fetch('/api/v1/upload/image', {
-      method: 'DELETE',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({ url: imageUrl }),
+    // Use axios for delete (includes auth token)
+    await api.delete('/api/v1/admin/upload/image', {
+      data: { url: imageUrl },
     });
-    
-    if (!response.ok) {
-      throw new Error('Delete failed');
-    }
     
     logger.info(CONTEXT, 'Image deleted successfully');
     return true;
