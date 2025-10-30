@@ -287,12 +287,15 @@ async def get_product_by_slug(
     Get detailed product information by slug.
     
     **Public endpoint** - No authentication required.
+    
+    This endpoint increments the product's view count.
     """
     logger.info(f"Fetching product with slug '{slug}'")
     
     product = await ProductService.get_product_by_slug(
         db=db,
-        slug=slug
+        slug=slug,
+        increment_view=True  # Track popularity
     )
     
     return product
@@ -312,12 +315,15 @@ async def get_product_by_model(
     Get product by model number.
     
     **Public endpoint** - No authentication required.
+    
+    This endpoint increments the product's view count.
     """
     logger.info(f"Fetching product with model number '{model_number}'")
     
     product = await ProductService.get_product_by_model_number(
         db=db,
-        model_number=model_number
+        model_number=model_number,
+        increment_view=True  # Track popularity
     )
     
     return product

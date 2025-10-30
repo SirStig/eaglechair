@@ -182,3 +182,8 @@ celerybeat.pid
 *.sql
 alembic/
 
+scripts/migrations/
+eaglechair_com.sql
+seed_admin.py
+seed_legal_content.py
+backend/scripts/seed_admin.py

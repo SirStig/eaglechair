@@ -53,8 +53,19 @@ class AdminSecurityMiddleware(BaseHTTPMiddleware):
             return await call_next(request)
         
         # Allow OPTIONS requests (CORS preflight) without authentication
+        # Return immediately with 200 OK and CORS headers
         if request.method == "OPTIONS":
-            return await call_next(request)
+            response = Response(
+                status_code=status.HTTP_200_OK,
+                headers={
+                    "Access-Control-Allow-Origin": request.headers.get("Origin", "*"),
+                    "Access-Control-Allow-Methods": "GET, POST, PUT, PATCH, DELETE, OPTIONS",
+                    "Access-Control-Allow-Headers": "Authorization, X-Session-Token, X-Admin-Token, Content-Type",
+                    "Access-Control-Allow-Credentials": "true",
+                    "Access-Control-Max-Age": "86400",  # 24 hours
+                }
+            )
+            return response
         
         client_ip = self._get_client_ip(request)
         

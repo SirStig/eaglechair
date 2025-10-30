@@ -349,7 +349,8 @@ class ProductService:
     @staticmethod
     async def get_product_by_model_number(
         db: AsyncSession,
-        model_number: str
+        model_number: str,
+        increment_view: bool = False
     ) -> Chair:
         """
         Get product by model number
@@ -357,6 +358,7 @@ class ProductService:
         Args:
             db: Database session
             model_number: Product model number
+            increment_view: Whether to increment view count
             
         Returns:
             Chair instance
@@ -374,12 +376,19 @@ class ProductService:
         if not product:
             raise ResourceNotFoundError(resource_type="Product", resource_id=model_number)
         
+        # Increment view count
+        if increment_view:
+            product.view_count += 1
+            await db.commit()
+            await db.refresh(product)
+        
         return product
     
     @staticmethod
     async def get_product_by_slug(
         db: AsyncSession,
-        slug: str
+        slug: str,
+        increment_view: bool = False
     ) -> Chair:
         """
         Get product by slug
@@ -387,6 +396,7 @@ class ProductService:
         Args:
             db: Database session
             slug: Product slug
+            increment_view: Whether to increment view count
             
         Returns:
             Chair instance
@@ -407,6 +417,12 @@ class ProductService:
         # Populate parent_slug for frontend routing
         if product.category and product.category.parent:
             product.category.parent_slug = product.category.parent.slug
+        
+        # Increment view count
+        if increment_view:
+            product.view_count += 1
+            await db.commit()
+            await db.refresh(product)
         
         return product
     

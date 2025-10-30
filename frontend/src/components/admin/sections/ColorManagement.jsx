@@ -1,7 +1,8 @@
 import { useState, useEffect } from 'react';
 import Card from '../../ui/Card';
 import Button from '../../ui/Button';
-import axios from 'axios';
+import apiClient from '../../../config/apiClient';
+import { resolveImageUrl } from '../../../utils/apiHelpers';
 import { Edit2, Trash2, Palette } from 'lucide-react';
 import ColorEditor from './ColorEditor';
 
@@ -27,8 +28,8 @@ const ColorManagement = () => {
       if (filterCategory) params.category = filterCategory;
       if (filterActive !== 'all') params.is_active = filterActive === 'active';
       
-      const response = await axios.get('/api/v1/admin/colors', { params });
-      setColors(response.data);
+      const response = await apiClient.get('/api/v1/admin/colors', { params });
+      setColors(response);
     } catch (error) {
       console.error('Failed to fetch colors:', error);
     } finally {
@@ -57,7 +58,7 @@ const ColorManagement = () => {
     if (!confirm('Are you sure you want to delete this color?')) return;
     
     try {
-      await axios.delete(`/api/v1/admin/colors/${colorId}`);
+      await apiClient.delete(`/api/v1/admin/colors/${colorId}`);
       fetchColors();
     } catch (error) {
       console.error('Failed to delete color:', error);
@@ -186,7 +187,7 @@ const ColorManagement = () => {
                       <div className="flex items-center gap-2">
                         {color.image_url ? (
                           <img 
-                            src={color.image_url} 
+                            src={resolveImageUrl(color.image_url)} 
                             alt={color.name}
                             className="w-10 h-10 object-cover rounded-lg border border-dark-600"
                           />

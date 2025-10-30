@@ -48,7 +48,6 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter(tags=["CMS Admin"], prefix="/cms-admin")
 
-
 # ============================================================================
 # Request/Response Schemas
 # ============================================================================

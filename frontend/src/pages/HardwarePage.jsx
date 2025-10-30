@@ -1,12 +1,27 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { IS_DEMO } from '../data/demoData';
-import { hardware } from '../data/contentData';
+import { loadContentData } from '../utils/contentDataLoader';
 
 const HardwarePage = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('all');
+  const [hardware, setHardware] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const loadData = async () => {
+      if (!IS_DEMO) {
+        const content = await loadContentData();
+        if (content?.hardware) {
+          setHardware(content.hardware);
+        }
+      }
+      setLoading(false);
+    };
+    loadData();
+  }, []);
 
   // Get hardware data (production only - no demo data for now)
   const hardwareData = IS_DEMO ? [] : hardware;

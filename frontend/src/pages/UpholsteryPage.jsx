@@ -1,12 +1,27 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { IS_DEMO } from '../data/demoData';
-import { upholsteries } from '../data/contentData';
+import { loadContentData } from '../utils/contentDataLoader';
 
 const UpholsteryPage = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedType, setSelectedType] = useState('all');
+  const [upholsteries, setUpholsteries] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const loadData = async () => {
+      if (!IS_DEMO) {
+        const content = await loadContentData();
+        if (content?.upholsteries) {
+          setUpholsteries(content.upholsteries);
+        }
+      }
+      setLoading(false);
+    };
+    loadData();
+  }, []);
 
   // Get upholstery data (production only - no demo data for now)
   const upholsteriesData = IS_DEMO ? [] : upholsteries;

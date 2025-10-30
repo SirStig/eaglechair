@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import Card from '../../ui/Card';
 import Button from '../../ui/Button';
-import axios from 'axios';
+import apiClient from '../../../config/apiClient';
+import { resolveImageUrl } from '../../../utils/apiHelpers';
 import { Edit2, Trash2, FolderTree } from 'lucide-react';
 import CategoryEditor from './CategoryEditor';
 
@@ -21,8 +22,8 @@ const CategoryManagement = () => {
   
   const fetchCategories = async () => {
     try {
-      const response = await axios.get('/api/v1/admin/categories');
-      setCategories(response.data);
+      const response = await apiClient.get('/api/v1/admin/categories');
+      setCategories(response);
     } catch (error) {
       console.error('Failed to fetch categories:', error);
     } finally {
@@ -51,7 +52,7 @@ const CategoryManagement = () => {
     if (!confirm('Are you sure you want to delete this category?')) return;
     
     try {
-      await axios.delete(`/api/v1/admin/categories/${categoryId}`);
+      await apiClient.delete(`/api/v1/admin/categories/${categoryId}`);
       fetchCategories();
     } catch (error) {
       console.error('Failed to delete category:', error);
@@ -172,7 +173,7 @@ const CategoryManagement = () => {
                             )}
                             {category.icon_url ? (
                               <img 
-                                src={category.icon_url} 
+                                src={resolveImageUrl(category.icon_url)} 
                                 alt={category.name}
                                 className="w-10 h-10 object-contain rounded-lg border border-dark-600"
                               />
@@ -263,7 +264,7 @@ const CategoryManagement = () => {
                             <div className="flex items-center gap-2 pl-8">
                               {subcat.icon_url ? (
                                 <img 
-                                  src={subcat.icon_url} 
+                                  src={resolveImageUrl(subcat.icon_url)} 
                                   alt={subcat.name}
                                   className="w-8 h-8 object-contain rounded-lg border border-dark-600"
                                 />

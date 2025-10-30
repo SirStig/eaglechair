@@ -2,7 +2,8 @@ import { useState, useEffect } from 'react';
 import Card from '../../ui/Card';
 import Button from '../../ui/Button';
 import FamilyEditor from './FamilyEditor';
-import axios from 'axios';
+import apiClient from '../../../config/apiClient';
+import { resolveImageUrl } from '../../../utils/apiHelpers';
 
 /**
  * Product Family Management with Full CRUD
@@ -33,8 +34,8 @@ const FamilyManagement = () => {
       if (filterCategory) params.category_id = filterCategory;
       if (filterActive !== 'all') params.is_active = filterActive === 'active';
       
-      const response = await axios.get('/api/v1/admin/catalog/families', { params });
-      setFamilies(response.data || []);
+      const response = await apiClient.get('/api/v1/admin/catalog/families', { params });
+      setFamilies(response || []);
     } catch (error) {
       console.error('Failed to fetch families:', error);
     } finally {
@@ -44,8 +45,8 @@ const FamilyManagement = () => {
 
   const fetchCategories = async () => {
     try {
-      const response = await axios.get('/api/v1/categories');
-      setCategories(response.data || []);
+      const response = await apiClient.get('/api/v1/categories');
+      setCategories(response || []);
     } catch (error) {
       console.error('Failed to fetch categories:', error);
     }
@@ -76,7 +77,7 @@ const FamilyManagement = () => {
     if (!confirm('Are you sure you want to delete this family?')) return;
     
     try {
-      await axios.delete(`/api/v1/admin/catalog/families/${familyId}`);
+      await apiClient.delete(`/api/v1/admin/catalog/families/${familyId}`);
       fetchFamilies();
     } catch (error) {
       console.error('Failed to delete family:', error);
@@ -186,7 +187,7 @@ const FamilyManagement = () => {
                     <td className="px-4 py-4">
                       {family.family_image ? (
                         <img
-                          src={family.family_image}
+                          src={resolveImageUrl(family.family_image)}
                           alt={family.name}
                           className="w-16 h-16 object-contain bg-dark-700 rounded-lg border border-dark-600"
                         />

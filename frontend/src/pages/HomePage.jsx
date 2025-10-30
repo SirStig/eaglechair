@@ -13,7 +13,8 @@ import ConfirmModal from '../components/ui/ConfirmModal';
 import { useEditMode } from '../contexts/useEditMode';
 import { useToast } from '../contexts/ToastContext';
 import { demoHomeContent } from '../data/demoData';
-import { heroSlides as staticHeroSlides, features as staticFeatures, clientLogos as staticClientLogos, pageContent as staticPageContent } from '../data/contentData';
+import { loadContentData } from '../utils/contentDataLoader';
+// Removed static import: { heroSlides as staticHeroSlides, features as staticFeatures, clientLogos as staticClientLogos, pageContent as staticPageContent }
 import { useHeroSlides, useFeatures, useClientLogos, useFeaturedProducts, usePageContent } from '../hooks/useContent';
 import { 
   updatePageContent,
@@ -172,22 +173,21 @@ const HomePage = () => {
     ]
   };
 
-  // Use API data, fallback to static content, then demo
-  const slides = heroSlides || staticHeroSlides || demoHomeContent.heroSlides;
-  const features = whyChooseUs || staticFeatures.filter(f => !f.feature_type || f.feature_type === 'home_page') || demoHomeContent.whyChooseUs;
-  const clients = clientLogos || staticClientLogos || [];
+  // Use API data, fallback to demo
+  const slides = heroSlides || demoHomeContent.heroSlides;
+  const features = whyChooseUs || demoHomeContent.whyChooseUs;
+  const clients = clientLogos || [];
   
   // Extract products array from response object
   const products = (featuredProducts?.data || featuredProducts) || [];
   
-  // CTA section content - use static data as fallback
-  const staticCtaSection = staticPageContent.find(p => p.page_slug === 'home' && p.section_key === 'cta');
-  const ctaTitle = ctaSection?.title || staticCtaSection?.title || "Ready to Furnish Your Space?";
-  const ctaContent = ctaSection?.content || staticCtaSection?.content || "Get a custom quote for your restaurant or hospitality project. Our team is ready to help you create the perfect atmosphere.";
-  const ctaPrimaryText = ctaSection?.cta_text || staticCtaSection?.cta_text || "Request a Quote";
-  const ctaPrimaryLink = ctaSection?.cta_link || staticCtaSection?.cta_link || "/quote-request";
-  const ctaSecondaryText = ctaSection?.secondary_cta_text || staticCtaSection?.secondary_cta_text || "Find a Rep";
-  const ctaSecondaryLink = ctaSection?.secondary_cta_link || staticCtaSection?.secondary_cta_link || "/find-a-rep";
+  // CTA section content - use hardcoded fallback
+  const ctaTitle = ctaSection?.title || "Ready to Furnish Your Space?";
+  const ctaContent = ctaSection?.content || "Get a custom quote for your restaurant or hospitality project. Our team is ready to help you create the perfect atmosphere.";
+  const ctaPrimaryText = ctaSection?.cta_text || "Request a Quote";
+  const ctaPrimaryLink = ctaSection?.cta_link || "/quote-request";
+  const ctaSecondaryText = ctaSection?.secondary_cta_text || "Find a Rep";
+  const ctaSecondaryLink = ctaSection?.secondary_cta_link || "/find-a-rep";
 
   return (
     <div className="min-h-screen">

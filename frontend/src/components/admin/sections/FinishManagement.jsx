@@ -1,7 +1,8 @@
 import { useState, useEffect, useCallback } from 'react';
 import Card from '../../ui/Card';
 import Button from '../../ui/Button';
-import axios from 'axios';
+import apiClient from '../../../config/apiClient';
+import { resolveImageUrl } from '../../../utils/apiHelpers';
 import { Edit, Trash2, Palette, X } from 'lucide-react';
 import FinishEditor from './FinishEditor';
 
@@ -22,8 +23,8 @@ const FinishManagement = () => {
       if (filterType) params.finish_type = filterType;
       if (filterActive !== 'all') params.is_active = filterActive === 'active';
       
-      const response = await axios.get('/api/v1/admin/catalog/finishes', { params });
-      setFinishes(response.data || []);
+      const response = await apiClient.get('/api/v1/admin/catalog/finishes', { params });
+      setFinishes(response || []);
     } catch (error) {
       console.error('Failed to fetch finishes:', error);
     } finally {
@@ -38,8 +39,8 @@ const FinishManagement = () => {
 
   const fetchColors = async () => {
     try {
-      const response = await axios.get('/api/v1/admin/colors', { params: { is_active: true } });
-      setColors(response.data || []);
+      const response = await apiClient.get('/api/v1/admin/colors', { params: { is_active: true } });
+      setColors(response || []);
     } catch (error) {
       console.error('Failed to fetch colors:', error);
     }
@@ -66,7 +67,7 @@ const FinishManagement = () => {
     if (!confirm('Are you sure you want to delete this finish?')) return;
     
     try {
-      await axios.delete(`/api/v1/admin/catalog/finishes/${finishId}`);
+      await apiClient.delete(`/api/v1/admin/catalog/finishes/${finishId}`);
       fetchFinishes();
     } catch (error) {
       console.error('Failed to delete finish:', error);
@@ -219,7 +220,7 @@ const FinishManagement = () => {
                     <td className="px-4 py-3">
                       {finish.image_url ? (
                         <img
-                          src={finish.image_url}
+                          src={resolveImageUrl(finish.image_url)}
                           alt={finish.name}
                           className="w-12 h-12 object-cover rounded border border-dark-600"
                         />

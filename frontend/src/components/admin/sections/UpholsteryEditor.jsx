@@ -1,7 +1,8 @@
 import { useState, useEffect } from 'react';
 import Card from '../../ui/Card';
 import Button from '../../ui/Button';
-import axios from 'axios';
+import apiClient from '../../../config/apiClient';
+import { resolveImageUrl } from '../../../utils/apiHelpers';
 import { ArrowLeft, Upload, X } from 'lucide-react';
 
 /**
@@ -42,8 +43,8 @@ const UpholsteryEditor = ({ upholstery, onBack, onSave }) => {
 
   const fetchColors = async () => {
     try {
-      const response = await axios.get('/api/v1/admin/colors', { params: { is_active: true } });
-      setColors(response.data);
+      const response = await apiClient.get('/api/v1/admin/colors', { params: { is_active: true } });
+      setColors(response);
     } catch (error) {
       console.error('Failed to fetch colors:', error);
     }
@@ -64,11 +65,11 @@ const UpholsteryEditor = ({ upholstery, onBack, onSave }) => {
       formDataUpload.append('file', file);
       formDataUpload.append('subfolder', 'upholstery');
       
-      const response = await axios.post('/api/v1/admin/upload/image', formDataUpload, {
+      const response = await apiClient.post('/api/v1/admin/upload/image', formDataUpload, {
         headers: { 'Content-Type': 'multipart/form-data' }
       });
       
-      const imageUrl = response.data.url;
+      const imageUrl = response.url;
       handleChange('swatch_image_url', imageUrl);
     } catch (error) {
       console.error('Failed to upload image:', error);
@@ -83,7 +84,7 @@ const UpholsteryEditor = ({ upholstery, onBack, onSave }) => {
     
     try {
       if (formData.swatch_image_url) {
-        await axios.delete('/api/v1/admin/upload/image', {
+        await apiClient.delete('/api/v1/admin/upload/image', {
           data: { url: formData.swatch_image_url }
         });
       }
@@ -99,9 +100,9 @@ const UpholsteryEditor = ({ upholstery, onBack, onSave }) => {
     
     try {
       if (upholstery) {
-        await axios.put(`/api/v1/admin/upholsteries/${upholstery.id}`, formData);
+        await apiClient.put(`/api/v1/admin/upholsteries/${upholstery.id}`, formData);
       } else {
-        await axios.post('/api/v1/admin/upholsteries', formData);
+        await apiClient.post('/api/v1/admin/upholsteries', formData);
       }
       onSave();
     } catch (error) {
@@ -288,7 +289,7 @@ const UpholsteryEditor = ({ upholstery, onBack, onSave }) => {
                 {formData.swatch_image_url ? (
                   <div className="relative group inline-block">
                     <img 
-                      src={formData.swatch_image_url} 
+                      src={resolveImageUrl(formData.swatch_image_url)} 
                       alt="Material swatch"
                       className="w-48 h-32 object-cover rounded-lg border border-dark-600"
                     />

@@ -1,8 +1,25 @@
+import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { IS_DEMO } from '../data/demoData';
-import { catalogs } from '../data/contentData';
+import { loadContentData } from '../utils/contentDataLoader';
 
 const GuidesPage = () => {
+  const [catalogs, setCatalogs] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const loadData = async () => {
+      if (!IS_DEMO) {
+        const content = await loadContentData();
+        if (content?.catalogs) {
+          setCatalogs(content.catalogs);
+        }
+      }
+      setLoading(false);
+    };
+    loadData();
+  }, []);
+
   // Get guides from catalogs with category = "Guide" or similar
   const guidesData = IS_DEMO ? [] : catalogs.filter(c => 
     c.category?.toLowerCase().includes('guide') || 

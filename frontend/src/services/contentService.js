@@ -1,8 +1,9 @@
 import { api } from '../config/apiClient';
 import logger from '../utils/logger';
+import { loadContentData } from '../utils/contentDataLoader';
 
-// Import static content data
-import * as staticContent from '../data/contentData';
+// DO NOT import contentData statically - it gets bundled and cached
+// Instead we use loadContentData() which fetches from /data/ at runtime
 import { IS_DEMO } from '../data/demoData';
 
 const CONTEXT = 'ContentService';
@@ -33,19 +34,24 @@ const USE_STATIC_CONTENT = import.meta.env.VITE_USE_STATIC_CONTENT !== 'false';
 
 /**
  * Helper to get static content with API fallback
+ * Loads contentData dynamically from /data/ (not bundled)
  */
-const getStaticOrAPI = async (staticData, apiFetcher, contextMessage) => {
+const getStaticOrAPI = async (getDataFn, apiFetcher, contextMessage) => {
   // If static content is disabled, use API
   if (!USE_STATIC_CONTENT) {
     logger.debug(CONTEXT, `${contextMessage} (API mode)`);
     return await apiFetcher();
   }
 
-  // Try static content first
+  // Try static content first (loaded dynamically from /data/)
   try {
-    if (staticData !== undefined && staticData !== null) {
-      logger.debug(CONTEXT, `${contextMessage} (from static file)`);
-      return staticData;
+    const staticContent = await loadContentData();
+    if (staticContent) {
+      const data = getDataFn(staticContent);
+      if (data !== undefined && data !== null) {
+        logger.debug(CONTEXT, `${contextMessage} (from static file)`);
+        return data;
+      }
     }
   } catch (error) {
     logger.warn(CONTEXT, `Static content unavailable, falling back to API: ${error.message}`);
@@ -59,7 +65,7 @@ const getStaticOrAPI = async (staticData, apiFetcher, contextMessage) => {
 // Site Settings
 export const getSiteSettings = async () => {
   return getStaticOrAPI(
-    staticContent.siteSettings,
+    (content) => content.siteSettings,
     async () => {
       const response = await api.get('/api/v1/content/site-settings');
       return response;
@@ -113,7 +119,7 @@ export const getSiteSettingsAdmin = async () => {
 // Company Info
 export const getCompanyInfo = async (sectionKey = null) => {
   return getStaticOrAPI(
-    staticContent.companyInfo,
+    (content) => content.companyInfo,
     async () => {
       const url = sectionKey 
         ? `/api/v1/content/company-info/${sectionKey}`
@@ -128,7 +134,7 @@ export const getCompanyInfo = async (sectionKey = null) => {
 // Team Members
 export const getTeamMembers = async () => {
   return getStaticOrAPI(
-    staticContent.teamMembers,
+    (content) => content.teamMembers,
     async () => {
       const response = await api.get('/api/v1/content/team-members');
       return response;
@@ -140,7 +146,7 @@ export const getTeamMembers = async () => {
 // Company Values
 export const getCompanyValues = async () => {
   return getStaticOrAPI(
-    staticContent.companyValues,
+    (content) => content.companyValues,
     async () => {
       const response = await api.get('/api/v1/content/company-values');
       return response;
@@ -152,7 +158,7 @@ export const getCompanyValues = async () => {
 // Company Milestones
 export const getCompanyMilestones = async () => {
   return getStaticOrAPI(
-    staticContent.companyMilestones,
+    (content) => content.companyMilestones,
     async () => {
       const response = await api.get('/api/v1/content/company-milestones');
       return response;
@@ -164,7 +170,7 @@ export const getCompanyMilestones = async () => {
 // Hero Slides
 export const getHeroSlides = async () => {
   return getStaticOrAPI(
-    staticContent.heroSlides,
+    (content) => content.heroSlides,
     async () => {
       const response = await api.get('/api/v1/content/hero-slides');
       return response;
@@ -176,7 +182,7 @@ export const getHeroSlides = async () => {
 // Features (Why Choose Us)
 export const getFeatures = async (featureType = 'general') => {
   return getStaticOrAPI(
-    staticContent.features,
+    (content) => content.features,
     async () => {
       const response = await api.get(`/api/v1/content/features?type=${featureType}`);
       return response;
@@ -188,7 +194,7 @@ export const getFeatures = async (featureType = 'general') => {
 // Client Logos
 export const getClientLogos = async () => {
   return getStaticOrAPI(
-    staticContent.clientLogos,
+    (content) => content.clientLogos,
     async () => {
       const response = await api.get('/api/v1/content/client-logos');
       return response;
@@ -200,7 +206,7 @@ export const getClientLogos = async () => {
 // Sales Representatives
 export const getSalesReps = async () => {
   return getStaticOrAPI(
-    staticContent.salesReps,
+    (content) => content.salesReps,
     async () => {
       const response = await api.get('/api/v1/content/sales-reps');
       return response;
@@ -212,7 +218,7 @@ export const getSalesReps = async () => {
 // Get rep by state
 export const getRepByState = async (stateCode) => {
   return getStaticOrAPI(
-    staticContent.getRepByState(stateCode),
+    (content) => content.getRepByState?.(stateCode),
     async () => {
       const response = await api.get(`/api/v1/content/sales-reps/state/${stateCode}`);
       return response;
@@ -224,7 +230,7 @@ export const getRepByState = async (stateCode) => {
 // Installation Gallery
 export const getInstallations = async (filters = {}) => {
   return getStaticOrAPI(
-    staticContent.galleryImages,
+    (content) => content.galleryImages,
     async () => {
       const params = new URLSearchParams(filters).toString();
       const response = await api.get(`/api/v1/content/installations${params ? `?${params}` : ''}`);
@@ -237,7 +243,7 @@ export const getInstallations = async (filters = {}) => {
 // Contact Locations
 export const getContactLocations = async () => {
   return getStaticOrAPI(
-    staticContent.contactLocations,
+    (content) => content.contactLocations,
     async () => {
       const response = await api.get('/api/v1/content/contact-locations');
       return response;

@@ -5,6 +5,7 @@ Handles file uploads (images, documents, etc.)
 """
 
 import logging
+import os
 import time
 from pathlib import Path
 
@@ -17,8 +18,16 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter(tags=["Upload"])
 
-# Base upload directory (relative to project root)
-UPLOAD_BASE_DIR = Path("uploads")
+# Base upload directory
+# For production with separated server directories:
+# Backend: /home/dh_wmujeb/api.eaglechair.com
+# Frontend: /home/dh_wmujeb/joshua.eaglechair.com
+# Files need to be uploaded to frontend's uploads directory
+FRONTEND_UPLOAD_PATH = os.getenv(
+    "FRONTEND_UPLOAD_PATH", 
+    "/home/dh_wmujeb/joshua.eaglechair.com/uploads"
+)
+UPLOAD_BASE_DIR = Path(FRONTEND_UPLOAD_PATH) if os.path.isabs(FRONTEND_UPLOAD_PATH) else Path("uploads")
 ALLOWED_IMAGE_EXTENSIONS = {".jpg", ".jpeg", ".png", ".gif", ".webp", ".svg"}
 MAX_FILE_SIZE = 10 * 1024 * 1024  # 10MB
 

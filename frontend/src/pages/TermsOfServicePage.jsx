@@ -1,12 +1,37 @@
+import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { IS_DEMO, demoLegalDocuments } from '../data/demoData';
-import { legalDocuments } from '../data/contentData';
+import { loadContentData } from '../utils/contentDataLoader';
 
 const TermsOfServicePage = () => {
+  const [legalDocuments, setLegalDocuments] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const loadData = async () => {
+      if (!IS_DEMO) {
+        const content = await loadContentData();
+        if (content?.legalDocuments) {
+          setLegalDocuments(content.legalDocuments);
+        }
+      }
+      setLoading(false);
+    };
+    loadData();
+  }, []);
+
   // Get Terms of Service from legal documents (use demo or production data)
   const legalData = IS_DEMO ? demoLegalDocuments : legalDocuments;
   const termsDoc = legalData.find(doc => doc.slug === 'conditions-of-sale');
+  
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-dark-900 via-dark-800 to-dark-900 flex items-center justify-center">
+        <div className="text-dark-100">Loading...</div>
+      </div>
+    );
+  }
   
   if (!termsDoc) {
     return (
