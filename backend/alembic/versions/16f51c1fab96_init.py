@@ -5,9 +5,8 @@ Revises:
 Create Date: 2025-10-06 09:30:21.448090
 
 """
-from alembic import op
 import sqlalchemy as sa
-
+from alembic import op
 
 # revision identifiers, used by Alembic.
 revision = '16f51c1fab96'
@@ -212,9 +211,9 @@ def upgrade() -> None:
     sa.Column('location', sa.String(length=255), nullable=True),
     sa.Column('project_type', sa.String(length=100), nullable=True),
     sa.Column('description', sa.Text(), nullable=True),
-    sa.Column('images', sa.String(), nullable=False),
+    sa.Column('images', sa.String(length=2000), nullable=False),
     sa.Column('primary_image', sa.String(length=500), nullable=True),
-    sa.Column('products_used', sa.String(), nullable=True),
+    sa.Column('products_used', sa.String(length=1000), nullable=True),
     sa.Column('completion_date', sa.String(length=50), nullable=True),
     sa.Column('display_order', sa.Integer(), nullable=False),
     sa.Column('is_active', sa.Boolean(), nullable=False),

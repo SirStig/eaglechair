@@ -4,11 +4,23 @@ import logger from '../utils/logger';
 const CONTEXT = 'APIClient';
 
 // Get configuration from environment variables
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
-const API_TIMEOUT = import.meta.env.VITE_API_TIMEOUT || 30000;
+// CRITICAL: No fallback to localhost - must be set in .env files
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || '';
+const API_TIMEOUT = parseInt(import.meta.env.VITE_API_TIMEOUT) || 30000;
 export const IS_DEMO_MODE = import.meta.env.VITE_DEMO_MODE === 'true';
 
-logger.info(CONTEXT, `Initializing API client - Base URL: ${API_BASE_URL}, Demo Mode: ${IS_DEMO_MODE}`);
+// Log configuration at startup
+logger.info(CONTEXT, `API Client Configuration:`, {
+  baseURL: API_BASE_URL || '(using relative URLs)',
+  demoMode: IS_DEMO_MODE,
+  mode: import.meta.env.MODE,
+  buildTimestamp: typeof __BUILD_TIMESTAMP__ !== 'undefined' ? __BUILD_TIMESTAMP__ : 'unknown'
+});
+
+// Validate production configuration
+if (import.meta.env.PROD && !API_BASE_URL) {
+  logger.warn(CONTEXT, 'WARNING: VITE_API_BASE_URL not set in production build. Using relative URLs.');
+}
 
 // Create axios instance with base configuration
 const apiClient = axios.create({

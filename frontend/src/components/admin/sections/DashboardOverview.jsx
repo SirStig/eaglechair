@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
 import Card from '../../ui/Card';
 import Button from '../../ui/Button';
-import axios from 'axios';
+import apiClient from '../../../config/apiClient';
 import { 
   Package, 
   FileText, 
@@ -33,8 +33,8 @@ const DashboardOverview = ({ onNavigate }) => {
 
   const fetchStats = async () => {
     try {
-      const response = await axios.get('/api/v1/admin/dashboard/stats');
-      setStats(response.data);
+      const response = await apiClient.get('/api/v1/admin/dashboard/stats');
+      setStats(response);
     } catch (error) {
       console.error('Failed to fetch stats:', error);
     } finally {

@@ -116,7 +116,18 @@ app = FastAPI(
     redoc_url="/redoc",
     openapi_url="/openapi.json",
     lifespan=lifespan,
+    # Trust proxy headers when behind reverse proxy (DreamHost)
+    root_path=settings.ROOT_PATH if hasattr(settings, 'ROOT_PATH') else "",
 )
+
+# Configure proxy headers for production (DreamHost reverse proxy)
+if not settings.DEBUG:
+    from fastapi.middleware.trustedhost import TrustedHostMiddleware
+    # Trust the reverse proxy
+    app.add_middleware(
+        TrustedHostMiddleware,
+        allowed_hosts=settings.ALLOWED_HOSTS if hasattr(settings, 'ALLOWED_HOSTS') else ["*"]
+    )
 
 # Register exception handlers
 register_exception_handlers(app)
@@ -174,6 +185,26 @@ if frontend_dist_path.exists() and (frontend_dist_path / "index.html").exists():
     
     # Mount data directory if it exists (for contentData.js)
     if (frontend_dist_path / "data").exists():
+        # Special handling for contentData.js - disable caching
+        from fastapi.responses import FileResponse
+        
+        @app.get("/data/contentData.js", response_class=FileResponse, include_in_schema=False)
+        async def serve_content_data():
+            """Serve contentData.js with no-cache headers (dynamic CMS content)"""
+            content_data_file = frontend_dist_path / "data" / "contentData.js"
+            if content_data_file.exists():
+                return FileResponse(
+                    content_data_file,
+                    media_type="application/javascript",
+                    headers={
+                        "Cache-Control": "no-store, no-cache, must-revalidate, max-age=0",
+                        "Pragma": "no-cache",
+                        "Expires": "0",
+                    }
+                )
+            return {"detail": "Content data not found"}, 404
+        
+        # Mount other data files with normal caching
         app.mount("/data", StaticFiles(directory=str(frontend_dist_path / "data")), name="data")
         logger.info("[OK] Data directory mounted at /data")
     
@@ -433,10 +464,20 @@ async def root_old():
 if __name__ == "__main__":
     import uvicorn
     
-    uvicorn.run(
-        "backend.main:app",
-        host=settings.HOST,
-        port=settings.PORT,
-        reload=settings.RELOAD and settings.DEBUG,
-        log_level=settings.LOG_LEVEL.lower(),
-    )
+    # Configure uvicorn for reverse proxy support
+    uvicorn_config = {
+        "app": "backend.main:app",
+        "host": settings.HOST,
+        "port": settings.PORT,
+        "reload": settings.RELOAD and settings.DEBUG,
+        "log_level": settings.LOG_LEVEL.lower(),
+    }
+    
+    # Add proxy headers support for production (DreamHost VPS)
+    if settings.PROXY_HEADERS:
+        uvicorn_config.update({
+            "proxy_headers": True,
+            "forwarded_allow_ips": settings.FORWARDED_ALLOW_IPS,
+        })
+    
+    uvicorn.run(**uvicorn_config)

@@ -4,28 +4,28 @@ EagleChair Middleware Setup Module
 Configures and sets up all middleware for the application
 """
 
-import time
 import logging
+import time
 from typing import Callable
+
 from fastapi import Request, Response, status
 from fastapi.responses import JSONResponse
+from slowapi import Limiter, _rate_limit_exceeded_handler
+from slowapi.errors import RateLimitExceeded
+from slowapi.util import get_remote_address
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.middleware.cors import CORSMiddleware
 from starlette.middleware.gzip import GZipMiddleware
-from slowapi import Limiter, _rate_limit_exceeded_handler
-from slowapi.util import get_remote_address
-from slowapi.errors import RateLimitExceeded
 
 from backend.core.config import settings
+from backend.core.exceptions import BaseAppException
+from backend.core.logging_config import request_logger, security_logger
+from backend.core.middleware.admin_security import AdminSecurityMiddleware
 from backend.core.middleware.ddos_protection import DDoSProtectionMiddleware
 from backend.core.middleware.rate_limiter import AdvancedRateLimiter
 from backend.core.middleware.request_validator import RequestValidationMiddleware
-from backend.core.middleware.session_manager import SessionManager
-from backend.core.middleware.admin_security import AdminSecurityMiddleware
 from backend.core.middleware.route_protection import RouteProtectionMiddleware
-from backend.core.logging_config import request_logger, security_logger
-from backend.core.exceptions import BaseAppException
-
+from backend.core.middleware.session_manager import SessionManager
 
 logger = logging.getLogger(__name__)
 
@@ -57,10 +57,14 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
 class HTTPSRedirectMiddleware(BaseHTTPMiddleware):
     """
     Middleware to redirect HTTP to HTTPS in production
+    
+    NOTE: Disabled when behind reverse proxy (DreamHost) - proxy handles HTTPS
     """
     
     async def dispatch(self, request: Request, call_next: Callable) -> Response:
-        if settings.HTTPS_REDIRECT and not settings.DEBUG:
+        # Skip HTTPS redirect when behind reverse proxy
+        # The proxy (Apache/Nginx) already handles HTTPS termination
+        if settings.HTTPS_REDIRECT and not settings.DEBUG and not settings.PROXY_HEADERS:
             if request.url.scheme == "http":
                 url = request.url.replace(scheme="https")
                 return JSONResponse(

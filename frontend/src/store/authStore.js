@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
-import axios from 'axios';
+import apiClient from '../config/apiClient';
 
 // Helper function to decode JWT and check expiration
 const isTokenExpired = (token) => {
@@ -35,9 +35,9 @@ export const useAuthStore = create(
 
       login: async (credentials) => {
         try {
-          // Use relative URL - Vite proxy handles dev, same origin in production
-          const response = await axios.post('/api/v1/auth/login', credentials);
-          const data = response.data;
+          // Use configured API client with proper base URL
+          // Note: apiClient response interceptor already returns response.data
+          const data = await apiClient.post('/api/v1/auth/login', credentials);
           
           // Extract data from response
           const accessToken = data.access_token;
@@ -60,15 +60,15 @@ export const useAuthStore = create(
             isAuthenticated: true 
           });
           
-          // Set axios default headers
-          axios.defaults.headers.common['Authorization'] = `Bearer ${accessToken}`;
+          // Set apiClient default headers
+          apiClient.defaults.headers.common['Authorization'] = `Bearer ${accessToken}`;
           
           // Set admin tokens if present (for admin users)
           if (sessionToken) {
-            axios.defaults.headers.common['X-Session-Token'] = sessionToken;
+            apiClient.defaults.headers.common['X-Session-Token'] = sessionToken;
           }
           if (adminToken) {
-            axios.defaults.headers.common['X-Admin-Token'] = adminToken;
+            apiClient.defaults.headers.common['X-Admin-Token'] = adminToken;
           }
           
           return { success: true, user };
@@ -85,8 +85,9 @@ export const useAuthStore = create(
 
       register: async (userData) => {
         try {
-          const response = await axios.post('/api/v1/auth/register', userData);
-          const { access_token, refresh_token, user } = response.data;
+          // Note: apiClient response interceptor already returns response.data
+          const data = await apiClient.post('/api/v1/auth/register', userData);
+          const { access_token, refresh_token, user } = data;
           
           // Validate user data
           if (!isValidUser(user)) {
@@ -100,7 +101,7 @@ export const useAuthStore = create(
             isAuthenticated: true 
           });
           
-          axios.defaults.headers.common['Authorization'] = `Bearer ${access_token}`;
+          apiClient.defaults.headers.common['Authorization'] = `Bearer ${access_token}`;
           
           return { success: true, user };
         } catch (error) {
@@ -120,9 +121,9 @@ export const useAuthStore = create(
           adminToken: null,
           isAuthenticated: false 
         });
-        delete axios.defaults.headers.common['Authorization'];
-        delete axios.defaults.headers.common['X-Session-Token'];
-        delete axios.defaults.headers.common['X-Admin-Token'];
+        delete apiClient.defaults.headers.common['Authorization'];
+        delete apiClient.defaults.headers.common['X-Session-Token'];
+        delete apiClient.defaults.headers.common['X-Admin-Token'];
       },
 
       updateUser: (userData) => {
@@ -152,7 +153,7 @@ export const useAuthStore = create(
         return true;
       },
 
-      // Initialize axios with stored token
+      // Initialize apiClient with stored token
       initAuth: () => {
         const { token, sessionToken, adminToken, validateAndCleanup } = get();
         
@@ -162,13 +163,13 @@ export const useAuthStore = create(
         }
         
         if (token) {
-          axios.defaults.headers.common['Authorization'] = `Bearer ${token}`;
+          apiClient.defaults.headers.common['Authorization'] = `Bearer ${token}`;
         }
         if (sessionToken) {
-          axios.defaults.headers.common['X-Session-Token'] = sessionToken;
+          apiClient.defaults.headers.common['X-Session-Token'] = sessionToken;
         }
         if (adminToken) {
-          axios.defaults.headers.common['X-Admin-Token'] = adminToken;
+          apiClient.defaults.headers.common['X-Admin-Token'] = adminToken;
         }
       },
     }),

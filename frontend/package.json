@@ -26,6 +26,7 @@
   "scripts": {
     "dev": "vite --host 0.0.0.0",
     "build": "vite build",
+    "build:production": "vite build --mode production",
     "lint": "eslint .",
     "preview": "vite preview"
   },
@@ -35,6 +36,7 @@
     "clsx": "^2.1.1",
     "date-fns": "^4.1.0",
     "framer-motion": "^11.15.0",
+    "jquery": "^3.7.1",
     "leaflet": "^1.9.4",
     "lucide-react": "^0.548.0",
     "react": "^19.0.0",

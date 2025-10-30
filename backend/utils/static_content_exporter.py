@@ -40,8 +40,19 @@ class StaticContentExporter:
             frontend_path: Path to frontend directory. If None, auto-detect.
         """
         self.frontend_path = self._resolve_frontend_path(frontend_path)
-        self.data_dir = self.frontend_path / "src" / "data"
-        self.content_file = self.data_dir / "contentData.js"
+        
+        # In production (DreamHost), frontend is deployed (no src directory)
+        # Check if we're in production (no src directory exists)
+        src_data_dir = self.frontend_path / "src" / "data"
+        
+        if src_data_dir.exists():
+            # Development mode - use src directory
+            self.data_dir = src_data_dir
+            self.content_file = self.data_dir / "contentData.js"
+        else:
+            # Production mode - frontend is deployed, use data directory directly
+            self.data_dir = self.frontend_path / "data"
+            self.content_file = self.data_dir / "contentData.js"
         
         # Also track dist directory for production builds
         self.dist_dir = self.frontend_path / "dist"

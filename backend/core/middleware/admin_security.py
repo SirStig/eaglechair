@@ -152,13 +152,18 @@ class AdminSecurityMiddleware(BaseHTTPMiddleware):
         if not user_agent or len(user_agent) < 10:
             return False
         
-        # Reject requests with suspicious patterns
-        suspicious_agents = ["curl", "wget", "python-requests", "postman"]
+        # Reject requests with suspicious patterns (only block obvious bots/scripts)
+        # Allow legitimate browsers (Chrome, Firefox, Safari, Edge)
+        suspicious_agents = ["curl", "wget", "python-requests"]
         if settings.is_production:
-            for agent in suspicious_agents:
-                if agent.lower() in user_agent.lower():
-                    logger.warning(f"Suspicious User-Agent for admin: {user_agent}")
-                    return False
+            user_agent_lower = user_agent.lower()
+            # Only block if it matches suspicious patterns AND doesn't look like a browser
+            is_suspicious = any(agent in user_agent_lower for agent in suspicious_agents)
+            is_browser = any(browser in user_agent_lower for browser in ["mozilla", "chrome", "safari", "firefox", "edge"])
+            
+            if is_suspicious and not is_browser:
+                logger.warning(f"Suspicious User-Agent for admin: {user_agent}")
+                return False
         
         return True
     
@@ -211,7 +216,7 @@ class AdminSecurityMiddleware(BaseHTTPMiddleware):
         message: str
     ) -> JSONResponse:
         """
-        Create a standardized error response
+        Create a standardized error response with CORS headers
         
         Args:
             status_code: HTTP status code
@@ -219,9 +224,9 @@ class AdminSecurityMiddleware(BaseHTTPMiddleware):
             message: Human-readable error message
             
         Returns:
-            JSONResponse: Formatted error response
+            JSONResponse: Formatted error response with CORS headers
         """
-        return JSONResponse(
+        response = JSONResponse(
             status_code=status_code,
             content={
                 "error": error,
@@ -229,6 +234,18 @@ class AdminSecurityMiddleware(BaseHTTPMiddleware):
                 "status_code": status_code
             }
         )
+        
+        # Add CORS headers to error responses (critical for cross-origin requests)
+        for origin in settings.CORS_ORIGINS:
+            # Note: We set all allowed origins; the browser will use the matching one
+            response.headers["Access-Control-Allow-Origin"] = origin
+            break  # Use first origin as default (will be overridden by CORS middleware if needed)
+        
+        response.headers["Access-Control-Allow-Credentials"] = "true"
+        response.headers["Access-Control-Allow-Methods"] = ", ".join(settings.CORS_ALLOW_METHODS)
+        response.headers["Access-Control-Allow-Headers"] = ", ".join(settings.CORS_ALLOW_HEADERS)
+        
+        return response
 
 
 class AdminIPWhitelistValidator:
@@ -258,8 +275,3 @@ class AdminIPWhitelistValidator:
                 logger.warning(f"Invalid IP in whitelist: {ip}")
         
         return valid_ips
-
-
-# Import time for timestamps
-import time
-

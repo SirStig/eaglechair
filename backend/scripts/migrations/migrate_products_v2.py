@@ -39,7 +39,11 @@ from backend.models.chair import (
     ProductVariation,
 )
 
-from .base_parser import get_sql_content
+# Handle both direct execution and module execution
+try:
+    from .base_parser import get_sql_content
+except ImportError:
+    from base_parser import get_sql_content
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)

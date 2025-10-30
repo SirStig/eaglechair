@@ -103,7 +103,7 @@ class FAQ(Base):
     category_id = Column(Integer, ForeignKey("faq_categories.id"), nullable=False)
     category = relationship("FAQCategory", back_populates="faqs")
     
-    question = Column(Text, nullable=False, index=True)
+    question = Column(String(500), nullable=False, index=True)
     answer = Column(Text, nullable=False)
     
     # Additional info
@@ -202,7 +202,7 @@ class Installation(Base):
     primary_image = Column(String(500), nullable=True)
     
     # Products used (JSON array of product IDs)
-    products_used = Column(String, nullable=True)  # JSON array
+    products_used = Column(String(1000), nullable=True)  # JSON array
     
     # Date
     completion_date = Column(String(50), nullable=True)

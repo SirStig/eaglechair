@@ -62,6 +62,15 @@ export const formatPriceRange = (minCents, maxCents) => {
 
 /**
  * Resolve image URL from various formats
+ * Handles different formats:
+ * - Object: {url: "path/to/image.jpg", type: "primary"}
+ * - String: "path/to/image.jpg" or "/uploads/path/to/image.jpg"
+ * - URL: "https://example.com/image.jpg"
+ * 
+ * Special handling for legacy wp-content URLs:
+ * - wp-content URLs are redirected to www.eaglechair.com (original site)
+ * - Other URLs use joshua.eaglechair.com (current site)
+ * 
  * @param {string|object} imageData - Image URL string or object with url property
  * @returns {string} Resolved image URL
  */
@@ -69,27 +78,47 @@ export const resolveImageUrl = (imageData) => {
   // Handle null/undefined
   if (!imageData) return '/placeholder.png';
   
+  // Helper function to process URL string
+  const processUrl = (url) => {
+    // External URL (starts with http/https)
+    if (url.startsWith('http')) {
+      // Check if it's a wp-content URL that needs to be fixed
+      // e.g., https://joshua.eaglechair.com/uploads//wp-content/...
+      if (url.includes('/wp-content/uploads/')) {
+        // Extract the wp-content path and redirect to original site
+        const wpContentPath = url.substring(url.indexOf('/wp-content/'));
+        return `https://www.eaglechair.com${wpContentPath}`;
+      }
+      return url;
+    }
+    
+    // Handle wp-content paths (from seeded content)
+    if (url.includes('/wp-content/uploads/') || url.includes('wp-content/uploads/')) {
+      // Extract just the wp-content portion
+      const wpContentPath = url.includes('/wp-content/') 
+        ? url.substring(url.indexOf('/wp-content/'))
+        : `/wp-content/${url.substring(url.indexOf('wp-content/'))}`;
+      // Point to original site for legacy WordPress content
+      return `https://www.eaglechair.com${wpContentPath}`;
+    }
+    
+    // Already has /uploads prefix - add domain
+    if (url.startsWith('/uploads')) {
+      return `https://joshua.eaglechair.com${url}`;
+    }
+    
+    // Relative path - add /uploads prefix and domain
+    return `https://joshua.eaglechair.com/uploads/${url}`;
+  };
+  
   // Handle object format {url: "...", type: "...", ...}
   if (typeof imageData === 'object' && imageData.url) {
-    const url = imageData.url;
-    // External URL (starts with http/https)
-    if (url.startsWith('http')) return url;
-    // Already has /uploads prefix
-    if (url.startsWith('/uploads')) return url;
-    // Relative path - add /uploads prefix
-    return `/uploads/${url}`;
+    return processUrl(imageData.url);
   }
   
   // Handle string URL
   if (typeof imageData === 'string') {
-    // External URL (starts with http/https)
-    if (imageData.startsWith('http')) return imageData;
-    
-    // Already has /uploads prefix
-    if (imageData.startsWith('/uploads')) return imageData;
-    
-    // Relative path - add /uploads prefix
-    return `/uploads/${imageData}`;
+    return processUrl(imageData);
   }
   
   return '/placeholder.png';

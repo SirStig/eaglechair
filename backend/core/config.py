@@ -4,11 +4,13 @@ EagleChair Core Configuration Module
 Manages application settings using Pydantic BaseSettings for .env file integration
 """
 
+import json
 import os
 from functools import lru_cache
 from typing import Optional
 
 from dotenv import load_dotenv
+from pydantic import field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -80,6 +82,18 @@ class Settings(BaseSettings):
     CORS_ALLOW_METHODS: list[str] = ["*"]
     CORS_ALLOW_HEADERS: list[str] = ["*"]
     
+    @field_validator('CORS_ORIGINS', 'CORS_ALLOW_METHODS', 'CORS_ALLOW_HEADERS', mode='before')
+    @classmethod
+    def parse_json_list(cls, v):
+        """Parse JSON string from .env file into Python list"""
+        if isinstance(v, str):
+            try:
+                return json.loads(v)
+            except json.JSONDecodeError:
+                # If it's not valid JSON, treat it as a single item list
+                return [v]
+        return v
+    
     # Database Configuration
     DATABASE_URL: str = "postgresql://postgres:postgres@postgres:5432/eaglechair"
     DATABASE_POOL_SIZE: int = 20
@@ -132,8 +146,14 @@ class Settings(BaseSettings):
     STRIPE_WEBHOOK_SECRET: Optional[str] = None
     
     # DreamHost HTTPS Configuration
-    HTTPS_REDIRECT: bool = True
-    SECURE_SSL_REDIRECT: bool = True
+    HTTPS_REDIRECT: bool = False  # Disable - proxy handles HTTPS
+    SECURE_SSL_REDIRECT: bool = False  # Disable - proxy handles HTTPS
+    
+    # Reverse Proxy Configuration (DreamHost VPS)
+    FORWARDED_ALLOW_IPS: str = "*"  # Trust all proxy IPs (or set to your proxy IP)
+    ROOT_PATH: str = ""  # Set to "/api" if proxy strips path prefix
+    ALLOWED_HOSTS: list[str] = ["*"]  # Or specify your domain
+    PROXY_HEADERS: bool = True  # Enable proxy header support
     
     # Logging Configuration
     LOG_LEVEL: str = "INFO"
@@ -164,7 +184,13 @@ class Settings(BaseSettings):
     @property
     def database_url_async(self) -> str:
         """Get asynchronous database URL for async database operations"""
-        if "+asyncpg" not in self.DATABASE_URL:
+        # MySQL uses aiomysql for async operations
+        if self.DATABASE_URL.startswith("mysql://"):
+            return self.DATABASE_URL.replace("mysql://", "mysql+aiomysql://")
+        elif self.DATABASE_URL.startswith("mysql+aiomysql://"):
+            return self.DATABASE_URL
+        # PostgreSQL uses asyncpg for async operations
+        elif "+asyncpg" not in self.DATABASE_URL:
             return self.DATABASE_URL.replace("postgresql://", "postgresql+asyncpg://")
         return self.DATABASE_URL
     
