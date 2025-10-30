@@ -1,4 +1,4 @@
-import axios from 'axios';
+import apiClient from '../config/apiClient';
 import { useAuthStore } from '../store/authStore';
 
 let isRefreshing = false;
@@ -17,7 +17,7 @@ const processQueue = (error, token = null) => {
 };
 
 // Response interceptor for automatic token refresh
-axios.interceptors.response.use(
+apiClient.interceptors.response.use(
   (response) => response,
   async (error) => {
     const originalRequest = error.config;
@@ -30,7 +30,7 @@ axios.interceptors.response.use(
           failedQueue.push({ resolve, reject });
         }).then(token => {
           originalRequest.headers['Authorization'] = 'Bearer ' + token;
-          return axios(originalRequest);
+          return apiClient(originalRequest);
         }).catch(err => {
           return Promise.reject(err);
         });
@@ -53,7 +53,7 @@ axios.interceptors.response.use(
       
       // Try to refresh the token using the refresh token
       try {
-        const response = await axios.post(
+        const response = await apiClient.post(
           '/api/v1/auth/refresh',
           {},
           {
@@ -71,8 +71,8 @@ axios.interceptors.response.use(
           refreshToken: refresh_token || refreshToken, // Use new refresh token if provided, otherwise keep existing
         });
         
-        // Update axios headers
-        axios.defaults.headers.common['Authorization'] = `Bearer ${access_token}`;
+        // Update apiClient headers
+        apiClient.defaults.headers.common['Authorization'] = `Bearer ${access_token}`;
         
         // Process queued requests
         processQueue(null, access_token);
@@ -81,7 +81,7 @@ axios.interceptors.response.use(
         
         // Retry original request
         originalRequest.headers['Authorization'] = 'Bearer ' + access_token;
-        return axios(originalRequest);
+        return apiClient(originalRequest);
       } catch (refreshError) {
         processQueue(refreshError, null);
         isRefreshing = false;
@@ -102,4 +102,4 @@ axios.interceptors.response.use(
   }
 );
 
-export default axios;
+export default apiClient;

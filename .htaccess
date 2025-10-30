@@ -1,0 +1,7 @@
+# DreamHost .htaccess for api.eaglechair.com
+# Proxy configured via DreamHost panel - no additional config needed
+
+# Optional: Force HTTPS (if not already handled by DreamHost)
+# RewriteEngine On
+# RewriteCond %{HTTPS} off
+# RewriteRule ^(.*)$ https://%{HTTP_HOST}%{REQUEST_URI} [L,R=301]

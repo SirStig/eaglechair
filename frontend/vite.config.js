@@ -35,44 +35,57 @@ const copyContentDataPlugin = () => {
 }
 
 // https://vite.dev/config/
-export default defineConfig({
-  plugins: [react(), copyContentDataPlugin()],
+export default defineConfig(({ mode }) => {
+  const buildTimestamp = new Date().toISOString();
+  const isProduction = mode === 'production';
   
-  server: {
-    port: 5173,
-    proxy: {
-      '/api': {
-        target: 'http://localhost:8000',
-        changeOrigin: true,
-      },
-      '/uploads': {
-        target: 'http://localhost:8000',
-        changeOrigin: true,
-      },
-    },
-  },
+  console.log(`\n🏗️  Building in ${mode} mode`);
+  console.log(`📅 Build timestamp: ${buildTimestamp}\n`);
   
-  build: {
-    outDir: 'dist',
-    sourcemap: true,
-    // Optimize chunks for better loading
-    rollupOptions: {
-      output: {
-        manualChunks: {
-          'react-vendor': ['react', 'react-dom', 'react-router-dom'],
-          'ui-vendor': ['framer-motion', 'react-slick', 'slick-carousel'],
-          'form-vendor': ['react-hook-form', 'react-quill', 'react-dropzone'],
-          'utils-vendor': ['axios', '@tanstack/react-query', 'zustand', 'date-fns', 'clsx'],
+  return {
+    plugins: [react(), copyContentDataPlugin()],
+    
+    server: {
+      port: 5173,
+      proxy: {
+        '/api': {
+          target: 'http://localhost:8000',
+          changeOrigin: true,
+        },
+        '/uploads': {
+          target: 'http://localhost:8000',
+          changeOrigin: true,
         },
       },
     },
-    // Increase chunk size warning limit
-    chunkSizeWarningLimit: 1000,
-  },
-  
-  // Define app metadata
-  define: {
-    __APP_NAME__: JSON.stringify('Eagle Chair'),
-    __APP_VERSION__: JSON.stringify('1.0.0'),
-  },
-})
+    
+    build: {
+      outDir: 'dist',
+      sourcemap: !isProduction, // Only in dev
+      // Optimize chunks for better loading
+      rollupOptions: {
+        output: {
+          // Add hash to filenames for cache busting
+          entryFileNames: 'assets/[name]-[hash].js',
+          chunkFileNames: 'assets/[name]-[hash].js',
+          assetFileNames: 'assets/[name]-[hash].[ext]',
+          manualChunks: {
+            'react-vendor': ['react', 'react-dom', 'react-router-dom'],
+            'ui-vendor': ['framer-motion', 'react-slick', 'slick-carousel'],
+            'form-vendor': ['react-hook-form', 'react-quill', 'react-dropzone'],
+            'utils-vendor': ['axios', '@tanstack/react-query', 'zustand', 'date-fns', 'clsx'],
+          },
+        },
+      },
+      // Increase chunk size warning limit
+      chunkSizeWarningLimit: 1000,
+    },
+    
+    // Define app metadata
+    define: {
+      __APP_NAME__: JSON.stringify('Eagle Chair'),
+      __APP_VERSION__: JSON.stringify('1.0.0'),
+      __BUILD_TIMESTAMP__: JSON.stringify(buildTimestamp),
+    },
+  };
+});

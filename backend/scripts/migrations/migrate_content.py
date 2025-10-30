@@ -54,7 +54,11 @@ from backend.models.legal import (  # noqa: E402
     WarrantyInformation,
 )
 
-from .base_parser import get_sql_content  # noqa: E402
+# Handle both direct execution and module execution
+try:
+    from .base_parser import get_sql_content  # noqa: E402
+except ImportError:
+    from base_parser import get_sql_content  # noqa: E402
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)

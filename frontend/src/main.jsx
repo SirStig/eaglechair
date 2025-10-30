@@ -3,6 +3,10 @@ import ReactDOM from 'react-dom/client';
 import App from './App';
 import './index.css';
 
+// CRITICAL: Configure axios globally BEFORE anything else
+// This ensures all axios instances use the correct API base URL
+import './config/axiosConfig';
+
 // Import axios interceptor for automatic token refresh
 import './services/axios-interceptor';
 

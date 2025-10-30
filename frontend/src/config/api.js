@@ -1,11 +1,19 @@
 import axios from 'axios';
 
 // Get API base URL from environment variables
-// In production on Dreamhost, frontend and backend are on same domain
-// Dev: frontend (localhost:5173) -> backend (localhost:8000) via Vite proxy
-// Prod: eaglechair.com/index.html -> eaglechair.com/api/... (same origin)
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 
-  (import.meta.env.DEV ? 'http://localhost:8000' : '');
+// IMPORTANT: VITE_API_BASE_URL must be set in .env.production for production builds
+// Dev: Uses Vite proxy to backend (relative URLs)
+// Prod: Uses VITE_API_BASE_URL from .env.production (e.g., https://api.eaglechair.com)
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || '';
+
+// Log configuration
+if (import.meta.env.DEV) {
+  console.log('[API Config] Using Vite proxy for development');
+} else if (API_BASE_URL) {
+  console.log(`[API Config] Using base URL: ${API_BASE_URL}`);
+} else {
+  console.warn('[API Config] No base URL set - using relative URLs');
+}
 
 // Create axios instance with default config
 const api = axios.create({

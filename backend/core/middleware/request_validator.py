@@ -7,13 +7,12 @@ Returns clean JSON error responses
 
 import logging
 from typing import Callable
+
 from fastapi import Request, Response, status
 from fastapi.responses import JSONResponse
 from starlette.middleware.base import BaseHTTPMiddleware
 
 from backend.core.config import settings
-from backend.core.routes_config import RouteConfig
-
 
 logger = logging.getLogger(__name__)
 
@@ -114,6 +113,10 @@ class RequestValidationMiddleware(BaseHTTPMiddleware):
     
     def _has_suspicious_headers(self, request: Request) -> bool:
         """Detect suspicious header patterns"""
+        # If proxy headers are enabled, trust the proxy
+        if settings.PROXY_HEADERS:
+            return False
+        
         suspicious_patterns = [
             "x-forwarded-host",  # If not from trusted proxy
             "x-original-url",
@@ -131,8 +134,11 @@ class RequestValidationMiddleware(BaseHTTPMiddleware):
     
     def _is_trusted_proxy(self, request: Request) -> bool:
         """Check if request is from trusted proxy"""
-        # Implement your trusted proxy check here
-        # For now, return False (can be enhanced with whitelist)
+        # If proxy headers are enabled in settings, trust the proxy
+        if settings.PROXY_HEADERS:
+            return True
+        
+        # Otherwise, return False (can be enhanced with IP whitelist)
         return False
     
     def _create_error_response(
