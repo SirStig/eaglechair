@@ -31,3 +31,9 @@ logs/
 *.db
 *.sqlite
 *.sqlite3
+
+# Seed Scripts
+backend/scripts/migrations/
+backend/scripts/eaglechair_com.sql
+backend/scripts/seed_admin.py
+backend/scripts/seed_legal_content.py

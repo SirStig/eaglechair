@@ -1,12 +1,27 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { IS_DEMO } from '../data/demoData';
-import { laminates } from '../data/contentData';
+import { loadContentData } from '../utils/contentDataLoader';
 
 const LaminatesPage = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedBrand, setSelectedBrand] = useState('all');
+  const [laminates, setLaminates] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const loadData = async () => {
+      if (!IS_DEMO) {
+        const content = await loadContentData();
+        if (content?.laminates) {
+          setLaminates(content.laminates);
+        }
+      }
+      setLoading(false);
+    };
+    loadData();
+  }, []);
 
   // Get laminates data (production only - no demo data for now)
   const laminatesData = IS_DEMO ? [] : laminates;

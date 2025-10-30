@@ -45,6 +45,9 @@
   RewriteCond %{REQUEST_FILENAME} !-f
   RewriteCond %{REQUEST_FILENAME} !-d
   
+  # Don't rewrite uploads directory (served as static files)
+  RewriteCond %{REQUEST_URI} !^/uploads/
+  
   # Rewrite everything else to index.html
   RewriteRule ^ index.html [L]
 </IfModule>

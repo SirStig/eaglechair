@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import Card from '../../ui/Card';
 import Button from '../../ui/Button';
-import axios from 'axios';
+import apiClient from '../../../config/apiClient';
 
 const CompanyManagement = () => {
   const [companies, setCompanies] = useState([]);
@@ -16,11 +16,11 @@ const CompanyManagement = () => {
   const fetchCompanies = async () => {
     setLoading(true);
     try {
-      const response = await axios.get('/api/v1/admin/companies', {
+      const response = await apiClient.get('/api/v1/admin/companies', {
         params: { page, page_size: 20 }
       });
-      setCompanies(response.data.items || []);
-      setTotalPages(response.data.pages || 1);
+      setCompanies(response.items || []);
+      setTotalPages(response.pages || 1);
     } catch (error) {
       console.error('Failed to fetch companies:', error);
     } finally {

@@ -129,11 +129,13 @@ class RouteConfig:
     ADMIN_ROUTES: Set[str] = {
         "/api/v1/admin",
         "/api/v1/admin/dashboard",
+        "/api/v1/cms-admin",
     }
     
     # Admin route patterns
     ADMIN_PATTERNS: List[str] = [
         "/api/v1/admin/",
+        "/api/v1/cms-admin/",  # CMS admin routes
     ]
     
     # ===== AUTHENTICATED ROUTES =====

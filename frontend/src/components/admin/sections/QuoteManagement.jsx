@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import Card from '../../ui/Card';
 import Button from '../../ui/Button';
-import axios from 'axios';
+import apiClient from '../../../config/apiClient';
 import { 
   FileText, 
   Search, 
@@ -43,12 +43,12 @@ const QuoteManagement = () => {
         params.status = statusFilter;
       }
 
-      const response = await axios.get('/api/v1/admin/quotes', { params });
-      setQuotes(response.data.items);
+      const response = await apiClient.get('/api/v1/admin/quotes', { params });
+      setQuotes(response.items);
       setPagination(prev => ({
         ...prev,
-        total: response.data.total,
-        pages: response.data.pages
+        total: response.total,
+        pages: response.pages
       }));
     } catch (error) {
       console.error('Failed to fetch quotes:', error);
@@ -89,7 +89,7 @@ const QuoteManagement = () => {
 
   const handleStatusChange = async (quoteId, newStatus) => {
     try {
-      await axios.patch(`/api/v1/admin/quotes/${quoteId}/status`, {
+      await apiClient.patch(`/api/v1/admin/quotes/${quoteId}/status`, {
         status: newStatus
       });
       fetchQuotes();

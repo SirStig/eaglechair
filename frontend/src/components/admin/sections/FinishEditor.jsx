@@ -1,7 +1,8 @@
 import { useState, useEffect } from 'react';
 import Card from '../../ui/Card';
 import Button from '../../ui/Button';
-import axios from 'axios';
+import apiClient from '../../../config/apiClient';
+import { resolveImageUrl } from '../../../utils/apiHelpers';
 import { ArrowLeft, Upload, X } from 'lucide-react';
 
 /**
@@ -33,8 +34,8 @@ const FinishEditor = ({ finish, onBack, onSave }) => {
 
   const fetchColors = async () => {
     try {
-      const response = await axios.get('/api/v1/admin/colors', { params: { is_active: true } });
-      setColors(response.data);
+      const response = await apiClient.get('/api/v1/admin/colors', { params: { is_active: true } });
+      setColors(response);
     } catch (error) {
       console.error('Failed to fetch colors:', error);
     }
@@ -55,11 +56,11 @@ const FinishEditor = ({ finish, onBack, onSave }) => {
       formDataUpload.append('file', file);
       formDataUpload.append('subfolder', 'finishes');
       
-      const response = await axios.post('/api/v1/admin/upload/image', formDataUpload, {
+      const response = await apiClient.post('/api/v1/admin/upload/image', formDataUpload, {
         headers: { 'Content-Type': 'multipart/form-data' }
       });
       
-      const imageUrl = response.data.url;
+      const imageUrl = response.url;
       handleChange('image_url', imageUrl);
     } catch (error) {
       console.error('Failed to upload image:', error);
@@ -74,7 +75,7 @@ const FinishEditor = ({ finish, onBack, onSave }) => {
     
     try {
       if (formData.image_url) {
-        await axios.delete('/api/v1/admin/upload/image', {
+        await apiClient.delete('/api/v1/admin/upload/image', {
           data: { url: formData.image_url }
         });
       }
@@ -90,9 +91,9 @@ const FinishEditor = ({ finish, onBack, onSave }) => {
     
     try {
       if (finish) {
-        await axios.put(`/api/v1/admin/finishes/${finish.id}`, formData);
+        await apiClient.put(`/api/v1/admin/finishes/${finish.id}`, formData);
       } else {
-        await axios.post('/api/v1/admin/finishes', formData);
+        await apiClient.post('/api/v1/admin/finishes', formData);
       }
       onSave();
     } catch (error) {
@@ -253,7 +254,7 @@ const FinishEditor = ({ finish, onBack, onSave }) => {
                 {formData.image_url ? (
                   <div className="relative group inline-block">
                     <img 
-                      src={formData.image_url} 
+                      src={resolveImageUrl(formData.image_url)} 
                       alt="Finish sample"
                       className="w-48 h-32 object-cover rounded-lg border border-dark-600"
                     />

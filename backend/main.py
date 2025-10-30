@@ -15,7 +15,7 @@ import logging
 from contextlib import asynccontextmanager
 from pathlib import Path
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.responses import HTMLResponse
 from fastapi.staticfiles import StaticFiles
 
@@ -134,6 +134,31 @@ register_exception_handlers(app)
 
 # Setup all middleware
 setup_middleware(app)
+
+# ============================================================================
+# CRITICAL FIX: Handle OPTIONS for CMS admin routes BEFORE FastAPI routing
+# ============================================================================
+@app.middleware("http")
+async def cms_options_handler(request: Request, call_next):
+    """
+    Handle OPTIONS requests for CMS admin routes before FastAPI routing.
+    
+    This prevents FastAPI from trying to validate request bodies on OPTIONS requests,
+    which causes 400 errors for routes with body parameters.
+    """
+    if request.method == "OPTIONS" and request.url.path.startswith("/api/v1/cms-admin/"):
+        from fastapi.responses import Response
+        return Response(
+            status_code=200,
+            headers={
+                "Access-Control-Allow-Origin": "*",
+                "Access-Control-Allow-Methods": "GET, POST, PUT, PATCH, DELETE, OPTIONS",
+                "Access-Control-Allow-Headers": "Authorization, X-Session-Token, X-Admin-Token, Content-Type",
+                "Access-Control-Allow-Credentials": "true",
+                "Access-Control-Max-Age": "86400",
+            }
+        )
+    return await call_next(request)
 
 # Include API versioning routes (at root /api level)
 app.include_router(

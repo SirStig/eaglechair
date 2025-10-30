@@ -1,11 +1,26 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { IS_DEMO, demoLegalDocuments } from '../data/demoData';
-import { legalDocuments } from '../data/contentData';
+import { loadContentData } from '../utils/contentDataLoader';
 
 const GeneralInformationPage = () => {
   const [activeSection, setActiveSection] = useState(null);
+  const [legalDocuments, setLegalDocuments] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const loadData = async () => {
+      if (!IS_DEMO) {
+        const content = await loadContentData();
+        if (content?.legalDocuments) {
+          setLegalDocuments(content.legalDocuments);
+        }
+      }
+      setLoading(false);
+    };
+    loadData();
+  }, []);
 
   // Filter and sort documents (use demo or production data)
   const legalData = IS_DEMO ? demoLegalDocuments : legalDocuments;

@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { FileText, Plus, Edit2, Trash2, Search, Filter, Eye, CheckCircle, XCircle } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import EditModal from '../EditModal';
-import axios from 'axios';
+import apiClient from '../../../config/apiClient';
 
 /**
  * Legal Document Management Section
@@ -59,8 +59,8 @@ const LegalDocumentManagement = () => {
     setLoading(true);
     setError(null);
     try {
-      const response = await axios.get('/api/v1/cms-admin/legal-documents');
-      setDocuments(response.data || []);
+      const response = await apiClient.get('/api/v1/cms-admin/legal-documents');
+      setDocuments(response || []);
     } catch (err) {
       setError(err.message || 'Failed to fetch legal documents');
     } finally {
@@ -126,10 +126,10 @@ const LegalDocumentManagement = () => {
     try {
       if (docData.id) {
         // Update existing
-        await axios.put(`/api/v1/cms-admin/legal-documents/${docData.id}`, docData);
+        await apiClient.put(`/api/v1/cms-admin/legal-documents/${docData.id}`, docData);
       } else {
         // Create new
-        await axios.post('/api/v1/cms-admin/legal-documents', docData);
+        await apiClient.post('/api/v1/cms-admin/legal-documents', docData);
       }
       
       await fetchDocuments();
@@ -145,7 +145,7 @@ const LegalDocumentManagement = () => {
     if (!confirm('Are you sure you want to delete this legal document?')) return;
     
     try {
-      await axios.delete(`/api/v1/cms-admin/legal-documents/${docId}`);
+      await apiClient.delete(`/api/v1/cms-admin/legal-documents/${docId}`);
       await fetchDocuments();
     } catch (err) {
       alert(`Failed to delete document: ${err.message}`);
@@ -162,7 +162,7 @@ const LegalDocumentManagement = () => {
         is_active: !doc.isActive
       };
       
-      await axios.put(`/api/v1/cms-admin/legal-documents/${doc.id}`, updatedDoc);
+      await apiClient.put(`/api/v1/cms-admin/legal-documents/${doc.id}`, updatedDoc);
       await fetchDocuments();
     } catch (err) {
       alert(`Failed to toggle status: ${err.message}`);

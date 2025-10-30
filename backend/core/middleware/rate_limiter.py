@@ -89,6 +89,10 @@ class AdvancedRateLimiter(BaseHTTPMiddleware):
         if not self.enabled:
             return await call_next(request)
         
+        # Skip OPTIONS requests (CORS preflight)
+        if request.method == "OPTIONS":
+            return await call_next(request)
+        
         path = request.url.path
         
         # Skip rate limiting for exempt routes

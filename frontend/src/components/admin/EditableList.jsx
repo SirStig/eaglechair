@@ -144,7 +144,11 @@ const EditableList = ({
     try {
       if (onUpdate && editingItem) {
         logger.info(CONTEXT, `Updating ${itemType} ${editingItem.id}`);
-        await onUpdate(editingItem.id, newData);
+        
+        // Remove the 'index' field before sending - it's not part of the API schema
+        const { index, ...cleanData } = newData;
+        
+        await onUpdate(editingItem.id, cleanData);
         
         // Invalidate cache if key provided
         if (cacheKey) {

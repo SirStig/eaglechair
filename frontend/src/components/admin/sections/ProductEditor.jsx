@@ -2,7 +2,8 @@ import { useState, useEffect } from 'react';
 import Card from '../../ui/Card';
 import Button from '../../ui/Button';
 import { useToast } from '../../../contexts/ToastContext';
-import axios from 'axios';
+import apiClient from '../../../config/apiClient';
+import { resolveImageUrl } from '../../../utils/apiHelpers';
 import { 
   FileText, 
   DollarSign, 
@@ -103,13 +104,13 @@ const ProductEditor = ({ product, onBack }) => {
     formData.append('file', file);
     formData.append('subfolder', subfolder);
     
-    const response = await axios.post('/api/v1/admin/upload/image', formData, {
+    const response = await apiClient.post('/api/v1/admin/upload/image', formData, {
       headers: {
         'Content-Type': 'multipart/form-data',
       },
     });
     
-    return response.data.url;
+    return response.url;
   };
 
   // Image delete helper function
@@ -117,7 +118,7 @@ const ProductEditor = ({ product, onBack }) => {
     if (!url) return;
     
     try {
-      await axios.delete('/api/v1/admin/upload/image', {
+      await apiClient.delete('/api/v1/admin/upload/image', {
         data: { url }
       });
     } catch (error) {
@@ -145,8 +146,8 @@ const ProductEditor = ({ product, onBack }) => {
 
   const fetchCategories = async () => {
     try {
-      const response = await axios.get('/api/v1/categories');
-      setCategories(response.data || []);
+      const response = await apiClient.get('/api/v1/categories');
+      setCategories(response || []);
     } catch (error) {
       console.error('Failed to fetch categories:', error);
     }
@@ -154,8 +155,8 @@ const ProductEditor = ({ product, onBack }) => {
   
   const fetchSubcategories = async (categoryId) => {
     try {
-      const response = await axios.get(`/api/v1/admin/subcategories?category_id=${categoryId}`);
-      setSubcategories(response.data.items || []);
+      const response = await apiClient.get(`/api/v1/admin/subcategories?category_id=${categoryId}`);
+      setSubcategories(response.items || []);
     } catch (error) {
       console.error('Failed to fetch subcategories:', error);
     }
@@ -163,8 +164,8 @@ const ProductEditor = ({ product, onBack }) => {
 
   const fetchFamilies = async () => {
     try {
-      const response = await axios.get('/api/v1/admin/families');
-      setFamilies(response.data.items || []);
+      const response = await apiClient.get('/api/v1/admin/families');
+      setFamilies(response.items || []);
     } catch (error) {
       console.error('Failed to fetch families:', error);
     }
@@ -172,8 +173,8 @@ const ProductEditor = ({ product, onBack }) => {
   
   const fetchFinishes = async () => {
     try {
-      const response = await axios.get('/api/v1/admin/finishes');
-      setFinishes(response.data.items || []);
+      const response = await apiClient.get('/api/v1/admin/finishes');
+      setFinishes(response.items || []);
     } catch (error) {
       console.error('Failed to fetch finishes:', error);
       setFinishes([]);
@@ -182,8 +183,8 @@ const ProductEditor = ({ product, onBack }) => {
   
   const fetchUpholsteries = async () => {
     try {
-      const response = await axios.get('/api/v1/admin/upholsteries');
-      setUpholsteries(response.data.items || []);
+      const response = await apiClient.get('/api/v1/admin/upholsteries');
+      setUpholsteries(response.items || []);
     } catch (error) {
       console.error('Failed to fetch upholsteries:', error);
       setUpholsteries([]);
@@ -192,8 +193,8 @@ const ProductEditor = ({ product, onBack }) => {
   
   const fetchColors = async () => {
     try {
-      const response = await axios.get('/api/v1/admin/colors');
-      setColors(response.data.items || []);
+      const response = await apiClient.get('/api/v1/admin/colors');
+      setColors(response.items || []);
     } catch (error) {
       console.error('Failed to fetch colors:', error);
       setColors([]);
@@ -215,9 +216,9 @@ const ProductEditor = ({ product, onBack }) => {
       };
       
       if (product?._isNew) {
-        await axios.post('/api/v1/admin/products', saveData);
+        await apiClient.post('/api/v1/admin/products', saveData);
       } else {
-        await axios.patch(`/api/v1/admin/products/${product.id}`, saveData);
+        await apiClient.patch(`/api/v1/admin/products/${product.id}`, saveData);
       }
       toast.success('Product saved successfully!');
       onBack();
@@ -589,7 +590,7 @@ const ProductEditor = ({ product, onBack }) => {
                     {formData.primary_image_url ? (
                       <div className="relative group">
                         <img
-                          src={formData.primary_image_url}
+                          src={resolveImageUrl(formData.primary_image_url)}
                           alt="Primary"
                           className="w-full h-48 object-contain bg-dark-700 rounded-lg border-2 border-primary-500"
                         />
@@ -643,7 +644,7 @@ const ProductEditor = ({ product, onBack }) => {
                     {formData.hover_image_url ? (
                       <div className="relative group">
                         <img
-                          src={formData.hover_image_url}
+                          src={resolveImageUrl(formData.hover_image_url)}
                           alt="Hover"
                           className="w-full h-48 object-contain bg-dark-700 rounded-lg border-2 border-dark-600"
                         />
@@ -697,7 +698,7 @@ const ProductEditor = ({ product, onBack }) => {
                     {formData.thumbnail ? (
                       <div className="relative group">
                         <img
-                          src={formData.thumbnail}
+                          src={resolveImageUrl(formData.thumbnail)}
                           alt="Thumbnail"
                           className="w-full h-48 object-contain bg-dark-700 rounded-lg border-2 border-dark-600"
                         />
@@ -752,7 +753,7 @@ const ProductEditor = ({ product, onBack }) => {
                 {images.map((img, index) => (
                   <div key={index} className="relative group">
                     <img
-                      src={typeof img === 'string' ? img : img.url}
+                      src={resolveImageUrl(typeof img === 'string' ? img : img.url)}
                       alt={`Gallery ${index + 1}`}
                       className="w-full h-48 object-contain bg-dark-700 rounded-lg border-2 border-dark-600"
                     />
@@ -828,7 +829,7 @@ const ProductEditor = ({ product, onBack }) => {
                           {variation.primary_image_url ? (
                             <div className="relative group">
                               <img
-                                src={variation.primary_image_url}
+                                src={resolveImageUrl(variation.primary_image_url)}
                                 alt={`Variation ${index + 1} Primary`}
                                 className="w-full h-40 object-contain bg-dark-700 rounded-lg border-2 border-dark-600"
                               />
@@ -884,7 +885,7 @@ const ProductEditor = ({ product, onBack }) => {
                               {variation.images.map((img, imgIndex) => (
                                 <div key={imgIndex} className="relative group">
                                   <img
-                                    src={typeof img === 'string' ? img : img.url}
+                                    src={resolveImageUrl(typeof img === 'string' ? img : img.url)}
                                     alt={`Variation ${index + 1} Image ${imgIndex + 1}`}
                                     className="w-full h-20 object-contain bg-dark-700 rounded border border-dark-600"
                                   />

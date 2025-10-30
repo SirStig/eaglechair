@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import Card from '../../ui/Card';
-import axios from 'axios';
+import apiClient from '../../../config/apiClient';
 import {
   LineChart,
   Line,
@@ -59,16 +59,16 @@ const Analytics = () => {
         conversionRes,
         productsRes
       ] = await Promise.all([
-        axios.get('/api/v1/admin/dashboard/stats'),
-        axios.get('/api/v1/admin/dashboard/analytics/category-stats'),
-        axios.get('/api/v1/admin/dashboard/analytics/conversion-rates'),
-        axios.get(`/api/v1/admin/dashboard/analytics/popular-products?limit=5&days=${days}`)
+        apiClient.get('/api/v1/admin/dashboard/stats'),
+        apiClient.get('/api/v1/admin/dashboard/analytics/category-stats'),
+        apiClient.get('/api/v1/admin/dashboard/analytics/conversion-rates'),
+        apiClient.get(`/api/v1/admin/dashboard/analytics/popular-products?limit=5&days=${days}`)
       ]);
 
-      setStats(statsRes.data);
-      setCategoryStats(categoryRes.data.items || []);
-      setConversionRates(conversionRes.data);
-      setPopularProducts(productsRes.data.items || []);
+      setStats(statsRes);
+      setCategoryStats(categoryRes.items || []);
+      setConversionRates(conversionRes);
+      setPopularProducts(productsRes.items || []);
     } catch (error) {
       console.error('Failed to fetch analytics:', error);
     } finally {

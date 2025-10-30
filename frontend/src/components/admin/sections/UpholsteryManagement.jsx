@@ -3,7 +3,8 @@ import Card from '../../ui/Card';
 import Button from '../../ui/Button';
 import ConfirmModal from '../../ui/ConfirmModal';
 import { useToast } from '../../../contexts/ToastContext';
-import axios from 'axios';
+import apiClient from '../../../config/apiClient';
+import { resolveImageUrl } from '../../../utils/apiHelpers';
 import { Edit, Trash2, Armchair, X } from 'lucide-react';
 import UpholsteryEditor from './UpholsteryEditor';
 
@@ -28,8 +29,8 @@ const UpholsteryManagement = () => {
       if (filterGrade) params.grade = filterGrade;
       if (filterActive !== 'all') params.is_active = filterActive === 'active';
       
-      const response = await axios.get('/api/v1/admin/upholsteries', { params });
-      setUpholsteries(response.data?.items || []);
+      const response = await apiClient.get('/api/v1/admin/upholsteries', { params });
+      setUpholsteries(response?.items || []);
     } catch (error) {
       console.error('Failed to fetch upholsteries:', error);
     } finally {
@@ -44,8 +45,8 @@ const UpholsteryManagement = () => {
 
   const fetchColors = async () => {
     try {
-      const response = await axios.get('/api/v1/admin/colors', { params: { is_active: true } });
-      setColors(response.data || []);
+      const response = await apiClient.get('/api/v1/admin/colors', { params: { is_active: true } });
+      setColors(response || []);
     } catch (error) {
       console.error('Failed to fetch colors:', error);
     }
@@ -75,7 +76,7 @@ const UpholsteryManagement = () => {
       message: `Are you sure you want to delete "${upholstery.name}"? This action cannot be undone.`,
       onConfirm: async () => {
         try {
-          await axios.delete(`/api/v1/admin/upholsteries/${upholstery.id}`);
+          await apiClient.delete(`/api/v1/admin/upholsteries/${upholstery.id}`);
           fetchUpholsteries();
           toast.success(`${upholstery.name} deleted successfully`);
         } catch (error) {
@@ -247,7 +248,7 @@ const UpholsteryManagement = () => {
                     <td className="px-4 py-3">
                       {upholstery.swatch_image_url ? (
                         <img
-                          src={upholstery.swatch_image_url}
+                          src={resolveImageUrl(upholstery.swatch_image_url)}
                           alt={upholstery.name}
                           className="w-12 h-12 object-cover rounded border border-dark-600"
                         />

@@ -1,7 +1,8 @@
 import { useState } from 'react';
 import Card from '../../ui/Card';
 import Button from '../../ui/Button';
-import axios from 'axios';
+import apiClient from '../../../config/apiClient';
+import { resolveImageUrl } from '../../../utils/apiHelpers';
 import { ArrowLeft, Upload, X } from 'lucide-react';
 
 /**
@@ -39,11 +40,11 @@ const CategoryEditor = ({ category, categories, onBack, onSave }) => {
       formDataUpload.append('file', file);
       formDataUpload.append('subfolder', 'categories');
       
-      const response = await axios.post('/api/v1/admin/upload/image', formDataUpload, {
+      const response = await apiClient.post('/api/v1/admin/upload/image', formDataUpload, {
         headers: { 'Content-Type': 'multipart/form-data' }
       });
       
-      const imageUrl = response.data.url;
+      const imageUrl = response.url;
       handleChange(field, imageUrl);
     } catch (error) {
       console.error('Failed to upload image:', error);
@@ -58,7 +59,7 @@ const CategoryEditor = ({ category, categories, onBack, onSave }) => {
     
     try {
       if (currentUrl) {
-        await axios.delete('/api/v1/admin/upload/image', {
+        await apiClient.delete('/api/v1/admin/upload/image', {
           data: { url: currentUrl }
         });
       }
@@ -81,7 +82,7 @@ const CategoryEditor = ({ category, categories, onBack, onSave }) => {
         {currentValue ? (
           <div className="relative group">
             <img 
-              src={currentValue} 
+              src={resolveImageUrl(currentValue)} 
               alt={label}
               className={`object-cover rounded-lg border border-dark-600 ${isIcon ? 'w-32 h-32' : 'w-full h-32'}`}
             />
@@ -126,9 +127,9 @@ const CategoryEditor = ({ category, categories, onBack, onSave }) => {
     
     try {
       if (category) {
-        await axios.put(`/api/v1/admin/categories/${category.id}`, formData);
+        await apiClient.put(`/api/v1/admin/categories/${category.id}`, formData);
       } else {
-        await axios.post('/api/v1/admin/categories', formData);
+        await apiClient.post('/api/v1/admin/categories', formData);
       }
       onSave();
     } catch (error) {

@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import Button from './Button';
 import Tag from './Tag';
+import { resolveImageUrl } from '../../utils/apiHelpers';
 
 /**
  * ProductFamilyCard Component
@@ -22,7 +23,7 @@ const ProductFamilyCard = ({ family, onQuickView, darkMode = false }) => {
   };
 
   // Get family image (banner_image_url or family_image)
-  const familyImage = family.banner_image_url || family.family_image || '/placeholder-family.jpg';
+  const familyImage = resolveImageUrl(family.banner_image_url || family.family_image || '/placeholder-family.jpg');
   
   // Get product count
   const productCount = family.product_count || family.products?.length || 0;

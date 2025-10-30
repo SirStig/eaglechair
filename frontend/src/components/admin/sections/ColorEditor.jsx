@@ -1,7 +1,8 @@
 import { useState } from 'react';
 import Card from '../../ui/Card';
 import Button from '../../ui/Button';
-import axios from 'axios';
+import apiClient from '../../../config/apiClient';
+import { resolveImageUrl } from '../../../utils/apiHelpers';
 import { ArrowLeft, Upload, X } from 'lucide-react';
 
 /**
@@ -36,11 +37,11 @@ const ColorEditor = ({ color, onBack, onSave }) => {
       formDataUpload.append('file', file);
       formDataUpload.append('subfolder', 'colors');
       
-      const response = await axios.post('/api/v1/admin/upload/image', formDataUpload, {
+      const response = await apiClient.post('/api/v1/admin/upload/image', formDataUpload, {
         headers: { 'Content-Type': 'multipart/form-data' }
       });
       
-      const imageUrl = response.data.url;
+      const imageUrl = response.url;
       handleChange('image_url', imageUrl);
     } catch (error) {
       console.error('Failed to upload image:', error);
@@ -55,7 +56,7 @@ const ColorEditor = ({ color, onBack, onSave }) => {
     
     try {
       if (formData.image_url) {
-        await axios.delete('/api/v1/admin/upload/image', {
+        await apiClient.delete('/api/v1/admin/upload/image', {
           data: { url: formData.image_url }
         });
       }
@@ -71,9 +72,9 @@ const ColorEditor = ({ color, onBack, onSave }) => {
     
     try {
       if (color) {
-        await axios.put(`/api/v1/admin/colors/${color.id}`, formData);
+        await apiClient.put(`/api/v1/admin/colors/${color.id}`, formData);
       } else {
-        await axios.post('/api/v1/admin/colors', formData);
+        await apiClient.post('/api/v1/admin/colors', formData);
       }
       onSave();
     } catch (error) {
@@ -196,7 +197,7 @@ const ColorEditor = ({ color, onBack, onSave }) => {
                 {formData.image_url ? (
                   <div className="relative group inline-block">
                     <img 
-                      src={formData.image_url} 
+                      src={resolveImageUrl(formData.image_url)} 
                       alt="Color swatch"
                       className="w-32 h-32 object-cover rounded-lg border border-dark-600"
                     />

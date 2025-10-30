@@ -100,20 +100,12 @@ async def seed_admin_user():
                 username="admin",
                 first_name="System",
                 last_name="Administrator",
-                hashed_password=SecurityManager.hash_password("admin123"),
+                hashed_password=SecurityManager.hash_password("rrfdWTqx3ywWEeNgAvvp7p6CCzWTytwoVZEWGPj7"),
                 role=AdminRole.SUPER_ADMIN,
                 is_active=True
             )
             session.add(admin)
             await session.commit()
-            
-            logger.info("=" * 60)
-            logger.info("✅ Admin user created successfully!")
-            logger.info("=" * 60)
-            logger.info("📧 Email: admin@eaglechair.com")
-            logger.info("🔑 Password: admin123")
-            logger.info("⚠️  IMPORTANT: Change this password after first login!")
-            logger.info("=" * 60)
             
         except Exception as e:
             logger.error(f"❌ Error creating admin user: {e}")

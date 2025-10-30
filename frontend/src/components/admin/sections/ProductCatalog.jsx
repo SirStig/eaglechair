@@ -2,7 +2,8 @@ import { useState, useEffect } from 'react';
 import { Package, Edit2, Eye, EyeOff, Trash2, TrendingUp, MessageSquareQuote } from 'lucide-react';
 import Card from '../../ui/Card';
 import Button from '../../ui/Button';
-import axios from 'axios';
+import apiClient from '../../../config/apiClient';
+import { resolveImageUrl } from '../../../utils/apiHelpers';
 
 /**
  * Product Catalog Management
@@ -33,7 +34,7 @@ const ProductCatalog = ({ onEdit }) => {
   const fetchProducts = async () => {
     setLoading(true);
     try {
-      const response = await axios.get('/api/v1/admin/products', {
+      const response = await apiClient.get('/api/v1/admin/products', {
         params: {
           page,
           page_size: 20,
@@ -42,8 +43,8 @@ const ProductCatalog = ({ onEdit }) => {
           is_active: statusFilter === 'active' ? true : statusFilter === 'inactive' ? false : undefined,
         }
       });
-      setProducts(response.data.items || []);
-      setTotalPages(response.data.pages || 1);
+      setProducts(response.items || []);
+      setTotalPages(response.pages || 1);
     } catch (error) {
       console.error('Failed to fetch products:', error);
     } finally {
@@ -53,8 +54,8 @@ const ProductCatalog = ({ onEdit }) => {
 
   const fetchCategories = async () => {
     try {
-      const response = await axios.get('/api/v1/categories');
-      setCategories(response.data || []);
+      const response = await apiClient.get('/api/v1/categories');
+      setCategories(response || []);
     } catch (error) {
       console.error('Failed to fetch categories:', error);
     }
@@ -62,7 +63,7 @@ const ProductCatalog = ({ onEdit }) => {
 
   const handleToggleActive = async (productId, currentStatus) => {
     try {
-      await axios.patch(`/api/v1/admin/products/${productId}`, {
+      await apiClient.patch(`/api/v1/admin/products/${productId}`, {
         is_active: !currentStatus
       });
       fetchProducts();
@@ -84,7 +85,7 @@ const ProductCatalog = ({ onEdit }) => {
     }
     
     try {
-      await axios.delete(`/api/v1/admin/products/${productId}`);
+      await apiClient.delete(`/api/v1/admin/products/${productId}`);
       alert('Product deleted successfully');
       fetchProducts();
     } catch (error) {
@@ -309,7 +310,7 @@ const ProductCatalog = ({ onEdit }) => {
                     <td className="px-4 py-4">
                       {product.primary_image_url ? (
                         <img
-                          src={product.primary_image_url}
+                          src={resolveImageUrl(product.primary_image_url)}
                           alt={product.name}
                           className="w-16 h-16 object-contain bg-dark-700 rounded-lg border border-dark-600"
                         />

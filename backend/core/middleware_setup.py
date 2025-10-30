@@ -22,6 +22,7 @@ from backend.core.exceptions import BaseAppException
 from backend.core.logging_config import request_logger, security_logger
 from backend.core.middleware.admin_security import AdminSecurityMiddleware
 from backend.core.middleware.ddos_protection import DDoSProtectionMiddleware
+from backend.core.middleware.input_sanitizer import InputSanitizerMiddleware
 from backend.core.middleware.rate_limiter import AdvancedRateLimiter
 from backend.core.middleware.request_validator import RequestValidationMiddleware
 from backend.core.middleware.route_protection import RouteProtectionMiddleware
@@ -170,15 +171,36 @@ def setup_middleware(app):
     7. Session management
     8. Request validation
     9. Rate limiting
-    10. DDoS protection (first line of defense)
-    11. CORS
-    12. Compression
+    10. Input sanitization (NEW - prevents injection attacks)
+    11. DDoS protection (first line of defense)
+    12. CORS
+    13. Compression
     
     Args:
         app: FastAPI application instance
     """
     
     logger.info("Configuring middleware stack...")
+    
+    # ========================================================================
+    # DEBUG: OPTIONS Request Logger (FIRST - before everything)
+    # ========================================================================
+    
+    class OptionsDebugMiddleware(BaseHTTPMiddleware):
+        async def dispatch(self, request: Request, call_next):
+            if request.method == "OPTIONS":
+                logger.info(f"[OPTIONS DEBUG] Path: {request.url.path}")
+                logger.info(f"[OPTIONS DEBUG] Origin: {request.headers.get('Origin')}")
+                logger.info(f"[OPTIONS DEBUG] Access-Control-Request-Method: {request.headers.get('Access-Control-Request-Method')}")
+                logger.info(f"[OPTIONS DEBUG] Access-Control-Request-Headers: {request.headers.get('Access-Control-Request-Headers')}")
+            response = await call_next(request)
+            if request.method == "OPTIONS":
+                logger.info(f"[OPTIONS DEBUG] Response Status: {response.status_code}")
+                logger.info(f"[OPTIONS DEBUG] Response Headers: {dict(response.headers)}")
+            return response
+    
+    app.add_middleware(OptionsDebugMiddleware)
+    logger.info("[OK] OPTIONS debug logging enabled")
     
     # ========================================================================
     # Layer 1: Performance & Optimization
@@ -198,6 +220,9 @@ def setup_middleware(app):
         allow_headers=settings.CORS_ALLOW_HEADERS,
     )
     logger.info("[OK] CORS configured")
+    logger.info(f"[CORS] Origins: {settings.CORS_ORIGINS}")
+    logger.info(f"[CORS] Methods: {settings.CORS_ALLOW_METHODS}")
+    logger.info(f"[CORS] Headers: {settings.CORS_ALLOW_HEADERS}")
     
     # ========================================================================
     # Layer 2: Security & Attack Prevention
@@ -212,6 +237,14 @@ def setup_middleware(app):
         suspicious_threshold=settings.RATE_LIMIT_PER_MINUTE
     )
     logger.info("[OK] DDoS protection enabled")
+    
+    # Input Sanitization (prevent injection attacks early)
+    app.add_middleware(
+        InputSanitizerMiddleware,
+        strict_mode=False,  # Set to True for more aggressive blocking
+        log_only=False  # Set to True to log without blocking (for testing)
+    )
+    logger.info("[OK] Input sanitization enabled")
     
     # Advanced Rate Limiting
     app.add_middleware(

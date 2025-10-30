@@ -1,12 +1,27 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { IS_DEMO } from '../data/demoData';
-import { catalogs } from '../data/contentData';
+import { loadContentData } from '../utils/contentDataLoader';
 
 const VirtualCatalogsPage = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('all');
+  const [catalogs, setCatalogs] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const loadData = async () => {
+      if (!IS_DEMO) {
+        const content = await loadContentData();
+        if (content?.catalogs) {
+          setCatalogs(content.catalogs);
+        }
+      }
+      setLoading(false);
+    };
+    loadData();
+  }, []);
 
   // Get catalogs data (production only - no demo data for now)
   const catalogsData = IS_DEMO ? [] : catalogs;

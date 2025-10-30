@@ -4,17 +4,21 @@ DDoS Protection and Attack Prevention Middleware
 Protects against DDoS attacks, suspicious patterns, and malicious requests
 """
 
-import time
 import logging
-from typing import Callable, Dict, Set
+import time
 from collections import defaultdict, deque
+from typing import Callable, Dict, Set
+
 from fastapi import Request, Response
 from starlette.middleware.base import BaseHTTPMiddleware
 
 from backend.core.config import settings
-from backend.core.exceptions import IPBannedError, RateLimitExceededError, SuspiciousActivityError
+from backend.core.exceptions import (
+    IPBannedError,
+    RateLimitExceededError,
+    SuspiciousActivityError,
+)
 from backend.core.logging_config import security_logger
-
 
 logger = logging.getLogger(__name__)
 
@@ -58,6 +62,10 @@ class DDoSProtectionMiddleware(BaseHTTPMiddleware):
     
     async def dispatch(self, request: Request, call_next: Callable) -> Response:
         """Process request with DDoS protection"""
+        
+        # Skip OPTIONS requests (CORS preflight)
+        if request.method == "OPTIONS":
+            return await call_next(request)
         
         client_ip = self._get_client_ip(request)
         current_time = time.time()
