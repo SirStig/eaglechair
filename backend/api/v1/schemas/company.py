@@ -106,6 +106,58 @@ class CompanyUpdate(BaseModel):
     shipping_country: Optional[str] = Field(None, max_length=100)
 
 
+class CompanyAdminUpdate(BaseModel):
+    """Schema for admin to update company - full control over all fields"""
+    # Company Information
+    company_name: Optional[str] = Field(None, max_length=255)
+    legal_name: Optional[str] = Field(None, max_length=255)
+    tax_id: Optional[str] = Field(None, max_length=50)
+    industry: Optional[str] = Field(None, max_length=100)
+    website: Optional[str] = Field(None, max_length=255)
+    
+    # Primary Contact/Representative
+    rep_first_name: Optional[str] = Field(None, max_length=100)
+    rep_last_name: Optional[str] = Field(None, max_length=100)
+    rep_title: Optional[str] = Field(None, max_length=100)
+    rep_email: Optional[EmailStr] = None
+    rep_phone: Optional[str] = Field(None, max_length=20)
+    
+    # Business Address
+    billing_address_line1: Optional[str] = Field(None, max_length=255)
+    billing_address_line2: Optional[str] = Field(None, max_length=255)
+    billing_city: Optional[str] = Field(None, max_length=100)
+    billing_state: Optional[str] = Field(None, max_length=50)
+    billing_zip: Optional[str] = Field(None, max_length=20)
+    billing_country: Optional[str] = Field(None, max_length=100)
+    
+    # Shipping Address
+    shipping_address_line1: Optional[str] = Field(None, max_length=255)
+    shipping_address_line2: Optional[str] = Field(None, max_length=255)
+    shipping_city: Optional[str] = Field(None, max_length=100)
+    shipping_state: Optional[str] = Field(None, max_length=50)
+    shipping_zip: Optional[str] = Field(None, max_length=20)
+    shipping_country: Optional[str] = Field(None, max_length=100)
+    
+    # Account Status
+    status: Optional[CompanyStatusEnum] = None
+    is_verified: Optional[bool] = None
+    is_active: Optional[bool] = None
+    
+    # Business Details
+    resale_certificate: Optional[str] = Field(None, max_length=100)
+    credit_limit: Optional[int] = None  # In cents
+    payment_terms: Optional[str] = Field(None, max_length=100)
+    
+    # Additional contacts (stored as JSON)
+    additional_contacts: Optional[dict] = None
+    
+    # Notes (admin use only)
+    admin_notes: Optional[str] = None
+    
+    # Pricing Tier
+    pricing_tier_id: Optional[int] = None
+
+
 class CompanyResponse(CompanyBase, TimestampSchema):
     """Schema for company response"""
     id: int

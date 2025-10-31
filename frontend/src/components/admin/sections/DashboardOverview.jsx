@@ -158,28 +158,77 @@ const DashboardOverview = ({ onNavigate }) => {
           </h3>
           <div className="space-y-3">
             {stats?.recent_quotes?.length > 0 ? (
-              stats.recent_quotes.map((quote) => (
-                <div
-                  key={quote.id}
-                  className="flex items-center justify-between p-3 bg-dark-700 rounded-lg hover:bg-dark-600 transition-colors cursor-pointer"
-                  onClick={() => onNavigate('quotes')}
-                >
-                  <div>
-                    <p className="font-medium text-dark-50">Quote #{quote.quote_number}</p>
-                    <p className="text-sm text-dark-300">{quote.company_name}</p>
+              stats.recent_quotes.map((quote) => {
+                const getStatusColor = (status) => {
+                  switch (status) {
+                    case 'submitted':
+                    case 'under_review':
+                      return 'bg-yellow-900/30 text-yellow-500';
+                    case 'quoted':
+                      return 'bg-blue-900/30 text-blue-500';
+                    case 'accepted':
+                      return 'bg-green-900/30 text-green-500';
+                    case 'declined':
+                    case 'expired':
+                      return 'bg-red-900/30 text-red-500';
+                    case 'draft':
+                    default:
+                      return 'bg-dark-600 text-dark-300';
+                  }
+                };
+                
+                const formatDate = (dateString) => {
+                  if (!dateString) return '';
+                  const date = new Date(dateString);
+                  return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+                };
+                
+                const formatCurrency = (amount) => {
+                  if (!amount) return '';
+                  return new Intl.NumberFormat('en-US', {
+                    style: 'currency',
+                    currency: 'USD',
+                    minimumFractionDigits: 0
+                  }).format(amount / 100);
+                };
+                
+                return (
+                  <div
+                    key={quote.id}
+                    className="flex items-center justify-between p-3 bg-dark-700 rounded-lg hover:bg-dark-600 transition-colors cursor-pointer"
+                    onClick={() => onNavigate('quotes')}
+                  >
+                    <div className="flex-1 min-w-0">
+                      <p className="font-medium text-dark-50 truncate">
+                        Quote #{quote.quote_number}
+                      </p>
+                      <p className="text-sm text-dark-300 truncate">
+                        {quote.company_name || 'Unknown Company'}
+                      </p>
+                      {quote.project_name && (
+                        <p className="text-xs text-dark-400 truncate mt-1">
+                          {quote.project_name}
+                        </p>
+                      )}
+                      <div className="flex items-center gap-2 mt-1">
+                        {quote.created_at && (
+                          <p className="text-xs text-dark-400">{formatDate(quote.created_at)}</p>
+                        )}
+                        {(quote.quoted_price || quote.total_amount) && (
+                          <p className="text-xs text-dark-400">
+                            • {formatCurrency(quote.quoted_price || quote.total_amount)}
+                          </p>
+                        )}
+                      </div>
+                    </div>
+                    <div className="text-right ml-3">
+                      <span className={`px-2 py-1 rounded text-xs font-medium ${getStatusColor(quote.status)}`}>
+                        {quote.status?.replace('_', ' ') || 'Unknown'}
+                      </span>
+                    </div>
                   </div>
-                  <div className="text-right">
-                    <span className={`
-                      px-2 py-1 rounded text-xs font-medium
-                      ${quote.status === 'pending' ? 'bg-yellow-900/30 text-yellow-500' : ''}
-                      ${quote.status === 'approved' ? 'bg-green-900/30 text-green-500' : ''}
-                      ${quote.status === 'draft' ? 'bg-dark-600 text-dark-300' : ''}
-                    `}>
-                      {quote.status}
-                    </span>
-                  </div>
-                </div>
-              ))
+                );
+              })
             ) : (
               <p className="text-dark-400 text-center py-8">No recent quotes</p>
             )}
@@ -201,28 +250,53 @@ const DashboardOverview = ({ onNavigate }) => {
           </h3>
           <div className="space-y-3">
             {stats?.recent_companies?.length > 0 ? (
-              stats.recent_companies.map((company) => (
-                <div
-                  key={company.id}
-                  className="flex items-center justify-between p-3 bg-dark-700 rounded-lg hover:bg-dark-600 transition-colors cursor-pointer"
-                  onClick={() => onNavigate('companies')}
-                >
-                  <div>
-                    <p className="font-medium text-dark-50">{company.company_name}</p>
-                    <p className="text-sm text-dark-300">{company.rep_email}</p>
+              stats.recent_companies.map((company) => {
+                const getStatusColor = (status) => {
+                  switch (status) {
+                    case 'pending':
+                      return 'bg-yellow-900/30 text-yellow-500';
+                    case 'active':
+                      return 'bg-green-900/30 text-green-500';
+                    case 'inactive':
+                    case 'suspended':
+                    default:
+                      return 'bg-dark-600 text-dark-300';
+                  }
+                };
+                
+                const formatDate = (dateString) => {
+                  if (!dateString) return '';
+                  const date = new Date(dateString);
+                  return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+                };
+                
+                return (
+                  <div
+                    key={company.id}
+                    className="flex items-center justify-between p-3 bg-dark-700 rounded-lg hover:bg-dark-600 transition-colors cursor-pointer"
+                    onClick={() => onNavigate('companies')}
+                  >
+                    <div className="flex-1 min-w-0">
+                      <p className="font-medium text-dark-50 truncate">
+                        {company.company_name || 'Unknown Company'}
+                      </p>
+                      <p className="text-sm text-dark-300 truncate">
+                        {company.rep_email || 'No email'}
+                      </p>
+                      {company.created_at && (
+                        <p className="text-xs text-dark-400 mt-1">
+                          Joined {formatDate(company.created_at)}
+                        </p>
+                      )}
+                    </div>
+                    <div className="text-right ml-3">
+                      <span className={`px-2 py-1 rounded text-xs font-medium ${getStatusColor(company.status)}`}>
+                        {company.status?.replace('_', ' ') || 'Unknown'}
+                      </span>
+                    </div>
                   </div>
-                  <div className="text-right">
-                    <span className={`
-                      px-2 py-1 rounded text-xs font-medium
-                      ${company.status === 'pending' ? 'bg-yellow-900/30 text-yellow-500' : ''}
-                      ${company.status === 'active' ? 'bg-green-900/30 text-green-500' : ''}
-                      ${company.status === 'inactive' ? 'bg-dark-600 text-dark-300' : ''}
-                    `}>
-                      {company.status}
-                    </span>
-                  </div>
-                </div>
-              ))
+                );
+              })
             ) : (
               <p className="text-dark-400 text-center py-8">No recent companies</p>
             )}

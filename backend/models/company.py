@@ -23,22 +23,26 @@ class CompanyStatus(str, enum.Enum):
 
 class CompanyPricing(Base):
     """
-    Company-specific pricing tiers (NEW)
+    Reusable pricing tiers for companies
     
-    Allows admin to assign custom pricing to companies:
-    - Default: 0% (normal pricing)
+    Allows admin to create pricing tiers that can be assigned to multiple companies:
+    - Default: 0% (normal pricing / MSRP)
     - Gold Tier: +10% markup
     - Silver Tier: +5% markup
     - Discount Tier: -10% discount
+    - Wholesale Tier: -20% discount
     - Custom tiers as needed
+    
+    When company_id is NULL, the tier is a reusable template.
+    When company_id is set, it's a company-specific tier (legacy support).
     """
     __tablename__ = "company_pricing"
     
     id = Column(Integer, primary_key=True, index=True)
-    company_id = Column(Integer, ForeignKey("companies.id", ondelete="CASCADE"), nullable=False)
+    company_id = Column(Integer, ForeignKey("companies.id", ondelete="CASCADE"), nullable=True)  # Nullable for reusable tiers
     
     # Pricing Configuration
-    pricing_tier_name = Column(String(100), nullable=True)  # e.g., "Gold", "Silver", "Wholesale"
+    pricing_tier_name = Column(String(100), nullable=False)  # Required: "Gold", "Silver", "Wholesale", etc.
     percentage_adjustment = Column(Integer, nullable=False, default=0)  # e.g., 0, 10, -10 for 0%, +10%, -10%
     
     # Scope
@@ -60,7 +64,8 @@ class CompanyPricing(Base):
     company = relationship("Company", foreign_keys=[company_id], backref="pricing_tiers")
     
     def __repr__(self) -> str:
-        return f"<CompanyPricing(id={self.id}, company_id={self.company_id}, tier={self.pricing_tier_name}, adjustment={self.percentage_adjustment}%)>"
+        company_ref = f"company_id={self.company_id}" if self.company_id else "reusable"
+        return f"<CompanyPricing(id={self.id}, {company_ref}, tier={self.pricing_tier_name}, adjustment={self.percentage_adjustment}%)>"
 
 
 class Company(Base):

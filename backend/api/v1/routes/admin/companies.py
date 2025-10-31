@@ -9,12 +9,13 @@ from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import JSONResponse
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from backend.api.dependencies import get_current_admin, require_role
 from backend.api.v1.schemas.admin import CompanyListResponse, CompanyStatusUpdate
 from backend.api.v1.schemas.common import MessageResponse
-from backend.api.v1.schemas.company import CompanyResponse
+from backend.api.v1.schemas.company import CompanyAdminUpdate, CompanyResponse
 from backend.core.exceptions import ResourceNotFoundError, ValidationError
 from backend.database.base import get_db
 from backend.models.company import (
@@ -92,9 +93,15 @@ async def get_company(
     logger.info(f"Admin {admin.username} fetching company {company_id}")
     
     try:
-        # Use existing auth service for company retrieval
-        from backend.services.auth_service import AuthService
-        company = await AuthService.get_company_by_id(db, company_id)
+        # Fetch company
+        result = await db.execute(
+            select(Company).where(Company.id == company_id)
+        )
+        company = result.scalar_one_or_none()
+        
+        if not company:
+            raise ResourceNotFoundError(resource_type="Company", resource_id=company_id)
+        
         return orm_to_dict(company)
         
     except ResourceNotFoundError as e:
@@ -127,6 +134,62 @@ async def update_company_status(
             status=status_data.status,
             admin_notes=status_data.admin_notes
         )
+        return orm_to_dict(company)
+        
+    except ResourceNotFoundError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+    except ValidationError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+@router.patch(
+    "/{company_id}",
+    response_model=CompanyResponse,
+    summary="Update company (Admin)",
+    description="Update company with full admin access to all fields"
+)
+async def update_company(
+    company_id: int,
+    update_data: CompanyAdminUpdate,
+    admin: AdminUser = Depends(require_role(AdminRole.ADMIN)),
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    Update company with full admin access.
+    
+    **Admin only** - Requires admin role.
+    """
+    logger.info(f"Admin {admin.username} updating company {company_id}")
+    
+    try:
+        from sqlalchemy import select
+        
+        # Fetch company
+        result = await db.execute(
+            select(Company).where(Company.id == company_id)
+        )
+        company = result.scalar_one_or_none()
+        
+        if not company:
+            raise ResourceNotFoundError(resource_type="Company", resource_id=company_id)
+        
+        # Update fields from update_data
+        update_dict = update_data.model_dump(exclude_unset=True)
+        
+        # Handle status conversion if needed
+        if 'status' in update_dict and isinstance(update_dict['status'], str):
+            try:
+                update_dict['status'] = CompanyStatus(update_dict['status'])
+            except ValueError:
+                raise ValidationError(f"Invalid status: {update_dict['status']}")
+        
+        for field, value in update_dict.items():
+            if hasattr(company, field):
+                setattr(company, field, value)
+        
+        await db.commit()
+        await db.refresh(company)
+        
         return orm_to_dict(company)
         
     except ResourceNotFoundError as e:
