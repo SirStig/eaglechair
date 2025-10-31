@@ -1,14 +1,15 @@
 import { Link } from 'react-router-dom';
+import { Book, Palette, Building, Spool, PocketKnife, BookImage, Handshake } from 'lucide-react';
 
 const ResourcesDropdown = () => {
   const resources = [
-    { name: 'Virtual Catalogs', path: '/virtual-catalogs', icon: '�' },
-    { name: 'Wood Finishes', path: '/resources/woodfinishes', icon: '🎨' },
-    { name: 'Laminates', path: '/resources/laminates', icon: '🏛️' },
-    { name: 'Upholstery Fabrics', path: '/resources/upholstery', icon: '🪡' },
-    { name: 'Hardware', path: '/resources/hardware', icon: '�' },
-    { name: 'Guides & CAD Files', path: '/resources/guides', icon: '�' },
-    { name: 'Seat & Back Terms', path: '/resources/seat-back-terms', icon: '📖' },
+    { name: 'Virtual Catalogs', path: '/virtual-catalogs', icon: <BookImage /> },
+    { name: 'Wood Finishes', path: '/resources/woodfinishes', icon: <Palette /> },
+    { name: 'Laminates', path: '/resources/laminates', icon: <Building /> },
+    { name: 'Upholstery Fabrics', path: '/resources/upholstery', icon: <Spool /> },
+    { name: 'Hardware', path: '/resources/hardware', icon: <PocketKnife /> },
+    { name: 'Guides & CAD Files', path: '/resources/guides', icon: <Book /> },
+    { name: 'Seat & Back Terms', path: '/resources/seat-back-terms', icon: <Handshake /> },
   ];
 
   return (

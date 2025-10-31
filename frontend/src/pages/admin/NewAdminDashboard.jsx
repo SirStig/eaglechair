@@ -10,15 +10,18 @@ import {
   Users2, 
   Palette, 
   Droplet,
-  Armchair, 
+  Armchair,
+  Layers,
+  FileText,
+  Wrench, 
   Building2, 
-  FileText, 
   Settings,
   ChevronLeft,
   ChevronRight,
   ExternalLink,
   User,
-  Upload
+  Upload,
+  DollarSign
 } from 'lucide-react';
 
 // Import admin sections
@@ -30,9 +33,13 @@ import FamilyManagement from '../../components/admin/sections/FamilyManagement';
 import ColorManagement from '../../components/admin/sections/ColorManagement';
 import FinishManagement from '../../components/admin/sections/FinishManagement';
 import UpholsteryManagement from '../../components/admin/sections/UpholsteryManagement';
+import LaminateManagement from '../../components/admin/sections/LaminateManagement';
+import CatalogManagement from '../../components/admin/sections/CatalogManagement';
+import HardwareManagement from '../../components/admin/sections/HardwareManagement';
 import CompanyManagement from '../../components/admin/sections/CompanyManagement';
 import QuoteManagement from '../../components/admin/sections/QuoteManagement';
 import LegalDocumentManagement from '../../components/admin/sections/LegalDocumentManagement';
+import PricingTierManagement from '../../components/admin/sections/PricingTierManagement';
 import SiteSettings from '../../components/admin/sections/SiteSettings';
 import Analytics from '../../components/admin/sections/Analytics';
 import VirtualCatalogUpload from '../../components/admin/sections/VirtualCatalogUpload';
@@ -66,8 +73,12 @@ const NewAdminDashboard = () => {
     if (path.includes('/admin/colors')) return 'colors';
     if (path.includes('/admin/finishes')) return 'finishes';
     if (path.includes('/admin/upholstery')) return 'upholstery';
+    if (path.includes('/admin/laminates')) return 'laminates';
+    if (path.includes('/admin/resources/catalogs')) return 'catalogs';
+    if (path.includes('/admin/hardware')) return 'hardware';
     if (path.includes('/admin/companies')) return 'companies';
     if (path.includes('/admin/quotes')) return 'quotes';
+    if (path.includes('/admin/pricing-tiers')) return 'pricing-tiers';
     if (path.includes('/admin/legal-documents')) return 'legal-documents';
     if (path.includes('/admin/settings')) return 'settings';
     return 'overview';
@@ -82,14 +93,18 @@ const NewAdminDashboard = () => {
     if (path.includes('/admin/analytics')) section = 'analytics';
     else if (path.includes('/admin/catalog/virtual-upload/edit/')) section = 'edit-tmp-product';
     else if (path.includes('/admin/catalog/virtual-upload')) section = 'virtual-catalog';
+    else if (path.includes('/admin/resources/catalogs')) section = 'catalogs';
     else if (path.includes('/admin/catalog')) section = 'catalog';
     else if (path.includes('/admin/categories')) section = 'categories';
     else if (path.includes('/admin/families')) section = 'families';
     else if (path.includes('/admin/colors')) section = 'colors';
     else if (path.includes('/admin/finishes')) section = 'finishes';
     else if (path.includes('/admin/upholstery')) section = 'upholstery';
+    else if (path.includes('/admin/laminates')) section = 'laminates';
+    else if (path.includes('/admin/hardware')) section = 'hardware';
     else if (path.includes('/admin/companies')) section = 'companies';
     else if (path.includes('/admin/quotes')) section = 'quotes';
+    else if (path.includes('/admin/pricing-tiers')) section = 'pricing-tiers';
     else if (path.includes('/admin/legal-documents')) section = 'legal-documents';
     else if (path.includes('/admin/settings')) section = 'settings';
     
@@ -127,6 +142,9 @@ const NewAdminDashboard = () => {
         { id: 'colors', label: 'Colors', icon: Droplet, path: '/admin/colors' },
         { id: 'finishes', label: 'Finishes', icon: Palette, path: '/admin/finishes' },
         { id: 'upholstery', label: 'Upholstery', icon: Armchair, path: '/admin/upholstery' },
+        { id: 'laminates', label: 'Laminates', icon: Layers, path: '/admin/laminates' },
+        { id: 'catalogs', label: 'Virtual Catalogs', icon: FileText, path: '/admin/resources/catalogs' },
+        { id: 'hardware', label: 'Hardware', icon: Wrench, path: '/admin/hardware' },
       ]
     },
     {
@@ -135,6 +153,7 @@ const NewAdminDashboard = () => {
       items: [
         { id: 'companies', label: 'Companies', icon: Building2, path: '/admin/companies' },
         { id: 'quotes', label: 'Quotes', icon: FileText, path: '/admin/quotes' },
+        { id: 'pricing-tiers', label: 'Pricing Tiers', icon: DollarSign, path: '/admin/pricing-tiers' },
         { id: 'legal-documents', label: 'Legal Documents', icon: FileText, path: '/admin/legal-documents' },
       ]
     },
@@ -178,10 +197,18 @@ const NewAdminDashboard = () => {
         return <FinishManagement />;
       case 'upholstery':
         return <UpholsteryManagement />;
+      case 'laminates':
+        return <LaminateManagement />;
+      case 'catalogs':
+        return <CatalogManagement />;
+      case 'hardware':
+        return <HardwareManagement />;
       case 'companies':
         return <CompanyManagement />;
       case 'quotes':
         return <QuoteManagement />;
+      case 'pricing-tiers':
+        return <PricingTierManagement />;
       case 'legal-documents':
         return <LegalDocumentManagement />;
       case 'settings':

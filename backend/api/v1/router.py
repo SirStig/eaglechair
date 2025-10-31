@@ -32,10 +32,10 @@ router.include_router(dashboard.router, prefix="/dashboard")
 router.include_router(quotes.router, prefix="/quotes")
 
 # Include content routes (FAQ, team, contact, catalogs, feedback)
-router.include_router(content.router)
+router.include_router(content.router, prefix="/content")
 
 # Include CMS content routes (hero slides, features, values, milestones, etc.)
-router.include_router(cms_content.router)
+router.include_router(cms_content.router, prefix="/content")
 
 # Include CMS admin routes (admin-only content management with static export)
 router.include_router(cms_admin.router)

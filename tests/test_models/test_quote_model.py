@@ -30,11 +30,11 @@ class TestQuoteModel:
             rep_last_name="Doe",
             rep_email="john@test.com",
             rep_phone="+1234567890",
-            billing_address_line1="123 Main St",
-            billing_city="Test City",
-            billing_state="TS",
-            billing_zip="12345",
-            billing_country="USA",
+            shipping_address_line1="123 Main St",
+            shipping_city="Test City",
+            shipping_state="TS",
+            shipping_zip="12345",
+            shipping_country="USA",
             hashed_password=security_manager.hash_password("TestPassword123!"),
             status=CompanyStatus.ACTIVE
         )
@@ -46,11 +46,10 @@ class TestQuoteModel:
         quote = Quote(
             quote_number="Q-001",
             company_id=company.id,
-            rep_first_name="John",
-            rep_last_name="Doe",
-            rep_email="john@test.com",
-            rep_phone="+1234567890",
-            billing_address_line1="123 Main St",
+            contact_name="John Doe",
+            contact_email="john@test.com",
+            contact_phone="+1234567890",
+            shipping_address_line1="123 Main St",
             shipping_city="Test City",
             shipping_state="TS",
             shipping_zip="12345",
@@ -79,11 +78,11 @@ class TestQuoteModel:
             rep_last_name="Doe",
             rep_email="john@test.com",
             rep_phone="+1234567890",
-            billing_address_line1="123 Main St",
-            billing_city="Test City",
-            billing_state="TS",
-            billing_zip="12345",
-            billing_country="USA",
+            shipping_address_line1="123 Main St",
+            shipping_city="Test City",
+            shipping_state="TS",
+            shipping_zip="12345",
+            shipping_country="USA",
             hashed_password=security_manager.hash_password("TestPassword123!"),
             status=CompanyStatus.ACTIVE
         )
@@ -95,11 +94,10 @@ class TestQuoteModel:
         quote = Quote(
             quote_number="Q-001",
             company_id=company.id,
-            rep_first_name="John",
-            rep_last_name="Doe",
-            rep_email="john@test.com",
-            rep_phone="+1234567890",
-            billing_address_line1="123 Main St",
+            contact_name="John Doe",
+            contact_email="john@test.com",
+            contact_phone="+1234567890",
+            shipping_address_line1="123 Main St",
             shipping_city="Test City",
             shipping_state="TS",
             shipping_zip="12345",
@@ -113,10 +111,10 @@ class TestQuoteModel:
         await db_session.commit()
         
         # Test status transitions
-        quote.status = QuoteStatus.PENDING
+        quote.status = QuoteStatus.UNDER_REVIEW
         await db_session.commit()
         await db_session.refresh(quote)
-        assert quote.status == QuoteStatus.PENDING
+        assert quote.status == QuoteStatus.UNDER_REVIEW
         
         quote.status = QuoteStatus.QUOTED
         await db_session.commit()
@@ -137,11 +135,11 @@ class TestQuoteModel:
             rep_last_name="Doe",
             rep_email="john@test.com",
             rep_phone="+1234567890",
-            billing_address_line1="123 Main St",
-            billing_city="Test City",
-            billing_state="TS",
-            billing_zip="12345",
-            billing_country="USA",
+            shipping_address_line1="123 Main St",
+            shipping_city="Test City",
+            shipping_state="TS",
+            shipping_zip="12345",
+            shipping_country="USA",
             hashed_password=security_manager.hash_password("TestPassword123!"),
             status=CompanyStatus.ACTIVE
         )
@@ -189,11 +187,11 @@ class TestQuoteItemModel:
             rep_last_name="Doe",
             rep_email="john@test.com",
             rep_phone="+1234567890",
-            billing_address_line1="123 Main St",
-            billing_city="Test City",
-            billing_state="TS",
-            billing_zip="12345",
-            billing_country="USA",
+            shipping_address_line1="123 Main St",
+            shipping_city="Test City",
+            shipping_state="TS",
+            shipping_zip="12345",
+            shipping_country="USA",
             hashed_password=security_manager.hash_password("TestPassword123!"),
             status=CompanyStatus.ACTIVE
         )
@@ -214,6 +212,7 @@ class TestQuoteItemModel:
         chair = Chair(
             name="Test Chair",
             model_number="TC-001",
+            slug="test-chair-tc001",
             category_id=category.id,
             base_price=10000,
             is_active=True
@@ -226,11 +225,10 @@ class TestQuoteItemModel:
         quote = Quote(
             quote_number="Q-001",
             company_id=company.id,
-            rep_first_name="John",
-            rep_last_name="Doe",
-            rep_email="john@test.com",
-            rep_phone="+1234567890",
-            billing_address_line1="123 Main St",
+            contact_name="John Doe",
+            contact_email="john@test.com",
+            contact_phone="+1234567890",
+            shipping_address_line1="123 Main St",
             shipping_city="Test City",
             shipping_state="TS",
             shipping_zip="12345",
@@ -277,11 +275,11 @@ class TestCartModel:
             rep_last_name="Doe",
             rep_email="john@test.com",
             rep_phone="+1234567890",
-            billing_address_line1="123 Main St",
-            billing_city="Test City",
-            billing_state="TS",
-            billing_zip="12345",
-            billing_country="USA",
+            shipping_address_line1="123 Main St",
+            shipping_city="Test City",
+            shipping_state="TS",
+            shipping_zip="12345",
+            shipping_country="USA",
             hashed_password=security_manager.hash_password("TestPassword123!"),
             status=CompanyStatus.ACTIVE
         )
@@ -319,11 +317,11 @@ class TestCartItemModel:
             rep_last_name="Doe",
             rep_email="john@test.com",
             rep_phone="+1234567890",
-            billing_address_line1="123 Main St",
-            billing_city="Test City",
-            billing_state="TS",
-            billing_zip="12345",
-            billing_country="USA",
+            shipping_address_line1="123 Main St",
+            shipping_city="Test City",
+            shipping_state="TS",
+            shipping_zip="12345",
+            shipping_country="USA",
             hashed_password=security_manager.hash_password("TestPassword123!"),
             status=CompanyStatus.ACTIVE
         )
@@ -353,6 +351,7 @@ class TestCartItemModel:
         chair = Chair(
             name="Test Chair",
             model_number="TC-001",
+            slug="test-chair-tc001",
             category_id=category.id,
             base_price=10000,
             is_active=True

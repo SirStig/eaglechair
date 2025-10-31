@@ -1,43 +1,42 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { IS_DEMO } from '../data/demoData';
-import { loadContentData } from '../utils/contentDataLoader';
+import { useUpholsteries } from '../hooks/useContent';
+import { Scissors, Palette, Layers, Book } from 'lucide-react';
+import LoadingSpinner from '../components/ui/LoadingSpinner';
 
 const UpholsteryPage = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedType, setSelectedType] = useState('all');
-  const [upholsteries, setUpholsteries] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const { data: upholsteries = [], loading } = useUpholsteries();
 
-  useEffect(() => {
-    const loadData = async () => {
-      if (!IS_DEMO) {
-        const content = await loadContentData();
-        if (content?.upholsteries) {
-          setUpholsteries(content.upholsteries);
-        }
-      }
-      setLoading(false);
-    };
-    loadData();
-  }, []);
-
-  // Get upholstery data (production only - no demo data for now)
-  const upholsteriesData = IS_DEMO ? [] : upholsteries;
+  // Get upholstery data
+  const upholsteriesData = upholsteries || [];
 
   // Extract unique types
-  const types = ['all', ...new Set(upholsteriesData.map(u => u.fabric_type).filter(Boolean))];
+  const types = ['all', ...new Set(upholsteriesData.map(u => u.fabricType || u.materialType).filter(Boolean))];
 
   // Filter upholsteries
   const filteredUpholsteries = upholsteriesData.filter(upholstery => {
+    // Default isActive to true if not set (for backwards compatibility)
+    const isActive = upholstery.isActive !== undefined ? upholstery.isActive : true;
+    if (!isActive) return false;
+    
     const matchesSearch = upholstery.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
                          upholstery.description?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         upholstery.fabric_code?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                         upholstery.fabricCode?.toLowerCase().includes(searchTerm.toLowerCase()) ||
                          upholstery.color?.toLowerCase().includes(searchTerm.toLowerCase());
-    const matchesType = selectedType === 'all' || upholstery.fabric_type === selectedType;
-    return matchesSearch && matchesType && upholstery.is_active;
+    const matchesType = selectedType === 'all' || upholstery.fabricType === selectedType || upholstery.materialType === selectedType;
+    return matchesSearch && matchesType;
   });
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-dark-900 via-dark-800 to-dark-900 flex items-center justify-center">
+        <LoadingSpinner />
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-dark-900 via-dark-800 to-dark-900">
@@ -94,34 +93,17 @@ const UpholsteryPage = () => {
           </div>
         </div>
 
-        {/* Demo Mode Notice */}
-        {IS_DEMO && (
-          <div className="bg-yellow-900/20 border border-yellow-700 rounded-lg p-6 mb-8">
-            <div className="flex items-start gap-3">
-              <div className="text-yellow-500 text-2xl">⚠️</div>
-              <div>
-                <h3 className="text-yellow-500 font-semibold mb-1">Demo Mode Active</h3>
-                <p className="text-dark-200">
-                  Upholstery fabric samples are not available in demo mode. Connect to the backend to browse fabrics.
-                </p>
-              </div>
-            </div>
-          </div>
-        )}
-
         {/* Upholstery Grid */}
         {filteredUpholsteries.length === 0 ? (
           <div className="text-center py-16">
-            <div className="text-6xl mb-4">🪡</div>
+            <Scissors className="w-16 h-16 text-dark-400 mx-auto mb-4" />
             <h3 className="text-xl font-semibold text-dark-200 mb-2">
               {searchTerm || selectedType !== 'all' ? 'No fabrics found' : 'No fabrics available'}
             </h3>
             <p className="text-dark-400">
               {searchTerm || selectedType !== 'all' 
                 ? 'Try adjusting your search or filters' 
-                : IS_DEMO 
-                  ? 'Upholstery fabrics will appear when connected to the backend' 
-                  : 'Check back soon for fabric options'}
+                : 'Check back soon for fabric options'}
             </p>
           </div>
         ) : (
@@ -135,25 +117,33 @@ const UpholsteryPage = () => {
                 className="bg-dark-800 rounded-lg border border-dark-700 overflow-hidden hover:border-primary-500 transition-all duration-300 hover:shadow-xl hover:shadow-primary-500/20"
               >
                 {/* Swatch Image */}
-                {upholstery.swatch_image_url ? (
+                {upholstery.swatchImageUrl ? (
                   <div className="aspect-square overflow-hidden bg-dark-900">
                     <img
-                      src={upholstery.swatch_image_url}
+                      src={upholstery.swatchImageUrl}
+                      alt={upholstery.name}
+                      className="w-full h-full object-cover"
+                    />
+                  </div>
+                ) : upholstery.imageUrl ? (
+                  <div className="aspect-square overflow-hidden bg-dark-900">
+                    <img
+                      src={upholstery.imageUrl}
                       alt={upholstery.name}
                       className="w-full h-full object-cover"
                     />
                   </div>
                 ) : (
                   <div className="aspect-square bg-gradient-to-br from-dark-700 to-dark-900 flex items-center justify-center">
-                    <span className="text-6xl">🪡</span>
+                    <Scissors className="w-16 h-16 text-dark-500" />
                   </div>
                 )}
 
                 {/* Fabric Info */}
                 <div className="p-4">
-                  {upholstery.fabric_type && (
+                  {(upholstery.fabricType || upholstery.materialType) && (
                     <div className="text-xs font-semibold text-primary-400 uppercase tracking-wide mb-2">
-                      {upholstery.fabric_type}
+                      {upholstery.fabricType || upholstery.materialType}
                     </div>
                   )}
                   
@@ -161,9 +151,9 @@ const UpholsteryPage = () => {
                     {upholstery.name}
                   </h3>
                   
-                  {upholstery.fabric_code && (
+                  {upholstery.fabricCode && (
                     <div className="text-xs font-mono text-dark-400 mb-2">
-                      {upholstery.fabric_code}
+                      {upholstery.fabricCode}
                     </div>
                   )}
 
@@ -180,11 +170,11 @@ const UpholsteryPage = () => {
                   )}
 
                   {/* Specifications */}
-                  {(upholstery.manufacturer || upholstery.content || upholstery.durability_rating) && (
+                  {(upholstery.manufacturer || upholstery.content || upholstery.durabilityRating) && (
                     <div className="text-xs text-dark-400 mb-3 space-y-1">
                       {upholstery.manufacturer && <div>Brand: {upholstery.manufacturer}</div>}
                       {upholstery.content && <div>Content: {upholstery.content}</div>}
-                      {upholstery.durability_rating && <div>Durability: {upholstery.durability_rating}</div>}
+                      {upholstery.durabilityRating && <div>Durability: {upholstery.durabilityRating}</div>}
                     </div>
                   )}
 
@@ -195,7 +185,7 @@ const UpholsteryPage = () => {
                         Grade {upholstery.grade}
                       </span>
                     )}
-                    {upholstery.is_popular && (
+                    {upholstery.isPopular && (
                       <span className="px-2 py-1 text-xs bg-primary-600 text-white rounded">
                         Popular
                       </span>
@@ -215,7 +205,7 @@ const UpholsteryPage = () => {
               to="/resources/woodfinishes"
               className="bg-dark-800 border border-dark-700 rounded-lg p-6 hover:border-primary-500 transition-colors group"
             >
-              <div className="text-3xl mb-3">🎨</div>
+              <Palette className="w-8 h-8 text-primary-400 mb-3" />
               <h3 className="text-lg font-semibold text-dark-50 mb-2 group-hover:text-primary-400">
                 Wood Finishes
               </h3>
@@ -228,7 +218,7 @@ const UpholsteryPage = () => {
               to="/resources/laminates"
               className="bg-dark-800 border border-dark-700 rounded-lg p-6 hover:border-primary-500 transition-colors group"
             >
-              <div className="text-3xl mb-3">🏛️</div>
+              <Layers className="w-8 h-8 text-primary-400 mb-3" />
               <h3 className="text-lg font-semibold text-dark-50 mb-2 group-hover:text-primary-400">
                 Laminates
               </h3>
@@ -241,7 +231,7 @@ const UpholsteryPage = () => {
               to="/virtual-catalogs"
               className="bg-dark-800 border border-dark-700 rounded-lg p-6 hover:border-primary-500 transition-colors group"
             >
-              <div className="text-3xl mb-3">📚</div>
+              <Book className="w-8 h-8 text-primary-400 mb-3" />
               <h3 className="text-lg font-semibold text-dark-50 mb-2 group-hover:text-primary-400">
                 Virtual Catalogs
               </h3>

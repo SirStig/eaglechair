@@ -1,42 +1,36 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { IS_DEMO } from '../data/demoData';
-import { loadContentData } from '../utils/contentDataLoader';
+import { useHardware } from '../hooks/useContent';
+import { Wrench, BookOpen, Book, MessageSquare } from 'lucide-react';
+import LoadingSpinner from '../components/ui/LoadingSpinner';
 
 const HardwarePage = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('all');
-  const [hardware, setHardware] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const { data: hardware = [], loading } = useHardware();
 
-  useEffect(() => {
-    const loadData = async () => {
-      if (!IS_DEMO) {
-        const content = await loadContentData();
-        if (content?.hardware) {
-          setHardware(content.hardware);
-        }
-      }
-      setLoading(false);
-    };
-    loadData();
-  }, []);
-
-  // Get hardware data (production only - no demo data for now)
-  const hardwareData = IS_DEMO ? [] : hardware;
+  const hardwareData = hardware || [];
 
   // Extract unique categories
   const categories = ['all', ...new Set(hardwareData.map(h => h.category).filter(Boolean))];
 
   // Filter hardware
   const filteredHardware = hardwareData.filter(item => {
-    const matchesSearch = item.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    const matchesSearch = item.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
                          item.description?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         item.model_number?.toLowerCase().includes(searchTerm.toLowerCase());
+                         item.modelNumber?.toLowerCase().includes(searchTerm.toLowerCase());
     const matchesCategory = selectedCategory === 'all' || item.category === selectedCategory;
-    return matchesSearch && matchesCategory && item.is_active;
+    return matchesSearch && matchesCategory && item.isActive !== false;
   });
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-dark-900 via-dark-800 to-dark-900 flex items-center justify-center">
+        <LoadingSpinner />
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-dark-900 via-dark-800 to-dark-900">
@@ -93,34 +87,17 @@ const HardwarePage = () => {
           </div>
         </div>
 
-        {/* Demo Mode Notice */}
-        {IS_DEMO && (
-          <div className="bg-yellow-900/20 border border-yellow-700 rounded-lg p-6 mb-8">
-            <div className="flex items-start gap-3">
-              <div className="text-yellow-500 text-2xl">⚠️</div>
-              <div>
-                <h3 className="text-yellow-500 font-semibold mb-1">Demo Mode Active</h3>
-                <p className="text-dark-200">
-                  Hardware specifications are not available in demo mode. Connect to the backend to browse hardware options.
-                </p>
-              </div>
-            </div>
-          </div>
-        )}
-
         {/* Hardware Grid */}
         {filteredHardware.length === 0 ? (
           <div className="text-center py-16">
-            <div className="text-6xl mb-4">🔧</div>
+            <Wrench className="w-16 h-16 text-dark-400 mx-auto mb-4" />
             <h3 className="text-xl font-semibold text-dark-200 mb-2">
               {searchTerm || selectedCategory !== 'all' ? 'No hardware found' : 'No hardware available'}
             </h3>
             <p className="text-dark-400">
               {searchTerm || selectedCategory !== 'all' 
                 ? 'Try adjusting your search or filters' 
-                : IS_DEMO 
-                  ? 'Hardware options will appear when connected to the backend' 
-                  : 'Check back soon for hardware options'}
+                : 'Check back soon for hardware options'}
             </p>
           </div>
         ) : (
@@ -144,7 +121,7 @@ const HardwarePage = () => {
                   </div>
                 ) : (
                   <div className="aspect-video bg-gradient-to-br from-dark-700 to-dark-900 flex items-center justify-center">
-                    <span className="text-6xl">🔧</span>
+                    <Wrench className="w-16 h-16 text-dark-500" />
                   </div>
                 )}
 
@@ -160,9 +137,9 @@ const HardwarePage = () => {
                     {item.name}
                   </h3>
 
-                  {item.model_number && (
+                  {item.modelNumber && (
                     <div className="text-sm font-mono text-dark-300 mb-3">
-                      Model: {item.model_number}
+                      Model: {item.modelNumber}
                     </div>
                   )}
 
@@ -189,16 +166,16 @@ const HardwarePage = () => {
                         <span className="font-medium text-dark-300">Dimensions:</span> {item.dimensions}
                       </div>
                     )}
-                    {item.weight_capacity && (
+                    {item.weightCapacity && (
                       <div>
-                        <span className="font-medium text-dark-300">Capacity:</span> {item.weight_capacity}
+                        <span className="font-medium text-dark-300">Capacity:</span> {item.weightCapacity}
                       </div>
                     )}
                   </div>
 
                   {/* Badges */}
                   <div className="flex flex-wrap gap-2">
-                    {item.is_featured && (
+                    {item.isFeatured && (
                       <span className="px-2 py-1 text-xs bg-primary-600 text-white rounded">
                         Featured
                       </span>
@@ -211,10 +188,10 @@ const HardwarePage = () => {
                   </div>
 
                   {/* Installation Notes */}
-                  {item.installation_notes && (
+                  {item.installationNotes && (
                     <div className="mt-4 pt-4 border-t border-dark-700">
                       <div className="text-xs font-medium text-dark-300 mb-1">Installation Notes:</div>
-                      <p className="text-xs text-dark-400 line-clamp-2">{item.installation_notes}</p>
+                      <p className="text-xs text-dark-400 line-clamp-2">{item.installationNotes}</p>
                     </div>
                   )}
                 </div>
@@ -231,7 +208,7 @@ const HardwarePage = () => {
               to="/resources/guides"
               className="bg-dark-800 border border-dark-700 rounded-lg p-6 hover:border-primary-500 transition-colors group"
             >
-              <div className="text-3xl mb-3">📖</div>
+              <BookOpen className="w-8 h-8 text-primary-400 mb-3" />
               <h3 className="text-lg font-semibold text-dark-50 mb-2 group-hover:text-primary-400">
                 Installation Guides
               </h3>

@@ -29,7 +29,9 @@ FRONTEND_UPLOAD_PATH = os.getenv(
 )
 UPLOAD_BASE_DIR = Path(FRONTEND_UPLOAD_PATH) if os.path.isabs(FRONTEND_UPLOAD_PATH) else Path("uploads")
 ALLOWED_IMAGE_EXTENSIONS = {".jpg", ".jpeg", ".png", ".gif", ".webp", ".svg"}
+ALLOWED_DOCUMENT_EXTENSIONS = {".pdf", ".doc", ".docx", ".zip"}
 MAX_FILE_SIZE = 10 * 1024 * 1024  # 10MB
+MAX_PDF_SIZE = 1 * 1024 * 1024 * 1024  # 1GB for PDFs
 
 
 class DeleteImageRequest(BaseModel):
@@ -160,4 +162,81 @@ async def delete_image(
     except Exception as e:
         logger.error(f"Image deletion failed: {str(e)}")
         raise HTTPException(status_code=500, detail="Deletion failed")
+
+
+@router.post(
+    "/document",
+    summary="Upload a document (PDF, etc.)",
+    description="Upload a document file to the server (Admin only)"
+)
+async def upload_document(
+    file: UploadFile = File(...),
+    subfolder: str = Form("catalogs"),
+    current_admin = Depends(get_current_admin)
+):
+    """
+    Upload a document file (PDF, etc.).
+    
+    **Admin only** - Requires admin authentication.
+    
+    - **file**: The document file to upload
+    - **subfolder**: Subfolder to organize documents (e.g., 'catalogs', 'guides')
+    """
+    try:
+        # Validate file extension
+        file_ext = Path(file.filename).suffix.lower()
+        if file_ext not in ALLOWED_DOCUMENT_EXTENSIONS:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Invalid file type. Allowed: {', '.join(ALLOWED_DOCUMENT_EXTENSIONS)}"
+            )
+        
+        # Read file content
+        content = await file.read()
+        
+        # Validate file size (larger limit for PDFs)
+        max_size = MAX_PDF_SIZE if file_ext == ".pdf" else MAX_FILE_SIZE
+        if len(content) > max_size:
+            raise HTTPException(
+                status_code=400,
+                detail=f"File too large. Maximum size: {max_size / 1024 / 1024}MB"
+            )
+        
+        # Create upload directory
+        upload_dir = UPLOAD_BASE_DIR / "documents" / subfolder
+        upload_dir.mkdir(parents=True, exist_ok=True)
+        
+        # Generate unique filename with timestamp
+        timestamp = int(time.time())
+        file_ext = Path(file.filename).suffix.lower()
+        base_name = Path(file.filename).stem
+        # Sanitize base name
+        base_name = "".join(c for c in base_name if c.isalnum() or c in "-_")
+        filename = f"{base_name}_{timestamp}{file_ext}"
+        
+        # Full file path
+        file_path = upload_dir / filename
+        
+        # Write file
+        with open(file_path, "wb") as f:
+            f.write(content)
+        
+        # Generate URL path
+        url_path = f"/uploads/documents/{subfolder}/{filename}"
+        
+        logger.info(f"Document uploaded: {url_path} by admin {current_admin.id}")
+        
+        return {
+            "success": True,
+            "url": url_path,
+            "filename": filename,
+            "size": len(content),
+            "message": "Document uploaded successfully"
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Document upload failed: {str(e)}")
+        raise HTTPException(status_code=500, detail="Upload failed")
 

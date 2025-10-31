@@ -46,16 +46,50 @@ export const loadContentData = async () => {
     // Parse the ES6 module exports
     const exports = {};
     
-    // Simple regex to extract exports
-    // Matches: export const varName = value;
-    const exportRegex = /export\s+const\s+(\w+)\s*=\s*(.+?);(?=\n\nexport|\n\n\/\/|$)/gs;
-    let match;
+    // Split by "export const" and parse each one
+    const exportBlocks = jsCode.split(/export\s+const\s+(\w+)\s*=/);
     
-    while ((match = exportRegex.exec(jsCode)) !== null) {
-      const [, varName, varValue] = match;
+    for (let i = 1; i < exportBlocks.length; i += 2) {
+      const varName = exportBlocks[i];
+      let varValueStr = exportBlocks[i + 1];
+      
+      // Find the semicolon that ends this export (not inside strings/objects/arrays)
+      let braceDepth = 0;
+      let bracketDepth = 0;
+      let inString = false;
+      let stringChar = null;
+      let endIndex = 0;
+      
+      for (let j = 0; j < varValueStr.length; j++) {
+        const char = varValueStr[j];
+        const prevChar = j > 0 ? varValueStr[j - 1] : null;
+        
+        if (!inString) {
+          if (char === '{') braceDepth++;
+          else if (char === '}') braceDepth--;
+          else if (char === '[') bracketDepth++;
+          else if (char === ']') bracketDepth--;
+          else if ((char === '"' || char === "'" || char === '`') && prevChar !== '\\') {
+            inString = true;
+            stringChar = char;
+          } else if (char === ';' && braceDepth === 0 && bracketDepth === 0) {
+            endIndex = j;
+            break;
+          }
+        } else {
+          if (char === stringChar && prevChar !== '\\') {
+            inString = false;
+            stringChar = null;
+          }
+        }
+      }
+      
+      varValueStr = varValueStr.substring(0, endIndex).trim();
+      
       try {
         // eslint-disable-next-line no-eval
-        exports[varName] = eval(`(${varValue})`);
+        exports[varName] = eval(`(${varValueStr})`);
+        logger.debug(CONTEXT, `Parsed ${varName}: ${Array.isArray(exports[varName]) ? `${exports[varName].length} items` : 'object'}`);
       } catch (e) {
         logger.error(CONTEXT, `Failed to parse ${varName}:`, e);
       }

@@ -246,6 +246,20 @@ class QuoteService:
             if configuration:
                 existing_item.custom_options = configuration  # Model uses custom_options
             
+            # Recalculate unit_price with current pricing tier (in case tier changed)
+            from backend.services.pricing_service import PricingService
+            company_result = await db.execute(
+                select(Company).where(Company.id == company_id)
+            )
+            company_obj = company_result.scalar_one_or_none()
+            
+            base_price = product.base_price or 0
+            if company_obj and base_price and product.category_id:
+                tier_adjustment, _ = await PricingService._get_company_tier_adjustment(
+                    db, company_id, product.category_id, base_price
+                )
+                existing_item.unit_price = base_price + tier_adjustment
+            
             # Recalculate line_total
             existing_item.line_total = existing_item.quantity * (
                 existing_item.unit_price + existing_item.customization_cost
@@ -273,8 +287,25 @@ class QuoteService:
             
             return existing_item
         else:
-            # Calculate pricing
-            unit_price = product.base_price or 0
+            # Calculate pricing with company tier adjustment
+            from backend.services.pricing_service import PricingService
+            
+            # Get company for pricing tier
+            company_result = await db.execute(
+                select(Company).where(Company.id == company_id)
+            )
+            company = company_result.scalar_one_or_none()
+            
+            # Calculate adjusted price using PricingService
+            base_price = product.base_price or 0
+            unit_price = base_price
+            
+            if company and base_price and product.category_id:
+                tier_adjustment, _ = await PricingService._get_company_tier_adjustment(
+                    db, company_id, product.category_id, base_price
+                )
+                unit_price = base_price + tier_adjustment
+            
             customization_cost = 0  # TODO: Calculate based on selected options
             line_total = quantity * (unit_price + customization_cost)
             
@@ -869,6 +900,10 @@ class QuoteService:
             quote.quoted_at = now
         elif new_status == QuoteStatus.ACCEPTED:
             quote.accepted_at = now
+        
+        # Update admin_notes if notes provided
+        if notes:
+            quote.admin_notes = notes
         
         # Add to history
         history = QuoteHistory(

@@ -12,9 +12,9 @@ from backend.core.config import settings
 class TestProducts:
     """Test product endpoints"""
     
-    async def test_list_products_empty(self, client: AsyncClient):
+    async def test_list_products_empty(self, async_client: AsyncClient):
         """Test listing products when none exist"""
-        response = await client.get(f"{settings.API_V1_PREFIX}/products")
+        response = await async_client.get(f"{settings.API_V1_PREFIX}/products")
         
         assert response.status_code == 200
         data = response.json()
@@ -38,15 +38,15 @@ class TestProducts:
         # This is a placeholder - implement admin user factory for full test
         pass
     
-    async def test_get_product_not_found(self, client: AsyncClient):
+    async def test_get_product_not_found(self, async_client: AsyncClient):
         """Test getting non-existent product"""
-        response = await client.get(f"{settings.API_V1_PREFIX}/products/99999")
+        response = await async_client.get(f"{settings.API_V1_PREFIX}/products/99999")
         
         assert response.status_code == 404
     
-    async def test_search_products(self, client: AsyncClient):
+    async def test_search_products(self, async_client: AsyncClient):
         """Test product search functionality"""
-        response = await client.get(
+        response = await async_client.get(
             f"{settings.API_V1_PREFIX}/products",
             params={"search": "chair"}
         )
@@ -57,7 +57,7 @@ class TestProducts:
     
     async def test_filter_products_by_category(self, client: AsyncClient):
         """Test filtering products by category"""
-        response = await client.get(
+        response = await async_client.get(
             f"{settings.API_V1_PREFIX}/products",
             params={"category": "office"}
         )

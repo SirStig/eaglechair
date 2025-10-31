@@ -47,15 +47,15 @@ class RouteConfig:
         "/favicon.ico",
         "/robots.txt",
         
-        # Authentication
+        # Authentication (public endpoints)
         "/api/v1/auth/register",
         "/api/v1/auth/login",
         "/api/v1/auth/admin/login",
         "/api/v1/auth/refresh",
-        "/api/v1/auth/forgot-password",
-        "/api/v1/auth/reset-password",
+        "/api/v1/auth/password/reset-request",
+        "/api/v1/auth/password/reset",
         
-        # Public product/catalog endpoints
+        # Public product/catalog endpoints (exact matches)
         "/api/v1/products",
         "/api/v1/categories",
         "/api/v1/families",
@@ -64,44 +64,34 @@ class RouteConfig:
         "/api/v1/upholsteries",
         "/api/v1/colors",
         
-        # Public content endpoints
-        "/api/v1/faqs",
-        "/api/v1/catalogs",
-        "/api/v1/installations",
-        "/api/v1/team",
-        "/api/v1/company-info",
-        "/api/v1/features",
-        "/api/v1/values",
-        "/api/v1/milestones",
-        "/api/v1/hero-slides",
-        "/api/v1/client-logos",
+        # Content routes - Traditional content (content.py)
+        "/api/v1/content/faq/categories",
+        "/api/v1/content/faq",
+        "/api/v1/content/team",
+        "/api/v1/content/about",
+        "/api/v1/content/contact/locations",
+        "/api/v1/content/catalogs",
+        "/api/v1/content/installations",  # Installation guides from content.py
+        "/api/v1/content/feedback",
         
-        # Content API endpoints (with /content/ prefix)
+        # Content routes - CMS content (cms_content.py)
         "/api/v1/content/site-settings",
         "/api/v1/content/hero-slides",
         "/api/v1/content/features",
         "/api/v1/content/client-logos",
         "/api/v1/content/company-values",
         "/api/v1/content/company-milestones",
-        "/api/v1/content/team-members",
-        "/api/v1/content/installations",
         "/api/v1/content/sales-reps",
-        "/api/v1/content/company-info",
-        "/api/v1/content/feedback",
         "/api/v1/content/featured-products",
-        
-        # Contact and legal
-        "/api/v1/contact",
-        "/api/v1/legal",
-        "/api/v1/warranty",
-        "/api/v1/shipping",
-        
-        # Quote submission (public can request quotes)
-        "/api/v1/quotes/submit",
+        "/api/v1/content/legal-documents",
+        "/api/v1/content/warranties",
+        "/api/v1/content/shipping-policies",
+        "/api/v1/content/contentData.js",
     }
     
     # Public route patterns (startswith matching)
     PUBLIC_PATTERNS: List[str] = [
+        # Product catalog routes
         "/api/v1/products/",
         "/api/v1/categories/",
         "/api/v1/families/",
@@ -109,33 +99,41 @@ class RouteConfig:
         "/api/v1/finishes/",
         "/api/v1/upholsteries/",
         "/api/v1/colors/",
-        "/api/v1/faqs/",
-        "/api/v1/catalogs/",
-        "/api/v1/installations/",
-        "/api/v1/team/",
-        "/api/v1/features/",
-        "/api/v1/values/",
-        "/api/v1/milestones/",
-        "/api/v1/hero-slides/",
-        "/api/v1/client-logos/",
-        "/api/v1/legal/",
-        "/api/v1/content/",  # All content API endpoints
+        
+        # Content routes with path parameters (traditional content)
+        "/api/v1/content/faq/",
+        "/api/v1/content/team/",
+        "/api/v1/content/contact/locations/",
+        "/api/v1/content/catalogs/",
+        "/api/v1/content/installations/",  # Matches both installation guides and gallery
+        
+        # Content routes with path parameters (CMS content)
+        "/api/v1/content/hero-slides/",
+        "/api/v1/content/features/",
+        "/api/v1/content/client-logos/",
+        "/api/v1/content/company-values/",
+        "/api/v1/content/company-milestones/",
+        "/api/v1/content/sales-reps/",
+        "/api/v1/content/installations/",  # Installation gallery
+        "/api/v1/content/page-content/",
+        
+        # Static assets
         "/static/",
         "/assets/",
+        "/uploads/",
     ]
     
     # ===== ADMIN ROUTES =====
     # Routes requiring admin authentication
     ADMIN_ROUTES: Set[str] = {
         "/api/v1/admin",
-        "/api/v1/admin/dashboard",
         "/api/v1/cms-admin",
     }
     
     # Admin route patterns
     ADMIN_PATTERNS: List[str] = [
-        "/api/v1/admin/",
-        "/api/v1/cms-admin/",  # CMS admin routes
+        "/api/v1/admin/",      # All admin routes (products, companies, quotes, etc.)
+        "/api/v1/cms-admin/",   # CMS admin routes (content management with static export)
     ]
     
     # ===== AUTHENTICATED ROUTES =====

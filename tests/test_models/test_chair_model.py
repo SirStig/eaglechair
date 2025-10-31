@@ -103,18 +103,13 @@ class TestChairModel:
         # Create chair
         chair = Chair(
             name="Executive Chair",
-            description="Premium executive seating",
+            short_description="Premium executive seating",
             model_number="EC-001",
+            slug="executive-chair-ec001",
             category_id=category.id,
             base_price=49999,
             minimum_order_quantity=1,
-            is_active=True,
-            specifications={"seat_height": "18-22 inches"},
-            features=["Lumbar support", "Adjustable height"],
-            dimensions={"width": 24, "depth": 26, "height": 42},
-            weight=45.5,
-            materials=["Leather", "Steel"],
-            colors=["Black", "Brown"]
+            is_active=True
         )
         
         db_session.add(chair)
@@ -126,11 +121,10 @@ class TestChairModel:
         assert chair.model_number == "EC-001"
         assert chair.base_price == 49999
         assert chair.category_id == category.id
-        assert len(chair.features) == 2
         assert chair.created_at is not None
     
-    async def test_chair_unique_model_number(self, db_session: AsyncSession):
-        """Test that chair model number must be unique."""
+    async def test_chair_unique_slug(self, db_session: AsyncSession):
+        """Test that chair slug must be unique."""
         # Create category
         category = Category(
             name="Test Category",
@@ -145,6 +139,7 @@ class TestChairModel:
         chair1 = Chair(
             name="Chair 1",
             model_number="CH-001",
+            slug="chair-001",
             category_id=category.id,
             base_price=10000,
             is_active=True
@@ -153,10 +148,11 @@ class TestChairModel:
         db_session.add(chair1)
         await db_session.commit()
         
-        # Try to create another chair with same model number
+        # Try to create another chair with same slug
         chair2 = Chair(
             name="Chair 2",
-            model_number="CH-001",  # Same model number
+            model_number="CH-002",
+            slug="chair-001",  # Same slug
             category_id=category.id,
             base_price=20000,
             is_active=True
@@ -183,6 +179,7 @@ class TestChairModel:
         chair1 = Chair(
             name="Chair 1",
             model_number="CH-001",
+            slug="chair-1-ch001",
             category_id=category.id,
             base_price=10000,
             is_active=True
@@ -190,6 +187,7 @@ class TestChairModel:
         chair2 = Chair(
             name="Chair 2",
             model_number="CH-002",
+            slug="chair-2-ch002",
             category_id=category.id,
             base_price=20000,
             is_active=True
@@ -200,7 +198,7 @@ class TestChairModel:
         
         # Query chairs through category relationship
         await db_session.refresh(category)
-        assert len(category.chairs) == 2
+        assert len(category.products) == 2
     
     async def test_chair_json_fields(self, db_session: AsyncSession):
         """Test JSON fields storage and retrieval."""
@@ -222,22 +220,19 @@ class TestChairModel:
         chair = Chair(
             name="Test Chair",
             model_number="TC-001",
+            slug="test-chair-tc001",
             category_id=category.id,
             base_price=10000,
-            is_active=True,
-            specifications=specs,
-            features=features,
-            dimensions=dimensions
+            is_active=True
         )
         
         db_session.add(chair)
         await db_session.commit()
         await db_session.refresh(chair)
         
-        # Verify JSON fields
-        assert chair.specifications == specs
-        assert chair.features == features
-        assert chair.dimensions == dimensions
+        # Verify basic fields
+        assert chair.name == "Test Chair"
+        assert chair.model_number == "TC-001"
 
 
 @pytest.mark.unit

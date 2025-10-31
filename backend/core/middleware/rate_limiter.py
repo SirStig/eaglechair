@@ -8,7 +8,7 @@ Uses centralized route configuration
 import logging
 import time
 from collections import defaultdict, deque
-from typing import Callable, Dict, Optional
+from typing import Callable, Dict
 
 from fastapi import Request, Response, status
 from fastapi.responses import JSONResponse
@@ -82,8 +82,8 @@ class AdvancedRateLimiter(BaseHTTPMiddleware):
     def __init__(self, app, **kwargs):
         super().__init__(app)
         
-        # Enable/disable rate limiting
-        self.enabled = kwargs.get("enabled", settings.RATE_LIMIT_ENABLED)
+        # Enable/disable rate limiting - disable if TESTING mode
+        self.enabled = kwargs.get("enabled", settings.RATE_LIMIT_ENABLED) and not settings.TESTING
         
         # Tracking
         self.request_history: Dict[str, deque] = defaultdict(lambda: deque(maxlen=1000))
@@ -97,6 +97,10 @@ class AdvancedRateLimiter(BaseHTTPMiddleware):
     
     async def dispatch(self, request: Request, call_next: Callable) -> Response:
         """Process request with rate limiting"""
+        
+        # Disable rate limiting if TESTING mode is enabled
+        if settings.TESTING:
+            return await call_next(request)
         
         if not self.enabled:
             return await call_next(request)

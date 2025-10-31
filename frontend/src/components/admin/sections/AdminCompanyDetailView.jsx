@@ -28,12 +28,19 @@ const AdminCompanyDetailView = ({ companyId, onBack, onUpdated }) => {
   const [isEditing, setIsEditing] = useState(false);
   const [formData, setFormData] = useState({});
   const [error, setError] = useState(null);
+  const [pricingTiers, setPricingTiers] = useState([]);
+  const [loadingTiers, setLoadingTiers] = useState(false);
 
   useEffect(() => {
     if (companyId) {
       loadCompany();
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [companyId]);
+
+  useEffect(() => {
+    loadPricingTiers();
+  }, []);
 
   const loadCompany = async () => {
     try {
@@ -88,6 +95,20 @@ const AdminCompanyDetailView = ({ companyId, onBack, onUpdated }) => {
       setError('Failed to load company. Please try again.');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const loadPricingTiers = async () => {
+    try {
+      setLoadingTiers(true);
+      const response = await apiClient.get('/api/v1/admin/pricing-tiers', {
+        params: { include_inactive: false }
+      });
+      setPricingTiers(response.items || []);
+    } catch (error) {
+      console.error('Failed to load pricing tiers:', error);
+    } finally {
+      setLoadingTiers(false);
     }
   };
 
@@ -582,10 +603,32 @@ const AdminCompanyDetailView = ({ companyId, onBack, onUpdated }) => {
 
           {/* Business Details */}
           <Card>
-            <h3 className="text-lg font-bold text-dark-50 mb-4">Business Details</h3>
+            <h3 className="text-lg font-bold text-dark-50 mb-4 flex items-center gap-2">
+              <DollarSign className="w-5 h-5" />
+              Business Details
+            </h3>
             <div className="space-y-4">
               {isEditing ? (
                 <>
+                  <div>
+                    <label className="block text-sm font-medium text-dark-300 mb-2">Pricing Tier</label>
+                    <select
+                      value={formData.pricing_tier_id || ''}
+                      onChange={(e) => setFormData({ ...formData, pricing_tier_id: e.target.value ? parseInt(e.target.value) : null })}
+                      className="w-full px-4 py-2 bg-dark-700 border border-dark-600 rounded-lg text-dark-50 focus:outline-none focus:ring-2 focus:ring-accent-500"
+                      disabled={loadingTiers}
+                    >
+                      <option value="">Default Pricing (No Tier)</option>
+                      {pricingTiers.map((tier) => (
+                        <option key={tier.id} value={tier.id}>
+                          {tier.pricing_tier_name} ({tier.percentage_adjustment >= 0 ? '+' : ''}{tier.percentage_adjustment}%)
+                        </option>
+                      ))}
+                    </select>
+                    <p className="text-xs text-dark-400 mt-1">
+                      Companies without a tier see default pricing (MSRP)
+                    </p>
+                  </div>
                   <div>
                     <label className="block text-sm font-medium text-dark-300 mb-2">Resale Certificate</label>
                     <Input
@@ -614,6 +657,31 @@ const AdminCompanyDetailView = ({ companyId, onBack, onUpdated }) => {
                 </>
               ) : (
                 <>
+                  <div>
+                    <p className="text-sm text-dark-400 mb-1">Pricing Tier</p>
+                    {company?.pricing_tier_id ? (
+                      <div>
+                        {(() => {
+                          const tier = pricingTiers.find(t => t.id === company.pricing_tier_id);
+                          return tier ? (
+                            <div>
+                              <p className="text-dark-50 font-medium">{tier.pricing_tier_name}</p>
+                              <p className="text-xs text-dark-400">
+                                {tier.percentage_adjustment >= 0 ? '+' : ''}{tier.percentage_adjustment}% adjustment
+                                {!tier.applies_to_all_products && tier.specific_categories && (
+                                  <span> • {tier.specific_categories.length} categories</span>
+                                )}
+                              </p>
+                            </div>
+                          ) : (
+                            <p className="text-dark-400">Loading tier info...</p>
+                          );
+                        })()}
+                      </div>
+                    ) : (
+                      <p className="text-dark-50">Default Pricing (No Tier)</p>
+                    )}
+                  </div>
                   <div>
                     <p className="text-sm text-dark-400 mb-1">Resale Certificate</p>
                     <p className="text-dark-50">{company?.resale_certificate || 'N/A'}</p>

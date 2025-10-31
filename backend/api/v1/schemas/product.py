@@ -405,6 +405,10 @@ class ChairResponse(ChairBase, TimestampSchema):
     id: int
     view_count: int
     quote_count: int
+    # Optional pricing information (only included if company is authenticated)
+    adjusted_price: Optional[int] = None  # Price after company tier adjustment
+    pricing_tier_name: Optional[str] = None  # Name of applied pricing tier
+    pricing_tier_adjustment: Optional[int] = None  # Percentage adjustment applied
     
     model_config = {"from_attributes": True}
 

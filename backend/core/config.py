@@ -122,7 +122,7 @@ class Settings(BaseSettings):
     
     # Rate Limiting (increased for normal website usage with multiple parallel requests)
     RATE_LIMIT_PER_MINUTE: int = 120  # Increased from 60 to accommodate page loads with multiple API calls
-    RATE_LIMIT_ENABLED: bool = True
+    RATE_LIMIT_ENABLED: bool = True  # Can be overridden by TESTING mode
     
     # Email Configuration
     SMTP_HOST: Optional[str] = None

@@ -60,7 +60,7 @@ from backend.services.default_content_service import default_content
 
 logger = logging.getLogger(__name__)
 
-router = APIRouter(prefix="/content", tags=["CMS Content"])
+router = APIRouter(tags=["CMS Content"])
 
 
 # ============================================================================
@@ -423,7 +423,8 @@ async def get_sales_reps(
             "states": rep.states_covered,
             "email": rep.email,
             "phone": rep.phone,
-            "photoUrl": rep.photo_url
+            "photoUrl": rep.photo_url,
+            "displayOrder": rep.display_order
         }
         for rep in reps
     ]

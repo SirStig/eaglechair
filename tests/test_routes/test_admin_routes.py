@@ -11,6 +11,12 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from backend.models.company import AdminUser, AdminRole
 from backend.models.chair import Chair, Category
 from backend.models.quote import Quote, QuoteStatus
+from tests.factories import (
+    create_company,
+    create_category,
+    create_chair,
+    create_quote,
+)
 
 
 @pytest.mark.integration
@@ -45,41 +51,36 @@ class TestAdminRoutes:
     @pytest.mark.asyncio
     async def test_get_all_products_admin_success(self, async_client: AsyncClient, admin_token, db_session: AsyncSession):
         """Test successful admin product retrieval."""
-        # Create test category
-        category = Category(
+        # Create test category using factory
+        category = await create_category(
+            db_session,
             name="Test Category",
-            description="Test category",
             slug="test-category",
             is_active=True,
-            sort_order=1
+            display_order=1
         )
-        db_session.add(category)
-        await db_session.commit()
-        await db_session.refresh(category)
         
-        # Create test products
-        product1 = Chair(
+        # Create test products using factories
+        product1 = await create_chair(
+            db_session,
             name="Product 1",
-            description="Test product 1",
+            short_description="Test product 1",
             model_number="P1-001",
             category_id=category.id,
             base_price=10000,
             minimum_order_quantity=1,
             is_active=True
         )
-        product2 = Chair(
+        product2 = await create_chair(
+            db_session,
             name="Product 2",
-            description="Test product 2",
+            short_description="Test product 2",
             model_number="P2-001",
             category_id=category.id,
             base_price=20000,
             minimum_order_quantity=1,
             is_active=False
         )
-        
-        db_session.add(product1)
-        db_session.add(product2)
-        await db_session.commit()
         
         headers = {"Authorization": f"Bearer {admin_token}"}
         
@@ -96,23 +97,21 @@ class TestAdminRoutes:
     @pytest.mark.asyncio
     async def test_get_all_products_admin_with_filters(self, async_client: AsyncClient, admin_token, db_session: AsyncSession):
         """Test admin product retrieval with filters."""
-        # Create test category
-        category = Category(
+        # Create test category using factory
+        category = await create_category(
+            db_session,
             name="Test Category",
-            description="Test category",
             slug="test-category",
             is_active=True,
-            sort_order=1
+            display_order=1
         )
-        db_session.add(category)
-        await db_session.commit()
-        await db_session.refresh(category)
         
         # Create test products
         product1 = Chair(
             name="Active Product",
-            description="Active test product",
+            short_description="Active test product",
             model_number="AP-001",
+            slug="active-product-ap001",
             category_id=category.id,
             base_price=10000,
             minimum_order_quantity=1,
@@ -120,8 +119,9 @@ class TestAdminRoutes:
         )
         product2 = Chair(
             name="Inactive Product",
-            description="Inactive test product",
+            short_description="Inactive test product",
             model_number="IP-001",
+            slug="inactive-product-ip001",
             category_id=category.id,
             base_price=20000,
             minimum_order_quantity=1,
@@ -154,17 +154,14 @@ class TestAdminRoutes:
     @pytest.mark.asyncio
     async def test_create_product_admin_success(self, async_client: AsyncClient, admin_token, db_session: AsyncSession):
         """Test successful admin product creation."""
-        # Create test category
-        category = Category(
+        # Create test category using factory
+        category = await create_category(
+            db_session,
             name="Test Category",
-            description="Test category",
             slug="test-category",
             is_active=True,
-            sort_order=1
+            display_order=1
         )
-        db_session.add(category)
-        await db_session.commit()
-        await db_session.refresh(category)
         
         product_data = {
             "name": "New Product",
@@ -196,17 +193,14 @@ class TestAdminRoutes:
     @pytest.mark.asyncio
     async def test_create_product_admin_unauthorized(self, async_client: AsyncClient, db_session: AsyncSession):
         """Test admin product creation without admin token."""
-        # Create test category
-        category = Category(
+        # Create test category using factory
+        category = await create_category(
+            db_session,
             name="Test Category",
-            description="Test category",
             slug="test-category",
             is_active=True,
-            sort_order=1
+            display_order=1
         )
-        db_session.add(category)
-        await db_session.commit()
-        await db_session.refresh(category)
         
         product_data = {
             "name": "New Product",
@@ -227,23 +221,21 @@ class TestAdminRoutes:
     @pytest.mark.asyncio
     async def test_update_product_admin_success(self, async_client: AsyncClient, admin_token, db_session: AsyncSession):
         """Test successful admin product update."""
-        # Create test category
-        category = Category(
+        # Create test category using factory
+        category = await create_category(
+            db_session,
             name="Test Category",
-            description="Test category",
             slug="test-category",
             is_active=True,
-            sort_order=1
+            display_order=1
         )
-        db_session.add(category)
-        await db_session.commit()
-        await db_session.refresh(category)
         
         # Create test product
         product = Chair(
             name="Original Product",
-            description="Original test product",
+            short_description="Original test product",
             model_number="OP-001",
+            slug="original-product-op001",
             category_id=category.id,
             base_price=10000,
             minimum_order_quantity=1,
@@ -256,7 +248,7 @@ class TestAdminRoutes:
         
         update_data = {
             "name": "Updated Product",
-            "description": "Updated test product",
+            "short_description": "Updated test product",
             "base_price": 15000
         }
         
@@ -274,23 +266,21 @@ class TestAdminRoutes:
     @pytest.mark.asyncio
     async def test_delete_product_admin_success(self, async_client: AsyncClient, admin_token, db_session: AsyncSession):
         """Test successful admin product deletion."""
-        # Create test category
-        category = Category(
+        # Create test category using factory
+        category = await create_category(
+            db_session,
             name="Test Category",
-            description="Test category",
             slug="test-category",
             is_active=True,
-            sort_order=1
+            display_order=1
         )
-        db_session.add(category)
-        await db_session.commit()
-        await db_session.refresh(category)
         
         # Create test product
         product = Chair(
             name="Product to Delete",
-            description="Product to be deleted",
+            short_description="Product to be deleted",
             model_number="PTD-001",
+            slug="product-to-delete-ptd001",
             category_id=category.id,
             base_price=10000,
             minimum_order_quantity=1,
@@ -318,37 +308,35 @@ class TestAdminRoutes:
         """Test successful admin company retrieval."""
         from backend.models.company import Company, CompanyStatus
         
-        # Create test companies
-        company1 = Company(
+        # Create test companies using factories
+        company1 = await create_company(
+            db_session,
             company_name="Company 1",
-            contact_name="John Doe",
-            contact_email="john@company1.com",
-            contact_phone="+1234567890",
-            address_line1="123 Main St",
-            city="Test City",
-            state="TS",
-            zip_code="12345",
-            country="USA",
-            password_hash="hashed_password",
+            rep_first_name="John",
+            rep_last_name="Doe",
+            rep_email="john@company1.com",
+            rep_phone="+1234567890",
+            billing_address_line1="123 Main St",
+            billing_city="Test City",
+            billing_state="TS",
+            billing_zip="12345",
+            billing_country="USA",
             status=CompanyStatus.ACTIVE
         )
-        company2 = Company(
+        company2 = await create_company(
+            db_session,
             company_name="Company 2",
-            contact_name="Jane Smith",
-            contact_email="jane@company2.com",
-            contact_phone="+1234567891",
-            address_line1="456 Oak Ave",
-            city="Test City",
-            state="TS",
-            zip_code="12345",
-            country="USA",
-            password_hash="hashed_password",
+            rep_first_name="Jane",
+            rep_last_name="Smith",
+            rep_email="jane@company2.com",
+            rep_phone="+1234567891",
+            billing_address_line1="456 Oak Ave",
+            billing_city="Test City",
+            billing_state="TS",
+            billing_zip="12345",
+            billing_country="USA",
             status=CompanyStatus.PENDING
         )
-        
-        db_session.add(company1)
-        db_session.add(company2)
-        await db_session.commit()
         
         headers = {"Authorization": f"Bearer {admin_token}"}
         
@@ -367,24 +355,21 @@ class TestAdminRoutes:
         """Test successful admin company status update."""
         from backend.models.company import Company, CompanyStatus
         
-        # Create test company
-        company = Company(
+        # Create test company using factory
+        company = await create_company(
+            db_session,
             company_name="Test Company",
-            contact_name="John Doe",
-            contact_email="john@testcompany.com",
-            contact_phone="+1234567890",
-            address_line1="123 Main St",
-            city="Test City",
-            state="TS",
-            zip_code="12345",
-            country="USA",
-            password_hash="hashed_password",
+            rep_first_name="John",
+            rep_last_name="Doe",
+            rep_email="john@testcompany.com",
+            rep_phone="+1234567890",
+            billing_address_line1="123 Main St",
+            billing_city="Test City",
+            billing_state="TS",
+            billing_zip="12345",
+            billing_country="USA",
             status=CompanyStatus.PENDING
         )
-        
-        db_session.add(company)
-        await db_session.commit()
-        await db_session.refresh(company)
         
         status_data = {
             "status": "active",
@@ -403,30 +388,27 @@ class TestAdminRoutes:
     @pytest.mark.asyncio
     async def test_get_all_quotes_admin_success(self, async_client: AsyncClient, admin_token, db_session: AsyncSession):
         """Test successful admin quote retrieval."""
-        from backend.models.company import Company, CompanyStatus
+        from backend.models.company import CompanyStatus
         
-        # Create test company
-        company = Company(
+        # Create test company using factory
+        company = await create_company(
+            db_session,
             company_name="Test Company",
-            contact_name="John Doe",
-            contact_email="john@testcompany.com",
-            contact_phone="+1234567890",
-            address_line1="123 Main St",
-            city="Test City",
-            state="TS",
-            zip_code="12345",
-            country="USA",
-            password_hash="hashed_password",
+            rep_first_name="John",
+            rep_last_name="Doe",
+            rep_email="john@testcompany.com",
+            rep_phone="+1234567890",
+            billing_address_line1="123 Main St",
+            billing_city="Test City",
+            billing_state="TS",
+            billing_zip="12345",
+            billing_country="USA",
             status=CompanyStatus.ACTIVE
         )
         
-        db_session.add(company)
-        await db_session.commit()
-        await db_session.refresh(company)
-        
-        # Create test quotes
-        quote1 = Quote(
-            quote_number="Q-001",
+        # Create test quotes using factories
+        quote1 = await create_quote(
+            db_session,
             company_id=company.id,
             contact_name="John Doe",
             contact_email="john@testcompany.com",
@@ -436,12 +418,12 @@ class TestAdminRoutes:
             shipping_state="TS",
             shipping_zip="12345",
             shipping_country="USA",
-            status=QuoteStatus.PENDING,
+            status=QuoteStatus.UNDER_REVIEW,
             subtotal=100000,
             total_amount=110000
         )
-        quote2 = Quote(
-            quote_number="Q-002",
+        quote2 = await create_quote(
+            db_session,
             company_id=company.id,
             contact_name="John Doe",
             contact_email="john@testcompany.com",
@@ -455,10 +437,6 @@ class TestAdminRoutes:
             subtotal=200000,
             total_amount=220000
         )
-        
-        db_session.add(quote1)
-        db_session.add(quote2)
-        await db_session.commit()
         
         headers = {"Authorization": f"Bearer {admin_token}"}
         
@@ -475,26 +453,23 @@ class TestAdminRoutes:
     @pytest.mark.asyncio
     async def test_update_quote_status_admin_success(self, async_client: AsyncClient, admin_token, db_session: AsyncSession):
         """Test successful admin quote status update."""
-        from backend.models.company import Company, CompanyStatus
+        from backend.models.company import CompanyStatus
         
-        # Create test company
-        company = Company(
+        # Create test company using factory
+        company = await create_company(
+            db_session,
             company_name="Test Company",
-            contact_name="John Doe",
-            contact_email="john@testcompany.com",
-            contact_phone="+1234567890",
-            address_line1="123 Main St",
-            city="Test City",
-            state="TS",
-            zip_code="12345",
-            country="USA",
-            password_hash="hashed_password",
+            rep_first_name="John",
+            rep_last_name="Doe",
+            rep_email="john@testcompany.com",
+            rep_phone="+1234567890",
+            billing_address_line1="123 Main St",
+            billing_city="Test City",
+            billing_state="TS",
+            billing_zip="12345",
+            billing_country="USA",
             status=CompanyStatus.ACTIVE
         )
-        
-        db_session.add(company)
-        await db_session.commit()
-        await db_session.refresh(company)
         
         # Create test quote
         quote = Quote(
@@ -508,7 +483,7 @@ class TestAdminRoutes:
             shipping_state="TS",
             shipping_zip="12345",
             shipping_country="USA",
-            status=QuoteStatus.PENDING,
+            status=QuoteStatus.UNDER_REVIEW,
             subtotal=100000,
             total_amount=110000
         )
