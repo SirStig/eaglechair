@@ -109,13 +109,28 @@ export const useCartStore = create(
       addItemToBackend: async (product, quantity = 1, customizations = {}) => {
         set({ isLoading: true });
         try {
+          // Extract finish and upholstery IDs from customization objects
+          const finishId = customizations.finish?.id || 
+                          customizations.selected_finish_id || 
+                          null;
+          const upholsteryId = customizations.upholstery?.id || 
+                             customizations.selected_upholstery_id || 
+                             null;
+          
+          // Preserve other customizations
+          const customOptions = { ...customizations };
+          if (customOptions.finish) delete customOptions.finish;
+          if (customOptions.upholstery) delete customOptions.upholstery;
+          if (customOptions.selected_finish_id) delete customOptions.selected_finish_id;
+          if (customOptions.selected_upholstery_id) delete customOptions.selected_upholstery_id;
+          
           const payload = {
             product_id: product.id,
             quantity,
-            selected_finish_id: null,
-            selected_upholstery_id: null,
-            custom_notes: null,
-            configuration: customizations || {}
+            selected_finish_id: finishId,
+            selected_upholstery_id: upholsteryId,
+            item_notes: customizations.custom_notes || customizations.item_notes || null,
+            custom_options: Object.keys(customOptions).length > 0 ? customOptions : null
           };
           
           console.log('Adding to backend cart:', payload);
@@ -297,8 +312,17 @@ export const useCartStore = create(
       loadBackendCart: async () => {
         set({ isLoading: true });
         try {
-          const response = await apiClient.get('/api/v1/quotes/cart');
-          const cart = response.data;
+          const cart = await apiClient.get('/api/v1/quotes/cart');
+          
+          // Validate cart response
+          if (!cart || typeof cart !== 'object') {
+            logger.error(CONTEXT, 'Invalid cart response from API', cart);
+            set({
+              backendCart: { items: [] },
+              backendCartId: null,
+            });
+            return null;
+          }
           
           set({
             backendCart: cart,
@@ -309,6 +333,11 @@ export const useCartStore = create(
           return cart;
         } catch (error) {
           logger.error(CONTEXT, 'Error loading backend cart', error);
+          // Set empty cart on error
+          set({
+            backendCart: { items: [] },
+            backendCartId: null,
+          });
           return null;
         } finally {
           set({ isLoading: false });
@@ -333,20 +362,47 @@ export const useCartStore = create(
 
         set({ isLoading: true });
         try {
-          // Instead of using merge endpoint, add items one by one to backend
-          for (const item of guestItems) {
-            try {
-              await get().addItemToBackend(
-                item.product,
-                item.quantity,
-                item.customizations || {}
-              );
-            } catch (itemError) {
-              logger.error(CONTEXT, `Failed to add item ${item.product.name}`, itemError);
-            }
-          }
+          // Convert guest items to CartItemCreate format for merge endpoint
+          const mergePayload = guestItems.map(item => {
+            const customizations = item.customizations || {};
+            
+            // Extract finish and upholstery IDs from customization objects
+            // Customizations can be stored as:
+            // - { finish: { id: 1, ... }, upholstery: { id: 2, ... } }
+            // - { selected_finish_id: 1, selected_upholstery_id: 2 }
+            const finishId = customizations.finish?.id || 
+                            customizations.selected_finish_id || 
+                            null;
+            const upholsteryId = customizations.upholstery?.id || 
+                               customizations.selected_upholstery_id || 
+                               null;
+            
+            // Preserve other customizations in custom_options
+            const customOptions = { ...customizations };
+            // Remove finish/upholstery objects if they exist (we only need IDs)
+            if (customOptions.finish) delete customOptions.finish;
+            if (customOptions.upholstery) delete customOptions.upholstery;
+            if (customOptions.selected_finish_id) delete customOptions.selected_finish_id;
+            if (customOptions.selected_upholstery_id) delete customOptions.selected_upholstery_id;
+            
+            return {
+              product_id: item.product.id,
+              quantity: item.quantity,
+              selected_finish_id: finishId,
+              selected_upholstery_id: upholsteryId,
+              custom_options: Object.keys(customOptions).length > 0 ? customOptions : null,
+              item_notes: customizations.custom_notes || customizations.item_notes || item.item_notes || null
+            };
+          });
           
-          // Load the merged cart from backend
+          logger.info(CONTEXT, 'Sending merge request with items:', mergePayload);
+          
+          // Use the merge endpoint to add all items at once
+          const mergedCart = await apiClient.post('/api/v1/quotes/cart/merge', mergePayload);
+          
+          logger.info(CONTEXT, 'Cart merged successfully', mergedCart);
+          
+          // Load the merged cart from backend to get full item details
           await get().loadBackendCart();
           
           // Clear guest items and set authenticated
@@ -360,15 +416,39 @@ export const useCartStore = create(
           logger.error(CONTEXT, 'Error merging guest cart', error);
           console.error('Cart merge failed:', error);
           
-          // If merge fails, still try to load backend cart (might already exist)
+          // If merge fails, fallback to adding items one by one
+          logger.info(CONTEXT, 'Falling back to individual item addition');
           try {
+            for (const item of guestItems) {
+              try {
+                await get().addItemToBackend(
+                  item.product,
+                  item.quantity,
+                  item.customizations || {}
+                );
+              } catch (itemError) {
+                logger.error(CONTEXT, `Failed to add item ${item.product?.name || 'unknown'}`, itemError);
+              }
+            }
+            
             await get().loadBackendCart();
-            set({ isAuthenticated: true });
-            logger.info(CONTEXT, 'Loaded existing backend cart after merge failure');
-          } catch (loadError) {
-            logger.error(CONTEXT, 'Failed to load backend cart', loadError);
-            // Stay in guest mode
-            set({ isAuthenticated: false });
+            set({ 
+              guestItems: [],
+              isAuthenticated: true
+            });
+            logger.info(CONTEXT, 'Guest cart merged using fallback method');
+          } catch (fallbackError) {
+            logger.error(CONTEXT, 'Fallback merge also failed', fallbackError);
+            // If fallback also fails, still try to load backend cart (might already exist)
+            try {
+              await get().loadBackendCart();
+              set({ isAuthenticated: true });
+              logger.info(CONTEXT, 'Loaded existing backend cart after merge failure');
+            } catch (loadError) {
+              logger.error(CONTEXT, 'Failed to load backend cart', loadError);
+              // Stay in guest mode
+              set({ isAuthenticated: false });
+            }
           }
         } finally {
           set({ isLoading: false });

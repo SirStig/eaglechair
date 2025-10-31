@@ -9,7 +9,7 @@ from __future__ import annotations
 from enum import Enum
 from typing import Optional
 
-from pydantic import BaseModel, EmailStr, Field
+from pydantic import BaseModel, EmailStr, Field, field_validator
 
 from backend.api.v1.schemas.common import TimestampSchema
 
@@ -82,7 +82,8 @@ class QuoteUpdate(BaseModel):
 
 
 class QuoteAdminUpdate(BaseModel):
-    """Schema for updating quote (admin only)"""
+    """Schema for updating quote (admin only) - full control over all fields"""
+    # Status and pricing
     status: Optional[QuoteStatusEnum] = None
     quoted_price: Optional[int] = None
     quoted_lead_time: Optional[str] = Field(None, max_length=100)
@@ -91,6 +92,39 @@ class QuoteAdminUpdate(BaseModel):
     quote_pdf_url: Optional[str] = Field(None, max_length=500)
     assigned_to_admin_id: Optional[int] = None
     admin_notes: Optional[str] = None
+    
+    # Contact Information
+    contact_name: Optional[str] = Field(None, max_length=255)
+    contact_email: Optional[EmailStr] = None
+    contact_phone: Optional[str] = Field(None, max_length=20)
+    
+    # Project Information
+    project_name: Optional[str] = Field(None, max_length=255)
+    project_description: Optional[str] = None
+    project_type: Optional[str] = Field(None, max_length=100)
+    estimated_quantity: Optional[int] = None
+    target_budget: Optional[int] = None  # In cents
+    desired_delivery_date: Optional[str] = Field(None, max_length=50)
+    
+    # Shipping Information
+    shipping_address_line1: Optional[str] = Field(None, max_length=255)
+    shipping_address_line2: Optional[str] = Field(None, max_length=255)
+    shipping_city: Optional[str] = Field(None, max_length=100)
+    shipping_state: Optional[str] = Field(None, max_length=50)
+    shipping_zip: Optional[str] = Field(None, max_length=20)
+    shipping_country: Optional[str] = Field(None, max_length=100)
+    
+    # Special Requests
+    special_instructions: Optional[str] = None
+    requires_com: Optional[bool] = None
+    rush_order: Optional[bool] = None
+    
+    # Totals (can be manually adjusted by admin)
+    subtotal: Optional[int] = None  # In cents
+    tax_amount: Optional[int] = None  # In cents
+    shipping_cost: Optional[int] = None  # In cents
+    discount_amount: Optional[int] = None  # In cents
+    total_amount: Optional[int] = None  # In cents
 
 
 class QuoteResponse(QuoteBase, TimestampSchema):
@@ -152,6 +186,30 @@ class QuoteItemResponse(QuoteItemBase):
         from_attributes = True
 
 
+class QuoteItemAdminUpdate(BaseModel):
+    """Schema for updating quote item (admin only)"""
+    quantity: Optional[int] = Field(None, gt=0)
+    unit_price: Optional[int] = Field(None, ge=0)  # In cents
+    customization_cost: Optional[int] = Field(None, ge=0)  # In cents
+    line_total: Optional[int] = Field(None, ge=0)  # In cents - auto-calculated if not provided
+    selected_finish_id: Optional[int] = None
+    selected_upholstery_id: Optional[int] = None
+    custom_options: Optional[dict] = None
+    item_notes: Optional[str] = None
+
+
+class QuoteItemAdminCreate(BaseModel):
+    """Schema for creating quote item (admin only)"""
+    product_id: int
+    quantity: int = Field(..., gt=0)
+    unit_price: int = Field(..., ge=0)  # In cents
+    customization_cost: int = Field(0, ge=0)  # In cents
+    selected_finish_id: Optional[int] = None
+    selected_upholstery_id: Optional[int] = None
+    custom_options: Optional[dict] = None
+    item_notes: Optional[str] = None
+
+
 class QuoteWithItems(QuoteResponse):
     """Quote response with items"""
     items: list[QuoteItemResponse] = []
@@ -182,15 +240,96 @@ class CartResponse(TimestampSchema):
 # ============================================================================
 
 class CartItemProductInfo(BaseModel):
-    """Product information embedded in cart item"""
+    """Product information embedded in cart item - comprehensive for display"""
     id: int
     name: str
     model_number: Optional[str] = None
     slug: Optional[str] = None
-    image_url: Optional[str] = None
+    
+    # Images - multiple options for flexibility
+    image_url: Optional[str] = None  # Alias for primary_image_url
+    primary_image_url: Optional[str] = None
+    hover_image_url: Optional[str] = None
+    thumbnail: Optional[str] = None
+    images: Optional[list] = None  # JSON array of image objects
+    
+    # Descriptions
+    short_description: Optional[str] = None
+    full_description: Optional[str] = None
+    
+    # Category
     category: Optional[str] = None
     subcategory: Optional[str] = None
+    family: Optional[str] = None
+    
+    # Pricing
     base_price: int
+    msrp: Optional[int] = None
+    
+    # Dimensions (for display/reference)
+    width: Optional[float] = None
+    depth: Optional[float] = None
+    height: Optional[float] = None
+    seat_width: Optional[float] = None
+    seat_depth: Optional[float] = None
+    seat_height: Optional[float] = None
+    
+    # Features & Materials
+    features: Optional[list] = None  # JSON array
+    frame_material: Optional[str] = None
+    
+    # Availability
+    stock_status: Optional[str] = None
+    lead_time_days: Optional[int] = None
+    minimum_order_quantity: Optional[int] = None
+    
+    # Additional useful info
+    dimensional_drawing_url: Optional[str] = None
+    spec_sheet_url: Optional[str] = None
+    
+    @field_validator('category', mode='before')
+    @classmethod
+    def extract_category_name(cls, value):
+        """Extract name from Category object if present"""
+        if value is None:
+            return None
+        if isinstance(value, str):
+            return value
+        # If it's an object, extract the name attribute
+        return getattr(value, 'name', None)
+    
+    @field_validator('subcategory', mode='before')
+    @classmethod
+    def extract_subcategory_name(cls, value):
+        """Extract name from ProductSubcategory object if present"""
+        if value is None:
+            return None
+        if isinstance(value, str):
+            return value
+        # If it's an object, extract the name attribute
+        return getattr(value, 'name', None)
+    
+    @field_validator('family', mode='before')
+    @classmethod
+    def extract_family_name(cls, value):
+        """Extract name from ProductFamily object if present"""
+        if value is None:
+            return None
+        if isinstance(value, str):
+            return value
+        # If it's an object, extract the name attribute
+        return getattr(value, 'name', None)
+    
+    @field_validator('image_url', mode='before')
+    @classmethod
+    def set_image_url(cls, value, info):
+        """If image_url is not set, use primary_image_url as fallback"""
+        if value:
+            return value
+        # Get primary_image_url from the data dict if available
+        if hasattr(info, 'data') and 'primary_image_url' in info.data:
+            return info.data.get('primary_image_url')
+        return None
     
     class Config:
         from_attributes = True
@@ -307,3 +446,50 @@ class SavedConfigurationListResponse(BaseModel):
     page_size: int
     total_pages: int
 
+
+# ============================================================================
+# Dashboard Schemas
+# ============================================================================
+
+class DashboardStatsResponse(BaseModel):
+    """Schema for dashboard statistics"""
+    totalQuotes: int
+    pendingQuotes: int
+    activeOrders: int
+
+
+class RecentQuoteResponse(BaseModel):
+    """Schema for recent quote in dashboard"""
+    id: int
+    quoteNumber: str
+    createdAt: Optional[str]
+    status: str
+    itemCount: int
+    totalAmount: int
+    projectName: Optional[str]
+
+
+class DashboardOverviewResponse(BaseModel):
+    """Schema for dashboard overview response"""
+    stats: DashboardStatsResponse
+    recentQuotes: list[RecentQuoteResponse]
+
+
+class DashboardQuoteResponse(BaseModel):
+    """Schema for quote in dashboard quotes list"""
+    id: int
+    quoteNumber: str
+    createdAt: Optional[str]
+    updatedAt: Optional[str]
+    status: str
+    itemCount: int
+    totalAmount: int
+    projectName: Optional[str]
+    projectType: Optional[str]
+    contactName: Optional[str]
+
+
+class DashboardQuotesResponse(BaseModel):
+    """Schema for dashboard quotes list response"""
+    quotes: list[DashboardQuoteResponse]
+    count: int

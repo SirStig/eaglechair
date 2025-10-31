@@ -32,217 +32,6 @@ router = APIRouter(tags=["Quotes & Cart"])
 
 
 # ============================================================================
-# Dashboard Endpoints
-# ============================================================================
-
-@router.get(
-    "/dashboard/overview",
-    summary="Get dashboard overview",
-    description="Get dashboard stats and recent activity for authenticated company"
-)
-async def get_dashboard_overview(
-    company: Company = Depends(get_current_company),
-    db: AsyncSession = Depends(get_db)
-):
-    """Get dashboard overview with stats and recent quotes."""
-    from sqlalchemy import func, select
-
-    from backend.models.quote import Quote
-    
-    # Get quote counts by status
-    total_quotes_result = await db.execute(
-        select(func.count(Quote.id)).where(Quote.company_id == company.id)
-    )
-    total_quotes = total_quotes_result.scalar() or 0
-    
-    pending_quotes_result = await db.execute(
-        select(func.count(Quote.id)).where(
-            Quote.company_id == company.id,
-            Quote.status.in_([QuoteStatus.SUBMITTED, QuoteStatus.UNDER_REVIEW])
-        )
-    )
-    pending_quotes = pending_quotes_result.scalar() or 0
-    
-    active_orders_result = await db.execute(
-        select(func.count(Quote.id)).where(
-            Quote.company_id == company.id,
-            Quote.status.in_([QuoteStatus.QUOTED, QuoteStatus.ACCEPTED])
-        )
-    )
-    active_orders = active_orders_result.scalar() or 0
-    
-    # Get recent quotes
-    recent_quotes_result = await db.execute(
-        select(Quote)
-        .where(Quote.company_id == company.id)
-        .order_by(Quote.created_at.desc())
-        .limit(5)
-    )
-    recent_quotes_data = recent_quotes_result.scalars().all()
-    
-    recent_quotes = [
-        {
-            "id": q.id,
-            "quoteNumber": q.quote_number,
-            "createdAt": q.created_at.isoformat() if q.created_at else None,
-            "status": q.status.value,
-            "itemCount": len(q.items) if q.items else 0,
-            "totalAmount": q.total_amount or 0,
-            "projectName": q.project_name,
-        }
-        for q in recent_quotes_data
-    ]
-    
-    return {
-        "stats": {
-            "totalQuotes": total_quotes,
-            "pendingQuotes": pending_quotes,
-            "activeOrders": active_orders,
-        },
-        "recentQuotes": recent_quotes
-    }
-
-
-@router.get(
-    "/dashboard/quotes",
-    summary="Get filtered quotes",
-    description="Get quotes filtered by status"
-)
-async def get_dashboard_quotes(
-    status: Optional[str] = None,
-    company: Company = Depends(get_current_company),
-    db: AsyncSession = Depends(get_db)
-):
-    """Get quotes filtered by status."""
-    from sqlalchemy import select
-
-    from backend.models.quote import Quote
-    
-    query = select(Quote).where(Quote.company_id == company.id)
-    
-    if status and status != "all":
-        try:
-            quote_status = QuoteStatus(status)
-            query = query.where(Quote.status == quote_status)
-        except ValueError:
-            pass
-    
-    query = query.order_by(Quote.created_at.desc()).limit(50)
-    
-    result = await db.execute(query)
-    quotes_data = result.scalars().all()
-    
-    quotes = [
-        {
-            "id": q.id,
-            "quoteNumber": q.quote_number,
-            "createdAt": q.created_at.isoformat() if q.created_at else None,
-            "updatedAt": q.updated_at.isoformat() if q.updated_at else None,
-            "status": q.status.value,
-            "itemCount": len(q.items) if q.items else 0,
-            "totalAmount": q.total_amount or 0,
-            "projectName": q.project_name,
-            "projectType": q.project_type,
-            "contactName": q.contact_name,
-        }
-        for q in quotes_data
-    ]
-    
-    return {"quotes": quotes, "count": len(quotes)}
-
-
-@router.get(
-    "/dashboard/profile",
-    summary="Get company profile",
-    description="Get current company profile information"
-)
-async def get_company_profile(
-    company: Company = Depends(get_current_company)
-):
-    """Get company profile information."""
-    return {
-        "id": company.id,
-        "companyName": company.company_name,
-        "legalName": company.legal_name,
-        "taxId": company.tax_id,
-        "industry": company.industry,
-        "website": company.website,
-        "status": company.status.value,
-        "isVerified": company.is_verified,
-        "representative": {
-            "firstName": company.rep_first_name,
-            "lastName": company.rep_last_name,
-            "title": company.rep_title,
-            "email": company.rep_email,
-            "phone": company.rep_phone,
-        },
-        "billingAddress": {
-            "line1": company.billing_address_line1,
-            "line2": company.billing_address_line2,
-            "city": company.billing_city,
-            "state": company.billing_state,
-            "zip": company.billing_zip,
-            "country": company.billing_country,
-        },
-        "shippingAddress": {
-            "line1": company.shipping_address_line1,
-            "line2": company.shipping_address_line2,
-            "city": company.shipping_city,
-            "state": company.shipping_state,
-            "zip": company.shipping_zip,
-            "country": company.shipping_country,
-        } if company.shipping_address_line1 else None,
-        "paymentTerms": company.payment_terms,
-        "creditLimit": company.credit_limit,
-    }
-
-
-@router.put(
-    "/dashboard/profile",
-    summary="Update company profile",
-    description="Update company profile information"
-)
-async def update_company_profile(
-    update_data: dict,
-    company: Company = Depends(get_current_company),
-    db: AsyncSession = Depends(get_db)
-):
-    """Update company profile information."""
-    # Allowed fields for update
-    allowed_fields = {
-        "website", "rep_title", "rep_phone",
-        "shipping_address_line1", "shipping_address_line2",
-        "shipping_city", "shipping_state", "shipping_zip", "shipping_country"
-    }
-    
-    for key, value in update_data.items():
-        if key in allowed_fields and hasattr(company, key):
-            setattr(company, key, value)
-    
-    await db.commit()
-    await db.refresh(company)
-    
-    return {"message": "Profile updated successfully"}
-
-
-# ============================================================================
-# Legacy Dashboard Endpoint (for compatibility)
-# ============================================================================
-
-@router.get(
-    "/dashboard",
-    summary="Get company dashboard data",
-    description="Get dashboard stats and recent quotes for authenticated company"
-)
-async def get_company_dashboard(
-    company: Company = Depends(get_current_company),
-    db: AsyncSession = Depends(get_db)
-):
-    """Legacy dashboard endpoint - redirects to /dashboard/overview."""
-    return await get_dashboard_overview(company, db)
-
-
-# ============================================================================
 # Cart Endpoints
 # ============================================================================
 
@@ -305,18 +94,54 @@ async def add_to_cart(
         f"to cart (qty: {item_data.quantity})"
     )
     
-    cart_item = await QuoteService.add_to_cart(
-        db=db,
-        company_id=company.id,
-        product_id=item_data.product_id,
-        quantity=item_data.quantity,
-        selected_finish_id=item_data.selected_finish_id,
-        selected_upholstery_id=item_data.selected_upholstery_id,
-        custom_notes=item_data.custom_notes,
-        configuration=item_data.configuration
-    )
-    
-    return cart_item
+    try:
+        cart_item = await QuoteService.add_to_cart(
+            db=db,
+            company_id=company.id,
+            product_id=item_data.product_id,
+            quantity=item_data.quantity,
+            selected_finish_id=item_data.selected_finish_id,
+            selected_upholstery_id=item_data.selected_upholstery_id,
+            custom_notes=item_data.item_notes,
+            configuration=item_data.custom_options
+        )
+        
+        # Manually construct response dict to avoid serialization issues
+        response_data = {
+            "id": cart_item.id,
+            "cart_id": cart_item.cart_id,
+            "product_id": cart_item.product_id,
+            "quantity": cart_item.quantity,
+            "unit_price": cart_item.unit_price,
+            "customization_cost": cart_item.customization_cost,
+            "line_total": cart_item.line_total,
+            "selected_finish_id": cart_item.selected_finish_id,
+            "selected_upholstery_id": cart_item.selected_upholstery_id,
+            "custom_options": cart_item.custom_options,
+            "item_notes": cart_item.item_notes,
+            "added_at": cart_item.added_at.isoformat() if cart_item.added_at else None,
+            "updated_at": cart_item.updated_at.isoformat() if cart_item.updated_at else None,
+        }
+        
+        # Add product info if loaded
+        if cart_item.product:
+            response_data["product"] = {
+                "id": cart_item.product.id,
+                "name": cart_item.product.name,
+                "model_number": cart_item.product.model_number,
+                "slug": cart_item.product.slug,
+                "image_url": cart_item.product.primary_image_url,
+                "category": cart_item.product.category,
+                "subcategory": cart_item.product.subcategory,
+                "base_price": cart_item.product.base_price,
+            }
+        else:
+            response_data["product"] = None
+        
+        return response_data
+    except Exception as e:
+        logger.error(f"Error adding item to cart: {str(e)}", exc_info=False)
+        raise
 
 
 @router.patch(
@@ -340,17 +165,53 @@ async def update_cart_item(
     """
     logger.info(f"Company {company.id} updating cart item {cart_item_id}")
     
-    cart_item = await QuoteService.update_cart_item(
-        db=db,
-        cart_item_id=cart_item_id,
-        company_id=company.id,
-        quantity=update_data.quantity,
-        selected_finish_id=update_data.selected_finish_id,
-        selected_upholstery_id=update_data.selected_upholstery_id,
-        custom_notes=update_data.custom_notes
-    )
-    
-    return cart_item
+    try:
+        cart_item = await QuoteService.update_cart_item(
+            db=db,
+            cart_item_id=cart_item_id,
+            company_id=company.id,
+            quantity=update_data.quantity,
+            selected_finish_id=update_data.selected_finish_id,
+            selected_upholstery_id=update_data.selected_upholstery_id,
+            custom_notes=update_data.item_notes
+        )
+        
+        # Manually construct response dict to avoid serialization issues
+        response_data = {
+            "id": cart_item.id,
+            "cart_id": cart_item.cart_id,
+            "product_id": cart_item.product_id,
+            "quantity": cart_item.quantity,
+            "unit_price": cart_item.unit_price,
+            "customization_cost": cart_item.customization_cost,
+            "line_total": cart_item.line_total,
+            "selected_finish_id": cart_item.selected_finish_id,
+            "selected_upholstery_id": cart_item.selected_upholstery_id,
+            "custom_options": cart_item.custom_options,
+            "item_notes": cart_item.item_notes,
+            "added_at": cart_item.added_at.isoformat() if cart_item.added_at else None,
+            "updated_at": cart_item.updated_at.isoformat() if cart_item.updated_at else None,
+        }
+        
+        # Add product info if loaded
+        if cart_item.product:
+            response_data["product"] = {
+                "id": cart_item.product.id,
+                "name": cart_item.product.name,
+                "model_number": cart_item.product.model_number,
+                "slug": cart_item.product.slug,
+                "image_url": cart_item.product.primary_image_url,
+                "category": cart_item.product.category,
+                "subcategory": cart_item.product.subcategory,
+                "base_price": cart_item.product.base_price,
+            }
+        else:
+            response_data["product"] = None
+        
+        return response_data
+    except Exception as e:
+        logger.error(f"Error updating cart item {cart_item_id}: {str(e)}", exc_info=False)
+        raise
 
 
 @router.delete(
@@ -431,13 +292,39 @@ async def merge_guest_cart(
     
     This endpoint is called after login/registration to merge any items
     that were added to the cart while not authenticated.
+    
+    If the guest_items list is empty, it will simply return the existing
+    authenticated cart (or create one if it doesn't exist).
     """
+    if not guest_items or len(guest_items) == 0:
+        logger.info(f"No guest items to merge for company {company.id}, returning existing cart")
+        cart = await QuoteService.get_or_create_cart(db=db, company_id=company.id)
+        cart_with_items = await QuoteService.get_cart_with_items(
+            db=db,
+            cart_id=cart.id,
+            company_id=company.id
+        )
+        return cart_with_items
+    
     logger.info(f"Merging {len(guest_items)} guest items for company {company.id}")
+    
+    # Convert CartItemCreate objects to dicts for the service
+    guest_items_dict = [
+        {
+            "product_id": item.product_id,
+            "quantity": item.quantity,
+            "selected_finish_id": item.selected_finish_id,
+            "selected_upholstery_id": item.selected_upholstery_id,
+            "custom_options": item.custom_options,
+            "item_notes": item.item_notes,
+        }
+        for item in guest_items
+    ]
     
     cart = await QuoteService.merge_guest_cart(
         db=db,
         company_id=company.id,
-        guest_items=guest_items
+        guest_items=guest_items_dict
     )
     
     return cart
@@ -448,7 +335,7 @@ async def merge_guest_cart(
 # ============================================================================
 
 @router.post(
-    "/quotes",
+    "/request",
     response_model=QuoteResponse,
     status_code=201,
     summary="Request quote",
@@ -476,11 +363,15 @@ async def create_quote_request(
         db=db,
         company_id=company.id,
         cart_id=cart.id,
-        delivery_address=quote_data.shipping_address_line1,
-        delivery_city=quote_data.shipping_city,
-        delivery_state=quote_data.shipping_state,
-        delivery_zip=quote_data.shipping_zip,
-        requested_delivery_date=quote_data.desired_delivery_date,
+        shipping_address_line1=quote_data.shipping_address_line1,
+        shipping_address_line2=quote_data.shipping_address_line2,
+        shipping_city=quote_data.shipping_city,
+        shipping_state=quote_data.shipping_state,
+        shipping_zip=quote_data.shipping_zip,
+        shipping_country=quote_data.shipping_country,
+        project_name=quote_data.project_name,
+        project_description=quote_data.project_description,
+        desired_delivery_date=quote_data.desired_delivery_date,
         special_instructions=quote_data.special_instructions
     )
     
@@ -493,7 +384,7 @@ async def create_quote_request(
 
 
 @router.get(
-    "/quotes",
+    "/",
     response_model=list[QuoteResponse],
     summary="Get my quotes",
     description="Get all quote requests for authenticated company"
@@ -522,7 +413,7 @@ async def get_my_quotes(
 
 
 @router.get(
-    "/quotes/{quote_id}",
+    "/{quote_id}",
     response_model=QuoteWithItems,
     summary="Get quote details",
     description="Get detailed information about a specific quote"

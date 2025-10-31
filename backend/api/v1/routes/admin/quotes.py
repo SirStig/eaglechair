@@ -8,18 +8,25 @@ import logging
 from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query
-from fastapi.responses import JSONResponse
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
 
 from backend.api.dependencies import get_current_admin, require_role
-from backend.api.v1.schemas.admin import QuoteListResponse, QuoteStatusUpdate
-from backend.api.v1.schemas.quote import QuoteResponse
+from backend.api.v1.schemas.admin import QuoteStatusUpdate
+from backend.api.v1.schemas.quote import (
+    QuoteAdminUpdate,
+    QuoteItemAdminCreate,
+    QuoteItemAdminUpdate,
+    QuoteItemResponse,
+)
+from backend.api.v1.schemas.common import MessageResponse
 from backend.core.exceptions import ResourceNotFoundError, ValidationError
 from backend.database.base import get_db
 from backend.models.company import AdminRole, AdminUser
-from backend.models.quote import QuoteStatus
+from backend.models.quote import Quote, QuoteItem, QuoteStatus
 from backend.services.admin_service import AdminService
-from backend.utils.serializers import orm_list_to_dict_list, orm_to_dict
+from backend.utils.serializers import orm_to_dict
 
 logger = logging.getLogger(__name__)
 
@@ -54,8 +61,40 @@ async def get_all_quotes(
         company_id=company_id
     )
     
-    # Convert ORM objects to dicts
-    quotes_data = orm_list_to_dict_list(quotes)
+    # Convert ORM objects to dicts and enrich with company info and items
+    quotes_data = []
+    for quote in quotes:
+        quote_dict = orm_to_dict(quote)
+        # Add company info if relationship is loaded
+        if quote.company:
+            quote_dict['company_name'] = quote.company.company_name
+            quote_dict['company_id'] = quote.company.id
+            quote_dict['contact_name'] = f"{quote.company.rep_first_name} {quote.company.rep_last_name}".strip()
+            quote_dict['contact_email'] = quote.company.rep_email
+            quote_dict['contact_phone'] = quote.company.rep_phone
+        
+        # Serialize quote items with product info
+        if quote.items:
+            quote_dict['items'] = []
+            for item in quote.items:
+                item_dict = orm_to_dict(item)
+                # Add product info if loaded
+                if item.product:
+                    item_dict['product'] = {
+                        'id': item.product.id,
+                        'name': item.product.name,
+                        'model_number': item.product.model_number,
+                        'slug': item.product.slug,
+                        'primary_image_url': item.product.primary_image_url,
+                        'base_price': item.product.base_price,
+                    }
+                else:
+                    item_dict['product'] = None
+                quote_dict['items'].append(item_dict)
+        else:
+            quote_dict['items'] = []
+        
+        quotes_data.append(quote_dict)
     
     response_data = {
         "items": quotes_data,
@@ -86,10 +125,52 @@ async def get_quote(
     logger.info(f"Admin {admin.username} fetching quote {quote_id}")
     
     try:
-        # Use existing quote service for single quote retrieval
-        from backend.services.quote_service import QuoteService
-        quote = await QuoteService.get_quote_by_id(db, quote_id, admin_id=admin.id)
-        return orm_to_dict(quote)
+        # Fetch quote directly for admin (no company authorization check)
+        
+        result = await db.execute(
+            select(Quote)
+            .where(Quote.id == quote_id)
+            .options(
+                selectinload(Quote.company),
+                selectinload(Quote.items).selectinload(QuoteItem.product)
+            )
+        )
+        quote = result.scalar_one_or_none()
+        
+        if not quote:
+            raise ResourceNotFoundError(resource_type="Quote", resource_id=quote_id)
+        
+        quote_dict = orm_to_dict(quote)
+        # Enrich with company info
+        if quote.company:
+            quote_dict['company_name'] = quote.company.company_name
+            quote_dict['company_id'] = quote.company.id
+            quote_dict['contact_name'] = f"{quote.company.rep_first_name} {quote.company.rep_last_name}".strip()
+            quote_dict['contact_email'] = quote.company.rep_email
+            quote_dict['contact_phone'] = quote.company.rep_phone
+        
+        # Serialize quote items with product info
+        if quote.items:
+            quote_dict['items'] = []
+            for item in quote.items:
+                item_dict = orm_to_dict(item)
+                # Add product info if loaded
+                if item.product:
+                    item_dict['product'] = {
+                        'id': item.product.id,
+                        'name': item.product.name,
+                        'model_number': item.product.model_number,
+                        'slug': item.product.slug,
+                        'primary_image_url': item.product.primary_image_url,
+                        'base_price': item.product.base_price,
+                    }
+                else:
+                    item_dict['product'] = None
+                quote_dict['items'].append(item_dict)
+        else:
+            quote_dict['items'] = []
+        
+        return quote_dict
         
     except ResourceNotFoundError as e:
         raise HTTPException(status_code=404, detail=str(e))
@@ -123,7 +204,150 @@ async def update_quote_status(
             quote_notes=status_data.quote_notes,
             admin_notes=status_data.admin_notes
         )
-        return orm_to_dict(quote)
+        
+        # Reload quote with relationships for response
+        from sqlalchemy.orm import selectinload
+        result = await db.execute(
+            select(Quote)
+            .where(Quote.id == quote_id)
+            .options(
+                selectinload(Quote.company),
+                selectinload(Quote.items).selectinload(QuoteItem.product)
+            )
+        )
+        quote = result.scalar_one_or_none()
+        
+        if not quote:
+            raise ResourceNotFoundError(resource_type="Quote", resource_id=quote_id)
+        
+        quote_dict = orm_to_dict(quote)
+        # Enrich with company info
+        if quote.company:
+            quote_dict['company_name'] = quote.company.company_name
+            quote_dict['company_id'] = quote.company.id
+            quote_dict['contact_name'] = f"{quote.company.rep_first_name} {quote.company.rep_last_name}".strip()
+            quote_dict['contact_email'] = quote.company.rep_email
+            quote_dict['contact_phone'] = quote.company.rep_phone
+        
+        # Serialize quote items with product info
+        if quote.items:
+            quote_dict['items'] = []
+            for item in quote.items:
+                item_dict = orm_to_dict(item)
+                # Add product info if loaded
+                if item.product:
+                    item_dict['product'] = {
+                        'id': item.product.id,
+                        'name': item.product.name,
+                        'model_number': item.product.model_number,
+                        'slug': item.product.slug,
+                        'primary_image_url': item.product.primary_image_url,
+                        'base_price': item.product.base_price,
+                    }
+                else:
+                    item_dict['product'] = None
+                quote_dict['items'].append(item_dict)
+        else:
+            quote_dict['items'] = []
+        
+        return quote_dict
+        
+    except ResourceNotFoundError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+    except ValidationError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+@router.patch(
+    "/{quote_id}",
+    summary="Update quote (Admin)",
+    description="Update quote details, status, pricing, and notes"
+)
+async def update_quote(
+    quote_id: int,
+    update_data: QuoteAdminUpdate,
+    admin: AdminUser = Depends(require_role(AdminRole.ADMIN)),
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    Update quote with full admin access.
+    
+    **Admin only** - Requires admin role.
+    """
+    logger.info(f"Admin {admin.username} updating quote {quote_id}")
+    
+    try:
+
+        from backend.models.quote import Quote
+        
+        # Fetch quote with relationships
+        result = await db.execute(
+            select(Quote)
+            .where(Quote.id == quote_id)
+            .options(
+                selectinload(Quote.company),
+                selectinload(Quote.items)
+            )
+        )
+        quote = result.scalar_one_or_none()
+        
+        if not quote:
+            raise ResourceNotFoundError(resource_type="Quote", resource_id=quote_id)
+        
+        # Update fields from update_data
+        update_dict = update_data.model_dump(exclude_unset=True)
+        
+        # Handle status conversion if needed
+        if 'status' in update_dict and isinstance(update_dict['status'], str):
+            from backend.models.quote import QuoteStatus
+            try:
+                update_dict['status'] = QuoteStatus(update_dict['status'])
+            except ValueError:
+                raise ValidationError(f"Invalid status: {update_dict['status']}")
+        
+        for field, value in update_dict.items():
+            if hasattr(quote, field):
+                setattr(quote, field, value)
+        
+        # Recalculate totals if items exist and totals weren't manually set
+        if quote.items and not any(k in update_dict for k in ['subtotal', 'tax_amount', 'total_amount']):
+            # Recalculate based on items
+            await AdminService.recalculate_quote_totals(db=db, quote_id=quote_id)
+        else:
+            await db.commit()
+            await db.refresh(quote)
+        
+        quote_dict = orm_to_dict(quote)
+        # Enrich with company info
+        if quote.company:
+            quote_dict['company_name'] = quote.company.company_name
+            quote_dict['company_id'] = quote.company.id
+            quote_dict['contact_name'] = f"{quote.company.rep_first_name} {quote.company.rep_last_name}".strip()
+            quote_dict['contact_email'] = quote.company.rep_email
+            quote_dict['contact_phone'] = quote.company.rep_phone
+        
+        # Serialize quote items with product info
+        if quote.items:
+            quote_dict['items'] = []
+            for item in quote.items:
+                item_dict = orm_to_dict(item)
+                # Add product info if loaded
+                if item.product:
+                    item_dict['product'] = {
+                        'id': item.product.id,
+                        'name': item.product.name,
+                        'model_number': item.product.model_number,
+                        'slug': item.product.slug,
+                        'primary_image_url': item.product.primary_image_url,
+                        'base_price': item.product.base_price,
+                    }
+                else:
+                    item_dict['product'] = None
+                quote_dict['items'].append(item_dict)
+        else:
+            quote_dict['items'] = []
+        
+        return quote_dict
         
     except ResourceNotFoundError as e:
         raise HTTPException(status_code=404, detail=str(e))
@@ -152,16 +376,60 @@ async def assign_quote(
         quote = await AdminService.update_quote_status(
             db=db,
             quote_id=quote_id,
-            status=QuoteStatus.PENDING,  # Keep current status
+            status=QuoteStatus.SUBMITTED,  # Keep current status
             admin_notes=f"Assigned to admin {admin.username}"
         )
 
         # Update assigned admin
         quote.assigned_to_admin_id = admin.id
         await db.commit()
-        await db.refresh(quote)
-
-        return orm_to_dict(quote)
+        
+        # Reload quote with relationships for response
+        from sqlalchemy.orm import selectinload
+        result = await db.execute(
+            select(Quote)
+            .where(Quote.id == quote_id)
+            .options(
+                selectinload(Quote.company),
+                selectinload(Quote.items).selectinload(QuoteItem.product)
+            )
+        )
+        quote = result.scalar_one_or_none()
+        
+        if not quote:
+            raise ResourceNotFoundError(resource_type="Quote", resource_id=quote_id)
+        
+        quote_dict = orm_to_dict(quote)
+        # Enrich with company info
+        if quote.company:
+            quote_dict['company_name'] = quote.company.company_name
+            quote_dict['company_id'] = quote.company.id
+            quote_dict['contact_name'] = f"{quote.company.rep_first_name} {quote.company.rep_last_name}".strip()
+            quote_dict['contact_email'] = quote.company.rep_email
+            quote_dict['contact_phone'] = quote.company.rep_phone
+        
+        # Serialize quote items with product info
+        if quote.items:
+            quote_dict['items'] = []
+            for item in quote.items:
+                item_dict = orm_to_dict(item)
+                # Add product info if loaded
+                if item.product:
+                    item_dict['product'] = {
+                        'id': item.product.id,
+                        'name': item.product.name,
+                        'model_number': item.product.model_number,
+                        'slug': item.product.slug,
+                        'primary_image_url': item.product.primary_image_url,
+                        'base_price': item.product.base_price,
+                    }
+                else:
+                    item_dict['product'] = None
+                quote_dict['items'].append(item_dict)
+        else:
+            quote_dict['items'] = []
+        
+        return quote_dict
         
     except ResourceNotFoundError as e:
         raise HTTPException(status_code=404, detail=str(e))

@@ -29,17 +29,77 @@ const apiClient = axios.create({
   // Don't set default Content-Type - let axios auto-detect based on request data
 });
 
-// Request interceptor - Add auth token if available
+// Helper to check if token is expired or about to expire (within 5 minutes)
+const isTokenExpiredOrExpiringSoon = (token) => {
+  if (!token) return true;
+  
+  try {
+    const payload = JSON.parse(atob(token.split('.')[1]));
+    const exp = payload.exp * 1000; // Convert to milliseconds
+    const fiveMinutesFromNow = Date.now() + (5 * 60 * 1000);
+    return Date.now() >= exp || fiveMinutesFromNow >= exp;
+  } catch (error) {
+    return true;
+  }
+};
+
+// Request interceptor - Add auth token and proactively refresh if needed
 apiClient.interceptors.request.use(
-  (config) => {
+  async (config) => {
+    // Skip proactive refresh for login/refresh endpoints
+    if (config.url?.includes('/auth/login') || 
+        config.url?.includes('/auth/refresh') ||
+        config.url?.includes('/auth/admin/login')) {
+      return config;
+    }
+
     // Get auth data from Zustand persist storage
     const authStorage = localStorage.getItem('auth-storage');
     if (authStorage) {
       try {
         const { state } = JSON.parse(authStorage);
-        if (state?.token) {
-          config.headers.Authorization = `Bearer ${state.token}`;
+        const token = state?.token;
+        
+        // Proactively refresh token if expired or expiring soon
+        if (token && isTokenExpiredOrExpiringSoon(token) && state?.refreshToken && !isRefreshing) {
+          const refreshToken = state.refreshToken;
+          
+          try {
+            isRefreshing = true;
+            const refreshResponse = await axios.post(
+              `${API_BASE_URL}/api/v1/auth/refresh`,
+              {},
+              {
+                headers: {
+                  'Authorization': `Bearer ${refreshToken}`
+                }
+              }
+            );
+
+            const { access_token, refresh_token } = refreshResponse.data;
+            
+            // Update auth storage
+            const updatedState = {
+              ...state,
+              token: access_token,
+              refreshToken: refresh_token || refreshToken
+            };
+            localStorage.setItem('auth-storage', JSON.stringify({ state: updatedState }));
+            
+            // Update config with new token
+            config.headers.Authorization = `Bearer ${access_token}`;
+            apiClient.defaults.headers.common['Authorization'] = `Bearer ${access_token}`;
+            
+            isRefreshing = false;
+          } catch (refreshError) {
+            isRefreshing = false;
+            // If refresh fails, continue with original token - will be caught by response interceptor
+            logger.warn(CONTEXT, 'Proactive token refresh failed', refreshError);
+          }
+        } else if (token) {
+          config.headers.Authorization = `Bearer ${token}`;
         }
+        
         // Add admin tokens if present
         if (state?.sessionToken) {
           config.headers['X-Session-Token'] = state.sessionToken;
@@ -64,67 +124,181 @@ apiClient.interceptors.request.use(
   }
 );
 
-// Response interceptor - Normalized error handling
+// Token refresh state
+let isRefreshing = false;
+let failedQueue = [];
+
+const processQueue = (error, token = null) => {
+  failedQueue.forEach(prom => {
+    if (error) {
+      prom.reject(error);
+    } else {
+      prom.resolve(token);
+    }
+  });
+  failedQueue = [];
+};
+
+// Response interceptor - Normalized error handling with token refresh
 apiClient.interceptors.response.use(
   (response) => {
     return response.data;
   },
-  (error) => {
-    const normalizedError = {
-      message: 'An error occurred',
-      status: null,
-      data: null,
-    };
+  async (error) => {
+    const originalRequest = error.config;
 
-    if (error.response) {
-      // Server responded with error status
-      normalizedError.status = error.response.status;
-      normalizedError.data = error.response.data;
-      
-      switch (error.response.status) {
-        case 400:
-          normalizedError.message = error.response.data?.message || 'Bad request';
-          break;
-        case 401:
-          normalizedError.message = 'Unauthorized - Please login';
-          // Clear auth token
-          localStorage.removeItem('auth-token');
-          // Redirect to login if needed
-          if (window.location.pathname !== '/login') {
-            window.location.href = '/login';
-          }
-          break;
-        case 403:
-          normalizedError.message = 'Access forbidden';
-          break;
-        case 404:
-          normalizedError.message = 'Resource not found';
-          break;
-        case 422:
-          normalizedError.message = error.response.data?.message || 'Validation error';
-          break;
-        case 500:
-          normalizedError.message = 'Server error - Please try again later';
-          break;
-        default:
-          normalizedError.message = error.response.data?.message || 'An error occurred';
+    // Handle 401 errors with token refresh
+    if (error.response?.status === 401 && originalRequest && !originalRequest._retry) {
+      // Skip refresh for login/refresh endpoints
+      if (originalRequest.url?.includes('/auth/login') || 
+          originalRequest.url?.includes('/auth/refresh') ||
+          originalRequest.url?.includes('/auth/admin/login')) {
+        return handleAuthError(error);
       }
-    } else if (error.request) {
-      // Request made but no response
-      normalizedError.message = 'Network error - Please check your connection';
-    } else {
-      // Error in request setup
-      normalizedError.message = error.message || 'An error occurred';
+
+      // If already refreshing, queue this request
+      if (isRefreshing) {
+        return new Promise((resolve, reject) => {
+          failedQueue.push({ resolve, reject });
+        }).then(token => {
+          originalRequest.headers['Authorization'] = 'Bearer ' + token;
+          return apiClient(originalRequest);
+        }).catch(err => {
+          return Promise.reject(err);
+        });
+      }
+
+      // Try to refresh token
+      originalRequest._retry = true;
+      isRefreshing = true;
+
+      try {
+        // Get refresh token from auth store
+        const authStorage = localStorage.getItem('auth-storage');
+        if (!authStorage) {
+          throw new Error('No auth storage found');
+        }
+
+        const { state } = JSON.parse(authStorage);
+        const refreshToken = state?.refreshToken;
+
+        if (!refreshToken) {
+          throw new Error('No refresh token available');
+        }
+
+        // Call refresh endpoint - use raw axios to bypass our response interceptor
+        const refreshResponse = await axios.post(
+          `${API_BASE_URL}/api/v1/auth/refresh`,
+          {},
+          {
+            headers: {
+              'Authorization': `Bearer ${refreshToken}`
+            }
+          }
+        );
+
+        const { access_token, refresh_token } = refreshResponse.data;
+        
+        // Update auth storage
+        const updatedState = {
+          ...state,
+          token: access_token,
+          refreshToken: refresh_token || refreshToken
+        };
+        localStorage.setItem('auth-storage', JSON.stringify({ state: updatedState }));
+        
+        // Update apiClient headers
+        apiClient.defaults.headers.common['Authorization'] = `Bearer ${access_token}`;
+        
+        // Process queued requests
+        processQueue(null, access_token);
+        isRefreshing = false;
+        
+        // Retry original request with new token
+        originalRequest.headers['Authorization'] = 'Bearer ' + access_token;
+        return apiClient(originalRequest);
+      } catch (refreshError) {
+        processQueue(refreshError, null);
+        isRefreshing = false;
+        
+        // Refresh failed - logout user
+        return handleAuthError(error);
+      }
     }
 
-    logger.error(CONTEXT, `API Error: ${normalizedError.message}`, {
-      status: normalizedError.status,
-      data: normalizedError.data,
-      url: error.config?.url
-    });
-    return Promise.reject(normalizedError);
+    // Handle other errors
+    return handleNonAuthError(error);
   }
 );
+
+// Helper to handle authentication errors
+function handleAuthError(error) {
+  // Import authStore dynamically to avoid circular dependency
+  import('../store/authStore').then(({ useAuthStore }) => {
+    useAuthStore.getState().logout();
+  }).catch(() => {
+    // Fallback if import fails
+    localStorage.removeItem('auth-storage');
+  });
+
+  const normalizedError = {
+    message: 'Unauthorized - Please login',
+    status: 401,
+    data: error.response?.data || null,
+  };
+
+  // Only redirect if not already on login page
+  if (typeof window !== 'undefined' && window.location.pathname !== '/login') {
+    window.location.href = '/login';
+  }
+
+  return Promise.reject(normalizedError);
+}
+
+// Helper to handle non-authentication errors
+function handleNonAuthError(error) {
+  const normalizedError = {
+    message: 'An error occurred',
+    status: null,
+    data: null,
+  };
+
+  if (error.response) {
+    normalizedError.status = error.response.status;
+    normalizedError.data = error.response.data;
+    
+    switch (error.response.status) {
+      case 400:
+        normalizedError.message = error.response.data?.message || 'Bad request';
+        break;
+      case 403:
+        normalizedError.message = 'Access forbidden';
+        break;
+      case 404:
+        normalizedError.message = 'Resource not found';
+        break;
+      case 422:
+        normalizedError.message = error.response.data?.message || 'Validation error';
+        break;
+      case 500:
+        normalizedError.message = 'Server error - Please try again later';
+        break;
+      default:
+        normalizedError.message = error.response.data?.message || 'An error occurred';
+    }
+  } else if (error.request) {
+    normalizedError.message = 'Network error - Please check your connection';
+  } else {
+    normalizedError.message = error.message || 'An error occurred';
+  }
+
+  logger.error(CONTEXT, `API Error: ${normalizedError.message}`, {
+    status: normalizedError.status,
+    data: normalizedError.data,
+    url: error.config?.url
+  });
+  return Promise.reject(normalizedError);
+}
 
 // API wrapper functions
 export const api = {

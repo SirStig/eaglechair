@@ -11,6 +11,7 @@ from backend.api.v1.routes import (
     cms_admin,
     cms_content,
     content,
+    dashboard,
     products,
     quotes,
 )
@@ -24,8 +25,11 @@ router.include_router(auth.router)
 # Include product catalog routes
 router.include_router(products.router)
 
-# Include quote and cart routes
-router.include_router(quotes.router)
+# Include dashboard routes at /dashboard (frontend expects /api/v1/dashboard/*)
+router.include_router(dashboard.router, prefix="/dashboard")
+
+# Include quote and cart routes with /quotes prefix
+router.include_router(quotes.router, prefix="/quotes")
 
 # Include content routes (FAQ, team, contact, catalogs, feedback)
 router.include_router(content.router)

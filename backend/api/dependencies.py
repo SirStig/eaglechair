@@ -7,7 +7,7 @@ Reusable dependencies for authentication, authorization, and database access
 import logging
 from typing import Optional
 
-from fastapi import Depends
+from fastapi import Depends, Request
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -21,7 +21,8 @@ from backend.core.exceptions import (
 )
 from backend.core.security import security_manager
 from backend.database.base import get_db
-from backend.models.company import AdminRole, AdminUser, Company
+from backend.models.company import AdminRole, AdminUser, Company, CompanyStatus
+from backend.models.content import SiteSettings
 
 logger = logging.getLogger(__name__)
 
@@ -78,39 +79,162 @@ async def get_current_token_and_payload(
 
 
 async def get_current_company(
+    request: Request,
     token_payload: dict = Depends(get_current_token_payload),
     db: AsyncSession = Depends(get_db)
 ) -> Company:
     """
     Get current authenticated company from token
     
+    Also accepts admin tokens if X-Session-Token and X-Admin-Token headers are present.
+    For admin tokens, returns a special admin company context.
+    
     Returns:
-        Current company account
+        Current company account (or admin company proxy)
         
     Raises:
-        AuthenticationError: If company not found or inactive
+        AuthenticationError: If company not found or inactive, or admin tokens invalid
     """
-    # Verify it's a company token
-    if token_payload.get("type") != "company":
-        raise AuthenticationError("Invalid token type. Company authentication required.")
+    token_type = token_payload.get("type")
     
-    company_id = int(token_payload.get("sub"))
+    # Handle company token (normal flow)
+    if token_type == "company":
+        company_id = int(token_payload.get("sub"))
+        
+        # Fetch company
+        result = await db.execute(
+            select(Company).where(Company.id == company_id)
+        )
+        company = result.scalar_one_or_none()
+        
+        if not company:
+            logger.warning(f"Company not found for token: {company_id}")
+            raise AuthenticationError("Company account not found")
+        
+        if not company.is_active:
+            logger.warning(f"Inactive company attempted access: {company_id}")
+            raise AuthenticationError("Company account is inactive")
+        
+        return company
     
-    # Fetch company
-    result = await db.execute(
-        select(Company).where(Company.id == company_id)
-    )
-    company = result.scalar_one_or_none()
+    # Handle admin token - check for admin headers
+    elif token_type == "admin":
+        session_token = request.headers.get("X-Session-Token")
+        admin_token = request.headers.get("X-Admin-Token")
+        
+        if not session_token or not admin_token:
+            raise AuthenticationError(
+                "Admin access requires both X-Session-Token and X-Admin-Token headers."
+            )
+        
+        admin_id = int(token_payload.get("sub"))
+        
+        # Fetch and validate admin
+        result = await db.execute(
+            select(AdminUser).where(AdminUser.id == admin_id)
+        )
+        admin = result.scalar_one_or_none()
+        
+        if not admin:
+            logger.warning(f"Admin not found for token: {admin_id}")
+            raise AuthenticationError("Admin account not found")
+        
+        if not admin.is_active:
+            logger.warning(f"Inactive admin attempted access: {admin_id}")
+            raise AuthenticationError("Admin account is inactive")
+        
+        # Validate session and admin tokens match stored values
+        if admin.session_token != session_token or admin.admin_token != admin_token:
+            logger.warning(
+                f"Invalid admin tokens for admin {admin_id}. "
+                f"Expected session: {admin.session_token[:8]}..., "
+                f"got: {session_token[:8] if session_token else None}..."
+            )
+            raise AuthenticationError("Invalid admin tokens")
+        
+        # Check for optional company_id query param for admin access (highest priority)
+        company_id_param = request.query_params.get("company_id")
+        if company_id_param:
+            try:
+                company_id = int(company_id_param)
+                result = await db.execute(
+                    select(Company).where(Company.id == company_id)
+                )
+                company = result.scalar_one_or_none()
+                
+                if not company:
+                    logger.warning(f"Admin {admin.username} attempted to access non-existent company: {company_id}")
+                    raise AuthenticationError("Company not found")
+                
+                logger.info(f"Admin {admin.username} accessing company route for company {company_id}")
+                return company
+            except ValueError:
+                raise AuthenticationError("Invalid company_id parameter")
+        
+        # Try to find company by admin's email (seed script creates companies for admins)
+        result = await db.execute(
+            select(Company).where(Company.rep_email == admin.email)
+        )
+        company = result.scalar_one_or_none()
+        
+        if company:
+            logger.info(f"Admin {admin.username} using associated company (email match): {company.id}")
+            return company
+        
+        # No company found - fallback to SiteSettings
+        # Create a Company proxy from SiteSettings data
+        logger.info(
+            f"Admin {admin.username} (ID: {admin_id}) has no associated company. "
+            "Creating company context from SiteSettings."
+        )
+        
+        result = await db.execute(select(SiteSettings).limit(1))
+        site_settings = result.scalar_one_or_none()
+        
+        if not site_settings:
+            logger.error("SiteSettings not found - cannot create admin company context")
+            raise AuthenticationError(
+                "No company found for admin and SiteSettings not configured. "
+                "Please contact support."
+            )
+        
+        # Create a Company instance from SiteSettings (not saved to DB)
+        # Map SiteSettings fields to Company fields
+        admin_company = Company(
+            id=0,  # Special ID to indicate admin company
+            company_name=site_settings.company_name or "Admin Company",
+            legal_name=site_settings.company_name or "Admin Company",
+            rep_email=admin.email,
+            rep_first_name=admin.first_name,
+            rep_last_name=admin.last_name,
+            rep_phone=admin.phone or site_settings.primary_phone or "",
+            rep_title="Administrator",
+            website=site_settings.facebook_url or "",  # Use available URL field
+            industry="Administration",
+            billing_address_line1=site_settings.address_line1 or "",
+            billing_address_line2=site_settings.address_line2 or "",
+            billing_city=site_settings.city or "",
+            billing_state=site_settings.state or "",
+            billing_zip=site_settings.zip_code or "",
+            billing_country=site_settings.country or "USA",
+            shipping_address_line1=site_settings.address_line1 or "",
+            shipping_address_line2=site_settings.address_line2 or "",
+            shipping_city=site_settings.city or "",
+            shipping_state=site_settings.state or "",
+            shipping_zip=site_settings.zip_code or "",
+            shipping_country=site_settings.country or "USA",
+            status=CompanyStatus.ACTIVE,
+            is_verified=True,
+            is_active=True,
+            hashed_password="",  # Not needed for admin access
+        )
+        
+        logger.info(f"Created admin company context from SiteSettings for admin {admin.username}")
+        return admin_company
     
-    if not company:
-        logger.warning(f"Company not found for token: {company_id}")
-        raise AuthenticationError("Company account not found")
-    
-    if not company.is_active:
-        logger.warning(f"Inactive company attempted access: {company_id}")
-        raise AuthenticationError("Company account is inactive")
-    
-    return company
+    # Unknown token type
+    else:
+        raise AuthenticationError("Invalid token type. Company or admin authentication required.")
 
 
 async def get_current_admin(

@@ -14,8 +14,15 @@ import { getProductImage } from '../utils/apiHelpers';
 const QuoteRequestPage = () => {
   const navigate = useNavigate();
   const cartStore = useCartStore();
-  const { getItems, clearCart } = cartStore;
-  const items = getItems();
+  const { clearCart } = cartStore;
+  
+  // Subscribe to cart state properly - this will trigger re-renders on cart changes
+  const items = useCartStore((state) => {
+    return state.isAuthenticated && state.backendCart 
+      ? (state.backendCart.items || [])
+      : state.guestItems;
+  });
+  
   const { user, isAuthenticated } = useAuthStore();
   const [uploadedFiles, setUploadedFiles] = useState([]);
   const [uploadPreviews, setUploadPreviews] = useState([]);
@@ -140,10 +147,10 @@ const QuoteRequestPage = () => {
           formData.append('files', file, file.name);
         });
 
-        await apiClient.upload('/api/v1/quotes', formData);
+        await apiClient.upload('/api/v1/quotes/request', formData);
       } else {
         // No files, send as JSON
-        await apiClient.post('/api/v1/quotes', quoteData);
+        await apiClient.post('/api/v1/quotes/request', quoteData);
       }
       
       setSubmitStatus('success');

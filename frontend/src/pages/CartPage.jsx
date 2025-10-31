@@ -8,13 +8,30 @@ import { useCartStore } from '../store/cartStore';
 import { useAuthStore } from '../store/authStore';
 
 const CartPage = () => {
-  const cartStore = useCartStore();
-  const { getItems, getItemCount, getTotalPrice, removeItem, updateQuantity, clearCart, isLoading } = cartStore;
   const { isAuthenticated } = useAuthStore();
-  
-  const items = getItems();
-  const subtotal = getTotalPrice();
   const [cartSynced, setCartSynced] = useState(false);
+  
+  // Subscribe to cart state properly - this will trigger re-renders on cart changes
+  const cartStore = useCartStore();
+  const { removeItem, updateQuantity, clearCart } = cartStore;
+  
+  const items = useCartStore((state) => {
+    return state.isAuthenticated && state.backendCart 
+      ? (state.backendCart.items || [])
+      : state.guestItems;
+  });
+  
+  const subtotal = useCartStore((state) => {
+    const cartItems = state.isAuthenticated && state.backendCart 
+      ? (state.backendCart.items || [])
+      : state.guestItems;
+    return cartItems.reduce((sum, item) => {
+      const price = item.product?.price || item.product?.base_price || 0;
+      return sum + (price * item.quantity);
+    }, 0);
+  });
+  
+  const isLoading = useCartStore((state) => state.isLoading);
 
   // Ensure cart is synced when authenticated user visits cart page
   useEffect(() => {
@@ -86,15 +103,11 @@ const CartPage = () => {
             <AnimatePresence>
               {items.map((item, index) => {
                 const product = item.product || {};
-                const productImage = product.image_url || product.image || '/placeholder-product.jpg';
+                // Use the enriched product data from backend
+                const productImage = product.primary_image_url || product.thumbnail || product.image_url || product.image || '/placeholder-product.jpg';
                 const productName = product.name || 'Product';
-                // Handle category as object or string
-                const productCategory = typeof product.category === 'object' 
-                  ? product.category?.name 
-                  : product.category || '';
-                const productSubcategory = typeof product.subcategory === 'object'
-                  ? product.subcategory?.name
-                  : product.subcategory || '';
+                const productCategory = product.category || '';  // Already a string from backend
+                const productSubcategory = product.subcategory || '';  // Already a string from backend
                 const productPrice = product.price || product.base_price || 0;
                 
                 return (
@@ -108,7 +121,7 @@ const CartPage = () => {
                     <Card className="bg-white border-cream-200 hover:shadow-lg transition-shadow overflow-hidden">
                       <div className="flex flex-col md:flex-row gap-6">
                         {/* Product Image */}
-                        <Link to={`/products/${product.id}`} className="flex-shrink-0">
+                        <Link to={`/products/${product.slug || product.id}`} className="flex-shrink-0">
                           <div className="relative w-full md:w-20 lg:w-24 bg-cream-50 rounded-lg overflow-hidden border border-cream-200 flex items-center justify-center" style={{ minHeight: '140px' }}>
                             <img
                               src={productImage}

@@ -7,8 +7,7 @@ import './index.css';
 // This ensures all axios instances use the correct API base URL
 import './config/axiosConfig';
 
-// Import axios interceptor for automatic token refresh
-import './services/axios-interceptor';
+// Token refresh is now handled in apiClient.js - no need for separate interceptor
 
 // Import Slick Carousel CSS
 import 'slick-carousel/slick/slick.css';

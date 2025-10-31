@@ -23,7 +23,15 @@ const Header = ({ isMobileMenuOpen, setIsMobileMenuOpen }) => {
   const searchRef = useRef(null);
   const navigate = useNavigate();
   const { user, logout } = useAuthStore();
-  const { getItemCount } = useCartStore();
+  
+  // Subscribe to cart state properly - this will trigger re-renders on cart changes
+  const cartItemCount = useCartStore((state) => {
+    const items = state.isAuthenticated && state.backendCart 
+      ? (state.backendCart.items || [])
+      : state.guestItems;
+    return items.reduce((sum, item) => sum + item.quantity, 0);
+  });
+  
   const { data: siteSettings } = useSiteSettings();
 
   // Search products as user types using fuzzy search
@@ -83,8 +91,6 @@ const Header = ({ isMobileMenuOpen, setIsMobileMenuOpen }) => {
     setSearchQuery('');
     navigate(`/products/${productSlug}`);
   };
-
-  const cartItemCount = getItemCount();
 
   return (
     <header className="fixed top-0 left-0 w-full bg-dark-800/95 backdrop-blur-md shadow-lg border-b border-dark-500 z-50" style={{ '--header-height': '80px' }}>

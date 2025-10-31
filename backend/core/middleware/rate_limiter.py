@@ -25,32 +25,43 @@ class RateLimitConfig:
     """Rate limit configuration for different endpoint types"""
     
     # Public endpoints (no auth required)
+    # Increased limits to accommodate modern SPAs with parallel API calls on page load
     PUBLIC_ENDPOINTS = {
-        "default": (60, 60),  # 60 requests per 60 seconds (increased for content-heavy pages)
+        "default": (120, 60),  # 120 requests per 60 seconds (increased for content-heavy pages)
         "/api/v1/health": (60, 60),
-        "/api/v1/products": (100, 60),
-        "/api/v1/categories": (100, 60),
-        "/api/v1/faqs": (50, 60),
-        "/api/v1/catalogs": (30, 60),
-        "/api/v1/installations": (50, 60),
-        "/api/v1/contact": (20, 60),
-        "/api/v1/content": (100, 60),  # Content API endpoints
+        "/api/v1/products": (150, 60),  # Increased for product browsing
+        "/api/v1/categories": (150, 60),
+        "/api/v1/subcategories": (150, 60),
+        "/api/v1/families": (150, 60),
+        "/api/v1/finishes": (150, 60),
+        "/api/v1/upholsteries": (150, 60),
+        "/api/v1/colors": (150, 60),
+        "/api/v1/faqs": (100, 60),
+        "/api/v1/catalogs": (50, 60),
+        "/api/v1/installations": (100, 60),
+        "/api/v1/contact": (30, 60),
+        "/api/v1/content": (200, 60),  # Increased - multiple content endpoints called on page load
     }
     
     # Authentication endpoints
     AUTH_ENDPOINTS = {
         "/api/v1/auth/register": (10, 300),  # 10 per 5 minutes
-        "/api/v1/auth/login": (30, 300),  # 30 per 5 minutes (increased for development)
-        "/api/v1/auth/refresh": (30, 300),
-        "/api/v1/admin/login": (20, 600),  # 20 per 10 minutes (increased for development)
+        "/api/v1/auth/login": (30, 300),  # 30 per 5 minutes
+        "/api/v1/auth/refresh": (60, 300),  # Increased for token refresh
+        "/api/v1/admin/login": (20, 600),  # 20 per 10 minutes
     }
     
     # Authenticated company users
+    # Increased limits for authenticated users who need to interact with the system
     COMPANY_LIMITS = {
-        "default": (100, 60),  # 100 requests per minute
-        "/api/v1/cart": (200, 60),
-        "/api/v1/quotes": (50, 60),
-        "/api/v1/products": (200, 60),
+        "default": (200, 60),  # 200 requests per minute (increased)
+        "/api/v1/quotes/cart": (300, 60),  # Cart operations need higher limits
+        "/api/v1/quotes/cart/items": (300, 60),  # Specific limit for cart items
+        "/api/v1/quotes/cart/merge": (50, 60),  # Merge is less frequent
+        "/api/v1/cart": (300, 60),  # Legacy cart path support
+        "/api/v1/quotes": (100, 60),  # Quote operations
+        "/api/v1/products": (300, 60),  # Product browsing while authenticated
+        "/api/v1/dashboard": (150, 60),  # Dashboard with multiple widgets
     }
     
     # Admin users
@@ -78,10 +89,11 @@ class AdvancedRateLimiter(BaseHTTPMiddleware):
         self.request_history: Dict[str, deque] = defaultdict(lambda: deque(maxlen=1000))
         self.burst_tracker: Dict[str, list] = defaultdict(list)
         
-        # Burst protection (20 requests within 2 seconds = burst)
-        # Increased to accommodate legitimate page loads with multiple API calls
-        self.burst_threshold = kwargs.get("burst_threshold", 20)
-        self.burst_window = kwargs.get("burst_window", 2)
+        # Burst protection - increased threshold to accommodate legitimate page loads
+        # Modern SPAs make many parallel API calls (OPTIONS + GET for each endpoint)
+        # A typical page load might have 10-30 parallel requests
+        self.burst_threshold = kwargs.get("burst_threshold", 50)  # Increased from 20 to 50
+        self.burst_window = kwargs.get("burst_window", 3)  # Increased window from 2 to 3 seconds
     
     async def dispatch(self, request: Request, call_next: Callable) -> Response:
         """Process request with rate limiting"""
@@ -189,28 +201,66 @@ class AdvancedRateLimiter(BaseHTTPMiddleware):
         
         # Auth endpoints have strict limits
         if user_type == "auth":
+            # Check specific endpoints first (longest match wins)
+            best_match = None
+            best_length = 0
             for endpoint, (limit, window) in RateLimitConfig.AUTH_ENDPOINTS.items():
-                if endpoint in path:
-                    return (limit, window)
+                if endpoint in path and len(endpoint) > best_length:
+                    best_match = (limit, window)
+                    best_length = len(endpoint)
+            if best_match:
+                return best_match
             return (10, 60)  # Default auth limit
         
         # Admin endpoints
         if user_type == "admin":
+            best_match = None
+            best_length = 0
             for endpoint, (limit, window) in RateLimitConfig.ADMIN_LIMITS.items():
-                if endpoint in path:
-                    return (limit, window)
+                if endpoint in path and len(endpoint) > best_length:
+                    best_match = (limit, window)
+                    best_length = len(endpoint)
+            if best_match:
+                return best_match
             return RateLimitConfig.ADMIN_LIMITS["default"]
         
-        # Company/authenticated endpoints
+        # Company/authenticated endpoints - check most specific matches first
         if user_type == "company":
-            for endpoint, (limit, window) in RateLimitConfig.COMPANY_LIMITS.items():
-                if endpoint in path:
+            # First check for exact matches
+            if path in RateLimitConfig.COMPANY_LIMITS:
+                return RateLimitConfig.COMPANY_LIMITS[path]
+            
+            # Then check prefix matches (longest first)
+            sorted_endpoints = sorted(
+                RateLimitConfig.COMPANY_LIMITS.items(),
+                key=lambda x: len(x[0]),
+                reverse=True
+            )
+            for endpoint, (limit, window) in sorted_endpoints:
+                # Skip exact match (already checked) and "default"
+                if endpoint == "default":
+                    continue
+                # Use prefix match for nested endpoints
+                if path.startswith(endpoint):
                     return (limit, window)
             return RateLimitConfig.COMPANY_LIMITS["default"]
         
-        # Public endpoints
-        for endpoint, (limit, window) in RateLimitConfig.PUBLIC_ENDPOINTS.items():
-            if endpoint in path:
+        # Public endpoints - check exact matches first, then prefix matches
+        if path in RateLimitConfig.PUBLIC_ENDPOINTS:
+            return RateLimitConfig.PUBLIC_ENDPOINTS[path]
+        
+        # Then check prefix matches (longest first)
+        sorted_endpoints = sorted(
+            RateLimitConfig.PUBLIC_ENDPOINTS.items(),
+            key=lambda x: len(x[0]),
+            reverse=True
+        )
+        for endpoint, (limit, window) in sorted_endpoints:
+            # Skip exact match (already checked) and "default"
+            if endpoint == "default":
+                continue
+            # Use prefix match for nested endpoints
+            if path.startswith(endpoint):
                 return (limit, window)
         
         return RateLimitConfig.PUBLIC_ENDPOINTS["default"]

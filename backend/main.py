@@ -11,6 +11,7 @@ A production-ready FastAPI backend with:
 - Full test coverage with pytest
 """
 
+import asyncio
 import logging
 from contextlib import asynccontextmanager
 from pathlib import Path
@@ -70,27 +71,58 @@ async def lifespan(app: FastAPI):
     except Exception as e:
         logger.warning(f"[WARN] CMS export setup failed: {e}")
     
-    # Warm up product search cache for fast fuzzy search
-    try:
-        from backend.database.base import AsyncSessionLocal
-        from backend.services.product_service import ProductService
-        
-        async with AsyncSessionLocal() as db:
+    # Warm up product search cache for fast fuzzy search (non-blocking)
+    # Run in background to avoid blocking server startup if Redis is unavailable
+    async def warm_cache_background():
+        """Background task to warm up cache without blocking server startup"""
+        try:
+            from backend.services.cache_service import cache_service
+            
+            # Quick health check to see if Redis is available
+            if not cache_service.enabled or not cache_service.cache:
+                logger.info("[SKIP] Cache not enabled, skipping warm-up")
+                return
+            
+            # Try a simple cache operation with short timeout to check connectivity
             try:
-                logger.info("🔍 Warming product search cache...")
-                indexed_count = await ProductService.warm_search_cache(db)
-                await db.commit()
-                logger.info(f"[OK] Product search cache ready: {indexed_count} products indexed")
-            except Exception as e:
-                await db.rollback()
-                logger.warning(f"[WARN] Product search cache warm-up failed: {e}")
-    except Exception as e:
-        logger.warning(f"[WARN] Search cache setup failed: {e}")
+                await asyncio.wait_for(
+                    cache_service.cache.get("__health_check__"),
+                    timeout=2.0
+                )
+                logger.info("✅ Redis is available")
+            except (asyncio.TimeoutError, Exception) as e:
+                logger.warning(f"[WARN] Redis not available, skipping cache warm-up: {e}")
+                return
+            
+            # Redis is available, proceed with warm-up
+            from backend.database.base import AsyncSessionLocal
+            from backend.services.product_service import ProductService
+            
+            async with AsyncSessionLocal() as db:
+                try:
+                    logger.info("🔍 Warming product search cache...")
+                    # Add timeout to prevent indefinite blocking
+                    indexed_count = await asyncio.wait_for(
+                        ProductService.warm_search_cache(db),
+                        timeout=30.0  # 30 second timeout
+                    )
+                    await db.commit()
+                    logger.info(f"[OK] Product search cache ready: {indexed_count} products indexed")
+                except asyncio.TimeoutError:
+                    await db.rollback()
+                    logger.warning("[WARN] Cache warm-up timed out after 30 seconds, continuing startup")
+                except Exception as e:
+                    await db.rollback()
+                    logger.warning(f"[WARN] Product search cache warm-up failed: {e}")
+        except Exception as e:
+            logger.warning(f"[WARN] Cache warm-up background task failed: {e}")
+    
+    # Start warm-up as background task (non-blocking)
+    asyncio.create_task(warm_cache_background())
+    logger.info("[OK] Cache warm-up started in background")
     
     # Run cleanup of expired temporary catalog data on startup
     try:
-        import asyncio
-
         from backend.services.cleanup_service import run_cleanup
         
         logger.info("🧹 Running cleanup of expired temporary catalog data...")

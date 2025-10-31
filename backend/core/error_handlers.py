@@ -175,17 +175,35 @@ async def generic_exception_handler(request: Request, exc: Exception) -> JSONRes
     Catch-all handler for unexpected exceptions
     
     Logs full error details but returns safe message to user
+    Only logs if not already logged by middleware
     """
-    # Log full exception with traceback
-    logger.error(
-        f"Unexpected error: {type(exc).__name__}: {str(exc)}",
-        exc_info=True,
-        extra={
-            "path": request.url.path,
-            "method": request.method,
-            "exception_type": type(exc).__name__
-        }
-    )
+    # Safely get exception message (str() can fail on some exceptions)
+    try:
+        exc_msg = str(exc)
+    except:
+        exc_msg = f"<{type(exc).__name__} - str() failed>"
+    
+    # Only log full traceback if not already logged (to prevent duplicates)
+    if not hasattr(request.state, "error_logged"):
+        logger.error(
+            f"Unexpected error: {type(exc).__name__}: {exc_msg}",
+            exc_info=True,
+            extra={
+                "path": request.url.path,
+                "method": request.method,
+                "exception_type": type(exc).__name__
+            }
+        )
+        request.state.error_logged = True
+    else:
+        # Just log a summary if already logged
+        logger.warning(
+            f"Error handled: {type(exc).__name__}: {exc_msg}",
+            extra={
+                "path": request.url.path,
+                "method": request.method,
+            }
+        )
     
     # In development, return more details
     if settings.DEBUG:

@@ -5,7 +5,7 @@ Schemas for About Us, FAQ, Catalogs, Guides, Installations, Contact Info
 """
 
 from enum import Enum
-from typing import List, Optional, Union
+from typing import Any, Dict, List, Optional, Union
 
 from pydantic import BaseModel, EmailStr, Field, field_validator
 
@@ -312,6 +312,24 @@ class InstallationResponse(InstallationBase, TimestampSchema):
     model_config = {"from_attributes": True}
 
 
+# Custom installation response for CMS content endpoints
+class InstallationListItemResponse(BaseModel):
+    """Schema for installation in CMS content list response"""
+    id: int
+    projectName: str
+    title: str
+    projectType: Optional[str]
+    category: Optional[str]
+    location: Optional[str]
+    description: Optional[str]
+    completionDate: Optional[str]
+    images: Union[List[str], List[Dict[str, Any]]]
+    primaryImage: Optional[str]
+    url: Optional[str]
+    clientName: Optional[str]
+    displayOrder: int
+
+
 # ============================================================================
 # Contact Location Schemas
 # ============================================================================
@@ -511,3 +529,103 @@ class FeedbackListResponse(BaseModel):
     page_size: int
     total_pages: int
 
+
+# ============================================================================
+# Hero Slide Schemas
+# ============================================================================
+
+class HeroSlideResponse(BaseModel):
+    """Schema for hero slide response"""
+    id: int
+    title: str
+    subtitle: Optional[str]
+    image: str
+    ctaText: Optional[str]
+    ctaLink: Optional[str]
+    displayOrder: int
+
+
+# ============================================================================
+# Feature Schemas
+# ============================================================================
+
+class FeatureResponse(BaseModel):
+    """Schema for feature response"""
+    id: int
+    title: str
+    description: str
+    icon: Optional[str]
+    featureType: str
+    displayOrder: int
+
+
+# ============================================================================
+# Client Logo Schemas
+# ============================================================================
+
+class ClientLogoResponse(BaseModel):
+    """Schema for client logo response"""
+    id: int
+    name: str
+    logoUrl: Optional[str]
+    websiteUrl: Optional[str]
+    displayOrder: int
+
+
+# ============================================================================
+# Company Value Schemas
+# ============================================================================
+
+class CompanyValueResponse(BaseModel):
+    """Schema for company value response"""
+    id: int
+    title: str
+    description: str
+    icon: Optional[str]
+    displayOrder: int
+
+
+# ============================================================================
+# Company Milestone Schemas
+# ============================================================================
+
+class CompanyMilestoneResponse(BaseModel):
+    """Schema for company milestone response"""
+    id: int
+    year: Optional[int]
+    title: str
+    description: Optional[str]
+    displayOrder: int
+
+
+# ============================================================================
+# Sales Representative Schemas
+# ============================================================================
+
+class SalesRepresentativeResponse(BaseModel):
+    """Schema for sales representative response"""
+    id: int
+    name: str
+    territoryName: str
+    territory: str
+    statesCovered: list[str]
+    states: list[str]
+    email: Optional[str]
+    phone: Optional[str]
+    photoUrl: Optional[str]
+    displayOrder: int
+
+
+# ============================================================================
+# Page Content Schemas
+# ============================================================================
+
+class PageContentItemResponse(BaseModel):
+    """Schema for page content item"""
+    id: int
+    pageSlug: str
+    sectionKey: str
+    title: str
+    content: str
+    imageUrl: Optional[str]
+    displayOrder: int

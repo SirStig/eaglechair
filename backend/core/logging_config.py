@@ -85,6 +85,29 @@ class ColoredFormatter(logging.Formatter):
         return formatted
 
 
+class DeduplicateFilter(logging.Filter):
+    """
+    Suppress duplicate log records within a short window.
+    Keys by (logger name, level, message). Keeps last-seen timestamp.
+    """
+    def __init__(self, window_seconds: float = 2.0):
+        super().__init__()
+        self.window_seconds = window_seconds
+        self._last_seen: dict[tuple[str, int, str], float] = {}
+
+    def filter(self, record: logging.LogRecord) -> bool:  # type: ignore[override]
+        try:
+            key = (record.name, record.levelno, record.getMessage())
+            ts = record.created
+            last = self._last_seen.get(key)
+            self._last_seen[key] = ts
+            if last is None:
+                return True
+            return (ts - last) > self.window_seconds
+        except Exception:
+            return True
+
+
 class JSONFormatter(logging.Formatter):
     """
     Enhanced JSON formatter for production logs with comprehensive metadata
@@ -113,11 +136,14 @@ class JSONFormatter(logging.Formatter):
         
         # Add exception info if present
         if record.exc_info:
-            log_data["exception"] = {
+            exc_payload = {
                 "type": record.exc_info[0].__name__ if record.exc_info[0] else None,
                 "message": str(record.exc_info[1]) if record.exc_info[1] else None,
-                "traceback": self.formatException(record.exc_info)
             }
+            # Only include full traceback in debug/testing
+            if settings.DEBUG or settings.TESTING:
+                exc_payload["traceback"] = self.formatException(record.exc_info)
+            log_data["exception"] = exc_payload
         
         # Add request context if available
         request_context = {}
@@ -258,6 +284,7 @@ class LoggingConfig:
         )
         file_handler.setLevel(logging.DEBUG)  # Capture all levels to file
         file_handler.setFormatter(JSONFormatter())  # Always use JSON for files
+        file_handler.addFilter(DeduplicateFilter())
         file_handler.addFilter(lambda record: not hasattr(record, 'no_file_log') or not record.no_file_log)
         logger.addHandler(file_handler)
         
@@ -271,6 +298,7 @@ class LoggingConfig:
         )
         error_handler.setLevel(logging.ERROR)
         error_handler.setFormatter(JSONFormatter())
+        error_handler.addFilter(DeduplicateFilter())
         logger.addHandler(error_handler)
         
         # Access log (for requests)
@@ -283,6 +311,7 @@ class LoggingConfig:
         )
         access_handler.setLevel(logging.INFO)
         access_handler.setFormatter(JSONFormatter())
+        access_handler.addFilter(DeduplicateFilter())
         
         # Create access logger
         access_logger = logging.getLogger("access")
@@ -295,6 +324,7 @@ class LoggingConfig:
         console_handler = logging.StreamHandler(sys.stdout)
         console_handler.setLevel(LoggingConfig.get_log_level())
         console_handler.setFormatter(LoggingConfig.get_formatter())
+        console_handler.addFilter(DeduplicateFilter())
         logger.addHandler(console_handler)
     
     @staticmethod
@@ -337,10 +367,14 @@ class LoggingConfig:
     def configure_third_party_loggers():
         """Configure third-party library loggers"""
         # Reduce noise from third-party libraries
-        logging.getLogger("uvicorn").setLevel(logging.WARNING if not settings.DEBUG else logging.INFO)
+        logging.getLogger("uvicorn").setLevel(logging.WARNING if settings.DEBUG else logging.ERROR)
         logging.getLogger("uvicorn.access").setLevel(logging.WARNING)
-        logging.getLogger("uvicorn.error").setLevel(logging.INFO)
-        logging.getLogger("fastapi").setLevel(logging.INFO)
+        logging.getLogger("uvicorn.error").setLevel(logging.WARNING)
+        logging.getLogger("fastapi").setLevel(logging.WARNING if not settings.DEBUG else logging.INFO)
+        logging.getLogger("starlette").setLevel(logging.WARNING)
+        logging.getLogger("anyio").setLevel(logging.WARNING)
+        logging.getLogger("httpx").setLevel(logging.WARNING)
+        logging.getLogger("aiohttp").setLevel(logging.WARNING)
         
         # SQLAlchemy - silence all engine logs unless in debug mode with specific need
         logging.getLogger("sqlalchemy").setLevel(logging.ERROR)
@@ -364,6 +398,7 @@ class LoggingConfig:
         if not settings.DEBUG:
             logging.getLogger("uvicorn").setLevel(logging.ERROR)
             logging.getLogger("fastapi").setLevel(logging.WARNING)
+            logging.getLogger("starlette").setLevel(logging.ERROR)
 
 
 class RequestLogger:
