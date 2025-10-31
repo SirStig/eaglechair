@@ -11,9 +11,21 @@ Admin-only endpoints for managing product catalog options:
 """
 
 import logging
+import os
+import time
+from pathlib import Path
 from typing import List, Optional
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import (
+    APIRouter,
+    Depends,
+    File,
+    Form,
+    HTTPException,
+    Query,
+    UploadFile,
+    status,
+)
 from fastapi.responses import JSONResponse
 from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -37,7 +49,9 @@ from backend.models.chair import (
     Upholstery,
 )
 from backend.models.company import AdminRole, AdminUser
+from backend.models.content import Catalog, Hardware, Laminate
 from backend.utils.serializers import orm_list_to_dict_list, orm_to_dict
+from backend.utils.static_content_exporter import export_content_after_update
 
 logger = logging.getLogger(__name__)
 
@@ -271,6 +285,9 @@ async def create_finish(
     await db.commit()
     await db.refresh(finish)
     
+    # Export to CMS
+    await export_content_after_update('finishes', db)
+    
     return orm_to_dict(finish)
 
 
@@ -328,6 +345,9 @@ async def update_finish(
     await db.commit()
     await db.refresh(finish)
     
+    # Export to CMS
+    await export_content_after_update('finishes', db)
+    
     return orm_to_dict(finish)
 
 
@@ -359,6 +379,9 @@ async def delete_finish(
         finish.is_active = False
     
     await db.commit()
+    
+    # Export to CMS
+    await export_content_after_update('finishes', db)
     
     return MessageResponse(
         message=f"Finish '{finish.name}' {'deleted' if hard_delete else 'deactivated'} successfully"
@@ -473,6 +496,9 @@ async def create_upholstery(
     await db.commit()
     await db.refresh(upholstery)
     
+    # Export to CMS
+    await export_content_after_update('upholsteries', db)
+    
     return orm_to_dict(upholstery)
 
 
@@ -542,6 +568,9 @@ async def update_upholstery(
     await db.commit()
     await db.refresh(upholstery)
     
+    # Export to CMS
+    await export_content_after_update('upholsteries', db)
+    
     return orm_to_dict(upholstery)
 
 
@@ -573,6 +602,9 @@ async def delete_upholstery(
         upholstery.is_active = False
     
     await db.commit()
+    
+    # Export to CMS
+    await export_content_after_update('upholsteries', db)
     
     return MessageResponse(
         message=f"Upholstery '{upholstery.name}' {'deleted' if hard_delete else 'deactivated'} successfully"
@@ -990,4 +1022,796 @@ async def delete_subcategory(
     
     return MessageResponse(
         message=f"Subcategory '{subcategory.name}' {'deleted' if hard_delete else 'deactivated'} successfully"
+    )
+
+
+# ============================================================================
+# Laminate Management
+# ============================================================================
+
+@router.get(
+    "/laminates",
+    summary="List all laminates (Admin)",
+    description="Get all laminates with optional filtering"
+)
+async def get_laminates(
+    brand: Optional[str] = Query(None, description="Filter by brand"),
+    is_active: Optional[bool] = Query(None, description="Filter by active status"),
+    admin: AdminUser = Depends(get_current_admin),
+    db: AsyncSession = Depends(get_db)
+):
+    """Get all laminates. Admin only."""
+    logger.info(f"Admin {admin.username} fetching laminates")
+    
+    query = select(Laminate)
+    
+    if brand:
+        query = query.where(Laminate.brand == brand)
+    
+    if is_active is not None:
+        query = query.where(Laminate.is_active == is_active)
+    
+    query = query.order_by(Laminate.display_order, Laminate.brand, Laminate.pattern_name)
+    
+    result = await db.execute(query)
+    laminates = result.scalars().all()
+    
+    return orm_list_to_dict_list(laminates)
+
+
+@router.post(
+    "/laminates",
+    status_code=status.HTTP_201_CREATED,
+    summary="Create laminate (Admin)",
+    description="Create a new laminate option"
+)
+async def create_laminate(
+    brand: str,
+    pattern_name: str,
+    pattern_code: Optional[str] = None,
+    description: Optional[str] = None,
+    color_family: Optional[str] = None,
+    finish_type: Optional[str] = None,
+    thickness: Optional[str] = None,
+    grade: Optional[str] = None,
+    supplier_name: Optional[str] = None,
+    supplier_website: Optional[str] = None,
+    supplier_contact: Optional[str] = None,
+    swatch_image_url: Optional[str] = None,
+    full_image_url: Optional[str] = None,
+    additional_images: Optional[dict] = None,
+    is_in_stock: bool = True,
+    lead_time_days: Optional[int] = None,
+    minimum_order: Optional[str] = None,
+    price_per_sheet: Optional[int] = None,
+    recommended_for: Optional[str] = None,
+    care_instructions: Optional[str] = None,
+    display_order: int = 0,
+    is_active: bool = True,
+    is_featured: bool = False,
+    is_popular: bool = False,
+    admin: AdminUser = Depends(require_role(AdminRole.ADMIN)),
+    db: AsyncSession = Depends(get_db)
+):
+    """Create a new laminate. Admin only."""
+    logger.info(f"Admin {admin.username} creating laminate: {brand} - {pattern_name}")
+    
+    laminate = Laminate(
+        brand=brand,
+        pattern_name=pattern_name,
+        pattern_code=pattern_code,
+        description=description,
+        color_family=color_family,
+        finish_type=finish_type,
+        thickness=thickness,
+        grade=grade,
+        supplier_name=supplier_name,
+        supplier_website=supplier_website,
+        supplier_contact=supplier_contact,
+        swatch_image_url=swatch_image_url,
+        full_image_url=full_image_url,
+        additional_images=additional_images,
+        is_in_stock=is_in_stock,
+        lead_time_days=lead_time_days,
+        minimum_order=minimum_order,
+        price_per_sheet=price_per_sheet,
+        recommended_for=recommended_for,
+        care_instructions=care_instructions,
+        display_order=display_order,
+        is_active=is_active,
+        is_featured=is_featured,
+        is_popular=is_popular
+    )
+    
+    db.add(laminate)
+    await db.commit()
+    await db.refresh(laminate)
+    
+    # Export to CMS
+    await export_content_after_update('laminates', db)
+    
+    return orm_to_dict(laminate)
+
+
+@router.put(
+    "/laminates/{laminate_id}",
+    summary="Update laminate (Admin)",
+    description="Update an existing laminate"
+)
+async def update_laminate(
+    laminate_id: int,
+    brand: Optional[str] = None,
+    pattern_name: Optional[str] = None,
+    pattern_code: Optional[str] = None,
+    description: Optional[str] = None,
+    color_family: Optional[str] = None,
+    finish_type: Optional[str] = None,
+    thickness: Optional[str] = None,
+    grade: Optional[str] = None,
+    supplier_name: Optional[str] = None,
+    supplier_website: Optional[str] = None,
+    supplier_contact: Optional[str] = None,
+    swatch_image_url: Optional[str] = None,
+    full_image_url: Optional[str] = None,
+    additional_images: Optional[dict] = None,
+    is_in_stock: Optional[bool] = None,
+    lead_time_days: Optional[int] = None,
+    minimum_order: Optional[str] = None,
+    price_per_sheet: Optional[int] = None,
+    recommended_for: Optional[str] = None,
+    care_instructions: Optional[str] = None,
+    display_order: Optional[int] = None,
+    is_active: Optional[bool] = None,
+    is_featured: Optional[bool] = None,
+    is_popular: Optional[bool] = None,
+    admin: AdminUser = Depends(require_role(AdminRole.ADMIN)),
+    db: AsyncSession = Depends(get_db)
+):
+    """Update a laminate. Admin only."""
+    logger.info(f"Admin {admin.username} updating laminate {laminate_id}")
+    
+    stmt = select(Laminate).where(Laminate.id == laminate_id)
+    result = await db.execute(stmt)
+    laminate = result.scalar_one_or_none()
+    
+    if not laminate:
+        raise HTTPException(status_code=404, detail=f"Laminate {laminate_id} not found")
+    
+    if brand is not None:
+        laminate.brand = brand
+    if pattern_name is not None:
+        laminate.pattern_name = pattern_name
+    if pattern_code is not None:
+        laminate.pattern_code = pattern_code
+    if description is not None:
+        laminate.description = description
+    if color_family is not None:
+        laminate.color_family = color_family
+    if finish_type is not None:
+        laminate.finish_type = finish_type
+    if thickness is not None:
+        laminate.thickness = thickness
+    if grade is not None:
+        laminate.grade = grade
+    if supplier_name is not None:
+        laminate.supplier_name = supplier_name
+    if supplier_website is not None:
+        laminate.supplier_website = supplier_website
+    if supplier_contact is not None:
+        laminate.supplier_contact = supplier_contact
+    if swatch_image_url is not None:
+        laminate.swatch_image_url = swatch_image_url
+    if full_image_url is not None:
+        laminate.full_image_url = full_image_url
+    if additional_images is not None:
+        laminate.additional_images = additional_images
+    if is_in_stock is not None:
+        laminate.is_in_stock = is_in_stock
+    if lead_time_days is not None:
+        laminate.lead_time_days = lead_time_days
+    if minimum_order is not None:
+        laminate.minimum_order = minimum_order
+    if price_per_sheet is not None:
+        laminate.price_per_sheet = price_per_sheet
+    if recommended_for is not None:
+        laminate.recommended_for = recommended_for
+    if care_instructions is not None:
+        laminate.care_instructions = care_instructions
+    if display_order is not None:
+        laminate.display_order = display_order
+    if is_active is not None:
+        laminate.is_active = is_active
+    if is_featured is not None:
+        laminate.is_featured = is_featured
+    if is_popular is not None:
+        laminate.is_popular = is_popular
+    
+    await db.commit()
+    await db.refresh(laminate)
+    
+    # Export to CMS
+    await export_content_after_update('laminates', db)
+    
+    return orm_to_dict(laminate)
+
+
+@router.delete(
+    "/laminates/{laminate_id}",
+    response_model=MessageResponse,
+    summary="Delete laminate (Admin)",
+    description="Delete a laminate (soft delete by marking inactive)"
+)
+async def delete_laminate(
+    laminate_id: int,
+    hard_delete: bool = Query(False, description="Permanently delete (use with caution)"),
+    admin: AdminUser = Depends(require_role(AdminRole.SUPER_ADMIN)),
+    db: AsyncSession = Depends(get_db)
+):
+    """Delete a laminate. Super admin only."""
+    logger.info(f"Admin {admin.username} deleting laminate {laminate_id} (hard={hard_delete})")
+    
+    stmt = select(Laminate).where(Laminate.id == laminate_id)
+    result = await db.execute(stmt)
+    laminate = result.scalar_one_or_none()
+    
+    if not laminate:
+        raise HTTPException(status_code=404, detail=f"Laminate {laminate_id} not found")
+    
+    if hard_delete:
+        await db.delete(laminate)
+    else:
+        laminate.is_active = False
+    
+    await db.commit()
+    
+    # Export to CMS
+    await export_content_after_update('laminates', db)
+    
+    return MessageResponse(
+        message=f"Laminate '{laminate.brand} - {laminate.pattern_name}' {'deleted' if hard_delete else 'deactivated'} successfully"
+    )
+
+
+# ============================================================================
+# Catalog Management
+# ============================================================================
+
+@router.get(
+    "/catalogs",
+    summary="List all catalogs (Admin)",
+    description="Get all catalogs with optional filtering"
+)
+async def get_catalogs(
+    catalog_type: Optional[str] = Query(None, description="Filter by catalog type"),
+    is_active: Optional[bool] = Query(None, description="Filter by active status"),
+    admin: AdminUser = Depends(get_current_admin),
+    db: AsyncSession = Depends(get_db)
+):
+    """Get all catalogs. Admin only."""
+    logger.info(f"Admin {admin.username} fetching catalogs")
+    
+    query = select(Catalog)
+    
+    if catalog_type:
+        query = query.where(Catalog.catalog_type == catalog_type)
+    
+    if is_active is not None:
+        query = query.where(Catalog.is_active == is_active)
+    
+    query = query.order_by(Catalog.display_order, Catalog.title)
+    
+    result = await db.execute(query)
+    catalogs = result.scalars().all()
+    
+    return orm_list_to_dict_list(catalogs)
+
+
+@router.post(
+    "/catalogs",
+    status_code=status.HTTP_201_CREATED,
+    summary="Create catalog (Admin)",
+    description="Create a new catalog with PDF upload"
+)
+async def create_catalog(
+    title: str = Form(...),
+    catalog_type: str = Form(...),
+    description: Optional[str] = Form(None),
+    version: Optional[str] = Form(None),
+    year: Optional[str] = Form(None),
+    category_id: Optional[int] = Form(None),
+    display_order: int = Form(0),
+    is_active: bool = Form(True),
+    is_featured: bool = Form(False),
+    file: Optional[UploadFile] = File(None, description="PDF catalog file"),
+    thumbnail: Optional[UploadFile] = File(None, description="Thumbnail/cover image"),
+    file_url: Optional[str] = Form(None, description="Existing file URL (if file not uploaded)"),
+    admin: AdminUser = Depends(require_role(AdminRole.ADMIN)),
+    db: AsyncSession = Depends(get_db)
+):
+    """Create a new catalog. Admin only."""
+    logger.info(f"Admin {admin.username} creating catalog: {title}")
+    
+    # Handle PDF file upload
+    final_file_url = file_url
+    file_size = None
+    file_type = None
+    
+    if file:
+        # Validate PDF
+        if not file.filename.lower().endswith('.pdf'):
+            raise HTTPException(status_code=400, detail="Only PDF files are accepted")
+        
+        # Upload PDF to frontend using same logic as upload.py
+        from backend.api.v1.routes.admin.upload import (
+            ALLOWED_DOCUMENT_EXTENSIONS,
+            MAX_PDF_SIZE,
+            UPLOAD_BASE_DIR,
+        )
+        
+        content = await file.read()
+        if len(content) > MAX_PDF_SIZE:
+            raise HTTPException(
+                status_code=400,
+                detail=f"File too large. Maximum size: {MAX_PDF_SIZE / 1024 / 1024}MB"
+            )
+        
+        upload_dir = UPLOAD_BASE_DIR / "documents" / "catalogs"
+        upload_dir.mkdir(parents=True, exist_ok=True)
+        
+        timestamp = int(time.time())
+        file_ext = Path(file.filename).suffix.lower()
+        base_name = Path(file.filename).stem
+        base_name = "".join(c for c in base_name if c.isalnum() or c in "-_")
+        filename = f"{base_name}_{timestamp}{file_ext}"
+        file_path = upload_dir / filename
+        
+        with open(file_path, "wb") as f:
+            f.write(content)
+        
+        final_file_url = f"/uploads/documents/catalogs/{filename}"
+        file_size = len(content)
+        file_type = "PDF"
+        logger.info(f"PDF uploaded: {final_file_url}")
+    
+    # Handle thumbnail upload
+    thumbnail_url = None
+    if thumbnail:
+        from backend.api.v1.routes.admin.upload import (
+            ALLOWED_IMAGE_EXTENSIONS,
+            MAX_FILE_SIZE,
+            UPLOAD_BASE_DIR,
+        )
+        
+        thumb_ext = Path(thumbnail.filename).suffix.lower()
+        if thumb_ext not in ALLOWED_IMAGE_EXTENSIONS:
+            raise HTTPException(status_code=400, detail="Invalid thumbnail image type")
+        
+        thumb_content = await thumbnail.read()
+        if len(thumb_content) > MAX_FILE_SIZE:
+            raise HTTPException(status_code=400, detail="Thumbnail too large")
+        
+        thumb_dir = UPLOAD_BASE_DIR / "images" / "catalogs"
+        thumb_dir.mkdir(parents=True, exist_ok=True)
+        
+        timestamp = int(time.time())
+        thumb_base_name = Path(thumbnail.filename).stem
+        thumb_base_name = "".join(c for c in thumb_base_name if c.isalnum() or c in "-_")
+        thumb_filename = f"{thumb_base_name}_{timestamp}{thumb_ext}"
+        thumb_path = thumb_dir / thumb_filename
+        
+        with open(thumb_path, "wb") as f:
+            f.write(thumb_content)
+        
+        thumbnail_url = f"/uploads/images/catalogs/{thumb_filename}"
+        logger.info(f"Thumbnail uploaded: {thumbnail_url}")
+    
+    if not final_file_url:
+        raise HTTPException(status_code=400, detail="Either file upload or file_url is required")
+    
+    if not file_type:
+        # Infer from file_url extension
+        if final_file_url.lower().endswith('.pdf'):
+            file_type = "PDF"
+        elif final_file_url.lower().endswith('.zip'):
+            file_type = "ZIP"
+        else:
+            file_type = "DOCUMENT"
+    
+    catalog = Catalog(
+        title=title,
+        description=description,
+        catalog_type=catalog_type,
+        file_type=file_type,
+        file_url=final_file_url,
+        file_size=file_size,
+        thumbnail_url=thumbnail_url,
+        version=version,
+        year=year,
+        category_id=category_id,
+        display_order=display_order,
+        is_active=is_active,
+        is_featured=is_featured
+    )
+    
+    db.add(catalog)
+    await db.commit()
+    await db.refresh(catalog)
+    
+    # Export to CMS
+    await export_content_after_update('catalogs', db)
+    
+    return orm_to_dict(catalog)
+
+
+@router.put(
+    "/catalogs/{catalog_id}",
+    summary="Update catalog (Admin)",
+    description="Update an existing catalog"
+)
+async def update_catalog(
+    catalog_id: int,
+    title: Optional[str] = Form(None),
+    description: Optional[str] = Form(None),
+    catalog_type: Optional[str] = Form(None),
+    version: Optional[str] = Form(None),
+    year: Optional[str] = Form(None),
+    category_id: Optional[int] = Form(None),
+    display_order: Optional[int] = Form(None),
+    is_active: Optional[bool] = Form(None),
+    is_featured: Optional[bool] = Form(None),
+    file: Optional[UploadFile] = File(None, description="New PDF catalog file (optional)"),
+    thumbnail: Optional[UploadFile] = File(None, description="New thumbnail/cover image (optional)"),
+    file_url: Optional[str] = Form(None, description="New file URL (if file not uploaded)"),
+    admin: AdminUser = Depends(require_role(AdminRole.ADMIN)),
+    db: AsyncSession = Depends(get_db)
+):
+    """Update a catalog. Admin only."""
+    logger.info(f"Admin {admin.username} updating catalog {catalog_id}")
+    
+    stmt = select(Catalog).where(Catalog.id == catalog_id)
+    result = await db.execute(stmt)
+    catalog = result.scalar_one_or_none()
+    
+    if not catalog:
+        raise HTTPException(status_code=404, detail=f"Catalog {catalog_id} not found")
+    
+    if title is not None:
+        catalog.title = title
+    if description is not None:
+        catalog.description = description
+    if catalog_type is not None:
+        catalog.catalog_type = catalog_type
+    if version is not None:
+        catalog.version = version
+    if year is not None:
+        catalog.year = year
+    if category_id is not None:
+        catalog.category_id = category_id
+    if display_order is not None:
+        catalog.display_order = display_order
+    if is_active is not None:
+        catalog.is_active = is_active
+    if is_featured is not None:
+        catalog.is_featured = is_featured
+    
+    # Handle PDF file upload (if provided)
+    if file:
+        if not file.filename.lower().endswith('.pdf'):
+            raise HTTPException(status_code=400, detail="Only PDF files are accepted")
+        
+        from backend.api.v1.routes.admin.upload import MAX_PDF_SIZE, UPLOAD_BASE_DIR
+        
+        content = await file.read()
+        if len(content) > MAX_PDF_SIZE:
+            raise HTTPException(
+                status_code=400,
+                detail=f"File too large. Maximum size: {MAX_PDF_SIZE / 1024 / 1024}MB"
+            )
+        
+        upload_dir = UPLOAD_BASE_DIR / "documents" / "catalogs"
+        upload_dir.mkdir(parents=True, exist_ok=True)
+        
+        timestamp = int(time.time())
+        file_ext = Path(file.filename).suffix.lower()
+        base_name = Path(file.filename).stem
+        base_name = "".join(c for c in base_name if c.isalnum() or c in "-_")
+        filename = f"{base_name}_{timestamp}{file_ext}"
+        file_path = upload_dir / filename
+        
+        with open(file_path, "wb") as f:
+            f.write(content)
+        
+        catalog.file_url = f"/uploads/documents/catalogs/{filename}"
+        catalog.file_size = len(content)
+        catalog.file_type = "PDF"
+        logger.info(f"PDF updated: {catalog.file_url}")
+    elif file_url is not None:
+        catalog.file_url = file_url
+    
+    # Handle thumbnail upload (if provided)
+    if thumbnail:
+        from backend.api.v1.routes.admin.upload import (
+            ALLOWED_IMAGE_EXTENSIONS,
+            MAX_FILE_SIZE,
+            UPLOAD_BASE_DIR,
+        )
+        
+        thumb_ext = Path(thumbnail.filename).suffix.lower()
+        if thumb_ext not in ALLOWED_IMAGE_EXTENSIONS:
+            raise HTTPException(status_code=400, detail="Invalid thumbnail image type")
+        
+        thumb_content = await thumbnail.read()
+        if len(thumb_content) > MAX_FILE_SIZE:
+            raise HTTPException(status_code=400, detail="Thumbnail too large")
+        
+        thumb_dir = UPLOAD_BASE_DIR / "images" / "catalogs"
+        thumb_dir.mkdir(parents=True, exist_ok=True)
+        
+        timestamp = int(time.time())
+        thumb_base_name = Path(thumbnail.filename).stem
+        thumb_base_name = "".join(c for c in thumb_base_name if c.isalnum() or c in "-_")
+        thumb_filename = f"{thumb_base_name}_{timestamp}{thumb_ext}"
+        thumb_path = thumb_dir / thumb_filename
+        
+        with open(thumb_path, "wb") as f:
+            f.write(thumb_content)
+        
+        catalog.thumbnail_url = f"/uploads/images/catalogs/{thumb_filename}"
+        logger.info(f"Thumbnail updated: {catalog.thumbnail_url}")
+    
+    await db.commit()
+    await db.refresh(catalog)
+    
+    # Export to CMS
+    await export_content_after_update('catalogs', db)
+    
+    return orm_to_dict(catalog)
+
+
+@router.delete(
+    "/catalogs/{catalog_id}",
+    response_model=MessageResponse,
+    summary="Delete catalog (Admin)",
+    description="Delete a catalog (soft delete by marking inactive)"
+)
+async def delete_catalog(
+    catalog_id: int,
+    hard_delete: bool = Query(False, description="Permanently delete (use with caution)"),
+    admin: AdminUser = Depends(require_role(AdminRole.SUPER_ADMIN)),
+    db: AsyncSession = Depends(get_db)
+):
+    """Delete a catalog. Super admin only."""
+    logger.info(f"Admin {admin.username} deleting catalog {catalog_id} (hard={hard_delete})")
+    
+    stmt = select(Catalog).where(Catalog.id == catalog_id)
+    result = await db.execute(stmt)
+    catalog = result.scalar_one_or_none()
+    
+    if not catalog:
+        raise HTTPException(status_code=404, detail=f"Catalog {catalog_id} not found")
+    
+    if hard_delete:
+        await db.delete(catalog)
+    else:
+        catalog.is_active = False
+    
+    await db.commit()
+    
+    # Export to CMS
+    await export_content_after_update('catalogs', db)
+    
+    return MessageResponse(
+        message=f"Catalog '{catalog.title}' {'deleted' if hard_delete else 'deactivated'} successfully"
+    )
+
+
+# ============================================================================
+# Hardware Management
+# ============================================================================
+
+@router.get(
+    "/hardware",
+    summary="List all hardware (Admin)",
+    description="Get all hardware items with optional filtering"
+)
+async def get_hardware(
+    category: Optional[str] = Query(None, description="Filter by category"),
+    is_active: Optional[bool] = Query(None, description="Filter by active status"),
+    admin: AdminUser = Depends(get_current_admin),
+    db: AsyncSession = Depends(get_db)
+):
+    """Get all hardware. Admin only."""
+    logger.info(f"Admin {admin.username} fetching hardware")
+    
+    query = select(Hardware)
+    
+    if category:
+        query = query.where(Hardware.category == category)
+    
+    if is_active is not None:
+        query = query.where(Hardware.is_active == is_active)
+    
+    query = query.order_by(Hardware.display_order, Hardware.name)
+    
+    result = await db.execute(query)
+    hardware_items = result.scalars().all()
+    
+    return orm_list_to_dict_list(hardware_items)
+
+
+@router.post(
+    "/hardware",
+    status_code=status.HTTP_201_CREATED,
+    summary="Create hardware (Admin)",
+    description="Create a new hardware item"
+)
+async def create_hardware(
+    name: str,
+    category: Optional[str] = None,
+    description: Optional[str] = None,
+    material: Optional[str] = None,
+    finish: Optional[str] = None,
+    dimensions: Optional[str] = None,
+    weight_capacity: Optional[str] = None,
+    model_number: Optional[str] = None,
+    sku: Optional[str] = None,
+    image_url: Optional[str] = None,
+    thumbnail_url: Optional[str] = None,
+    additional_images: Optional[dict] = None,
+    compatible_with: Optional[str] = None,
+    installation_notes: Optional[str] = None,
+    list_price: Optional[int] = None,
+    display_order: int = 0,
+    is_active: bool = True,
+    admin: AdminUser = Depends(require_role(AdminRole.ADMIN)),
+    db: AsyncSession = Depends(get_db)
+):
+    """Create a new hardware item. Admin only."""
+    logger.info(f"Admin {admin.username} creating hardware: {name}")
+    
+    hardware = Hardware(
+        name=name,
+        category=category,
+        description=description,
+        material=material,
+        finish=finish,
+        dimensions=dimensions,
+        weight_capacity=weight_capacity,
+        model_number=model_number,
+        sku=sku,
+        image_url=image_url,
+        thumbnail_url=thumbnail_url,
+        additional_images=additional_images,
+        compatible_with=compatible_with,
+        installation_notes=installation_notes,
+        list_price=list_price,
+        display_order=display_order,
+        is_active=is_active
+    )
+    
+    db.add(hardware)
+    await db.commit()
+    await db.refresh(hardware)
+    
+    # Export to CMS
+    await export_content_after_update('hardware', db)
+    
+    return orm_to_dict(hardware)
+
+
+@router.put(
+    "/hardware/{hardware_id}",
+    summary="Update hardware (Admin)",
+    description="Update an existing hardware item"
+)
+async def update_hardware(
+    hardware_id: int,
+    name: Optional[str] = None,
+    category: Optional[str] = None,
+    description: Optional[str] = None,
+    material: Optional[str] = None,
+    finish: Optional[str] = None,
+    dimensions: Optional[str] = None,
+    weight_capacity: Optional[str] = None,
+    model_number: Optional[str] = None,
+    sku: Optional[str] = None,
+    image_url: Optional[str] = None,
+    thumbnail_url: Optional[str] = None,
+    additional_images: Optional[dict] = None,
+    compatible_with: Optional[str] = None,
+    installation_notes: Optional[str] = None,
+    list_price: Optional[int] = None,
+    display_order: Optional[int] = None,
+    is_active: Optional[bool] = None,
+    admin: AdminUser = Depends(require_role(AdminRole.ADMIN)),
+    db: AsyncSession = Depends(get_db)
+):
+    """Update a hardware item. Admin only."""
+    logger.info(f"Admin {admin.username} updating hardware {hardware_id}")
+    
+    stmt = select(Hardware).where(Hardware.id == hardware_id)
+    result = await db.execute(stmt)
+    hardware = result.scalar_one_or_none()
+    
+    if not hardware:
+        raise HTTPException(status_code=404, detail=f"Hardware {hardware_id} not found")
+    
+    if name is not None:
+        hardware.name = name
+    if category is not None:
+        hardware.category = category
+    if description is not None:
+        hardware.description = description
+    if material is not None:
+        hardware.material = material
+    if finish is not None:
+        hardware.finish = finish
+    if dimensions is not None:
+        hardware.dimensions = dimensions
+    if weight_capacity is not None:
+        hardware.weight_capacity = weight_capacity
+    if model_number is not None:
+        hardware.model_number = model_number
+    if sku is not None:
+        hardware.sku = sku
+    if image_url is not None:
+        hardware.image_url = image_url
+    if thumbnail_url is not None:
+        hardware.thumbnail_url = thumbnail_url
+    if additional_images is not None:
+        hardware.additional_images = additional_images
+    if compatible_with is not None:
+        hardware.compatible_with = compatible_with
+    if installation_notes is not None:
+        hardware.installation_notes = installation_notes
+    if list_price is not None:
+        hardware.list_price = list_price
+    if display_order is not None:
+        hardware.display_order = display_order
+    if is_active is not None:
+        hardware.is_active = is_active
+    
+    await db.commit()
+    await db.refresh(hardware)
+    
+    # Export to CMS
+    await export_content_after_update('hardware', db)
+    
+    return orm_to_dict(hardware)
+
+
+@router.delete(
+    "/hardware/{hardware_id}",
+    response_model=MessageResponse,
+    summary="Delete hardware (Admin)",
+    description="Delete a hardware item (soft delete by marking inactive)"
+)
+async def delete_hardware(
+    hardware_id: int,
+    hard_delete: bool = Query(False, description="Permanently delete (use with caution)"),
+    admin: AdminUser = Depends(require_role(AdminRole.SUPER_ADMIN)),
+    db: AsyncSession = Depends(get_db)
+):
+    """Delete a hardware item. Super admin only."""
+    logger.info(f"Admin {admin.username} deleting hardware {hardware_id} (hard={hard_delete})")
+    
+    stmt = select(Hardware).where(Hardware.id == hardware_id)
+    result = await db.execute(stmt)
+    hardware = result.scalar_one_or_none()
+    
+    if not hardware:
+        raise HTTPException(status_code=404, detail=f"Hardware {hardware_id} not found")
+    
+    if hard_delete:
+        await db.delete(hardware)
+    else:
+        hardware.is_active = False
+    
+    await db.commit()
+    
+    # Export to CMS
+    await export_content_after_update('hardware', db)
+    
+    return MessageResponse(
+        message=f"Hardware '{hardware.name}' {'deleted' if hard_delete else 'deactivated'} successfully"
     )

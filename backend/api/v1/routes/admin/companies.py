@@ -176,6 +176,22 @@ async def update_company(
         # Update fields from update_data
         update_dict = update_data.model_dump(exclude_unset=True)
         
+        # Validate pricing_tier_id if provided
+        if 'pricing_tier_id' in update_dict and update_dict['pricing_tier_id'] is not None:
+            tier_id = update_dict['pricing_tier_id']
+            tier_stmt = select(CompanyPricing).where(
+                CompanyPricing.id == tier_id,
+                CompanyPricing.company_id.is_(None)  # Only reusable tiers
+            )
+            tier_result = await db.execute(tier_stmt)
+            pricing_tier = tier_result.scalar_one_or_none()
+            
+            if not pricing_tier:
+                raise HTTPException(
+                    status_code=404,
+                    detail=f"Pricing tier {tier_id} not found or not reusable"
+                )
+        
         # Handle status conversion if needed
         if 'status' in update_dict and isinstance(update_dict['status'], str):
             try:

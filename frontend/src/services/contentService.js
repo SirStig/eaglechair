@@ -279,19 +279,73 @@ export const getFAQCategories = async () => {
   }
 };
 
+// Finishes
+export const getFinishes = async () => {
+  return getStaticOrAPI(
+    (content) => content.finishes || [],
+    async () => {
+      const response = await api.get('/api/v1/content/finishes');
+      return response;
+    },
+    'Fetching finishes'
+  );
+};
+
+// Upholsteries
+export const getUpholsteries = async () => {
+  return getStaticOrAPI(
+    (content) => content.upholsteries || [],
+    async () => {
+      const response = await api.get('/api/v1/content/upholsteries');
+      return response;
+    },
+    'Fetching upholsteries'
+  );
+};
+
+// Laminates
+export const getLaminates = async () => {
+  return getStaticOrAPI(
+    (content) => content.laminates || [],
+    async () => {
+      const response = await api.get('/api/v1/content/laminates');
+      return response;
+    },
+    'Fetching laminates'
+  );
+};
+
+// Hardware
+export const getHardware = async () => {
+  return getStaticOrAPI(
+    (content) => content.hardware || [],
+    async () => {
+      const response = await api.get('/api/v1/content/hardware');
+      return response;
+    },
+    'Fetching hardware'
+  );
+};
+
 // Catalogs/Resources
 export const getCatalogs = async (catalogType = null) => {
-  try {
-    logger.debug(CONTEXT, `Fetching catalogs${catalogType ? ` of type ${catalogType}` : ''}`);
-    const url = catalogType 
-      ? `/api/v1/content/catalogs?type=${catalogType}`
-      : '/api/v1/content/catalogs';
-    const response = await api.get(url);
-    return response;
-  } catch (error) {
-    logger.error(CONTEXT, 'Error fetching catalogs', error);
-    throw error;
-  }
+  return getStaticOrAPI(
+    (content) => {
+      const catalogs = content.catalogs || [];
+      if (catalogType) {
+        return catalogs.filter(c => c.catalogType === catalogType);
+      }
+      return catalogs;
+    },
+    async () => {
+      const url = catalogType 
+        ? `/api/v1/content/catalogs?type=${catalogType}`
+        : '/api/v1/content/catalogs';
+      const response = await api.get(url);
+      return response;
+    },
+    `Fetching catalogs${catalogType ? ` of type ${catalogType}` : ''}`
+  );
 };
 
 // Page Content (flexible content blocks)

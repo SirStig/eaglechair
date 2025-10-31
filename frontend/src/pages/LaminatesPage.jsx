@@ -1,43 +1,37 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { IS_DEMO } from '../data/demoData';
-import { loadContentData } from '../utils/contentDataLoader';
+import { useLaminates } from '../hooks/useContent';
+import { Layers, Palette, Scissors, Book } from 'lucide-react';
+import LoadingSpinner from '../components/ui/LoadingSpinner';
 
 const LaminatesPage = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedBrand, setSelectedBrand] = useState('all');
-  const [laminates, setLaminates] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const { data: laminates = [], loading } = useLaminates();
 
-  useEffect(() => {
-    const loadData = async () => {
-      if (!IS_DEMO) {
-        const content = await loadContentData();
-        if (content?.laminates) {
-          setLaminates(content.laminates);
-        }
-      }
-      setLoading(false);
-    };
-    loadData();
-  }, []);
-
-  // Get laminates data (production only - no demo data for now)
-  const laminatesData = IS_DEMO ? [] : laminates;
+  const laminatesData = laminates || [];
 
   // Extract unique brands
   const brands = ['all', ...new Set(laminatesData.map(l => l.brand).filter(Boolean))];
 
   // Filter laminates
   const filteredLaminates = laminatesData.filter(laminate => {
-    const matchesSearch = laminate.pattern_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         laminate.pattern_code?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    const matchesSearch = laminate.patternName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                         laminate.patternCode?.toLowerCase().includes(searchTerm.toLowerCase()) ||
                          laminate.description?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         laminate.color_family?.toLowerCase().includes(searchTerm.toLowerCase());
+                         laminate.colorFamily?.toLowerCase().includes(searchTerm.toLowerCase());
     const matchesBrand = selectedBrand === 'all' || laminate.brand === selectedBrand;
-    return matchesSearch && matchesBrand && laminate.is_active;
+    return matchesSearch && matchesBrand && laminate.isActive !== false;
   });
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-dark-900 via-dark-800 to-dark-900 flex items-center justify-center">
+        <LoadingSpinner />
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-dark-900 via-dark-800 to-dark-900">
@@ -94,34 +88,17 @@ const LaminatesPage = () => {
           </div>
         </div>
 
-        {/* Demo Mode Notice */}
-        {IS_DEMO && (
-          <div className="bg-yellow-900/20 border border-yellow-700 rounded-lg p-6 mb-8">
-            <div className="flex items-start gap-3">
-              <div className="text-yellow-500 text-2xl">⚠️</div>
-              <div>
-                <h3 className="text-yellow-500 font-semibold mb-1">Demo Mode Active</h3>
-                <p className="text-dark-200">
-                  Laminate samples are not available in demo mode. Connect to the backend to browse laminate options.
-                </p>
-              </div>
-            </div>
-          </div>
-        )}
-
         {/* Laminates Grid */}
         {filteredLaminates.length === 0 ? (
           <div className="text-center py-16">
-            <div className="text-6xl mb-4">🏛️</div>
+            <Layers className="w-16 h-16 text-dark-400 mx-auto mb-4" />
             <h3 className="text-xl font-semibold text-dark-200 mb-2">
               {searchTerm || selectedBrand !== 'all' ? 'No laminates found' : 'No laminates available'}
             </h3>
             <p className="text-dark-400">
               {searchTerm || selectedBrand !== 'all' 
                 ? 'Try adjusting your search or filters' 
-                : IS_DEMO 
-                  ? 'Laminate options will appear when connected to the backend' 
-                  : 'Check back soon for laminate options'}
+                : 'Check back soon for laminate options'}
             </p>
           </div>
         ) : (
@@ -135,17 +112,25 @@ const LaminatesPage = () => {
                 className="bg-dark-800 rounded-lg border border-dark-700 overflow-hidden hover:border-primary-500 transition-all duration-300 hover:shadow-xl hover:shadow-primary-500/20"
               >
                 {/* Swatch Image */}
-                {laminate.swatch_image_url ? (
+                {laminate.swatchImageUrl ? (
                   <div className="aspect-square overflow-hidden bg-dark-900">
                     <img
-                      src={laminate.swatch_image_url}
-                      alt={laminate.pattern_name}
+                      src={laminate.swatchImageUrl}
+                      alt={laminate.patternName}
+                      className="w-full h-full object-cover"
+                    />
+                  </div>
+                ) : laminate.fullImageUrl ? (
+                  <div className="aspect-square overflow-hidden bg-dark-900">
+                    <img
+                      src={laminate.fullImageUrl}
+                      alt={laminate.patternName}
                       className="w-full h-full object-cover"
                     />
                   </div>
                 ) : (
                   <div className="aspect-square bg-gradient-to-br from-dark-700 to-dark-900 flex items-center justify-center">
-                    <span className="text-6xl">🏛️</span>
+                    <Layers className="w-16 h-16 text-dark-500" />
                   </div>
                 )}
 
@@ -158,18 +143,18 @@ const LaminatesPage = () => {
                   )}
                   
                   <h3 className="text-lg font-bold text-dark-50 mb-1">
-                    {laminate.pattern_name}
+                    {laminate.patternName}
                   </h3>
                   
-                  {laminate.pattern_code && (
+                  {laminate.patternCode && (
                     <div className="text-xs font-mono text-dark-400 mb-2">
-                      {laminate.pattern_code}
+                      {laminate.patternCode}
                     </div>
                   )}
 
-                  {laminate.color_family && (
+                  {laminate.colorFamily && (
                     <div className="text-xs text-dark-400 mb-2">
-                      {laminate.color_family}
+                      {laminate.colorFamily}
                     </div>
                   )}
 
@@ -180,9 +165,9 @@ const LaminatesPage = () => {
                   )}
 
                   {/* Specifications */}
-                  {(laminate.finish_type || laminate.thickness || laminate.grade) && (
+                  {(laminate.finishType || laminate.thickness || laminate.grade) && (
                     <div className="text-xs text-dark-400 mb-3 space-y-1">
-                      {laminate.finish_type && <div>Finish: {laminate.finish_type}</div>}
+                      {laminate.finishType && <div>Finish: {laminate.finishType}</div>}
                       {laminate.thickness && <div>Thickness: {laminate.thickness}</div>}
                       {laminate.grade && <div>Grade: {laminate.grade}</div>}
                     </div>
@@ -190,19 +175,19 @@ const LaminatesPage = () => {
 
                   {/* Badges */}
                   <div className="flex flex-wrap gap-2">
-                    {laminate.is_popular && (
+                    {laminate.isPopular && (
                       <span className="px-2 py-1 text-xs bg-primary-600 text-white rounded">
                         Popular
                       </span>
                     )}
-                    {laminate.is_in_stock && (
+                    {laminate.isInStock && (
                       <span className="px-2 py-1 text-xs bg-green-600 text-white rounded">
                         In Stock
                       </span>
                     )}
-                    {!laminate.is_in_stock && laminate.lead_time_days && (
+                    {!laminate.isInStock && laminate.leadTimeDays && (
                       <span className="px-2 py-1 text-xs bg-yellow-600 text-white rounded">
-                        {laminate.lead_time_days} days
+                        {laminate.leadTimeDays} days
                       </span>
                     )}
                   </div>
@@ -213,18 +198,18 @@ const LaminatesPage = () => {
         )}
 
         {/* Supplier Information */}
-        {!IS_DEMO && filteredLaminates.length > 0 && (
+        {filteredLaminates.length > 0 && (
           <div className="mt-12 bg-dark-800 rounded-lg border border-dark-700 p-6">
             <h2 className="text-xl font-bold text-dark-50 mb-4">Supplier Information</h2>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
               {brands.filter(b => b !== 'all').map(brand => {
                 const supplier = filteredLaminates.find(l => l.brand === brand);
-                return supplier && supplier.supplier_name ? (
+                return supplier && supplier.supplierName ? (
                   <div key={brand} className="border-l-4 border-primary-500 pl-4">
-                    <h3 className="font-semibold text-dark-100 mb-2">{supplier.supplier_name}</h3>
-                    {supplier.supplier_website && (
+                    <h3 className="font-semibold text-dark-100 mb-2">{supplier.supplierName}</h3>
+                    {supplier.supplierWebsite && (
                       <a 
-                        href={supplier.supplier_website}
+                        href={supplier.supplierWebsite}
                         target="_blank"
                         rel="noopener noreferrer"
                         className="text-sm text-primary-400 hover:text-primary-300"
@@ -247,7 +232,7 @@ const LaminatesPage = () => {
               to="/resources/woodfinishes"
               className="bg-dark-800 border border-dark-700 rounded-lg p-6 hover:border-primary-500 transition-colors group"
             >
-              <div className="text-3xl mb-3">🎨</div>
+              <Palette className="w-8 h-8 text-primary-400 mb-3" />
               <h3 className="text-lg font-semibold text-dark-50 mb-2 group-hover:text-primary-400">
                 Wood Finishes
               </h3>
@@ -260,7 +245,7 @@ const LaminatesPage = () => {
               to="/resources/upholstery"
               className="bg-dark-800 border border-dark-700 rounded-lg p-6 hover:border-primary-500 transition-colors group"
             >
-              <div className="text-3xl mb-3">🪡</div>
+              <Scissors className="w-8 h-8 text-primary-400 mb-3" />
               <h3 className="text-lg font-semibold text-dark-50 mb-2 group-hover:text-primary-400">
                 Upholstery Fabrics
               </h3>
@@ -273,7 +258,7 @@ const LaminatesPage = () => {
               to="/virtual-catalogs"
               className="bg-dark-800 border border-dark-700 rounded-lg p-6 hover:border-primary-500 transition-colors group"
             >
-              <div className="text-3xl mb-3">📚</div>
+              <Book className="w-8 h-8 text-primary-400 mb-3" />
               <h3 className="text-lg font-semibold text-dark-50 mb-2 group-hover:text-primary-400">
                 Virtual Catalogs
               </h3>

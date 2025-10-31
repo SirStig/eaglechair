@@ -235,5 +235,66 @@ export const usePageContent = (pageSlug, sectionKey = null) => {
   );
 };
 
+/**
+ * Hook for finishes
+ */
+export const useFinishes = () => {
+  return useContent(
+    contentService.getFinishes,
+    [],
+    'finishes',
+    30 * 60 * 1000
+  );
+};
+
+/**
+ * Hook for upholsteries
+ */
+export const useUpholsteries = () => {
+  return useContent(
+    contentService.getUpholsteries,
+    [],
+    'upholsteries',
+    30 * 60 * 1000
+  );
+};
+
+/**
+ * Hook for laminates
+ */
+export const useLaminates = () => {
+  return useContent(
+    contentService.getLaminates,
+    [],
+    'laminates',
+    30 * 60 * 1000
+  );
+};
+
+/**
+ * Hook for hardware
+ */
+export const useHardware = () => {
+  return useContent(
+    contentService.getHardware,
+    [],
+    'hardware',
+    30 * 60 * 1000
+  );
+};
+
+/**
+ * Hook for catalogs
+ */
+export const useCatalogs = (catalogType = null) => {
+  return useContent(
+    () => contentService.getCatalogs(catalogType),
+    [],
+    `catalogs${catalogType ? `-${catalogType}` : ''}`,
+    30 * 60 * 1000,
+    [catalogType]
+  );
+};
+
 export default useContent;
 

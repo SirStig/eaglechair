@@ -558,7 +558,7 @@ class AdminService:
                 "company_id": quote.company_id,
                 "company_name": quote.company.company_name if quote.company else None,
                 "status": quote.status.value if quote.status else None,
-                "total_price": quote.total_price,
+                "total_price": quote.total_amount,
                 "created_at": quote.created_at.isoformat() if quote.created_at else None
             })
         

@@ -420,9 +420,25 @@ class SavedConfigurationResponse(SavedConfigurationBase, TimestampSchema):
 # Convert Cart to Quote
 # ============================================================================
 
-class ConvertCartToQuoteRequest(QuoteBase):
-    """Schema for converting cart to quote"""
-    pass
+class ConvertCartToQuoteRequest(BaseModel):
+    """Schema for converting cart to quote - contact info comes from company profile"""
+    # Shipping info is required
+    shipping_address_line1: str = Field(..., max_length=255)
+    shipping_address_line2: Optional[str] = Field(None, max_length=255)
+    shipping_city: str = Field(..., max_length=100)
+    shipping_state: str = Field(..., max_length=50)
+    shipping_zip: str = Field(..., max_length=20)
+    shipping_country: str = Field("USA", max_length=100)
+    # Optional project info
+    project_name: Optional[str] = Field(None, max_length=255)
+    project_description: Optional[str] = None
+    project_type: Optional[str] = Field(None, max_length=100)
+    estimated_quantity: Optional[int] = None
+    target_budget: Optional[int] = None  # In cents
+    desired_delivery_date: Optional[str] = Field(None, max_length=50)
+    special_instructions: Optional[str] = None
+    requires_com: bool = False
+    rush_order: bool = False
 
 
 # ============================================================================

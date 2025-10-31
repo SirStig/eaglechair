@@ -481,7 +481,7 @@ class ContentService:
         if not include_inactive:
             query = query.where(ContactLocation.is_active == True)
         
-        query = query.order_by(ContactLocation.display_order, ContactLocation.name)
+        query = query.order_by(ContactLocation.display_order, ContactLocation.location_name)
         
         result = await db.execute(query)
         locations = result.scalars().all()
@@ -782,7 +782,7 @@ class ContentService:
         if not include_inactive:
             query = query.where(Installation.is_active == True)
         
-        query = query.order_by(Installation.display_order, Installation.title)
+        query = query.order_by(Installation.display_order, Installation.project_name)
         
         result = await db.execute(query)
         guides = result.scalars().all()

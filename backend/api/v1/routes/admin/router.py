@@ -14,6 +14,7 @@ from backend.api.v1.routes.admin import (
     dashboard,
     families,
     finishes,
+    pricing_tiers,
     products,
     quotes,
     subcategories,
@@ -36,5 +37,6 @@ router.include_router(colors.router, prefix="/colors", tags=["Admin - Colors"])
 router.include_router(dashboard.router, prefix="/dashboard", tags=["Admin - Dashboard"])
 router.include_router(catalog.router, prefix="/catalog", tags=["Admin - Catalog"])
 router.include_router(categories.router, prefix="/categories", tags=["Admin - Categories"])
+router.include_router(pricing_tiers.router, prefix="/pricing-tiers", tags=["Admin - Pricing Tiers"])
 router.include_router(upload.router, prefix="/upload", tags=["Admin - Upload"])
 router.include_router(virtual_catalog.router, prefix="/virtual-catalog", tags=["Admin - Virtual Catalog"])

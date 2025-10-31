@@ -5,16 +5,19 @@ Tests all quote service functionality
 """
 
 import pytest
-from datetime import datetime
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from backend.services.quote_service import QuoteService
-from backend.models.quote import Quote, QuoteStatus, Cart, CartItem
-from backend.models.chair import Chair, Category
-from backend.models.company import Company, CompanyStatus
-from backend.core.security import SecurityManager
-
-security_manager = SecurityManager()
+from backend.models.quote import QuoteStatus
+from tests.factories import (
+    create_company,
+    create_category,
+    create_chair,
+    create_quote,
+    create_quote_item,
+    create_cart,
+    create_cart_item,
+)
 
 
 @pytest.mark.unit
@@ -22,262 +25,213 @@ security_manager = SecurityManager()
 class TestQuoteService:
     """Test cases for QuoteService"""
     
-    async def test_create_quote_success(self, db_session: AsyncSession):
-        """Test successful quote creation."""
-        # Create test company
-        company = Company(
-            company_name="Test Company",
-            contact_name="John Doe",
-            contact_email="john@test.com",
-            contact_phone="+1234567890",
-            address_line1="123 Main St",
-            city="Test City",
-            state="TS",
-            zip_code="12345",
-            country="USA",
-            password_hash=security_manager.hash_password("TestPassword123!"),
-            status=CompanyStatus.ACTIVE
+    async def test_create_quote_request_success(self, db_session: AsyncSession):
+        """Test successful quote request creation."""
+        company = await create_company(db_session)
+        
+        # Create a cart with items first
+        category = await create_category(db_session)
+        product = await create_chair(db_session, category_id=category.id, minimum_order_quantity=1)
+        cart = await QuoteService.get_or_create_cart(db_session, company.id)
+        await QuoteService.add_to_cart(db_session, company.id, product.id, quantity=10)
+        
+        quote = await QuoteService.create_quote_request(
+            db_session,
+            company.id,
+            cart.id,
+            shipping_address_line1="123 Main St",
+            shipping_city="Test City",
+            shipping_state="TS",
+            shipping_zip="12345",
+            shipping_country="USA"
         )
-        db_session.add(company)
-        await db_session.commit()
-        await db_session.refresh(company)
-        
-        # Create test category and product
-        category = Category(
-            name="Test Category",
-            slug="test-category",
-            is_active=True
-        )
-        db_session.add(category)
-        await db_session.commit()
-        await db_session.refresh(category)
-        
-        product = Chair(
-            name="Test Chair",
-            model_number="TC-001",
-            category_id=category.id,
-            base_price=10000,
-            is_active=True
-        )
-        db_session.add(product)
-        await db_session.commit()
-        await db_session.refresh(product)
-        
-        # Create quote
-        service = QuoteService(db_session)
-        quote_data = {
-            "contact_name": "John Doe",
-            "contact_email": "john@test.com",
-            "contact_phone": "+1234567890",
-            "shipping_address_line1": "123 Main St",
-            "shipping_city": "Test City",
-            "shipping_state": "TS",
-            "shipping_zip": "12345",
-            "shipping_country": "USA"
-        }
-        
-        quote = await service.create_quote(company.id, quote_data)
         
         assert quote is not None
         assert quote.company_id == company.id
-        assert quote.status == QuoteStatus.DRAFT
+        assert quote.status == QuoteStatus.SUBMITTED  # create_quote_request sets status to SUBMITTED
         assert quote.quote_number is not None
     
     async def test_get_quote_by_id(self, db_session: AsyncSession):
         """Test retrieving quote by ID."""
-        # Create test company
-        company = Company(
-            company_name="Test Company",
-            contact_name="John Doe",
-            contact_email="john@test.com",
-            contact_phone="+1234567890",
-            address_line1="123 Main St",
-            city="Test City",
-            state="TS",
-            zip_code="12345",
-            country="USA",
-            password_hash=security_manager.hash_password("TestPassword123!"),
-            status=CompanyStatus.ACTIVE
-        )
-        db_session.add(company)
-        await db_session.commit()
-        await db_session.refresh(company)
+        company = await create_company(db_session)
+        quote = await create_quote(db_session, company_id=company.id)
         
-        # Create quote
-        quote = Quote(
-            quote_number="Q-001",
-            company_id=company.id,
-            contact_name="John Doe",
-            contact_email="john@test.com",
-            contact_phone="+1234567890",
-            shipping_address_line1="123 Main St",
-            shipping_city="Test City",
-            shipping_state="TS",
-            shipping_zip="12345",
-            shipping_country="USA",
-            status=QuoteStatus.DRAFT,
-            subtotal=0,
-            total_amount=0
-        )
-        db_session.add(quote)
-        await db_session.commit()
-        await db_session.refresh(quote)
-        
-        # Get quote
-        service = QuoteService(db_session)
-        retrieved_quote = await service.get_quote_by_id(quote.id)
+        retrieved_quote = await QuoteService.get_quote_by_id(db_session, quote.id, company.id)
         
         assert retrieved_quote is not None
         assert retrieved_quote.id == quote.id
-        assert retrieved_quote.quote_number == "Q-001"
+        assert retrieved_quote.quote_number == quote.quote_number
+    
+    async def test_get_quote_by_id_not_found(self, db_session: AsyncSession):
+        """Test retrieving non-existent quote."""
+        from backend.core.exceptions import ResourceNotFoundError
+        company = await create_company(db_session)
+        
+        with pytest.raises(ResourceNotFoundError):
+            await QuoteService.get_quote_by_id(db_session, 99999, company.id)
     
     async def test_update_quote_status(self, db_session: AsyncSession):
         """Test updating quote status."""
-        # Create test company
-        company = Company(
-            company_name="Test Company",
-            contact_name="John Doe",
-            contact_email="john@test.com",
-            contact_phone="+1234567890",
-            address_line1="123 Main St",
-            city="Test City",
-            state="TS",
-            zip_code="12345",
-            country="USA",
-            password_hash=security_manager.hash_password("TestPassword123!"),
-            status=CompanyStatus.ACTIVE
-        )
-        db_session.add(company)
-        await db_session.commit()
-        await db_session.refresh(company)
-        
-        # Create quote
-        quote = Quote(
-            quote_number="Q-001",
+        company = await create_company(db_session)
+        quote = await create_quote(
+            db_session,
             company_id=company.id,
-            contact_name="John Doe",
-            contact_email="john@test.com",
-            contact_phone="+1234567890",
-            shipping_address_line1="123 Main St",
-            shipping_city="Test City",
-            shipping_state="TS",
-            shipping_zip="12345",
-            shipping_country="USA",
-            status=QuoteStatus.DRAFT,
-            subtotal=0,
-            total_amount=0
+            status=QuoteStatus.DRAFT
         )
-        db_session.add(quote)
-        await db_session.commit()
-        await db_session.refresh(quote)
         
-        # Update status
-        service = QuoteService(db_session)
-        updated_quote = await service.update_quote_status(
+        updated_quote = await QuoteService.update_quote_status(
+            db_session,
             quote.id,
-            QuoteStatus.PENDING,
-            admin_notes="Moving to pending"
+            QuoteStatus.UNDER_REVIEW,
+            admin_id=None,
+            notes="Moving to pending"
         )
         
         assert updated_quote is not None
-        assert updated_quote.status == QuoteStatus.PENDING
+        assert updated_quote.status == QuoteStatus.UNDER_REVIEW
         assert updated_quote.admin_notes == "Moving to pending"
     
     async def test_get_company_quotes(self, db_session: AsyncSession):
         """Test retrieving all quotes for a company."""
-        # Create test company
-        company = Company(
-            company_name="Test Company",
-            contact_name="John Doe",
-            contact_email="john@test.com",
-            contact_phone="+1234567890",
-            address_line1="123 Main St",
-            city="Test City",
-            state="TS",
-            zip_code="12345",
-            country="USA",
-            password_hash=security_manager.hash_password("TestPassword123!"),
-            status=CompanyStatus.ACTIVE
-        )
-        db_session.add(company)
-        await db_session.commit()
-        await db_session.refresh(company)
+        company = await create_company(db_session)
         
-        # Create quotes
+        # Create quotes using factories
         for i in range(3):
-            quote = Quote(
-                quote_number=f"Q-00{i+1}",
+            await create_quote(
+                db_session,
                 company_id=company.id,
-                contact_name="John Doe",
-                contact_email="john@test.com",
-                contact_phone="+1234567890",
-                shipping_address_line1="123 Main St",
-                shipping_city="Test City",
-                shipping_state="TS",
-                shipping_zip="12345",
-                shipping_country="USA",
-                status=QuoteStatus.DRAFT,
-                subtotal=0,
-                total_amount=0
+                status=QuoteStatus.DRAFT
             )
-            db_session.add(quote)
         
-        await db_session.commit()
-        
-        # Get company quotes
-        service = QuoteService(db_session)
-        quotes = await service.get_company_quotes(company.id)
+        quotes = await QuoteService.get_company_quotes(db_session, company.id)
         
         assert len(quotes) == 3
+        assert all(q.company_id == company.id for q in quotes)
     
-    async def test_calculate_quote_totals(self, db_session: AsyncSession):
-        """Test quote total calculation."""
-        # Create test company
-        company = Company(
-            company_name="Test Company",
-            contact_name="John Doe",
-            contact_email="john@test.com",
-            contact_phone="+1234567890",
-            address_line1="123 Main St",
-            city="Test City",
-            state="TS",
-            zip_code="12345",
-            country="USA",
-            password_hash=security_manager.hash_password("TestPassword123!"),
-            status=CompanyStatus.ACTIVE
-        )
-        db_session.add(company)
-        await db_session.commit()
-        await db_session.refresh(company)
-        
-        # Create quote with items
-        quote = Quote(
-            quote_number="Q-001",
+    async def test_update_quote_pricing(self, db_session: AsyncSession):
+        """Test updating quote pricing."""
+        company = await create_company(db_session)
+        quote = await create_quote(
+            db_session,
             company_id=company.id,
-            contact_name="John Doe",
-            contact_email="john@test.com",
-            contact_phone="+1234567890",
-            shipping_address_line1="123 Main St",
-            shipping_city="Test City",
-            shipping_state="TS",
-            shipping_zip="12345",
-            shipping_country="USA",
-            status=QuoteStatus.DRAFT,
-            subtotal=10000,  # $100
-            tax_amount=1000,  # $10
-            shipping_cost=500,  # $5
-            total_amount=11500  # $115
+            subtotal=10000,
+            tax_amount=1000,
+            shipping_cost=500,
+            total_amount=11500
         )
-        db_session.add(quote)
-        await db_session.commit()
-        await db_session.refresh(quote)
         
-        service = QuoteService(db_session)
-        totals = await service.calculate_quote_totals(quote.id)
+        updated_quote = await QuoteService.update_quote_pricing(
+            db_session,
+            quote.id,
+            quoted_price=23000,
+            notes="Updated pricing"
+        )
         
-        assert totals is not None
-        assert totals["subtotal"] == 10000
-        assert totals["tax_amount"] == 1000
-        assert totals["shipping_cost"] == 500
-        assert totals["total_amount"] == 11500
-
+        assert updated_quote is not None
+        assert updated_quote.quoted_price == 23000
+    
+    async def test_get_or_create_cart(self, db_session: AsyncSession):
+        """Test getting or creating a cart."""
+        company = await create_company(db_session)
+        
+        cart = await QuoteService.get_or_create_cart(db_session, company.id)
+        
+        assert cart is not None
+        assert cart.company_id == company.id
+        
+        # Get existing cart
+        cart2 = await QuoteService.get_or_create_cart(db_session, company.id)
+        assert cart2.id == cart.id
+    
+    async def test_add_to_cart(self, db_session: AsyncSession):
+        """Test adding item to cart."""
+        company = await create_company(db_session)
+        category = await create_category(db_session)
+        product = await create_chair(db_session, category_id=category.id, minimum_order_quantity=1)
+        
+        cart = await QuoteService.get_or_create_cart(db_session, company.id)
+        
+        cart_item = await QuoteService.add_to_cart(
+            db_session, 
+            company.id,
+            product.id,
+            quantity=5,
+            custom_notes="Test item"
+        )
+        
+        assert cart_item is not None
+        assert cart_item.product_id == product.id
+        assert cart_item.quantity == 5
+        # unit_price may include pricing tier adjustments, so just check it's positive
+        assert cart_item.unit_price > 0
+    
+    async def test_update_cart_item(self, db_session: AsyncSession):
+        """Test updating cart item."""
+        company = await create_company(db_session)
+        category = await create_category(db_session)
+        product = await create_chair(db_session, category_id=category.id, minimum_order_quantity=1)
+        
+        cart = await QuoteService.get_or_create_cart(db_session, company.id)
+        
+        cart_item = await QuoteService.add_to_cart(
+            db_session,
+            company.id,
+            product.id,
+            quantity=5
+        )
+        
+        updated_item = await QuoteService.update_cart_item(
+            db_session, 
+            cart_item.id,
+            company.id,
+            quantity=10
+        )
+        
+        assert updated_item is not None
+        assert updated_item.quantity == 10
+        # unit_price may include pricing tier adjustments, so just check it's positive
+        assert updated_item.unit_price > 0
+    
+    async def test_remove_from_cart(self, db_session: AsyncSession):
+        """Test removing item from cart."""
+        company = await create_company(db_session)
+        category = await create_category(db_session)
+        product = await create_chair(db_session, category_id=category.id, minimum_order_quantity=1)
+        
+        cart = await QuoteService.get_or_create_cart(db_session, company.id)
+        
+        cart_item = await QuoteService.add_to_cart(
+            db_session,
+            company.id,
+            product.id,
+            quantity=5
+        )
+        
+        await QuoteService.remove_from_cart(db_session, cart_item.id, company.id)
+        
+        # Verify item is removed
+        cart_with_items = await QuoteService.get_cart_with_items(db_session, cart.id, company.id)
+        item_ids = [item.id for item in cart_with_items.items]
+        assert cart_item.id not in item_ids
+    
+    async def test_clear_cart(self, db_session: AsyncSession):
+        """Test clearing cart."""
+        company = await create_company(db_session)
+        category = await create_category(db_session)
+        product = await create_chair(db_session, category_id=category.id, minimum_order_quantity=1)
+        
+        cart = await QuoteService.get_or_create_cart(db_session, company.id)
+        
+        await QuoteService.add_to_cart(
+            db_session,
+            company.id,
+            product.id,
+            quantity=5
+        )
+        
+        await QuoteService.clear_cart(db_session, cart.id, company.id)
+        
+        # Refresh the cart to get updated items
+        await db_session.refresh(cart)
+        cart_with_items = await QuoteService.get_cart_with_items(db_session, cart.id, company.id)
+        assert len(cart_with_items.items) == 0

@@ -10,6 +10,7 @@ from typing import List, Optional
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from backend.api.dependencies import get_optional_company
 from backend.api.v1.schemas.common import MessageResponse
 from backend.api.v1.schemas.product import (
     CategoryResponse,
@@ -22,6 +23,7 @@ from backend.api.v1.schemas.product import (
     UpholsteryResponse,
 )
 from backend.database.base import get_db
+from backend.models.company import Company
 from backend.services.pricing_service import PricingService
 from backend.services.product_service import ProductService
 from backend.utils.pagination import PaginatedResponse, PaginationParams
@@ -29,6 +31,56 @@ from backend.utils.pagination import PaginatedResponse, PaginationParams
 logger = logging.getLogger(__name__)
 
 router = APIRouter(tags=["Products"])
+
+
+async def _apply_pricing_tiers_to_products(
+    db: AsyncSession,
+    company: Company,
+    products: List
+) -> None:
+    """
+    Apply company pricing tiers to a list of products.
+    Modifies products in-place by adding adjusted_price, pricing_tier_name, and pricing_tier_adjustment.
+    
+    Note: This modifies SQLAlchemy model instances, which Pydantic will include when using from_attributes=True.
+    """
+    if not company or not products:
+        return
+    
+    # Load company's pricing tier once
+    pricing_tier_name = None
+    tier_id = getattr(company, 'pricing_tier_id', None)
+    if tier_id:
+        from sqlalchemy import select
+
+        from backend.models.company import CompanyPricing
+        tier_result = await db.execute(
+            select(CompanyPricing).where(CompanyPricing.id == tier_id)
+        )
+        tier = tier_result.scalar_one_or_none()
+        if tier:
+            pricing_tier_name = getattr(tier, 'pricing_tier_name', None)
+    
+    # Apply pricing to each product
+    company_id = getattr(company, 'id', None)
+    if not company_id:
+        return
+        
+    for product in products:
+        base_price = getattr(product, 'base_price', None)
+        category_id = getattr(product, 'category_id', None)
+        
+        if base_price and category_id:
+            tier_adjustment, tier_percentage = await PricingService._get_company_tier_adjustment(
+                db, company_id, category_id, base_price
+            )
+            if tier_adjustment != 0:
+                # Set attributes on the SQLAlchemy model instance
+                # Pydantic will pick these up via from_attributes=True
+                product.adjusted_price = base_price + tier_adjustment
+                product.pricing_tier_adjustment = tier_percentage
+                if pricing_tier_name:
+                    product.pricing_tier_name = pricing_tier_name
 
 
 # ============================================================================
@@ -144,6 +196,7 @@ async def get_products(
     in_stock_only: bool = Query(False, description="Show only in-stock products"),
     exclude_variations: bool = Query(False, description="Exclude variations, show only base products"),
     smart_sort: bool = Query(False, description="Use smart sorting (featured→new→popular)"),
+    company: Optional[Company] = Depends(get_optional_company),
     db: AsyncSession = Depends(get_db)
 ):
     """
@@ -205,6 +258,12 @@ async def get_products(
         include_inactive=False
     )
     
+    # Apply pricing tiers if company is authenticated
+    if company and result and 'items' in result:
+        items_list = result['items'] if isinstance(result, dict) else getattr(result, 'items', [])
+        if items_list:
+            await _apply_pricing_tiers_to_products(db, company, items_list)
+    
     return result
 
 
@@ -218,6 +277,7 @@ async def search_products(
     q: str = Query(..., min_length=2, description="Search query"),
     limit: int = Query(10, ge=1, le=50, description="Maximum results"),
     threshold: int = Query(75, ge=0, le=100, description="Fuzzy match threshold (0-100)"),
+    company: Optional[Company] = Depends(get_optional_company),
     db: AsyncSession = Depends(get_db)
 ):
     """
@@ -253,6 +313,7 @@ async def search_products(
 )
 async def get_product(
     product_id: int,
+    company: Optional[Company] = Depends(get_optional_company),
     db: AsyncSession = Depends(get_db)
 ):
     """
@@ -270,6 +331,10 @@ async def get_product(
         increment_view=True  # Track popularity
     )
     
+    # Apply pricing tier if company is authenticated
+    if company:
+        await _apply_pricing_tiers_to_products(db, company, [product])
+    
     return product
 
 
@@ -281,6 +346,7 @@ async def get_product(
 )
 async def get_product_by_slug(
     slug: str,
+    company: Optional[Company] = Depends(get_optional_company),
     db: AsyncSession = Depends(get_db)
 ):
     """
@@ -297,6 +363,10 @@ async def get_product_by_slug(
         slug=slug,
         increment_view=True  # Track popularity
     )
+    
+    # Apply pricing tier if company is authenticated
+    if company:
+        await _apply_pricing_tiers_to_products(db, company, [product])
     
     return product
 
@@ -754,6 +824,7 @@ async def get_product_images(
 async def get_related_products(
     product_id: int,
     limit: int = Query(6, ge=1, le=20, description="Max number of related products"),
+    company: Optional[Company] = Depends(get_optional_company),
     db: AsyncSession = Depends(get_db)
 ):
     """
@@ -770,6 +841,10 @@ async def get_related_products(
         product_id=product_id,
         limit=limit
     )
+    
+    # Apply pricing tiers if company is authenticated
+    if company and related:
+        await _apply_pricing_tiers_to_products(db, company, related)
     
     return related
 

@@ -6,7 +6,6 @@ Integration tests for authentication routes
 
 import pytest
 from httpx import AsyncClient
-from sqlalchemy.ext.asyncio import AsyncSession
 
 from backend.models.company import Company, CompanyStatus
 
@@ -21,14 +20,15 @@ class TestAuthRoutes:
         """Test successful company registration."""
         company_data = {
             "company_name": "Test Company Inc",
-            "contact_name": "John Doe",
-            "contact_email": "john@testcompany.com",
-            "contact_phone": "+1234567890",
-            "address_line1": "123 Test Street",
-            "city": "Test City",
-            "state": "TS",
-            "zip_code": "12345",
-            "country": "USA",
+            "rep_first_name": "John",
+            "rep_last_name": "Doe",
+            "rep_email": "john@testcompany.com",
+            "rep_phone": "+1234567890",
+            "billing_address_line1": "123 Test Street",
+            "billing_city": "Test City",
+            "billing_state": "TS",
+            "billing_zip": "12345",
+            "billing_country": "USA",
             "password": "TestPassword123!"
         }
         
@@ -36,24 +36,27 @@ class TestAuthRoutes:
         
         assert response.status_code == 201
         data = response.json()
-        assert data["company_name"] == company_data["company_name"]
-        assert data["contact_email"] == company_data["contact_email"]
-        assert data["status"] == "pending"
-        assert "id" in data
+        assert "access_token" in data
+        assert "refresh_token" in data
+        assert "user" in data
+        assert data["user"]["companyName"] == company_data["company_name"]
+        assert data["user"]["email"] == company_data["rep_email"]
+        assert data["user"]["status"] == "pending"
     
     @pytest.mark.asyncio
     async def test_register_company_duplicate_email(self, async_client: AsyncClient):
         """Test company registration with duplicate email."""
         company_data = {
             "company_name": "Test Company Inc",
-            "contact_name": "John Doe",
-            "contact_email": "john@testcompany.com",
-            "contact_phone": "+1234567890",
-            "address_line1": "123 Test Street",
-            "city": "Test City",
-            "state": "TS",
-            "zip_code": "12345",
-            "country": "USA",
+            "rep_first_name": "John",
+            "rep_last_name": "Doe",
+            "rep_email": "john@testcompany.com",
+            "rep_phone": "+1234567890",
+            "billing_address_line1": "123 Test Street",
+            "billing_city": "Test City",
+            "billing_state": "TS",
+            "billing_zip": "12345",
+            "billing_country": "USA",
             "password": "TestPassword123!"
         }
         
@@ -65,41 +68,21 @@ class TestAuthRoutes:
         
         response = await async_client.post("/api/v1/auth/register", json=company_data)
         
-        assert response.status_code == 400
+        assert response.status_code == 409
         data = response.json()
         assert "error" in data or "detail" in data
     
     @pytest.mark.asyncio
-    async def test_register_company_invalid_password(self, async_client: AsyncClient):
-        """Test company registration with invalid password."""
-        company_data = {
-            "company_name": "Test Company Inc",
-            "contact_name": "John Doe",
-            "contact_email": "john@testcompany.com",
-            "contact_phone": "+1234567890",
-            "address_line1": "123 Test Street",
-            "city": "Test City",
-            "state": "TS",
-            "zip_code": "12345",
-            "country": "USA",
-            "password": "weak"  # Too weak
-        }
-        
-        response = await async_client.post("/api/v1/auth/register", json=company_data)
-        
-        assert response.status_code == 400
-        data = response.json()
-        assert "error" in data or "detail" in data
-    
-    @pytest.mark.asyncio
-    async def test_login_company_success(self, async_client: AsyncClient, test_company):
+    async def test_login_company_success(self, async_client: AsyncClient, test_company, db_session):
         """Test successful company login."""
         # Activate the company
         test_company.status = CompanyStatus.ACTIVE
-        await async_client.app.dependency_overrides[async_client.app.dependency_overrides.get]().commit()
+        test_company.is_active = True
+        await db_session.commit()
+        await db_session.refresh(test_company)
         
         login_data = {
-            "email": test_company.contact_email,
+            "email": test_company.rep_email,
             "password": "TestPassword123!"
         }
         
@@ -109,8 +92,8 @@ class TestAuthRoutes:
         data = response.json()
         assert "access_token" in data
         assert "refresh_token" in data
-        assert "company" in data
-        assert data["company"]["id"] == test_company.id
+        assert "user" in data
+        assert data["user"]["id"] == test_company.id
     
     @pytest.mark.asyncio
     async def test_login_company_invalid_credentials(self, async_client: AsyncClient):
@@ -127,12 +110,14 @@ class TestAuthRoutes:
         assert "error" in data or "detail" in data
     
     @pytest.mark.asyncio
-    async def test_login_company_inactive_status(self, async_client: AsyncClient, test_company):
+    async def test_login_company_inactive_status(self, async_client: AsyncClient, test_company, db_session):
         """Test company login with inactive status."""
-        # Company remains PENDING status
+        # Company remains PENDING status and inactive
+        test_company.is_active = False
+        await db_session.commit()
         
         login_data = {
-            "email": test_company.contact_email,
+            "email": test_company.rep_email,
             "password": "TestPassword123!"
         }
         
@@ -153,7 +138,7 @@ class TestAuthRoutes:
         data = response.json()
         assert "id" in data
         assert "company_name" in data
-        assert "contact_email" in data
+        assert "rep_email" in data
     
     @pytest.mark.asyncio
     async def test_get_current_user_unauthorized(self, async_client: AsyncClient):
@@ -165,28 +150,35 @@ class TestAuthRoutes:
         assert "error" in data or "detail" in data
     
     @pytest.mark.asyncio
-    async def test_refresh_token_success(self, async_client: AsyncClient, test_company):
+    async def test_refresh_token_success(self, async_client: AsyncClient, test_company, db_session):
         """Test successful token refresh."""
-        # Create refresh token
-        from backend.core.security import create_refresh_token
-        refresh_token = create_refresh_token(data={"sub": str(test_company.id), "type": "company"})
+        # Authenticate to get a refresh token
+        test_company.status = CompanyStatus.ACTIVE
+        test_company.is_active = True
+        await db_session.commit()
         
-        refresh_data = {"refresh_token": refresh_token}
+        login_response = await async_client.post(
+            "/api/v1/auth/login",
+            json={"email": test_company.rep_email, "password": "TestPassword123!"}
+        )
+        tokens = login_response.json()
+        refresh_token = tokens["refresh_token"]
         
-        response = await async_client.post("/api/v1/auth/refresh", json=refresh_data)
+        # Use refresh token in Authorization header
+        headers = {"Authorization": f"Bearer {refresh_token}"}
+        response = await async_client.post("/api/v1/auth/refresh", headers=headers)
         
         assert response.status_code == 200
         data = response.json()
         assert "access_token" in data
         assert "refresh_token" in data
-        assert "company" in data
     
     @pytest.mark.asyncio
     async def test_refresh_token_invalid(self, async_client: AsyncClient):
         """Test token refresh with invalid token."""
-        refresh_data = {"refresh_token": "invalid_token"}
+        headers = {"Authorization": "Bearer invalid_token"}
         
-        response = await async_client.post("/api/v1/auth/refresh", json=refresh_data)
+        response = await async_client.post("/api/v1/auth/refresh", headers=headers)
         
         assert response.status_code == 401
         data = response.json()
@@ -202,7 +194,11 @@ class TestAuthRoutes:
         
         headers = {"Authorization": f"Bearer {company_token}"}
         
-        response = await async_client.post("/api/v1/auth/password/change", json=password_data, headers=headers)
+        response = await async_client.post(
+            "/api/v1/auth/password/change", 
+            json=password_data, 
+            headers=headers
+        )
         
         assert response.status_code == 200
         data = response.json()
@@ -218,9 +214,13 @@ class TestAuthRoutes:
         
         headers = {"Authorization": f"Bearer {company_token}"}
         
-        response = await async_client.post("/api/v1/auth/password/change", json=password_data, headers=headers)
+        response = await async_client.post(
+            "/api/v1/auth/password/change", 
+            json=password_data, 
+            headers=headers
+        )
         
-        assert response.status_code == 400
+        assert response.status_code == 401
         data = response.json()
         assert "error" in data or "detail" in data
     

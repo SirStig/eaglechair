@@ -54,13 +54,18 @@ class StaticContentExporter:
             self.data_dir = self.frontend_path / "data"
             self.content_file = self.data_dir / "contentData.js"
         
+        # Also write to public/data for runtime access via /data/contentData.js
+        self.public_data_dir = self.frontend_path / "public" / "data"
+        self.public_content_file = self.public_data_dir / "contentData.js"
+        
         # Also track dist directory for production builds
         self.dist_dir = self.frontend_path / "dist"
         self.dist_data_dir = self.dist_dir / "data"
         self.dist_content_file = self.dist_data_dir / "contentData.js"
         
-        # Ensure data directory exists
+        # Ensure data directories exist
         self.data_dir.mkdir(parents=True, exist_ok=True)
+        self.public_data_dir.mkdir(parents=True, exist_ok=True)
         
         logger.info(f"StaticContentExporter initialized: {self.content_file}")
     
@@ -221,11 +226,9 @@ class StaticContentExporter:
             # Write to src/data (for development)
             self._write_content_file(self.content_file, js_content)
             
-            # Write to dist/data (for production builds) if dist exists
-            if self.dist_dir.exists():
-                self.dist_data_dir.mkdir(parents=True, exist_ok=True)
-                self._write_content_file(self.dist_content_file, js_content)
-                logger.info(f"Also exported to production dist: {self.dist_content_file}")
+            # Write to public/data (for runtime access via /data/contentData.js)
+            self._write_content_file(self.public_content_file, js_content)
+            logger.info(f"Also exported to public/data: {self.public_content_file}")
             
             # Update cache for easier reading
             self._update_cache(content_data)
@@ -722,6 +725,7 @@ async def export_content_after_update(content_type: str, db: "AsyncSession") -> 
         True if export successful
     """
     from sqlalchemy import select
+    from sqlalchemy.orm import selectinload
 
     from backend.models.chair import Finish, Upholstery
     from backend.models.content import (
@@ -1058,18 +1062,31 @@ async def export_content_after_update(content_type: str, db: "AsyncSession") -> 
                         'id': c.id,
                         'title': c.title,
                         'description': c.description,
+                        'catalogType': c.catalog_type.value if c.catalog_type else None,
+                        'category': None,  # Catalog model has category_id but no relationship defined
                         'fileUrl': c.file_url,
-                        'coverImageUrl': c.cover_image_url
+                        'fileType': c.file_type,
+                        'fileSize': c.file_size,
+                        'coverImageUrl': c.thumbnail_url,
+                        'version': c.version,
+                        'year': c.year,
+                        'pageCount': None,  # Could be added to model if needed
+                        'lastUpdated': None,  # Catalog model doesn't have updated_at field
+                        'isActive': c.is_active,
+                        'isFeatured': c.is_featured,
+                        'downloadCount': c.download_count
                     }
                     for c in catalogs
                 ]
                 return exporter.export_catalogs(data)
                 
             elif content_type == 'finishes':
+                # Eagerly load the color relationship to avoid lazy loading issues
                 result = await db.execute(
                     select(Finish)
+                    .options(selectinload(Finish.color))
                     .where(Finish.is_active == True)
-                    .order_by(Finish.name)
+                    .order_by(Finish.display_order, Finish.name)
                 )
                 finishes = result.scalars().all()
                 data = [
@@ -1080,9 +1097,13 @@ async def export_content_after_update(content_type: str, db: "AsyncSession") -> 
                         'description': f.description,
                         'finishType': f.finish_type,
                         'colorHex': f.color_hex,
+                        'colorFamily': f.color.name if f.color_id and f.color else None,
                         'imageUrl': f.image_url,
-                        'isCustom': f.is_custom,
-                        'isToMatch': f.is_to_match,
+                        'swatchImageUrl': f.image_url,  # Use image_url as swatch if no separate swatch field
+                        'isCustom': f.is_custom if hasattr(f, 'is_custom') else False,
+                        'isToMatch': f.is_to_match if hasattr(f, 'is_to_match') else False,
+                        'isActive': f.is_active,
+                        'isPopular': f.is_popular if hasattr(f, 'is_popular') else False,
                         'additionalCost': f.additional_cost
                     }
                     for f in finishes
@@ -1093,7 +1114,7 @@ async def export_content_after_update(content_type: str, db: "AsyncSession") -> 
                 result = await db.execute(
                     select(Upholstery)
                     .where(Upholstery.is_active == True)
-                    .order_by(Upholstery.name)
+                    .order_by(Upholstery.display_order, Upholstery.name)
                 )
                 upholsteries = result.scalars().all()
                 data = [
@@ -1101,12 +1122,19 @@ async def export_content_after_update(content_type: str, db: "AsyncSession") -> 
                         'id': u.id,
                         'name': u.name,
                         'materialType': u.material_type,
+                        'fabricType': u.material_type,  # Alias for frontend
+                        'fabricCode': u.material_code,
                         'description': u.description,
                         'imageUrl': u.image_url,
                         'swatchImageUrl': u.swatch_image_url,
                         'grade': u.grade,
                         'color': u.color,
-                        'colorHex': u.color_hex
+                        'colorHex': u.color_hex,
+                        'isActive': u.is_active,
+                        'isPopular': u.is_popular if hasattr(u, 'is_popular') else False,
+                        'manufacturer': u.manufacturer if hasattr(u, 'manufacturer') else None,
+                        'content': u.content if hasattr(u, 'content') else None,
+                        'durabilityRating': u.durability_rating if hasattr(u, 'durability_rating') else None
                     }
                     for u in upholsteries
                 ]
@@ -1116,7 +1144,7 @@ async def export_content_after_update(content_type: str, db: "AsyncSession") -> 
                 result = await db.execute(
                     select(Hardware)
                     .where(Hardware.is_active == True)
-                    .order_by(Hardware.name)
+                    .order_by(Hardware.display_order, Hardware.name)
                 )
                 hardware_items = result.scalars().all()
                 data = [
@@ -1125,7 +1153,16 @@ async def export_content_after_update(content_type: str, db: "AsyncSession") -> 
                         'name': h.name,
                         'description': h.description,
                         'imageUrl': h.image_url,
-                        'category': h.category
+                        'category': h.category,
+                        'modelNumber': h.model_number,
+                        'sku': h.sku,
+                        'material': h.material,
+                        'finish': h.finish,
+                        'dimensions': h.dimensions,
+                        'weightCapacity': h.weight_capacity,
+                        'installationNotes': h.installation_notes,
+                        'isActive': h.is_active,
+                        'isFeatured': h.is_featured if hasattr(h, 'is_featured') else False
                     }
                     for h in hardware_items
                 ]
@@ -1135,19 +1172,29 @@ async def export_content_after_update(content_type: str, db: "AsyncSession") -> 
                 result = await db.execute(
                     select(Laminate)
                     .where(Laminate.is_active == True)
-                    .order_by(Laminate.brand, Laminate.pattern_name)
+                    .order_by(Laminate.display_order, Laminate.brand, Laminate.pattern_name)
                 )
                 laminates = result.scalars().all()
                 data = [
                     {
                         'id': lam.id,
                         'patternName': lam.pattern_name,
+                        'patternCode': lam.pattern_code,
                         'brand': lam.brand,
                         'description': lam.description,
                         'swatchImageUrl': lam.swatch_image_url,
                         'fullImageUrl': lam.full_image_url,
                         'colorFamily': lam.color_family,
-                        'finishType': lam.finish_type
+                        'finishType': lam.finish_type,
+                        'thickness': lam.thickness,
+                        'grade': lam.grade,
+                        'supplierName': lam.supplier_name,
+                        'supplierWebsite': lam.supplier_website,
+                        'isInStock': lam.is_in_stock,
+                        'leadTimeDays': lam.lead_time_days,
+                        'isActive': lam.is_active,
+                        'isPopular': lam.is_popular,
+                        'isFeatured': lam.is_featured
                     }
                     for lam in laminates
                 ]

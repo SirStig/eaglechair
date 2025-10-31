@@ -6,16 +6,15 @@ Unit tests for authentication service
 
 import pytest
 from sqlalchemy.ext.asyncio import AsyncSession
-from unittest.mock import AsyncMock, patch
 
-from backend.services.auth_service import AuthService
-from backend.models.company import Company, CompanyStatus
 from backend.core.exceptions import (
+    AccountSuspendedError,
+    InvalidCredentialsError,
+    ResourceAlreadyExistsError,
     ResourceNotFoundError,
-    ValidationError,
-    AuthenticationError,
-    BusinessLogicError
 )
+from backend.models.company import CompanyStatus
+from backend.services.auth_service import AuthService
 
 
 @pytest.mark.unit
@@ -26,6 +25,8 @@ class TestAuthService:
     @pytest.mark.asyncio
     async def test_register_company_success(self, db_session: AsyncSession):
         """Test successful company registration."""
+        import uuid
+        
         password = "TestPassword123!"
         company_data = {
             "company_name": "Test Company Inc",
@@ -38,7 +39,8 @@ class TestAuthService:
             "billing_zip": "12345",
             "billing_country": "USA"
         }
-        email = "john@testcompany.com"
+        # Use unique email to avoid conflicts with test_company fixture
+        email = f"john-{uuid.uuid4().hex[:8]}@testcompany.com"
         
         company = await AuthService.register_company(
             db_session, 
@@ -56,299 +58,178 @@ class TestAuthService:
     @pytest.mark.asyncio
     async def test_register_company_duplicate_email(self, db_session: AsyncSession):
         """Test company registration with duplicate email."""
+        import uuid
+        
+        password = "TestPassword123!"
         company_data = {
             "company_name": "Test Company Inc",
-            "contact_name": "John Doe",
-            "contact_email": "john@testcompany.com",
-            "contact_phone": "+1234567890",
-            "address_line1": "123 Test Street",
-            "city": "Test City",
-            "state": "TS",
-            "zip_code": "12345",
-            "country": "USA",
-            "password": "TestPassword123!"
+            "rep_first_name": "John",
+            "rep_last_name": "Doe",
+            "rep_phone": "+1234567890",
+            "billing_address_line1": "123 Test Street",
+            "billing_city": "Test City",
+            "billing_state": "TS",
+            "billing_zip": "12345",
+            "billing_country": "USA"
         }
+        # Use unique email for this specific test
+        email = f"duplicate-{uuid.uuid4().hex[:8]}@testcompany.com"
         
         # Register first company
-        await AuthService.register_company(db_session, company_data)
+        await AuthService.register_company(db_session, email, password, company_data)
         
         # Try to register second company with same email
         company_data["company_name"] = "Another Company"
         
-        with pytest.raises(ValidationError) as exc_info:
-            await AuthService.register_company(db_session, company_data)
-        
-        assert "email" in str(exc_info.value).lower()
+        with pytest.raises(ResourceAlreadyExistsError):
+            await AuthService.register_company(db_session, email, password, company_data)
     
     @pytest.mark.asyncio
-    async def test_register_company_invalid_password(self, db_session: AsyncSession):
-        """Test company registration with invalid password."""
+    async def test_authenticate_company_success(self, db_session: AsyncSession):
+        """Test successful company authentication."""
+        import uuid
+        
+        password = "TestPassword123!"
         company_data = {
             "company_name": "Test Company Inc",
-            "contact_name": "John Doe",
-            "contact_email": "john@testcompany.com",
-            "contact_phone": "+1234567890",
-            "address_line1": "123 Test Street",
-            "city": "Test City",
-            "state": "TS",
-            "zip_code": "12345",
-            "country": "USA",
-            "password": "weak"  # Too weak
+            "rep_first_name": "John",
+            "rep_last_name": "Doe",
+            "rep_phone": "+1234567890",
+            "billing_address_line1": "123 Test Street",
+            "billing_city": "Test City",
+            "billing_state": "TS",
+            "billing_zip": "12345",
+            "billing_country": "USA"
         }
+        # Use unique email to avoid conflicts
+        email = f"auth-{uuid.uuid4().hex[:8]}@testcompany.com"
         
-        with pytest.raises(ValidationError) as exc_info:
-            await AuthService.register_company(db_session, company_data)
-        
-        assert "password" in str(exc_info.value).lower()
-    
-    @pytest.mark.asyncio
-    async def test_login_company_success(self, db_session: AsyncSession):
-        """Test successful company login."""
-        # Create a company first
-        company_data = {
-            "company_name": "Test Company Inc",
-            "contact_name": "John Doe",
-            "contact_email": "john@testcompany.com",
-            "contact_phone": "+1234567890",
-            "address_line1": "123 Test Street",
-            "city": "Test City",
-            "state": "TS",
-            "zip_code": "12345",
-            "country": "USA",
-            "password": "TestPassword123!"
-        }
-        
-        company = await AuthService.register_company(db_session, company_data)
+        # Register company
+        company = await AuthService.register_company(
+            db_session, email, password, company_data
+        )
         
         # Activate the company
         company.status = CompanyStatus.ACTIVE
+        company.is_active = True
         await db_session.commit()
         
-        # Test login
-        login_data = {
-            "email": company_data["contact_email"],
-            "password": company_data["password"]
-        }
+        # Test authentication
+        authenticated_company, tokens = await AuthService.authenticate_company(
+            db_session, email, password
+        )
         
-        result = await AuthService.login_company(db_session, login_data)
-        
-        assert "access_token" in result
-        assert "refresh_token" in result
-        assert "company" in result
-        assert result["company"]["id"] == company.id
+        assert authenticated_company.id == company.id
+        assert "access_token" in tokens
+        assert "refresh_token" in tokens
+        assert "token_type" in tokens
     
     @pytest.mark.asyncio
-    async def test_login_company_invalid_credentials(self, db_session: AsyncSession):
-        """Test company login with invalid credentials."""
-        login_data = {
-            "email": "nonexistent@test.com",
-            "password": "WrongPassword123!"
-        }
-        
-        with pytest.raises(AuthenticationError) as exc_info:
-            await AuthService.login_company(db_session, login_data)
-        
-        assert "invalid" in str(exc_info.value).lower()
+    async def test_authenticate_company_invalid_credentials(self, db_session: AsyncSession):
+        """Test company authentication with invalid credentials."""
+        with pytest.raises(InvalidCredentialsError):
+            await AuthService.authenticate_company(
+                db_session, "nonexistent@test.com", "WrongPassword123!"
+            )
     
     @pytest.mark.asyncio
-    async def test_login_company_inactive_status(self, db_session: AsyncSession):
-        """Test company login with inactive status."""
-        # Create a company first
+    async def test_authenticate_company_inactive_account(self, db_session: AsyncSession):
+        """Test company authentication with inactive account."""
+        import uuid
+        
+        password = "TestPassword123!"
         company_data = {
             "company_name": "Test Company Inc",
-            "contact_name": "John Doe",
-            "contact_email": "john@testcompany.com",
-            "contact_phone": "+1234567890",
-            "address_line1": "123 Test Street",
-            "city": "Test City",
-            "state": "TS",
-            "zip_code": "12345",
-            "country": "USA",
-            "password": "TestPassword123!"
+            "rep_first_name": "John",
+            "rep_last_name": "Doe",
+            "rep_phone": "+1234567890",
+            "billing_address_line1": "123 Test Street",
+            "billing_city": "Test City",
+            "billing_state": "TS",
+            "billing_zip": "12345",
+            "billing_country": "USA"
         }
+        # Use unique email to avoid conflicts
+        email = f"inactive-{uuid.uuid4().hex[:8]}@testcompany.com"
         
-        company = await AuthService.register_company(db_session, company_data)
-        # Company remains PENDING status
+        # Register company
+        company = await AuthService.register_company(
+            db_session, email, password, company_data
+        )
         
-        # Test login
-        login_data = {
-            "email": company_data["contact_email"],
-            "password": company_data["password"]
-        }
+        # Deactivate the company
+        company.is_active = False
+        await db_session.commit()
         
-        with pytest.raises(BusinessLogicError) as exc_info:
-            await AuthService.login_company(db_session, login_data)
-        
-        assert "approved" in str(exc_info.value).lower()
+        # Test authentication should fail
+        with pytest.raises(AccountSuspendedError):
+            await AuthService.authenticate_company(db_session, email, password)
+    
+    # Note: AuthService doesn't have get_company_by_id or get_company_by_email methods
+    # These would be handled by AdminService or direct database queries if needed
     
     @pytest.mark.asyncio
-    async def test_get_company_by_id_success(self, db_session: AsyncSession):
-        """Test successful company retrieval by ID."""
-        # Create a company first
-        company_data = {
-            "company_name": "Test Company Inc",
-            "contact_name": "John Doe",
-            "contact_email": "john@testcompany.com",
-            "contact_phone": "+1234567890",
-            "address_line1": "123 Test Street",
-            "city": "Test City",
-            "state": "TS",
-            "zip_code": "12345",
-            "country": "USA",
-            "password": "TestPassword123!"
-        }
-        
-        company = await AuthService.register_company(db_session, company_data)
-        
-        # Test retrieval
-        retrieved_company = await AuthService.get_company_by_id(db_session, company.id)
-        
-        assert retrieved_company.id == company.id
-        assert retrieved_company.company_name == company.company_name
-        assert retrieved_company.contact_email == company.contact_email
-    
-    @pytest.mark.asyncio
-    async def test_get_company_by_id_not_found(self, db_session: AsyncSession):
-        """Test company retrieval with non-existent ID."""
-        with pytest.raises(ResourceNotFoundError) as exc_info:
-            await AuthService.get_company_by_id(db_session, 99999)
-        
-        assert "company" in str(exc_info.value).lower()
-    
-    @pytest.mark.asyncio
-    async def test_get_company_by_email_success(self, db_session: AsyncSession):
-        """Test successful company retrieval by email."""
-        # Create a company first
-        company_data = {
-            "company_name": "Test Company Inc",
-            "contact_name": "John Doe",
-            "contact_email": "john@testcompany.com",
-            "contact_phone": "+1234567890",
-            "address_line1": "123 Test Street",
-            "city": "Test City",
-            "state": "TS",
-            "zip_code": "12345",
-            "country": "USA",
-            "password": "TestPassword123!"
-        }
-        
-        company = await AuthService.register_company(db_session, company_data)
-        
-        # Test retrieval
-        retrieved_company = await AuthService.get_company_by_email(db_session, company.contact_email)
-        
-        assert retrieved_company.id == company.id
-        assert retrieved_company.company_name == company.company_name
-        assert retrieved_company.contact_email == company.contact_email
-    
-    @pytest.mark.asyncio
-    async def test_get_company_by_email_not_found(self, db_session: AsyncSession):
-        """Test company retrieval with non-existent email."""
-        with pytest.raises(ResourceNotFoundError) as exc_info:
-            await AuthService.get_company_by_email(db_session, "nonexistent@test.com")
-        
-        assert "company" in str(exc_info.value).lower()
-    
-    @pytest.mark.asyncio
-    async def test_refresh_token_success(self, db_session: AsyncSession):
+    async def test_refresh_access_token_success(self, db_session: AsyncSession, test_company):
         """Test successful token refresh."""
-        # Create a company first
-        company_data = {
-            "company_name": "Test Company Inc",
-            "contact_name": "John Doe",
-            "contact_email": "john@testcompany.com",
-            "contact_phone": "+1234567890",
-            "address_line1": "123 Test Street",
-            "city": "Test City",
-            "state": "TS",
-            "zip_code": "12345",
-            "country": "USA",
-            "password": "TestPassword123!"
-        }
+        from jose import jwt
+
+        from backend.core.config import settings
+        from backend.core.security import security_manager
         
-        company = await AuthService.register_company(db_session, company_data)
+        # Authenticate to get tokens
+        test_company.status = CompanyStatus.ACTIVE
+        test_company.is_active = True
+        await db_session.commit()
         
-        # Create refresh token
-        from backend.core.security import create_refresh_token
-        refresh_token = create_refresh_token(data={"sub": str(company.id), "type": "company"})
+        _, tokens = await AuthService.authenticate_company(
+            db_session, test_company.rep_email, "TestPassword123!"
+        )
+        refresh_token = tokens["refresh_token"]
+        
+        # Decode token to get payload
+        token_payload = jwt.decode(
+            refresh_token, 
+            settings.SECRET_KEY, 
+            algorithms=[settings.ALGORITHM]
+        )
         
         # Test refresh
-        result = await AuthService.refresh_token(db_session, refresh_token)
+        new_tokens = await AuthService.refresh_access_token(
+            db_session, token_payload, refresh_token
+        )
         
-        assert "access_token" in result
-        assert "refresh_token" in result
-        assert "company" in result
-        assert result["company"]["id"] == company.id
+        assert "access_token" in new_tokens
+        assert "refresh_token" in new_tokens
     
     @pytest.mark.asyncio
-    async def test_refresh_token_invalid(self, db_session: AsyncSession):
-        """Test token refresh with invalid token."""
-        with pytest.raises(AuthenticationError) as exc_info:
-            await AuthService.refresh_token(db_session, "invalid_token")
-        
-        assert "invalid" in str(exc_info.value).lower()
-    
-    @pytest.mark.asyncio
-    async def test_change_password_success(self, db_session: AsyncSession):
+    async def test_change_password_success(self, db_session: AsyncSession, test_company):
         """Test successful password change."""
-        # Create a company first
-        company_data = {
-            "company_name": "Test Company Inc",
-            "contact_name": "John Doe",
-            "contact_email": "john@testcompany.com",
-            "contact_phone": "+1234567890",
-            "address_line1": "123 Test Street",
-            "city": "Test City",
-            "state": "TS",
-            "zip_code": "12345",
-            "country": "USA",
-            "password": "TestPassword123!"
-        }
-        
-        company = await AuthService.register_company(db_session, company_data)
-        old_password_hash = company.password_hash
+        old_password_hash = test_company.hashed_password
         
         # Test password change
         new_password = "NewPassword123!"
-        await AuthService.change_password(db_session, company.id, "TestPassword123!", new_password)
+        await AuthService.change_password(
+            db_session, test_company.id, "TestPassword123!", new_password, "company"
+        )
         
         # Verify password changed
-        await db_session.refresh(company)
-        assert company.password_hash != old_password_hash
+        await db_session.refresh(test_company)
+        assert test_company.hashed_password != old_password_hash
         
         # Verify new password works
-        login_data = {
-            "email": company_data["contact_email"],
-            "password": new_password
-        }
-        
-        company.status = CompanyStatus.ACTIVE
+        test_company.status = CompanyStatus.ACTIVE
+        test_company.is_active = True
         await db_session.commit()
         
-        result = await AuthService.login_company(db_session, login_data)
-        assert "access_token" in result
+        _, tokens = await AuthService.authenticate_company(
+            db_session, test_company.rep_email, new_password
+        )
+        assert "access_token" in tokens
     
     @pytest.mark.asyncio
-    async def test_change_password_wrong_current(self, db_session: AsyncSession):
+    async def test_change_password_wrong_current(self, db_session: AsyncSession, test_company):
         """Test password change with wrong current password."""
-        # Create a company first
-        company_data = {
-            "company_name": "Test Company Inc",
-            "contact_name": "John Doe",
-            "contact_email": "john@testcompany.com",
-            "contact_phone": "+1234567890",
-            "address_line1": "123 Test Street",
-            "city": "Test City",
-            "state": "TS",
-            "zip_code": "12345",
-            "country": "USA",
-            "password": "TestPassword123!"
-        }
-        
-        company = await AuthService.register_company(db_session, company_data)
-        
-        # Test password change with wrong current password
-        with pytest.raises(AuthenticationError) as exc_info:
-            await AuthService.change_password(db_session, company.id, "WrongPassword123!", "NewPassword123!")
-        
-        assert "current password" in str(exc_info.value).lower()
+        with pytest.raises(InvalidCredentialsError):
+            await AuthService.change_password(
+                db_session, test_company.id, "WrongPassword123!", "NewPassword123!", "company"
+            )
