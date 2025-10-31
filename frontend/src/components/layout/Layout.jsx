@@ -9,7 +9,14 @@ const Layout = () => {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const { user, logout } = useAuthStore();
-  const { getItemCount } = useCartStore();
+  
+  // Subscribe to cart state properly - this will trigger re-renders on cart changes
+  const cartItemCount = useCartStore((state) => {
+    const items = state.isAuthenticated && state.backendCart 
+      ? (state.backendCart.items || [])
+      : state.guestItems;
+    return items.reduce((sum, item) => sum + item.quantity, 0);
+  });
 
   useEffect(() => {
     if (isMobileMenuOpen) {
@@ -43,8 +50,6 @@ const Layout = () => {
       }
     }
   };
-
-  const cartItemCount = getItemCount();
 
   return (
     <div className="flex flex-col min-h-screen bg-dark-800">

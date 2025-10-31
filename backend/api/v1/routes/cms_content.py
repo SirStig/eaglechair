@@ -30,6 +30,18 @@ from fastapi.responses import PlainTextResponse
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from backend.api.v1.schemas.content import (
+    ClientLogoResponse,
+    CompanyMilestoneResponse,
+    CompanyValueResponse,
+    ContactLocationResponse,
+    FeatureResponse,
+    HeroSlideResponse,
+    InstallationListItemResponse,
+    PageContentItemResponse,
+    SalesRepresentativeResponse,
+)
+from backend.api.v1.schemas.product import ChairResponse
 from backend.database.base import get_db
 from backend.models.chair import Chair
 from backend.models.content import (
@@ -117,6 +129,7 @@ async def get_site_settings(db: AsyncSession = Depends(get_db)):
 
 @router.get(
     "/hero-slides",
+    response_model=list[HeroSlideResponse],
     summary="Get hero slides",
     description="Retrieve all active hero slides for homepage carousel"
 )
@@ -137,14 +150,29 @@ async def get_hero_slides(db: AsyncSession = Depends(get_db)):
     
     # Return default content if no slides in database
     if not slides:
-        return default_content.get_hero_slides()
+        default_slides = default_content.get_hero_slides()
+        if isinstance(default_slides, list):
+            # Map default content fields to match schema
+            return [
+                {
+                    "id": slide.get("id", 0),
+                    "title": slide.get("title", ""),
+                    "subtitle": slide.get("subtitle"),
+                    "image": slide.get("backgroundImageUrl", ""),
+                    "ctaText": slide.get("ctaText"),
+                    "ctaLink": slide.get("ctaLink"),
+                    "displayOrder": slide.get("displayOrder", 0)
+                }
+                for slide in default_slides
+            ]
+        return []
     
     return [
         {
             "id": slide.id,
-            "title": slide.title,
+            "title": slide.title or "",
             "subtitle": slide.subtitle,
-            "image": slide.background_image_url,
+            "image": slide.background_image_url or "",
             "ctaText": slide.cta_text,
             "ctaLink": slide.cta_link,
             "displayOrder": slide.display_order
@@ -159,6 +187,7 @@ async def get_hero_slides(db: AsyncSession = Depends(get_db)):
 
 @router.get(
     "/features",
+    response_model=list[FeatureResponse],
     summary="Get features",
     description="Retrieve features/benefits (Why Choose Us section)"
 )
@@ -187,15 +216,29 @@ async def get_features(
     
     # Return default content if no features in database
     if not features:
-        return default_content.get_features(type or "general")
+        default_features = default_content.get_features(type or "general")
+        if isinstance(default_features, list):
+            # Default features already match schema, but ensure no None values
+            return [
+                {
+                    "id": f.get("id", 0),
+                    "title": f.get("title", ""),
+                    "description": f.get("description", ""),
+                    "icon": f.get("icon"),
+                    "featureType": f.get("featureType", "general"),
+                    "displayOrder": f.get("displayOrder", 0)
+                }
+                for f in default_features
+            ]
+        return []
     
     return [
         {
             "id": feature.id,
-            "title": feature.title,
-            "description": feature.description,
+            "title": feature.title or "",
+            "description": feature.description or "",
             "icon": feature.icon,
-            "featureType": feature.feature_type,
+            "featureType": feature.feature_type or "general",
             "displayOrder": feature.display_order
         }
         for feature in features
@@ -208,6 +251,7 @@ async def get_features(
 
 @router.get(
     "/client-logos",
+    response_model=list[ClientLogoResponse],
     summary="Get client logos",
     description="Retrieve client/partner logos for display"
 )
@@ -244,6 +288,7 @@ async def get_client_logos(db: AsyncSession = Depends(get_db)):
 
 @router.get(
     "/company-values",
+    response_model=list[CompanyValueResponse],
     summary="Get company values",
     description="Retrieve company core values for About page"
 )
@@ -264,13 +309,25 @@ async def get_company_values(db: AsyncSession = Depends(get_db)):
     
     # Return default content if no values in database
     if not values:
-        return default_content.get_company_values()
+        default_values = default_content.get_company_values()
+        if isinstance(default_values, list):
+            return [
+                {
+                    "id": v.get("id", 0),
+                    "title": v.get("title", ""),
+                    "description": v.get("description", ""),
+                    "icon": v.get("icon"),
+                    "displayOrder": v.get("displayOrder", 0)
+                }
+                for v in default_values
+            ]
+        return []
     
     return [
         {
             "id": value.id,
-            "title": value.title,
-            "description": value.description,
+            "title": value.title or "",
+            "description": value.description or "",
             "icon": value.icon,
             "displayOrder": value.display_order
         }
@@ -284,6 +341,7 @@ async def get_company_values(db: AsyncSession = Depends(get_db)):
 
 @router.get(
     "/company-milestones",
+    response_model=list[CompanyMilestoneResponse],
     summary="Get company milestones",
     description="Retrieve company history milestones for About page timeline"
 )
@@ -304,7 +362,10 @@ async def get_company_milestones(db: AsyncSession = Depends(get_db)):
     
     # Return default content if no milestones in database
     if not milestones:
-        return default_content.get_company_milestones()
+        default_milestones = default_content.get_company_milestones()
+        if isinstance(default_milestones, list):
+            return default_milestones
+        return []
     
     return [
         {
@@ -324,6 +385,7 @@ async def get_company_milestones(db: AsyncSession = Depends(get_db)):
 
 @router.get(
     "/sales-reps",
+    response_model=list[SalesRepresentativeResponse],
     summary="Get sales representatives",
     description="Retrieve sales representatives for Find a Rep page"
 )
@@ -373,6 +435,7 @@ async def get_sales_reps(
 
 @router.get(
     "/installations",
+    response_model=list[InstallationListItemResponse],
     summary="Get installations",
     description="Retrieve installation gallery images"
 )
@@ -402,14 +465,14 @@ async def get_installations(
     return [
         {
             "id": installation.id,
-            "projectName": installation.project_name,
-            "title": installation.project_name,
+            "projectName": installation.project_name or "",
+            "title": installation.project_name or "",
             "projectType": installation.project_type,
             "category": installation.project_type,
             "location": installation.location,
             "description": installation.description,
-            "completionDate": installation.completion_date.isoformat() if installation.completion_date else None,
-            "images": installation.images,
+            "completionDate": installation.completion_date if installation.completion_date else None,
+            "images": installation.images or [],
             "primaryImage": installation.primary_image,
             "url": installation.primary_image,
             "clientName": installation.client_name,
@@ -425,6 +488,7 @@ async def get_installations(
 
 @router.get(
     "/page-content/{page_slug}",
+    response_model=list[PageContentItemResponse],
     summary="Get page content",
     description="Retrieve all content sections for a specific page"
 )
@@ -453,25 +517,24 @@ async def get_page_content(
         content = result.scalar_one_or_none()
         
         if not content:
-            # Return default content if available
+            # Return default content if available, but wrap in list for consistency
             default = default_content.get_page_content(page_slug, section_key)
-            return default if default else None
+            if default and isinstance(default, dict):
+                return [default]
+            elif default and isinstance(default, list):
+                return default
+            return []
         
-        return {
+        # Return as list for consistency with response_model
+        return [{
             "id": content.id,
             "pageSlug": content.page_slug,
             "sectionKey": content.section_key,
             "title": content.title,
-            "subtitle": content.subtitle,
             "content": content.content,
             "imageUrl": content.image_url,
-            "videoUrl": content.video_url,
-            "ctaText": content.cta_text,
-            "ctaLink": content.cta_link,
-            "ctaStyle": content.cta_style,
-            "extraData": content.extra_data,
             "displayOrder": content.display_order
-        }
+        }]
     
     query = query.order_by(PageContent.display_order, PageContent.id)
     result = await db.execute(query)
@@ -483,14 +546,8 @@ async def get_page_content(
             "pageSlug": content.page_slug,
             "sectionKey": content.section_key,
             "title": content.title,
-            "subtitle": content.subtitle,
             "content": content.content,
             "imageUrl": content.image_url,
-            "videoUrl": content.video_url,
-            "ctaText": content.cta_text,
-            "ctaLink": content.cta_link,
-            "ctaStyle": content.cta_style,
-            "extraData": content.extra_data,
             "displayOrder": content.display_order
         }
         for content in contents
@@ -503,6 +560,7 @@ async def get_page_content(
 
 @router.get(
     "/featured-products",
+    response_model=list[ChairResponse],
     summary="Get featured products",
     description="Retrieve products marked as featured for homepage display"
 )

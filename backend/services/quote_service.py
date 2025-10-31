@@ -9,6 +9,7 @@ from datetime import datetime, timedelta
 from typing import Any, Dict, List, Optional
 
 from sqlalchemy import and_, or_, select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -57,6 +58,7 @@ class QuoteService:
             Cart instance
         """
         # Check for existing active cart
+        # First, try to find an active cart
         result = await db.execute(
             select(Cart)
             .where(
@@ -69,12 +71,55 @@ class QuoteService:
         cart = result.scalar_one_or_none()
         
         if not cart:
-            # Create new cart
-            cart = Cart(company_id=company_id)
-            db.add(cart)
-            await db.commit()
-            await db.refresh(cart)
-            logger.info(f"Created new cart for company {company_id}: Cart ID {cart.id}")
+            # If no active cart, check for any cart (including inactive)
+            result = await db.execute(
+                select(Cart)
+                .where(Cart.company_id == company_id)
+            )
+            cart = result.scalar_one_or_none()
+            
+            if cart:
+                # Reactivate the existing cart
+                cart.is_active = True
+                cart.subtotal = 0
+                cart.estimated_tax = 0
+                cart.estimated_shipping = 0
+                cart.estimated_total = 0
+                await db.commit()
+                await db.refresh(cart)
+                logger.info(f"Reactivated cart for company {company_id}: Cart ID {cart.id}")
+            else:
+                # Create new cart only if none exists
+                cart = Cart(company_id=company_id)
+                db.add(cart)
+                try:
+                    await db.commit()
+                    await db.refresh(cart)
+                    logger.info(f"Created new cart for company {company_id}: Cart ID {cart.id}")
+                except IntegrityError:
+                    # Race condition: cart was created between our check and insert
+                    await db.rollback()
+                    # Query again for the cart (should exist now)
+                    result = await db.execute(
+                        select(Cart)
+                        .where(Cart.company_id == company_id)
+                    )
+                    cart = result.scalar_one_or_none()
+                    if cart:
+                        # Reactivate if it was inactive
+                        if not cart.is_active:
+                            cart.is_active = True
+                            cart.subtotal = 0
+                            cart.estimated_tax = 0
+                            cart.estimated_shipping = 0
+                            cart.estimated_total = 0
+                            await db.commit()
+                            await db.refresh(cart)
+                            logger.info(f"Reactivated cart for company {company_id} (race condition): Cart ID {cart.id}")
+                        else:
+                            logger.info(f"Found existing active cart for company {company_id} (race condition): Cart ID {cart.id}")
+                    else:
+                        raise ValidationError(f"Failed to create or find cart for company {company_id}")
         
         return cart
     
@@ -102,7 +147,11 @@ class QuoteService:
         result = await db.execute(
             select(Cart)
             .options(
-                selectinload(Cart.items).selectinload(CartItem.product)
+                selectinload(Cart.items).selectinload(CartItem.product).options(
+                    selectinload(Chair.category),
+                    selectinload(Chair.subcategory),
+                    selectinload(Chair.family),
+                )
             )
             .where(Cart.id == cart_id)
         )
@@ -193,12 +242,30 @@ class QuoteService:
             # Update existing item
             existing_item.quantity += quantity
             if custom_notes:
-                existing_item.custom_notes = custom_notes
+                existing_item.item_notes = custom_notes  # Model uses item_notes
             if configuration:
-                existing_item.configuration = configuration
+                existing_item.custom_options = configuration  # Model uses custom_options
+            
+            # Recalculate line_total
+            existing_item.line_total = existing_item.quantity * (
+                existing_item.unit_price + existing_item.customization_cost
+            )
             
             await db.commit()
-            await db.refresh(existing_item)
+            
+            # Reload the cart item with all nested relationships
+            result = await db.execute(
+                select(CartItem)
+                .options(
+                    selectinload(CartItem.product).options(
+                        selectinload(Chair.category),
+                        selectinload(Chair.subcategory),
+                        selectinload(Chair.family),
+                    )
+                )
+                .where(CartItem.id == existing_item.id)
+            )
+            existing_item = result.scalar_one()
             
             logger.info(
                 f"Updated cart item {existing_item.id}: new quantity {existing_item.quantity}"
@@ -206,21 +273,41 @@ class QuoteService:
             
             return existing_item
         else:
+            # Calculate pricing
+            unit_price = product.base_price or 0
+            customization_cost = 0  # TODO: Calculate based on selected options
+            line_total = quantity * (unit_price + customization_cost)
+            
             # Create new cart item
             cart_item = CartItem(
                 cart_id=cart.id,
                 product_id=product_id,
                 quantity=quantity,
-                unit_price=product.base_price,
+                unit_price=unit_price,
+                customization_cost=customization_cost,
+                line_total=line_total,
                 selected_finish_id=selected_finish_id,
                 selected_upholstery_id=selected_upholstery_id,
-                custom_notes=custom_notes,
-                configuration=configuration
+                item_notes=custom_notes,  # Model uses item_notes, not custom_notes
+                custom_options=configuration  # Model uses custom_options, not configuration
             )
             
             db.add(cart_item)
             await db.commit()
-            await db.refresh(cart_item)
+            
+            # Reload the cart item with all nested relationships
+            result = await db.execute(
+                select(CartItem)
+                .options(
+                    selectinload(CartItem.product).options(
+                        selectinload(Chair.category),
+                        selectinload(Chair.subcategory),
+                        selectinload(Chair.family),
+                    )
+                )
+                .where(CartItem.id == cart_item.id)
+            )
+            cart_item = result.scalar_one()
             
             logger.info(
                 f"Added item to cart {cart.id}: Product {product_id}, "
@@ -258,10 +345,17 @@ class QuoteService:
             ResourceNotFoundError: If item not found
             AuthorizationError: If item doesn't belong to company
         """
-        # Get cart item with cart
+        # Get cart item with cart and product relationships
         result = await db.execute(
             select(CartItem)
-            .options(selectinload(CartItem.cart), selectinload(CartItem.product))
+            .options(
+                selectinload(CartItem.cart),
+                selectinload(CartItem.product).options(
+                    selectinload(Chair.category),
+                    selectinload(Chair.subcategory),
+                    selectinload(Chair.family),
+                )
+            )
             .where(CartItem.id == cart_item_id)
         )
         cart_item = result.scalar_one_or_none()
@@ -293,10 +387,28 @@ class QuoteService:
             cart_item.selected_upholstery_id = selected_upholstery_id
         
         if custom_notes is not None:
-            cart_item.custom_notes = custom_notes
+            cart_item.item_notes = custom_notes  # Model uses item_notes, not custom_notes
+        
+        # Recalculate line_total if quantity changed
+        cart_item.line_total = cart_item.quantity * (
+            cart_item.unit_price + cart_item.customization_cost
+        )
         
         await db.commit()
-        await db.refresh(cart_item)
+        
+        # Reload the cart item with all nested relationships
+        result = await db.execute(
+            select(CartItem)
+            .options(
+                selectinload(CartItem.product).options(
+                    selectinload(Chair.category),
+                    selectinload(Chair.subcategory),
+                    selectinload(Chair.family),
+                )
+            )
+            .where(CartItem.id == cart_item_id)
+        )
+        cart_item = result.scalar_one()
         
         logger.info(f"Updated cart item {cart_item_id}")
         
@@ -366,7 +478,7 @@ class QuoteService:
         
         # Delete all items
         for item in cart.items:
-            await db.delete(item)
+            db.delete(item)
         
         await db.commit()
         
@@ -386,7 +498,7 @@ class QuoteService:
         Args:
             db: Database session
             company_id: Company ID
-            guest_items: List of guest cart items to merge
+            guest_items: List of guest cart items to merge (CartItemCreate schema or dict)
             
         Returns:
             Updated cart with merged items
@@ -397,18 +509,26 @@ class QuoteService:
         # Add each guest item to the cart
         for item_data in guest_items:
             try:
+                # Handle both Pydantic models and dicts
+                product_id = item_data.product_id if hasattr(item_data, 'product_id') else item_data.get('product_id')
+                quantity = item_data.quantity if hasattr(item_data, 'quantity') else item_data.get('quantity')
+                selected_finish_id = item_data.selected_finish_id if hasattr(item_data, 'selected_finish_id') else item_data.get('selected_finish_id')
+                selected_upholstery_id = item_data.selected_upholstery_id if hasattr(item_data, 'selected_upholstery_id') else item_data.get('selected_upholstery_id')
+                custom_notes = item_data.item_notes if hasattr(item_data, 'item_notes') else item_data.get('item_notes')
+                configuration = item_data.custom_options if hasattr(item_data, 'custom_options') else item_data.get('custom_options')
+                
                 await QuoteService.add_to_cart(
                     db=db,
                     company_id=company_id,
-                    product_id=item_data.product_id,
-                    quantity=item_data.quantity,
-                    selected_finish_id=item_data.selected_finish_id,
-                    selected_upholstery_id=item_data.selected_upholstery_id,
-                    custom_notes=item_data.item_notes,
-                    configuration=item_data.custom_options
+                    product_id=product_id,
+                    quantity=quantity,
+                    selected_finish_id=selected_finish_id,
+                    selected_upholstery_id=selected_upholstery_id,
+                    custom_notes=custom_notes,
+                    configuration=configuration
                 )
             except Exception as e:
-                logger.error(f"Error merging guest item {item_data.product_id}: {e}")
+                logger.error(f"Error merging guest item {item_data.get('product_id') if isinstance(item_data, dict) else getattr(item_data, 'product_id', 'unknown')}: {e}")
                 # Continue with other items even if one fails
                 continue
         
@@ -428,11 +548,15 @@ class QuoteService:
         db: AsyncSession,
         company_id: int,
         cart_id: int,
-        delivery_address: str,
-        delivery_city: str,
-        delivery_state: str,
-        delivery_zip: str,
-        requested_delivery_date: Optional[str] = None,
+        shipping_address_line1: Optional[str] = None,
+        shipping_address_line2: Optional[str] = None,
+        shipping_city: Optional[str] = None,
+        shipping_state: Optional[str] = None,
+        shipping_zip: Optional[str] = None,
+        shipping_country: str = "USA",
+        project_name: Optional[str] = None,
+        project_description: Optional[str] = None,
+        desired_delivery_date: Optional[str] = None,
         special_instructions: Optional[str] = None
     ) -> Quote:
         """
@@ -442,11 +566,15 @@ class QuoteService:
             db: Database session
             company_id: Company ID
             cart_id: Cart ID to convert
-            delivery_address: Delivery address
-            delivery_city: City
-            delivery_state: State
-            delivery_zip: ZIP code
-            requested_delivery_date: Optional requested delivery date
+            shipping_address_line1: Shipping address line 1
+            shipping_address_line2: Optional shipping address line 2
+            shipping_city: City (uses company shipping address if not provided)
+            shipping_state: State (uses company shipping address if not provided)
+            shipping_zip: ZIP code (uses company shipping address if not provided)
+            shipping_country: Country (defaults to USA)
+            project_name: Optional project name
+            project_description: Optional project description
+            desired_delivery_date: Optional requested delivery date
             special_instructions: Optional special instructions
             
         Returns:
@@ -455,26 +583,86 @@ class QuoteService:
         Raises:
             ValidationError: If cart is empty
         """
+        from sqlalchemy import select
+
+        from backend.models.company import Company
+        
+        # Fetch company to get contact information
+        result = await db.execute(
+            select(Company).where(Company.id == company_id)
+        )
+        company = result.scalar_one_or_none()
+        
+        if not company:
+            raise ValidationError(f"Company {company_id} not found")
+        
         # Get cart with items
         cart = await QuoteService.get_cart_with_items(db, cart_id, company_id)
         
         if not cart.items:
             raise ValidationError("Cannot create quote request from empty cart")
         
+        # Use company shipping address if not fully provided, otherwise fallback to billing
+        if not shipping_address_line1 or not shipping_city:
+            # Check if company has a separate shipping address
+            if company.shipping_address_line1 and company.shipping_city:
+                # Use company shipping address, but allow override from request
+                if not shipping_address_line1:
+                    shipping_address_line1 = company.shipping_address_line1
+                if not shipping_address_line2:
+                    shipping_address_line2 = company.shipping_address_line2
+                if not shipping_city:
+                    shipping_city = company.shipping_city
+                if not shipping_state:
+                    shipping_state = company.shipping_state
+                if not shipping_zip:
+                    shipping_zip = company.shipping_zip
+                if shipping_country == "USA":
+                    shipping_country = company.shipping_country or "USA"
+            else:
+                # Fallback to billing address
+                if not shipping_address_line1:
+                    shipping_address_line1 = company.billing_address_line1
+                if not shipping_address_line2:
+                    shipping_address_line2 = company.billing_address_line2
+                if not shipping_city:
+                    shipping_city = company.billing_city
+                if not shipping_state:
+                    shipping_state = company.billing_state
+                if not shipping_zip:
+                    shipping_zip = company.billing_zip
+                if shipping_country == "USA":
+                    shipping_country = company.billing_country or "USA"
+        
         # Generate quote number
         quote_number = await QuoteService._generate_quote_number(db)
         
-        # Create quote request
+        # Build contact name from rep first and last name
+        contact_name = f"{company.rep_first_name} {company.rep_last_name}".strip()
+        
+        # Create quote request using company contact info
         quote_request = Quote(
             quote_number=quote_number,
             company_id=company_id,
-            status=QuoteStatus.PENDING,
-            delivery_address=delivery_address,
-            delivery_city=delivery_city,
-            delivery_state=delivery_state,
-            delivery_zip=delivery_zip,
-            requested_delivery_date=requested_delivery_date,
-            special_instructions=special_instructions
+            # Contact information from company profile
+            contact_name=contact_name,
+            contact_email=company.rep_email,
+            contact_phone=company.rep_phone,
+            # Project information
+            project_name=project_name,
+            project_description=project_description,
+            desired_delivery_date=desired_delivery_date,
+            # Shipping information
+            shipping_address_line1=shipping_address_line1,
+            shipping_address_line2=shipping_address_line2,
+            shipping_city=shipping_city,
+            shipping_state=shipping_state,
+            shipping_zip=shipping_zip,
+            shipping_country=shipping_country,
+            # Special instructions
+            special_instructions=special_instructions,
+            # Status
+            status=QuoteStatus.SUBMITTED,  # Quote request is submitted for review
         )
         
         db.add(quote_request)
@@ -482,17 +670,42 @@ class QuoteService:
         
         # Convert cart items to quote items
         for cart_item in cart.items:
+            # Get product information (should be loaded from get_cart_with_items)
+            product = cart_item.product
+            if not product:
+                logger.warning(f"Cart item {cart_item.id} has no product, skipping")
+                continue
+            
+            # Calculate line total
+            line_total = cart_item.quantity * (cart_item.unit_price + cart_item.customization_cost)
+            
             quote_item = QuoteItem(
-                quote_request_id=quote_request.id,
+                quote_id=quote_request.id,  # Use quote_id, not quote_request_id
                 product_id=cart_item.product_id,
+                product_model_number=product.model_number or "",
+                product_name=product.name or "",
                 quantity=cart_item.quantity,
                 unit_price=cart_item.unit_price,
+                customization_cost=cart_item.customization_cost,
+                line_total=line_total,
                 selected_finish_id=cart_item.selected_finish_id,
                 selected_upholstery_id=cart_item.selected_upholstery_id,
-                custom_notes=cart_item.custom_notes,
-                configuration=cart_item.configuration
+                item_notes=cart_item.item_notes,
+                custom_options=cart_item.custom_options
             )
             db.add(quote_item)
+        
+        # Calculate quote totals from cart
+        subtotal = sum(item.quantity * (item.unit_price + item.customization_cost) for item in cart.items)
+        quote_request.subtotal = subtotal
+        quote_request.tax_amount = 0  # Will be calculated by admin
+        quote_request.shipping_cost = 0  # Will be calculated by admin
+        quote_request.discount_amount = 0
+        quote_request.total_amount = subtotal
+        
+        # Set submission timestamp
+        from datetime import datetime
+        quote_request.submitted_at = datetime.utcnow().isoformat()
         
         # Mark cart as inactive
         cart.is_active = False

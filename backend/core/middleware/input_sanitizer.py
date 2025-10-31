@@ -167,7 +167,10 @@ class InputSanitizerMiddleware(BaseHTTPMiddleware):
             return response
             
         except Exception as e:
-            logger.error(f"Error in InputSanitizerMiddleware: {str(e)}", exc_info=True)
+            # Only log if not already logged (to prevent duplicates)
+            if not hasattr(request.state, "error_logged"):
+                logger.error(f"Error in InputSanitizerMiddleware: {str(e)}", exc_info=True)
+                request.state.error_logged = True
             # Don't block the request on middleware errors - fail open
             return await call_next(request)
     

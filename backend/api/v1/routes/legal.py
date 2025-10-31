@@ -12,6 +12,11 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from backend.api.v1.schemas.legal import (
+    LegalDocumentResponse,
+    ShippingPolicyResponse,
+    WarrantyResponse,
+)
 from backend.database.base import get_db
 from backend.models.legal import (
     LegalDocument,
@@ -31,6 +36,7 @@ router = APIRouter(tags=["Legal & Terms"])
 
 @router.get(
     "/legal/documents",
+    response_model=list[LegalDocumentResponse],
     summary="Get all legal documents",
     description="Retrieve all active legal documents (terms, policies, warranties)"
 )
@@ -196,6 +202,7 @@ async def get_legal_document_by_type(
 
 @router.get(
     "/legal/warranties",
+    response_model=list[WarrantyResponse],
     summary="Get all warranties",
     description="Retrieve all active warranty information"
 )
@@ -278,6 +285,7 @@ async def get_warranty(
 
 @router.get(
     "/legal/shipping-policies",
+    response_model=list[ShippingPolicyResponse],
     summary="Get all shipping policies",
     description="Retrieve all active shipping policies"
 )

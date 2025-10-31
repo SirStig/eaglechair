@@ -1,5 +1,6 @@
 import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { useEffect } from 'react';
 import Layout from './components/layout/Layout';
 import ProtectedRoute from './components/ProtectedRoute';
 import ScrollToTop from './components/ScrollToTop';
@@ -7,6 +8,8 @@ import { EditModeProvider } from './contexts/EditModeContext';
 import { AdminAuthProvider } from './contexts/AdminAuthContext';
 import { ToastProvider } from './contexts/ToastContext';
 import EditModeToggle from './components/admin/EditModeToggle';
+import { useAuthStore } from './store/authStore';
+import { useCartStore } from './store/cartStore';
 
 // Pages
 import HomePage from './pages/HomePage';
@@ -50,10 +53,30 @@ const queryClient = new QueryClient({
   },
 });
 
+// Cart Sync Component - ensures cart store syncs with auth store on app load
+function CartSync() {
+  const authIsAuthenticated = useAuthStore((state) => state.isAuthenticated);
+  const cartStore = useCartStore();
+
+  useEffect(() => {
+    // Sync cart store with auth store on mount
+    if (authIsAuthenticated && !cartStore.isAuthenticated) {
+      console.log('App: User is authenticated, syncing cart store');
+      cartStore.switchToAuthMode();
+    } else if (!authIsAuthenticated && cartStore.isAuthenticated) {
+      console.log('App: User is not authenticated, switching cart to guest mode');
+      cartStore.switchToGuestMode();
+    }
+  }, [authIsAuthenticated, cartStore]);
+
+  return null;
+}
+
 function App() {
   return (
     <QueryClientProvider client={queryClient}>
       <Router>
+        <CartSync />
         <AdminAuthProvider>
           <EditModeProvider>
             <ToastProvider>
@@ -137,7 +160,7 @@ function App() {
               }
             />
             <Route
-              path="/dashboard/profile"
+              path="/dashboard/account"
               element={
                 <ProtectedRoute>
                   <DashboardPage />

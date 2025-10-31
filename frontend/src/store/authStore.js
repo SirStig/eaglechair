@@ -161,9 +161,48 @@ export const useAuthStore = create(
         }));
       },
 
-      // Validate and clean up auth state
-      validateAndCleanup: () => {
-        const { token, user, logout } = get();
+      // Refresh access token using refresh token
+      refreshToken: async () => {
+        const { refreshToken: currentRefreshToken, token } = get();
+        
+        if (!currentRefreshToken) {
+          logger.warn(AUTH_CONTEXT, 'No refresh token available');
+          return false;
+        }
+
+        try {
+          // Use raw axios call to avoid interceptors
+          const axios = (await import('axios')).default;
+          const response = await axios.post(
+            `${import.meta.env.VITE_API_BASE_URL || ''}/api/v1/auth/refresh`,
+            {},
+            {
+              headers: {
+                'Authorization': `Bearer ${currentRefreshToken}`
+              }
+            }
+          );
+
+          const { access_token, refresh_token } = response.data;
+          
+          set({
+            token: access_token,
+            refreshToken: refresh_token || currentRefreshToken
+          });
+          
+          apiClient.defaults.headers.common['Authorization'] = `Bearer ${access_token}`;
+          
+          logger.info(AUTH_CONTEXT, 'Token refreshed successfully');
+          return true;
+        } catch (error) {
+          logger.error(AUTH_CONTEXT, 'Token refresh failed', error);
+          return false;
+        }
+      },
+
+      // Validate and clean up auth state (tries refresh first)
+      validateAndCleanup: async () => {
+        const { token, user, refreshToken, logout } = get();
         
         // Check if user data is valid
         if (!isValidUser(user)) {
@@ -172,9 +211,20 @@ export const useAuthStore = create(
           return false;
         }
         
-        // Check if token is expired
-        if (isTokenExpired(token)) {
-          console.warn('Token expired, clearing auth state');
+        // Check if token is expired or expiring soon
+        if (token && isTokenExpired(token)) {
+          console.warn('Token expired, attempting refresh...');
+          
+          // Try to refresh before logging out
+          if (refreshToken) {
+            const refreshed = await get().refreshToken();
+            if (refreshed) {
+              return true;
+            }
+          }
+          
+          // Refresh failed, logout
+          console.warn('Token refresh failed, clearing auth state');
           logout();
           return false;
         }
@@ -183,22 +233,26 @@ export const useAuthStore = create(
       },
 
       // Initialize apiClient with stored token
-      initAuth: () => {
+      initAuth: async () => {
         const { token, sessionToken, adminToken, validateAndCleanup } = get();
         
-        // Validate state before initializing
-        if (!validateAndCleanup()) {
+        // Validate state before initializing (now async)
+        const isValid = await validateAndCleanup();
+        if (!isValid) {
           return;
         }
         
-        if (token) {
-          apiClient.defaults.headers.common['Authorization'] = `Bearer ${token}`;
+        // Get fresh state after potential refresh
+        const currentState = get();
+        
+        if (currentState.token) {
+          apiClient.defaults.headers.common['Authorization'] = `Bearer ${currentState.token}`;
         }
-        if (sessionToken) {
-          apiClient.defaults.headers.common['X-Session-Token'] = sessionToken;
+        if (currentState.sessionToken) {
+          apiClient.defaults.headers.common['X-Session-Token'] = currentState.sessionToken;
         }
-        if (adminToken) {
-          apiClient.defaults.headers.common['X-Admin-Token'] = adminToken;
+        if (currentState.adminToken) {
+          apiClient.defaults.headers.common['X-Admin-Token'] = currentState.adminToken;
         }
       },
     }),
@@ -218,7 +272,9 @@ export const useAuthStore = create(
 
 // Initialize auth on app load
 if (typeof window !== 'undefined') {
-  useAuthStore.getState().initAuth();
+  useAuthStore.getState().initAuth().catch(err => {
+    console.error('Failed to initialize auth:', err);
+  });
 }
 
 

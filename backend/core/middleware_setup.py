@@ -109,45 +109,46 @@ class RequestLoggingMiddleware(BaseHTTPMiddleware):
             return response
             
         except Exception as exc:
-            # Log failed requests
-            process_time = time.time() - start_time
-            logger.error(
-                f"Request failed: {request.method} {request.url.path}",
-                exc_info=True,
-                extra={
-                    "method": request.method,
-                    "path": request.url.path,
-                    "duration": process_time,
-                    "ip": client_ip
-                }
-            )
+            # Only log if error hasn't been logged yet (to prevent duplicates)
+            if not hasattr(request.state, "error_logged"):
+                process_time = time.time() - start_time
+                logger.error(
+                    f"Request failed: {request.method} {request.url.path}",
+                    exc_info=True,
+                    extra={
+                        "method": request.method,
+                        "path": request.url.path,
+                        "duration": process_time,
+                        "ip": client_ip
+                    }
+                )
+                request.state.error_logged = True
             raise
 
 
 class ErrorHandlingMiddleware(BaseHTTPMiddleware):
     """
     Middleware for global error handling
+    Only logs if error hasn't been logged by other middleware
     """
     
     async def dispatch(self, request: Request, call_next: Callable) -> Response:
         try:
             return await call_next(request)
         except Exception as exc:
-            logger.exception(
-                f"Unhandled exception: {str(exc)}",
-                extra={
-                    "path": request.url.path,
-                    "method": request.method,
-                }
-            )
+            # Only log if not already logged by another handler
+            if not hasattr(request.state, "error_logged"):
+                logger.exception(
+                    f"Unhandled exception: {str(exc)}",
+                    extra={
+                        "path": request.url.path,
+                        "method": request.method,
+                    }
+                )
+                request.state.error_logged = True
             
-            return JSONResponse(
-                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                content={
-                    "detail": "Internal server error" if not settings.DEBUG else str(exc),
-                    "type": "internal_error"
-                }
-            )
+            # Let FastAPI exception handlers deal with it
+            raise
 
 
 # Rate limiter instance

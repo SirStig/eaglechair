@@ -146,7 +146,22 @@ export const getProductImage = (product, index = 0) => {
     return resolveImageUrl(image);
   }
   
-  // Fallback to primary_image
+  // Try primary_image_url (cart/quote enriched data)
+  if (product.primary_image_url) {
+    return resolveImageUrl(product.primary_image_url);
+  }
+  
+  // Try thumbnail
+  if (product.thumbnail) {
+    return resolveImageUrl(product.thumbnail);
+  }
+  
+  // Try image_url (cart/quote enriched data)
+  if (product.image_url) {
+    return resolveImageUrl(product.image_url);
+  }
+  
+  // Fallback to primary_image (legacy)
   if (product.primary_image) {
     return resolveImageUrl(product.primary_image);
   }
@@ -169,7 +184,22 @@ export const getProductImages = (product) => {
     return product.images.map(img => resolveImageUrl(img));
   }
   
-  // Fallback to single primary image
+  // Fallback to single primary_image_url (cart/quote enriched data)
+  if (product.primary_image_url) {
+    return [resolveImageUrl(product.primary_image_url)];
+  }
+  
+  // Fallback to thumbnail
+  if (product.thumbnail) {
+    return [resolveImageUrl(product.thumbnail)];
+  }
+  
+  // Fallback to image_url
+  if (product.image_url) {
+    return [resolveImageUrl(product.image_url)];
+  }
+  
+  // Fallback to single primary_image (legacy)
   if (product.primary_image) {
     return [resolveImageUrl(product.primary_image)];
   }

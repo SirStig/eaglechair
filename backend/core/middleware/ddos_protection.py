@@ -123,7 +123,11 @@ class DDoSProtectionMiddleware(BaseHTTPMiddleware):
             return response
             
         except Exception as e:
-            logger.error(f"Error processing request from {client_ip}: {str(e)}")
+            # Only log if not already logged (to prevent duplicates)
+            if not hasattr(request.state, "error_logged"):
+                # Don't call str(e) as it might trigger __repr__ on detached SQLAlchemy objects
+                logger.error(f"Error processing request from {client_ip}: {type(e).__name__}", exc_info=True)
+                request.state.error_logged = True
             raise
     
     def _get_client_ip(self, request: Request) -> str:

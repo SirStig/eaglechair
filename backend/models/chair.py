@@ -39,7 +39,14 @@ class Category(Base):
     products = relationship("Chair", back_populates="category")
     
     def __repr__(self) -> str:
-        return f"<Category(id={self.id}, name={self.name})>"
+        try:
+            # Safely access attributes, checking if they're loaded
+            cat_id = getattr(self, 'id', '<unknown>')
+            name = getattr(self, 'name', '<unknown>')
+            return f"<Category(id={cat_id}, name={name})>"
+        except:
+            # Fallback if anything goes wrong
+            return f"<Category at {hex(id(self))}>"
 
 
 class ProductSubcategory(Base):
@@ -63,7 +70,15 @@ class ProductSubcategory(Base):
     is_active = Column(Boolean, default=True, nullable=False)
     
     def __repr__(self) -> str:
-        return f"<ProductSubcategory(id={self.id}, name={self.name}, category_id={self.category_id})>"
+        try:
+            # Safely access attributes, checking if they're loaded
+            subcat_id = getattr(self, 'id', '<unknown>')
+            name = getattr(self, 'name', '<unknown>')
+            cat_id = getattr(self, 'category_id', '<unknown>')
+            return f"<ProductSubcategory(id={subcat_id}, name={name}, category_id={cat_id})>"
+        except:
+            # Fallback if anything goes wrong
+            return f"<ProductSubcategory at {hex(id(self))}>"
 
 
 class ProductFamily(Base):
@@ -94,7 +109,12 @@ class ProductFamily(Base):
     is_featured = Column(Boolean, default=False, nullable=False)
     
     def __repr__(self) -> str:
-        return f"<ProductFamily(id={self.id}, name={self.name})>"
+        try:
+            fam_id = getattr(self, 'id', '<unknown>')
+            name = getattr(self, 'name', '<unknown>')
+            return f"<ProductFamily(id={fam_id}, name={name})>"
+        except:
+            return f"<ProductFamily at {hex(id(self))}>"
 
 
 class Finish(Base):
@@ -129,7 +149,13 @@ class Finish(Base):
     display_order = Column(Integer, default=0, nullable=False)
     
     def __repr__(self) -> str:
-        return f"<Finish(id={self.id}, name={self.name}, code={self.finish_code})>"
+        try:
+            fin_id = getattr(self, 'id', '<unknown>')
+            name = getattr(self, 'name', '<unknown>')
+            code = getattr(self, 'finish_code', '<unknown>')
+            return f"<Finish(id={fin_id}, name={name}, code={code})>"
+        except:
+            return f"<Finish at {hex(id(self))}>"
 
 
 class Upholstery(Base):
@@ -187,7 +213,14 @@ class Upholstery(Base):
     display_order = Column(Integer, default=0, nullable=False)
     
     def __repr__(self) -> str:
-        return f"<Upholstery(id={self.id}, name={self.name}, type={self.material_type}, grade={self.grade})>"
+        try:
+            uph_id = getattr(self, 'id', '<unknown>')
+            name = getattr(self, 'name', '<unknown>')
+            mat_type = getattr(self, 'material_type', '<unknown>')
+            grade = getattr(self, 'grade', '<unknown>')
+            return f"<Upholstery(id={uph_id}, name={name}, type={mat_type}, grade={grade})>"
+        except:
+            return f"<Upholstery at {hex(id(self))}>"
 
 
 class Chair(Base):
@@ -304,7 +337,15 @@ class Chair(Base):
     quote_items = relationship("QuoteItem", back_populates="product")
     
     def __repr__(self) -> str:
-        return f"<Chair(id={self.id}, model={self.model_number}, name={self.name})>"
+        try:
+            # Safely access attributes, checking if they're loaded
+            chair_id = getattr(self, 'id', '<unknown>')
+            model = getattr(self, 'model_number', '<unknown>')
+            name = getattr(self, 'name', '<unknown>')
+            return f"<Chair(id={chair_id}, model={model}, name={name})>"
+        except:
+            # Fallback if anything goes wrong
+            return f"<Chair at {hex(id(self))}>"
 
 
 class ProductRelation(Base):
@@ -320,7 +361,12 @@ class ProductRelation(Base):
     display_order = Column(Integer, default=0, nullable=False)
     
     def __repr__(self) -> str:
-        return f"<ProductRelation(product_id={self.product_id}, related_id={self.related_product_id})>"
+        try:
+            prod_id = getattr(self, 'product_id', '<unknown>')
+            rel_id = getattr(self, 'related_product_id', '<unknown>')
+            return f"<ProductRelation(product_id={prod_id}, related_id={rel_id})>"
+        except:
+            return f"<ProductRelation at {hex(id(self))}>"
 
 
 class Color(Base):
@@ -344,7 +390,13 @@ class Color(Base):
     is_active = Column(Boolean, default=True, nullable=False)
     
     def __repr__(self) -> str:
-        return f"<Color(id={self.id}, name={self.name}, code={self.color_code})>"
+        try:
+            col_id = getattr(self, 'id', '<unknown>')
+            name = getattr(self, 'name', '<unknown>')
+            code = getattr(self, 'color_code', '<unknown>')
+            return f"<Color(id={col_id}, name={name}, code={code})>"
+        except:
+            return f"<Color at {hex(id(self))}>"
 
 
 class ProductVariation(Base):
@@ -390,7 +442,13 @@ class ProductVariation(Base):
     display_order = Column(Integer, default=0, nullable=False)
     
     def __repr__(self) -> str:
-        return f"<ProductVariation(id={self.id}, sku={self.sku}, product_id={self.product_id})>"
+        try:
+            var_id = getattr(self, 'id', '<unknown>')
+            sku = getattr(self, 'sku', '<unknown>')
+            prod_id = getattr(self, 'product_id', '<unknown>')
+            return f"<ProductVariation(id={var_id}, sku={sku}, product_id={prod_id})>"
+        except:
+            return f"<ProductVariation at {hex(id(self))}>"
 
 
 class ProductImage(Base):
@@ -418,7 +476,13 @@ class ProductImage(Base):
     is_active = Column(Boolean, nullable=False, default=True)
 
     def __repr__(self) -> str:
-        return f"<ProductImage(id={self.id}, product_id={self.product_id}, type={self.image_type})>"
+        try:
+            img_id = getattr(self, 'id', '<unknown>')
+            prod_id = getattr(self, 'product_id', '<unknown>')
+            img_type = getattr(self, 'image_type', '<unknown>')
+            return f"<ProductImage(id={img_id}, product_id={prod_id}, type={img_type})>"
+        except:
+            return f"<ProductImage at {hex(id(self))}>"
 
 
 class CustomOption(Base):
@@ -451,7 +515,13 @@ class CustomOption(Base):
     display_order = Column(Integer, default=0, nullable=False)
     
     def __repr__(self) -> str:
-        return f"<CustomOption(id={self.id}, name={self.name}, type={self.option_type})>"
+        try:
+            opt_id = getattr(self, 'id', '<unknown>')
+            name = getattr(self, 'name', '<unknown>')
+            opt_type = getattr(self, 'option_type', '<unknown>')
+            return f"<CustomOption(id={opt_id}, name={name}, type={opt_type})>"
+        except:
+            return f"<CustomOption at {hex(id(self))}>"
 
 
 class ProductTag(Base):
@@ -471,7 +541,13 @@ class ProductTag(Base):
     is_active = Column(Boolean, default=True, nullable=False)
     
     def __repr__(self) -> str:
-        return f"<ProductTag(id={self.id}, name={self.tag_name}, type={self.tag_type})>"
+        try:
+            tag_id = getattr(self, 'id', '<unknown>')
+            name = getattr(self, 'tag_name', '<unknown>')
+            tag_type = getattr(self, 'tag_type', '<unknown>')
+            return f"<ProductTag(id={tag_id}, name={name}, type={tag_type})>"
+        except:
+            return f"<ProductTag at {hex(id(self))}>"
 
 
 # Many-to-many association table for Product and ProductTag
@@ -485,5 +561,10 @@ class ProductTagAssociation(Base):
     tag_id = Column(Integer, ForeignKey("product_tags.id", ondelete="CASCADE"), primary_key=True)
     
     def __repr__(self) -> str:
-        return f"<ProductTagAssociation(product_id={self.product_id}, tag_id={self.tag_id})>"
+        try:
+            prod_id = getattr(self, 'product_id', '<unknown>')
+            tag_id = getattr(self, 'tag_id', '<unknown>')
+            return f"<ProductTagAssociation(product_id={prod_id}, tag_id={tag_id})>"
+        except:
+            return f"<ProductTagAssociation at {hex(id(self))}>"
 

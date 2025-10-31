@@ -444,6 +444,56 @@ class AdminService:
         
         return quote
     
+    @staticmethod
+    async def recalculate_quote_totals(
+        db: AsyncSession,
+        quote_id: int
+    ) -> Quote:
+        """
+        Recalculate quote totals based on items
+        
+        Args:
+            db: Database session
+            quote_id: Quote ID
+            
+        Returns:
+            Updated quote with recalculated totals
+        """
+        from backend.models.quote import Quote, QuoteItem
+        from sqlalchemy.orm import selectinload
+        
+        result = await db.execute(
+            select(Quote)
+            .where(Quote.id == quote_id)
+            .options(selectinload(Quote.items))
+        )
+        quote = result.scalar_one_or_none()
+        
+        if not quote:
+            raise ResourceNotFoundError(resource_type="Quote", resource_id=quote_id)
+        
+        # Calculate subtotal from items
+        subtotal = sum(item.line_total for item in quote.items) if quote.items else 0
+        
+        # Calculate tax (default 10% if not set)
+        tax_rate = 0.10  # TODO: Make configurable
+        tax_amount = int(subtotal * tax_rate)
+        
+        # Shipping cost and discount_amount are already set or calculated separately
+        # Calculate total
+        total_amount = subtotal + tax_amount + quote.shipping_cost - quote.discount_amount
+        
+        quote.subtotal = subtotal
+        quote.tax_amount = tax_amount
+        quote.total_amount = total_amount
+        
+        await db.commit()
+        await db.refresh(quote)
+        
+        logger.info(f"Recalculated totals for quote {quote_id}: subtotal={subtotal}, total={total_amount}")
+        
+        return quote
+    
     # ========================================================================
     # Analytics
     # ========================================================================

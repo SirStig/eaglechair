@@ -11,9 +11,6 @@ import {
   XCircle,
   TrendingUp,
   Building2,
-  Mail,
-  Phone,
-  MapPin,
   Calendar,
   DollarSign,
   ChevronRight
@@ -21,6 +18,8 @@ import {
 import Card from '../components/ui/Card';
 import Badge from '../components/ui/Badge';
 import Button from '../components/ui/Button';
+import QuoteDetailsView from '../components/quotes/QuoteDetailsView';
+import AccountSettings from '../components/account/AccountSettings';
 import { useAuthStore } from '../store/authStore';
 import { useCartStore } from '../store/cartStore';
 import apiClient from '../config/apiClient';
@@ -36,7 +35,7 @@ const DashboardPage = () => {
   const getActiveTabFromPath = () => {
     const path = location.pathname;
     if (path.includes('/quotes')) return 'quotes';
-    if (path.includes('/profile')) return 'profile';
+    if (path.includes('/account')) return 'account';
     return 'overview';
   };
   
@@ -44,9 +43,9 @@ const DashboardPage = () => {
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
   const [dashboardData, setDashboardData] = useState(null);
   const [quotesData, setQuotesData] = useState([]);
-  const [profileData, setProfileData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [quoteFilter, setQuoteFilter] = useState('all');
+  const [selectedQuoteId, setSelectedQuoteId] = useState(null);
 
   // Update active tab when URL changes
   useEffect(() => {
@@ -70,10 +69,8 @@ const DashboardPage = () => {
       } else if (activeTab === 'quotes') {
         const data = await apiClient.get(`/api/v1/dashboard/quotes?status=${quoteFilter}`);
         setQuotesData(data.quotes || []);
-      } else if (activeTab === 'profile') {
-        const data = await apiClient.get('/api/v1/dashboard/profile');
-        setProfileData(data);
       }
+      // Account settings handles its own data loading
     } catch (error) {
       console.error('Error loading dashboard data:', error);
     } finally {
@@ -125,7 +122,7 @@ const DashboardPage = () => {
     { id: 'overview', label: 'Overview', icon: LayoutDashboard, path: '/dashboard' },
     { id: 'quotes', label: 'My Quotes', icon: FileText, path: '/dashboard/quotes' },
     { id: 'cart', label: 'Shopping Cart', icon: ShoppingCart, badge: cartItems.length, path: '/cart' },
-    { id: 'profile', label: 'Account Settings', icon: User, path: '/dashboard/profile' },
+    { id: 'account', label: 'Account Settings', icon: User, path: '/dashboard/account' },
   ];
 
   return (
@@ -360,214 +357,103 @@ const DashboardPage = () => {
 
             {/* Quotes Tab */}
             {activeTab === 'quotes' && (
-              <div className="space-y-6">
-                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-                  <h1 className="text-2xl md:text-3xl font-bold text-dark-50">My Quotes</h1>
-                  
-                  <div className="flex flex-wrap gap-2">
-                    {['all', 'submitted', 'under_review', 'quoted', 'accepted'].map((filter) => (
-                      <button
-                        key={filter}
-                        onClick={() => setQuoteFilter(filter)}
-                        className={`
-                          px-4 py-2 rounded-lg text-sm font-medium transition-colors
-                          ${quoteFilter === filter
-                            ? 'bg-primary-600 text-white'
-                            : 'bg-dark-700 text-dark-100 hover:bg-dark-600 border border-dark-600'
-                          }
-                        `}
-                      >
-                        {filter.replace('_', ' ').replace(/\b\w/g, l => l.toUpperCase())}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-
-                <div className="grid gap-4">
-                  {quotesData.map((quote) => (
-                    <Card key={quote.id} className="p-6 hover:shadow-md transition-shadow bg-dark-700 border-dark-600">
-                      <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
-                        <div className="flex-1">
-                          <div className="flex items-center gap-3 mb-2">
-                            <h3 className="text-lg font-semibold text-dark-50">
-                              {quote.projectName || 'Untitled Project'}
-                            </h3>
-                            {getStatusBadge(quote.status)}
-                          </div>
-                          <div className="space-y-1 text-sm text-dark-200">
-                            <p>Quote #{quote.quoteNumber}</p>
-                            <p className="flex items-center gap-1.5">
-                              <Calendar className="w-4 h-4" />
-                              Created {formatDate(quote.createdAt)}
-                            </p>
-                            <p className="flex items-center gap-1.5">
-                              <Package className="w-4 h-4" />
-                              {quote.itemCount} items
-                            </p>
-                          </div>
-                        </div>
-                        
-                        <div className="flex flex-col items-end gap-3">
-                          {quote.totalAmount > 0 && (
-                            <p className="text-2xl font-bold text-dark-50">
-                              {formatCurrency(quote.totalAmount)}
-                            </p>
-                          )}
-                          <Button variant="outline" size="sm">
-                            View Details
-                            <ChevronRight className="w-4 h-4 ml-1" />
-                          </Button>
-                        </div>
+              <>
+                {selectedQuoteId ? (
+                  <QuoteDetailsView 
+                    quoteId={selectedQuoteId} 
+                    onBack={() => setSelectedQuoteId(null)}
+                  />
+                ) : (
+                  <div className="space-y-6">
+                    <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+                      <h1 className="text-2xl md:text-3xl font-bold text-dark-50">My Quotes</h1>
+                      
+                      <div className="flex flex-wrap gap-2">
+                        {['all', 'submitted', 'under_review', 'quoted', 'accepted'].map((filter) => (
+                          <button
+                            key={filter}
+                            onClick={() => setQuoteFilter(filter)}
+                            className={`
+                              px-4 py-2 rounded-lg text-sm font-medium transition-colors
+                              ${quoteFilter === filter
+                                ? 'bg-primary-600 text-white'
+                                : 'bg-dark-700 text-dark-100 hover:bg-dark-600 border border-dark-600'
+                              }
+                            `}
+                          >
+                            {filter.replace('_', ' ').replace(/\b\w/g, l => l.toUpperCase())}
+                          </button>
+                        ))}
                       </div>
-                    </Card>
-                  ))}
-                  
-                  {quotesData.length === 0 && !loading && (
-                    <Card className="p-12 text-center bg-dark-700 border-dark-600">
-                      <FileText className="w-16 h-16 text-dark-300 mx-auto mb-4" />
-                      <h3 className="text-lg font-medium text-dark-50 mb-2">No quotes found</h3>
-                      <p className="text-dark-200 mb-6">
-                        {quoteFilter === 'all' 
-                          ? "You haven't created any quotes yet" 
-                          : `No ${quoteFilter.replace('_', ' ')} quotes`
-                        }
-                      </p>
-                      <Button onClick={() => navigate('/products')}>
-                        Browse Products
-                      </Button>
-                    </Card>
-                  )}
-                </div>
-              </div>
+                    </div>
+
+                    <div className="grid gap-4">
+                      {quotesData.map((quote) => (
+                        <Card key={quote.id} className="p-6 hover:shadow-md transition-shadow bg-dark-700 border-dark-600">
+                          <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+                            <div className="flex-1">
+                              <div className="flex items-center gap-3 mb-2">
+                                <h3 className="text-lg font-semibold text-dark-50">
+                                  {quote.projectName || 'Untitled Project'}
+                                </h3>
+                                {getStatusBadge(quote.status)}
+                              </div>
+                              <div className="space-y-1 text-sm text-dark-200">
+                                <p>Quote #{quote.quoteNumber}</p>
+                                <p className="flex items-center gap-1.5">
+                                  <Calendar className="w-4 h-4" />
+                                  Created {formatDate(quote.createdAt)}
+                                </p>
+                                <p className="flex items-center gap-1.5">
+                                  <Package className="w-4 h-4" />
+                                  {quote.itemCount} items
+                                </p>
+                              </div>
+                            </div>
+                            
+                            <div className="flex flex-col items-end gap-3">
+                              {quote.totalAmount > 0 && (
+                                <p className="text-2xl font-bold text-dark-50">
+                                  {formatCurrency(quote.totalAmount)}
+                                </p>
+                              )}
+                              <Button 
+                                variant="outline" 
+                                size="sm"
+                                onClick={() => setSelectedQuoteId(quote.id)}
+                              >
+                                View Details
+                                <ChevronRight className="w-4 h-4 ml-1" />
+                              </Button>
+                            </div>
+                          </div>
+                        </Card>
+                      ))}
+                      
+                      {quotesData.length === 0 && !loading && (
+                        <Card className="p-12 text-center bg-dark-700 border-dark-600">
+                          <FileText className="w-16 h-16 text-dark-300 mx-auto mb-4" />
+                          <h3 className="text-lg font-medium text-dark-50 mb-2">No quotes found</h3>
+                          <p className="text-dark-200 mb-6">
+                            {quoteFilter === 'all' 
+                              ? "You haven't created any quotes yet" 
+                              : `No ${quoteFilter.replace('_', ' ')} quotes`
+                            }
+                          </p>
+                          <Button onClick={() => navigate('/products')}>
+                            Browse Products
+                          </Button>
+                        </Card>
+                      )}
+                    </div>
+                  </div>
+                )}
+              </>
             )}
 
-            {/* Profile Tab */}
-            {activeTab === 'profile' && profileData && (
-              <div className="space-y-6">
-                <h1 className="text-2xl md:text-3xl font-bold text-dark-50">Account Settings</h1>
-
-                <div className="grid gap-6">
-                  {/* Company Information */}
-                  <Card className="p-6 bg-dark-700 border-dark-600">
-                    <h2 className="text-lg font-semibold text-dark-50 mb-4 flex items-center gap-2">
-                      <Building2 className="w-5 h-5" />
-                      Company Information
-                    </h2>
-                    <div className="grid md:grid-cols-2 gap-6">
-                      <div>
-                        <label className="block text-sm font-medium text-dark-200 mb-1">
-                          Company Name
-                        </label>
-                        <p className="text-dark-50">{profileData.companyName}</p>
-                      </div>
-                      <div>
-                        <label className="block text-sm font-medium text-dark-200 mb-1">
-                          Legal Name
-                        </label>
-                        <p className="text-dark-50">{profileData.legalName || 'N/A'}</p>
-                      </div>
-                      <div>
-                        <label className="block text-sm font-medium text-dark-200 mb-1">
-                          Tax ID
-                        </label>
-                        <p className="text-dark-50">{profileData.taxId || 'N/A'}</p>
-                      </div>
-                      <div>
-                        <label className="block text-sm font-medium text-dark-200 mb-1">
-                          Industry
-                        </label>
-                        <p className="text-dark-50">{profileData.industry || 'N/A'}</p>
-                      </div>
-                      <div>
-                        <label className="block text-sm font-medium text-dark-200 mb-1">
-                          Website
-                        </label>
-                        <p className="text-dark-50">{profileData.website || 'N/A'}</p>
-                      </div>
-                      <div>
-                        <label className="block text-sm font-medium text-dark-200 mb-1">
-                          Account Status
-                        </label>
-                        <Badge variant={profileData.status === 'approved' ? 'success' : 'warning'}>
-                          {profileData.status}
-                        </Badge>
-                      </div>
-                    </div>
-                  </Card>
-
-                  {/* Representative Information */}
-                  <Card className="p-6 bg-dark-700 border-dark-600">
-                    <h2 className="text-lg font-semibold text-dark-50 mb-4 flex items-center gap-2">
-                      <User className="w-5 h-5" />
-                      Representative Information
-                    </h2>
-                    <div className="grid md:grid-cols-2 gap-6">
-                      <div>
-                        <label className="block text-sm font-medium text-dark-200 mb-1">
-                          Full Name
-                        </label>
-                        <p className="text-dark-50">
-                          {profileData.representative.firstName} {profileData.representative.lastName}
-                        </p>
-                      </div>
-                      <div>
-                        <label className="block text-sm font-medium text-dark-200 mb-1">
-                          Title
-                        </label>
-                        <p className="text-dark-50">{profileData.representative.title || 'N/A'}</p>
-                      </div>
-                      <div>
-                        <label className="block text-sm font-medium text-dark-200 mb-1 flex items-center gap-1">
-                          <Mail className="w-4 h-4" />
-                          Email
-                        </label>
-                        <p className="text-dark-50">{profileData.representative.email}</p>
-                      </div>
-                      <div>
-                        <label className="block text-sm font-medium text-dark-200 mb-1 flex items-center gap-1">
-                          <Phone className="w-4 h-4" />
-                          Phone
-                        </label>
-                        <p className="text-dark-50">{profileData.representative.phone}</p>
-                      </div>
-                    </div>
-                  </Card>
-
-                  {/* Billing Address */}
-                  <Card className="p-6 bg-dark-700 border-dark-600">
-                    <h2 className="text-lg font-semibold text-dark-50 mb-4 flex items-center gap-2">
-                      <MapPin className="w-5 h-5" />
-                      Billing Address
-                    </h2>
-                    <div className="text-dark-50 space-y-1">
-                      <p>{profileData.billingAddress.line1}</p>
-                      {profileData.billingAddress.line2 && <p>{profileData.billingAddress.line2}</p>}
-                      <p>
-                        {profileData.billingAddress.city}, {profileData.billingAddress.state} {profileData.billingAddress.zip}
-                      </p>
-                      <p>{profileData.billingAddress.country}</p>
-                    </div>
-                  </Card>
-
-                  {/* Shipping Address */}
-                  {profileData.shippingAddress && (
-                    <Card className="p-6 bg-dark-700 border-dark-600">
-                      <h2 className="text-lg font-semibold text-dark-50 mb-4 flex items-center gap-2">
-                        <Package className="w-5 h-5" />
-                        Shipping Address
-                      </h2>
-                      <div className="text-dark-50 space-y-1">
-                        <p>{profileData.shippingAddress.line1}</p>
-                        {profileData.shippingAddress.line2 && <p>{profileData.shippingAddress.line2}</p>}
-                        <p>
-                          {profileData.shippingAddress.city}, {profileData.shippingAddress.state} {profileData.shippingAddress.zip}
-                        </p>
-                        <p>{profileData.shippingAddress.country}</p>
-                      </div>
-                    </Card>
-                  )}
-                </div>
-              </div>
+            {/* Account Settings Tab */}
+            {activeTab === 'account' && (
+              <AccountSettings />
             )}
           </div>
         </main>

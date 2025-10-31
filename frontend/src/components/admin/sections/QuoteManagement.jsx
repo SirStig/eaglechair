@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import Card from '../../ui/Card';
 import Button from '../../ui/Button';
 import apiClient from '../../../config/apiClient';
+import AdminQuoteDetailView from './AdminQuoteDetailView';
 import { 
   FileText, 
   Search, 
@@ -19,6 +20,7 @@ const QuoteManagement = () => {
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
+  const [selectedQuoteId, setSelectedQuoteId] = useState(null);
   const [pagination, setPagination] = useState({
     page: 1,
     page_size: 20,
@@ -98,6 +100,29 @@ const QuoteManagement = () => {
       alert('Failed to update quote status');
     }
   };
+
+  const handleViewQuote = (quoteId) => {
+    setSelectedQuoteId(quoteId);
+  };
+
+  const handleBackToList = () => {
+    setSelectedQuoteId(null);
+  };
+
+  const handleQuoteUpdated = () => {
+    fetchQuotes();
+  };
+
+  // Show detail view if quote is selected
+  if (selectedQuoteId) {
+    return (
+      <AdminQuoteDetailView
+        quoteId={selectedQuoteId}
+        onBack={handleBackToList}
+        onUpdated={handleQuoteUpdated}
+      />
+    );
+  }
 
   return (
     <div className="p-8 space-y-6">
@@ -215,6 +240,7 @@ const QuoteManagement = () => {
                     <td className="p-4">
                       <div className="flex items-center justify-end gap-2">
                         <button
+                          onClick={() => handleViewQuote(quote.id)}
                           className="p-2 text-dark-300 hover:text-accent-500 hover:bg-dark-600 rounded-lg transition-all"
                           title="View Details"
                         >
