@@ -5,7 +5,6 @@ Handles file uploads (images, documents, etc.)
 """
 
 import logging
-import os
 import time
 from pathlib import Path
 
@@ -13,6 +12,7 @@ from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
 from pydantic import BaseModel
 
 from backend.api.dependencies import get_current_admin
+from backend.core.config import settings
 
 logger = logging.getLogger(__name__)
 
@@ -23,11 +23,32 @@ router = APIRouter(tags=["Upload"])
 # Backend: /home/dh_wmujeb/api.eaglechair.com
 # Frontend: /home/dh_wmujeb/joshua.eaglechair.com
 # Files need to be uploaded to frontend's uploads directory
-FRONTEND_UPLOAD_PATH = os.getenv(
-    "FRONTEND_UPLOAD_PATH", 
-    "/home/dh_wmujeb/joshua.eaglechair.com/uploads"
-)
-UPLOAD_BASE_DIR = Path(FRONTEND_UPLOAD_PATH) if os.path.isabs(FRONTEND_UPLOAD_PATH) else Path("uploads")
+# In dev: Use project root /uploads (where main.py serves from)
+# In prod: Use FRONTEND_PATH from settings + /uploads
+def get_upload_base_dir() -> Path:
+    """Get the base upload directory path for dev/prod"""
+    frontend_path = Path(settings.FRONTEND_PATH)
+    
+    # If FRONTEND_PATH is an absolute path (production), use it + /uploads
+    if frontend_path.is_absolute():
+        # Production: Frontend is in separate directory, uploads go to frontend/uploads
+        uploads_path = frontend_path / "uploads"
+        logger.info(f"Using production upload path: {uploads_path}")
+        return uploads_path
+    
+    # Development: Use project root /uploads (where main.py serves from)
+    # upload.py is at: backend/api/v1/routes/admin/upload.py
+    # main.py is at: backend/main.py
+    # main.py uses: Path(__file__).parent.parent / "uploads" = project_root/uploads
+    # So from upload.py we need to go: admin -> routes -> v1 -> api -> backend -> project_root
+    current_file = Path(__file__).resolve()
+    # Go up 6 levels: admin -> routes -> v1 -> api -> backend -> project_root
+    project_root = current_file.parent.parent.parent.parent.parent.parent
+    uploads_path = project_root / "uploads"
+    logger.info(f"Using development upload path: {uploads_path}")
+    return uploads_path
+
+UPLOAD_BASE_DIR = get_upload_base_dir()
 ALLOWED_IMAGE_EXTENSIONS = {".jpg", ".jpeg", ".png", ".gif", ".webp", ".svg"}
 ALLOWED_DOCUMENT_EXTENSIONS = {".pdf", ".doc", ".docx", ".zip"}
 MAX_FILE_SIZE = 10 * 1024 * 1024  # 10MB
@@ -59,6 +80,10 @@ async def upload_image(
     - **filename**: Optional custom filename (will be sanitized)
     """
     try:
+        # Validate filename exists
+        if not file.filename:
+            raise HTTPException(status_code=400, detail="Filename is required")
+        
         # Validate file extension
         file_ext = Path(file.filename).suffix.lower()
         if file_ext not in ALLOWED_IMAGE_EXTENSIONS:
@@ -131,16 +156,27 @@ async def delete_image(
     **Admin only** - Requires admin authentication.
     """
     try:
-        # Extract path from URL
+        # Extract path from URL (e.g., "/uploads/images/products/image.jpg")
         url_path = request.url
         if url_path.startswith('/'):
-            url_path = url_path[1:]
-        
-        # Construct file path
-        file_path = Path(url_path)
+            url_path = url_path[1:]  # Remove leading slash
         
         # Security check - ensure path is within uploads directory
-        if not str(file_path).startswith('uploads/'):
+        if not url_path.startswith('uploads/'):
+            raise HTTPException(status_code=400, detail="Invalid file path")
+        
+        # Construct full file path using UPLOAD_BASE_DIR
+        # Remove "uploads/" prefix and use the rest as relative path
+        relative_path = url_path.replace('uploads/', '', 1)  # Remove first occurrence
+        file_path = UPLOAD_BASE_DIR / relative_path
+        
+        # Additional security check - ensure resolved path is still within UPLOAD_BASE_DIR
+        try:
+            file_path = file_path.resolve()
+            base_resolved = UPLOAD_BASE_DIR.resolve()
+            if not str(file_path).startswith(str(base_resolved)):
+                raise HTTPException(status_code=400, detail="Invalid file path - outside upload directory")
+        except (ValueError, OSError):
             raise HTTPException(status_code=400, detail="Invalid file path")
         
         # Check if file exists
@@ -183,6 +219,10 @@ async def upload_document(
     - **subfolder**: Subfolder to organize documents (e.g., 'catalogs', 'guides')
     """
     try:
+        # Validate filename exists
+        if not file.filename:
+            raise HTTPException(status_code=400, detail="Filename is required")
+        
         # Validate file extension
         file_ext = Path(file.filename).suffix.lower()
         if file_ext not in ALLOWED_DOCUMENT_EXTENSIONS:

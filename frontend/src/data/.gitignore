@@ -1,6 +1,0 @@
-# Ignore auto-generated content exports
-contentData.js
-.contentData.json
-
-# Keep demo data (manually maintained)
-!demoData.js

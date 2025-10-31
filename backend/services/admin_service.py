@@ -442,6 +442,74 @@ class AdminService:
         
         logger.info(f"Updated quote {quote_id} status to {status}")
         
+        # Send email notification to company
+        try:
+            from backend.services.email_service import EmailService
+            from backend.core.config import settings
+            from sqlalchemy.orm import selectinload
+            
+            # Reload quote with company and items for email
+            result = await db.execute(
+                select(Quote)
+                .where(Quote.id == quote_id)
+                .options(
+                    selectinload(Quote.company),
+                    selectinload(Quote.items).selectinload(QuoteItem.product)
+                )
+            )
+            quote_for_email = result.scalar_one_or_none()
+            
+            if quote_for_email and quote_for_email.company:
+                quote_url = f"{settings.FRONTEND_URL}/quotes/{quote_for_email.quote_number}"
+                
+                # Prepare items for email
+                items_data = []
+                if quote_for_email.items:
+                    for item in quote_for_email.items:
+                        items_data.append({
+                            'product_name': item.product_name,
+                            'product_model_number': item.product_model_number,
+                            'quantity': item.quantity,
+                            'unit_price': item.unit_price,
+                            'line_total': item.line_total
+                        })
+                
+                # Send detailed quote email if we have items, otherwise send simple update
+                if items_data:
+                    await EmailService.send_quote_detailed_email(
+                        db=db,
+                        to_email=quote_for_email.company.rep_email,
+                        company_name=quote_for_email.company.company_name,
+                        quote_number=quote_for_email.quote_number,
+                        status=status.value,
+                        items=items_data,
+                        subtotal=quote_for_email.subtotal,
+                        tax_amount=quote_for_email.tax_amount,
+                        shipping_cost=quote_for_email.shipping_cost,
+                        total_amount=quote_for_email.total_amount,
+                        quoted_price=quote_for_email.quoted_price,
+                        quoted_lead_time=quote_for_email.quoted_lead_time,
+                        quote_valid_until=quote_for_email.quote_valid_until,
+                        quote_notes=quote_for_email.quote_notes,
+                        quote_url=quote_url
+                    )
+                else:
+                    await EmailService.send_quote_updated_email(
+                        db=db,
+                        to_email=quote_for_email.company.rep_email,
+                        company_name=quote_for_email.company.company_name,
+                        quote_number=quote_for_email.quote_number,
+                        status=status.value,
+                        admin_notes=admin_notes,
+                        quoted_price=quote_for_email.quoted_price,
+                        quoted_lead_time=quote_for_email.quoted_lead_time,
+                        quote_url=quote_url
+                    )
+                logger.info(f"Quote update email sent to {quote_for_email.company.rep_email}")
+        except Exception as e:
+            logger.error(f"Failed to send quote update email: {e}", exc_info=True)
+            # Don't fail the update if email fails
+        
         return quote
     
     @staticmethod

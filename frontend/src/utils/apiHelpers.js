@@ -111,13 +111,27 @@ export const resolveImageUrl = (imageData) => {
       return `https://www.eaglechair.com${wpContentPath}`;
     }
     
-    // Already has /uploads prefix - add domain
+    // Already has /uploads prefix - in dev, Vite proxy will forward to backend
+    // In production, we add the full domain
     if (url.startsWith('/uploads')) {
+      // In development, use as-is (Vite proxy handles it)
+      if (import.meta.env.DEV) {
+        return url;
+      }
+      // Production: add domain
       return `https://joshua.eaglechair.com${url}`;
     }
     
-    // Relative path - add /uploads prefix and domain
-    return `https://joshua.eaglechair.com/uploads/${url}`;
+    // Relative path - add /uploads prefix
+    const urlPath = url.startsWith('/') ? url : `/uploads/${url}`;
+    
+    // In development, return as-is (Vite proxy handles it)
+    if (import.meta.env.DEV) {
+      return urlPath;
+    }
+    
+    // Production: add domain
+    return `https://joshua.eaglechair.com${urlPath}`;
   };
   
   // Handle object format {url: "...", type: "...", ...}
@@ -210,6 +224,70 @@ export const getProductImages = (product) => {
   }
   
   return ['/placeholder.png'];
+};
+
+// ============================================================================
+// File Utilities
+// ============================================================================
+
+/**
+ * Format file size from bytes to human-readable format
+ * @param {number} bytes - File size in bytes
+ * @param {number} decimals - Number of decimal places (default: 2)
+ * @returns {string} Formatted file size (e.g., "1.5 MB", "500 KB", "2.3 GB")
+ */
+export const formatFileSize = (bytes, decimals = 2) => {
+  if (!bytes || bytes === 0) return '0 Bytes';
+  
+  const k = 1024;
+  const dm = decimals < 0 ? 0 : decimals;
+  const sizes = ['Bytes', 'KB', 'MB', 'GB', 'TB'];
+  
+  const i = Math.floor(Math.log(bytes) / Math.log(k));
+  
+  return parseFloat((bytes / Math.pow(k, i)).toFixed(dm)) + ' ' + sizes[i];
+};
+
+/**
+ * Resolve file URL from various formats (similar to resolveImageUrl)
+ * Handles PDF and document files
+ * @param {string} fileUrl - File URL string
+ * @returns {string} Resolved file URL
+ */
+export const resolveFileUrl = (fileUrl) => {
+  if (!fileUrl) return '';
+  
+  // Helper function to process URL string
+  const processUrl = (url) => {
+    // External URL (starts with http/https)
+    if (url.startsWith('http')) {
+      return url;
+    }
+    
+    // Already has /uploads prefix - in dev, Vite proxy will forward to backend
+    // In production, we add the full domain
+    if (url.startsWith('/uploads')) {
+      // In development, use as-is (Vite proxy handles it)
+      if (import.meta.env.DEV) {
+        return url;
+      }
+      // Production: add domain
+      return `https://joshua.eaglechair.com${url}`;
+    }
+    
+    // Relative path - add /uploads prefix
+    const urlPath = url.startsWith('/') ? url : `/uploads/${url}`;
+    
+    // In development, return as-is (Vite proxy handles it)
+    if (import.meta.env.DEV) {
+      return urlPath;
+    }
+    
+    // Production: add domain
+    return `https://joshua.eaglechair.com${urlPath}`;
+  };
+  
+  return processUrl(fileUrl);
 };
 
 // ============================================================================

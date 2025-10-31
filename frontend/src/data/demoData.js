@@ -1739,5 +1739,3 @@ Phone: (Contact for phone number)`,
     display_order: 25
   }
 ];
-
-

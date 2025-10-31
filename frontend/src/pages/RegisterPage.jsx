@@ -111,14 +111,15 @@ const RegisterPage = () => {
         registrationData.shipping_country = data.shipping_country || 'USA';
       }
 
-      // Register and authenticate (backend now returns tokens directly)
+      // Register (backend now requires email verification)
       const result = await registerAuth(registrationData, cartStore);
       
       if (result.success) {
-        // Success - redirect to dashboard or previous page
-        navigate('/dashboard', {
+        // Registration successful - user needs to verify email
+        navigate('/verify-email', {
           state: {
-            message: 'Registration successful! Welcome to Eagle Chair.',
+            email: registrationData.rep_email,
+            message: 'Registration successful! Please check your email to verify your account.',
             type: 'success'
           }
         });

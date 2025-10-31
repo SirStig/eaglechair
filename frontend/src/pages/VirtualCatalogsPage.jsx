@@ -2,12 +2,15 @@ import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { useCatalogs } from '../hooks/useContent';
-import { Book, Palette, Scissors, BookOpen } from 'lucide-react';
+import { Book, Palette, Scissors, BookOpen, Eye, Download } from 'lucide-react';
 import LoadingSpinner from '../components/ui/LoadingSpinner';
+import PDFViewerModal from '../components/ui/PDFViewerModal';
+import { formatFileSize, resolveFileUrl, resolveImageUrl } from '../utils/apiHelpers';
 
 const VirtualCatalogsPage = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('all');
+  const [viewingPdf, setViewingPdf] = useState(null);
   const { data: catalogs = [], loading } = useCatalogs();
 
   // Get catalogs data
@@ -111,10 +114,10 @@ const VirtualCatalogsPage = () => {
                 className="bg-dark-800 rounded-lg border border-dark-700 overflow-hidden hover:border-primary-500 transition-all duration-300 group"
               >
                 {/* Catalog Cover Image */}
-                {catalog.coverImageUrl ? (
+                {catalog.coverImageUrl || catalog.thumbnailUrl || catalog.thumbnail_url ? (
                   <div className="aspect-[3/4] overflow-hidden bg-dark-900">
                     <img
-                      src={catalog.coverImageUrl}
+                      src={resolveImageUrl(catalog.coverImageUrl || catalog.thumbnailUrl || catalog.thumbnail_url)}
                       alt={catalog.title}
                       className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
                     />
@@ -145,8 +148,8 @@ const VirtualCatalogsPage = () => {
 
                   {/* Metadata */}
                   <div className="flex flex-wrap gap-3 text-xs text-dark-400 mb-4">
-                    {catalog.fileSize && (
-                      <span>Size: {catalog.fileSize}</span>
+                    {(catalog.fileSize || catalog.file_size) && (
+                      <span>Size: {formatFileSize(catalog.fileSize || catalog.file_size)}</span>
                     )}
                     {catalog.pageCount && (
                       <span>{catalog.pageCount} pages</span>
@@ -159,15 +162,31 @@ const VirtualCatalogsPage = () => {
                     )}
                   </div>
 
-                  {/* Download Button */}
-                  {catalog.fileUrl && (
-                    <a
-                      href={catalog.fileUrl}
-                      download
-                      className="block w-full text-center px-4 py-2 bg-primary-600 hover:bg-primary-500 text-white font-medium rounded-lg transition-colors"
-                    >
-                      Download {catalog.fileType?.toUpperCase() || 'PDF'}
-                    </a>
+                  {/* Action Buttons */}
+                  {(catalog.fileUrl || catalog.file_url) && (
+                    <div className="flex gap-2">
+                      {catalog.fileType === 'PDF' || catalog.fileType === 'pdf' || ((catalog.fileUrl || catalog.file_url)?.toLowerCase().endsWith('.pdf')) ? (
+                        <button
+                          onClick={() => setViewingPdf({
+                            url: catalog.fileUrl || catalog.file_url,
+                            name: catalog.title,
+                            type: catalog.fileType || 'PDF'
+                          })}
+                          className="flex-1 flex items-center justify-center gap-2 px-4 py-2 bg-primary-600 hover:bg-primary-500 text-white font-medium rounded-lg transition-colors"
+                        >
+                          <Eye className="w-4 h-4" />
+                          View PDF
+                        </button>
+                      ) : null}
+                      <a
+                        href={resolveFileUrl(catalog.fileUrl || catalog.file_url)}
+                        download
+                        className="flex-1 flex items-center justify-center gap-2 px-4 py-2 bg-dark-700 hover:bg-dark-600 text-dark-200 font-medium rounded-lg transition-colors"
+                      >
+                        <Download className="w-4 h-4" />
+                        Download
+                      </a>
+                    </div>
                   )}
 
                   {/* Download Count */}
@@ -227,6 +246,17 @@ const VirtualCatalogsPage = () => {
           </div>
         </div>
       </div>
+
+      {/* PDF Viewer Modal */}
+      {viewingPdf && (
+        <PDFViewerModal
+          isOpen={!!viewingPdf}
+          onClose={() => setViewingPdf(null)}
+          fileUrl={viewingPdf.url}
+          fileName={viewingPdf.name}
+          fileType={viewingPdf.type}
+        />
+      )}
     </div>
   );
 };

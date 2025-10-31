@@ -79,28 +79,11 @@ async def register_company(
     
     logger.info(f"Company registered successfully: {company.company_name} (ID: {company.id})")
     
-    # Automatically authenticate the newly registered company
-    logger.info(f"Auto-authenticating newly registered company: {company.id}")
-    company_auth, tokens = await AuthService.authenticate_company(
-        db=db,
-        email=registration_data.rep_email,
-        password=registration_data.password,
-        ip_address=client_ip
-    )
-    
-    # Return same format as login endpoint
+    # Return success message - user must verify email before they can log in
     return {
-        **tokens,
-        "user": {
-            "id": company.id,
-            "companyName": company.company_name,
-            "email": company.rep_email,
-            "firstName": company.rep_first_name,
-            "lastName": company.rep_last_name,
-            "phone": company.rep_phone,
-            "status": company.status.value,
-            "type": "company"
-        }
+        "message": "Registration successful! Please check your email to verify your account before logging in.",
+        "email": company.rep_email,
+        "verified": False
     }
 
 
@@ -261,6 +244,84 @@ async def login_admin(
     )
     
     return tokens
+
+
+# ============================================================================
+# Email Verification
+# ============================================================================
+
+@router.post(
+    "/auth/verify-email",
+    response_model=MessageResponse,
+    summary="Verify email address",
+    description="Verify email address using verification token from email."
+)
+async def verify_email(
+    token_data: dict,
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    Verify email address using token from verification email.
+    
+    **Public endpoint** - No authentication required.
+    
+    After successful verification, the account can be used for login.
+    """
+    token = token_data.get("token")
+    if not token:
+        from fastapi import HTTPException
+        raise HTTPException(status_code=400, detail="Token is required")
+    
+    logger.info("Email verification attempt")
+    
+    # Verify email
+    await AuthService.verify_email(
+        db=db,
+        token=token
+    )
+    
+    logger.info("Email verified successfully")
+    
+    return MessageResponse(
+        message="Email verified successfully",
+        detail="Your email has been verified. You can now log in to your account."
+    )
+
+
+@router.post(
+    "/auth/resend-verification",
+    response_model=MessageResponse,
+    summary="Resend verification email",
+    description="Resend email verification email to user."
+)
+async def resend_verification(
+    email_data: dict,
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    Resend email verification email.
+    
+    **Public endpoint** - No authentication required.
+    
+    For security, this always returns success even if email doesn't exist.
+    """
+    email = email_data.get("email")
+    if not email:
+        from fastapi import HTTPException
+        raise HTTPException(status_code=400, detail="Email is required")
+    
+    logger.info(f"Resend verification requested for: {email}")
+    
+    # Resend verification email
+    await AuthService.resend_verification_email(
+        db=db,
+        email=email
+    )
+    
+    return MessageResponse(
+        message="Verification email sent",
+        detail="If an account exists with this email and is not yet verified, you will receive a verification email."
+    )
 
 
 # ============================================================================

@@ -124,14 +124,21 @@ class Settings(BaseSettings):
     RATE_LIMIT_PER_MINUTE: int = 120  # Increased from 60 to accommodate page loads with multiple API calls
     RATE_LIMIT_ENABLED: bool = True  # Can be overridden by TESTING mode
     
-    # Email Configuration
-    SMTP_HOST: Optional[str] = None
-    SMTP_PORT: int = 587
-    SMTP_USER: Optional[str] = None
-    SMTP_PASSWORD: Optional[str] = None
-    SMTP_FROM_EMAIL: Optional[str] = "noreply@eaglechair.com"
-    SMTP_FROM_NAME: Optional[str] = "EagleChair"
-    SMTP_TLS: bool = True  # Use STARTTLS (True) or SSL (False)
+    # Email Configuration (SMTP)
+    # REQUIRED for sending emails:
+    # - SMTP_HOST: SMTP server hostname (e.g., "smtp.gmail.com", "mail.yourdomain.com")
+    # - SMTP_USER: SMTP username/email for authentication (e.g., "noreply@yourdomain.com")
+    # - SMTP_PASSWORD: SMTP password for authentication (app-specific password for Gmail, etc.)
+    # Optional:
+    # - SMTP_PORT: SMTP port (default: 587 for STARTTLS, 465 for SSL)
+    # - SMTP_TLS: Use STARTTLS (True, default) or SSL/TLS (False)
+    SMTP_HOST: Optional[str] = None  # REQUIRED: SMTP server hostname
+    SMTP_PORT: int = 587  # SMTP port (587 for STARTTLS, 465 for SSL)
+    SMTP_USER: Optional[str] = None  # REQUIRED: SMTP username/email for authentication
+    SMTP_PASSWORD: Optional[str] = None  # REQUIRED: SMTP password for authentication
+    SMTP_FROM_EMAIL: Optional[str] = "noreply@eaglechair.com"  # From email address
+    SMTP_FROM_NAME: Optional[str] = "EagleChair"  # From name
+    SMTP_TLS: bool = True  # Use STARTTLS (True, default for port 587) or SSL/TLS (False, for port 465)
     ADMIN_EMAIL: str = "admin@eaglechair.com"  # For admin notifications
     
     # AWS Configuration (for media storage)
@@ -166,6 +173,7 @@ class Settings(BaseSettings):
     # Path to frontend root directory for serving temporary files
     # Dev: frontend, Prod: /home/dh_wmujeb/joshua.eaglechair.com
     FRONTEND_PATH: str = "frontend"
+    FRONTEND_URL: str = "http://localhost:5173"  # Frontend URL for email links
     
     # Performance Configuration
     ENABLE_CACHE: bool = True
