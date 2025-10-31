@@ -79,6 +79,7 @@ const AdminCompanyDetailView = ({ companyId, onBack, onUpdated }) => {
         status: data.status || 'pending',
         is_verified: data.is_verified || false,
         is_active: data.is_active !== undefined ? data.is_active : true,
+        email_verified_at: data.email_verified_at || null,
         // Business Details
         resale_certificate: data.resale_certificate || '',
         credit_limit: data.credit_limit || null,
@@ -157,6 +158,7 @@ const AdminCompanyDetailView = ({ companyId, onBack, onUpdated }) => {
         status: company.status || 'pending',
         is_verified: company.is_verified || false,
         is_active: company.is_active !== undefined ? company.is_active : true,
+        email_verified_at: company.email_verified_at || null,
         resale_certificate: company.resale_certificate || '',
         credit_limit: company.credit_limit || null,
         payment_terms: company.payment_terms || '',
@@ -589,8 +591,23 @@ const AdminCompanyDetailView = ({ companyId, onBack, onUpdated }) => {
                     {getStatusBadge(company?.status)}
                   </div>
                   <div>
-                    <p className="text-sm text-dark-400 mb-1">Verified</p>
-                    <p className="text-dark-50">{company?.is_verified ? 'Yes' : 'No'}</p>
+                    <p className="text-sm text-dark-400 mb-1">Email Verified</p>
+                    {company?.is_verified ? (
+                      <div className="flex items-center gap-2">
+                        <CheckCircle className="w-4 h-4 text-green-500" />
+                        <span className="text-green-500 font-medium">Verified</span>
+                      </div>
+                    ) : (
+                      <div className="flex items-center gap-2">
+                        <XCircle className="w-4 h-4 text-red-500" />
+                        <span className="text-red-500 font-medium">Not Verified</span>
+                      </div>
+                    )}
+                    {company?.email_verified_at && (
+                      <p className="text-xs text-dark-400 mt-1">
+                        Verified: {new Date(company.email_verified_at).toLocaleDateString()}
+                      </p>
+                    )}
                   </div>
                   <div>
                     <p className="text-sm text-dark-400 mb-1">Active</p>

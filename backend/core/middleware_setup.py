@@ -34,21 +34,74 @@ logger = logging.getLogger(__name__)
 class SecurityHeadersMiddleware(BaseHTTPMiddleware):
     """
     Middleware to add security headers to all responses
+    
+    In DEBUG mode, allows SwaggerUI resources to load properly
     """
     
     async def dispatch(self, request: Request, call_next: Callable) -> Response:
         response = await call_next(request)
         
+        # Check if this is a SwaggerUI/ReDoc route (only in DEBUG mode)
+        path = request.url.path
+        is_docs_route = settings.DEBUG and (
+            path.startswith("/docs") or 
+            path.startswith("/redoc") or 
+            path.startswith("/openapi.json") or
+            path.startswith("/static/docs") or
+            path.startswith("/static/redoc")
+        )
+        
+        # Check if this is a PDF file (allow embedding in frames)
+        content_type = response.headers.get("Content-Type", "").lower()
+        is_pdf = (
+            path.lower().endswith(".pdf") or 
+            content_type == "application/pdf" or
+            content_type.startswith("application/pdf;")
+        )
+        
         # Security headers
         response.headers["X-Content-Type-Options"] = "nosniff"
-        response.headers["X-Frame-Options"] = "DENY"
+        
+        # Allow PDFs to be embedded in same-origin frames for viewing
+        if is_pdf:
+            response.headers["X-Frame-Options"] = "SAMEORIGIN"
+        else:
+            response.headers["X-Frame-Options"] = "DENY"
+        
         response.headers["X-XSS-Protection"] = "1; mode=block"
-        response.headers["Strict-Transport-Security"] = "max-age=31536000; includeSubDomains"
-        response.headers["Content-Security-Policy"] = (
-            "default-src 'self'; "
-            "script-src 'self' 'unsafe-inline' 'unsafe-eval'; "
-            "style-src 'self' 'unsafe-inline';"
-        )
+        
+        # HSTS only in production (not in dev mode)
+        if not settings.DEBUG:
+            response.headers["Strict-Transport-Security"] = "max-age=31536000; includeSubDomains"
+        
+        # Content Security Policy
+        if is_docs_route:
+            # More permissive CSP for SwaggerUI/ReDoc in dev mode
+            # Allows CDN resources and all necessary SwaggerUI functionality
+            response.headers["Content-Security-Policy"] = (
+                "default-src 'self'; "
+                "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://cdn.jsdelivr.net https://unpkg.com https://cdnjs.cloudflare.com; "
+                "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://cdn.jsdelivr.net https://unpkg.com https://cdnjs.cloudflare.com; "
+                "font-src 'self' https://fonts.gstatic.com https://cdn.jsdelivr.net https://unpkg.com https://cdnjs.cloudflare.com data:; "
+                "img-src 'self' data: https:; "
+                "connect-src 'self' https:; "
+                "frame-ancestors 'none';"
+            )
+        elif is_pdf:
+            # Allow PDFs to be embedded in same-origin frames
+            response.headers["Content-Security-Policy"] = (
+                "default-src 'self'; "
+                "frame-ancestors 'self';"
+            )
+        else:
+            # Stricter CSP for production/non-docs routes
+            response.headers["Content-Security-Policy"] = (
+                "default-src 'self'; "
+                "script-src 'self' 'unsafe-inline' 'unsafe-eval'; "
+                "style-src 'self' 'unsafe-inline';"
+                "frame-ancestors 'none';"
+            )
+        
         response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
         response.headers["Permissions-Policy"] = "geolocation=(), microphone=(), camera=()"
         

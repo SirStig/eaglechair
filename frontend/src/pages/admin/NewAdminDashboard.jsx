@@ -21,7 +21,8 @@ import {
   ExternalLink,
   User,
   Upload,
-  DollarSign
+  DollarSign,
+  Mail
 } from 'lucide-react';
 
 // Import admin sections
@@ -44,6 +45,7 @@ import SiteSettings from '../../components/admin/sections/SiteSettings';
 import Analytics from '../../components/admin/sections/Analytics';
 import VirtualCatalogUpload from '../../components/admin/sections/VirtualCatalogUpload';
 import EditTmpProduct from '../../components/admin/sections/EditTmpProduct';
+import EmailTemplateManagement from '../../components/admin/sections/EmailTemplateManagement';
 
 /**
  * Comprehensive Admin Dashboard
@@ -81,6 +83,7 @@ const NewAdminDashboard = () => {
     if (path.includes('/admin/pricing-tiers')) return 'pricing-tiers';
     if (path.includes('/admin/legal-documents')) return 'legal-documents';
     if (path.includes('/admin/settings')) return 'settings';
+    if (path.includes('/admin/emails')) return 'emails';
     return 'overview';
   };
 
@@ -107,6 +110,7 @@ const NewAdminDashboard = () => {
     else if (path.includes('/admin/pricing-tiers')) section = 'pricing-tiers';
     else if (path.includes('/admin/legal-documents')) section = 'legal-documents';
     else if (path.includes('/admin/settings')) section = 'settings';
+    else if (path.includes('/admin/emails')) section = 'emails';
     
     setActiveSection(section);
   }, [location.pathname]);
@@ -161,6 +165,7 @@ const NewAdminDashboard = () => {
       id: 'system',
       title: 'System',
       items: [
+        { id: 'emails', label: 'Email Templates', icon: Mail, path: '/admin/emails' },
         { id: 'settings', label: 'Site Settings', icon: Settings, path: '/admin/settings' },
       ]
     }
@@ -213,6 +218,8 @@ const NewAdminDashboard = () => {
         return <LegalDocumentManagement />;
       case 'settings':
         return <SiteSettings />;
+      case 'emails':
+        return <EmailTemplateManagement />;
       default:
         return <DashboardOverview onNavigate={setActiveSection} />;
     }

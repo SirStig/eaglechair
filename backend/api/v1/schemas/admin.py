@@ -71,6 +71,56 @@ class QuoteListResponse(BaseModel):
 
 
 # ============================================================================
+# Email Template Management Schemas
+# ============================================================================
+
+class EmailTemplateCreate(BaseModel):
+    """Create email template request"""
+    
+    template_type: str = Field(..., min_length=1, max_length=50, description="Template type identifier")
+    name: str = Field(..., min_length=1, max_length=255, description="Template name")
+    description: Optional[str] = Field(None, description="Template description")
+    subject: str = Field(..., min_length=1, max_length=500, description="Email subject line")
+    body: str = Field(..., description="Email body HTML")
+    available_variables: Optional[Dict[str, str]] = Field(None, description="Available variables for this template")
+    is_active: bool = Field(True, description="Whether template is active")
+
+
+class EmailTemplateUpdate(BaseModel):
+    """Update email template request"""
+    
+    name: Optional[str] = Field(None, min_length=1, max_length=255, description="Template name")
+    description: Optional[str] = Field(None, description="Template description")
+    subject: Optional[str] = Field(None, min_length=1, max_length=500, description="Email subject line")
+    body: Optional[str] = Field(None, description="Email body HTML")
+    available_variables: Optional[Dict[str, str]] = Field(None, description="Available variables for this template")
+    is_active: Optional[bool] = Field(None, description="Whether template is active")
+
+
+class EmailTemplateResponse(BaseModel):
+    """Email template response"""
+    
+    id: int
+    template_type: str
+    name: str
+    description: Optional[str]
+    subject: str
+    body: str
+    available_variables: Optional[Dict[str, str]]
+    is_active: bool
+    times_sent: int
+    last_sent_at: Optional[str]
+
+
+class EmailTestRequest(BaseModel):
+    """Test email request"""
+    
+    to_email: str = Field(..., description="Email address to send test to")
+    template_type: str = Field(..., description="Template type to test")
+    context: Optional[Dict[str, Any]] = Field(default_factory=dict, description="Template context variables")
+
+
+# ============================================================================
 # Product Management Schemas
 # ============================================================================
 
@@ -414,3 +464,115 @@ class UpholsteryUpdate(BaseModel):
     grade_c_cost: Optional[int] = Field(None, ge=0, description="Grade C cost in cents")
     premium_cost: Optional[int] = Field(None, ge=0, description="Premium cost in cents")
     display_order: Optional[int] = Field(None, ge=0, description="Display order")
+
+
+# ============================================================================
+# Laminate Management Schemas
+# ============================================================================
+
+class LaminateCreate(BaseModel):
+    """Create laminate request - matches Laminate model"""
+    
+    brand: str = Field(..., min_length=1, max_length=255, description="Laminate brand")
+    pattern_name: str = Field(..., min_length=1, max_length=255, description="Pattern name")
+    pattern_code: Optional[str] = Field(None, max_length=100, description="Manufacturer pattern code")
+    description: Optional[str] = Field(None, description="Description")
+    color_family: Optional[str] = Field(None, max_length=100, description="Color family")
+    finish_type: Optional[str] = Field(None, max_length=100, description="Finish type")
+    thickness: Optional[str] = Field(None, max_length=50, description="Thickness")
+    grade: Optional[str] = Field(None, max_length=50, description="Grade")
+    supplier_name: Optional[str] = Field(None, max_length=255, description="Supplier name")
+    supplier_website: Optional[str] = Field(None, max_length=500, description="Supplier website")
+    supplier_contact: Optional[str] = Field(None, max_length=255, description="Supplier contact")
+    swatch_image_url: Optional[str] = Field(None, max_length=500, description="Swatch image URL")
+    full_image_url: Optional[str] = Field(None, max_length=500, description="Full image URL")
+    additional_images: Optional[dict] = Field(None, description="Additional images (JSON)")
+    is_in_stock: bool = Field(True, description="Is in stock")
+    lead_time_days: Optional[int] = Field(None, ge=0, description="Lead time in days")
+    minimum_order: Optional[str] = Field(None, max_length=100, description="Minimum order")
+    price_per_sheet: Optional[int] = Field(None, ge=0, description="Price per sheet in cents")
+    recommended_for: Optional[str] = Field(None, description="Recommended for")
+    care_instructions: Optional[str] = Field(None, description="Care instructions")
+    display_order: int = Field(0, ge=0, description="Display order")
+    is_active: bool = Field(True, description="Is active")
+    is_featured: bool = Field(False, description="Is featured")
+    is_popular: bool = Field(False, description="Is popular")
+
+
+class LaminateUpdate(BaseModel):
+    """Update laminate request - all fields optional for PATCH"""
+    
+    brand: Optional[str] = Field(None, min_length=1, max_length=255, description="Laminate brand")
+    pattern_name: Optional[str] = Field(None, min_length=1, max_length=255, description="Pattern name")
+    pattern_code: Optional[str] = Field(None, max_length=100, description="Manufacturer pattern code")
+    description: Optional[str] = Field(None, description="Description")
+    color_family: Optional[str] = Field(None, max_length=100, description="Color family")
+    finish_type: Optional[str] = Field(None, max_length=100, description="Finish type")
+    thickness: Optional[str] = Field(None, max_length=50, description="Thickness")
+    grade: Optional[str] = Field(None, max_length=50, description="Grade")
+    supplier_name: Optional[str] = Field(None, max_length=255, description="Supplier name")
+    supplier_website: Optional[str] = Field(None, max_length=500, description="Supplier website")
+    supplier_contact: Optional[str] = Field(None, max_length=255, description="Supplier contact")
+    swatch_image_url: Optional[str] = Field(None, max_length=500, description="Swatch image URL")
+    full_image_url: Optional[str] = Field(None, max_length=500, description="Full image URL")
+    additional_images: Optional[dict] = Field(None, description="Additional images (JSON)")
+    is_in_stock: Optional[bool] = Field(None, description="Is in stock")
+    lead_time_days: Optional[int] = Field(None, ge=0, description="Lead time in days")
+    minimum_order: Optional[str] = Field(None, max_length=100, description="Minimum order")
+    price_per_sheet: Optional[int] = Field(None, ge=0, description="Price per sheet in cents")
+    recommended_for: Optional[str] = Field(None, description="Recommended for")
+    care_instructions: Optional[str] = Field(None, description="Care instructions")
+    display_order: Optional[int] = Field(None, ge=0, description="Display order")
+    is_active: Optional[bool] = Field(None, description="Is active")
+    is_featured: Optional[bool] = Field(None, description="Is featured")
+    is_popular: Optional[bool] = Field(None, description="Is popular")
+
+
+# ============================================================================
+# Hardware Management Schemas
+# ============================================================================
+
+class HardwareCreate(BaseModel):
+    """Create hardware request - matches Hardware model"""
+    
+    name: str = Field(..., min_length=1, max_length=255, description="Hardware name")
+    category: Optional[str] = Field(None, max_length=100, description="Category")
+    description: Optional[str] = Field(None, description="Description")
+    material: Optional[str] = Field(None, max_length=100, description="Material")
+    finish: Optional[str] = Field(None, max_length=100, description="Finish")
+    dimensions: Optional[str] = Field(None, max_length=255, description="Dimensions")
+    weight_capacity: Optional[str] = Field(None, max_length=100, description="Weight capacity")
+    model_number: Optional[str] = Field(None, max_length=100, description="Model number")
+    sku: Optional[str] = Field(None, max_length=100, description="SKU")
+    image_url: Optional[str] = Field(None, max_length=500, description="Image URL")
+    thumbnail_url: Optional[str] = Field(None, max_length=500, description="Thumbnail URL")
+    additional_images: Optional[dict] = Field(None, description="Additional images (JSON)")
+    compatible_with: Optional[str] = Field(None, description="Compatible with")
+    installation_notes: Optional[str] = Field(None, description="Installation notes")
+    list_price: Optional[int] = Field(None, ge=0, description="List price in cents")
+    display_order: int = Field(0, ge=0, description="Display order")
+    is_active: bool = Field(True, description="Is active")
+    is_featured: bool = Field(False, description="Is featured")
+
+
+class HardwareUpdate(BaseModel):
+    """Update hardware request - all fields optional for PATCH"""
+    
+    name: Optional[str] = Field(None, min_length=1, max_length=255, description="Hardware name")
+    category: Optional[str] = Field(None, max_length=100, description="Category")
+    description: Optional[str] = Field(None, description="Description")
+    material: Optional[str] = Field(None, max_length=100, description="Material")
+    finish: Optional[str] = Field(None, max_length=100, description="Finish")
+    dimensions: Optional[str] = Field(None, max_length=255, description="Dimensions")
+    weight_capacity: Optional[str] = Field(None, max_length=100, description="Weight capacity")
+    model_number: Optional[str] = Field(None, max_length=100, description="Model number")
+    sku: Optional[str] = Field(None, max_length=100, description="SKU")
+    image_url: Optional[str] = Field(None, max_length=500, description="Image URL")
+    thumbnail_url: Optional[str] = Field(None, max_length=500, description="Thumbnail URL")
+    additional_images: Optional[dict] = Field(None, description="Additional images (JSON)")
+    compatible_with: Optional[str] = Field(None, description="Compatible with")
+    installation_notes: Optional[str] = Field(None, description="Installation notes")
+    list_price: Optional[int] = Field(None, ge=0, description="List price in cents")
+    display_order: Optional[int] = Field(None, ge=0, description="Display order")
+    is_active: Optional[bool] = Field(None, description="Is active")
+    is_featured: Optional[bool] = Field(None, description="Is featured")

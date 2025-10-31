@@ -106,11 +106,15 @@ const CatalogManagement = () => {
               className="w-full px-4 py-2 bg-dark-700 border border-dark-600 rounded-lg text-dark-50 focus:border-primary-500 focus:ring-1 focus:ring-primary-500 outline-none transition-all"
             >
               <option value="">All Types</option>
-              <option value="product_catalog">Product Catalog</option>
-              <option value="line_sheet">Line Sheet</option>
-              <option value="installation_guide">Installation Guide</option>
+              <option value="full_catalog">Full Catalog</option>
+              <option value="product_line">Product Line</option>
+              <option value="price_list">Price List</option>
+              <option value="finish_guide">Finish Guide</option>
+              <option value="upholstery_guide">Upholstery Guide</option>
               <option value="care_guide">Care Guide</option>
+              <option value="installation_guide">Installation Guide</option>
               <option value="specification_sheet">Specification Sheet</option>
+              <option value="other">Other</option>
             </select>
           </div>
           <div className="flex-1">

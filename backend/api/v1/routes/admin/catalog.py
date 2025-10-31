@@ -34,6 +34,10 @@ from backend.api.dependencies import get_current_admin, require_role
 from backend.api.v1.schemas.admin import (
     FamilyCreate,
     FamilyUpdate,
+    HardwareCreate,
+    HardwareUpdate,
+    LaminateCreate,
+    LaminateUpdate,
     SubcategoryCreate,
     SubcategoryUpdate,
 )
@@ -49,7 +53,7 @@ from backend.models.chair import (
     Upholstery,
 )
 from backend.models.company import AdminRole, AdminUser
-from backend.models.content import Catalog, Hardware, Laminate
+from backend.models.content import Catalog, CatalogType, Hardware, Laminate
 from backend.utils.serializers import orm_list_to_dict_list, orm_to_dict
 from backend.utils.static_content_exporter import export_content_after_update
 
@@ -1066,61 +1070,38 @@ async def get_laminates(
     description="Create a new laminate option"
 )
 async def create_laminate(
-    brand: str,
-    pattern_name: str,
-    pattern_code: Optional[str] = None,
-    description: Optional[str] = None,
-    color_family: Optional[str] = None,
-    finish_type: Optional[str] = None,
-    thickness: Optional[str] = None,
-    grade: Optional[str] = None,
-    supplier_name: Optional[str] = None,
-    supplier_website: Optional[str] = None,
-    supplier_contact: Optional[str] = None,
-    swatch_image_url: Optional[str] = None,
-    full_image_url: Optional[str] = None,
-    additional_images: Optional[dict] = None,
-    is_in_stock: bool = True,
-    lead_time_days: Optional[int] = None,
-    minimum_order: Optional[str] = None,
-    price_per_sheet: Optional[int] = None,
-    recommended_for: Optional[str] = None,
-    care_instructions: Optional[str] = None,
-    display_order: int = 0,
-    is_active: bool = True,
-    is_featured: bool = False,
-    is_popular: bool = False,
+    laminate_data: LaminateCreate,
     admin: AdminUser = Depends(require_role(AdminRole.ADMIN)),
     db: AsyncSession = Depends(get_db)
 ):
     """Create a new laminate. Admin only."""
-    logger.info(f"Admin {admin.username} creating laminate: {brand} - {pattern_name}")
+    logger.info(f"Admin {admin.username} creating laminate: {laminate_data.brand} - {laminate_data.pattern_name}")
     
     laminate = Laminate(
-        brand=brand,
-        pattern_name=pattern_name,
-        pattern_code=pattern_code,
-        description=description,
-        color_family=color_family,
-        finish_type=finish_type,
-        thickness=thickness,
-        grade=grade,
-        supplier_name=supplier_name,
-        supplier_website=supplier_website,
-        supplier_contact=supplier_contact,
-        swatch_image_url=swatch_image_url,
-        full_image_url=full_image_url,
-        additional_images=additional_images,
-        is_in_stock=is_in_stock,
-        lead_time_days=lead_time_days,
-        minimum_order=minimum_order,
-        price_per_sheet=price_per_sheet,
-        recommended_for=recommended_for,
-        care_instructions=care_instructions,
-        display_order=display_order,
-        is_active=is_active,
-        is_featured=is_featured,
-        is_popular=is_popular
+        brand=laminate_data.brand,
+        pattern_name=laminate_data.pattern_name,
+        pattern_code=laminate_data.pattern_code,
+        description=laminate_data.description,
+        color_family=laminate_data.color_family,
+        finish_type=laminate_data.finish_type,
+        thickness=laminate_data.thickness,
+        grade=laminate_data.grade,
+        supplier_name=laminate_data.supplier_name,
+        supplier_website=laminate_data.supplier_website,
+        supplier_contact=laminate_data.supplier_contact,
+        swatch_image_url=laminate_data.swatch_image_url,
+        full_image_url=laminate_data.full_image_url,
+        additional_images=laminate_data.additional_images,
+        is_in_stock=laminate_data.is_in_stock,
+        lead_time_days=laminate_data.lead_time_days,
+        minimum_order=laminate_data.minimum_order,
+        price_per_sheet=laminate_data.price_per_sheet,
+        recommended_for=laminate_data.recommended_for,
+        care_instructions=laminate_data.care_instructions,
+        display_order=laminate_data.display_order,
+        is_active=laminate_data.is_active,
+        is_featured=laminate_data.is_featured,
+        is_popular=laminate_data.is_popular
     )
     
     db.add(laminate)
@@ -1140,30 +1121,7 @@ async def create_laminate(
 )
 async def update_laminate(
     laminate_id: int,
-    brand: Optional[str] = None,
-    pattern_name: Optional[str] = None,
-    pattern_code: Optional[str] = None,
-    description: Optional[str] = None,
-    color_family: Optional[str] = None,
-    finish_type: Optional[str] = None,
-    thickness: Optional[str] = None,
-    grade: Optional[str] = None,
-    supplier_name: Optional[str] = None,
-    supplier_website: Optional[str] = None,
-    supplier_contact: Optional[str] = None,
-    swatch_image_url: Optional[str] = None,
-    full_image_url: Optional[str] = None,
-    additional_images: Optional[dict] = None,
-    is_in_stock: Optional[bool] = None,
-    lead_time_days: Optional[int] = None,
-    minimum_order: Optional[str] = None,
-    price_per_sheet: Optional[int] = None,
-    recommended_for: Optional[str] = None,
-    care_instructions: Optional[str] = None,
-    display_order: Optional[int] = None,
-    is_active: Optional[bool] = None,
-    is_featured: Optional[bool] = None,
-    is_popular: Optional[bool] = None,
+    laminate_data: LaminateUpdate,
     admin: AdminUser = Depends(require_role(AdminRole.ADMIN)),
     db: AsyncSession = Depends(get_db)
 ):
@@ -1177,54 +1135,10 @@ async def update_laminate(
     if not laminate:
         raise HTTPException(status_code=404, detail=f"Laminate {laminate_id} not found")
     
-    if brand is not None:
-        laminate.brand = brand
-    if pattern_name is not None:
-        laminate.pattern_name = pattern_name
-    if pattern_code is not None:
-        laminate.pattern_code = pattern_code
-    if description is not None:
-        laminate.description = description
-    if color_family is not None:
-        laminate.color_family = color_family
-    if finish_type is not None:
-        laminate.finish_type = finish_type
-    if thickness is not None:
-        laminate.thickness = thickness
-    if grade is not None:
-        laminate.grade = grade
-    if supplier_name is not None:
-        laminate.supplier_name = supplier_name
-    if supplier_website is not None:
-        laminate.supplier_website = supplier_website
-    if supplier_contact is not None:
-        laminate.supplier_contact = supplier_contact
-    if swatch_image_url is not None:
-        laminate.swatch_image_url = swatch_image_url
-    if full_image_url is not None:
-        laminate.full_image_url = full_image_url
-    if additional_images is not None:
-        laminate.additional_images = additional_images
-    if is_in_stock is not None:
-        laminate.is_in_stock = is_in_stock
-    if lead_time_days is not None:
-        laminate.lead_time_days = lead_time_days
-    if minimum_order is not None:
-        laminate.minimum_order = minimum_order
-    if price_per_sheet is not None:
-        laminate.price_per_sheet = price_per_sheet
-    if recommended_for is not None:
-        laminate.recommended_for = recommended_for
-    if care_instructions is not None:
-        laminate.care_instructions = care_instructions
-    if display_order is not None:
-        laminate.display_order = display_order
-    if is_active is not None:
-        laminate.is_active = is_active
-    if is_featured is not None:
-        laminate.is_featured = is_featured
-    if is_popular is not None:
-        laminate.is_popular = is_popular
+    # Update only fields that were provided (not None)
+    update_dict = laminate_data.dict(exclude_unset=True)
+    for field, value in update_dict.items():
+        setattr(laminate, field, value)
     
     await db.commit()
     await db.refresh(laminate)
@@ -1324,6 +1238,7 @@ async def create_catalog(
     is_featured: bool = Form(False),
     file: Optional[UploadFile] = File(None, description="PDF catalog file"),
     thumbnail: Optional[UploadFile] = File(None, description="Thumbnail/cover image"),
+    thumbnail_url: Optional[str] = Form(None, description="Thumbnail URL (if already uploaded)"),
     file_url: Optional[str] = Form(None, description="Existing file URL (if file not uploaded)"),
     admin: AdminUser = Depends(require_role(AdminRole.ADMIN)),
     db: AsyncSession = Depends(get_db)
@@ -1331,12 +1246,26 @@ async def create_catalog(
     """Create a new catalog. Admin only."""
     logger.info(f"Admin {admin.username} creating catalog: {title}")
     
+    # Validate and convert catalog_type to enum
+    try:
+        catalog_type_enum = CatalogType(catalog_type)
+    except ValueError:
+        valid_types = [e.value for e in CatalogType]
+        raise HTTPException(
+            status_code=400,
+            detail=f"Invalid catalog_type: '{catalog_type}'. Valid types are: {', '.join(valid_types)}"
+        )
+    
     # Handle PDF file upload
     final_file_url = file_url
     file_size = None
     file_type = None
     
     if file:
+        # Validate filename exists
+        if not file.filename:
+            raise HTTPException(status_code=400, detail="Filename is required")
+        
         # Validate PDF
         if not file.filename.lower().endswith('.pdf'):
             raise HTTPException(status_code=400, detail="Only PDF files are accepted")
@@ -1373,8 +1302,8 @@ async def create_catalog(
         file_type = "PDF"
         logger.info(f"PDF uploaded: {final_file_url}")
     
-    # Handle thumbnail upload
-    thumbnail_url = None
+    # Handle thumbnail - either from file upload or URL
+    final_thumbnail_url = None
     if thumbnail:
         from backend.api.v1.routes.admin.upload import (
             ALLOWED_IMAGE_EXTENSIONS,
@@ -1402,8 +1331,17 @@ async def create_catalog(
         with open(thumb_path, "wb") as f:
             f.write(thumb_content)
         
-        thumbnail_url = f"/uploads/images/catalogs/{thumb_filename}"
-        logger.info(f"Thumbnail uploaded: {thumbnail_url}")
+        final_thumbnail_url = f"/uploads/images/catalogs/{thumb_filename}"
+        logger.info(f"Thumbnail uploaded: {final_thumbnail_url}")
+    elif thumbnail_url:
+        # Use provided thumbnail URL if no file uploaded (check after stripping whitespace)
+        trimmed_url = thumbnail_url.strip()
+        if trimmed_url:
+            final_thumbnail_url = trimmed_url
+            logger.info(f"Using provided thumbnail URL: {final_thumbnail_url}")
+        else:
+            # Empty string provided - leave as None
+            logger.info("Thumbnail URL provided but empty, leaving as None")
     
     if not final_file_url:
         raise HTTPException(status_code=400, detail="Either file upload or file_url is required")
@@ -1420,11 +1358,11 @@ async def create_catalog(
     catalog = Catalog(
         title=title,
         description=description,
-        catalog_type=catalog_type,
+        catalog_type=catalog_type_enum,
         file_type=file_type,
         file_url=final_file_url,
         file_size=file_size,
-        thumbnail_url=thumbnail_url,
+        thumbnail_url=final_thumbnail_url,
         version=version,
         year=year,
         category_id=category_id,
@@ -1461,6 +1399,7 @@ async def update_catalog(
     is_featured: Optional[bool] = Form(None),
     file: Optional[UploadFile] = File(None, description="New PDF catalog file (optional)"),
     thumbnail: Optional[UploadFile] = File(None, description="New thumbnail/cover image (optional)"),
+    thumbnail_url: Optional[str] = Form(None, description="Thumbnail URL (if already uploaded)"),
     file_url: Optional[str] = Form(None, description="New file URL (if file not uploaded)"),
     admin: AdminUser = Depends(require_role(AdminRole.ADMIN)),
     db: AsyncSession = Depends(get_db)
@@ -1480,7 +1419,15 @@ async def update_catalog(
     if description is not None:
         catalog.description = description
     if catalog_type is not None:
-        catalog.catalog_type = catalog_type
+        # Validate and convert catalog_type to enum
+        try:
+            catalog.catalog_type = CatalogType(catalog_type)
+        except ValueError:
+            valid_types = [e.value for e in CatalogType]
+            raise HTTPException(
+                status_code=400,
+                detail=f"Invalid catalog_type: '{catalog_type}'. Valid types are: {', '.join(valid_types)}"
+            )
     if version is not None:
         catalog.version = version
     if year is not None:
@@ -1528,7 +1475,7 @@ async def update_catalog(
     elif file_url is not None:
         catalog.file_url = file_url
     
-    # Handle thumbnail upload (if provided)
+    # Handle thumbnail - either from file upload or URL
     if thumbnail:
         from backend.api.v1.routes.admin.upload import (
             ALLOWED_IMAGE_EXTENSIONS,
@@ -1558,6 +1505,16 @@ async def update_catalog(
         
         catalog.thumbnail_url = f"/uploads/images/catalogs/{thumb_filename}"
         logger.info(f"Thumbnail updated: {catalog.thumbnail_url}")
+    elif thumbnail_url is not None:
+        # Update thumbnail URL from provided value
+        # If empty string, set to None (clear thumbnail)
+        # Otherwise use the provided URL
+        if thumbnail_url.strip():
+            catalog.thumbnail_url = thumbnail_url.strip()
+            logger.info(f"Thumbnail URL updated: {catalog.thumbnail_url}")
+        else:
+            catalog.thumbnail_url = None
+            logger.info("Thumbnail URL cleared")
     
     await db.commit()
     await db.refresh(catalog)
@@ -1646,47 +1603,32 @@ async def get_hardware(
     description="Create a new hardware item"
 )
 async def create_hardware(
-    name: str,
-    category: Optional[str] = None,
-    description: Optional[str] = None,
-    material: Optional[str] = None,
-    finish: Optional[str] = None,
-    dimensions: Optional[str] = None,
-    weight_capacity: Optional[str] = None,
-    model_number: Optional[str] = None,
-    sku: Optional[str] = None,
-    image_url: Optional[str] = None,
-    thumbnail_url: Optional[str] = None,
-    additional_images: Optional[dict] = None,
-    compatible_with: Optional[str] = None,
-    installation_notes: Optional[str] = None,
-    list_price: Optional[int] = None,
-    display_order: int = 0,
-    is_active: bool = True,
+    hardware_data: HardwareCreate,
     admin: AdminUser = Depends(require_role(AdminRole.ADMIN)),
     db: AsyncSession = Depends(get_db)
 ):
     """Create a new hardware item. Admin only."""
-    logger.info(f"Admin {admin.username} creating hardware: {name}")
+    logger.info(f"Admin {admin.username} creating hardware: {hardware_data.name}")
     
     hardware = Hardware(
-        name=name,
-        category=category,
-        description=description,
-        material=material,
-        finish=finish,
-        dimensions=dimensions,
-        weight_capacity=weight_capacity,
-        model_number=model_number,
-        sku=sku,
-        image_url=image_url,
-        thumbnail_url=thumbnail_url,
-        additional_images=additional_images,
-        compatible_with=compatible_with,
-        installation_notes=installation_notes,
-        list_price=list_price,
-        display_order=display_order,
-        is_active=is_active
+        name=hardware_data.name,
+        category=hardware_data.category,
+        description=hardware_data.description,
+        material=hardware_data.material,
+        finish=hardware_data.finish,
+        dimensions=hardware_data.dimensions,
+        weight_capacity=hardware_data.weight_capacity,
+        model_number=hardware_data.model_number,
+        sku=hardware_data.sku,
+        image_url=hardware_data.image_url,
+        thumbnail_url=hardware_data.thumbnail_url,
+        additional_images=hardware_data.additional_images,
+        compatible_with=hardware_data.compatible_with,
+        installation_notes=hardware_data.installation_notes,
+        list_price=hardware_data.list_price,
+        display_order=hardware_data.display_order,
+        is_active=hardware_data.is_active,
+        is_featured=hardware_data.is_featured
     )
     
     db.add(hardware)
@@ -1706,23 +1648,7 @@ async def create_hardware(
 )
 async def update_hardware(
     hardware_id: int,
-    name: Optional[str] = None,
-    category: Optional[str] = None,
-    description: Optional[str] = None,
-    material: Optional[str] = None,
-    finish: Optional[str] = None,
-    dimensions: Optional[str] = None,
-    weight_capacity: Optional[str] = None,
-    model_number: Optional[str] = None,
-    sku: Optional[str] = None,
-    image_url: Optional[str] = None,
-    thumbnail_url: Optional[str] = None,
-    additional_images: Optional[dict] = None,
-    compatible_with: Optional[str] = None,
-    installation_notes: Optional[str] = None,
-    list_price: Optional[int] = None,
-    display_order: Optional[int] = None,
-    is_active: Optional[bool] = None,
+    hardware_data: HardwareUpdate,
     admin: AdminUser = Depends(require_role(AdminRole.ADMIN)),
     db: AsyncSession = Depends(get_db)
 ):
@@ -1736,40 +1662,10 @@ async def update_hardware(
     if not hardware:
         raise HTTPException(status_code=404, detail=f"Hardware {hardware_id} not found")
     
-    if name is not None:
-        hardware.name = name
-    if category is not None:
-        hardware.category = category
-    if description is not None:
-        hardware.description = description
-    if material is not None:
-        hardware.material = material
-    if finish is not None:
-        hardware.finish = finish
-    if dimensions is not None:
-        hardware.dimensions = dimensions
-    if weight_capacity is not None:
-        hardware.weight_capacity = weight_capacity
-    if model_number is not None:
-        hardware.model_number = model_number
-    if sku is not None:
-        hardware.sku = sku
-    if image_url is not None:
-        hardware.image_url = image_url
-    if thumbnail_url is not None:
-        hardware.thumbnail_url = thumbnail_url
-    if additional_images is not None:
-        hardware.additional_images = additional_images
-    if compatible_with is not None:
-        hardware.compatible_with = compatible_with
-    if installation_notes is not None:
-        hardware.installation_notes = installation_notes
-    if list_price is not None:
-        hardware.list_price = list_price
-    if display_order is not None:
-        hardware.display_order = display_order
-    if is_active is not None:
-        hardware.is_active = is_active
+    # Update only fields that were provided (not None)
+    update_dict = hardware_data.dict(exclude_unset=True)
+    for field, value in update_dict.items():
+        setattr(hardware, field, value)
     
     await db.commit()
     await db.refresh(hardware)

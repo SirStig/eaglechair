@@ -158,13 +158,14 @@ async def lifespan(app: FastAPI):
 
 
 # Create FastAPI application
+# Only enable docs in DEBUG mode (dev mode only)
 app = FastAPI(
     title=settings.APP_NAME,
     description=settings.APP_DESCRIPTION,
     version=settings.APP_VERSION,
-    docs_url="/docs",
-    redoc_url="/redoc",
-    openapi_url="/openapi.json",
+    docs_url="/docs" if settings.DEBUG else None,  # SwaggerUI - dev mode only
+    redoc_url="/redoc" if settings.DEBUG else None,  # ReDoc - dev mode only
+    openapi_url="/openapi.json" if settings.DEBUG else None,  # OpenAPI JSON - dev mode only
     lifespan=lifespan,
     # Trust proxy headers when behind reverse proxy (DreamHost)
     root_path=settings.ROOT_PATH if hasattr(settings, 'ROOT_PATH') else "",
@@ -303,7 +304,8 @@ if frontend_dist_path.exists() and (frontend_dist_path / "index.html").exists():
         # Don't intercept API routes
         if full_path.startswith("api/"):
             return {"detail": "Not found"}, 404
-        if full_path in ["docs", "redoc", "openapi.json"]:
+        # Only block docs routes in production (when they're disabled)
+        if not settings.DEBUG and full_path in ["docs", "redoc", "openapi.json"]:
             return {"detail": "Not found"}, 404
         
         # Serve index.html for SPA routing

@@ -102,6 +102,10 @@ class Company(Base):
     password_reset_token = Column(String(500), nullable=True)
     password_reset_expires = Column(String(50), nullable=True)
     
+    # Email Verification
+    email_verification_token = Column(String(500), nullable=True)
+    email_verified_at = Column(String(50), nullable=True)  # ISO format datetime string
+    
     # Business Address
     billing_address_line1 = Column(String(255), nullable=False)
     billing_address_line2 = Column(String(255), nullable=True)

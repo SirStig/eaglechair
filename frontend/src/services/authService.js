@@ -84,6 +84,34 @@ export const authService = {
     
     return await api.post('/api/v1/auth/logout');
   },
+
+  /**
+   * Verify email address
+   * @param {string} token - Email verification token
+   * @returns {Promise<Object>} Verification result
+   */
+  verifyEmail: async (token) => {
+    if (IS_DEMO_MODE) {
+      await new Promise(resolve => setTimeout(resolve, 500));
+      return { message: 'Email verified successfully' };
+    }
+    
+    return await api.post('/api/v1/auth/verify-email', { token });
+  },
+
+  /**
+   * Resend verification email
+   * @param {string} email - Email address
+   * @returns {Promise<Object>} Resend result
+   */
+  resendVerification: async (email) => {
+    if (IS_DEMO_MODE) {
+      await new Promise(resolve => setTimeout(resolve, 500));
+      return { message: 'Verification email sent' };
+    }
+    
+    return await api.post('/api/v1/auth/resend-verification', { email });
+  },
 };
 
 export default authService;

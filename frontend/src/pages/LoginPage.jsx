@@ -59,7 +59,22 @@ const LoginPage = () => {
       if (result.success) {
         navigate(from, { replace: true });
       } else {
-        setError(result.error || 'Login failed');
+        // Check if error is about email verification
+        const errorMsg = result.error || 'Login failed';
+        if (errorMsg.toLowerCase().includes('verified') || 
+            errorMsg.toLowerCase().includes('verification') ||
+            result.requiresVerification) {
+          // Redirect to verification page
+          navigate('/verify-email', {
+            state: {
+              email: data.email,
+              message: 'Please verify your email address before logging in.',
+              from: from
+            }
+          });
+        } else {
+          setError(errorMsg);
+        }
       }
     }
   };

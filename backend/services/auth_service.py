@@ -12,6 +12,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from backend.core.exceptions import (
+    AccountNotVerifiedError,
     AccountSuspendedError,
     InvalidCredentialsError,
     InvalidInputError,
@@ -20,7 +21,9 @@ from backend.core.exceptions import (
 )
 from backend.core.logging_config import security_logger
 from backend.core.security import security_manager
+from backend.core.config import settings
 from backend.models.company import AdminUser, Company
+from backend.services.email_service import EmailService
 
 logger = logging.getLogger(__name__)
 
@@ -71,16 +74,35 @@ class AuthService:
         # Remove rep_email from company_data if it exists to avoid duplicate keyword argument
         company_data_clean = {k: v for k, v in company_data.items() if k != 'rep_email'}
         
-        # Create company
+        # Generate email verification token
+        verification_token = security_manager.create_password_reset_token(email)  # Reuse this method for verification
+        
+        # Create company (not verified initially)
         new_company = Company(
             rep_email=email,
             hashed_password=hashed_password,
+            email_verification_token=verification_token,
+            is_verified=False,  # Must verify email before account is activated
             **company_data_clean
         )
         
         db.add(new_company)
         await db.commit()
         await db.refresh(new_company)
+        
+        # Send verification email
+        verification_url = f"{settings.FRONTEND_URL}/verify-email?token={verification_token}"
+        try:
+            await EmailService.send_email_verification(
+                db=db,
+                to_email=email,
+                company_name=new_company.company_name,
+                verification_url=verification_url
+            )
+            logger.info(f"Verification email sent to {email}")
+        except Exception as e:
+            logger.error(f"Failed to send verification email: {e}", exc_info=True)
+            # Don't fail registration if email fails, but log it
         
         logger.info(f"Successfully registered company: {new_company.company_name} (ID: {new_company.id})")
         
@@ -130,9 +152,10 @@ class AuthService:
             logger.warning(f"Login attempt for inactive account: {email}")
             raise AccountSuspendedError()
         
-        # In production, you might want to require verification
-        # if not company.is_verified:
-        #     raise AccountNotVerifiedError()
+        # Require email verification before account can be used
+        if not company.is_verified:
+            logger.warning(f"Login attempt for unverified account: {email}")
+            raise AccountNotVerifiedError()
         
         # Generate tokens
         token_data = {
@@ -558,4 +581,120 @@ class AuthService:
         logger.info(f"Password reset successful for company ID: {company.id}")
         
         return True
+    
+    @staticmethod
+    async def verify_email(
+        db: AsyncSession,
+        token: str
+    ) -> bool:
+        """
+        Verify company email address using verification token
+        
+        Args:
+            db: Database session
+            token: Email verification token
+            
+        Returns:
+            True if successful
+            
+        Raises:
+            InvalidCredentialsError: If token is invalid or expired
+            ResourceNotFoundError: If company not found
+        """
+        # Decode token to get email
+        try:
+            payload = security_manager.decode_token(token)
+            email = payload.get("sub")
+        except Exception as e:
+            logger.warning(f"Invalid email verification token: {str(e)}")
+            raise InvalidCredentialsError("Invalid or expired verification token")
+        
+        # Find company by email
+        result = await db.execute(
+            select(Company).where(Company.rep_email == email)
+        )
+        company = result.scalar_one_or_none()
+        
+        if not company:
+            logger.warning(f"Email verification failed: Company not found for email {email}")
+            raise ResourceNotFoundError(resource_type="Company", resource_id=email)
+        
+        # Verify token matches stored token
+        if company.email_verification_token != token:
+            logger.warning(f"Email verification failed: Token mismatch for company {company.id}")
+            raise InvalidCredentialsError("Invalid verification token")
+        
+        # Check if already verified
+        if company.is_verified:
+            logger.info(f"Email already verified for company {company.id}")
+            return True
+        
+        # Mark email as verified
+        company.is_verified = True
+        company.email_verified_at = datetime.utcnow().isoformat()
+        company.email_verification_token = None  # Clear token after verification
+        
+        await db.commit()
+        
+        logger.info(f"Email verified successfully for company ID: {company.id}")
+        
+        return True
+    
+    @staticmethod
+    async def resend_verification_email(
+        db: AsyncSession,
+        email: str
+    ) -> bool:
+        """
+        Resend email verification email
+        
+        Args:
+            db: Database session
+            email: Company email address
+            
+        Returns:
+            True if email was sent (even if company doesn't exist, for security)
+            
+        Raises:
+            ResourceNotFoundError: If company not found
+        """
+        logger.info(f"Resending verification email to: {email}")
+        
+        # Find company by email
+        result = await db.execute(
+            select(Company).where(Company.rep_email == email)
+        )
+        company = result.scalar_one_or_none()
+        
+        if not company:
+            # Don't reveal if email exists or not (security best practice)
+            logger.warning(f"Verification resend attempted for non-existent email: {email}")
+            return True  # Return success anyway
+        
+        # Check if already verified
+        if company.is_verified:
+            logger.info(f"Email already verified for company {company.id}, skipping resend")
+            return True
+        
+        # Generate new verification token
+        verification_token = security_manager.create_password_reset_token(email)  # Reuse this method
+        
+        # Store token
+        company.email_verification_token = verification_token
+        await db.commit()
+        
+        # Send verification email
+        verification_url = f"{settings.FRONTEND_URL}/verify-email?token={verification_token}"
+        try:
+            await EmailService.send_email_verification(
+                db=db,
+                to_email=email,
+                company_name=company.company_name,
+                verification_url=verification_url
+            )
+            logger.info(f"Verification email resent to {email}")
+            return True
+        except Exception as e:
+            logger.error(f"Failed to resend verification email: {e}", exc_info=True)
+            return False
 

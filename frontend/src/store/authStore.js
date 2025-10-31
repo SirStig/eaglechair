@@ -87,11 +87,24 @@ export const useAuthStore = create(
           return { success: true, user };
         } catch (error) {
           console.error('Login error:', error);
-          // Clear any partial state
-          get().logout();
+          
+          // Check if error is about email verification
+          const errorDetail = error.response?.data?.detail || error.response?.data?.message || '';
+          const isVerificationError = 
+            error.response?.status === 403 && 
+            (errorDetail.toLowerCase().includes('verified') || 
+             errorDetail.toLowerCase().includes('verification') ||
+             errorDetail.toLowerCase().includes('not verified'));
+          
+          // Clear any partial state (unless it's a verification error - user exists)
+          if (!isVerificationError) {
+            get().logout();
+          }
+          
           return { 
-            success: false, 
-            error: error.response?.data?.detail || error.message || 'Login failed' 
+            success: false,
+            requiresVerification: isVerificationError,
+            error: errorDetail || error.message || 'Login failed'
           };
         }
       },
@@ -100,37 +113,60 @@ export const useAuthStore = create(
         try {
           // Note: apiClient response interceptor already returns response.data
           const data = await apiClient.post('/api/v1/auth/register', userData);
+          
+          // Backend now returns a message that email verification is required
+          // No tokens/user data until email is verified
+          if (data.message || data.verified === false) {
+            // Registration successful but email not verified
+            return { 
+              success: true, 
+              requiresVerification: true,
+              email: data.email,
+              message: data.message || 'Registration successful! Please verify your email.'
+            };
+          }
+          
+          // Legacy support: if tokens are returned (shouldn't happen with new flow)
           const { access_token, refresh_token, user } = data;
-          
-          // Validate user data
-          if (!isValidUser(user)) {
-            throw new Error('Invalid user data received from server');
-          }
-          
-          set({ 
-            user, 
-            token: access_token,
-            refreshToken: refresh_token,
-            isAuthenticated: true 
-          });
-          
-          apiClient.defaults.headers.common['Authorization'] = `Bearer ${access_token}`;
-          
-          // Merge guest cart if cartStore is provided
-          if (cartStore && typeof cartStore.switchToAuthMode === 'function') {
-            try {
-              await cartStore.switchToAuthMode();
-              logger.info(AUTH_CONTEXT, 'Guest cart merged on registration');
-            } catch (error) {
-              logger.error(AUTH_CONTEXT, 'Error merging cart on registration', error);
+          if (access_token && user) {
+            // Validate user data
+            if (!isValidUser(user)) {
+              throw new Error('Invalid user data received from server');
             }
+            
+            set({ 
+              user, 
+              token: access_token,
+              refreshToken: refresh_token,
+              isAuthenticated: true 
+            });
+            
+            apiClient.defaults.headers.common['Authorization'] = `Bearer ${access_token}`;
+            
+            // Merge guest cart if cartStore is provided
+            if (cartStore && typeof cartStore.switchToAuthMode === 'function') {
+              try {
+                await cartStore.switchToAuthMode();
+                logger.info(AUTH_CONTEXT, 'Guest cart merged on registration');
+              } catch (error) {
+                logger.error(AUTH_CONTEXT, 'Error merging cart on registration', error);
+              }
+            }
+            
+            return { success: true, user };
           }
           
-          return { success: true, user };
+          // Default success response
+          return { 
+            success: true, 
+            requiresVerification: true,
+            email: userData.rep_email || userData.email,
+            message: 'Registration successful! Please verify your email.'
+          };
         } catch (error) {
           return { 
             success: false, 
-            error: error.response?.data?.detail || 'Registration failed' 
+            error: error.response?.data?.detail || error.response?.data?.message || 'Registration failed' 
           };
         }
       },
