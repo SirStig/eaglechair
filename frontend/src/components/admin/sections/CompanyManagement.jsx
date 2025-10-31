@@ -2,16 +2,20 @@ import { useState, useEffect } from 'react';
 import Card from '../../ui/Card';
 import Button from '../../ui/Button';
 import apiClient from '../../../config/apiClient';
+import AdminCompanyDetailView from './AdminCompanyDetailView';
 
 const CompanyManagement = () => {
   const [companies, setCompanies] = useState([]);
   const [loading, setLoading] = useState(true);
   const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
+  const [selectedCompanyId, setSelectedCompanyId] = useState(null);
 
   useEffect(() => {
-    fetchCompanies();
-  }, [page]);
+    if (!selectedCompanyId) {
+      fetchCompanies();
+    }
+  }, [page, selectedCompanyId]);
 
   const fetchCompanies = async () => {
     setLoading(true);
@@ -27,6 +31,32 @@ const CompanyManagement = () => {
       setLoading(false);
     }
   };
+
+  const handleViewCompany = (companyId) => {
+    setSelectedCompanyId(companyId);
+  };
+
+  const handleBackToList = () => {
+    setSelectedCompanyId(null);
+  };
+
+  const handleCompanyUpdated = () => {
+    // Optionally refresh the list when a company is updated
+    if (!selectedCompanyId) {
+      fetchCompanies();
+    }
+  };
+
+  // Show detail view if a company is selected
+  if (selectedCompanyId) {
+    return (
+      <AdminCompanyDetailView
+        companyId={selectedCompanyId}
+        onBack={handleBackToList}
+        onUpdated={handleCompanyUpdated}
+      />
+    );
+  }
 
   return (
     <div className="p-8 space-y-6">
@@ -65,12 +95,15 @@ const CompanyManagement = () => {
                         ${company.status === 'active' ? 'bg-green-900/30 text-green-500' : ''}
                         ${company.status === 'pending' ? 'bg-yellow-900/30 text-yellow-500' : ''}
                         ${company.status === 'suspended' ? 'bg-red-900/30 text-red-500' : ''}
+                        ${company.status === 'inactive' ? 'bg-dark-600 text-dark-400' : ''}
                       `}>
                         {company.status}
                       </span>
                     </td>
                     <td className="px-4 py-4 text-right">
-                      <Button size="sm" variant="outline">View</Button>
+                      <Button size="sm" variant="outline" onClick={() => handleViewCompany(company.id)}>
+                        View
+                      </Button>
                     </td>
                   </tr>
                 ))}

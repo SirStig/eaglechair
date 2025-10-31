@@ -93,15 +93,61 @@ class AnalyticsService:
         # Recent Activity (last 30 days)
         thirty_days_ago = datetime.utcnow() - timedelta(days=30)
         
-        recent_quotes = await db.execute(
+        recent_quotes_count = await db.execute(
             select(func.count(Quote.id)).where(Quote.created_at >= thirty_days_ago)
         )
-        stats['recent_quotes_30d'] = recent_quotes.scalar()
+        stats['recent_quotes_30d'] = recent_quotes_count.scalar()
         
-        recent_companies = await db.execute(
+        recent_companies_count = await db.execute(
             select(func.count(Company.id)).where(Company.created_at >= thirty_days_ago)
         )
-        stats['recent_companies_30d'] = recent_companies.scalar()
+        stats['recent_companies_30d'] = recent_companies_count.scalar()
+        
+        # Get recent quotes with details (last 5, ordered by created_at desc)
+        recent_quotes_result = await db.execute(
+            select(Quote)
+            .options(selectinload(Quote.company))
+            .order_by(desc(Quote.created_at))
+            .limit(5)
+        )
+        recent_quotes = recent_quotes_result.scalars().all()
+        
+        # Get recent companies with details (last 5, ordered by created_at desc)
+        recent_companies_result = await db.execute(
+            select(Company)
+            .order_by(desc(Company.created_at))
+            .limit(5)
+        )
+        recent_companies = recent_companies_result.scalars().all()
+        
+        # Convert recent quotes to dicts
+        recent_quotes_data = []
+        for quote in recent_quotes:
+            recent_quotes_data.append({
+                "id": quote.id,
+                "quote_number": quote.quote_number,
+                "company_id": quote.company_id,
+                "company_name": quote.company.company_name if quote.company else None,
+                "status": quote.status.value if quote.status else None,
+                "total_amount": quote.total_amount,
+                "quoted_price": quote.quoted_price,
+                "created_at": quote.created_at.isoformat() if quote.created_at else None,
+                "project_name": quote.project_name,
+            })
+        
+        # Convert recent companies to dicts
+        recent_companies_data = []
+        for company in recent_companies:
+            recent_companies_data.append({
+                "id": company.id,
+                "company_name": company.company_name,
+                "rep_email": company.rep_email,
+                "status": company.status.value if company.status else None,
+                "created_at": company.created_at.isoformat() if company.created_at else None,
+            })
+        
+        stats['recent_quotes'] = recent_quotes_data
+        stats['recent_companies'] = recent_companies_data
         
         logger.info("Dashboard stats calculated")
         return stats

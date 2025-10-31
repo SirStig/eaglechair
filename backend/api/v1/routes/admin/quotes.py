@@ -14,13 +14,13 @@ from sqlalchemy.orm import selectinload
 
 from backend.api.dependencies import get_current_admin, require_role
 from backend.api.v1.schemas.admin import QuoteStatusUpdate
+from backend.api.v1.schemas.common import MessageResponse
 from backend.api.v1.schemas.quote import (
     QuoteAdminUpdate,
     QuoteItemAdminCreate,
     QuoteItemAdminUpdate,
     QuoteItemResponse,
 )
-from backend.api.v1.schemas.common import MessageResponse
 from backend.core.exceptions import ResourceNotFoundError, ValidationError
 from backend.database.base import get_db
 from backend.models.company import AdminRole, AdminUser
@@ -430,6 +430,243 @@ async def assign_quote(
             quote_dict['items'] = []
         
         return quote_dict
+        
+    except ResourceNotFoundError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+
+
+# ============================================================================
+# Quote Item Management Endpoints
+# ============================================================================
+
+@router.post(
+    "/{quote_id}/items",
+    response_model=QuoteItemResponse,
+    status_code=201,
+    summary="Add item to quote (Admin)",
+    description="Add a product/item to an existing quote"
+)
+async def add_quote_item(
+    quote_id: int,
+    item_data: QuoteItemAdminCreate,
+    admin: AdminUser = Depends(require_role(AdminRole.ADMIN)),
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    Add a new item to a quote.
+    
+    **Admin only** - Requires admin role.
+    """
+    logger.info(f"Admin {admin.username} adding item to quote {quote_id}")
+    
+    try:
+        # Fetch quote
+        result = await db.execute(
+            select(Quote).where(Quote.id == quote_id)
+        )
+        quote = result.scalar_one_or_none()
+        
+        if not quote:
+            raise ResourceNotFoundError(resource_type="Quote", resource_id=quote_id)
+        
+        # Fetch product to get name and model number
+        from backend.models.chair import Chair
+        product_result = await db.execute(
+            select(Chair).where(Chair.id == item_data.product_id)
+        )
+        product = product_result.scalar_one_or_none()
+        
+        if not product:
+            raise ResourceNotFoundError(resource_type="Product", resource_id=item_data.product_id)
+        
+        # Calculate line_total
+        line_total = (item_data.unit_price + item_data.customization_cost) * item_data.quantity
+        
+        # Create quote item
+        quote_item = QuoteItem(
+            quote_id=quote_id,
+            product_id=item_data.product_id,
+            product_model_number=product.model_number,
+            product_name=product.name,
+            quantity=item_data.quantity,
+            unit_price=item_data.unit_price,
+            customization_cost=item_data.customization_cost,
+            line_total=line_total,
+            selected_finish_id=item_data.selected_finish_id,
+            selected_upholstery_id=item_data.selected_upholstery_id,
+            custom_options=item_data.custom_options,
+            item_notes=item_data.item_notes
+        )
+        
+        db.add(quote_item)
+        await db.commit()
+        await db.refresh(quote_item)
+        
+        # Recalculate quote totals
+        await AdminService.recalculate_quote_totals(db=db, quote_id=quote_id)
+        
+        # Reload item with product relationship
+        item_id = quote_item.id  # Save ID before reload
+        result = await db.execute(
+            select(QuoteItem)
+            .where(QuoteItem.id == item_id)
+            .options(selectinload(QuoteItem.product))
+        )
+        quote_item = result.scalar_one_or_none()
+        
+        if not quote_item:
+            raise ResourceNotFoundError(resource_type="QuoteItem", resource_id=item_id)
+        
+        item_dict = orm_to_dict(quote_item)
+        if quote_item.product:
+            item_dict['product'] = {
+                'id': quote_item.product.id,
+                'name': quote_item.product.name,
+                'model_number': quote_item.product.model_number,
+                'slug': quote_item.product.slug,
+                'primary_image_url': quote_item.product.primary_image_url,
+                'base_price': quote_item.product.base_price,
+            }
+        else:
+            item_dict['product'] = None
+        
+        return item_dict
+        
+    except ResourceNotFoundError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+    except ValidationError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+@router.patch(
+    "/{quote_id}/items/{item_id}",
+    response_model=QuoteItemResponse,
+    summary="Update quote item (Admin)",
+    description="Update an item in a quote"
+)
+async def update_quote_item(
+    quote_id: int,
+    item_id: int,
+    item_data: QuoteItemAdminUpdate,
+    admin: AdminUser = Depends(require_role(AdminRole.ADMIN)),
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    Update an item in a quote.
+    
+    **Admin only** - Requires admin role.
+    """
+    logger.info(f"Admin {admin.username} updating item {item_id} in quote {quote_id}")
+    
+    try:
+        # Fetch quote item
+        result = await db.execute(
+            select(QuoteItem).where(
+                QuoteItem.id == item_id,
+                QuoteItem.quote_id == quote_id
+            )
+        )
+        quote_item = result.scalar_one_or_none()
+        
+        if not quote_item:
+            raise ResourceNotFoundError(
+                resource_type="QuoteItem",
+                resource_id=item_id
+            )
+        
+        # Update fields
+        update_dict = item_data.model_dump(exclude_unset=True)
+        
+        for field, value in update_dict.items():
+            if hasattr(quote_item, field):
+                setattr(quote_item, field, value)
+        
+        # Recalculate line_total if quantity, unit_price, or customization_cost changed
+        if any(k in update_dict for k in ['quantity', 'unit_price', 'customization_cost']):
+            if 'line_total' not in update_dict:
+                # Auto-calculate line_total
+                quote_item.line_total = quote_item.quantity * (quote_item.unit_price + quote_item.customization_cost)  # type: ignore[assignment]
+        
+        await db.commit()
+        await db.refresh(quote_item)
+        
+        # Recalculate quote totals
+        await AdminService.recalculate_quote_totals(db=db, quote_id=quote_id)
+        
+        # Reload item with product relationship
+        result = await db.execute(
+            select(QuoteItem)
+            .where(QuoteItem.id == item_id)
+            .options(selectinload(QuoteItem.product))
+        )
+        quote_item = result.scalar_one_or_none()
+        
+        if not quote_item:
+            raise ResourceNotFoundError(resource_type="QuoteItem", resource_id=item_id)
+        
+        item_dict = orm_to_dict(quote_item)
+        if quote_item.product:
+            item_dict['product'] = {
+                'id': quote_item.product.id,
+                'name': quote_item.product.name,
+                'model_number': quote_item.product.model_number,
+                'slug': quote_item.product.slug,
+                'primary_image_url': quote_item.product.primary_image_url,
+                'base_price': quote_item.product.base_price,
+            }
+        else:
+            item_dict['product'] = None
+        
+        return item_dict
+        
+    except ResourceNotFoundError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+    except ValidationError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+@router.delete(
+    "/{quote_id}/items/{item_id}",
+    response_model=MessageResponse,
+    summary="Remove item from quote (Admin)",
+    description="Remove an item from a quote"
+)
+async def delete_quote_item(
+    quote_id: int,
+    item_id: int,
+    admin: AdminUser = Depends(require_role(AdminRole.ADMIN)),
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    Remove an item from a quote.
+    
+    **Admin only** - Requires admin role.
+    """
+    logger.info(f"Admin {admin.username} removing item {item_id} from quote {quote_id}")
+    
+    try:
+        # Fetch quote item
+        result = await db.execute(
+            select(QuoteItem).where(
+                QuoteItem.id == item_id,
+                QuoteItem.quote_id == quote_id
+            )
+        )
+        quote_item = result.scalar_one_or_none()
+        
+        if not quote_item:
+            raise ResourceNotFoundError(
+                resource_type="QuoteItem",
+                resource_id=item_id
+            )
+        
+        await db.delete(quote_item)
+        await db.commit()
+        
+        # Recalculate quote totals
+        await AdminService.recalculate_quote_totals(db=db, quote_id=quote_id)
+        
+        return MessageResponse(message="Quote item removed successfully")
         
     except ResourceNotFoundError as e:
         raise HTTPException(status_code=404, detail=str(e))
