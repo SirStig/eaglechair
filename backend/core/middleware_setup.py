@@ -257,7 +257,7 @@ def setup_middleware(app):
     app.add_middleware(
         RequestValidationMiddleware,
         max_body_size=10 * 1024 * 1024,  # 10MB
-        max_file_size=50 * 1024 * 1024,  # 50MB
+        max_file_size=1024 * 1024 * 1024,  # 1GB for large PDF catalogs
     )
     logger.info("[OK] Request validation enabled")
     

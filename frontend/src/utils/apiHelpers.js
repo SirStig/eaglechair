@@ -92,6 +92,15 @@ export const resolveImageUrl = (imageData) => {
       return url;
     }
     
+    // Handle temporary catalog images (from virtual catalog uploads)
+    // These are stored in frontend/tmp/images/ and served by frontend web server
+    if (url.startsWith('/tmp/')) {
+      // Images are served directly from frontend tmp directory
+      // Dev: Vite dev server serves from frontend/tmp/
+      // Prod: Web server (nginx/apache) serves from /home/dh_wmujeb/joshua.eaglechair.com/tmp/
+      return url;  // Return as-is, frontend will serve it
+    }
+    
     // Handle wp-content paths (from seeded content)
     if (url.includes('/wp-content/uploads/') || url.includes('wp-content/uploads/')) {
       // Extract just the wp-content portion

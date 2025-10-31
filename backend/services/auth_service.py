@@ -68,11 +68,14 @@ class AuthService:
         # Hash password
         hashed_password = security_manager.hash_password(password)
         
+        # Remove rep_email from company_data if it exists to avoid duplicate keyword argument
+        company_data_clean = {k: v for k, v in company_data.items() if k != 'rep_email'}
+        
         # Create company
         new_company = Company(
             rep_email=email,
             hashed_password=hashed_password,
-            **company_data
+            **company_data_clean
         )
         
         db.add(new_company)

@@ -4,12 +4,14 @@ Quote and Cart Schemas - Version 1
 Schemas for quotes, cart, and saved configurations
 """
 
-from typing import Optional
-from pydantic import BaseModel, EmailStr, Field
+from __future__ import annotations
+
 from enum import Enum
+from typing import Optional
+
+from pydantic import BaseModel, EmailStr, Field
 
 from backend.api.v1.schemas.common import TimestampSchema
-
 
 # ============================================================================
 # Enums
@@ -169,6 +171,7 @@ class CartResponse(TimestampSchema):
     estimated_total: int
     is_active: bool
     last_updated: Optional[str]
+    items: list[CartItemResponse] = []  # Include cart items
     
     class Config:
         from_attributes = True
@@ -177,6 +180,21 @@ class CartResponse(TimestampSchema):
 # ============================================================================
 # Cart Item Schemas
 # ============================================================================
+
+class CartItemProductInfo(BaseModel):
+    """Product information embedded in cart item"""
+    id: int
+    name: str
+    model_number: Optional[str] = None
+    slug: Optional[str] = None
+    image_url: Optional[str] = None
+    category: Optional[str] = None
+    subcategory: Optional[str] = None
+    base_price: int
+    
+    class Config:
+        from_attributes = True
+
 
 class CartItemBase(BaseModel):
     """Base cart item schema"""
@@ -211,6 +229,7 @@ class CartItemResponse(CartItemBase):
     line_total: int
     added_at: Optional[str]
     updated_at: Optional[str]
+    product: Optional[CartItemProductInfo] = None  # Full product details
     
     class Config:
         from_attributes = True

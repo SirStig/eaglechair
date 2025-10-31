@@ -8,9 +8,9 @@ import logging
 from datetime import datetime
 from typing import AsyncGenerator
 
-from sqlalchemy import Column, DateTime
+from sqlalchemy import Column, DateTime, create_engine
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
-from sqlalchemy.orm import DeclarativeBase, declared_attr
+from sqlalchemy.orm import DeclarativeBase, Session, declared_attr, sessionmaker
 from sqlalchemy.pool import NullPool
 
 from backend.core.config import settings
@@ -32,6 +32,25 @@ engine = create_async_engine(
 AsyncSessionLocal = async_sessionmaker(
     engine,
     class_=AsyncSession,
+    expire_on_commit=False,
+    autocommit=False,
+    autoflush=False,
+)
+
+# Create sync engine for background tasks (PDF parsing, etc.)
+sync_engine = create_engine(
+    settings.database_url_async.replace('+asyncpg', '').replace('postgresql://', 'postgresql+psycopg2://'),
+    echo=settings.DATABASE_ECHO,
+    pool_size=settings.DATABASE_POOL_SIZE,
+    max_overflow=settings.DATABASE_MAX_OVERFLOW,
+    pool_pre_ping=True,
+    poolclass=NullPool if settings.TESTING else None,
+)
+
+# Create sync session factory for background tasks
+SessionLocal = sessionmaker(
+    sync_engine,
+    class_=Session,
     expire_on_commit=False,
     autocommit=False,
     autoflush=False,

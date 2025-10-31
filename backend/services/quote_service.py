@@ -6,30 +6,30 @@ Handles quote requests, cart operations, and saved configurations
 
 import logging
 from datetime import datetime, timedelta
-from typing import List, Optional, Dict, Any
+from typing import Any, Dict, List, Optional
+
+from sqlalchemy import and_, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, and_, or_
 from sqlalchemy.orm import selectinload
 
-from backend.models.quote import (
-    Quote,
-    QuoteItem,
-    Cart,
-    CartItem,
-    SavedConfiguration,
-    QuoteStatus,
-    QuoteAttachment,
-    QuoteHistory
+from backend.core.exceptions import (
+    AuthorizationError,
+    BusinessLogicError,
+    ResourceNotFoundError,
+    ValidationError,
 )
 from backend.models.chair import Chair
 from backend.models.company import Company
-from backend.core.exceptions import (
-    ResourceNotFoundError,
-    ValidationError,
-    BusinessLogicError,
-    AuthorizationError,
+from backend.models.quote import (
+    Cart,
+    CartItem,
+    Quote,
+    QuoteAttachment,
+    QuoteHistory,
+    QuoteItem,
+    QuoteStatus,
+    SavedConfiguration,
 )
-
 
 logger = logging.getLogger(__name__)
 
@@ -373,6 +373,51 @@ class QuoteService:
         logger.info(f"Cleared cart {cart_id}")
         
         return True
+    
+    @staticmethod
+    async def merge_guest_cart(
+        db: AsyncSession,
+        company_id: int,
+        guest_items: List[Dict[str, Any]]
+    ) -> Cart:
+        """
+        Merge guest cart items into authenticated cart
+        
+        Args:
+            db: Database session
+            company_id: Company ID
+            guest_items: List of guest cart items to merge
+            
+        Returns:
+            Updated cart with merged items
+        """
+        # Get or create cart
+        cart = await QuoteService.get_or_create_cart(db, company_id)
+        
+        # Add each guest item to the cart
+        for item_data in guest_items:
+            try:
+                await QuoteService.add_to_cart(
+                    db=db,
+                    company_id=company_id,
+                    product_id=item_data.product_id,
+                    quantity=item_data.quantity,
+                    selected_finish_id=item_data.selected_finish_id,
+                    selected_upholstery_id=item_data.selected_upholstery_id,
+                    custom_notes=item_data.item_notes,
+                    configuration=item_data.custom_options
+                )
+            except Exception as e:
+                logger.error(f"Error merging guest item {item_data.product_id}: {e}")
+                # Continue with other items even if one fails
+                continue
+        
+        # Reload cart with items
+        cart = await QuoteService.get_cart_with_items(db, cart.id, company_id)
+        
+        logger.info(f"Merged {len(guest_items)} guest items into cart {cart.id}")
+        
+        return cart
     
     # ========================================================================
     # Quote Request Operations

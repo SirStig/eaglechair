@@ -475,6 +475,21 @@ class CacheService:
         except Exception as e:
             logger.error(f"Cache health check failed: {e}")
             return {"healthy": False, "error": str(e)}
+    
+    async def close(self):
+        """Close cache connections gracefully"""
+        if self.cache:
+            try:
+                # YokedCache should have a close method for Redis cleanup
+                if hasattr(self.cache, 'close'):
+                    await self.cache.close()
+                    logger.info("Cache connections closed")
+                elif hasattr(self.cache, '_redis'):
+                    # Manually close Redis connection if available
+                    await self.cache._redis.close()
+                    logger.info("Redis connection closed")
+            except Exception as e:
+                logger.warning(f"Error closing cache: {e}")
 
 
 # Create global cache service instance

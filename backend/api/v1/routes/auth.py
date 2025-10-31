@@ -43,10 +43,9 @@ security = HTTPBearer()
 
 @router.post(
     "/auth/register",
-    response_model=CompanyResponse,
     status_code=201,
     summary="Register new company account",
-    description="Register a new B2B company account. Account will be pending until approved by admin."
+    description="Register a new B2B company account and automatically log in. Returns auth tokens."
 )
 async def register_company(
     registration_data: CompanyRegistration,
@@ -54,11 +53,18 @@ async def register_company(
     db: AsyncSession = Depends(get_db)
 ):
     """
-    Register a new company account.
+    Register a new company account and automatically authenticate.
     
     **Note**: The account status will be 'pending' until approved by an administrator.
+    
+    Returns the same response format as login:
+    - access_token: JWT access token
+    - refresh_token: JWT refresh token  
+    - user: User information object
     """
     logger.info(f"New company registration request: {registration_data.company_name}")
+    
+    client_ip = request.client.host if request.client else None
     
     # Extract company data
     company_data = registration_data.model_dump(exclude={"password"})
@@ -73,7 +79,29 @@ async def register_company(
     
     logger.info(f"Company registered successfully: {company.company_name} (ID: {company.id})")
     
-    return company
+    # Automatically authenticate the newly registered company
+    logger.info(f"Auto-authenticating newly registered company: {company.id}")
+    company_auth, tokens = await AuthService.authenticate_company(
+        db=db,
+        email=registration_data.rep_email,
+        password=registration_data.password,
+        ip_address=client_ip
+    )
+    
+    # Return same format as login endpoint
+    return {
+        **tokens,
+        "user": {
+            "id": company.id,
+            "companyName": company.company_name,
+            "email": company.rep_email,
+            "firstName": company.rep_first_name,
+            "lastName": company.rep_last_name,
+            "phone": company.rep_phone,
+            "status": company.status.value,
+            "type": "company"
+        }
+    }
 
 
 @router.post(

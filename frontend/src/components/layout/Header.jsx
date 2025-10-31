@@ -23,7 +23,7 @@ const Header = ({ isMobileMenuOpen, setIsMobileMenuOpen }) => {
   const searchRef = useRef(null);
   const navigate = useNavigate();
   const { user, logout } = useAuthStore();
-  const { items } = useCartStore();
+  const { getItemCount } = useCartStore();
   const { data: siteSettings } = useSiteSettings();
 
   // Search products as user types using fuzzy search
@@ -84,7 +84,7 @@ const Header = ({ isMobileMenuOpen, setIsMobileMenuOpen }) => {
     navigate(`/products/${productSlug}`);
   };
 
-  const cartItemCount = items.reduce((sum, item) => sum + item.quantity, 0);
+  const cartItemCount = getItemCount();
 
   return (
     <header className="fixed top-0 left-0 w-full bg-dark-800/95 backdrop-blur-md shadow-lg border-b border-dark-500 z-50" style={{ '--header-height': '80px' }}>
@@ -313,7 +313,7 @@ const Header = ({ isMobileMenuOpen, setIsMobileMenuOpen }) => {
                       <svg className="h-5 w-5 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
                       </svg>
-                      {user.username || `${user.firstName} ${user.lastName}` || user.companyName || 'User'}
+                      {user.companyName || user.username || 'User'}
                       <Motion.svg 
                         className="ml-1 h-4 w-4 inline-block" 
                         fill="none" 
@@ -337,7 +337,7 @@ const Header = ({ isMobileMenuOpen, setIsMobileMenuOpen }) => {
                       Dashboard
                     </Link>
                     <Link
-                      to="/quotes"
+                      to="/dashboard/quotes"
                       className="block px-4 py-2 text-sm text-dark-50 hover:bg-dark-700 transition-colors rounded-md"
                     >
                       My Quotes
@@ -563,7 +563,7 @@ export const MobileMenu = ({ isMobileMenuOpen, setIsMobileMenuOpen, searchQuery,
                       <Link to="/dashboard" onClick={() => setIsMobileMenuOpen(false)} className="block py-2 text-dark-50 hover:text-primary-400 transition-colors">
                         Dashboard
                       </Link>
-                      <Link to="/quotes" onClick={() => setIsMobileMenuOpen(false)} className="block py-2 text-dark-50 hover:text-primary-400 transition-colors">
+                      <Link to="/dashboard/quotes" onClick={() => setIsMobileMenuOpen(false)} className="block py-2 text-dark-50 hover:text-primary-400 transition-colors">
                         My Quotes
                       </Link>
                       {(user.role === 'super_admin' || user.role === 'admin' || user.type === 'admin') && (

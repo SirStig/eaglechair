@@ -1,11 +1,42 @@
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react-swc'
-import { dirname } from 'path'
+import { dirname, resolve } from 'path'
 import { fileURLToPath } from 'url'
+import fs from 'fs'
 
 // Get __dirname equivalent in ES modules
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = dirname(__filename)
+
+// Plugin to serve tmp directory (for temporary catalog images)
+const serveTmpDirectory = () => ({
+  name: 'serve-tmp-directory',
+  configureServer(server) {
+    server.middlewares.use((req, res, next) => {
+      if (req.url.startsWith('/tmp/')) {
+        const filePath = resolve(__dirname, req.url.slice(1)); // Remove leading slash
+        if (fs.existsSync(filePath)) {
+          // Determine content type
+          const ext = filePath.split('.').pop().toLowerCase();
+          const contentTypes = {
+            'png': 'image/png',
+            'jpg': 'image/jpeg',
+            'jpeg': 'image/jpeg',
+            'gif': 'image/gif',
+            'webp': 'image/webp',
+            'pdf': 'application/pdf',
+          };
+          res.setHeader('Content-Type', contentTypes[ext] || 'application/octet-stream');
+          fs.createReadStream(filePath).pipe(res);
+        } else {
+          next();
+        }
+      } else {
+        next();
+      }
+    });
+  },
+});
 
 // https://vite.dev/config/
 export default defineConfig(({ mode }) => {
@@ -16,7 +47,10 @@ export default defineConfig(({ mode }) => {
   console.log(`📅 Build timestamp: ${buildTimestamp}\n`);
   
   return {
-    plugins: [react()],
+    plugins: [
+      react(),
+      serveTmpDirectory(), // Serve tmp directory for catalog images
+    ],
     
     server: {
       port: 5173,
@@ -29,6 +63,10 @@ export default defineConfig(({ mode }) => {
           target: 'http://localhost:8000',
           changeOrigin: true,
         },
+      },
+      // Serve tmp directory from frontend/tmp (for temporary catalog images)
+      fs: {
+        allow: ['..'], // Allow serving files from parent directory (frontend/tmp)
       },
     },
     

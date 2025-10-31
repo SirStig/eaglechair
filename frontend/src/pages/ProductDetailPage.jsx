@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
-import { AnimatePresence } from 'framer-motion';
+import { motion, AnimatePresence } from 'framer-motion';
 import Button from '../components/ui/Button';
 import Tag from '../components/ui/Tag';
 import LoadingSpinner from '../components/ui/LoadingSpinner';

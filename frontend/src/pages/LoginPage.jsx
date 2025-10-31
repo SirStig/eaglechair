@@ -6,6 +6,7 @@ import Button from '../components/ui/Button';
 import Input from '../components/ui/Input';
 import Card from '../components/ui/Card';
 import { useAuthStore } from '../store/authStore';
+import { useCartStore } from '../store/cartStore';
 import { demoUser, demoAdminUser, IS_DEMO } from '../data/demoData';
 import { useSiteSettings } from '../hooks/useContent';
 
@@ -13,6 +14,7 @@ const LoginPage = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const { login } = useAuthStore();
+  const cartStore = useCartStore();
   const { data: siteSettings } = useSiteSettings();
   const [error, setError] = useState(null);
   const [successMessage, setSuccessMessage] = useState(location.state?.message || null);
@@ -52,7 +54,7 @@ const LoginPage = () => {
       const result = await login({
         email: data.email,
         password: data.password,
-      });
+      }, cartStore);
 
       if (result.success) {
         navigate(from, { replace: true });

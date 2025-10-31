@@ -19,6 +19,7 @@ from backend.api.v1.routes.admin import (
     subcategories,
     upholsteries,
     upload,
+    virtual_catalog,
 )
 
 router = APIRouter(prefix="/admin", tags=["Admin"])
@@ -36,3 +37,4 @@ router.include_router(dashboard.router, prefix="/dashboard", tags=["Admin - Dash
 router.include_router(catalog.router, prefix="/catalog", tags=["Admin - Catalog"])
 router.include_router(categories.router, prefix="/categories", tags=["Admin - Categories"])
 router.include_router(upload.router, prefix="/upload", tags=["Admin - Upload"])
+router.include_router(virtual_catalog.router, prefix="/virtual-catalog", tags=["Admin - Virtual Catalog"])
