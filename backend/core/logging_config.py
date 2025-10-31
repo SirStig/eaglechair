@@ -350,6 +350,16 @@ class LoggingConfig:
         logging.getLogger("sqlalchemy.dialects").setLevel(logging.ERROR)
         logging.getLogger("sqlalchemy.orm").setLevel(logging.ERROR)
         
+        # Silence PDF parsing libraries - they log HEAVILY
+        logging.getLogger("pdfminer").setLevel(logging.ERROR)
+        logging.getLogger("pdfplumber").setLevel(logging.ERROR)
+        logging.getLogger("PIL").setLevel(logging.ERROR)
+        logging.getLogger("fitz").setLevel(logging.ERROR)
+        
+        # Silence multipart parser - extremely verbose during file uploads
+        logging.getLogger("multipart").setLevel(logging.ERROR)
+        logging.getLogger("multipart.multipart").setLevel(logging.ERROR)
+        
         # In production, be even more restrictive
         if not settings.DEBUG:
             logging.getLogger("uvicorn").setLevel(logging.ERROR)

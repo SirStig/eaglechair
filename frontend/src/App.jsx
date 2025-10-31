@@ -129,6 +129,22 @@ function App() {
               }
             />
             <Route
+              path="/dashboard/quotes"
+              element={
+                <ProtectedRoute>
+                  <DashboardPage />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/dashboard/profile"
+              element={
+                <ProtectedRoute>
+                  <DashboardPage />
+                </ProtectedRoute>
+              }
+            />
+            <Route
               path="/quotes"
               element={
                 <ProtectedRoute>

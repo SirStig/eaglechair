@@ -120,8 +120,8 @@ class Settings(BaseSettings):
     PASSWORD_RESET_TOKEN_EXPIRE_HOURS: int = 1  # 1 hour
     PASSWORD_MIN_LENGTH: int = 8
     
-    # Rate Limiting
-    RATE_LIMIT_PER_MINUTE: int = 60
+    # Rate Limiting (increased for normal website usage with multiple parallel requests)
+    RATE_LIMIT_PER_MINUTE: int = 120  # Increased from 60 to accommodate page loads with multiple API calls
     RATE_LIMIT_ENABLED: bool = True
     
     # Email Configuration
@@ -161,6 +161,11 @@ class Settings(BaseSettings):
     
     # Fuzzy Search Configuration
     FUZZY_SEARCH_THRESHOLD: int = 80  # Match threshold (0-100)
+    
+    # Frontend Configuration
+    # Path to frontend root directory for serving temporary files
+    # Dev: frontend, Prod: /home/dh_wmujeb/joshua.eaglechair.com
+    FRONTEND_PATH: str = "frontend"
     
     # Performance Configuration
     ENABLE_CACHE: bool = True

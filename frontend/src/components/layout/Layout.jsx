@@ -9,7 +9,7 @@ const Layout = () => {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const { user, logout } = useAuthStore();
-  const { items } = useCartStore();
+  const { getItemCount } = useCartStore();
 
   useEffect(() => {
     if (isMobileMenuOpen) {
@@ -44,7 +44,7 @@ const Layout = () => {
     }
   };
 
-  const cartItemCount = items.reduce((sum, item) => sum + item.quantity, 0);
+  const cartItemCount = getItemCount();
 
   return (
     <div className="flex flex-col min-h-screen bg-dark-800">

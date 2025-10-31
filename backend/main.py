@@ -51,41 +51,54 @@ async def lifespan(app: FastAPI):
     
     # Export CMS content to static files on startup
     try:
-        from backend.database.base import get_db
+        from backend.database.base import AsyncSessionLocal
         from backend.services.cms_admin_service import CMSAdminService
         
-        # Get database session
-        async for db in get_db():
+        # Use AsyncSessionLocal directly instead of get_db()
+        async with AsyncSessionLocal() as db:
             try:
                 logger.info("📦 Exporting CMS content to static files...")
                 success = await CMSAdminService.export_all_static_content(db)
+                await db.commit()
                 if success:
                     logger.info("[OK] CMS content exported to frontend")
                 else:
                     logger.warning("[WARN] CMS content export had issues")
             except Exception as e:
+                await db.rollback()
                 logger.warning(f"[WARN] Could not export CMS content: {e}")
-            finally:
-                break  # Only need one iteration
     except Exception as e:
         logger.warning(f"[WARN] CMS export setup failed: {e}")
     
     # Warm up product search cache for fast fuzzy search
     try:
-        from backend.database.base import get_db
+        from backend.database.base import AsyncSessionLocal
         from backend.services.product_service import ProductService
         
-        async for db in get_db():
+        async with AsyncSessionLocal() as db:
             try:
                 logger.info("🔍 Warming product search cache...")
                 indexed_count = await ProductService.warm_search_cache(db)
+                await db.commit()
                 logger.info(f"[OK] Product search cache ready: {indexed_count} products indexed")
             except Exception as e:
+                await db.rollback()
                 logger.warning(f"[WARN] Product search cache warm-up failed: {e}")
-            finally:
-                break  # Only need one iteration
     except Exception as e:
         logger.warning(f"[WARN] Search cache setup failed: {e}")
+    
+    # Run cleanup of expired temporary catalog data on startup
+    try:
+        import asyncio
+
+        from backend.services.cleanup_service import run_cleanup
+        
+        logger.info("🧹 Running cleanup of expired temporary catalog data...")
+        asyncio.create_task(asyncio.to_thread(run_cleanup))
+        # Don't wait for cleanup to finish - let it run in background
+        logger.info("[OK] Cleanup task started in background")
+    except Exception as e:
+        logger.warning(f"[WARN] Cleanup task failed to start: {e}")
     
     logger.info(f"🎯 API v1 available at: {settings.API_V1_PREFIX}")
     logger.info("✨ EagleChair API is ready!")
@@ -96,13 +109,18 @@ async def lifespan(app: FastAPI):
     logger.info("🛑 Shutting down EagleChair API...")
     
     try:
+        # Close cache connections first
+        from backend.services.cache_service import cache_service
+        await cache_service.close()
+        logger.info("[OK] Cache connections closed")
+    except Exception as e:
+        logger.warning(f"[WARN] Error closing cache: {e}")
+    
+    try:
         await close_db()
         logger.info("[OK] Database connections closed")
     except Exception as e:
         logger.error(f"❌ Error closing database: {e}")
-    
-    # TODO: Close Redis cache connection
-    # TODO: Close any other services
     
     logger.info("👋 EagleChair API shutdown complete")
 
@@ -194,6 +212,9 @@ else:
     uploads_path.mkdir(parents=True, exist_ok=True)
     app.mount("/uploads", StaticFiles(directory=str(uploads_path)), name="uploads")
     logger.info("[OK] Created and mounted uploads directory at /uploads")
+
+# Note: /tmp directory is NOT mounted here - it's served by frontend web server
+# Images are saved to FRONTEND_PATH/tmp/images/ and served via frontend
 
 # ============================================================================
 # Frontend SPA Serving

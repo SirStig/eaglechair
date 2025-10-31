@@ -2,14 +2,17 @@ import { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { useForm } from 'react-hook-form';
 import { motion, AnimatePresence } from 'framer-motion';
-import axios from 'axios';
 import Button from '../components/ui/Button';
 import Input from '../components/ui/Input';
 import Card from '../components/ui/Card';
+import { useAuthStore } from '../store/authStore';
+import { useCartStore } from '../store/cartStore';
 import { useSiteSettings } from '../hooks/useContent';
 
 const RegisterPage = () => {
   const navigate = useNavigate();
+  const { register: registerAuth } = useAuthStore();
+  const cartStore = useCartStore();
   const { data: siteSettings } = useSiteSettings();
   const [step, setStep] = useState(1);
   const [error, setError] = useState(null);
@@ -108,17 +111,41 @@ const RegisterPage = () => {
         registrationData.shipping_country = data.shipping_country || 'USA';
       }
 
-      const response = await axios.post('/api/v1/auth/register', registrationData);
+      // Register and authenticate (backend now returns tokens directly)
+      const result = await registerAuth(registrationData, cartStore);
       
-      // Success - redirect to login with success message
-      navigate('/login', {
-        state: {
-          message: 'Registration successful! Please check your email to verify your account.',
-          type: 'success'
-        }
-      });
+      if (result.success) {
+        // Success - redirect to dashboard or previous page
+        navigate('/dashboard', {
+          state: {
+            message: 'Registration successful! Welcome to Eagle Chair.',
+            type: 'success'
+          }
+        });
+      } else {
+        setError(result.error || 'Registration failed. Please try again.');
+      }
     } catch (err) {
-      setError(err.response?.data?.message || err.response?.data?.detail || 'Registration failed. Please try again.');
+      console.error('Registration error:', err);
+      
+      // Handle specific error cases
+      if (err.response?.status === 409) {
+        // Resource already exists (email duplicate)
+        const detail = err.response?.data?.detail || '';
+        if (detail.toLowerCase().includes('email')) {
+          setError('This email address is already registered. Please use a different email or try logging in.');
+          // Navigate back to step 2 (contact information) where email is
+          setStep(2);
+        } else {
+          setError('A company with this information already exists. Please check your details or contact support.');
+        }
+      } else if (err.response?.status === 400) {
+        // Bad request - validation error
+        setError(err.response?.data?.detail || 'Invalid information provided. Please check all fields and try again.');
+      } else {
+        // Generic error
+        setError(err.response?.data?.message || err.response?.data?.detail || 'Registration failed. Please try again.');
+      }
     } finally {
       setIsSubmitting(false);
     }
@@ -185,10 +212,27 @@ const RegisterPage = () => {
             <motion.div
               initial={{ opacity: 0, y: -10 }}
               animate={{ opacity: 1, y: 0 }}
-              className="bg-red-900/30 border-2 border-red-600 text-red-300 px-4 py-3 rounded-lg mb-6"
+              className={`border-2 px-4 py-3 rounded-lg mb-6 ${
+                error.toLowerCase().includes('already') 
+                  ? 'bg-yellow-900/30 border-yellow-600 text-yellow-200'
+                  : 'bg-red-900/30 border-red-600 text-red-300'
+              }`}
             >
-              <p className="font-semibold">Error</p>
-              <p className="text-sm">{error}</p>
+              <div className="flex items-start gap-3">
+                <svg className="w-5 h-5 flex-shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  {error.toLowerCase().includes('already') ? (
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                  ) : (
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  )}
+                </svg>
+                <div>
+                  <p className="font-semibold">
+                    {error.toLowerCase().includes('already') ? 'Account Already Exists' : 'Error'}
+                  </p>
+                  <p className="text-sm mt-1">{error}</p>
+                </div>
+              </div>
             </motion.div>
           )}
 

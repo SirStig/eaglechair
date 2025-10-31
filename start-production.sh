@@ -14,4 +14,6 @@ python3 -m uvicorn backend.main:app \
   --proxy-headers \
   --forwarded-allow-ips='*' \
   --log-level info \
-  --no-access-log
+  --no-access-log \
+  --timeout-keep-alive 300 \
+  --limit-max-requests 0

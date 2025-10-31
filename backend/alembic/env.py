@@ -7,16 +7,23 @@ This module configures Alembic migrations to work with async SQLAlchemy
 import asyncio
 from logging.config import fileConfig
 
+from alembic import context
 from sqlalchemy import pool
 from sqlalchemy.engine import Connection
 from sqlalchemy.ext.asyncio import async_engine_from_config
 
-from alembic import context
+from backend.core.config import settings
 
 # Import all models here for autogenerate support
 from backend.database.base import Base
 from backend.models import *  # Import all models
-from backend.core.config import settings
+from backend.models.tmp_catalog import (  # Import tmp catalog models
+    CatalogUpload,
+    TmpChair,
+    TmpProductFamily,
+    TmpProductImage,
+    TmpProductVariation,
+)
 
 # this is the Alembic Config object
 config = context.config

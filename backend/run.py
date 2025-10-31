@@ -25,6 +25,8 @@ if __name__ == "__main__":
         "reload_dirs": ["backend"] if settings.RELOAD else None,
         "log_level": settings.LOG_LEVEL.lower(),
         "access_log": True,
+        "limit_max_requests": 0,  # No request limit
+        "timeout_keep_alive": 300,  # 5 minutes for large uploads
     }
     
     # Add proxy headers support for production (DreamHost VPS)

@@ -1,6 +1,9 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import apiClient from '../config/apiClient';
+import logger from '../utils/logger';
+
+const AUTH_CONTEXT = 'AuthStore';
 
 // Helper function to decode JWT and check expiration
 const isTokenExpired = (token) => {
@@ -33,7 +36,7 @@ export const useAuthStore = create(
       adminToken: null,
       isAuthenticated: false,
 
-      login: async (credentials) => {
+      login: async (credentials, cartStore = null) => {
         try {
           // Use configured API client with proper base URL
           // Note: apiClient response interceptor already returns response.data
@@ -71,6 +74,16 @@ export const useAuthStore = create(
             apiClient.defaults.headers.common['X-Admin-Token'] = adminToken;
           }
           
+          // Merge guest cart if cartStore is provided
+          if (cartStore && typeof cartStore.switchToAuthMode === 'function') {
+            try {
+              await cartStore.switchToAuthMode();
+              logger.info(AUTH_CONTEXT, 'Guest cart merged on login');
+            } catch (error) {
+              logger.error(AUTH_CONTEXT, 'Error merging cart on login', error);
+            }
+          }
+          
           return { success: true, user };
         } catch (error) {
           console.error('Login error:', error);
@@ -83,7 +96,7 @@ export const useAuthStore = create(
         }
       },
 
-      register: async (userData) => {
+      register: async (userData, cartStore = null) => {
         try {
           // Note: apiClient response interceptor already returns response.data
           const data = await apiClient.post('/api/v1/auth/register', userData);
@@ -103,6 +116,16 @@ export const useAuthStore = create(
           
           apiClient.defaults.headers.common['Authorization'] = `Bearer ${access_token}`;
           
+          // Merge guest cart if cartStore is provided
+          if (cartStore && typeof cartStore.switchToAuthMode === 'function') {
+            try {
+              await cartStore.switchToAuthMode();
+              logger.info(AUTH_CONTEXT, 'Guest cart merged on registration');
+            } catch (error) {
+              logger.error(AUTH_CONTEXT, 'Error merging cart on registration', error);
+            }
+          }
+          
           return { success: true, user };
         } catch (error) {
           return { 
@@ -112,7 +135,7 @@ export const useAuthStore = create(
         }
       },
 
-      logout: () => {
+      logout: (cartStore = null) => {
         set({ 
           user: null, 
           token: null,
@@ -124,6 +147,12 @@ export const useAuthStore = create(
         delete apiClient.defaults.headers.common['Authorization'];
         delete apiClient.defaults.headers.common['X-Session-Token'];
         delete apiClient.defaults.headers.common['X-Admin-Token'];
+        
+        // Switch cart to guest mode if cartStore is provided
+        if (cartStore && typeof cartStore.switchToGuestMode === 'function') {
+          cartStore.switchToGuestMode();
+          logger.info(AUTH_CONTEXT, 'Switched to guest cart on logout');
+        }
       },
 
       updateUser: (userData) => {
