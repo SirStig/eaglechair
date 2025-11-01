@@ -38,6 +38,49 @@ const serveTmpDirectory = () => ({
   },
 });
 
+// Plugin to serve uploads directory from root level (dev mode only)
+const serveUploadsDirectory = () => ({
+  name: 'serve-uploads-directory',
+  configureServer(server) {
+    server.middlewares.use((req, res, next) => {
+      if (req.url.startsWith('/uploads/')) {
+        // Point to root/uploads directory (one level up from frontend folder)
+        const uploadsRoot = resolve(__dirname, '..', 'uploads');
+        const filePath = resolve(uploadsRoot, req.url.replace('/uploads/', ''));
+        
+        // Security check: ensure file is within uploads directory
+        if (!filePath.startsWith(uploadsRoot)) {
+          res.statusCode = 403;
+          res.end('Forbidden');
+          return;
+        }
+        
+        if (fs.existsSync(filePath) && fs.statSync(filePath).isFile()) {
+          // Determine content type
+          const ext = filePath.split('.').pop().toLowerCase();
+          const contentTypes = {
+            'png': 'image/png',
+            'jpg': 'image/jpeg',
+            'jpeg': 'image/jpeg',
+            'gif': 'image/gif',
+            'webp': 'image/webp',
+            'svg': 'image/svg+xml',
+            'pdf': 'application/pdf',
+            'doc': 'application/msword',
+            'docx': 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+          };
+          res.setHeader('Content-Type', contentTypes[ext] || 'application/octet-stream');
+          fs.createReadStream(filePath).pipe(res);
+        } else {
+          next();
+        }
+      } else {
+        next();
+      }
+    });
+  },
+});
+
 // https://vite.dev/config/
 export default defineConfig(({ mode }) => {
   const buildTimestamp = new Date().toISOString();
@@ -50,7 +93,10 @@ export default defineConfig(({ mode }) => {
     plugins: [
       react(),
       serveTmpDirectory(), // Serve tmp directory for catalog images
-    ],
+      // Only serve uploads directory directly in dev mode
+      // In production, files are served from frontend/dist/uploads
+      !isProduction && serveUploadsDirectory(),
+    ].filter(Boolean), // Remove falsy values from array
     
     server: {
       port: 5173,
@@ -59,10 +105,8 @@ export default defineConfig(({ mode }) => {
           target: 'http://localhost:8000',
           changeOrigin: true,
         },
-        '/uploads': {
-          target: 'http://localhost:8000',
-          changeOrigin: true,
-        },
+        // Note: /uploads proxy removed in dev mode - files are served directly via serveUploadsDirectory plugin
+        // In production, the built frontend will have uploads copied to dist/uploads or served via backend
       },
       // Serve tmp directory from frontend/tmp (for temporary catalog images)
       fs: {

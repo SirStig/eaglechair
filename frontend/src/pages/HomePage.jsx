@@ -210,7 +210,7 @@ const HomePage = () => {
                     cacheKey="hero-slides"
                     label={`Slide ${index + 1}`}
                   >
-                    <div className="relative h-[70vh] sm:h-[75vh] md:h-[80vh] lg:h-[85vh]">
+                    <div className="relative h-[calc(100vh-5rem-12vh)] sm:h-[calc(100vh-5rem-13vh)] md:h-[calc(100vh-5rem-15vh)] lg:h-[calc(100vh-5rem-20vh)]">
                       <img
                         src={slide.background_image_url || slide.image}
                         alt={slide.title}
@@ -251,9 +251,9 @@ const HomePage = () => {
 
 
       {/* Trusted By - Infinite Scrolling Logos */}
-      <section className="py-8 sm:py-12 md:py-16 bg-dark-800 overflow-hidden">
+      <section className="py-6 sm:py-8 md:py-10 lg:py-8 bg-dark-800 overflow-hidden">
         <div className="container">
-          <h2 className="text-xl sm:text-2xl md:text-3xl font-bold text-center mb-8 sm:mb-12 text-dark-50 px-4">
+          <h2 className="text-xl sm:text-2xl md:text-3xl font-bold text-center mb-6 sm:mb-8 md:mb-6 lg:mb-8 text-dark-50 px-4">
             Trusted by Leading Hospitality Brands
           </h2>
           
