@@ -116,7 +116,8 @@ export default defineConfig(({ mode }) => {
     
     build: {
       outDir: 'dist',
-      sourcemap: !isProduction, // Only in dev
+      sourcemap: false, // Never generate source maps in production for security
+      // Source maps are disabled to prevent exposing source code in production
       // Optimize chunks for better loading
       rollupOptions: {
         output: {

@@ -89,18 +89,18 @@ const FindARepPage = () => {
       <div className="container">
         {/* Header */}
         <div className="text-center mb-12">
-          <h1 className="text-4xl font-bold mb-4 text-dark-50">Find Your Sales Representative</h1>
+          <h1 className="text-2xl sm:text-3xl md:text-4xl font-bold mb-4 text-dark-50">Find Your Sales Representative</h1>
           <p className="text-lg text-dark-100 max-w-2xl mx-auto">
             Click on your state to find your local Eagle Chair representative. 
             They're ready to help with product selection, quotes, and personalized service.
           </p>
         </div>
 
-        <div className="grid lg:grid-cols-3 gap-8">
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 sm:gap-8">
           {/* Map Section */}
-          <div className="lg:col-span-2">
+          <div className="lg:col-span-2 order-2 lg:order-1">
             <Card>
-              <h2 className="text-2xl font-bold mb-6 text-dark-50">Interactive US Map</h2>
+              <h2 className="text-xl sm:text-2xl font-bold mb-4 sm:mb-6 text-dark-50">Interactive US Map</h2>
               
               <p className="text-center text-dark-100 mb-4">
                 Click a state to view your representative
@@ -122,7 +122,7 @@ const FindARepPage = () => {
           </div>
 
           {/* Rep Info Sidebar */}
-          <div>
+          <div className="order-1 lg:order-2">
             {displayRep ? (
               <EditableWrapper
                 id={`sales-rep-${displayRep.id}`}

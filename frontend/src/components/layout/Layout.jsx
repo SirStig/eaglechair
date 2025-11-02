@@ -64,7 +64,7 @@ const Layout = () => {
         logout={logout}
         cartItemCount={cartItemCount}
       />
-      <main className="flex-grow pt-20">
+      <main className="flex-grow pt-[72px] sm:pt-[88px] md:pt-20 lg:pt-20">
         <Outlet />
       </main>
       <Footer />

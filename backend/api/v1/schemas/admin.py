@@ -6,7 +6,7 @@ Pydantic schemas for admin operations
 
 from typing import Any, Dict, List, Optional
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, EmailStr, Field
 
 from backend.models.company import CompanyStatus
 from backend.models.quote import QuoteStatus
@@ -34,6 +34,13 @@ class CompanyStatusUpdate(BaseModel):
     
     status: CompanyStatus = Field(..., description="New company status")
     admin_notes: Optional[str] = Field(None, description="Admin notes")
+
+
+class CompanyInviteRequest(BaseModel):
+    """Company invitation request"""
+    
+    company_name: str = Field(..., min_length=1, max_length=255, description="Name of the company to invite")
+    email: EmailStr = Field(..., description="Email address to send invitation to")
 
 
 class CompanyListResponse(BaseModel):

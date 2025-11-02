@@ -57,6 +57,9 @@ class RouteConfig:
         "/api/v1/auth/password/reset-request",
         "/api/v1/auth/password/reset",
         
+        # Note: /api/v1/auth/me is intentionally NOT public - it requires authentication
+        # It's used to check if user is authenticated, 401 is expected response when not logged in
+        
         # Public product/catalog endpoints (exact matches)
         "/api/v1/products",
         "/api/v1/categories",

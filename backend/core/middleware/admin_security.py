@@ -90,8 +90,9 @@ class AdminSecurityMiddleware(BaseHTTPMiddleware):
                 )
         
         # Require both session token and admin token
-        session_token = request.headers.get("X-Session-Token")
-        admin_token = request.headers.get("X-Admin-Token")
+        # Check cookies first (preferred), then headers (fallback)
+        session_token = request.cookies.get("session_token") or request.headers.get("X-Session-Token")
+        admin_token = request.cookies.get("admin_token") or request.headers.get("X-Admin-Token")
         
         if not session_token or not admin_token:
             security_logger.log_suspicious_activity(

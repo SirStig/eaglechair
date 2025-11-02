@@ -67,7 +67,7 @@ const GuidesPage = () => {
             <Link to="/" className="text-primary-500 hover:text-primary-400 text-sm mb-2 inline-block">
               ← Back to Home
             </Link>
-            <h1 className="text-3xl md:text-4xl font-bold text-dark-50">Guides & Resources</h1>
+            <h1 className="text-2xl sm:text-3xl md:text-4xl font-bold text-dark-50">Guides & Resources</h1>
             <p className="text-dark-300 mt-2">Installation guides, care instructions, CAD files, and more</p>
           </div>
         </div>
@@ -92,23 +92,23 @@ const GuidesPage = () => {
         {/* Guide Categories */}
         <div className="space-y-12">
           {guideCategories.map(category => (
-            <section key={category.id} className="bg-dark-800 rounded-lg border border-dark-700 p-8">
-              <div className="flex items-start gap-4 mb-6">
-                <div className="text-5xl">{category.icon}</div>
+            <section key={category.id} className="bg-dark-800 rounded-lg border border-dark-700 p-4 sm:p-6 lg:p-8">
+              <div className="flex items-start gap-3 sm:gap-4 mb-4 sm:mb-6">
+                <div className="text-3xl sm:text-4xl lg:text-5xl">{category.icon}</div>
                 <div>
-                  <h2 className="text-2xl font-bold text-dark-50 mb-2">{category.title}</h2>
-                  <p className="text-dark-300">{category.description}</p>
+                  <h2 className="text-xl sm:text-2xl font-bold text-dark-50 mb-2">{category.title}</h2>
+                  <p className="text-sm sm:text-base text-dark-300">{category.description}</p>
                 </div>
               </div>
 
               {category.guides.length === 0 ? (
-                <div className="text-center py-8 text-dark-400">
+                <div className="text-center py-6 sm:py-8 text-dark-400">
                   {IS_DEMO 
                     ? 'Guides will appear when connected to the backend' 
                     : 'No guides available in this category yet'}
                 </div>
               ) : (
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
                   {category.guides.map(guide => (
                     <div
                       key={guide.id}
@@ -136,9 +136,9 @@ const GuidesPage = () => {
         </div>
 
         {/* Quick Links */}
-        <div className="mt-16 bg-gradient-to-r from-primary-900/20 to-dark-800 border border-primary-700/30 rounded-lg p-8">
-          <h2 className="text-2xl font-bold text-dark-50 mb-6">Need Help?</h2>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+        <div className="mt-12 sm:mt-16 bg-gradient-to-r from-primary-900/20 to-dark-800 border border-primary-700/30 rounded-lg p-6 sm:p-8">
+          <h2 className="text-xl sm:text-2xl font-bold text-dark-50 mb-4 sm:mb-6">Need Help?</h2>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6">
             <div>
               <h3 className="font-semibold text-dark-100 mb-2">📞 Contact Support</h3>
               <p className="text-sm text-dark-300 mb-3">

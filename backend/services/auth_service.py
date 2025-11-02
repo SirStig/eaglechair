@@ -152,10 +152,10 @@ class AuthService:
             logger.warning(f"Login attempt for inactive account: {email}")
             raise AccountSuspendedError()
         
-        # Require email verification before account can be used
+        # Allow unverified accounts to log in, but restrict quote creation
+        # Verification status will be returned in login response
         if not company.is_verified:
-            logger.warning(f"Login attempt for unverified account: {email}")
-            raise AccountNotVerifiedError()
+            logger.info(f"Login successful for unverified account: {email} - quote creation will be restricted")
         
         # Generate tokens
         token_data = {
@@ -281,15 +281,20 @@ class AuthService:
         refresh_token = security_manager.create_refresh_token(token_data)
         
         # Generate session and admin tokens (for dual token security)
-        import uuid
-        session_token = str(uuid.uuid4())
-        admin_token = str(uuid.uuid4())
+        import secrets
+        session_token = secrets.token_urlsafe(32)
+        admin_token = secrets.token_urlsafe(32)
+        
+        # Hash tokens before storing (like passwords) for security
+        # Store hashed tokens - original tokens only returned in response
+        hashed_session_token = security_manager.hash_password(session_token)
+        hashed_admin_token = security_manager.hash_password(admin_token)
         
         # Store tokens in database (including refresh token)
         from backend.core.config import settings
         refresh_expires = datetime.utcnow() + timedelta(days=settings.ADMIN_REFRESH_TOKEN_EXPIRE_DAYS)
-        admin.session_token = session_token
-        admin.admin_token = admin_token
+        admin.session_token = hashed_session_token
+        admin.admin_token = hashed_admin_token
         admin.refresh_token = refresh_token
         admin.refresh_token_expires = refresh_expires.isoformat()
         await db.commit()

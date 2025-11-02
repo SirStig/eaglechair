@@ -44,12 +44,26 @@ class RateLimitConfig:
     }
     
     # Authentication endpoints
-    AUTH_ENDPOINTS = {
-        "/api/v1/auth/register": (10, 300),  # 10 per 5 minutes
-        "/api/v1/auth/login": (30, 300),  # 30 per 5 minutes
-        "/api/v1/auth/refresh": (60, 300),  # Increased for token refresh
-        "/api/v1/admin/login": (20, 600),  # 20 per 10 minutes
-    }
+    # In DEBUG mode, limits are more lenient for development
+    @staticmethod
+    def get_auth_limits():
+        """Get auth endpoint limits, adjusted for DEBUG mode"""
+        base_limits = {
+            "/api/v1/auth/register": (10, 300),  # 10 per 5 minutes
+            "/api/v1/auth/login": (60, 300),  # Increased: 60 per 5 minutes (12 per minute) for production
+            "/api/v1/auth/refresh": (120, 300),  # Increased for token refresh (24 per minute)
+            "/api/v1/admin/login": (30, 600),  # Increased: 30 per 10 minutes
+        }
+        
+        if settings.DEBUG:
+            # In DEBUG mode, be more lenient - 10x the limits for development
+            return {
+                endpoint: (limit * 10, window)
+                for endpoint, (limit, window) in base_limits.items()
+            }
+        return base_limits
+    
+    # This will be accessed dynamically via get_auth_limits() in _get_rate_limit
     
     # Authenticated company users
     # Increased limits for authenticated users who need to interact with the system
@@ -92,8 +106,13 @@ class AdvancedRateLimiter(BaseHTTPMiddleware):
         # Burst protection - increased threshold to accommodate legitimate page loads
         # Modern SPAs make many parallel API calls (OPTIONS + GET for each endpoint)
         # A typical page load might have 10-30 parallel requests
-        self.burst_threshold = kwargs.get("burst_threshold", 50)  # Increased from 20 to 50
-        self.burst_window = kwargs.get("burst_window", 3)  # Increased window from 2 to 3 seconds
+        # In DEBUG mode, be much more lenient with burst detection
+        if settings.DEBUG:
+            self.burst_threshold = kwargs.get("burst_threshold", 200)  # Very high for development
+            self.burst_window = kwargs.get("burst_window", 5)  # Longer window
+        else:
+            self.burst_threshold = kwargs.get("burst_threshold", 50)  # Production default
+            self.burst_window = kwargs.get("burst_window", 3)  # 3 second window
     
     async def dispatch(self, request: Request, call_next: Callable) -> Response:
         """Process request with rate limiting"""
@@ -116,11 +135,18 @@ class AdvancedRateLimiter(BaseHTTPMiddleware):
             return await call_next(request)
         
         # Get identifier (IP or user ID)
-        identifier = self._get_identifier(request)
+        # For auth endpoints, use endpoint-specific identifier to isolate from other traffic
+        user_type = self._get_user_type(request)
+        if user_type == "auth":
+            # For auth endpoints, create endpoint-specific identifier
+            # This prevents page browsing from counting against login attempts
+            identifier = self._get_identifier(request, path_specific=True)
+        else:
+            identifier = self._get_identifier(request)
+        
         current_time = time.time()
         
-        # Determine user type and get limits
-        user_type = self._get_user_type(request)
+        # Get limits for this endpoint
         max_requests, window = self._get_rate_limit(path, user_type)
         
         # Check for burst
@@ -157,18 +183,31 @@ class AdvancedRateLimiter(BaseHTTPMiddleware):
         
         return response
     
-    def _get_identifier(self, request: Request) -> str:
-        """Get unique identifier for rate limiting (IP or user ID)"""
+    def _get_identifier(self, request: Request, path_specific: bool = False) -> str:
+        """
+        Get unique identifier for rate limiting (IP or user ID)
+        
+        Args:
+            request: The request object
+            path_specific: If True, include the path in the identifier (for endpoint-specific tracking)
+        """
+        client_ip = self._get_client_ip(request)
+        
         # Try to get user ID from auth token (if authenticated)
         auth_header = request.headers.get("Authorization", "")
         if auth_header:
-            # Extract user info from token (simplified - use actual token parsing)
-            # For now, use a combination of IP and auth presence
-            client_ip = self._get_client_ip(request)
-            return f"auth:{client_ip}"
+            # Use a combination of IP and auth presence
+            base_identifier = f"auth:{client_ip}"
+        else:
+            # Fall back to IP address
+            base_identifier = f"ip:{client_ip}"
         
-        # Fall back to IP address
-        return f"ip:{self._get_client_ip(request)}"
+        # For path-specific tracking (e.g., auth endpoints), include the path
+        if path_specific:
+            path = request.url.path
+            return f"{base_identifier}:{path}"
+        
+        return base_identifier
     
     def _get_client_ip(self, request: Request) -> str:
         """Extract client IP address"""
@@ -206,15 +245,19 @@ class AdvancedRateLimiter(BaseHTTPMiddleware):
         # Auth endpoints have strict limits
         if user_type == "auth":
             # Check specific endpoints first (longest match wins)
+            # Get limits dynamically (handles DEBUG mode adjustment)
+            auth_limits = RateLimitConfig.get_auth_limits()
             best_match = None
             best_length = 0
-            for endpoint, (limit, window) in RateLimitConfig.AUTH_ENDPOINTS.items():
+            for endpoint, (limit, window) in auth_limits.items():
                 if endpoint in path and len(endpoint) > best_length:
                     best_match = (limit, window)
                     best_length = len(endpoint)
             if best_match:
                 return best_match
-            return (10, 60)  # Default auth limit
+            # Default auth limit - also adjusted for DEBUG
+            default_limit = (10, 60) if not settings.DEBUG else (100, 60)
+            return default_limit
         
         # Admin endpoints
         if user_type == "admin":

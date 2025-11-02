@@ -176,35 +176,36 @@ const RegisterPage = () => {
               transition={{ type: "spring", stiffness: 300 }}
             />
           </Link>
-          <h1 className="text-3xl font-bold mb-2 text-dark-50">Create Your Account</h1>
+          <h1 className="text-2xl sm:text-3xl font-bold mb-2 text-dark-50">Create Your Account</h1>
           <p className="text-dark-200">Join {siteSettings?.companyName || "Eagle Chair"} for exclusive trade pricing and services</p>
         </div>
 
         {/* Progress Bar */}
         <div className="mb-8">
-          <div className="flex justify-between mb-2">
+          <div className="flex justify-between mb-2 gap-1 sm:gap-2">
             {[1, 2, 3, 4].map((s) => (
               <div key={s} className="flex items-center flex-1">
                 <div className={`
-                  w-10 h-10 rounded-full flex items-center justify-center font-semibold transition-all duration-300
+                  w-8 h-8 sm:w-10 sm:h-10 rounded-full flex items-center justify-center font-semibold transition-all duration-300 text-sm sm:text-base
                   ${step >= s ? 'bg-primary-600 text-white' : 'bg-dark-700 text-dark-400'}
                 `}>
                   {s}
                 </div>
                 {s < 4 && (
                   <div className={`
-                    flex-1 h-1 mx-2 transition-all duration-300
+                    flex-1 h-1 mx-1 sm:mx-2 transition-all duration-300
                     ${step > s ? 'bg-primary-600' : 'bg-dark-700'}
                   `} />
                 )}
               </div>
             ))}
           </div>
-          <div className="flex justify-between text-xs text-dark-300">
-            <span>Company</span>
-            <span>Contact</span>
-            <span>Address</span>
-            <span>Security</span>
+          <div className="flex justify-between text-xs text-dark-300 px-0 sm:px-2">
+            <span className="hidden xs:inline">Company</span>
+            <span className="hidden xs:inline">Contact</span>
+            <span className="hidden sm:inline">Address</span>
+            <span className="hidden sm:inline">Security</span>
+            <span className="xs:hidden text-[10px]">Step {step}/4</span>
           </div>
         </div>
 
@@ -628,13 +629,13 @@ const RegisterPage = () => {
             </AnimatePresence>
 
             {/* Navigation Buttons */}
-            <div className="flex justify-between mt-8 pt-6 border-t border-dark-700">
+            <div className="flex flex-col sm:flex-row justify-between gap-3 sm:gap-0 mt-6 sm:mt-8 pt-6 border-t border-dark-700">
               <Button
                 type="button"
                 variant="secondary"
                 onClick={prevStep}
                 disabled={step === 1}
-                className="min-w-[120px]"
+                className="w-full sm:w-auto min-w-[120px] min-h-[44px]"
               >
                 Previous
               </Button>
@@ -644,7 +645,7 @@ const RegisterPage = () => {
                   type="button"
                   variant="primary"
                   onClick={nextStep}
-                  className="min-w-[120px]"
+                  className="w-full sm:w-auto min-w-[120px] min-h-[44px]"
                 >
                   Next
                 </Button>
@@ -653,7 +654,7 @@ const RegisterPage = () => {
                   type="submit"
                   variant="primary"
                   disabled={isSubmitting}
-                  className="min-w-[120px]"
+                  className="w-full sm:w-auto min-w-[120px] min-h-[44px]"
                 >
                   {isSubmitting ? 'Creating Account...' : 'Create Account'}
                 </Button>

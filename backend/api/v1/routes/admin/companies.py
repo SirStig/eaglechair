@@ -13,10 +13,11 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from backend.api.dependencies import get_current_admin, require_role
-from backend.api.v1.schemas.admin import CompanyListResponse, CompanyStatusUpdate
+from backend.api.v1.schemas.admin import CompanyInviteRequest, CompanyListResponse, CompanyStatusUpdate
 from backend.api.v1.schemas.common import MessageResponse
 from backend.api.v1.schemas.company import CompanyAdminUpdate, CompanyResponse
-from backend.core.exceptions import ResourceNotFoundError, ValidationError
+from backend.core.config import settings
+from backend.core.exceptions import ResourceAlreadyExistsError, ResourceNotFoundError, ValidationError
 from backend.database.base import get_db
 from backend.models.company import (
     AdminRole,
@@ -26,6 +27,7 @@ from backend.models.company import (
     CompanyStatus,
 )
 from backend.services.admin_service import AdminService
+from backend.services.email_service import EmailService
 from backend.utils.serializers import orm_list_to_dict_list, orm_to_dict
 
 logger = logging.getLogger(__name__)
@@ -553,3 +555,72 @@ async def list_all_pricing_tiers(
         })
     
     return tiers
+
+
+@router.post(
+    "/invite",
+    response_model=MessageResponse,
+    summary="Invite company (Admin)",
+    description="Send invitation email to a company to create an account"
+)
+async def invite_company(
+    invite_data: CompanyInviteRequest,
+    admin: AdminUser = Depends(require_role(AdminRole.ADMIN)),
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    Send invitation email to a company to create an account.
+    
+    **Admin only** - Requires admin role.
+    
+    The invitation email will contain a link to the registration page.
+    """
+    logger.info(f"Admin {admin.username} inviting company: {invite_data.company_name} ({invite_data.email})")
+    
+    try:
+        # Check if company with this email already exists
+        result = await db.execute(
+            select(Company).where(Company.rep_email == invite_data.email)
+        )
+        existing_company = result.scalar_one_or_none()
+        
+        if existing_company:
+            raise ResourceAlreadyExistsError(
+                resource_type="Company",
+                field="email"
+            )
+        
+        # Generate registration URL
+        registration_url = f"{settings.FRONTEND_URL}/register"
+        
+        # Send invitation email
+        inviter_name = f"{admin.first_name} {admin.last_name}".strip() if (admin.first_name or admin.last_name) else admin.username
+        
+        email_sent = await EmailService.send_company_invite(
+            db=db,
+            to_email=invite_data.email,
+            company_name=invite_data.company_name,
+            registration_url=registration_url,
+            inviter_name=inviter_name if inviter_name != admin.username else None
+        )
+        
+        if not email_sent:
+            raise HTTPException(
+                status_code=500,
+                detail="Failed to send invitation email. Please check email configuration and try again."
+            )
+        
+        logger.info(f"Invitation email sent successfully to {invite_data.email}")
+        
+        return MessageResponse(
+            message=f"Invitation email sent successfully to {invite_data.email}"
+        )
+        
+    except (ResourceAlreadyExistsError, ValidationError) as e:
+        raise HTTPException(status_code=e.status_code, detail=str(e))
+    except Exception as e:
+        logger.error(f"Error sending company invitation: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to send invitation: {str(e)}"
+        )

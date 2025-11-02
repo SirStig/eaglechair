@@ -31,10 +31,11 @@ security = HTTPBearer()
 
 
 async def get_current_token_payload(
-    credentials: HTTPAuthorizationCredentials = Depends(security)
+    request: Request,
+    credentials: Optional[HTTPAuthorizationCredentials] = Depends(HTTPBearer(auto_error=False))
 ) -> dict:
     """
-    Extract and validate JWT token from Authorization header
+    Extract and validate JWT token from cookie (preferred) or Authorization header (fallback)
     
     Returns:
         Decoded token payload
@@ -43,8 +44,17 @@ async def get_current_token_payload(
         InvalidTokenError: If token is invalid
         TokenExpiredError: If token has expired
     """
-    try:
+    # Try cookie first (new preferred method)
+    token = request.cookies.get("access_token")
+    
+    # Fallback to Authorization header (backward compatibility)
+    if not token and credentials:
         token = credentials.credentials
+    
+    if not token:
+        raise InvalidTokenError("No authentication token provided")
+    
+    try:
         payload = security_manager.decode_token(token)
         return payload
     except Exception as e:
@@ -55,10 +65,11 @@ async def get_current_token_payload(
 
 
 async def get_current_token_and_payload(
-    credentials: HTTPAuthorizationCredentials = Depends(security)
+    request: Request,
+    credentials: Optional[HTTPAuthorizationCredentials] = Depends(HTTPBearer(auto_error=False))
 ) -> tuple[str, dict]:
     """
-    Extract JWT token and its decoded payload from Authorization header
+    Extract JWT token and its decoded payload from cookie (preferred) or Authorization header (fallback)
     
     Returns:
         Tuple of (raw_token, decoded_payload)
@@ -67,8 +78,17 @@ async def get_current_token_and_payload(
         InvalidTokenError: If token is invalid
         TokenExpiredError: If token has expired
     """
-    try:
+    # Try cookie first (new preferred method)
+    token = request.cookies.get("access_token")
+    
+    # Fallback to Authorization header (backward compatibility)
+    if not token and credentials:
         token = credentials.credentials
+    
+    if not token:
+        raise InvalidTokenError("No authentication token provided")
+    
+    try:
         payload = security_manager.decode_token(token)
         return token, payload
     except Exception as e:
@@ -117,14 +137,14 @@ async def get_current_company(
         
         return company
     
-    # Handle admin token - check for admin headers
+    # Handle admin token - check for admin tokens in cookies (preferred) or headers (fallback)
     elif token_type == "admin":
-        session_token = request.headers.get("X-Session-Token")
-        admin_token = request.headers.get("X-Admin-Token")
+        session_token = request.cookies.get("session_token") or request.headers.get("X-Session-Token")
+        admin_token = request.cookies.get("admin_token") or request.headers.get("X-Admin-Token")
         
         if not session_token or not admin_token:
             raise AuthenticationError(
-                "Admin access requires both X-Session-Token and X-Admin-Token headers."
+                "Admin access requires both session token and admin token (from cookies or headers)."
             )
         
         admin_id = int(token_payload.get("sub"))
@@ -143,12 +163,17 @@ async def get_current_company(
             logger.warning(f"Inactive admin attempted access: {admin_id}")
             raise AuthenticationError("Admin account is inactive")
         
-        # Validate session and admin tokens match stored values
-        if admin.session_token != session_token or admin.admin_token != admin_token:
+        # Validate session and admin tokens (compare hashed stored tokens with provided tokens)
+        from backend.core.security import security_manager
+        
+        # Verify provided tokens against hashed stored tokens
+        session_valid = security_manager.verify_password(session_token, admin.session_token) if admin.session_token else False
+        admin_token_valid = security_manager.verify_password(admin_token, admin.admin_token) if admin.admin_token else False
+        
+        if not session_valid or not admin_token_valid:
             logger.warning(
                 f"Invalid admin tokens for admin {admin_id}. "
-                f"Expected session: {admin.session_token[:8]}..., "
-                f"got: {session_token[:8] if session_token else None}..."
+                f"Token validation failed."
             )
             raise AuthenticationError("Invalid admin tokens")
         
@@ -238,6 +263,7 @@ async def get_current_company(
 
 
 async def get_current_admin(
+    request: Request,
     token_payload: dict = Depends(get_current_token_payload),
     db: AsyncSession = Depends(get_db)
 ) -> AdminUser:
@@ -272,9 +298,25 @@ async def get_current_admin(
         logger.warning(f"Inactive admin attempted access: {admin_id}")
         raise AuthenticationError("Admin account is inactive")
     
-    # Note: Session and admin token validation removed from here
-    # It should be done via middleware for admin routes
-    # Individual routes can check if needed
+    # Validate session_token and admin_token from cookies (preferred) or headers (fallback)
+    session_token = request.cookies.get("session_token") or request.headers.get("X-Session-Token")
+    admin_token = request.cookies.get("admin_token") or request.headers.get("X-Admin-Token")
+    
+    if not session_token or not admin_token:
+        logger.warning(f"Missing admin tokens for admin {admin_id}")
+        raise AuthenticationError("Admin session tokens required")
+    
+    # Validate tokens against hashed stored tokens
+    from backend.core.security import security_manager
+    
+    session_valid = security_manager.verify_password(session_token, admin.session_token) if admin.session_token else False
+    admin_token_valid = security_manager.verify_password(admin_token, admin.admin_token) if admin.admin_token else False
+    
+    if not session_valid or not admin_token_valid:
+        logger.warning(
+            f"Invalid admin tokens for admin {admin_id}. Token validation failed."
+        )
+        raise AuthenticationError("Invalid admin tokens")
     
     return admin
 

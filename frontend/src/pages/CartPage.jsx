@@ -1,4 +1,4 @@
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { useEffect, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import Button from '../components/ui/Button';
@@ -8,8 +8,12 @@ import { useCartStore } from '../store/cartStore';
 import { useAuthStore } from '../store/authStore';
 
 const CartPage = () => {
-  const { isAuthenticated } = useAuthStore();
+  const { isAuthenticated, user } = useAuthStore();
   const [cartSynced, setCartSynced] = useState(false);
+  const navigate = useNavigate();
+  
+  // Check if user needs email verification
+  const isUnverified = user && user.type === 'company' && !user.isVerified;
   
   // Subscribe to cart state properly - this will trigger re-renders on cart changes
   const cartStore = useCartStore();
@@ -81,7 +85,7 @@ const CartPage = () => {
         {/* Header */}
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-10">
           <div>
-            <h1 className="text-4xl font-bold text-slate-800 mb-2">Shopping Cart</h1>
+            <h1 className="text-2xl sm:text-3xl md:text-4xl font-bold text-slate-800 mb-2">Shopping Cart</h1>
             <p className="text-slate-600">
               {items.length} {items.length === 1 ? 'item' : 'items'} • {items.reduce((sum, item) => sum + item.quantity, 0)} total units
             </p>
@@ -97,9 +101,9 @@ const CartPage = () => {
           </button>
         </div>
 
-        <div className="grid lg:grid-cols-3 gap-8">
+        <div className="grid lg:grid-cols-3 gap-6 lg:gap-8">
           {/* Cart Items */}
-          <div className="lg:col-span-2 space-y-6">
+          <div className="lg:col-span-2 space-y-4 sm:space-y-6">
             <AnimatePresence>
               {items.map((item, index) => {
                 const product = item.product || {};
@@ -122,7 +126,7 @@ const CartPage = () => {
                       <div className="flex flex-col md:flex-row gap-6">
                         {/* Product Image */}
                         <Link to={`/products/${product.slug || product.id}`} className="flex-shrink-0">
-                          <div className="relative w-full md:w-20 lg:w-24 bg-cream-50 rounded-lg overflow-hidden border border-cream-200 flex items-center justify-center" style={{ minHeight: '140px' }}>
+                          <div className="relative w-full sm:w-32 md:w-20 lg:w-24 bg-cream-50 rounded-lg overflow-hidden border border-cream-200 flex items-center justify-center mx-auto sm:mx-0" style={{ minHeight: '120px', maxHeight: '180px' }}>
                             <img
                               src={productImage}
                               alt={productName}
@@ -220,17 +224,17 @@ const CartPage = () => {
                               <div className="flex items-center border-2 border-cream-300 bg-white rounded-lg shadow-sm">
                                 <button
                                   onClick={() => updateQuantity(index, item.quantity - 1)}
-                                  className="px-4 py-2.5 hover:bg-cream-50 text-lg text-slate-700 transition-colors font-semibold"
+                                  className="px-4 py-2.5 hover:bg-cream-50 text-lg text-slate-700 transition-colors font-semibold min-w-[44px] min-h-[44px] flex items-center justify-center"
                                   aria-label="Decrease quantity"
                                 >
                                   −
                                 </button>
-                                <span className="px-5 py-2.5 border-x-2 border-cream-300 min-w-[4rem] text-center text-slate-800 font-bold">
+                                <span className="px-4 sm:px-5 py-2.5 border-x-2 border-cream-300 min-w-[3rem] sm:min-w-[4rem] text-center text-slate-800 font-bold">
                                   {item.quantity}
                                 </span>
                                 <button
                                   onClick={() => updateQuantity(index, item.quantity + 1)}
-                                  className="px-4 py-2.5 hover:bg-cream-50 text-lg text-slate-700 transition-colors font-semibold"
+                                  className="px-4 py-2.5 hover:bg-cream-50 text-lg text-slate-700 transition-colors font-semibold min-w-[44px] min-h-[44px] flex items-center justify-center"
                                   aria-label="Increase quantity"
                                 >
                                   +
@@ -297,9 +301,9 @@ const CartPage = () => {
           </div>
 
           {/* Order Summary */}
-          <div>
-            <Card className="sticky top-24 bg-white border-cream-200 shadow-lg">
-              <h2 className="text-2xl font-bold mb-6 text-slate-800 pb-4 border-b border-cream-200">Order Summary</h2>
+          <div className="lg:col-span-1">
+            <Card className="lg:sticky lg:top-24 bg-white border-cream-200 shadow-lg">
+              <h2 className="text-xl sm:text-2xl font-bold mb-4 sm:mb-6 text-slate-800 pb-4 border-b border-cream-200">Order Summary</h2>
               
               <div className="space-y-4 mb-6">
                 <div className="flex justify-between items-center py-2">
@@ -344,12 +348,40 @@ const CartPage = () => {
               </div>
 
               <div className="space-y-3">
-                <Link to="/quote-request" className="block">
-                  <Button variant="primary" size="lg" className="w-full shadow-md hover:shadow-lg transition-shadow">
+                {isUnverified && (
+                  <div className="bg-yellow-900/20 border border-yellow-600 rounded-lg p-3 mb-2">
+                    <p className="text-sm text-yellow-300 mb-2">
+                      <strong>Email verification required</strong> to submit quote requests.
+                    </p>
+                    <Link 
+                      to="/verify-email" 
+                      state={{ email: user?.email }}
+                      className="text-xs text-yellow-400 hover:text-yellow-300 underline"
+                    >
+                      Verify your email →
+                    </Link>
+                  </div>
+                )}
+                <Link 
+                  to={isUnverified ? '#' : "/quote-request"} 
+                  className="block"
+                  onClick={(e) => {
+                    if (isUnverified) {
+                      e.preventDefault();
+                      navigate('/verify-email', { state: { email: user?.email } });
+                    }
+                  }}
+                >
+                  <Button 
+                    variant="primary" 
+                    size="lg" 
+                    className="w-full shadow-md hover:shadow-lg transition-shadow"
+                    disabled={isUnverified}
+                  >
                     <svg className="w-5 h-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
                     </svg>
-                    Request Quote
+                    {isUnverified ? 'Verification Required' : 'Request Quote'}
                   </Button>
                 </Link>
 

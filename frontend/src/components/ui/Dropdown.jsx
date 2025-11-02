@@ -63,6 +63,8 @@ const Dropdown = ({
               // Special handling for full-width dropdowns - use fixed positioning
               contentClassName?.includes('w-screen') ? 'fixed left-0 right-0' : 'absolute',
               contentClassName?.includes('w-screen') ? '' : alignmentClasses[align],
+              // Mobile: ensure dropdown doesn't overflow viewport
+              !contentClassName?.includes('w-screen') && 'max-w-[calc(100vw-2rem)]',
               contentClassName
             )}
             style={{
@@ -73,6 +75,11 @@ const Dropdown = ({
                 top: 'var(--header-height, 80px)',
                 width: '100vw',
                 maxWidth: '100vw'
+              }),
+              // Mobile positioning: ensure dropdown is visible
+              ...(!contentClassName?.includes('w-screen') && {
+                maxHeight: 'calc(100vh - 120px)',
+                overflowY: 'auto'
               })
             }}
             onClick={closeDropdown}

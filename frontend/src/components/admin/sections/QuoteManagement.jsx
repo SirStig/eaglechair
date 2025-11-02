@@ -195,17 +195,17 @@ const QuoteManagement = () => {
             </p>
           </div>
         ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full">
+          <div className="overflow-x-auto -mx-4 sm:mx-0">
+            <table className="w-full min-w-[900px]">
               <thead>
                 <tr className="border-b border-dark-600">
-                  <th className="text-left p-4 text-dark-300 font-medium text-sm">Quote #</th>
-                  <th className="text-left p-4 text-dark-300 font-medium text-sm">Company</th>
-                  <th className="text-left p-4 text-dark-300 font-medium text-sm">Contact</th>
-                  <th className="text-left p-4 text-dark-300 font-medium text-sm">Items</th>
-                  <th className="text-left p-4 text-dark-300 font-medium text-sm">Status</th>
-                  <th className="text-left p-4 text-dark-300 font-medium text-sm">Created</th>
-                  <th className="text-right p-4 text-dark-300 font-medium text-sm">Actions</th>
+                  <th className="text-left px-3 sm:p-4 py-3 text-xs sm:text-sm text-dark-300 font-medium">Quote #</th>
+                  <th className="text-left px-3 sm:p-4 py-3 text-xs sm:text-sm text-dark-300 font-medium">Company</th>
+                  <th className="text-left px-3 sm:p-4 py-3 text-xs sm:text-sm text-dark-300 font-medium">Contact</th>
+                  <th className="text-left px-3 sm:p-4 py-3 text-xs sm:text-sm text-dark-300 font-medium">Items</th>
+                  <th className="text-left px-3 sm:p-4 py-3 text-xs sm:text-sm text-dark-300 font-medium">Status</th>
+                  <th className="text-left px-3 sm:p-4 py-3 text-xs sm:text-sm text-dark-300 font-medium">Created</th>
+                  <th className="text-right px-3 sm:p-4 py-3 text-xs sm:text-sm text-dark-300 font-medium">Actions</th>
                 </tr>
               </thead>
               <tbody>
@@ -214,30 +214,30 @@ const QuoteManagement = () => {
                     key={quote.id}
                     className="border-b border-dark-700 hover:bg-dark-700/50 transition-colors"
                   >
-                    <td className="p-4">
-                      <span className="font-medium text-accent-500">
+                    <td className="px-3 sm:p-4 py-3">
+                      <span className="font-medium text-xs sm:text-sm text-accent-500">
                         #{quote.quote_number}
                       </span>
                     </td>
-                    <td className="p-4">
-                      <div className="flex items-center gap-2">
-                        <Building2 className="w-4 h-4 text-dark-400" />
-                        <span className="text-dark-50">{quote.company_name || 'N/A'}</span>
+                    <td className="px-3 sm:p-4 py-3">
+                      <div className="flex items-center gap-1 sm:gap-2">
+                        <Building2 className="w-3 h-3 sm:w-4 sm:h-4 text-dark-400 flex-shrink-0" />
+                        <span className="text-xs sm:text-sm text-dark-50 truncate">{quote.company_name || 'N/A'}</span>
                       </div>
                     </td>
-                    <td className="p-4 text-dark-200">
+                    <td className="px-3 sm:p-4 py-3 text-xs sm:text-sm text-dark-200">
                       {quote.contact_name || 'N/A'}
                     </td>
-                    <td className="p-4 text-dark-200">
+                    <td className="px-3 sm:p-4 py-3 text-xs sm:text-sm text-dark-200">
                       {quote.items?.length || 0} items
                     </td>
-                    <td className="p-4">
+                    <td className="px-3 sm:p-4 py-3">
                       {getStatusBadge(quote.status)}
                     </td>
-                    <td className="p-4 text-dark-300 text-sm">
+                    <td className="px-3 sm:p-4 py-3 text-xs sm:text-sm text-dark-300">
                       {new Date(quote.created_at).toLocaleDateString()}
                     </td>
-                    <td className="p-4">
+                    <td className="px-3 sm:p-4 py-3">
                       <div className="flex items-center justify-end gap-2">
                         <button
                           onClick={() => handleViewQuote(quote.id)}

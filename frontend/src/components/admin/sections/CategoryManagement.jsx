@@ -98,7 +98,7 @@ const CategoryManagement = () => {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-3xl font-bold text-dark-50">Category Management</h2>
+          <h2 className="text-2xl sm:text-3xl font-bold text-dark-50">Category Management</h2>
           <p className="text-dark-300 mt-2">
             Manage product categories with subcategories and images
           </p>
@@ -131,17 +131,17 @@ const CategoryManagement = () => {
             </Button>
           </div>
         ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full">
+          <div className="overflow-x-auto -mx-4 sm:mx-0">
+            <table className="w-full min-w-[800px]">
               <thead>
                 <tr className="border-b border-dark-700">
-                  <th className="text-left px-6 py-4 text-sm font-semibold text-dark-200">Icon</th>
-                  <th className="text-left px-6 py-4 text-sm font-semibold text-dark-200">Name</th>
-                  <th className="text-left px-6 py-4 text-sm font-semibold text-dark-200">Slug</th>
-                  <th className="text-left px-6 py-4 text-sm font-semibold text-dark-200">Description</th>
-                  <th className="text-left px-6 py-4 text-sm font-semibold text-dark-200">Subcategories</th>
-                  <th className="text-left px-6 py-4 text-sm font-semibold text-dark-200">Status</th>
-                  <th className="text-right px-6 py-4 text-sm font-semibold text-dark-200">Actions</th>
+                  <th className="text-left px-3 sm:px-6 py-3 sm:py-4 text-xs sm:text-sm font-semibold text-dark-200">Icon</th>
+                  <th className="text-left px-3 sm:px-6 py-3 sm:py-4 text-xs sm:text-sm font-semibold text-dark-200">Name</th>
+                  <th className="text-left px-3 sm:px-6 py-3 sm:py-4 text-xs sm:text-sm font-semibold text-dark-200">Slug</th>
+                  <th className="text-left px-3 sm:px-6 py-3 sm:py-4 text-xs sm:text-sm font-semibold text-dark-200">Description</th>
+                  <th className="text-left px-3 sm:px-6 py-3 sm:py-4 text-xs sm:text-sm font-semibold text-dark-200">Subcategories</th>
+                  <th className="text-left px-3 sm:px-6 py-3 sm:py-4 text-xs sm:text-sm font-semibold text-dark-200">Status</th>
+                  <th className="text-right px-3 sm:px-6 py-3 sm:py-4 text-xs sm:text-sm font-semibold text-dark-200">Actions</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-dark-700">
@@ -153,7 +153,7 @@ const CategoryManagement = () => {
                     <React.Fragment key={category.id}>
                       <tr className="hover:bg-dark-750 transition-colors">
                         {/* Icon */}
-                        <td className="px-6 py-4">
+                        <td className="px-3 sm:px-6 py-3 sm:py-4">
                           <div className="flex items-center gap-2">
                             {hasSubcategories && (
                               <button
@@ -186,27 +186,27 @@ const CategoryManagement = () => {
                         </td>
                         
                         {/* Name */}
-                        <td className="px-6 py-4">
+                        <td className="px-3 sm:px-6 py-3 sm:py-4">
                           <div className="font-medium text-dark-50">{category.name}</div>
                           <div className="text-xs text-dark-400 mt-1">Order: {category.display_order}</div>
                         </td>
                         
                         {/* Slug */}
-                        <td className="px-6 py-4">
-                          <code className="text-sm text-dark-300 bg-dark-700 px-2 py-1 rounded">
+                        <td className="px-3 sm:px-6 py-3 sm:py-4">
+                          <code className="text-xs sm:text-sm text-dark-300 bg-dark-700 px-2 py-1 rounded">
                             /{category.slug}
                           </code>
                         </td>
                         
                         {/* Description */}
-                        <td className="px-6 py-4">
-                          <div className="text-sm text-dark-300 line-clamp-2 max-w-md">
+                        <td className="px-3 sm:px-6 py-3 sm:py-4">
+                          <div className="text-xs sm:text-sm text-dark-300 line-clamp-2 max-w-md">
                             {category.description || <span className="text-dark-500 italic">No description</span>}
                           </div>
                         </td>
                         
                         {/* Subcategories */}
-                        <td className="px-6 py-4">
+                        <td className="px-3 sm:px-6 py-3 sm:py-4">
                           {hasSubcategories ? (
                             <span className="inline-flex items-center gap-1 px-2.5 py-1 bg-primary-900/30 border border-primary-800 text-primary-400 text-xs rounded-md font-medium">
                               <FolderTree className="w-3 h-3" />
@@ -218,7 +218,7 @@ const CategoryManagement = () => {
                         </td>
                         
                         {/* Status */}
-                        <td className="px-6 py-4">
+                        <td className="px-3 sm:px-6 py-3 sm:py-4">
                           <span className={`inline-flex items-center px-2.5 py-1 rounded-md text-xs font-medium ${
                             category.is_active
                               ? 'bg-green-900/30 border border-green-800 text-green-400'
@@ -229,7 +229,7 @@ const CategoryManagement = () => {
                         </td>
                         
                         {/* Actions */}
-                        <td className="px-6 py-4">
+                        <td className="px-3 sm:px-6 py-3 sm:py-4">
                           <div className="flex items-center justify-end gap-2">
                             <button
                               onClick={() => handleCreateSubcategory(category)}

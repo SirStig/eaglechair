@@ -165,17 +165,17 @@ const FamilyManagement = () => {
             </Button>
           </div>
         ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full">
+          <div className="overflow-x-auto -mx-4 sm:mx-0">
+            <table className="w-full min-w-[900px]">
               <thead>
                 <tr className="border-b border-dark-600">
-                  <th className="px-4 py-3 text-left text-sm font-medium text-dark-300">Image</th>
-                  <th className="px-4 py-3 text-left text-sm font-medium text-dark-300">Family Name</th>
-                  <th className="px-4 py-3 text-left text-sm font-medium text-dark-300">Slug</th>
-                  <th className="px-4 py-3 text-left text-sm font-medium text-dark-300">Category</th>
-                  <th className="px-4 py-3 text-center text-sm font-medium text-dark-300">Order</th>
-                  <th className="px-4 py-3 text-left text-sm font-medium text-dark-300">Status</th>
-                  <th className="px-4 py-3 text-right text-sm font-medium text-dark-300">Actions</th>
+                  <th className="px-3 sm:px-4 py-3 text-left text-xs sm:text-sm font-medium text-dark-300">Image</th>
+                  <th className="px-3 sm:px-4 py-3 text-left text-xs sm:text-sm font-medium text-dark-300">Family Name</th>
+                  <th className="px-3 sm:px-4 py-3 text-left text-xs sm:text-sm font-medium text-dark-300">Slug</th>
+                  <th className="px-3 sm:px-4 py-3 text-left text-xs sm:text-sm font-medium text-dark-300">Category</th>
+                  <th className="px-3 sm:px-4 py-3 text-center text-xs sm:text-sm font-medium text-dark-300">Order</th>
+                  <th className="px-3 sm:px-4 py-3 text-left text-xs sm:text-sm font-medium text-dark-300">Status</th>
+                  <th className="px-3 sm:px-4 py-3 text-right text-xs sm:text-sm font-medium text-dark-300">Actions</th>
                 </tr>
               </thead>
               <tbody>
@@ -184,46 +184,46 @@ const FamilyManagement = () => {
                     key={family.id}
                     className="border-b border-dark-700 hover:bg-dark-700/50 transition-colors"
                   >
-                    <td className="px-4 py-4">
+                    <td className="px-3 sm:px-4 py-3 sm:py-4">
                       {family.family_image ? (
                         <img
                           src={resolveImageUrl(family.family_image)}
                           alt={family.name}
-                          className="w-16 h-16 object-contain bg-dark-700 rounded-lg border border-dark-600"
+                          className="w-12 h-12 sm:w-16 sm:h-16 object-contain bg-dark-700 rounded-lg border border-dark-600"
                         />
                       ) : (
-                        <div className="w-16 h-16 bg-dark-600 rounded-lg flex items-center justify-center">
-                          <span className="text-dark-400 text-xs">No image</span>
+                        <div className="w-12 h-12 sm:w-16 sm:h-16 bg-dark-600 rounded-lg flex items-center justify-center">
+                          <span className="text-dark-400 text-[10px] sm:text-xs">No image</span>
                         </div>
                       )}
                     </td>
-                    <td className="px-4 py-4">
+                    <td className="px-3 sm:px-4 py-3 sm:py-4">
                       <div className="flex items-center gap-2">
-                        <div>
-                          <p className="font-medium text-dark-50">{family.name}</p>
+                        <div className="min-w-0">
+                          <p className="font-medium text-xs sm:text-sm md:text-base text-dark-50 truncate">{family.name}</p>
                           {family.description && (
-                            <p className="text-sm text-dark-400 line-clamp-1">
+                            <p className="text-[10px] sm:text-xs text-dark-400 line-clamp-1">
                               {family.description}
                             </p>
                           )}
                         </div>
                         {family.is_featured && (
-                          <span className="px-2 py-0.5 bg-yellow-900/30 text-yellow-400 text-xs rounded whitespace-nowrap">
+                          <span className="px-1.5 sm:px-2 py-0.5 bg-yellow-900/30 text-yellow-400 text-[10px] sm:text-xs rounded whitespace-nowrap flex-shrink-0">
                             Featured
                           </span>
                         )}
                       </div>
                     </td>
-                    <td className="px-4 py-4">
-                      <span className="font-mono text-sm text-dark-300">/{family.slug}</span>
+                    <td className="px-3 sm:px-4 py-3 sm:py-4">
+                      <span className="font-mono text-xs sm:text-sm text-dark-300">/{family.slug}</span>
                     </td>
-                    <td className="px-4 py-4 text-dark-200">
+                    <td className="px-3 sm:px-4 py-3 sm:py-4 text-xs sm:text-sm text-dark-200">
                       {getCategoryName(family.category_id)}
                     </td>
-                    <td className="px-4 py-4 text-center">
-                      <span className="text-dark-200 font-medium">{family.display_order}</span>
+                    <td className="px-3 sm:px-4 py-3 sm:py-4 text-center">
+                      <span className="text-xs sm:text-sm text-dark-200 font-medium">{family.display_order}</span>
                     </td>
-                    <td className="px-4 py-4">
+                    <td className="px-3 sm:px-4 py-3 sm:py-4">
                       <span className={`
                         px-2 py-1 rounded text-xs font-medium
                         ${family.is_active
@@ -234,7 +234,7 @@ const FamilyManagement = () => {
                         {family.is_active ? 'Active' : 'Inactive'}
                       </span>
                     </td>
-                    <td className="px-4 py-4">
+                    <td className="px-3 sm:px-4 py-3 sm:py-4">
                       <div className="flex items-center justify-end gap-2">
                         <button
                           onClick={() => handleEdit(family)}

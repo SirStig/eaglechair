@@ -166,80 +166,80 @@ const ColorManagement = () => {
             </Button>
           </div>
         ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full">
+          <div className="overflow-x-auto -mx-4 sm:mx-0">
+            <table className="w-full min-w-[900px]">
               <thead>
                 <tr className="border-b border-dark-700">
-                  <th className="text-left px-6 py-4 text-sm font-semibold text-dark-200">Swatch</th>
-                  <th className="text-left px-6 py-4 text-sm font-semibold text-dark-200">Name</th>
-                  <th className="text-left px-6 py-4 text-sm font-semibold text-dark-200">Code</th>
-                  <th className="text-left px-6 py-4 text-sm font-semibold text-dark-200">Hex Value</th>
-                  <th className="text-left px-6 py-4 text-sm font-semibold text-dark-200">Category</th>
-                  <th className="text-left px-6 py-4 text-sm font-semibold text-dark-200">Status</th>
-                  <th className="text-right px-6 py-4 text-sm font-semibold text-dark-200">Actions</th>
+                  <th className="text-left px-3 sm:px-6 py-3 sm:py-4 text-xs sm:text-sm font-semibold text-dark-200">Swatch</th>
+                  <th className="text-left px-3 sm:px-6 py-3 sm:py-4 text-xs sm:text-sm font-semibold text-dark-200">Name</th>
+                  <th className="text-left px-3 sm:px-6 py-3 sm:py-4 text-xs sm:text-sm font-semibold text-dark-200">Code</th>
+                  <th className="text-left px-3 sm:px-6 py-3 sm:py-4 text-xs sm:text-sm font-semibold text-dark-200">Hex Value</th>
+                  <th className="text-left px-3 sm:px-6 py-3 sm:py-4 text-xs sm:text-sm font-semibold text-dark-200">Category</th>
+                  <th className="text-left px-3 sm:px-6 py-3 sm:py-4 text-xs sm:text-sm font-semibold text-dark-200">Status</th>
+                  <th className="text-right px-3 sm:px-6 py-3 sm:py-4 text-xs sm:text-sm font-semibold text-dark-200">Actions</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-dark-700">
                 {colors.map((color) => (
                   <tr key={color.id} className="hover:bg-dark-750 transition-colors">
                     {/* Swatch */}
-                    <td className="px-6 py-4">
+                    <td className="px-3 sm:px-6 py-3 sm:py-4">
                       <div className="flex items-center gap-2">
                         {color.image_url ? (
                           <img 
                             src={resolveImageUrl(color.image_url)} 
                             alt={color.name}
-                            className="w-10 h-10 object-cover rounded-lg border border-dark-600"
+                            className="w-8 h-8 sm:w-10 sm:h-10 object-cover rounded-lg border border-dark-600"
                           />
                         ) : color.hex_value ? (
                           <div 
-                            className="w-10 h-10 rounded-lg border-2 border-dark-600"
+                            className="w-8 h-8 sm:w-10 sm:h-10 rounded-lg border-2 border-dark-600"
                             style={{ backgroundColor: color.hex_value }}
                           />
                         ) : (
-                          <div className="w-10 h-10 bg-dark-700 rounded-lg border border-dark-600 flex items-center justify-center">
-                            <Palette className="w-5 h-5 text-dark-500" />
+                          <div className="w-8 h-8 sm:w-10 sm:h-10 bg-dark-700 rounded-lg border border-dark-600 flex items-center justify-center">
+                            <Palette className="w-4 h-4 sm:w-5 sm:h-5 text-dark-500" />
                           </div>
                         )}
                       </div>
                     </td>
                     
                     {/* Name */}
-                    <td className="px-6 py-4">
-                      <div className="font-medium text-dark-50">{color.name}</div>
-                      <div className="text-xs text-dark-400 mt-1">Order: {color.display_order}</div>
+                    <td className="px-3 sm:px-6 py-3 sm:py-4">
+                      <div className="font-medium text-xs sm:text-sm md:text-base text-dark-50">{color.name}</div>
+                      <div className="text-[10px] sm:text-xs text-dark-400 mt-1">Order: {color.display_order}</div>
                     </td>
                     
                     {/* Code */}
-                    <td className="px-6 py-4">
+                    <td className="px-3 sm:px-6 py-3 sm:py-4">
                       {color.color_code ? (
-                        <code className="text-sm text-dark-300 bg-dark-700 px-2 py-1 rounded">
+                        <code className="text-xs sm:text-sm text-dark-300 bg-dark-700 px-2 py-1 rounded">
                           {color.color_code}
                         </code>
                       ) : (
-                        <span className="text-dark-500 text-sm">—</span>
+                        <span className="text-dark-500 text-xs sm:text-sm">—</span>
                       )}
                     </td>
                     
                     {/* Hex Value */}
-                    <td className="px-6 py-4">
+                    <td className="px-3 sm:px-6 py-3 sm:py-4">
                       {color.hex_value ? (
-                        <div className="flex items-center gap-2">
+                        <div className="flex items-center gap-1 sm:gap-2">
                           <div 
-                            className="w-6 h-6 rounded border border-dark-600"
+                            className="w-5 h-5 sm:w-6 sm:h-6 rounded border border-dark-600 flex-shrink-0"
                             style={{ backgroundColor: color.hex_value }}
                           />
-                          <code className="text-sm text-dark-300 font-mono">
+                          <code className="text-xs sm:text-sm text-dark-300 font-mono">
                             {color.hex_value}
                           </code>
                         </div>
                       ) : (
-                        <span className="text-dark-500 text-sm">—</span>
+                        <span className="text-dark-500 text-xs sm:text-sm">—</span>
                       )}
                     </td>
                     
                     {/* Category */}
-                    <td className="px-6 py-4">
+                    <td className="px-3 sm:px-6 py-3 sm:py-4">
                       {color.category ? (
                         <span className="inline-flex items-center px-2.5 py-1 bg-dark-700 border border-dark-600 text-dark-300 text-xs rounded-md font-medium capitalize">
                           {color.category}
@@ -250,7 +250,7 @@ const ColorManagement = () => {
                     </td>
                     
                     {/* Status */}
-                    <td className="px-6 py-4">
+                    <td className="px-3 sm:px-6 py-3 sm:py-4">
                       <span className={`inline-flex items-center px-2.5 py-1 rounded-md text-xs font-medium ${
                         color.is_active
                           ? 'bg-green-900/30 border border-green-800 text-green-400'
@@ -261,7 +261,7 @@ const ColorManagement = () => {
                     </td>
                     
                     {/* Actions */}
-                    <td className="px-6 py-4">
+                    <td className="px-3 sm:px-6 py-3 sm:py-4">
                       <div className="flex items-center justify-end gap-2">
                         <button
                           onClick={() => handleEdit(color)}

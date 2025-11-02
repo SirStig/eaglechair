@@ -16,6 +16,8 @@ if (import.meta.env.DEV) {
 }
 
 // Create axios instance with default config
+// Note: This file appears to be legacy - use apiClient.js instead
+// Tokens are stored in localStorage and sent via Authorization headers
 const api = axios.create({
   baseURL: API_BASE_URL,
   headers: {
@@ -25,12 +27,16 @@ const api = axios.create({
 });
 
 // Request interceptor
+// Tokens are stored in localStorage and sent via Authorization header
 api.interceptors.request.use(
   (config) => {
-    // Add auth token if available
-    const token = localStorage.getItem('token');
-    if (token) {
-      config.headers.Authorization = `Bearer ${token}`;
+    // Get access token from localStorage and add to Authorization header
+    const accessToken = typeof window !== 'undefined' 
+      ? localStorage.getItem('auth_access_token') 
+      : null;
+    
+    if (accessToken) {
+      config.headers.Authorization = `Bearer ${accessToken}`;
     }
     return config;
   },
@@ -49,8 +55,8 @@ api.interceptors.response.use(
       const { status } = error.response;
       
       if (status === 401) {
-        // Unauthorized - clear token and redirect to login
-        localStorage.removeItem('token');
+        // Unauthorized - tokens may be expired
+        // Redirect to login if needed
         // window.location.href = '/login';
       } else if (status === 403) {
         console.error('Access forbidden');

@@ -349,11 +349,20 @@ async def create_quote_request(
     """
     Create a quote request from current cart.
     
-    **Requires company authentication.**
+    **Requires company authentication and verified email.**
     
     This will convert your active cart into a quote request that will be
     reviewed by our team. The cart will be cleared after creating the quote.
     """
+    from backend.core.exceptions import AccountNotVerifiedError
+    
+    # Block quote creation for unverified accounts
+    if not company.is_verified:
+        logger.warning(f"Unverified company {company.id} attempted to create quote")
+        raise AccountNotVerifiedError(
+            message="Please verify your email address before creating quote requests. Check your email for the verification link."
+        )
+    
     logger.info(f"Company {company.id} creating quote request")
     
     # Get active cart

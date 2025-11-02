@@ -830,31 +830,67 @@ class QuoteService:
     # ========================================================================
     
     @staticmethod
-    async def _generate_quote_number(db: AsyncSession) -> str:
+    async def _generate_quote_number(db: AsyncSession, max_retries: int = 10) -> str:
         """
-        Generate unique quote number
+        Generate unique quote number with race condition protection
         
         Format: Q-YYYYMMDD-XXXXX
         
+        Uses retry logic to handle concurrent quote creation attempts.
+        Database unique constraint on quote_number ensures no duplicates.
+        
         Args:
             db: Database session
+            max_retries: Maximum retry attempts if duplicate detected
             
         Returns:
-            Quote number
+            Unique quote number
+            
+        Raises:
+            RuntimeError: If unable to generate unique quote number after max_retries
         """
         today = datetime.utcnow().strftime("%Y%m%d")
         
-        # Get count of quotes created today
-        result = await db.execute(
-            select(Quote)
-            .where(Quote.quote_number.like(f"Q-{today}-%"))
+        for attempt in range(max_retries):
+            # Get count of quotes created today using COUNT query for better performance
+            from sqlalchemy import func
+            result = await db.execute(
+                select(func.count(Quote.id))
+                .where(Quote.quote_number.like(f"Q-{today}-%"))
+            )
+            count = result.scalar() or 0
+            
+            # Generate number with attempt counter to ensure uniqueness even under race conditions
+            # Format: Q-YYYYMMDD-XXXXX where XXXXX is zero-padded sequential number
+            sequence = count + 1 + attempt
+            quote_number = f"Q-{today}-{sequence:05d}"
+            
+            # Verify quote number doesn't already exist (race condition check)
+            # This check is in addition to the database unique constraint
+            existing = await db.execute(
+                select(Quote).where(Quote.quote_number == quote_number)
+            )
+            if existing.scalar_one_or_none() is None:
+                # Quote number is available
+                return quote_number
+            
+            # If we get here, quote number exists (race condition detected)
+            # Retry with incremented sequence
+            logger.warning(
+                f"Quote number collision detected: {quote_number} (attempt {attempt + 1}/{max_retries})"
+            )
+        
+        # If we've exhausted retries, use timestamp-based fallback
+        import time
+        timestamp_suffix = int(time.time() % 100000)  # Last 5 digits of timestamp
+        fallback_number = f"Q-{today}-{timestamp_suffix:05d}"
+        
+        logger.error(
+            f"Failed to generate unique quote number after {max_retries} attempts. "
+            f"Using fallback: {fallback_number}"
         )
-        count = len(result.scalars().all())
         
-        # Generate number
-        quote_number = f"Q-{today}-{count + 1:05d}"
-        
-        return quote_number
+        return fallback_number
     
     # ========================================================================
     # Quote Management (Admin & Customer)

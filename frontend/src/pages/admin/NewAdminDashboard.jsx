@@ -1,5 +1,4 @@
 import { useState, useEffect } from 'react';
-import { AnimatePresence } from 'framer-motion';
 import { Navigate, useNavigate, useLocation } from 'react-router-dom';
 import { useAuthStore } from '../../store/authStore';
 import { 
@@ -22,8 +21,11 @@ import {
   User,
   Upload,
   DollarSign,
-  Mail
+  Mail,
+  Menu,
+  X
 } from 'lucide-react';
+import { AnimatePresence, motion } from 'framer-motion';
 
 // Import admin sections
 import DashboardOverview from '../../components/admin/sections/DashboardOverview';
@@ -62,6 +64,7 @@ const NewAdminDashboard = () => {
   const location = useLocation();
   const [selectedProduct, setSelectedProduct] = useState(null);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
   // Determine active section from URL
   const getActiveSectionFromPath = () => {
@@ -227,24 +230,44 @@ const NewAdminDashboard = () => {
 
   return (
     <div className="flex min-h-screen bg-dark-900">
+      {/* Mobile Menu Overlay */}
+      <AnimatePresence>
+        {isMobileMenuOpen && (
+          <>
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setIsMobileMenuOpen(false)}
+              className="fixed inset-0 bg-black/50 backdrop-blur-sm z-40 lg:hidden"
+            />
+          </>
+        )}
+      </AnimatePresence>
+
       {/* Sidebar */}
-      <div
-        style={{ width: sidebarCollapsed ? 80 : 280 }}
-        className="bg-dark-800 border-r border-dark-600 flex flex-col sticky top-0 h-screen transition-all duration-300"
+      <aside
+        className={`
+          bg-dark-800 border-r border-dark-600 flex flex-col 
+          fixed lg:sticky top-0 h-screen z-50 lg:z-auto
+          transition-all duration-300 ease-in-out
+          ${sidebarCollapsed ? 'lg:w-20' : 'w-64 lg:w-64'}
+          ${isMobileMenuOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'}
+        `}
       >
         {/* Logo / Header */}
-        <div className="p-6 border-b border-dark-600">
+        <div className="p-4 sm:p-6 border-b border-dark-600">
           {!sidebarCollapsed ? (
-            <div className="flex items-center gap-3">
-              <img src="/favicon.svg" alt="Eagle Chair" className="w-10 h-10" />
-              <div>
-                <h1 className="text-xl font-bold text-dark-50">Eagle Chair</h1>
-                <p className="text-xs text-dark-300">Admin Panel</p>
+            <div className="flex items-center gap-2 sm:gap-3">
+              <img src="/favicon.svg" alt="Eagle Chair" className="w-8 h-8 sm:w-10 sm:h-10 flex-shrink-0" />
+              <div className="min-w-0">
+                <h1 className="text-base sm:text-lg md:text-xl font-bold text-dark-50 truncate">Eagle Chair</h1>
+                <p className="text-[10px] sm:text-xs text-dark-300">Admin Panel</p>
               </div>
             </div>
           ) : (
             <div className="flex justify-center">
-              <img src="/favicon.svg" alt="Eagle Chair" className="w-10 h-10" />
+              <img src="/favicon.svg" alt="Eagle Chair" className="w-8 h-8 sm:w-10 sm:h-10" />
             </div>
           )}
         </div>
@@ -254,7 +277,7 @@ const NewAdminDashboard = () => {
           {navSections.map((section) => (
             <div key={section.id} className="mb-6">
               {!sidebarCollapsed && (
-                <h3 className="px-4 mb-2 text-xs font-semibold text-dark-400 uppercase tracking-wider">
+                <h3 className="px-3 sm:px-4 mb-2 text-[8px] sm:text-[10px] md:text-xs font-semibold text-dark-400 uppercase tracking-wide">
                   {section.title}
                 </h3>
               )}
@@ -267,6 +290,7 @@ const NewAdminDashboard = () => {
                       onClick={() => {
                         navigate(item.path);
                         setSelectedProduct(null);
+                        setIsMobileMenuOpen(false);
                       }}
                       className={`
                         w-full flex items-center gap-3 px-4 py-2.5 rounded-lg
@@ -289,53 +313,63 @@ const NewAdminDashboard = () => {
           ))}
         </nav>
 
-        {/* Toggle Sidebar Button */}
-        <div className="p-4 border-t border-dark-600">
+        {/* Toggle Sidebar Button - Hidden on mobile */}
+        <div className="hidden lg:block p-4 border-t border-dark-600">
           <button
             onClick={() => setSidebarCollapsed(!sidebarCollapsed)}
-            className="w-full flex items-center justify-center gap-2 px-4 py-2 rounded-lg text-dark-300 hover:bg-dark-700 hover:text-dark-50 transition-colors"
+            className="w-full flex items-center justify-center gap-2 px-4 py-2 rounded-lg text-dark-300 hover:bg-dark-700 hover:text-dark-50 transition-colors min-h-[44px]"
           >
             {sidebarCollapsed ? <ChevronRight className="w-5 h-5" /> : <ChevronLeft className="w-5 h-5" />}
             {!sidebarCollapsed && <span className="text-sm">Collapse</span>}
           </button>
         </div>
-      </div>
+      </aside>
 
       {/* Main Content */}
-      <main className="flex-1 flex flex-col min-h-screen">
+      <main className="flex-1 flex flex-col min-h-screen lg:ml-0">
         {/* Top Bar */}
-        <header className="bg-dark-800 border-b border-dark-600 px-8 py-4 sticky top-0 z-10">
-          <div className="flex items-center justify-between">
-            <div>
-              <h2 className="text-2xl font-bold text-dark-50">
-                {selectedProduct ? 'Product Editor' : navSections
-                  .flatMap(s => s.items)
-                  .find(i => i.id === activeSection)?.label || 'Dashboard'}
-              </h2>
-              <p className="text-sm text-dark-300 mt-1">
-                {selectedProduct 
-                  ? `Editing: ${selectedProduct.name}`
-                  : 'Manage your store content and settings'
-                }
-              </p>
+        <header className="bg-dark-800 border-b border-dark-600 px-4 sm:px-6 lg:px-8 py-3 sm:py-4 sticky top-0 z-30">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 sm:gap-4">
+            <div className="flex items-center gap-3">
+              {/* Mobile Menu Button */}
+              <button
+                onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
+                className="lg:hidden text-dark-50 hover:text-primary-500 transition-colors min-w-[44px] min-h-[44px] flex items-center justify-center"
+                aria-label={isMobileMenuOpen ? 'Close menu' : 'Open menu'}
+              >
+                {isMobileMenuOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
+              </button>
+              <div className="flex-1 min-w-0">
+                <h2 className="text-xl sm:text-2xl font-bold text-dark-50 truncate">
+                  {selectedProduct ? 'Product Editor' : navSections
+                    .flatMap(s => s.items)
+                    .find(i => i.id === activeSection)?.label || 'Dashboard'}
+                </h2>
+                <p className="text-xs sm:text-sm text-dark-300 mt-1 truncate">
+                  {selectedProduct 
+                    ? `Editing: ${selectedProduct.name}`
+                    : 'Manage your store content and settings'
+                  }
+                </p>
+              </div>
             </div>
-            <div className="flex items-center gap-4">
+            <div className="flex items-center gap-2 sm:gap-4 flex-shrink-0">
               <a
                 href="/"
                 target="_blank"
                 rel="noopener noreferrer"
-                className="px-4 py-2 text-sm font-medium text-dark-200 hover:text-dark-50 border border-dark-600 rounded-lg hover:border-dark-500 transition-all flex items-center gap-2"
+                className="px-3 sm:px-4 py-2 text-xs sm:text-sm font-medium text-dark-200 hover:text-dark-50 border border-dark-600 rounded-lg hover:border-dark-500 transition-all flex items-center gap-2 min-h-[44px]"
               >
-                <ExternalLink className="w-4 h-4" />
-                View Site
+                <ExternalLink className="w-4 h-4 flex-shrink-0" />
+                <span className="hidden sm:inline">View Site</span>
               </a>
-              <div className="flex items-center gap-3 pl-4 border-l border-dark-600">
-                <div className="text-right">
-                  <p className="text-sm font-medium text-dark-50">{user?.username || 'Admin'}</p>
+              <div className="flex items-center gap-2 sm:gap-3 pl-2 sm:pl-4 border-l border-dark-600">
+                <div className="text-right hidden sm:block">
+                  <p className="text-sm font-medium text-dark-50 truncate max-w-[120px]">{user?.username || 'Admin'}</p>
                   <p className="text-xs text-dark-400">{user?.role || 'Administrator'}</p>
                 </div>
-                <div className="w-10 h-10 bg-gradient-to-br from-accent-500 to-primary-500 rounded-full flex items-center justify-center text-dark-900">
-                  <User className="w-5 h-5" />
+                <div className="w-9 h-9 sm:w-10 sm:h-10 bg-gradient-to-br from-accent-500 to-primary-500 rounded-full flex items-center justify-center text-dark-900 flex-shrink-0">
+                  <User className="w-4 h-4 sm:w-5 sm:h-5" />
                 </div>
               </div>
             </div>
@@ -343,14 +377,10 @@ const NewAdminDashboard = () => {
         </header>
 
         {/* Content Area */}
-        <div className="flex-1 bg-dark-900">
-          <AnimatePresence mode="wait">
-            <div
-              key={selectedProduct ? 'editor' : activeSection}
-            >
-              {renderSection()}
-            </div>
-          </AnimatePresence>
+        <div className="flex-1 bg-dark-900 overflow-x-hidden">
+          <div key={selectedProduct ? 'editor' : activeSection}>
+            {renderSection()}
+          </div>
         </div>
       </main>
     </div>
