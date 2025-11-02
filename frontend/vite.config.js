@@ -98,6 +98,14 @@ export default defineConfig(({ mode }) => {
       !isProduction && serveUploadsDirectory(),
     ].filter(Boolean), // Remove falsy values from array
     
+    // Optimize dependencies to ensure React is properly pre-bundled
+    optimizeDeps: {
+      include: ['react', 'react-dom', 'react-is', 'lucide-react'],
+      esbuildOptions: {
+        target: 'esnext',
+      },
+    },
+    
     server: {
       port: 5173,
       proxy: {
@@ -117,24 +125,20 @@ export default defineConfig(({ mode }) => {
     build: {
       outDir: 'dist',
       sourcemap: false, // Never generate source maps in production for security
-      // Source maps are disabled to prevent exposing source code in production
-      // Optimize chunks for better loading
+      // Let Vite handle chunk splitting automatically to avoid module resolution issues
+      // Automatic splitting is more reliable than manual chunking
       rollupOptions: {
         output: {
           // Add hash to filenames for cache busting
           entryFileNames: 'assets/[name]-[hash].js',
           chunkFileNames: 'assets/[name]-[hash].js',
           assetFileNames: 'assets/[name]-[hash].[ext]',
-          manualChunks: {
-            'react-vendor': ['react', 'react-dom', 'react-router-dom'],
-            'ui-vendor': ['framer-motion', 'react-slick', 'slick-carousel'],
-            'form-vendor': ['react-hook-form', 'react-quill', 'react-dropzone'],
-            'utils-vendor': ['axios', '@tanstack/react-query', 'zustand', 'date-fns', 'clsx'],
-          },
+          // Removed manualChunks - let Vite's automatic chunking handle it
+          // This prevents module resolution errors in production
         },
       },
       // Increase chunk size warning limit
-      chunkSizeWarningLimit: 1000,
+      chunkSizeWarningLimit: 1500,
     },
     
     // Define app metadata

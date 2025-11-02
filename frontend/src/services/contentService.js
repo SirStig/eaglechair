@@ -1,6 +1,7 @@
 import { api } from '../config/apiClient';
 import logger from '../utils/logger';
 import { loadContentData } from '../utils/contentDataLoader';
+import productService from './productService';
 
 // DO NOT import contentData statically - it gets bundled and cached
 // Instead we use loadContentData() which fetches from /data/ at runtime
@@ -381,7 +382,6 @@ export const getFeaturedProducts = async (limit = 4) => {
     logger.info(CONTEXT, `Fetching featured products (limit=${limit})`);
     
     // Use productService for consistency - it handles both demo and real API
-    const { default: productService } = await import('./productService');
     return await productService.getFeaturedProducts(limit);
   } catch (error) {
     logger.error(CONTEXT, 'Error fetching featured products', error);

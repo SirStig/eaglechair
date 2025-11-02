@@ -263,7 +263,12 @@ export const useAuthStore = create(
           // Check localStorage for stored tokens and user data
           const accessToken = localStorage.getItem(ACCESS_TOKEN_KEY);
           const refreshToken = localStorage.getItem(REFRESH_TOKEN_KEY);
+          const sessionToken = localStorage.getItem(SESSION_TOKEN_KEY);
+          const adminToken = localStorage.getItem(ADMIN_TOKEN_KEY);
           const storedUser = localStorage.getItem(USER_KEY);
+          
+          // Check if this is an admin session (has admin tokens)
+          const isAdminSession = sessionToken && adminToken;
           
           // If we have tokens, try to restore the session
           if (accessToken || refreshToken) {
@@ -279,23 +284,46 @@ export const useAuthStore = create(
             }
             
             // If we have user data, restore it immediately for faster UX
+            // But prioritize admin data if we have admin tokens
             if (userData && isValidUser(userData)) {
-              set({ 
-                user: userData, 
-                isAuthenticated: true 
-              });
-              logger.info(AUTH_CONTEXT, 'Restored user from localStorage');
+              // If we have admin tokens but stored user is not admin, don't restore yet
+              // Wait for backend validation to get correct user type
+              if (isAdminSession && userData.type !== 'admin') {
+                logger.debug(AUTH_CONTEXT, 'Admin tokens found but stored user is not admin, waiting for backend validation');
+              } else {
+                set({ 
+                  user: userData, 
+                  isAuthenticated: true 
+                });
+                logger.info(AUTH_CONTEXT, 'Restored user from localStorage');
+              }
             }
             
             // Validate session with backend (tokens may have expired)
             try {
               const responseData = await apiClient.get('/api/v1/auth/me');
               
-              // Transform response to match login format if needed
+              // The backend now returns the correct format based on token type
+              // Admin tokens return: {id, username, email, firstName, lastName, role, type: 'admin'}
+              // Company tokens return: Company object with company_name, rep_email, etc.
+              
               let validatedUser = responseData;
               
-              // If response has company fields but not user fields, transform it
-              if (responseData && !responseData.type && responseData.company_name) {
+              // Check if response is admin format (has username and type='admin')
+              if (responseData && responseData.type === 'admin' && responseData.username) {
+                // This is already in the correct admin format from backend
+                validatedUser = {
+                  id: responseData.id,
+                  username: responseData.username,
+                  email: responseData.email,
+                  firstName: responseData.firstName,
+                  lastName: responseData.lastName,
+                  role: responseData.role,
+                  type: 'admin'
+                };
+              } 
+              // Check if response is company format (has company_name, no type or type='company')
+              else if (responseData && (responseData.company_name || (!responseData.type && !responseData.username))) {
                 // This is a company response - transform to user format
                 validatedUser = {
                   id: responseData.id,
@@ -307,11 +335,10 @@ export const useAuthStore = create(
                   type: 'company',
                   status: responseData.status?.value || responseData.status
                 };
-              } else if (responseData && responseData.username) {
-                // This might be an admin - ensure type is set
-                if (!validatedUser.type) {
-                  validatedUser.type = 'admin';
-                }
+              }
+              // If response already has type, use it as-is
+              else if (responseData && responseData.type) {
+                validatedUser = responseData;
               }
               
               // If validation successful, update stored user data
@@ -321,7 +348,7 @@ export const useAuthStore = create(
                   user: validatedUser, 
                   isAuthenticated: true 
                 });
-                logger.info(AUTH_CONTEXT, 'Session validated with backend');
+                logger.info(AUTH_CONTEXT, `Session validated with backend - user type: ${validatedUser.type}`);
                 return;
               }
             } catch (error) {

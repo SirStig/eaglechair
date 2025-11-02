@@ -11,6 +11,7 @@ from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from backend.api.dependencies import (
+    get_current_admin,
     get_current_company,
     get_current_token_and_payload,
     get_current_token_payload,
@@ -516,18 +517,43 @@ async def reset_password(
 
 @router.get(
     "/auth/me",
-    response_model=CompanyResponse,
     summary="Get current user profile",
-    description="Get profile information for currently authenticated company."
+    description="Get profile information for currently authenticated user (company or admin)."
 )
 async def get_current_user_profile(
-    company: Company = Depends(get_current_company)
+    request: Request,
+    token_payload: dict = Depends(get_current_token_payload),
+    db: AsyncSession = Depends(get_db)
 ):
     """
-    Get current authenticated company profile.
+    Get current authenticated user profile.
     
-    Requires company authentication.
+    Returns different formats based on token type:
+    - Admin token: Returns admin user format with type='admin'
+    - Company token: Returns company format with type='company'
     """
+    token_type = token_payload.get("type")
+    
+    # Handle admin token
+    if token_type == "admin":
+        try:
+            admin = await get_current_admin(request, token_payload, db)
+            logger.info(f"Profile retrieved for admin: {admin.username}")
+            return {
+                "id": admin.id,
+                "username": admin.username,
+                "email": admin.email,
+                "firstName": admin.first_name,
+                "lastName": admin.last_name,
+                "role": admin.role.value,
+                "type": "admin"
+            }
+        except Exception as e:
+            logger.warning(f"Failed to get admin profile: {str(e)}")
+            raise
+    
+    # Handle company token (default)
+    company = await get_current_company(request, token_payload, db)
     logger.info(f"Profile retrieved for company: {company.id}")
     return company
 

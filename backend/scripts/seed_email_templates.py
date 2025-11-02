@@ -349,7 +349,7 @@ REQUIRED_TEMPLATES = {
 {{ button(registration_url, 'Create Your Account', 'primary') }}
 
 <p>If the button doesn't work, copy and paste this link into your browser:</p>
-<p style="color: #8b7355; word-break: break-all;">{{ registration_url }}</p>
+<p style="color: #8b7355; word-break: break-all;"><a href="{{ registration_url }}" style="color: #8b7355; text-decoration: underline;">{{ registration_url }}</a></p>
 
 {% if inviter_name %}
 <p>This invitation was sent by {{ inviter_name }} from the EagleChair team.</p>

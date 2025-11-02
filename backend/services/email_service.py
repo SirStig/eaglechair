@@ -400,13 +400,17 @@ class EmailService:
         address_string = ' | '.join(address_parts) if address_parts else None
         
         # Merge context with base template defaults
+        # Ensure URLs are absolute
+        logo_url = context.get('logo_url') or site_settings.get('logo_url')
+        unsubscribe_url = context.get('unsubscribe_url')
+        
         base_context = {
             'content': content,
             'subject': context.get('subject', site_settings.get('company_name', 'EagleChair')),
             'frontend_url': settings.FRONTEND_URL,
             'current_year': datetime.now().year,
-            'logo_url': context.get('logo_url') or site_settings.get('logo_url'),
-            'unsubscribe_url': context.get('unsubscribe_url'),
+            'logo_url': EmailService._ensure_absolute_url(logo_url) if logo_url else None,
+            'unsubscribe_url': EmailService._ensure_absolute_url(unsubscribe_url) if unsubscribe_url else None,
             'company_name': site_settings.get('company_name', 'EagleChair'),
             'company_tagline': site_settings.get('company_tagline', 'Premium Office Furniture'),
             'primary_email': site_settings.get('primary_email'),
@@ -422,6 +426,64 @@ class EmailService:
         return base_template.render(**base_context)
     
     @staticmethod
+    def _ensure_absolute_url(url: str) -> str:
+        """
+        Ensure URL is absolute with proper protocol
+        
+        Handles:
+        - Relative paths (prepend FRONTEND_URL)
+        - URLs missing protocol (add https://)
+        - URLs with domain but no protocol (add https://)
+        - Already absolute URLs (return as-is)
+        
+        Args:
+            url: URL string (can be relative or absolute)
+            
+        Returns:
+            Absolute URL with protocol
+        """
+        if not url:
+            return url
+        
+        # Already absolute URL with protocol - return as-is
+        if url.startswith('http://') or url.startswith('https://'):
+            return url
+        
+        # Get frontend URL from settings
+        frontend_url = settings.FRONTEND_URL
+        
+        # If FRONTEND_URL is missing, default to production URL
+        if not frontend_url or frontend_url == "http://localhost:5173":
+            frontend_url = "https://joshua.eaglechair.com"
+        
+        # Ensure FRONTEND_URL has protocol
+        if not frontend_url.startswith('http://') and not frontend_url.startswith('https://'):
+            # Default to https in production
+            frontend_url = f"https://{frontend_url}"
+        
+        # Remove trailing slash from frontend_url
+        frontend_url = frontend_url.rstrip('/')
+        
+        # Check if URL already contains a domain (e.g., "joshua.eaglechair.com/register")
+        # Extract domain from frontend_url for comparison
+        frontend_domain = frontend_url.replace('https://', '').replace('http://', '').split('/')[0]
+        
+        # If URL already contains a domain, just add protocol
+        if frontend_domain in url and not url.startswith('/'):
+            # URL contains domain but no protocol - add https://
+            if not url.startswith('http'):
+                return f"https://{url}"
+            return url
+        
+        # Handle relative URLs
+        if url.startswith('/'):
+            # Absolute path - prepend frontend URL
+            return f"{frontend_url}{url}"
+        else:
+            # Relative path - prepend frontend URL with slash
+            return f"{frontend_url}/{url}"
+    
+    @staticmethod
     def _create_template_with_helpers(template_string: str) -> Template:
         """
         Create a Jinja2 template with helper functions available
@@ -435,19 +497,24 @@ class EmailService:
         env = Environment()
         
         def button(url: str, text: str, style: str = 'primary') -> str:
-            """Generate button HTML"""
+            """Generate button HTML with absolute URL"""
+            # Ensure URL is absolute
+            absolute_url = EmailService._ensure_absolute_url(url)
+            
             style_class = 'button' if style == 'primary' else 'button button-secondary'
             bg_color = "#8b7355" if style == "primary" else "#d4c5b0"
             text_color = "#ffffff" if style == "primary" else "#2c2c2c"
-            return f'<div class="button-container"><a href="{url}" class="{style_class}" style="display: inline-block; padding: 14px 32px; background-color: {bg_color}; color: {text_color}; text-decoration: none; border-radius: 6px; font-size: 16px; font-weight: 500; max-width: 100%; box-sizing: border-box;">{text}</a></div>'
+            return f'<div class="button-container"><a href="{absolute_url}" class="{style_class}" style="display: inline-block; padding: 14px 32px; background-color: {bg_color}; color: {text_color}; text-decoration: none; border-radius: 6px; font-size: 16px; font-weight: 500; max-width: 100%; box-sizing: border-box;">{text}</a></div>'
         
         def code(value: str) -> str:
             """Generate verification code HTML"""
             return f'<div class="code-container"><div class="verification-code" style="display: inline-block; padding: 20px 40px; background-color: #f8f6f3; border: 2px dashed #d4c5b0; border-radius: 8px; font-size: 32px; font-weight: 600; letter-spacing: 8px; color: #2c2c2c; font-family: \'Courier New\', monospace;">{value}</div></div>'
         
         def image(url: str, alt: str = '') -> str:
-            """Generate image HTML"""
-            return f'<img src="{url}" alt="{alt}" class="content-image" style="max-width: 100%; height: auto; border-radius: 6px; margin: 20px 0; display: block;">'
+            """Generate image HTML with absolute URL"""
+            # Ensure URL is absolute
+            absolute_url = EmailService._ensure_absolute_url(url)
+            return f'<img src="{absolute_url}" alt="{alt}" class="content-image" style="max-width: 100%; height: auto; border-radius: 6px; margin: 20px 0; display: block;">'
         
         env.globals['button'] = button
         env.globals['code'] = code
@@ -773,7 +840,7 @@ class EmailService:
         """Send company invitation email"""
         context = {
             'company_name': company_name,
-            'registration_url': registration_url
+            'registration_url': EmailService._ensure_absolute_url(registration_url)
         }
         if inviter_name:
             context['inviter_name'] = inviter_name

@@ -87,8 +87,10 @@ export const loadContentData = async () => {
       varValueStr = varValueStr.substring(0, endIndex).trim();
       
       try {
-        // eslint-disable-next-line no-eval
-        exports[varName] = eval(`(${varValueStr})`);
+        // Use Function constructor instead of eval for better security
+        // Creates a new execution context isolated from current scope
+        const parseValue = new Function('return (' + varValueStr + ')');
+        exports[varName] = parseValue();
         logger.debug(CONTEXT, `Parsed ${varName}: ${Array.isArray(exports[varName]) ? `${exports[varName].length} items` : 'object'}`);
       } catch (e) {
         logger.error(CONTEXT, `Failed to parse ${varName}:`, e);
