@@ -161,30 +161,30 @@ const CatalogManagement = () => {
             </p>
           </div>
         ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full">
+          <div className="overflow-x-auto -mx-4 sm:mx-0">
+            <table className="w-full min-w-[800px]">
               <thead>
                 <tr className="border-b border-dark-700">
-                  <th className="px-4 py-3 text-left text-sm font-semibold text-dark-300 uppercase tracking-wider">Title</th>
-                  <th className="px-4 py-3 text-left text-sm font-semibold text-dark-300 uppercase tracking-wider">Type</th>
-                  <th className="px-4 py-3 text-left text-sm font-semibold text-dark-300 uppercase tracking-wider">File Type</th>
-                  <th className="px-4 py-3 text-left text-sm font-semibold text-dark-300 uppercase tracking-wider">Version</th>
-                  <th className="px-4 py-3 text-left text-sm font-semibold text-dark-300 uppercase tracking-wider">Status</th>
-                  <th className="px-4 py-3 text-right text-sm font-semibold text-dark-300 uppercase tracking-wider">Actions</th>
+                  <th className="px-3 sm:px-4 py-3 text-left text-xs sm:text-sm font-semibold text-dark-300 uppercase tracking-wider">Title</th>
+                  <th className="px-3 sm:px-4 py-3 text-left text-xs sm:text-sm font-semibold text-dark-300 uppercase tracking-wider">Type</th>
+                  <th className="px-3 sm:px-4 py-3 text-left text-xs sm:text-sm font-semibold text-dark-300 uppercase tracking-wider">File Type</th>
+                  <th className="px-3 sm:px-4 py-3 text-left text-xs sm:text-sm font-semibold text-dark-300 uppercase tracking-wider">Version</th>
+                  <th className="px-3 sm:px-4 py-3 text-left text-xs sm:text-sm font-semibold text-dark-300 uppercase tracking-wider">Status</th>
+                  <th className="px-3 sm:px-4 py-3 text-right text-xs sm:text-sm font-semibold text-dark-300 uppercase tracking-wider">Actions</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-dark-700">
                 {catalogs.map((catalog) => (
                   <tr key={catalog.id} className="hover:bg-dark-750 transition-colors">
-                    <td className="px-4 py-3">
-                      <div className="font-semibold text-dark-50">{catalog.title}</div>
+                    <td className="px-3 sm:px-4 py-3">
+                      <div className="font-semibold text-sm sm:text-base text-dark-50">{catalog.title}</div>
                       {catalog.description && (
-                        <div className="text-sm text-dark-400 mt-0.5 max-w-xs truncate">
+                        <div className="text-xs sm:text-sm text-dark-400 mt-0.5 max-w-xs truncate">
                           {catalog.description}
                         </div>
                       )}
                     </td>
-                    <td className="px-4 py-3">
+                    <td className="px-3 sm:px-4 py-3">
                       {catalog.catalog_type ? (
                         <span className="px-2 py-1 bg-primary-900/30 text-primary-400 text-xs rounded">
                           {catalog.catalog_type}
@@ -193,19 +193,19 @@ const CatalogManagement = () => {
                         <span className="text-dark-500 text-sm">—</span>
                       )}
                     </td>
-                    <td className="px-4 py-3">
+                    <td className="px-3 sm:px-4 py-3">
                       <span className="px-2 py-1 bg-dark-700 text-dark-300 text-xs rounded uppercase">
                         {catalog.file_type || 'PDF'}
                       </span>
                     </td>
-                    <td className="px-4 py-3">
+                    <td className="px-3 sm:px-4 py-3">
                       {catalog.version ? (
-                        <span className="text-sm text-dark-300 font-mono">v{catalog.version}</span>
+                        <span className="text-xs sm:text-sm text-dark-300 font-mono">v{catalog.version}</span>
                       ) : (
-                        <span className="text-dark-500 text-sm">—</span>
+                        <span className="text-dark-500 text-xs sm:text-sm">—</span>
                       )}
                     </td>
-                    <td className="px-4 py-3">
+                    <td className="px-3 sm:px-4 py-3">
                       <span className={`px-2 py-1 text-xs rounded ${
                         catalog.is_active
                           ? 'bg-green-900/30 text-green-400'
@@ -214,7 +214,7 @@ const CatalogManagement = () => {
                         {catalog.is_active ? 'Active' : 'Inactive'}
                       </span>
                     </td>
-                    <td className="px-4 py-3 text-right">
+                    <td className="px-3 sm:px-4 py-3 text-right">
                       <div className="flex justify-end gap-2">
                         <button
                           onClick={() => handleEdit(catalog)}

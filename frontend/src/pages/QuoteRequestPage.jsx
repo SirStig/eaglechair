@@ -24,6 +24,9 @@ const QuoteRequestPage = () => {
   });
   
   const { user, isAuthenticated } = useAuthStore();
+  
+  // Check if user needs email verification
+  const isUnverified = user && user.type === 'company' && !user.isVerified;
   const [uploadedFiles, setUploadedFiles] = useState([]);
   const [uploadPreviews, setUploadPreviews] = useState([]);
   const [submitStatus, setSubmitStatus] = useState(null);
@@ -176,11 +179,40 @@ const QuoteRequestPage = () => {
       <div className="container max-w-7xl mx-auto px-4">
         {/* Header */}
         <div className="mb-8">
-          <h1 className="text-3xl md:text-4xl font-bold text-dark-50 mb-2">Request a Quote</h1>
+          <h1 className="text-2xl sm:text-3xl md:text-4xl font-bold text-dark-50 mb-2">Request a Quote</h1>
           <p className="text-dark-200">
             Review your items and provide project details. We'll get back to you within 24 hours.
           </p>
         </div>
+
+        {/* Verification Required Banner */}
+        {isUnverified && (
+          <Card className="mb-6 bg-yellow-900/20 border-yellow-600">
+            <div className="flex items-start gap-3">
+              <AlertCircle className="w-6 h-6 text-yellow-400 flex-shrink-0 mt-0.5" />
+              <div className="flex-1">
+                <h3 className="font-semibold text-yellow-300 mb-1">Email Verification Required</h3>
+                <p className="text-sm text-yellow-200/80 mb-3">
+                  Please verify your email address before creating quote requests. Check your email for the verification link or{' '}
+                  <button
+                    onClick={() => navigate('/verify-email', { state: { email: user?.email } })}
+                    className="underline hover:text-yellow-300 font-medium"
+                  >
+                    resend verification email
+                  </button>
+                  .
+                </p>
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  onClick={() => navigate('/verify-email', { state: { email: user?.email } })}
+                >
+                  Go to Verification Page
+                </Button>
+              </div>
+            </div>
+          </Card>
+        )}
 
         {/* Status Messages */}
         {submitStatus === 'success' && (
@@ -207,18 +239,18 @@ const QuoteRequestPage = () => {
           </Card>
         )}
 
-        <form onSubmit={handleSubmit(onSubmit)} className="grid lg:grid-cols-3 gap-6">
+        <form onSubmit={handleSubmit(onSubmit)} className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           {/* Left Column - Cart Items (2/3 width) */}
-          <div className="lg:col-span-2 space-y-6">
+          <div className="lg:col-span-2 space-y-4 sm:space-y-6 order-2 lg:order-1">
             {/* Cart Items Review */}
             <Card>
-              <div className="flex items-center justify-between mb-6">
-                <div className="flex items-center gap-3">
-                  <Package className="w-6 h-6 text-primary-400" />
-                  <h2 className="text-xl font-bold text-dark-50">Products in Quote</h2>
+                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 sm:gap-0 mb-4 sm:mb-6">
+                  <div className="flex items-center gap-3">
+                    <Package className="w-5 h-5 sm:w-6 sm:h-6 text-primary-400" />
+                    <h2 className="text-lg sm:text-xl font-bold text-dark-50">Products in Quote</h2>
+                  </div>
+                  <Badge variant="primary">{items.length} {items.length === 1 ? 'item' : 'items'}</Badge>
                 </div>
-                <Badge variant="primary">{items.length} {items.length === 1 ? 'item' : 'items'}</Badge>
-              </div>
               
               <div className="space-y-3">
                 {items.map((item, index) => {
@@ -226,13 +258,13 @@ const QuoteRequestPage = () => {
                   const imageUrl = getProductImage(product);
                   
                   return (
-                    <div key={index} className="flex gap-4 p-4 bg-dark-700/50 rounded-lg border border-dark-600 hover:border-dark-500 transition-colors">
+                    <div key={index} className="flex flex-col sm:flex-row gap-3 sm:gap-4 p-4 bg-dark-700/50 rounded-lg border border-dark-600 hover:border-dark-500 transition-colors">
                       {/* Product Image */}
-                      <div className="flex-shrink-0">
+                      <div className="flex-shrink-0 w-full sm:w-24 h-48 sm:h-24 mx-auto sm:mx-0">
                         <img
                           src={imageUrl}
                           alt={product.name || 'Product'}
-                          className="w-24 h-24 object-cover rounded-lg bg-dark-600"
+                          className="w-full h-full object-cover rounded-lg bg-dark-600"
                           onError={(e) => {
                             e.target.onerror = null;
                             e.target.src = '/placeholder.png';
@@ -290,7 +322,7 @@ const QuoteRequestPage = () => {
                 })}
               </div>
 
-              <div className="mt-6 pt-4 border-t border-dark-600 flex justify-between items-center">
+              <div className="mt-6 pt-4 border-t border-dark-600 flex flex-col sm:flex-row justify-between items-center gap-3">
                 <p className="text-sm text-dark-300">
                   Need to make changes to your selection?
                 </p>
@@ -299,6 +331,7 @@ const QuoteRequestPage = () => {
                   variant="outline"
                   size="sm"
                   onClick={() => navigate('/cart')}
+                  className="w-full sm:w-auto"
                 >
                   <Edit className="w-4 h-4 mr-2" />
                   Edit Cart
@@ -308,8 +341,8 @@ const QuoteRequestPage = () => {
 
             {/* Project Information */}
             <Card>
-              <h2 className="text-xl font-bold text-dark-50 mb-6">Project Information</h2>
-              <div className="grid md:grid-cols-2 gap-4">
+              <h2 className="text-lg sm:text-xl font-bold text-dark-50 mb-4 sm:mb-6">Project Information</h2>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="md:col-span-2">
                   <label className="block text-sm font-medium text-dark-100 mb-2">
                     Project Name <span className="text-dark-300">(optional)</span>
@@ -318,7 +351,7 @@ const QuoteRequestPage = () => {
                     type="text"
                     {...register('projectName')}
                     placeholder="e.g., Office Renovation 2024"
-                    className="w-full px-4 py-3 border border-dark-500 bg-dark-700 text-dark-50 placeholder-dark-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
+                    className="w-full px-4 py-3 border border-dark-500 bg-dark-700 text-dark-50 placeholder-dark-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 text-base"
                   />
                 </div>
 
@@ -330,7 +363,7 @@ const QuoteRequestPage = () => {
                     {...register('projectDescription')}
                     rows={4}
                     placeholder="Tell us about your project, intended use, or any specific requirements..."
-                    className="w-full px-4 py-3 border border-dark-500 bg-dark-700 text-dark-50 placeholder-dark-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
+                    className="w-full px-4 py-3 border border-dark-500 bg-dark-700 text-dark-50 placeholder-dark-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 text-base"
                   />
                 </div>
 
@@ -341,7 +374,7 @@ const QuoteRequestPage = () => {
                   <input
                     type="date"
                     {...register('desiredDeliveryDate')}
-                    className="w-full px-4 py-3 border border-dark-500 bg-dark-700 text-dark-50 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
+                    className="w-full px-4 py-3 border border-dark-500 bg-dark-700 text-dark-50 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 text-base"
                   />
                 </div>
               </div>
@@ -349,7 +382,7 @@ const QuoteRequestPage = () => {
 
             {/* Special Instructions */}
             <Card>
-              <h2 className="text-xl font-bold text-dark-50 mb-6">Additional Details</h2>
+              <h2 className="text-lg sm:text-xl font-bold text-dark-50 mb-4 sm:mb-6">Additional Details</h2>
               <div className="space-y-4">
                 <div>
                   <label className="block text-sm font-medium text-dark-100 mb-2">
@@ -359,7 +392,7 @@ const QuoteRequestPage = () => {
                     {...register('specialInstructions')}
                     rows={6}
                     placeholder="Custom finishes, special hardware requirements, delivery instructions, budget constraints, or any questions..."
-                    className="w-full px-4 py-3 border border-dark-500 bg-dark-700 text-dark-50 placeholder-dark-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
+                    className="w-full px-4 py-3 border border-dark-500 bg-dark-700 text-dark-50 placeholder-dark-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 text-base"
                   />
                 </div>
 
@@ -368,9 +401,9 @@ const QuoteRequestPage = () => {
                     type="checkbox"
                     id="rushOrder"
                     {...register('rushOrder')}
-                    className="w-4 h-4 text-primary-600 bg-dark-700 border-dark-500 rounded focus:ring-primary-500"
+                    className="w-5 h-5 sm:w-4 sm:h-4 text-primary-600 bg-dark-700 border-dark-500 rounded focus:ring-primary-500 flex-shrink-0"
                   />
-                  <label htmlFor="rushOrder" className="text-sm font-medium text-dark-100">
+                  <label htmlFor="rushOrder" className="text-sm font-medium text-dark-100 cursor-pointer">
                     This is a rush order (expedited processing)
                   </label>
                 </div>
@@ -379,17 +412,17 @@ const QuoteRequestPage = () => {
           </div>
 
           {/* Right Column - File Upload & Submit (1/3 width) */}
-          <div className="lg:col-span-1 space-y-6">
+          <div className="lg:col-span-1 space-y-4 sm:space-y-6 order-1 lg:order-2">
             {/* File Upload */}
-            <Card className="sticky top-4">
-              <h2 className="text-xl font-bold text-dark-50 mb-2">Reference Materials</h2>
+            <Card className="lg:sticky lg:top-4">
+              <h2 className="text-lg sm:text-xl font-bold text-dark-50 mb-2">Reference Materials</h2>
               <p className="text-sm text-dark-200 mb-4">
                 Upload photos, floor plans, inspiration images, or specifications
               </p>
               
               <div
                 {...getRootProps()}
-                className={`border-2 border-dashed rounded-lg p-6 text-center cursor-pointer transition-all ${
+                className={`border-2 border-dashed rounded-lg p-4 sm:p-6 text-center cursor-pointer transition-all min-h-[120px] sm:min-h-[160px] flex flex-col items-center justify-center ${
                   isDragActive 
                     ? 'border-primary-500 bg-primary-900/10' 
                     : 'border-dark-500 hover:border-dark-400 hover:bg-dark-700'
@@ -436,9 +469,10 @@ const QuoteRequestPage = () => {
                         <button
                           type="button"
                           onClick={() => removeFile(index)}
-                          className="absolute top-2 right-2 p-1 bg-red-500 hover:bg-red-600 text-white rounded-full shadow-lg opacity-0 group-hover:opacity-100 transition-opacity"
+                          className="absolute top-2 right-2 p-2 bg-red-500 hover:bg-red-600 text-white rounded-full shadow-lg opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity min-w-[32px] min-h-[32px] flex items-center justify-center"
+                          aria-label="Remove file"
                         >
-                          <X className="w-3 h-3" />
+                          <X className="w-4 h-4" />
                         </button>
                       </div>
                     ))}
@@ -453,9 +487,10 @@ const QuoteRequestPage = () => {
                   variant="primary" 
                   size="lg" 
                   className="w-full"
-                  disabled={isSubmitting || items.length === 0}
+                  disabled={isSubmitting || items.length === 0 || isUnverified}
+                  title={isUnverified ? 'Email verification required to submit quotes' : ''}
                 >
-                  {isSubmitting ? 'Submitting...' : 'Submit Quote Request'}
+                  {isSubmitting ? 'Submitting...' : isUnverified ? 'Verification Required' : 'Submit Quote Request'}
                 </Button>
                 <Button 
                   type="button" 

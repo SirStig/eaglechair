@@ -211,32 +211,32 @@ const UpholsteryManagement = () => {
             )}
           </div>
         ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full">
+          <div className="overflow-x-auto -mx-4 sm:mx-0">
+            <table className="w-full min-w-[1000px]">
               <thead>
                 <tr className="border-b border-dark-700">
-                  <th className="px-4 py-3 text-left text-sm font-semibold text-dark-300 uppercase tracking-wider">
+                  <th className="px-3 sm:px-4 py-3 text-left text-xs sm:text-sm font-semibold text-dark-300 uppercase tracking-wider">
                     Swatch
                   </th>
-                  <th className="px-4 py-3 text-left text-sm font-semibold text-dark-300 uppercase tracking-wider">
+                  <th className="px-3 sm:px-4 py-3 text-left text-xs sm:text-sm font-semibold text-dark-300 uppercase tracking-wider">
                     Name
                   </th>
-                  <th className="px-4 py-3 text-left text-sm font-semibold text-dark-300 uppercase tracking-wider">
+                  <th className="px-3 sm:px-4 py-3 text-left text-xs sm:text-sm font-semibold text-dark-300 uppercase tracking-wider">
                     Code
                   </th>
-                  <th className="px-4 py-3 text-left text-sm font-semibold text-dark-300 uppercase tracking-wider">
+                  <th className="px-3 sm:px-4 py-3 text-left text-xs sm:text-sm font-semibold text-dark-300 uppercase tracking-wider">
                     Type
                   </th>
-                  <th className="px-4 py-3 text-left text-sm font-semibold text-dark-300 uppercase tracking-wider">
+                  <th className="px-3 sm:px-4 py-3 text-left text-xs sm:text-sm font-semibold text-dark-300 uppercase tracking-wider">
                     Grade
                   </th>
-                  <th className="px-4 py-3 text-left text-sm font-semibold text-dark-300 uppercase tracking-wider">
+                  <th className="px-3 sm:px-4 py-3 text-left text-xs sm:text-sm font-semibold text-dark-300 uppercase tracking-wider">
                     Color
                   </th>
-                  <th className="px-4 py-3 text-left text-sm font-semibold text-dark-300 uppercase tracking-wider">
+                  <th className="px-3 sm:px-4 py-3 text-left text-xs sm:text-sm font-semibold text-dark-300 uppercase tracking-wider">
                     Status
                   </th>
-                  <th className="px-4 py-3 text-right text-sm font-semibold text-dark-300 uppercase tracking-wider">
+                  <th className="px-3 sm:px-4 py-3 text-right text-xs sm:text-sm font-semibold text-dark-300 uppercase tracking-wider">
                     Actions
                   </th>
                 </tr>

@@ -93,29 +93,37 @@ const Header = ({ isMobileMenuOpen, setIsMobileMenuOpen }) => {
   };
 
   return (
-    <header className="fixed top-0 left-0 w-full bg-dark-800/95 backdrop-blur-md shadow-lg border-b border-dark-500 z-50" style={{ '--header-height': '80px' }}>
-      <div className="container mx-auto">
+    <header className="fixed top-0 left-0 w-full bg-dark-800/95 backdrop-blur-md shadow-lg border-b border-dark-500 z-50" style={{ '--header-height': '72px' }}>
+      <style>{`
+        @media (min-width: 640px) {
+          header { --header-height: 88px; }
+        }
+        @media (min-width: 768px) {
+          header { --header-height: 80px; }
+        }
+      `}</style>
+      <div className="container mx-auto px-4 sm:px-6 lg:px-8">
         {/* Main Navigation */}
-        <div className="flex items-center justify-between py-4 gap-2">
+        <div className="flex items-center justify-between py-3 sm:py-4 gap-2">
           {/* Logo */}
           <Link to="/" className="flex-shrink-0">
             <Motion.div
               whileHover={{ scale: 1.05 }}
               transition={{ type: 'spring', stiffness: 400, damping: 10 }}
-              className="flex items-center gap-3"
+              className="flex items-center gap-2 sm:gap-3"
             >
               {/* Eagle Chair Logo Image */}
               {siteSettings?.logoUrl ? (
                 <img 
                   src={siteSettings.logoUrl} 
                   alt={siteSettings.companyName || 'Eagle Chair'}
-                  className="h-16 sm:h-18 w-auto object-contain"
+                  className="h-12 sm:h-14 md:h-16 lg:h-16 w-auto object-contain"
                 />
               ) : (
                 <img 
                   src="/assets/eagle-chair-logo.png" 
                   alt="Eagle Chair" 
-                  className="h-16 sm:h-18 w-auto object-contain"
+                  className="h-12 sm:h-14 md:h-16 lg:h-16 w-auto object-contain"
                 />
               )}
             </Motion.div>
@@ -239,7 +247,7 @@ const Header = ({ isMobileMenuOpen, setIsMobileMenuOpen }) => {
                     bg-dark-700 text-dark-50 placeholder-dark-200
                     transition-all duration-300 ease-in-out
                     focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent
-                    ${isSearchFocused ? 'w-72' : 'w-48'}
+                    ${isSearchFocused ? 'w-64 xl:w-72' : 'w-40 xl:w-48'}
                   `}
                   style={{
                     WebkitTransition: 'width 0.3s ease-in-out',
@@ -393,7 +401,7 @@ const Header = ({ isMobileMenuOpen, setIsMobileMenuOpen }) => {
             <button
               type="button"
               onClick={() => setIsMobileMenuOpen((prev) => !prev)}
-              className="lg:hidden text-dark-50 hover:text-primary-500 transition-colors flex-shrink-0 p-2 -mr-2"
+              className="lg:hidden text-dark-50 hover:text-primary-500 transition-colors flex-shrink-0 p-2 -mr-2 min-w-[44px] min-h-[44px] flex items-center justify-center"
               aria-label={isMobileMenuOpen ? 'Close menu' : 'Open menu'}
               aria-expanded={isMobileMenuOpen}
             >
@@ -449,7 +457,7 @@ export const MobileMenu = ({ isMobileMenuOpen, setIsMobileMenuOpen, searchQuery,
             exit={{ x: '100%' }}
             transition={{ type: 'spring', stiffness: 300, damping: 30 }}
             className="fixed inset-y-0 right-0 z-40 w-[85vw] max-w-sm bg-dark-900 border-l border-dark-600 shadow-2xl overflow-y-auto"
-            style={{ top: '80px' }}
+            style={{ top: 'var(--header-height, 80px)' }}
           >
             <div className="flex flex-col h-full">
               <div className="px-4 py-4 space-y-6 flex-grow overflow-y-auto">
@@ -617,7 +625,7 @@ export const MobileMenu = ({ isMobileMenuOpen, setIsMobileMenuOpen, searchQuery,
             type="button"
             aria-label="Close menu"
             onClick={() => setIsMobileMenuOpen(false)}
-            className="fixed inset-0 z-[39] bg-black/40"
+            className="fixed inset-0 z-[39] bg-black/50 backdrop-blur-sm"
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}

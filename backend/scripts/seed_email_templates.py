@@ -326,6 +326,44 @@ REQUIRED_TEMPLATES = {
             'item_count': 'Number of items',
             'quote_url': 'URL to view the quote in admin panel'
         }
+    },
+    'company_invite': {
+        'name': 'Company Invite',
+        'description': 'Sent to companies when invited by admin to create an account',
+        'subject': "You're Invited to Join EagleChair",
+        'body': '''<h1>You're Invited to Join EagleChair!</h1>
+<p>Hi {{ company_name }},</p>
+<p>You have been invited to create a company account on EagleChair, where you can access our premium office furniture catalog and wholesale pricing.</p>
+
+<p>With an EagleChair account, you'll be able to:</p>
+<ul>
+    <li>Browse our complete product catalog with detailed specifications</li>
+    <li>Request custom quotes for your business needs</li>
+    <li>Download catalogs and installation guides</li>
+    <li>Access wholesale pricing and manage your orders</li>
+    <li>Save and manage your favorite product configurations</li>
+</ul>
+
+<p>Click the button below to create your company account:</p>
+
+{{ button(registration_url, 'Create Your Account', 'primary') }}
+
+<p>If the button doesn't work, copy and paste this link into your browser:</p>
+<p style="color: #8b7355; word-break: break-all;">{{ registration_url }}</p>
+
+{% if inviter_name %}
+<p>This invitation was sent by {{ inviter_name }} from the EagleChair team.</p>
+{% endif %}
+
+<p>If you have any questions about your invitation, please don't hesitate to reach out to our team.</p>
+
+<p>We look forward to working with you!</p>
+<p><strong>The EagleChair Team</strong></p>''',
+        'available_variables': {
+            'company_name': 'Name of the company being invited',
+            'registration_url': 'URL to the registration page',
+            'inviter_name': 'Name of the admin who sent the invite (optional)'
+        }
     }
 }
 

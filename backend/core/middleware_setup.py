@@ -95,12 +95,31 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
             )
         else:
             # Stricter CSP for production/non-docs routes
-            response.headers["Content-Security-Policy"] = (
-                "default-src 'self'; "
-                "script-src 'self' 'unsafe-inline' 'unsafe-eval'; "
-                "style-src 'self' 'unsafe-inline';"
-                "frame-ancestors 'none';"
-            )
+            # Removed 'unsafe-inline' and 'unsafe-eval' for better XSS protection
+            # If inline scripts are needed, use nonces instead
+            if settings.is_production:
+                # Production: Strict CSP without unsafe-inline/unsafe-eval
+                response.headers["Content-Security-Policy"] = (
+                    "default-src 'self'; "
+                    "script-src 'self'; "
+                    "style-src 'self'; "
+                    "img-src 'self' data: https:; "
+                    "font-src 'self' data:; "
+                    "connect-src 'self'; "
+                    "frame-ancestors 'none';"
+                )
+            else:
+                # Development: Allow unsafe-inline for easier development
+                # This is less secure but convenient for development
+                response.headers["Content-Security-Policy"] = (
+                    "default-src 'self'; "
+                    "script-src 'self' 'unsafe-inline' 'unsafe-eval'; "
+                    "style-src 'self' 'unsafe-inline'; "
+                    "img-src 'self' data: https:; "
+                    "font-src 'self' data:; "
+                    "connect-src 'self'; "
+                    "frame-ancestors 'none';"
+                )
         
         response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
         response.headers["Permissions-Policy"] = "geolocation=(), microphone=(), camera=()"

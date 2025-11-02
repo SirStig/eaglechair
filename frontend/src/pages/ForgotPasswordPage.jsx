@@ -62,7 +62,7 @@ const ForgotPasswordPage = () => {
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
               </svg>
             </motion.div>
-            <h2 className="text-3xl font-bold mb-4 text-dark-50">Check Your Email</h2>
+            <h2 className="text-2xl sm:text-3xl font-bold mb-4 text-dark-50">Check Your Email</h2>
             <p className="text-dark-200 mb-6">
               If an account exists with <strong className="text-primary-500">{email}</strong>, we've sent password reset instructions to that address.
             </p>
@@ -97,7 +97,7 @@ const ForgotPasswordPage = () => {
               transition={{ type: "spring", stiffness: 300 }}
             />
           </Link>
-          <h2 className="text-3xl font-bold mb-2 text-dark-50">Reset Password</h2>
+          <h2 className="text-2xl sm:text-3xl font-bold mb-2 text-dark-50">Reset Password</h2>
           <p className="text-dark-200">
             Enter your email to receive reset instructions
           </p>

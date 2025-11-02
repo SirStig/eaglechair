@@ -59,20 +59,19 @@ const LoginPage = () => {
       if (result.success) {
         navigate(from, { replace: true });
       } else {
-        // Check if error is about email verification
-        const errorMsg = result.error || 'Login failed';
-        if (errorMsg.toLowerCase().includes('verified') || 
-            errorMsg.toLowerCase().includes('verification') ||
-            result.requiresVerification) {
-          // Redirect to verification page
+        // Check if error is about email verification - prioritize requiresVerification flag
+        if (result.requiresVerification) {
+          // Redirect to verification page with user's email
           navigate('/verify-email', {
             state: {
               email: data.email,
-              message: 'Please verify your email address before logging in.',
+              message: 'Please verify your email address before logging in. We\'ve sent a verification link to your email.',
               from: from
             }
           });
         } else {
+          // Show error message for other login failures
+          const errorMsg = result.error || 'Login failed';
           setError(errorMsg);
         }
       }
@@ -96,7 +95,7 @@ const LoginPage = () => {
               transition={{ type: "spring", stiffness: 300 }}
             />
           </Link>
-          <h2 className="text-3xl font-bold mb-2 text-dark-50">Welcome Back</h2>
+          <h2 className="text-2xl sm:text-3xl font-bold mb-2 text-dark-50">Welcome Back</h2>
           <p className="text-dark-200">Sign in to manage your account and orders</p>
         </div>
 

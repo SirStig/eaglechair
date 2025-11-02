@@ -763,6 +763,29 @@ class EmailService:
         )
     
     @staticmethod
+    async def send_company_invite(
+        db: AsyncSession,
+        to_email: str,
+        company_name: str,
+        registration_url: str,
+        inviter_name: Optional[str] = None
+    ) -> bool:
+        """Send company invitation email"""
+        context = {
+            'company_name': company_name,
+            'registration_url': registration_url
+        }
+        if inviter_name:
+            context['inviter_name'] = inviter_name
+        
+        return await EmailService.send_email(
+            db=db,
+            to_email=to_email,
+            template_type='company_invite',
+            context=context
+        )
+    
+    @staticmethod
     async def send_custom_email(
         db: AsyncSession,
         to_email: str,

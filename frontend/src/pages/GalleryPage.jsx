@@ -117,20 +117,20 @@ const GalleryPage = () => {
       <div className="mx-auto px-4 sm:px-6 lg:px-8 max-w-[1800px]">
         {/* Header */}
         <div className="text-center mb-12">
-          <h1 className="text-4xl font-bold mb-4 text-dark-50">Gallery</h1>
-          <p className="text-lg text-dark-100 max-w-2xl mx-auto">
+          <h1 className="text-2xl sm:text-3xl md:text-4xl font-bold mb-4 text-dark-50">Gallery</h1>
+          <p className="text-base sm:text-lg text-dark-100 max-w-2xl mx-auto px-4">
             Explore our furniture in real commercial settings. See how Eagle Chair products 
             transform restaurants, hotels, and hospitality spaces.
           </p>
         </div>
 
         {/* Filter Tabs */}
-        <div className="flex justify-center gap-2 mb-8 flex-wrap">
+        <div className="flex justify-center gap-2 mb-6 sm:mb-8 flex-wrap px-4">
           {categories.map((category) => (
             <button
               key={category}
               onClick={() => setFilter(category)}
-              className={`px-6 py-2 rounded-full font-medium transition-all ${
+              className={`px-4 sm:px-6 py-2 rounded-full font-medium transition-all text-sm sm:text-base min-h-[44px] ${
                 filter === category
                   ? 'bg-primary-500 text-dark-900'
                   : 'bg-dark-600 text-dark-50 hover:bg-dark-700 border border-dark-500'
@@ -200,7 +200,7 @@ const GalleryPage = () => {
                 </motion.div>
               );
             }}
-            className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6"
+            className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6"
           />
         )}
 
@@ -232,21 +232,21 @@ const GalleryPage = () => {
         </Modal>
 
         {/* CTA Section */}
-        <div className="mt-16 bg-dark-900 border border-dark-600 rounded-2xl p-8 sm:p-12 text-center">
-          <h2 className="text-3xl font-bold mb-4 text-dark-50">
+        <div className="mt-12 sm:mt-16 bg-dark-900 border border-dark-600 rounded-2xl p-6 sm:p-8 lg:p-12 text-center">
+          <h2 className="text-2xl sm:text-3xl font-bold mb-3 sm:mb-4 text-dark-50">
             Ready to Transform Your Space?
           </h2>
-          <p className="text-xl mb-6 max-w-2xl mx-auto text-dark-100">
+          <p className="text-lg sm:text-xl mb-4 sm:mb-6 max-w-2xl mx-auto text-dark-100 px-4">
             Let us help you create a stunning commercial environment with our premium furniture.
           </p>
-          <div className="flex flex-col sm:flex-row gap-4 justify-center">
-            <a href="/quote-request">
-              <button className="w-full sm:w-auto px-8 py-3 bg-dark-900 text-primary-500 rounded-lg font-semibold hover:bg-dark-800 transition-colors border-2 border-primary-500">
+          <div className="flex flex-col sm:flex-row gap-3 sm:gap-4 justify-center px-4">
+            <a href="/quote-request" className="w-full sm:w-auto">
+              <button className="w-full sm:w-auto px-6 sm:px-8 py-3 bg-dark-900 text-primary-500 rounded-lg font-semibold hover:bg-dark-800 transition-colors border-2 border-primary-500 min-h-[44px]">
                 Request a Quote
               </button>
             </a>
-            <a href="/products">
-              <button className="w-full sm:w-auto px-8 py-3 border-2 border-white text-white rounded-lg font-semibold hover:bg-white/20 transition-colors">
+            <a href="/products" className="w-full sm:w-auto">
+              <button className="w-full sm:w-auto px-6 sm:px-8 py-3 border-2 border-white text-white rounded-lg font-semibold hover:bg-white/20 transition-colors min-h-[44px]">
                 Browse Products
               </button>
             </a>

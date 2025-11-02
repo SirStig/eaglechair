@@ -68,10 +68,17 @@ class RouteProtectionMiddleware(BaseHTTPMiddleware):
         # Authenticated routes - require user authentication
         elif access_level == RouteAccessLevel.AUTHENTICATED:
             if not self._has_valid_auth(request):
-                logger.info(
-                    f"Unauthorized access attempt",
-                    extra={"path": path, "method": method, "ip": request.client.host if request.client else "unknown"}
-                )
+                # For /auth/me, 401 is expected when checking auth status - don't log as warning
+                if path == "/api/v1/auth/me":
+                    logger.debug(
+                        f"Auth check - no valid session",
+                        extra={"path": path, "method": method, "ip": request.client.host if request.client else "unknown"}
+                    )
+                else:
+                    logger.info(
+                        f"Unauthorized access attempt",
+                        extra={"path": path, "method": method, "ip": request.client.host if request.client else "unknown"}
+                    )
                 return self._create_error_response(
                     status_code=status.HTTP_401_UNAUTHORIZED,
                     error="AUTHENTICATION_REQUIRED",
@@ -92,7 +99,11 @@ class RouteProtectionMiddleware(BaseHTTPMiddleware):
         Returns:
             bool: True if request has valid auth token
         """
-        # Check for Authorization header
+        # Check for access_token cookie first (preferred)
+        if request.cookies.get("access_token"):
+            return True
+        
+        # Fallback to Authorization header
         auth_header = request.headers.get("Authorization")
         if not auth_header:
             return False
@@ -115,9 +126,9 @@ class RouteProtectionMiddleware(BaseHTTPMiddleware):
         Returns:
             bool: True if request has valid admin tokens
         """
-        # Require both session and admin tokens
-        session_token = request.headers.get("X-Session-Token")
-        admin_token = request.headers.get("X-Admin-Token")
+        # Check cookies first (preferred), then headers (fallback)
+        session_token = request.cookies.get("session_token") or request.headers.get("X-Session-Token")
+        admin_token = request.cookies.get("admin_token") or request.headers.get("X-Admin-Token")
         
         return bool(session_token and admin_token)
     

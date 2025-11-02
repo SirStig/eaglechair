@@ -210,7 +210,7 @@ const HomePage = () => {
                     cacheKey="hero-slides"
                     label={`Slide ${index + 1}`}
                   >
-                    <div className="relative h-[calc(100vh-5rem-12vh)] sm:h-[calc(100vh-5rem-13vh)] md:h-[calc(100vh-5rem-15vh)] lg:h-[calc(100vh-5rem-20vh)]">
+                    <div className="relative h-[calc(100vh-72px)] sm:h-[calc(100vh-88px)] md:h-[calc(100vh-96px)] lg:h-[calc(100vh-80px)] min-h-[400px] sm:min-h-[500px]">
                       <img
                         src={slide.background_image_url || slide.image}
                         alt={slide.title}
@@ -286,10 +286,10 @@ const HomePage = () => {
             />
             
             {/* Left fade */}
-            <div className="absolute left-0 top-0 bottom-0 w-16 sm:w-32 bg-gradient-to-r from-dark-800 to-transparent z-10 pointer-events-none"></div>
+            <div className="absolute left-0 top-0 bottom-0 w-12 sm:w-16 md:w-32 bg-gradient-to-r from-dark-800 to-transparent z-10 pointer-events-none"></div>
             
             {/* Right fade */}
-            <div className="absolute right-0 top-0 bottom-0 w-16 sm:w-32 bg-gradient-to-l from-dark-800 to-transparent z-10 pointer-events-none"></div>
+            <div className="absolute right-0 top-0 bottom-0 w-12 sm:w-16 md:w-32 bg-gradient-to-l from-dark-800 to-transparent z-10 pointer-events-none"></div>
             
             {/* Scrolling container */}
             <div className="overflow-hidden">
@@ -327,9 +327,9 @@ const HomePage = () => {
                     refetch={refetchLogos}
                     cacheKey="client-logos"
                     label={`Logo: ${client.name}`}
-                    className={`flex-shrink-0 px-4 sm:px-8 mx-2 sm:mx-4 ${isEditMode ? 'inline-block' : ''}`}
+                    className={`flex-shrink-0 px-3 sm:px-6 md:px-8 mx-1 sm:mx-2 md:mx-4 ${isEditMode ? 'inline-block' : ''}`}
                   >
-                    <div className="flex items-center justify-center h-16 sm:h-20 w-32 sm:w-40 relative group">
+                    <div className="flex items-center justify-center h-12 sm:h-16 md:h-20 w-24 sm:w-32 md:w-40 relative group">
                       {client.logoUrl || client.logo ? (
                         <img
                           src={client.logoUrl || client.logo}
@@ -377,8 +377,8 @@ const HomePage = () => {
                 
                 {/* Second set of logos (duplicate for infinite scroll) - Only show when NOT in edit mode */}
                 {!isEditMode && clients.length > 0 && clients.map((client, index) => (
-                  <div key={`second-${client.id}-${index}`} className="flex-shrink-0 px-4 sm:px-8 mx-2 sm:mx-4">
-                    <div className="flex items-center justify-center h-16 sm:h-20 w-32 sm:w-40">
+                  <div key={`second-${client.id}-${index}`} className="flex-shrink-0 px-3 sm:px-6 md:px-8 mx-1 sm:mx-2 md:mx-4">
+                    <div className="flex items-center justify-center h-12 sm:h-16 md:h-20 w-24 sm:w-32 md:w-40">
                       {client.logoUrl || client.logo ? (
                         <img
                           src={client.logoUrl || client.logo}
@@ -397,8 +397,8 @@ const HomePage = () => {
                 
                 {/* Third set (for seamless loop when few logos) */}
                 {!isEditMode && clients.length > 0 && clients.length < 8 && clients.map((client, index) => (
-                  <div key={`third-${client.id}-${index}`} className="flex-shrink-0 px-4 sm:px-8 mx-2 sm:mx-4">
-                    <div className="flex items-center justify-center h-16 sm:h-20 w-32 sm:w-40">
+                  <div key={`third-${client.id}-${index}`} className="flex-shrink-0 px-3 sm:px-6 md:px-8 mx-1 sm:mx-2 md:mx-4">
+                    <div className="flex items-center justify-center h-12 sm:h-16 md:h-20 w-24 sm:w-32 md:w-40">
                       {client.logoUrl || client.logo ? (
                         <img
                           src={client.logoUrl || client.logo}
@@ -417,8 +417,8 @@ const HomePage = () => {
                 
                 {/* Fourth set (for very few logos) */}
                 {!isEditMode && clients.length > 0 && clients.length < 5 && clients.map((client, index) => (
-                  <div key={`fourth-${client.id}-${index}`} className="flex-shrink-0 px-4 sm:px-8 mx-2 sm:mx-4">
-                    <div className="flex items-center justify-center h-16 sm:h-20 w-32 sm:w-40">
+                  <div key={`fourth-${client.id}-${index}`} className="flex-shrink-0 px-3 sm:px-6 md:px-8 mx-1 sm:mx-2 md:mx-4">
+                    <div className="flex items-center justify-center h-12 sm:h-16 md:h-20 w-24 sm:w-32 md:w-40">
                       {client.logoUrl || client.logo ? (
                         <img
                           src={client.logoUrl || client.logo}
@@ -437,8 +437,8 @@ const HomePage = () => {
                 
                 {/* Fifth set (for few logos 5-7) */}
                 {!isEditMode && clients.length > 0 && clients.length < 8 && clients.map((client, index) => (
-                  <div key={`fifth-${client.id}-${index}`} className="flex-shrink-0 px-4 sm:px-8 mx-2 sm:mx-4">
-                    <div className="flex items-center justify-center h-16 sm:h-20 w-32 sm:w-40">
+                  <div key={`fifth-${client.id}-${index}`} className="flex-shrink-0 px-3 sm:px-6 md:px-8 mx-1 sm:mx-2 md:mx-4">
+                    <div className="flex items-center justify-center h-12 sm:h-16 md:h-20 w-24 sm:w-32 md:w-40">
                       {client.logoUrl || client.logo ? (
                         <img
                           src={client.logoUrl || client.logo}
@@ -457,8 +457,8 @@ const HomePage = () => {
                 
                 {/* Sixth set (for few logos 5-7) */}
                 {!isEditMode && clients.length > 0 && clients.length < 8 && clients.map((client, index) => (
-                  <div key={`sixth-${client.id}-${index}`} className="flex-shrink-0 px-4 sm:px-8 mx-2 sm:mx-4">
-                    <div className="flex items-center justify-center h-16 sm:h-20 w-32 sm:w-40">
+                  <div key={`sixth-${client.id}-${index}`} className="flex-shrink-0 px-3 sm:px-6 md:px-8 mx-1 sm:mx-2 md:mx-4">
+                    <div className="flex items-center justify-center h-12 sm:h-16 md:h-20 w-24 sm:w-32 md:w-40">
                       {client.logoUrl || client.logo ? (
                         <img
                           src={client.logoUrl || client.logo}
@@ -477,8 +477,8 @@ const HomePage = () => {
                 
                 {/* Seventh set (for very few logos 1-4) */}
                 {!isEditMode && clients.length > 0 && clients.length < 5 && clients.map((client, index) => (
-                  <div key={`seventh-${client.id}-${index}`} className="flex-shrink-0 px-4 sm:px-8 mx-2 sm:mx-4">
-                    <div className="flex items-center justify-center h-16 sm:h-20 w-32 sm:w-40">
+                  <div key={`seventh-${client.id}-${index}`} className="flex-shrink-0 px-3 sm:px-6 md:px-8 mx-1 sm:mx-2 md:mx-4">
+                    <div className="flex items-center justify-center h-12 sm:h-16 md:h-20 w-24 sm:w-32 md:w-40">
                       {client.logoUrl || client.logo ? (
                         <img
                           src={client.logoUrl || client.logo}
@@ -497,8 +497,8 @@ const HomePage = () => {
                 
                 {/* Eighth set (for very few logos 1-4) */}
                 {!isEditMode && clients.length > 0 && clients.length < 5 && clients.map((client, index) => (
-                  <div key={`eighth-${client.id}-${index}`} className="flex-shrink-0 px-4 sm:px-8 mx-2 sm:mx-4">
-                    <div className="flex items-center justify-center h-16 sm:h-20 w-32 sm:w-40">
+                  <div key={`eighth-${client.id}-${index}`} className="flex-shrink-0 px-3 sm:px-6 md:px-8 mx-1 sm:mx-2 md:mx-4">
+                    <div className="flex items-center justify-center h-12 sm:h-16 md:h-20 w-24 sm:w-32 md:w-40">
                       {client.logoUrl || client.logo ? (
                         <img
                           src={client.logoUrl || client.logo}
@@ -538,7 +538,7 @@ const HomePage = () => {
           {productsLoading ? (
             <CardGridSkeleton count={4} columns={4} />
           ) : (
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6 sm:gap-8 md:gap-10 px-4 sm:px-0">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 sm:gap-6 md:gap-8 lg:gap-10 px-4 sm:px-0">
               {products.map((product, index) => (
                 <motion.div
                   key={product.id}

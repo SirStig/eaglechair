@@ -249,3 +249,115 @@ def require_token_type(token_type: str):
 # Create security manager instance
 security_manager = SecurityManager()
 
+
+def set_auth_cookies(
+    response: Any,
+    access_token: str,
+    refresh_token: str,
+    session_token: Optional[str] = None,
+    admin_token: Optional[str] = None,
+    is_production: bool = False
+) -> None:
+    """
+    Set httpOnly authentication cookies with proper expiration matching token expiration
+    
+    Args:
+        response: FastAPI Response object (Response or JSONResponse)
+        access_token: JWT access token
+        refresh_token: JWT refresh token
+        session_token: Optional admin session token
+        admin_token: Optional admin token
+        is_production: Whether running in production (enables Secure flag)
+    """
+    from backend.core.config import settings
+    
+    # Cookie settings - use "lax" instead of "strict" for better cross-tab/window persistence
+    # "lax" allows cookies to be sent in same-site navigations while still providing CSRF protection
+    cookie_kwargs = {
+        "httponly": True,
+        "samesite": "lax",  # Changed from "strict" - allows cross-tab persistence
+        "path": "/",
+    }
+    
+    # Secure flag in production (requires HTTPS)
+    if is_production:
+        cookie_kwargs["secure"] = True
+    
+    # Decode tokens to get actual expiration times (without verification, we trust our own tokens)
+    try:
+        from jose import jwt as jose_jwt
+        access_payload = jose_jwt.decode(access_token, None, options={"verify_signature": False})
+        refresh_payload = jose_jwt.decode(refresh_token, None, options={"verify_signature": False})
+        
+        # Calculate max_age from token expiration (exp is Unix timestamp)
+        access_exp = access_payload.get("exp", 0)
+        refresh_exp = refresh_payload.get("exp", 0)
+        
+        # Current time in seconds since epoch
+        now = int(datetime.utcnow().timestamp())
+        
+        # Calculate max_age in seconds (time until expiration)
+        access_max_age = max(0, access_exp - now) if access_exp else (60 * 60)  # Default 1 hour
+        refresh_max_age = max(0, refresh_exp - now) if refresh_exp else (60 * 60 * 24 * 30)  # Default 30 days
+        
+    except Exception as e:
+        # Fallback to defaults if token decoding fails
+        logger.warning(f"Failed to decode token for cookie expiration: {e}")
+        access_max_age = 60 * 60  # 1 hour default
+        refresh_max_age = 60 * 60 * 24 * 30  # 30 days default
+    
+    # Set access token cookie with actual expiration
+    response.set_cookie(
+        key="access_token",
+        value=access_token,
+        max_age=access_max_age,
+        **cookie_kwargs
+    )
+    
+    # Set refresh token cookie with actual expiration
+    response.set_cookie(
+        key="refresh_token",
+        value=refresh_token,
+        max_age=refresh_max_age,
+        **cookie_kwargs
+    )
+    
+    # Set admin tokens if provided (24 hours for admin sessions)
+    if session_token:
+        response.set_cookie(
+            key="session_token",
+            value=session_token,
+            max_age=60 * 60 * 24,  # 24 hours (1 day)
+            **cookie_kwargs
+        )
+    
+    if admin_token:
+        response.set_cookie(
+            key="admin_token",
+            value=admin_token,
+            max_age=60 * 60 * 24,  # 24 hours (1 day)
+            **cookie_kwargs
+        )
+
+
+def clear_auth_cookies(response: Any) -> None:
+    """
+    Clear all authentication cookies
+    
+    Args:
+        response: FastAPI Response object (Response or JSONResponse)
+    """
+    # Use same cookie settings as set_auth_cookies for proper clearing
+    cookie_kwargs = {
+        "httponly": True,
+        "samesite": "lax",  # Match the setting used in set_auth_cookies
+        "path": "/",
+    }
+    cookies_to_clear = ["access_token", "refresh_token", "session_token", "admin_token"]
+    
+    for cookie_name in cookies_to_clear:
+        response.delete_cookie(
+            key=cookie_name,
+            path="/",
+            samesite="lax"  # Match the setting used in set_auth_cookies
+        )

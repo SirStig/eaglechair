@@ -29,91 +29,35 @@ const apiClient = axios.create({
   // Don't set default Content-Type - let axios auto-detect based on request data
 });
 
-// Helper to check if token is expired or about to expire (within 5 minutes)
-const isTokenExpiredOrExpiringSoon = (token) => {
-  if (!token) return true;
-  
-  try {
-    const payload = JSON.parse(atob(token.split('.')[1]));
-    const exp = payload.exp * 1000; // Convert to milliseconds
-    const fiveMinutesFromNow = Date.now() + (5 * 60 * 1000);
-    return Date.now() >= exp || fiveMinutesFromNow >= exp;
-  } catch (error) {
-    return true;
-  }
-};
-
-// Request interceptor - Add auth token and proactively refresh if needed
+// Request interceptor
+// Tokens are stored in localStorage and sent via Authorization header
 apiClient.interceptors.request.use(
   async (config) => {
-    // Skip proactive refresh for login/refresh endpoints
-    if (config.url?.includes('/auth/login') || 
-        config.url?.includes('/auth/refresh') ||
-        config.url?.includes('/auth/admin/login')) {
-      return config;
+    // Get access token from localStorage and add to Authorization header
+    const accessToken = typeof window !== 'undefined' 
+      ? localStorage.getItem('auth_access_token') 
+      : null;
+    
+    if (accessToken) {
+      config.headers.Authorization = `Bearer ${accessToken}`;
     }
-
-    // Get auth data from Zustand persist storage
-    const authStorage = localStorage.getItem('auth-storage');
-    if (authStorage) {
-      try {
-        const { state } = JSON.parse(authStorage);
-        const token = state?.token;
-        
-        // Proactively refresh token if expired or expiring soon
-        if (token && isTokenExpiredOrExpiringSoon(token) && state?.refreshToken && !isRefreshing) {
-          const refreshToken = state.refreshToken;
-          
-          try {
-            isRefreshing = true;
-            const refreshResponse = await axios.post(
-              `${API_BASE_URL}/api/v1/auth/refresh`,
-              {},
-              {
-                headers: {
-                  'Authorization': `Bearer ${refreshToken}`
-                }
-              }
-            );
-
-            const { access_token, refresh_token } = refreshResponse.data;
-            
-            // Update auth storage
-            const updatedState = {
-              ...state,
-              token: access_token,
-              refreshToken: refresh_token || refreshToken
-            };
-            localStorage.setItem('auth-storage', JSON.stringify({ state: updatedState }));
-            
-            // Update config with new token
-            config.headers.Authorization = `Bearer ${access_token}`;
-            apiClient.defaults.headers.common['Authorization'] = `Bearer ${access_token}`;
-            
-            isRefreshing = false;
-          } catch (refreshError) {
-            isRefreshing = false;
-            // If refresh fails, continue with original token - will be caught by response interceptor
-            logger.warn(CONTEXT, 'Proactive token refresh failed', refreshError);
-          }
-        } else if (token) {
-          config.headers.Authorization = `Bearer ${token}`;
-        }
-        
-        // Add admin tokens if present
-        if (state?.sessionToken) {
-          config.headers['X-Session-Token'] = state.sessionToken;
-        }
-        if (state?.adminToken) {
-          config.headers['X-Admin-Token'] = state.adminToken;
-        }
-      } catch (e) {
-        logger.error(CONTEXT, 'Error parsing auth storage', e);
-      }
+    
+    // For admin users, also send session_token and admin_token headers
+    const sessionToken = typeof window !== 'undefined' 
+      ? localStorage.getItem('auth_session_token') 
+      : null;
+    const adminToken = typeof window !== 'undefined' 
+      ? localStorage.getItem('auth_admin_token') 
+      : null;
+    
+    if (sessionToken) {
+      config.headers['X-Session-Token'] = sessionToken;
+    }
+    if (adminToken) {
+      config.headers['X-Admin-Token'] = adminToken;
     }
     
     logger.debug(CONTEXT, `${config.method?.toUpperCase()} ${config.url}`, {
-      hasAuth: !!config.headers.Authorization,
       params: config.params
     });
     return config;
@@ -126,20 +70,9 @@ apiClient.interceptors.request.use(
 
 // Token refresh state
 let isRefreshing = false;
-let failedQueue = [];
-
-const processQueue = (error, token = null) => {
-  failedQueue.forEach(prom => {
-    if (error) {
-      prom.reject(error);
-    } else {
-      prom.resolve(token);
-    }
-  });
-  failedQueue = [];
-};
 
 // Response interceptor - Normalized error handling with token refresh
+// Tokens are stored in localStorage and sent via Authorization headers
 apiClient.interceptors.response.use(
   (response) => {
     return response.data;
@@ -153,81 +86,88 @@ apiClient.interceptors.response.use(
       if (originalRequest.url?.includes('/auth/login') || 
           originalRequest.url?.includes('/auth/refresh') ||
           originalRequest.url?.includes('/auth/admin/login')) {
-        return handleAuthError(error);
+        return Promise.reject(handleAuthError(error));
       }
 
-      // If already refreshing, queue this request
+      // If already refreshing, wait for it to complete
       if (isRefreshing) {
+        // Wait for refresh to complete and retry
         return new Promise((resolve, reject) => {
-          failedQueue.push({ resolve, reject });
-        }).then(token => {
-          originalRequest.headers['Authorization'] = 'Bearer ' + token;
-          return apiClient(originalRequest);
-        }).catch(err => {
-          return Promise.reject(err);
+          const checkRefresh = setInterval(() => {
+            if (!isRefreshing) {
+              clearInterval(checkRefresh);
+              // Retry original request with new token
+              apiClient(originalRequest).then(resolve).catch(reject);
+            }
+          }, 100);
+          
+          // Timeout after 5 seconds
+          setTimeout(() => {
+            clearInterval(checkRefresh);
+            reject(handleAuthError(error));
+          }, 5000);
         });
       }
 
-      // Try to refresh token
+      // Try to refresh token using refresh_token from localStorage
       originalRequest._retry = true;
       isRefreshing = true;
 
       try {
-        // Get refresh token from auth store
-        const authStorage = localStorage.getItem('auth-storage');
-        if (!authStorage) {
-          throw new Error('No auth storage found');
-        }
-
-        const { state } = JSON.parse(authStorage);
-        const refreshToken = state?.refreshToken;
-
+        // Get refresh token from localStorage
+        const refreshToken = typeof window !== 'undefined' 
+          ? localStorage.getItem('auth_refresh_token') 
+          : null;
+        
         if (!refreshToken) {
           throw new Error('No refresh token available');
         }
 
-        // Call refresh endpoint - use raw axios to bypass our response interceptor
-        const refreshResponse = await axios.post(
-          `${API_BASE_URL}/api/v1/auth/refresh`,
-          {},
-          {
-            headers: {
-              'Authorization': `Bearer ${refreshToken}`
-            }
+        // Refresh token - send refresh_token via Authorization header
+        const refreshResponse = await apiClient.post('/api/v1/auth/refresh', {}, {
+          headers: {
+            Authorization: `Bearer ${refreshToken}`
           }
-        );
-
-        const { access_token, refresh_token } = refreshResponse.data;
+        });
         
-        // Update auth storage
-        const updatedState = {
-          ...state,
-          token: access_token,
-          refreshToken: refresh_token || refreshToken
-        };
-        localStorage.setItem('auth-storage', JSON.stringify({ state: updatedState }));
-        
-        // Update apiClient headers
-        apiClient.defaults.headers.common['Authorization'] = `Bearer ${access_token}`;
-        
-        // Process queued requests
-        processQueue(null, access_token);
-        isRefreshing = false;
-        
-        // Retry original request with new token
-        originalRequest.headers['Authorization'] = 'Bearer ' + access_token;
-        return apiClient(originalRequest);
+                    // Update tokens in localStorage
+                    if (refreshResponse.access_token) {
+                      localStorage.setItem('auth_access_token', refreshResponse.access_token);
+                    }
+                    if (refreshResponse.refresh_token) {
+                      localStorage.setItem('auth_refresh_token', refreshResponse.refresh_token);
+                    }
+                    // Note: Admin tokens (session_token, admin_token) are NOT refreshed
+                    // They persist from login until logout - keep existing ones in localStorage
+                    
+                    isRefreshing = false;
+                    
+                    // Retry original request with new access token
+                    originalRequest.headers.Authorization = `Bearer ${refreshResponse.access_token}`;
+                    // Preserve admin headers if they exist in localStorage
+                    const sessionToken = typeof window !== 'undefined' 
+                      ? localStorage.getItem('auth_session_token') 
+                      : null;
+                    const adminToken = typeof window !== 'undefined' 
+                      ? localStorage.getItem('auth_admin_token') 
+                      : null;
+                    if (sessionToken) {
+                      originalRequest.headers['X-Session-Token'] = sessionToken;
+                    }
+                    if (adminToken) {
+                      originalRequest.headers['X-Admin-Token'] = adminToken;
+                    }
+                    return apiClient(originalRequest);
       } catch (refreshError) {
-        processQueue(refreshError, null);
         isRefreshing = false;
         
         // Refresh failed - logout user
-        return handleAuthError(error);
+        return Promise.reject(handleAuthError(error));
       }
     }
 
     // Handle other errors
-    return handleNonAuthError(error);
+    return Promise.reject(handleNonAuthError(error));
   }
 );
 
@@ -237,8 +177,15 @@ function handleAuthError(error) {
   import('../store/authStore').then(({ useAuthStore }) => {
     useAuthStore.getState().logout();
   }).catch(() => {
-    // Fallback if import fails
-    localStorage.removeItem('auth-storage');
+    // Fallback if import fails - clear localStorage manually
+    if (typeof window !== 'undefined') {
+      localStorage.removeItem('auth_access_token');
+      localStorage.removeItem('auth_refresh_token');
+      localStorage.removeItem('auth_session_token');
+      localStorage.removeItem('auth_admin_token');
+      localStorage.removeItem('auth_user');
+    }
+    logger.warn(CONTEXT, 'Failed to import authStore for logout');
   });
 
   const normalizedError = {
@@ -267,12 +214,21 @@ function handleNonAuthError(error) {
     normalizedError.status = error.response.status;
     normalizedError.data = error.response.data;
     
+    // Preserve original message for ACCOUNT_NOT_VERIFIED (email verification)
+    const errorCode = error.response.data?.error || error.response.data?.error_code || '';
+    const isVerificationError = errorCode === 'ACCOUNT_NOT_VERIFIED';
+    
     switch (error.response.status) {
       case 400:
         normalizedError.message = error.response.data?.message || 'Bad request';
         break;
       case 403:
-        normalizedError.message = 'Access forbidden';
+        // Preserve original message for verification errors, otherwise generic message
+        if (isVerificationError && error.response.data?.message) {
+          normalizedError.message = error.response.data.message;
+        } else {
+          normalizedError.message = 'Access forbidden';
+        }
         break;
       case 404:
         normalizedError.message = 'Resource not found';

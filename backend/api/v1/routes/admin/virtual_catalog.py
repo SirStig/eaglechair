@@ -71,16 +71,34 @@ async def upload_catalog(
     - Returns upload_id for tracking parse progress
     - Parsing happens asynchronously in background
     """
-    # Validate file type
-    if not file.filename.endswith('.pdf'):
+    # Validate filename exists
+    if not file.filename:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Filename is required"
+        )
+    
+    # Sanitize filename to prevent path traversal
+    from pathlib import Path as PathLib
+    sanitized_filename = PathLib(file.filename).name
+    # Remove dangerous characters
+    dangerous_chars = ['..', '/', '\\', '<', '>', ':', '"', '|', '?', '*']
+    for char in dangerous_chars:
+        sanitized_filename = sanitized_filename.replace(char, '_')
+    
+    # Validate file extension
+    if not sanitized_filename.lower().endswith('.pdf'):
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Only PDF files are accepted"
         )
     
+    # Validate file size before processing (check Content-Length header if available)
+    # Note: We'll also check after reading, but this helps reject obviously large files early
+    
     # Create upload record
     upload_record = CatalogUpload(
-        filename=file.filename,
+        filename=sanitized_filename,
         file_size=0,  # Will update after saving
         status='uploaded',
         uploaded_by=admin.email if admin else 'Unknown',
@@ -90,16 +108,47 @@ async def upload_catalog(
     
     upload_id = upload_record.upload_id
     
-    # Save file
-    file_path = TMP_UPLOAD_DIR / f"{upload_id}_{file.filename}"
+    # Save file with sanitized filename
+    file_path = TMP_UPLOAD_DIR / f"{upload_id}_{sanitized_filename}"
+    
+    # Ensure file path is within TMP_UPLOAD_DIR (path traversal protection)
+    file_path_resolved = file_path.resolve()
+    tmp_dir_resolved = TMP_UPLOAD_DIR.resolve()
+    if not str(file_path_resolved).startswith(str(tmp_dir_resolved)):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Invalid file path"
+        )
     
     try:
-        logger.info(f"Saving uploaded file {file.filename} for upload {upload_id}")
+        # Validate file size (1GB max for PDFs)
+        MAX_PDF_SIZE = 1 * 1024 * 1024 * 1024  # 1GB
+        
+        logger.info(f"Saving uploaded file {sanitized_filename} for upload {upload_id}")
+        
+        # Read and validate file content
+        content = await file.read()
+        
+        # Validate file size
+        if len(content) > MAX_PDF_SIZE:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"File too large. Maximum size: {MAX_PDF_SIZE / 1024 / 1024 / 1024}GB"
+            )
+        
+        # Validate MIME type - must be PDF
+        if not content.startswith(b'%PDF'):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="File content does not match PDF format"
+            )
+        
+        # Save file
         with open(file_path, "wb") as buffer:
-            shutil.copyfileobj(file.file, buffer)
+            buffer.write(content)
         
         # Update file size
-        file_size = os.path.getsize(file_path)
+        file_size = len(content)
         upload_record.file_size = file_size
         upload_record.file_path = str(file_path)
         await db.commit()

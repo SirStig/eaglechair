@@ -212,7 +212,7 @@ const ProductDetailPage = () => {
             <span className={isLightTheme ? 'text-slate-800' : 'text-slate-800'}>{product.name}</span>
           </div>
 
-          <div className="grid lg:grid-cols-2 gap-8 lg:gap-12">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 sm:gap-8 lg:gap-12">
             {/* Image Gallery */}
             <div className="flex items-center justify-center">
               <div className="relative inline-block w-full">
@@ -222,7 +222,7 @@ const ProductDetailPage = () => {
                     src={images[selectedImage]}
                     alt={product.name}
                     className="w-full h-auto object-contain"
-                    style={{ maxHeight: '600px', mixBlendMode: 'multiply' }}
+                    style={{ maxHeight: '500px', mixBlendMode: 'multiply' }}
                   />
                 </div>
 
@@ -232,9 +232,9 @@ const ProductDetailPage = () => {
                     {/* Previous Button */}
                     <button
                       onClick={() => setSelectedImage(selectedImage === 0 ? images.length - 1 : selectedImage - 1)}
-                      className="absolute left-3 top-1/2 -translate-y-1/2 w-10 h-10 flex items-center justify-center bg-cream-50/80 hover:bg-cream-50 border border-cream-300 rounded-full transition-colors"
+                      className="absolute left-2 sm:left-3 top-1/2 -translate-y-1/2 w-10 h-10 sm:w-12 sm:h-12 flex items-center justify-center bg-cream-50/80 hover:bg-cream-50 border border-cream-300 rounded-full transition-colors min-w-[44px] min-h-[44px] z-10"
                     >
-                      <svg className="w-6 h-6 text-slate-800" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <svg className="w-5 h-5 sm:w-6 sm:h-6 text-slate-800" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
                       </svg>
                     </button>
@@ -242,9 +242,9 @@ const ProductDetailPage = () => {
                     {/* Next Button */}
                     <button
                       onClick={() => setSelectedImage(selectedImage === images.length - 1 ? 0 : selectedImage + 1)}
-                      className="absolute right-3 top-1/2 -translate-y-1/2 w-10 h-10 flex items-center justify-center bg-cream-50/80 hover:bg-cream-50 border border-cream-300 rounded-full transition-colors"
+                      className="absolute right-2 sm:right-3 top-1/2 -translate-y-1/2 w-10 h-10 sm:w-12 sm:h-12 flex items-center justify-center bg-cream-50/80 hover:bg-cream-50 border border-cream-300 rounded-full transition-colors min-w-[44px] min-h-[44px] z-10"
                     >
-                      <svg className="w-6 h-6 text-slate-800" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <svg className="w-5 h-5 sm:w-6 sm:h-6 text-slate-800" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
                       </svg>
                     </button>
@@ -284,7 +284,7 @@ const ProductDetailPage = () => {
                 onSave={handleUpdateProduct}
                 label="Product Name"
               >
-                <h1 className="text-4xl font-bold text-slate-800 mb-3">{product.name}</h1>
+                <h1 className="text-2xl sm:text-3xl md:text-4xl font-bold text-slate-800 mb-3">{product.name}</h1>
               </EditableWrapper>
               
               {/* Model Number */}
@@ -341,9 +341,9 @@ const ProductDetailPage = () => {
       {/* Specifications & Resources */}
       <section className="bg-white border-b border-cream-200">
         <div className="container mx-auto px-4 py-16 max-w-7xl">
-          <h2 className="text-3xl font-bold text-slate-800 mb-8">Specifications & Details</h2>
+          <h2 className="text-2xl sm:text-3xl font-bold text-slate-800 mb-6 sm:mb-8">Specifications & Details</h2>
 
-          <div className="grid lg:grid-cols-3 gap-8">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 sm:gap-8">
             {/* Features */}
             {product.features && product.features.length > 0 && (
               <div>
@@ -456,7 +456,7 @@ const ProductDetailPage = () => {
           </div>
 
           {/* Additional Details Row */}
-          <div className="grid lg:grid-cols-3 gap-8 mt-8 pt-8 border-t border-cream-200">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 sm:gap-8 mt-6 sm:mt-8 pt-6 sm:pt-8 border-t border-cream-200">
             {/* Construction Details */}
             {product.construction_details && (
               <div>
@@ -528,10 +528,10 @@ const ProductDetailPage = () => {
 
       {/* Customize & Quote Section */}
       <section ref={customizeRef} className="bg-cream-50 border-b border-cream-200 scroll-mt-20">
-        <div className="container mx-auto px-4 py-16 max-w-7xl">
-          <h2 className="text-3xl font-bold text-slate-800 mb-8">Customize & Request Quote</h2>
+        <div className="container mx-auto px-4 py-12 sm:py-16 max-w-7xl">
+          <h2 className="text-2xl sm:text-3xl font-bold text-slate-800 mb-6 sm:mb-8">Customize & Request Quote</h2>
 
-          <div className="grid lg:grid-cols-2 gap-12">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 lg:gap-12">
             {/* 3D Model Placeholder / Product Image */}
             <div className="flex items-center justify-center">
               <div className="relative inline-block">
@@ -539,8 +539,8 @@ const ProductDetailPage = () => {
                   <img
                     src={images[selectedImage]}
                     alt={product.name}
-                    className="h-auto object-contain"
-                    style={{ maxHeight: '600px', width: 'auto', mixBlendMode: 'multiply' }}
+                    className="w-full h-auto object-contain"
+                    style={{ maxHeight: '500px', mixBlendMode: 'multiply' }}
                   />
                   
                   {/* 3D Coming Soon Badge */}
@@ -612,12 +612,12 @@ const ProductDetailPage = () => {
                   <label className="block text-sm font-medium text-slate-700 mb-3">
                     Select Finish
                   </label>
-                  <div className="grid grid-cols-3 gap-3">
+                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 sm:gap-3">
                     {product.customizations.finishes.map((finish, idx) => (
                       <button
                         key={idx}
                         onClick={() => setSelectedFinish(finish)}
-                        className={`p-3 rounded-lg border-2 transition-all text-sm font-medium ${
+                        className={`p-3 rounded-lg border-2 transition-all text-sm font-medium min-h-[44px] ${
                           selectedFinish === finish
                             ? 'border-primary-600 bg-primary-50 text-primary-900'
                             : 'border-cream-300 bg-white text-slate-700 hover:border-primary-400'
@@ -655,12 +655,12 @@ const ProductDetailPage = () => {
                   <label className="block text-sm font-medium text-slate-700 mb-3">
                     Select Color
                   </label>
-                  <div className="grid grid-cols-4 gap-3">
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 sm:gap-3">
                     {product.customizations.colors.map((color, idx) => (
                       <button
                         key={idx}
                         onClick={() => setSelectedFinish(color)}
-                        className={`p-3 rounded-lg border-2 transition-all text-sm font-medium ${
+                        className={`p-3 rounded-lg border-2 transition-all text-sm font-medium min-h-[44px] ${
                           selectedFinish === color
                             ? 'border-primary-600 bg-primary-50 text-primary-900'
                             : 'border-cream-300 bg-white text-slate-700 hover:border-primary-400'
@@ -678,10 +678,10 @@ const ProductDetailPage = () => {
                 <label className="block text-sm font-medium text-slate-700 mb-3">
                   Quantity
                 </label>
-                <div className="flex items-center gap-3">
+                <div className="flex items-center gap-2 sm:gap-3">
                   <button
                     onClick={() => setQuantity(Math.max(1, quantity - 1))}
-                    className="w-12 h-12 flex items-center justify-center bg-white border border-cream-300 rounded-lg hover:bg-dark-700 transition-colors text-slate-800 font-bold text-xl"
+                    className="w-12 h-12 sm:w-14 sm:h-14 flex items-center justify-center bg-white border border-cream-300 rounded-lg hover:bg-cream-100 transition-colors text-slate-800 font-bold text-xl min-w-[48px] min-h-[48px]"
                   >
                     −
                   </button>
@@ -689,12 +689,12 @@ const ProductDetailPage = () => {
                     type="number"
                     value={quantity}
                     onChange={(e) => setQuantity(Math.max(1, parseInt(e.target.value) || 1))}
-                    className="w-20 h-12 text-center border border-cream-300 bg-white text-slate-800 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 font-semibold text-lg"
+                    className="w-20 sm:w-24 h-12 sm:h-14 text-center border border-cream-300 bg-white text-slate-800 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 font-semibold text-base sm:text-lg"
                     min="1"
                   />
                   <button
                     onClick={() => setQuantity(quantity + 1)}
-                    className="w-12 h-12 flex items-center justify-center bg-white border border-cream-300 rounded-lg hover:bg-dark-700 transition-colors text-slate-800 font-bold text-xl"
+                    className="w-12 h-12 sm:w-14 sm:h-14 flex items-center justify-center bg-white border border-cream-300 rounded-lg hover:bg-cream-100 transition-colors text-slate-800 font-bold text-xl min-w-[48px] min-h-[48px]"
                   >
                     +
                   </button>
@@ -741,7 +741,7 @@ const ProductDetailPage = () => {
       {relatedProducts.length > 0 && (
         <section className="bg-white">
           <div className="container mx-auto px-4 py-12 max-w-7xl">
-            <h2 className="text-3xl font-bold text-slate-800 mb-8">Recommended Products</h2>
+            <h2 className="text-2xl sm:text-3xl font-bold text-slate-800 mb-6 sm:mb-8">Recommended Products</h2>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
               {relatedProducts.map((relatedProduct) => (
                 <ProductCard

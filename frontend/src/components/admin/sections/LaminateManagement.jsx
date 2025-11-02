@@ -158,16 +158,16 @@ const LaminateManagement = () => {
             </p>
           </div>
         ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full">
+          <div className="overflow-x-auto -mx-4 sm:mx-0">
+            <table className="w-full min-w-[800px]">
               <thead>
                 <tr className="border-b border-dark-700">
-                  <th className="px-4 py-3 text-left text-sm font-semibold text-dark-300 uppercase tracking-wider">Swatch</th>
-                  <th className="px-4 py-3 text-left text-sm font-semibold text-dark-300 uppercase tracking-wider">Brand</th>
-                  <th className="px-4 py-3 text-left text-sm font-semibold text-dark-300 uppercase tracking-wider">Pattern</th>
-                  <th className="px-4 py-3 text-left text-sm font-semibold text-dark-300 uppercase tracking-wider">Code</th>
-                  <th className="px-4 py-3 text-left text-sm font-semibold text-dark-300 uppercase tracking-wider">Status</th>
-                  <th className="px-4 py-3 text-right text-sm font-semibold text-dark-300 uppercase tracking-wider">Actions</th>
+                  <th className="px-3 sm:px-4 py-3 text-left text-xs sm:text-sm font-semibold text-dark-300 uppercase tracking-wider">Swatch</th>
+                  <th className="px-3 sm:px-4 py-3 text-left text-xs sm:text-sm font-semibold text-dark-300 uppercase tracking-wider">Brand</th>
+                  <th className="px-3 sm:px-4 py-3 text-left text-xs sm:text-sm font-semibold text-dark-300 uppercase tracking-wider">Pattern</th>
+                  <th className="px-3 sm:px-4 py-3 text-left text-xs sm:text-sm font-semibold text-dark-300 uppercase tracking-wider">Code</th>
+                  <th className="px-3 sm:px-4 py-3 text-left text-xs sm:text-sm font-semibold text-dark-300 uppercase tracking-wider">Status</th>
+                  <th className="px-3 sm:px-4 py-3 text-right text-xs sm:text-sm font-semibold text-dark-300 uppercase tracking-wider">Actions</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-dark-700">

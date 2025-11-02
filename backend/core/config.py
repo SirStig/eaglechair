@@ -10,7 +10,7 @@ from functools import lru_cache
 from typing import Optional
 
 from dotenv import load_dotenv
-from pydantic import field_validator
+from pydantic import field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -79,8 +79,16 @@ class Settings(BaseSettings):
         "https://eaglechair.com",
     ]
     CORS_ALLOW_CREDENTIALS: bool = True
-    CORS_ALLOW_METHODS: list[str] = ["*"]
-    CORS_ALLOW_HEADERS: list[str] = ["*"]
+    # Restricted methods for security - only allow necessary HTTP methods
+    CORS_ALLOW_METHODS: list[str] = ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"]
+    # Restricted headers - only allow necessary headers
+    CORS_ALLOW_HEADERS: list[str] = [
+        "Authorization",
+        "Content-Type",
+        "X-Session-Token",
+        "X-Admin-Token",
+        "X-Request-ID",
+    ]
     
     @field_validator('CORS_ORIGINS', 'CORS_ALLOW_METHODS', 'CORS_ALLOW_HEADERS', mode='before')
     @classmethod
@@ -157,7 +165,10 @@ class Settings(BaseSettings):
     SECURE_SSL_REDIRECT: bool = False  # Disable - proxy handles HTTPS
     
     # Reverse Proxy Configuration (DreamHost VPS)
-    FORWARDED_ALLOW_IPS: str = "*"  # Trust all proxy IPs (or set to your proxy IP)
+    # IMPORTANT: Set FORWARDED_ALLOW_IPS to your specific proxy IP(s) in production
+    # Example: "127.0.0.1,::1" for local proxy, or "203.0.113.0/24" for CIDR notation
+    # DO NOT use "*" in production - this trusts all proxies and is a security risk
+    FORWARDED_ALLOW_IPS: str = "*"  # Development default - MUST be overridden in production
     ROOT_PATH: str = ""  # Set to "/api" if proxy strips path prefix
     ALLOWED_HOSTS: list[str] = ["*"]  # Or specify your domain
     PROXY_HEADERS: bool = True  # Enable proxy header support
@@ -211,6 +222,78 @@ class Settings(BaseSettings):
     def is_production(self) -> bool:
         """Check if running in production mode"""
         return not self.DEBUG and not self.TESTING
+    
+    @model_validator(mode='after')
+    def validate_production_settings(self):
+        """
+        Validate that production environment is properly configured.
+        
+        This validator runs after all fields are set and ensures that:
+        - SECRET_KEY is not the default value
+        - SECRET_KEY meets minimum length requirements
+        - DATABASE_URL is not the default value
+        - DEBUG is False
+        - Required production variables are set
+        """
+        if not self.is_production:
+            # Skip validation in development/testing
+            return self
+        
+        errors = []
+        
+        # Validate SECRET_KEY
+        default_secret = "your-secret-key-change-this-in-production"
+        if self.SECRET_KEY == default_secret:
+            errors.append(
+                "SECRET_KEY must be set via environment variable in production. "
+                "Default value is not allowed."
+            )
+        elif len(self.SECRET_KEY) < 32:
+            errors.append(
+                f"SECRET_KEY must be at least 32 characters in production. "
+                f"Current length: {len(self.SECRET_KEY)}"
+            )
+        
+        # Validate DATABASE_URL
+        default_db_url = "postgresql://postgres:postgres@postgres:5432/eaglechair"
+        if self.DATABASE_URL == default_db_url:
+            errors.append(
+                "DATABASE_URL must be set via environment variable in production. "
+                "Default value is not allowed."
+            )
+        
+        # Validate DEBUG is False
+        if self.DEBUG:
+            errors.append(
+                "DEBUG must be False in production. Set DEBUG=false in environment variables."
+            )
+        
+        # Validate required production variables
+        required_vars = {
+            'SMTP_HOST': self.SMTP_HOST,
+            'SMTP_USER': self.SMTP_USER,
+            'SMTP_PASSWORD': self.SMTP_PASSWORD,
+        }
+        
+        missing_vars = [var for var, value in required_vars.items() if not value]
+        if missing_vars:
+            errors.append(
+                f"Required production variables are missing: {', '.join(missing_vars)}. "
+                "Please set these via environment variables."
+            )
+        
+        # Validate FORWARDED_ALLOW_IPS is not wildcard
+        if self.FORWARDED_ALLOW_IPS == "*":
+            errors.append(
+                "FORWARDED_ALLOW_IPS should be set to specific proxy IP addresses in production, "
+                "not '*' (wildcard). Set FORWARDED_ALLOW_IPS to your proxy IP(s)."
+            )
+        
+        if errors:
+            error_message = "Production environment validation failed:\n" + "\n".join(f"  - {err}" for err in errors)
+            raise ValueError(error_message)
+        
+        return self
 
 
 @lru_cache()

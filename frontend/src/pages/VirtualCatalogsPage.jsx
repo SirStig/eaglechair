@@ -45,7 +45,7 @@ const VirtualCatalogsPage = () => {
               <Link to="/" className="text-primary-500 hover:text-primary-400 text-sm mb-2 inline-block">
                 ← Back to Home
               </Link>
-              <h1 className="text-3xl md:text-4xl font-bold text-dark-50">Virtual Catalogs</h1>
+              <h1 className="text-2xl sm:text-3xl md:text-4xl font-bold text-dark-50">Virtual Catalogs</h1>
               <p className="text-dark-300 mt-2">Download product catalogs, line sheets, and guides</p>
             </div>
           </div>
@@ -104,7 +104,7 @@ const VirtualCatalogsPage = () => {
             </p>
           </div>
         ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6">
             {filteredCatalogs.map((catalog, index) => (
               <motion.div
                 key={catalog.id}

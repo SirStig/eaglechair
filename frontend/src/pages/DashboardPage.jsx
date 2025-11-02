@@ -31,6 +31,9 @@ const DashboardPage = () => {
   const cartStore = useCartStore();
   const cartItems = cartStore?.items || [];
   
+  // Check if user needs email verification
+  const isUnverified = user && user.type === 'company' && !user.isVerified;
+  
   // Determine active tab from URL
   const getActiveTabFromPath = () => {
     const path = location.pathname;
@@ -127,15 +130,38 @@ const DashboardPage = () => {
 
   return (
     <div className="min-h-screen bg-dark-800 flex flex-col">
-      {/* Main Container */}
-      <div className="flex flex-1 pt-[88px] md:pt-24"> {/* Account for header: mobile ~88px, desktop ~96px */}
+      {/* Verification Banner - Fixed at top after header */}
+      {isUnverified && (
+        <div className="fixed top-[72px] sm:top-[88px] md:top-24 left-0 right-0 bg-yellow-900/30 border-b border-yellow-600 px-4 py-3 z-20">
+          <div className="container max-w-7xl mx-auto flex items-center gap-3">
+            <XCircle className="w-5 h-5 text-yellow-400 flex-shrink-0" />
+            <div className="flex-1">
+              <p className="text-sm font-medium text-yellow-300">
+                Please verify your email address to create quote requests.
+              </p>
+              <p className="text-xs text-yellow-400/80 mt-0.5">
+                Check your email for the verification link or{' '}
+                <button
+                  onClick={() => navigate('/verify-email', { state: { email: user?.email } })}
+                  className="underline hover:text-yellow-300"
+                >
+                  resend verification email
+                </button>
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
+      
+      {/* Main Container - Adjust for banner height when shown */}
+      <div className={`flex flex-1 pt-[88px] md:pt-24 ${isUnverified ? 'pt-[140px] md:pt-32' : ''}`}>
         
-        {/* Sidebar */}
+        {/* Sidebar - Adjust top position when banner is shown */}
         <aside className={`
-          fixed top-[88px] md:top-24 left-0 bottom-0
+          fixed ${isUnverified ? 'top-[136px] sm:top-[152px] md:top-40' : 'top-[72px] sm:top-[88px] md:top-24'} left-0 bottom-0
           bg-dark-700 border-r border-dark-600 
           transition-all duration-300 z-30 overflow-y-auto
-          ${isSidebarOpen ? 'w-64' : 'w-0 md:w-20'}
+          ${isSidebarOpen ? 'w-64' : 'w-0 overflow-hidden md:w-20'}
         `}>
           <div className="p-4 pb-20"> {/* Add padding bottom for footer clearance */}
             {/* Company Info */}
@@ -291,26 +317,26 @@ const DashboardPage = () => {
                     </div>
                   </div>
                   
-                  <div className="overflow-x-auto">
-                    <table className="w-full">
+                  <div className="overflow-x-auto -mx-4 sm:mx-0">
+                    <table className="w-full min-w-[640px]">
                       <thead className="bg-dark-600 border-b border-dark-500">
                         <tr>
-                          <th className="px-6 py-3 text-left text-xs font-medium text-dark-200 uppercase tracking-wider">
+                          <th className="px-3 sm:px-6 py-3 text-left text-xs font-medium text-dark-200 uppercase tracking-wider">
                             Quote #
                           </th>
-                          <th className="px-6 py-3 text-left text-xs font-medium text-dark-200 uppercase tracking-wider">
+                          <th className="px-3 sm:px-6 py-3 text-left text-xs font-medium text-dark-200 uppercase tracking-wider">
                             Project
                           </th>
-                          <th className="px-6 py-3 text-left text-xs font-medium text-dark-200 uppercase tracking-wider">
+                          <th className="px-3 sm:px-6 py-3 text-left text-xs font-medium text-dark-200 uppercase tracking-wider">
                             Date
                           </th>
-                          <th className="px-6 py-3 text-left text-xs font-medium text-dark-200 uppercase tracking-wider">
+                          <th className="px-3 sm:px-6 py-3 text-left text-xs font-medium text-dark-200 uppercase tracking-wider">
                             Status
                           </th>
-                          <th className="px-6 py-3 text-left text-xs font-medium text-dark-200 uppercase tracking-wider">
+                          <th className="px-3 sm:px-6 py-3 text-left text-xs font-medium text-dark-200 uppercase tracking-wider">
                             Items
                           </th>
-                          <th className="px-6 py-3 text-right text-xs font-medium text-dark-200 uppercase tracking-wider">
+                          <th className="px-3 sm:px-6 py-3 text-right text-xs font-medium text-dark-200 uppercase tracking-wider">
                             Total
                           </th>
                         </tr>
@@ -318,28 +344,29 @@ const DashboardPage = () => {
                       <tbody className="bg-dark-700 divide-y divide-dark-600">
                         {dashboardData?.recentQuotes?.map((quote) => (
                           <tr key={quote.id} className="hover:bg-dark-600 transition-colors">
-                            <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-dark-50">
+                            <td className="px-3 sm:px-6 py-4 whitespace-nowrap text-sm font-medium text-dark-50">
                               {quote.quoteNumber}
                             </td>
-                            <td className="px-6 py-4 whitespace-nowrap text-sm text-dark-100">
+                            <td className="px-3 sm:px-6 py-4 whitespace-nowrap text-sm text-dark-100">
                               {quote.projectName || 'Untitled Project'}
                             </td>
-                            <td className="px-6 py-4 whitespace-nowrap text-sm text-dark-100">
+                            <td className="px-3 sm:px-6 py-4 whitespace-nowrap text-sm text-dark-100">
                               {formatDate(quote.createdAt)}
                             </td>
-                            <td className="px-6 py-4 whitespace-nowrap">
+                            <td className="px-3 sm:px-6 py-4 whitespace-nowrap">
                               {getStatusBadge(quote.status)}
                             </td>
-                            <td className="px-6 py-4 whitespace-nowrap text-sm text-dark-100">
+                            <td className="px-3 sm:px-6 py-4 whitespace-nowrap text-sm text-dark-100">
                               {quote.itemCount} items
                             </td>
-                            <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-dark-50 text-right">
+                            <td className="px-3 sm:px-6 py-4 whitespace-nowrap text-sm font-medium text-dark-50 text-right">
                               {quote.totalAmount ? formatCurrency(quote.totalAmount) : 'TBD'}
                             </td>
                           </tr>
                         ))}
                       </tbody>
                     </table>
+                  </div>
                     
                     {!dashboardData?.recentQuotes?.length && (
                       <div className="text-center py-12">
@@ -350,7 +377,6 @@ const DashboardPage = () => {
                         </Button>
                       </div>
                     )}
-                  </div>
                 </Card>
               </div>
             )}
@@ -374,7 +400,7 @@ const DashboardPage = () => {
                             key={filter}
                             onClick={() => setQuoteFilter(filter)}
                             className={`
-                              px-4 py-2 rounded-lg text-sm font-medium transition-colors
+                              px-3 sm:px-4 py-2 rounded-lg text-xs sm:text-sm font-medium transition-colors min-h-[44px]
                               ${quoteFilter === filter
                                 ? 'bg-primary-600 text-white'
                                 : 'bg-dark-700 text-dark-100 hover:bg-dark-600 border border-dark-600'
@@ -462,7 +488,7 @@ const DashboardPage = () => {
       {/* Mobile Sidebar Toggle */}
       <button
         onClick={() => setIsSidebarOpen(!isSidebarOpen)}
-        className="fixed bottom-6 right-6 md:hidden w-14 h-14 bg-primary-600 text-white rounded-full shadow-lg flex items-center justify-center z-40 hover:bg-primary-700 transition-colors"
+        className="fixed bottom-6 right-6 md:hidden w-14 h-14 bg-primary-600 text-white rounded-full shadow-lg flex items-center justify-center z-40 hover:bg-primary-700 transition-colors min-w-[56px] min-h-[56px]"
         aria-label="Toggle sidebar"
       >
         <LayoutDashboard className="w-6 h-6" />

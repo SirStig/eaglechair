@@ -85,7 +85,7 @@ const DashboardOverview = ({ onNavigate }) => {
   ];
 
   return (
-    <div className="p-8 space-y-8">
+    <div className="p-4 sm:p-6 lg:p-8 space-y-6 sm:space-y-8">
       {/* Welcome Section */}
       <div>
         <h1 className="text-3xl font-bold text-dark-50 mb-2">Welcome Back!</h1>

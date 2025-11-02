@@ -135,9 +135,9 @@ const ProductCatalog = ({ onEdit }) => {
   return (
     <div className="p-8 space-y-6">
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
-          <h2 className="text-2xl font-bold text-dark-50">Product Catalog</h2>
+          <h2 className="text-xl sm:text-2xl font-bold text-dark-50">Product Catalog</h2>
           <p className="text-dark-300 mt-1">
             Manage all products, variations, and inventory
           </p>
@@ -153,7 +153,7 @@ const ProductCatalog = ({ onEdit }) => {
 
       {/* Filters */}
       <Card>
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
           <div>
             <label className="block text-sm font-medium text-dark-200 mb-2">
               Search Products
@@ -260,11 +260,11 @@ const ProductCatalog = ({ onEdit }) => {
             </Button>
           </div>
         ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full">
+          <div className="overflow-x-auto -mx-4 sm:mx-0">
+            <table className="w-full min-w-[1000px]">
               <thead>
                 <tr className="border-b border-dark-600">
-                  <th className="px-4 py-3 text-left">
+                  <th className="px-3 sm:px-4 py-3 text-left">
                     <input
                       type="checkbox"
                       checked={selectedProducts.length === products.length}
@@ -272,25 +272,25 @@ const ProductCatalog = ({ onEdit }) => {
                       className="rounded border-dark-600 bg-dark-700"
                     />
                   </th>
-                  <th className="px-4 py-3 text-left text-sm font-medium text-dark-300">Image</th>
-                  <th className="px-4 py-3 text-left text-sm font-medium text-dark-300">Product</th>
-                  <th className="px-4 py-3 text-left text-sm font-medium text-dark-300">Model</th>
-                  <th className="px-4 py-3 text-left text-sm font-medium text-dark-300">Category</th>
-                  <th className="px-4 py-3 text-left text-sm font-medium text-dark-300">Price</th>
-                  <th className="px-4 py-3 text-center text-sm font-medium text-dark-300">
+                  <th className="px-3 sm:px-4 py-3 text-left text-xs sm:text-sm font-medium text-dark-300">Image</th>
+                  <th className="px-3 sm:px-4 py-3 text-left text-xs sm:text-sm font-medium text-dark-300">Product</th>
+                  <th className="px-3 sm:px-4 py-3 text-left text-xs sm:text-sm font-medium text-dark-300">Model</th>
+                  <th className="px-3 sm:px-4 py-3 text-left text-xs sm:text-sm font-medium text-dark-300">Category</th>
+                  <th className="px-3 sm:px-4 py-3 text-left text-xs sm:text-sm font-medium text-dark-300">Price</th>
+                  <th className="px-3 sm:px-4 py-3 text-center text-xs sm:text-sm font-medium text-dark-300">
                     <div className="flex items-center justify-center gap-1">
-                      <TrendingUp className="w-4 h-4" />
+                      <TrendingUp className="w-3 h-3 sm:w-4 sm:h-4" />
                       Views
                     </div>
                   </th>
-                  <th className="px-4 py-3 text-center text-sm font-medium text-dark-300">
+                  <th className="px-3 sm:px-4 py-3 text-center text-xs sm:text-sm font-medium text-dark-300">
                     <div className="flex items-center justify-center gap-1">
-                      <MessageSquareQuote className="w-4 h-4" />
+                      <MessageSquareQuote className="w-3 h-3 sm:w-4 sm:h-4" />
                       Quotes
                     </div>
                   </th>
-                  <th className="px-4 py-3 text-left text-sm font-medium text-dark-300">Status</th>
-                  <th className="px-4 py-3 text-right text-sm font-medium text-dark-300">Actions</th>
+                  <th className="px-3 sm:px-4 py-3 text-left text-xs sm:text-sm font-medium text-dark-300">Status</th>
+                  <th className="px-3 sm:px-4 py-3 text-right text-xs sm:text-sm font-medium text-dark-300">Actions</th>
                 </tr>
               </thead>
               <tbody>

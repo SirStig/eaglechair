@@ -13,7 +13,7 @@ const Input = forwardRef(({
   ...props 
 }, ref) => {
   const inputClasses = clsx(
-    'w-full rounded-lg border px-4 py-2.5 focus:outline-none transition-all bg-dark-700 text-dark-50 placeholder-dark-200',
+    'w-full rounded-lg border px-4 py-2.5 focus:outline-none transition-all bg-dark-700 text-dark-50 placeholder-dark-200 text-base',
     error 
       ? 'border-secondary-600 focus:border-secondary-500 focus:ring-2 focus:ring-secondary-500' 
       : 'border-dark-400 focus:border-primary-500 focus:ring-2 focus:ring-primary-500',

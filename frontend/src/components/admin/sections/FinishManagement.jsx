@@ -183,32 +183,32 @@ const FinishManagement = () => {
             )}
           </div>
         ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full">
+          <div className="overflow-x-auto -mx-4 sm:mx-0">
+            <table className="w-full min-w-[1000px]">
               <thead>
                 <tr className="border-b border-dark-700">
-                  <th className="px-4 py-3 text-left text-sm font-semibold text-dark-300 uppercase tracking-wider">
+                  <th className="px-3 sm:px-4 py-3 text-left text-xs sm:text-sm font-semibold text-dark-300 uppercase tracking-wider">
                     Sample
                   </th>
-                  <th className="px-4 py-3 text-left text-sm font-semibold text-dark-300 uppercase tracking-wider">
+                  <th className="px-3 sm:px-4 py-3 text-left text-xs sm:text-sm font-semibold text-dark-300 uppercase tracking-wider">
                     Name
                   </th>
-                  <th className="px-4 py-3 text-left text-sm font-semibold text-dark-300 uppercase tracking-wider">
+                  <th className="px-3 sm:px-4 py-3 text-left text-xs sm:text-sm font-semibold text-dark-300 uppercase tracking-wider">
                     Code
                   </th>
-                  <th className="px-4 py-3 text-left text-sm font-semibold text-dark-300 uppercase tracking-wider">
+                  <th className="px-3 sm:px-4 py-3 text-left text-xs sm:text-sm font-semibold text-dark-300 uppercase tracking-wider">
                     Type
                   </th>
-                  <th className="px-4 py-3 text-left text-sm font-semibold text-dark-300 uppercase tracking-wider">
+                  <th className="px-3 sm:px-4 py-3 text-left text-xs sm:text-sm font-semibold text-dark-300 uppercase tracking-wider">
                     Color
                   </th>
-                  <th className="px-4 py-3 text-left text-sm font-semibold text-dark-300 uppercase tracking-wider">
+                  <th className="px-3 sm:px-4 py-3 text-left text-xs sm:text-sm font-semibold text-dark-300 uppercase tracking-wider">
                     Price
                   </th>
-                  <th className="px-4 py-3 text-left text-sm font-semibold text-dark-300 uppercase tracking-wider">
+                  <th className="px-3 sm:px-4 py-3 text-left text-xs sm:text-sm font-semibold text-dark-300 uppercase tracking-wider">
                     Status
                   </th>
-                  <th className="px-4 py-3 text-right text-sm font-semibold text-dark-300 uppercase tracking-wider">
+                  <th className="px-3 sm:px-4 py-3 text-right text-xs sm:text-sm font-semibold text-dark-300 uppercase tracking-wider">
                     Actions
                   </th>
                 </tr>
@@ -217,72 +217,72 @@ const FinishManagement = () => {
                 {finishes.map((finish) => (
                   <tr key={finish.id} className="hover:bg-dark-750 transition-colors">
                     {/* Sample */}
-                    <td className="px-4 py-3">
+                    <td className="px-3 sm:px-4 py-3">
                       {finish.image_url ? (
                         <img
                           src={resolveImageUrl(finish.image_url)}
                           alt={finish.name}
-                          className="w-12 h-12 object-cover rounded border border-dark-600"
+                          className="w-10 h-10 sm:w-12 sm:h-12 object-cover rounded border border-dark-600"
                         />
                       ) : finish.color_hex ? (
                         <div
-                          className="w-12 h-12 rounded border-2 border-dark-600"
+                          className="w-10 h-10 sm:w-12 sm:h-12 rounded border-2 border-dark-600"
                           style={{ backgroundColor: finish.color_hex }}
                           title={finish.color_hex}
                         />
                       ) : (
-                        <div className="w-12 h-12 rounded border border-dark-600 flex items-center justify-center bg-dark-700">
-                          <Palette className="w-6 h-6 text-dark-500" />
+                        <div className="w-10 h-10 sm:w-12 sm:h-12 rounded border border-dark-600 flex items-center justify-center bg-dark-700">
+                          <Palette className="w-5 h-5 sm:w-6 sm:h-6 text-dark-500" />
                         </div>
                       )}
                     </td>
 
                     {/* Name */}
-                    <td className="px-4 py-3">
-                      <div className="font-semibold text-dark-50">{finish.name}</div>
+                    <td className="px-3 sm:px-4 py-3">
+                      <div className="font-semibold text-xs sm:text-sm md:text-base text-dark-50">{finish.name}</div>
                       {finish.description && (
-                        <div className="text-sm text-dark-400 mt-0.5 max-w-xs truncate">
+                        <div className="text-[10px] sm:text-xs text-dark-400 mt-0.5 max-w-xs truncate">
                           {finish.description}
                         </div>
                       )}
                     </td>
 
                     {/* Code */}
-                    <td className="px-4 py-3">
+                    <td className="px-3 sm:px-4 py-3">
                       {finish.finish_code ? (
                         <span className="px-2 py-1 bg-dark-700 text-dark-300 text-xs rounded font-mono">
                           {finish.finish_code}
                         </span>
                       ) : (
-                        <span className="text-dark-500 text-sm">—</span>
+                        <span className="text-dark-500 text-xs sm:text-sm">—</span>
                       )}
                     </td>
 
                     {/* Type */}
-                    <td className="px-4 py-3">
+                    <td className="px-3 sm:px-4 py-3">
                       {finish.finish_type ? (
                         <span className="px-2 py-1 bg-primary-900/30 text-primary-400 text-xs rounded">
                           {finish.finish_type}
                         </span>
                       ) : (
-                        <span className="text-dark-500 text-sm">—</span>
+                        <span className="text-dark-500 text-xs sm:text-sm">—</span>
                       )}
                     </td>
 
                     {/* Color */}
-                    <td className="px-4 py-3">
-                      <div className="text-sm text-dark-300">
+                    <td className="px-3 sm:px-4 py-3">
+                      <div className="text-xs sm:text-sm text-dark-300">
                         {finish.color_id ? getColorName(finish.color_id) : (
                           finish.color_hex ? (
-                            <span className="font-mono text-xs">{finish.color_hex}</span>
+                            <span className="font-mono text-[10px] sm:text-xs">{finish.color_hex}</span>
                           ) : '—'
                         )}
                       </div>
                     </td>
 
                     {/* Price */}
-                    <td className="px-4 py-3">
-                      <div className="text-sm text-dark-300">
+                    <td className="px-3 sm:px-4 py-3">
+                      <div className="text-xs sm:text-sm text-dark-300">
                         {finish.additional_cost > 0 ? (
                           <span className="font-semibold">+${(finish.additional_cost / 100).toFixed(2)}</span>
                         ) : (
@@ -292,7 +292,7 @@ const FinishManagement = () => {
                     </td>
 
                     {/* Status */}
-                    <td className="px-4 py-3">
+                    <td className="px-3 sm:px-4 py-3">
                       <span className={`px-2 py-1 text-xs rounded ${
                         finish.is_active
                           ? 'bg-green-900/30 text-green-400'
@@ -303,7 +303,7 @@ const FinishManagement = () => {
                     </td>
 
                     {/* Actions */}
-                    <td className="px-4 py-3 text-right">
+                    <td className="px-3 sm:px-4 py-3 text-right">
                       <div className="flex justify-end gap-2">
                         <button
                           onClick={() => handleEdit(finish)}

@@ -95,7 +95,8 @@ const ProductFamilyDetailPage = () => {
         </button>
 
         {/* Breadcrumb */}
-        <div className="mb-6 text-sm text-slate-600">
+        <div className="mb-4 sm:mb-6 text-xs sm:text-sm text-slate-600 overflow-x-auto pb-2">
+          <div className="flex items-center whitespace-nowrap min-w-fit">
           <Link to="/" className="hover:text-primary-500">Home</Link>
           {' '}/{' '}
           <Link to="/products" className="hover:text-primary-500">Products</Link>
@@ -107,12 +108,13 @@ const ProductFamilyDetailPage = () => {
           )}
           {' '}/{' '}
           <span className="text-slate-800 font-medium">{family.name}</span>
+          </div>
         </div>
 
         {/* Family Header */}
         <div className="mb-8">
           {/* Two Column Layout */}
-          <div className="grid lg:grid-cols-[400px_1fr] gap-8 mb-8">
+          <div className="grid grid-cols-1 lg:grid-cols-[400px_1fr] gap-6 sm:gap-8 mb-6 sm:mb-8">
             {/* Left Column - Family Image and Info */}
             <div className="space-y-6">
               {/* Banner Image - Portrait aspect */}
@@ -129,7 +131,7 @@ const ProductFamilyDetailPage = () => {
 
               {/* Family Info */}
               <div>
-                <h1 className="text-4xl font-bold mb-3 text-slate-800">
+                <h1 className="text-2xl sm:text-3xl md:text-4xl font-bold mb-3 text-slate-800">
                   {family.name}
                 </h1>
                 {family.category_name && (
@@ -159,8 +161,8 @@ const ProductFamilyDetailPage = () => {
 
             {/* Right Column - Products */}
             <div className="space-y-6">
-              <div className="flex items-center justify-between">
-                <h2 className="text-2xl font-bold text-slate-800">
+              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+                <h2 className="text-xl sm:text-2xl font-bold text-slate-800">
                   Products in {family.name}
                 </h2>
                 
@@ -168,7 +170,7 @@ const ProductFamilyDetailPage = () => {
                 <div className="flex items-center gap-2 bg-white border border-cream-200 rounded-lg p-1">
                   <button
                     onClick={() => setViewMode('grid')}
-                    className={`p-2 rounded transition-colors ${
+                    className={`p-2 rounded transition-colors min-w-[44px] min-h-[44px] flex items-center justify-center ${
                       viewMode === 'grid'
                         ? 'bg-primary-600 text-white'
                         : 'text-slate-600 hover:bg-cream-100'
@@ -179,7 +181,7 @@ const ProductFamilyDetailPage = () => {
                   </button>
                   <button
                     onClick={() => setViewMode('list')}
-                    className={`p-2 rounded transition-colors ${
+                    className={`p-2 rounded transition-colors min-w-[44px] min-h-[44px] flex items-center justify-center ${
                       viewMode === 'list'
                         ? 'bg-primary-600 text-white'
                         : 'text-slate-600 hover:bg-cream-100'
@@ -208,7 +210,7 @@ const ProductFamilyDetailPage = () => {
                   </Button>
                 </div>
               ) : viewMode === 'grid' ? (
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-6">
               {products.map((product) => (
                 <ProductCard
                   key={product.id}
@@ -222,10 +224,10 @@ const ProductFamilyDetailPage = () => {
               {products.map((product) => (
                 <div
                   key={product.id}
-                  className="bg-white rounded-xl shadow-md border border-cream-200 p-6 flex flex-col md:flex-row gap-6 hover:shadow-lg transition-shadow"
+                  className="bg-white rounded-xl shadow-md border border-cream-200 p-4 sm:p-6 flex flex-col md:flex-row gap-4 sm:gap-6 hover:shadow-lg transition-shadow"
                 >
                   {/* Product Image */}
-                  <div className="md:w-48 h-48 flex-shrink-0">
+                  <div className="w-full md:w-48 h-48 flex-shrink-0 mx-auto md:mx-0">
                     <Link to={`/products/${product.slug || product.id}`}>
                       <img
                         src={product.primary_image_url || product.images?.[0]?.url || '/placeholder-product.jpg'}
@@ -255,14 +257,14 @@ const ProductFamilyDetailPage = () => {
                       </p>
                     )}
 
-                    <div className="flex items-center justify-between">
+                    <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 sm:gap-4">
                       {product.base_price && (
-                        <span className="text-2xl font-bold text-slate-900">
+                        <span className="text-xl sm:text-2xl font-bold text-slate-900">
                           ${(product.base_price / 100).toFixed(2)}
                         </span>
                       )}
 
-                      <div className="flex gap-2">
+                      <div className="flex flex-col sm:flex-row gap-2">
                         <Button
                           variant="outline"
                           size="sm"

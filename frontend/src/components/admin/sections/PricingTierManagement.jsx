@@ -158,29 +158,29 @@ const PricingTierManagement = () => {
         </Card>
       ) : (
         <Card className="bg-dark-800 border-dark-700 overflow-hidden">
-          <div className="overflow-x-auto">
-            <table className="w-full">
+          <div className="overflow-x-auto -mx-4 sm:mx-0">
+            <table className="w-full min-w-[1000px]">
               <thead className="bg-dark-700 border-b border-dark-600">
                 <tr>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-dark-200 uppercase tracking-wider">
+                  <th className="px-3 sm:px-6 py-3 text-left text-[10px] sm:text-xs font-medium text-dark-200 uppercase tracking-wider">
                     Tier Name
                   </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-dark-200 uppercase tracking-wider">
+                  <th className="px-3 sm:px-6 py-3 text-left text-[10px] sm:text-xs font-medium text-dark-200 uppercase tracking-wider">
                     Adjustment
                   </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-dark-200 uppercase tracking-wider">
+                  <th className="px-3 sm:px-6 py-3 text-left text-[10px] sm:text-xs font-medium text-dark-200 uppercase tracking-wider">
                     Scope
                   </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-dark-200 uppercase tracking-wider">
+                  <th className="px-3 sm:px-6 py-3 text-left text-[10px] sm:text-xs font-medium text-dark-200 uppercase tracking-wider">
                     Date Range
                   </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-dark-200 uppercase tracking-wider">
+                  <th className="px-3 sm:px-6 py-3 text-left text-[10px] sm:text-xs font-medium text-dark-200 uppercase tracking-wider">
                     Assigned To
                   </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-dark-200 uppercase tracking-wider">
+                  <th className="px-3 sm:px-6 py-3 text-left text-[10px] sm:text-xs font-medium text-dark-200 uppercase tracking-wider">
                     Status
                   </th>
-                  <th className="px-6 py-3 text-right text-xs font-medium text-dark-200 uppercase tracking-wider">
+                  <th className="px-3 sm:px-6 py-3 text-right text-[10px] sm:text-xs font-medium text-dark-200 uppercase tracking-wider">
                     Actions
                   </th>
                 </tr>

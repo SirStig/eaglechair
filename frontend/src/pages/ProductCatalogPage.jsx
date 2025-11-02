@@ -428,7 +428,8 @@ const ProductCatalogPage = () => {
     <div className="min-h-screen py-8 bg-gradient-to-br from-cream-50 to-cream-100">
       <div className="w-full px-4 sm:px-6 lg:px-8 xl:px-12 2xl:px-16">
         {/* Breadcrumb */}
-        <div className="mb-6 text-sm text-slate-600">
+        <div className="mb-4 sm:mb-6 text-xs sm:text-sm text-slate-600 overflow-x-auto pb-2">
+          <div className="flex items-center whitespace-nowrap min-w-fit">
           <span className="cursor-pointer hover:text-primary-500" onClick={() => navigate('/')}>
             Home
           </span>
@@ -448,25 +449,34 @@ const ProductCatalogPage = () => {
               <span className="text-slate-800">{subcategoryParam}</span>
             </>
           )}
+          </div>
         </div>
 
         {/* Header */}
         <div className="mb-8">
-          <h1 className="text-4xl font-bold mb-2 text-slate-800">
+          <h1 className="text-2xl sm:text-3xl md:text-4xl font-bold mb-2 text-slate-800">
             {activeCategory ? activeCategory.name : 'All Products'}
           </h1>
           {activeCategory && activeCategory.description && (
-            <p className="text-lg text-slate-600">{activeCategory.description}</p>
+            <p className="text-base sm:text-lg text-slate-600">{activeCategory.description}</p>
           )}
         </div>
 
         <div className="grid lg:grid-cols-[320px_1fr] xl:grid-cols-[360px_1fr] gap-6 lg:gap-8">
+          {/* Mobile Filter Overlay */}
+          {showMobileFilters && (
+            <div 
+              className="fixed inset-0 bg-black/50 z-40 lg:hidden"
+              onClick={() => setShowMobileFilters(false)}
+            />
+          )}
+
           {/* Sidebar Filters */}
           <aside className="lg:col-span-1">
             {/* Mobile Filter Toggle */}
             <button
               onClick={() => setShowMobileFilters(!showMobileFilters)}
-              className="lg:hidden w-full mb-4 px-4 py-3 bg-primary-600 hover:bg-primary-700 text-white rounded-lg flex items-center justify-center gap-2 transition-colors shadow-md"
+              className="lg:hidden w-full mb-4 px-4 py-3 bg-primary-600 hover:bg-primary-700 text-white rounded-lg flex items-center justify-center gap-2 transition-colors shadow-md min-h-[44px] font-medium"
             >
               <Filter className="w-4 h-4" />
               {showMobileFilters ? 'Hide Filters' : 'Show Filters'}
@@ -478,23 +488,33 @@ const ProductCatalogPage = () => {
             </button>
 
             <div className={`rounded-xl shadow-lg bg-white border border-cream-200 ${
-              showMobileFilters ? 'block' : 'hidden lg:block'
-            } lg:sticky lg:top-24 overflow-hidden`}>
+              showMobileFilters ? 'fixed inset-4 lg:relative lg:inset-auto z-50 lg:z-auto max-h-[90vh] lg:max-h-none' : 'hidden lg:block'
+            } lg:sticky lg:top-24 overflow-hidden flex flex-col`}>
               {/* Filter Header */}
-              <div className="flex items-center justify-between p-5 border-b border-cream-200 bg-cream-50">
-                <h2 className="text-xl font-bold text-slate-800">Filters</h2>
-                {hasActiveFilters && (
+              <div className="flex items-center justify-between p-4 sm:p-5 border-b border-cream-200 bg-cream-50 flex-shrink-0">
+                <h2 className="text-lg sm:text-xl font-bold text-slate-800">Filters</h2>
+                <div className="flex items-center gap-2">
+                  {hasActiveFilters && (
+                    <button
+                      onClick={clearFilters}
+                      className="text-xs sm:text-sm text-primary-600 hover:text-primary-700 font-medium flex items-center gap-1 transition-colors min-h-[32px] px-2"
+                    >
+                      <X className="w-3 h-3 sm:w-4 sm:h-4" />
+                      <span className="hidden sm:inline">Clear All</span>
+                      <span className="sm:hidden">Clear</span>
+                    </button>
+                  )}
                   <button
-                    onClick={clearFilters}
-                    className="text-sm text-primary-600 hover:text-primary-700 font-medium flex items-center gap-1 transition-colors"
+                    onClick={() => setShowMobileFilters(false)}
+                    className="lg:hidden text-slate-600 hover:text-slate-800 transition-colors min-h-[32px] min-w-[32px] flex items-center justify-center"
+                    aria-label="Close filters"
                   >
-                    <X className="w-4 h-4" />
-                    Clear All
+                    <X className="w-5 h-5" />
                   </button>
-                )}
+                </div>
               </div>
 
-              <div className="p-5 space-y-4 max-h-[calc(100vh-16rem)] lg:max-h-[calc(100vh-12rem)] overflow-y-auto">
+              <div className="p-4 sm:p-5 space-y-4 overflow-y-auto flex-1">
                 {/* Sort By - Moved to Top */}
                 <div className="pb-4 border-b border-cream-200">
                   <label className="flex items-center gap-2 text-sm font-semibold text-slate-700 mb-2.5">
@@ -1017,17 +1037,18 @@ const ProductCatalogPage = () => {
 
                 {/* Pagination */}
                 {pagination.pages > 1 && (
-                  <div className="flex items-center justify-center gap-2">
+                  <div className="flex flex-wrap items-center justify-center gap-2">
                     <Button
                       variant="outline"
                       size="sm"
                       onClick={() => handlePageChange(pagination.page - 1)}
                       disabled={pagination.page === 1}
+                      className="min-h-[44px] min-w-[80px]"
                     >
                       Previous
                     </Button>
                     
-                    <div className="flex gap-1">
+                    <div className="flex flex-wrap gap-1 justify-center">
                       {[...Array(pagination.pages)].map((_, i) => {
                         const page = i + 1;
                         if (
@@ -1039,7 +1060,7 @@ const ProductCatalogPage = () => {
                             <button
                               key={page}
                               onClick={() => handlePageChange(page)}
-                              className={`px-3 py-1 rounded ${
+                              className={`px-3 py-2 rounded min-w-[44px] min-h-[44px] text-sm font-medium transition-colors ${
                                 page === pagination.page
                                   ? 'bg-primary-500 text-white font-semibold'
                                   : 'bg-white text-slate-700 hover:bg-cream-100 border border-cream-300'
@@ -1052,7 +1073,7 @@ const ProductCatalogPage = () => {
                           page === pagination.page - 2 ||
                           page === pagination.page + 2
                         ) {
-                          return <span key={page} className="px-2">...</span>;
+                          return <span key={page} className="px-2 py-2 flex items-center">...</span>;
                         }
                         return null;
                       })}
@@ -1063,6 +1084,7 @@ const ProductCatalogPage = () => {
                       size="sm"
                       onClick={() => handlePageChange(pagination.page + 1)}
                       disabled={pagination.page === pagination.pages}
+                      className="min-h-[44px] min-w-[80px]"
                     >
                       Next
                     </Button>

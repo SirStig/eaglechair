@@ -147,7 +147,7 @@ const ContactPage = () => {
             onSave={(newData) => handleUpdatePageContent('contact', 'header', { ...headerSection, ...newData })}
             label="Header Title"
           >
-            <h1 className="text-4xl font-bold mb-4 text-dark-50">{headerTitle}</h1>
+            <h1 className="text-2xl sm:text-3xl md:text-4xl font-bold mb-4 text-dark-50">{headerTitle}</h1>
           </EditableWrapper>
           
           <EditableWrapper
@@ -163,11 +163,11 @@ const ContactPage = () => {
           </EditableWrapper>
         </div>
 
-        <div className="grid lg:grid-cols-3 gap-8 mb-12">
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 sm:gap-8 mb-8 sm:mb-12">
           {/* Contact Form */}
-          <div className="lg:col-span-2">
+          <div className="lg:col-span-2 order-2 lg:order-1">
             <Card>
-              <h2 className="text-2xl font-bold mb-6 text-dark-50">Send us a Message</h2>
+              <h2 className="text-xl sm:text-2xl font-bold mb-4 sm:mb-6 text-dark-50">Send us a Message</h2>
               
               {submitStatus === 'success' && (
                 <motion.div
@@ -189,8 +189,8 @@ const ContactPage = () => {
                 </motion.div>
               )}
 
-              <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
-                <div className="grid md:grid-cols-2 gap-6">
+              <form onSubmit={handleSubmit(onSubmit)} className="space-y-4 sm:space-y-6">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6">
                   <Input
                     label="First Name"
                     {...register('firstName', { required: 'First name is required' })}
@@ -270,7 +270,7 @@ const ContactPage = () => {
           </div>
 
           {/* Contact Info Sidebar */}
-          <div className="space-y-6">
+          <div className="space-y-4 sm:space-y-6 order-1 lg:order-2">
             <EditableWrapper
               id="contact-info-settings"
               type="company-settings"

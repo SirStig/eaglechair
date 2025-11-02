@@ -521,18 +521,26 @@ async def get_page_content(
             # Return default content if available, but wrap in list for consistency
             default = default_content.get_page_content(page_slug, section_key)
             if default and isinstance(default, dict):
+                # Ensure title and content are strings (not None) for schema validation
+                default["title"] = default.get("title") or ""
+                default["content"] = default.get("content") or ""
                 return [default]
             elif default and isinstance(default, list):
+                # Ensure all items have string title and content
+                for item in default:
+                    item["title"] = item.get("title") or ""
+                    item["content"] = item.get("content") or ""
                 return default
             return []
         
         # Return as list for consistency with response_model
+        # Handle None values by providing empty strings (schema requires strings)
         return [{
             "id": content.id,
             "pageSlug": content.page_slug,
             "sectionKey": content.section_key,
-            "title": content.title,
-            "content": content.content,
+            "title": content.title or "",
+            "content": content.content or "",
             "imageUrl": content.image_url,
             "displayOrder": content.display_order
         }]
@@ -546,8 +554,8 @@ async def get_page_content(
             "id": content.id,
             "pageSlug": content.page_slug,
             "sectionKey": content.section_key,
-            "title": content.title,
-            "content": content.content,
+            "title": content.title or "",
+            "content": content.content or "",
             "imageUrl": content.image_url,
             "displayOrder": content.display_order
         }

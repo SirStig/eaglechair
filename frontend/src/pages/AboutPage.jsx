@@ -130,7 +130,7 @@ const AboutPage = () => {
   return (
     <div className="min-h-screen bg-dark-800">
       {/* Hero Section */}
-      <section className="relative h-[500px] pt-16 bg-dark-900 text-white">
+      <section className="relative h-[400px] sm:h-[500px] pt-16 bg-dark-900 text-white">
         <div className="absolute inset-0 opacity-30">
           <img
             src={heroImage}
@@ -153,7 +153,7 @@ const AboutPage = () => {
               onSave={(newData) => handleSaveContent('about', 'hero', { ...heroSection, ...newData }, refetchHero)}
               label="Hero Title"
             >
-              <h1 className="text-5xl lg:text-6xl font-bold mb-6">
+              <h1 className="text-3xl sm:text-4xl md:text-5xl lg:text-6xl font-bold mb-4 sm:mb-6">
                 {heroTitle}
               </h1>
             </EditableWrapper>
@@ -165,7 +165,7 @@ const AboutPage = () => {
               onSave={(newData) => handleSaveContent('about', 'hero', { ...heroSection, ...newData }, refetchHero)}
               label="Hero Subtitle"
             >
-              <p className="text-xl lg:text-2xl">
+              <p className="text-lg sm:text-xl lg:text-2xl">
                 {heroSubtitle}
               </p>
             </EditableWrapper>
@@ -186,9 +186,9 @@ const AboutPage = () => {
       </section>
 
       {/* Story Section */}
-      <section className="py-20">
+      <section className="py-12 sm:py-16 lg:py-20">
         <div className="container">
-          <div className="grid md:grid-cols-2 gap-12 items-center mb-16">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-8 sm:gap-12 items-center mb-12 sm:mb-16">
             <motion.div
               initial={{ opacity: 0, x: -30 }}
               whileInView={{ opacity: 1, x: 0 }}
@@ -220,7 +220,7 @@ const AboutPage = () => {
                 onSave={(newData) => handleSaveContent('about', 'story', { ...storySection, ...newData }, refetchStory)}
                 label="Story Title"
               >
-                <h2 className="text-3xl font-bold mb-6 text-dark-50">{storyTitle}</h2>
+                <h2 className="text-2xl sm:text-3xl font-bold mb-4 sm:mb-6 text-dark-50">{storyTitle}</h2>
               </EditableWrapper>
               
               <EditableWrapper
@@ -242,11 +242,11 @@ const AboutPage = () => {
       </section>
 
       {/* Values Section */}
-      <section className="py-20 bg-dark-700">
+      <section className="py-12 sm:py-16 lg:py-20 bg-dark-700">
         <div className="container">
-          <div className="text-center mb-12">
-            <h2 className="text-4xl font-bold mb-4 text-dark-50">Our Values</h2>
-            <p className="text-xl text-dark-100">The principles that guide everything we do</p>
+          <div className="text-center mb-8 sm:mb-12">
+            <h2 className="text-2xl sm:text-3xl md:text-4xl font-bold mb-3 sm:mb-4 text-dark-50">Our Values</h2>
+            <p className="text-lg sm:text-xl text-dark-100">The principles that guide everything we do</p>
           </div>
           {loading ? (
             <div className="flex justify-center">
@@ -307,18 +307,18 @@ const AboutPage = () => {
                   </Card>
                 </motion.div>
               )}
-              className="grid md:grid-cols-2 lg:grid-cols-4 gap-8"
+              className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6 lg:gap-8"
             />
           )}
         </div>
       </section>
 
       {/* Timeline Section */}
-      <section className="py-20 bg-dark-800">
+      <section className="py-12 sm:py-16 lg:py-20 bg-dark-800">
         <div className="container">
-          <div className="text-center mb-12">
-            <h2 className="text-4xl font-bold mb-4 text-dark-50">Our Journey</h2>
-            <p className="text-xl text-dark-100">Key milestones in our history</p>
+          <div className="text-center mb-8 sm:mb-12">
+            <h2 className="text-2xl sm:text-3xl md:text-4xl font-bold mb-3 sm:mb-4 text-dark-50">Our Journey</h2>
+            <p className="text-lg sm:text-xl text-dark-100">Key milestones in our history</p>
           </div>
           <div className="max-w-4xl mx-auto">
             <EditableList

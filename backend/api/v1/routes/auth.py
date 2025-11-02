@@ -6,7 +6,7 @@ Handles company and admin authentication
 
 import logging
 
-from fastapi import APIRouter, Depends, Request
+from fastapi import APIRouter, Depends, Request, Response
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -95,6 +95,7 @@ async def register_company(
 async def unified_login(
     login_data: CompanyLoginRequest,
     request: Request,
+    response: Response,
     db: AsyncSession = Depends(get_db)
 ):
     """
@@ -103,7 +104,11 @@ async def unified_login(
     - Tries admin authentication first (by email or username)
     - Falls back to company authentication if not an admin
     - Returns appropriate tokens based on user type
+    - Sets httpOnly cookies for tokens (preferred) and also returns in response body (backward compatibility)
     """
+    from backend.core.config import settings
+    from backend.core.security import set_auth_cookies
+    
     client_ip = request.client.host if request.client else None
     
     logger.info(f"Login attempt: {login_data.email}")
@@ -133,7 +138,18 @@ async def unified_login(
             ip_address=client_ip,
             two_factor_code=None
         )
-        # Include admin user data in response
+        
+        # Set cookies
+        set_auth_cookies(
+            response=response,
+            access_token=tokens["access_token"],
+            refresh_token=tokens["refresh_token"],
+            session_token=tokens.get("session_token"),
+            admin_token=tokens.get("admin_token"),
+            is_production=settings.is_production
+        )
+        
+        # Include admin user data in response (also include tokens for backward compatibility)
         return {
             **tokens,
             "user": {
@@ -156,7 +172,15 @@ async def unified_login(
         ip_address=client_ip
     )
     
-    # Include company user data in response
+    # Set cookies
+    set_auth_cookies(
+        response=response,
+        access_token=tokens["access_token"],
+        refresh_token=tokens["refresh_token"],
+        is_production=settings.is_production
+    )
+    
+    # Include company user data in response (also include tokens for backward compatibility)
     return {
         **tokens,
         "user": {
@@ -167,7 +191,8 @@ async def unified_login(
             "lastName": company.rep_last_name,
             "role": "company",
             "type": "company",
-            "status": company.status.value
+            "status": company.status.value,
+            "isVerified": company.is_verified  # Include verification status
         }
     }
 
@@ -179,16 +204,33 @@ async def unified_login(
     description="Use refresh token to get new access token."
 )
 async def refresh_token(
-    credentials: HTTPAuthorizationCredentials = Depends(security),
-    db: AsyncSession = Depends(get_db)
+    request: Request,
+    response: Response,
+    db: AsyncSession = Depends(get_db),
+    credentials: HTTPAuthorizationCredentials = Depends(HTTPBearer(auto_error=False))
 ):
     """
     Refresh access token using refresh token.
     
-    Send refresh token in Authorization header.
+    Accepts refresh token from cookie (preferred) or Authorization header (fallback).
+    Sets new tokens in httpOnly cookies.
     """
-    # Get both token and payload
-    raw_token, token_payload = await get_current_token_and_payload(credentials)
+    from backend.core.config import settings
+    from backend.core.security import set_auth_cookies
+    
+    # Get refresh token from cookie (preferred) or header (fallback)
+    refresh_token_value = request.cookies.get("refresh_token")
+    
+    if not refresh_token_value and credentials:
+        refresh_token_value = credentials.credentials
+    
+    if not refresh_token_value:
+        from backend.core.exceptions import InvalidTokenError
+        raise InvalidTokenError("No refresh token provided")
+    
+    # Decode token to get payload
+    from backend.core.security import security_manager
+    token_payload = security_manager.decode_token(refresh_token_value)
     
     # Verify it's a refresh token
     if token_payload.get("token_type") != "refresh":
@@ -201,9 +243,18 @@ async def refresh_token(
     tokens = await AuthService.refresh_access_token(
         db=db,
         token_payload=token_payload,
-        provided_refresh_token=raw_token
+        provided_refresh_token=refresh_token_value
     )
     
+    # Set new cookies
+    set_auth_cookies(
+        response=response,
+        access_token=tokens["access_token"],
+        refresh_token=tokens["refresh_token"],
+        is_production=settings.is_production
+    )
+    
+    # Also return in response body for backward compatibility
     return tokens
 
 
@@ -220,16 +271,21 @@ async def refresh_token(
 async def login_admin(
     login_data: AdminLoginRequest,
     request: Request,
+    response: Response,
     db: AsyncSession = Depends(get_db)
 ):
     """
     Authenticate admin user.
     
     Returns access token, refresh token, session token, and admin token.
-    Admin requests require both session token and admin token in headers:
-    - `X-Session-Token`: Session token
-    - `X-Admin-Token`: Admin token
+    Sets httpOnly cookies for all tokens.
+    Admin requests can use cookies (preferred) or headers (backward compatibility):
+    - Cookies: access_token, refresh_token, session_token, admin_token
+    - Headers: `X-Session-Token`: Session token, `X-Admin-Token`: Admin token
     """
+    from backend.core.config import settings
+    from backend.core.security import set_auth_cookies
+    
     client_ip = request.client.host if request.client else None
     
     logger.info(f"Admin login attempt: {login_data.username} from {client_ip}")
@@ -243,6 +299,17 @@ async def login_admin(
         two_factor_code=login_data.two_factor_code
     )
     
+    # Set cookies
+    set_auth_cookies(
+        response=response,
+        access_token=tokens["access_token"],
+        refresh_token=tokens["refresh_token"],
+        session_token=tokens.get("session_token"),
+        admin_token=tokens.get("admin_token"),
+        is_production=settings.is_production
+    )
+    
+    # Also return in response body for backward compatibility
     return tokens
 
 
@@ -503,6 +570,7 @@ async def update_current_user_profile(
     description="Logout current user (invalidate tokens)."
 )
 async def logout(
+    response: Response,
     token_payload: dict = Depends(get_current_token_payload),
     db: AsyncSession = Depends(get_db)
 ):
@@ -511,7 +579,10 @@ async def logout(
     
     For admin users, this invalidates session and admin tokens.
     For company users, client should discard tokens.
+    Clears all authentication cookies.
     """
+    from backend.core.security import clear_auth_cookies
+    
     user_type = token_payload.get("type", "company")
     user_id = int(token_payload.get("sub"))
     
@@ -528,6 +599,9 @@ async def logout(
             admin.admin_token = None
             await db.commit()
             logger.info(f"Admin tokens invalidated for user: {user_id}")
+    
+    # Clear all authentication cookies
+    clear_auth_cookies(response)
     
     logger.info(f"Logout successful for {user_type} user: {user_id}")
     
