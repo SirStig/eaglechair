@@ -173,20 +173,21 @@ apiClient.interceptors.response.use(
 
 // Helper to handle authentication errors
 function handleAuthError(error) {
-  // Import authStore dynamically to avoid circular dependency
-  import('../store/authStore').then(({ useAuthStore }) => {
-    useAuthStore.getState().logout();
-  }).catch(() => {
-    // Fallback if import fails - clear localStorage manually
-    if (typeof window !== 'undefined') {
+  // Use dynamic import to avoid circular dependency, but handle it properly
+  // Note: This is only used in error path, so it won't affect bundle splitting
+  if (typeof window !== 'undefined') {
+    import('../store/authStore').then(({ useAuthStore }) => {
+      useAuthStore.getState().logout();
+    }).catch(() => {
+      // Fallback if import fails - clear localStorage manually
       localStorage.removeItem('auth_access_token');
       localStorage.removeItem('auth_refresh_token');
       localStorage.removeItem('auth_session_token');
       localStorage.removeItem('auth_admin_token');
       localStorage.removeItem('auth_user');
-    }
-    logger.warn(CONTEXT, 'Failed to import authStore for logout');
-  });
+      logger.warn(CONTEXT, 'Failed to import authStore for logout');
+    });
+  }
 
   const normalizedError = {
     message: 'Unauthorized - Please login',

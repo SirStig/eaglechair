@@ -88,14 +88,14 @@
         }
         
         .email-body {
-            color: #2c2c2c;
+            color: #000000 !important;
             font-size: 16px;
             line-height: 1.7;
             margin: 0 0 20px;
         }
         
         .email-body h1 {
-            color: #2c2c2c;
+            color: #000000 !important;
             font-size: 28px;
             font-weight: 600;
             line-height: 1.3;
@@ -104,7 +104,7 @@
         }
         
         .email-body h2 {
-            color: #2c2c2c;
+            color: #000000 !important;
             font-size: 24px;
             font-weight: 600;
             line-height: 1.3;
@@ -113,7 +113,7 @@
         }
         
         .email-body h3 {
-            color: #2c2c2c;
+            color: #000000 !important;
             font-size: 20px;
             font-weight: 600;
             line-height: 1.4;
@@ -122,6 +122,7 @@
         
         .email-body p {
             margin: 0 0 16px;
+            color: #000000 !important;
         }
         
         .email-body ul,
@@ -132,6 +133,7 @@
         
         .email-body li {
             margin: 0 0 8px;
+            color: #000000 !important;
         }
         
         .email-body a {
@@ -220,7 +222,7 @@
             padding: 30px 40px;
             text-align: center;
             border-top: 1px solid #e8e6e3;
-            color: #8a8a8a;
+            color: #000000 !important;
             font-size: 14px;
             line-height: 1.6;
         }
@@ -288,22 +290,36 @@
             }
         }
         
-        /* Dark mode support (optional) */
+        /* Dark mode support - simple black and white */
         @media (prefers-color-scheme: dark) {
             .email-container {
-                background-color: #1f1f1f;
+                background-color: #1f1f1f !important;
             }
             .email-header,
             .email-footer {
-                background-color: #2a2a2a;
+                background-color: #2a2a2a !important;
+            }
+            .email-content {
+                background-color: #1f1f1f !important;
             }
             .email-body {
-                color: #e0e0e0;
+                color: #ffffff !important;
+            }
+            .email-body p,
+            .email-body li {
+                color: #ffffff !important;
             }
             .email-body h1,
             .email-body h2,
             .email-body h3 {
-                color: #ffffff;
+                color: #ffffff !important;
+            }
+            .email-footer {
+                color: #ffffff !important;
+                background-color: #2a2a2a !important;
+            }
+            .email-footer p {
+                color: #ffffff !important;
             }
         }
     </style>
@@ -320,7 +336,7 @@
                                 {% if logo_url %}
                                 <img src="{{ logo_url }}" alt="EagleChair" class="logo" style="max-width: 200px; height: auto; margin: 0 auto 20px; display: block;">
                                 {% else %}
-                                <h1 class="logo-text" style="font-size: 28px; font-weight: 600; color: #2c2c2c; letter-spacing: -0.5px; margin: 0;">EagleChair</h1>
+                                <h1 class="logo-text" style="font-size: 28px; font-weight: 600; color: #000000 !important; letter-spacing: -0.5px; margin: 0;">EagleChair</h1>
                                 {% endif %}
                             </td>
                         </tr>
@@ -336,8 +352,8 @@
                         
                         <!-- Footer -->
                         <tr>
-                            <td class="email-footer" style="background-color: #ffffff; padding: 30px 40px; text-align: center; border-top: 1px solid #e8e6e3; color: #4a4a4a; font-size: 14px; line-height: 1.6;">
-                                <p style="margin: 0 0 10px; color: #2c2c2c;">
+                            <td class="email-footer" style="background-color: #ffffff; padding: 30px 40px; text-align: center; border-top: 1px solid #e8e6e3; color: #000000 !important; font-size: 14px; line-height: 1.6;">
+                                <p style="margin: 0 0 10px; color: #000000 !important;">
                                     <strong>{{ company_name|default('EagleChair') }}</strong><br>
                                     {% if company_tagline %}{{ company_tagline }}{% else %}Premium Office Furniture{% endif %}
                                 </p>
@@ -345,12 +361,12 @@
                                 {% if address_string or primary_email or primary_phone or sales_email or sales_phone or support_email or support_phone %}
                                 <div style="margin: 20px 0; padding: 20px 0; border-top: 1px solid #e8e6e3; border-bottom: 1px solid #e8e6e3;">
                                     {% if address_string %}
-                                    <p style="margin: 0 0 12px; color: #4a4a4a; font-size: 13px;">
+                                    <p style="margin: 0 0 12px; color: #000000 !important; font-size: 13px;">
                                         {{ address_string }}
                                     </p>
                                     {% endif %}
                                     
-                                    <div style="margin: 12px 0; color: #4a4a4a; font-size: 13px;">
+                                    <div style="margin: 12px 0; color: #000000 !important; font-size: 13px;">
                                         {% if primary_email or primary_phone %}
                                         <p style="margin: 4px 0;">
                                             {% if primary_email %}<a href="mailto:{{ primary_email }}" style="color: #8b7355; text-decoration: none;">{{ primary_email }}</a>{% endif %}
@@ -361,7 +377,7 @@
                                         
                                         {% if sales_email or sales_phone %}
                                         <p style="margin: 4px 0;">
-                                            <strong style="color: #2c2c2c;">Sales:</strong>
+                                            <strong style="color: #000000 !important;">Sales:</strong>
                                             {% if sales_email %}<a href="mailto:{{ sales_email }}" style="color: #8b7355; text-decoration: none;">{{ sales_email }}</a>{% endif %}
                                             {% if sales_email and sales_phone %} | {% endif %}
                                             {% if sales_phone %}<a href="tel:{{ sales_phone }}" style="color: #8b7355; text-decoration: none;">{{ sales_phone }}</a>{% endif %}
@@ -370,7 +386,7 @@
                                         
                                         {% if support_email or support_phone %}
                                         <p style="margin: 4px 0;">
-                                            <strong style="color: #2c2c2c;">Support:</strong>
+                                            <strong style="color: #000000 !important;">Support:</strong>
                                             {% if support_email %}<a href="mailto:{{ support_email }}" style="color: #8b7355; text-decoration: none;">{{ support_email }}</a>{% endif %}
                                             {% if support_email and support_phone %} | {% endif %}
                                             {% if support_phone %}<a href="tel:{{ support_phone }}" style="color: #8b7355; text-decoration: none;">{{ support_phone }}</a>{% endif %}
@@ -386,7 +402,7 @@
                                     {% endif %}
                                     <a href="{{ frontend_url|default('https://eaglechair.com') }}" style="color: #8b7355; text-decoration: none;">Visit Website</a>
                                 </p>
-                                <p style="margin: 10px 0 0; font-size: 12px; color: #6a6a6a;">
+                                <p style="margin: 10px 0 0; font-size: 12px; color: #000000 !important;">
                                     © {{ current_year|default('2024') }} {{ company_name|default('EagleChair') }}. All rights reserved.
                                 </p>
                             </td>

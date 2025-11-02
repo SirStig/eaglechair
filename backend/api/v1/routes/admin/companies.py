@@ -13,11 +13,19 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from backend.api.dependencies import get_current_admin, require_role
-from backend.api.v1.schemas.admin import CompanyInviteRequest, CompanyListResponse, CompanyStatusUpdate
+from backend.api.v1.schemas.admin import (
+    CompanyInviteRequest,
+    CompanyListResponse,
+    CompanyStatusUpdate,
+)
 from backend.api.v1.schemas.common import MessageResponse
 from backend.api.v1.schemas.company import CompanyAdminUpdate, CompanyResponse
 from backend.core.config import settings
-from backend.core.exceptions import ResourceAlreadyExistsError, ResourceNotFoundError, ValidationError
+from backend.core.exceptions import (
+    ResourceAlreadyExistsError,
+    ResourceNotFoundError,
+    ValidationError,
+)
 from backend.database.base import get_db
 from backend.models.company import (
     AdminRole,
@@ -590,8 +598,13 @@ async def invite_company(
                 field="email"
             )
         
-        # Generate registration URL
-        registration_url = f"{settings.FRONTEND_URL}/register"
+        # Generate registration URL - ensure it's absolute with protocol
+        frontend_url = settings.FRONTEND_URL
+        if not frontend_url or frontend_url == "http://localhost:5173":
+            frontend_url = "https://joshua.eaglechair.com"
+        if not frontend_url.startswith('http://') and not frontend_url.startswith('https://'):
+            frontend_url = f"https://{frontend_url}"
+        registration_url = f"{frontend_url.rstrip('/')}/register"
         
         # Send invitation email
         inviter_name = f"{admin.first_name} {admin.last_name}".strip() if (admin.first_name or admin.last_name) else admin.username
