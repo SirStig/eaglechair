@@ -157,7 +157,7 @@ const DashboardOverview = ({ onNavigate }) => {
             Recent Quotes
           </h3>
           <div className="space-y-3">
-            {stats?.recent_quotes?.length > 0 ? (
+            {Array.isArray(stats?.recent_quotes) && stats.recent_quotes.length > 0 ? (
               stats.recent_quotes.map((quote) => {
                 const getStatusColor = (status) => {
                   switch (status) {
@@ -249,7 +249,7 @@ const DashboardOverview = ({ onNavigate }) => {
             Recent Companies
           </h3>
           <div className="space-y-3">
-            {stats?.recent_companies?.length > 0 ? (
+            {Array.isArray(stats?.recent_companies) && stats.recent_companies.length > 0 ? (
               stats.recent_companies.map((company) => {
                 const getStatusColor = (status) => {
                   switch (status) {

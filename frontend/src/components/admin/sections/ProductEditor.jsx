@@ -89,9 +89,9 @@ const ProductEditor = ({ product, onBack }) => {
   const [colors, setColors] = useState([]);
   
   // Multi-value fields
-  const [images, setImages] = useState(product?.images || []);
+  const [images, setImages] = useState(Array.isArray(product?.images) ? product.images : []);
   const [uploadingImage, setUploadingImage] = useState(false);
-  const [variations, setVariations] = useState(product?.variations || []);
+  const [variations, setVariations] = useState(Array.isArray(product?.variations) ? product.variations : []);
   const [selectedFinishes, setSelectedFinishes] = useState(product?.available_finishes || []);
   const [selectedUpholsteries, setSelectedUpholsteries] = useState(product?.available_upholsteries || []);
   const [selectedColors, setSelectedColors] = useState(product?.available_colors || []);
@@ -880,7 +880,7 @@ const ProductEditor = ({ product, onBack }) => {
                           Gallery Images ({(variation.images || []).length})
                         </label>
                         <div className="space-y-2">
-                          {(variation.images || []).length > 0 && (
+                          {Array.isArray(variation.images) && variation.images.length > 0 && (
                             <div className="grid grid-cols-3 gap-2">
                               {variation.images.map((img, imgIndex) => (
                                 <div key={imgIndex} className="relative group">

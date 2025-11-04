@@ -289,39 +289,6 @@
                 padding: 16px 24px;
             }
         }
-        
-        /* Dark mode support - simple black and white */
-        @media (prefers-color-scheme: dark) {
-            .email-container {
-                background-color: #1f1f1f !important;
-            }
-            .email-header,
-            .email-footer {
-                background-color: #2a2a2a !important;
-            }
-            .email-content {
-                background-color: #1f1f1f !important;
-            }
-            .email-body {
-                color: #ffffff !important;
-            }
-            .email-body p,
-            .email-body li {
-                color: #ffffff !important;
-            }
-            .email-body h1,
-            .email-body h2,
-            .email-body h3 {
-                color: #ffffff !important;
-            }
-            .email-footer {
-                color: #ffffff !important;
-                background-color: #2a2a2a !important;
-            }
-            .email-footer p {
-                color: #ffffff !important;
-            }
-        }
     </style>
 </head>
 <body>
@@ -354,7 +321,7 @@
                         <tr>
                             <td class="email-footer" style="background-color: #ffffff; padding: 30px 40px; text-align: center; border-top: 1px solid #e8e6e3; color: #000000 !important; font-size: 14px; line-height: 1.6;">
                                 <p style="margin: 0 0 10px; color: #000000 !important;">
-                                    <strong>{{ company_name|default('EagleChair') }}</strong><br>
+                                    <strong>{{ site_company_name|default('EagleChair') }}</strong><br>
                                     {% if company_tagline %}{{ company_tagline }}{% else %}Premium Office Furniture{% endif %}
                                 </p>
                                 
@@ -403,7 +370,7 @@
                                     <a href="{{ frontend_url|default('https://eaglechair.com') }}" style="color: #8b7355; text-decoration: none;">Visit Website</a>
                                 </p>
                                 <p style="margin: 10px 0 0; font-size: 12px; color: #000000 !important;">
-                                    © {{ current_year|default('2024') }} {{ company_name|default('EagleChair') }}. All rights reserved.
+                                    © {{ current_year|default('2024') }} {{ site_company_name|default('EagleChair') }}. All rights reserved.
                                 </p>
                             </td>
                         </tr>

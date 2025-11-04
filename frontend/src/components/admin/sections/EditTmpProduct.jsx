@@ -438,7 +438,7 @@ const EditTmpProduct = () => {
               Images ({product?.images?.length || 0})
             </h2>
             <div className="space-y-3">
-              {product?.images && product.images.length > 0 ? (
+              {Array.isArray(product?.images) && product.images.length > 0 ? (
                 product.images.map((img, index) => (
                   <div key={index} className="rounded-lg bg-dark-800 overflow-hidden">
                     <img
@@ -492,7 +492,7 @@ const EditTmpProduct = () => {
           </Card>
 
           {/* Variations */}
-          {product?.variations && product.variations.length > 0 && (
+          {Array.isArray(product?.variations) && product.variations.length > 0 && (
             <Card className="p-6">
               <h2 className="text-lg font-semibold text-dark-50 mb-4">Variations</h2>
               <div className="space-y-2">
