@@ -411,7 +411,7 @@ class EmailService:
             'current_year': datetime.now().year,
             'logo_url': EmailService._ensure_absolute_url(logo_url) if logo_url else None,
             'unsubscribe_url': EmailService._ensure_absolute_url(unsubscribe_url) if unsubscribe_url else None,
-            'company_name': site_settings.get('company_name', 'EagleChair'),
+            'site_company_name': site_settings.get('company_name', 'EagleChair'),
             'company_tagline': site_settings.get('company_tagline', 'Premium Office Furniture'),
             'primary_email': site_settings.get('primary_email'),
             'primary_phone': site_settings.get('primary_phone'),

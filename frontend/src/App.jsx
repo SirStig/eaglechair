@@ -4,6 +4,7 @@ import { useEffect } from 'react';
 import Layout from './components/layout/Layout';
 import ProtectedRoute from './components/ProtectedRoute';
 import ScrollToTop from './components/ScrollToTop';
+import ErrorBoundary from './components/ErrorBoundary';
 import { EditModeProvider } from './contexts/EditModeContext';
 import { AdminAuthProvider } from './contexts/AdminAuthContext';
 import { ToastProvider } from './contexts/ToastContext';
@@ -75,15 +76,16 @@ function CartSync() {
 
 function App() {
   return (
-    <QueryClientProvider client={queryClient}>
-      <Router>
-        <CartSync />
-        <AdminAuthProvider>
-          <EditModeProvider>
-            <ToastProvider>
-              <ScrollToTop />
-              <EditModeToggle />
-              <Routes>
+    <ErrorBoundary>
+      <QueryClientProvider client={queryClient}>
+        <Router>
+          <CartSync />
+          <AdminAuthProvider>
+            <EditModeProvider>
+              <ToastProvider>
+                <ScrollToTop />
+                <EditModeToggle />
+                <Routes>
           {/* Public Routes */}
           <Route path="/login" element={<LoginPage />} />
           <Route path="/register" element={<RegisterPage />} />
@@ -190,11 +192,12 @@ function App() {
             <Route path="*" element={<NotFound />} />
           </Route>
           </Routes>
-            </ToastProvider>
-          </EditModeProvider>
-        </AdminAuthProvider>
-      </Router>
-    </QueryClientProvider>
+                </ToastProvider>
+              </EditModeProvider>
+            </AdminAuthProvider>
+          </Router>
+        </QueryClientProvider>
+      </ErrorBoundary>
   );
 }
 

@@ -823,7 +823,7 @@ const VirtualCatalogUpload = () => {
               </div>
 
               {/* Images */}
-              {selectedProduct.images && selectedProduct.images.length > 0 && (
+              {Array.isArray(selectedProduct.images) && selectedProduct.images.length > 0 && (
                 <div>
                   <h4 className="font-semibold text-dark-50 mb-2">Images</h4>
                   <div className="grid grid-cols-3 gap-2">
@@ -840,7 +840,7 @@ const VirtualCatalogUpload = () => {
               )}
 
               {/* Variations */}
-              {selectedProduct.variations && selectedProduct.variations.length > 0 && (
+              {Array.isArray(selectedProduct.variations) && selectedProduct.variations.length > 0 && (
                 <div>
                   <h4 className="font-semibold text-dark-50 mb-2">Variations</h4>
                   <div className="space-y-1">

@@ -677,7 +677,7 @@ const DimensionsTab = ({ formData, onChange }) => (
 // Images Tab Component
 const ImagesTab = ({ formData, onChange }) => {
   const allImages = [
-    ...(formData.images || []),
+    ...(Array.isArray(formData.images) ? formData.images : []),
     formData.primary_image_url,
     formData.hover_image_url,
   ].filter(Boolean);
@@ -691,14 +691,15 @@ const ImagesTab = ({ formData, onChange }) => {
   };
 
   const handleAddToGallery = (imageUrl) => {
-    const currentImages = formData.images || [];
+    const currentImages = Array.isArray(formData.images) ? formData.images : [];
     if (!currentImages.includes(imageUrl)) {
       onChange('images', [...currentImages, imageUrl]);
     }
   };
 
   const handleRemoveFromGallery = (imageUrl) => {
-    const newImages = (formData.images || []).filter(img => img !== imageUrl);
+    const currentImages = Array.isArray(formData.images) ? formData.images : [];
+    const newImages = currentImages.filter(img => img !== imageUrl);
     onChange('images', newImages);
   };
 
@@ -717,7 +718,8 @@ const ImagesTab = ({ formData, onChange }) => {
     const usage = [];
     if (formData.primary_image_url === imageUrl) usage.push('Primary');
     if (formData.hover_image_url === imageUrl) usage.push('Hover');
-    if ((formData.images || []).includes(imageUrl)) usage.push('Gallery');
+    const currentImages = Array.isArray(formData.images) ? formData.images : [];
+    if (currentImages.includes(imageUrl)) usage.push('Gallery');
     return usage;
   };
 
@@ -857,9 +859,9 @@ const ImagesTab = ({ formData, onChange }) => {
 
         <div>
           <label className="block text-sm font-medium text-dark-200 mb-2">
-            Gallery Images ({(formData.images || []).length})
+            Gallery Images ({(Array.isArray(formData.images) ? formData.images : []).length})
           </label>
-          {(formData.images || []).length > 0 ? (
+          {Array.isArray(formData.images) && formData.images.length > 0 ? (
             <div className="flex flex-wrap gap-2">
               {formData.images.map((img, idx) => (
                 <div key={idx} className="relative">
@@ -919,7 +921,7 @@ const MaterialsTab = ({ formData, onChange, onArrayAdd, onArrayRemove }) => {
             Features
           </label>
           <div className="space-y-2">
-            {formData.features && formData.features.map((feature, index) => (
+            {Array.isArray(formData.features) && formData.features.map((feature, index) => (
               <div key={index} className="flex items-center gap-2">
                 <input
                   type="text"
@@ -1035,7 +1037,7 @@ const VariationsTab = ({ variations, setVariations }) => {
           </Button>
         </div>
 
-        {variations && variations.length > 0 ? (
+        {Array.isArray(variations) && variations.length > 0 ? (
           <div className="space-y-3">
             {variations.map((variation) => (
               <div key={variation.id} className="p-4 bg-dark-700 rounded-lg">
