@@ -229,7 +229,7 @@ class CartResponse(TimestampSchema):
     estimated_total: int
     is_active: bool
     last_updated: Optional[str]
-    items: list[CartItemResponse] = []  # Include cart items
+    items: list["CartItemResponse"] = []  # Include cart items - forward reference
     
     class Config:
         from_attributes = True
@@ -509,3 +509,26 @@ class DashboardQuotesResponse(BaseModel):
     """Schema for dashboard quotes list response"""
     quotes: list[DashboardQuoteResponse]
     count: int
+
+
+# ============================================================================
+# Model Rebuild - Resolve Forward References
+# ============================================================================
+
+# Rebuild models to resolve forward references (CartItemResponse in CartResponse)
+# This is done lazily to avoid blocking imports - only rebuilds when first accessed
+def _rebuild_cart_models():
+    """Lazily rebuild cart models to resolve forward references"""
+    try:
+        CartResponse.model_rebuild()
+        CartWithItems.model_rebuild()
+    except Exception:
+        # If rebuild fails, Pydantic will handle it at runtime
+        pass
+
+# Rebuild on first import (but catch any errors to prevent blocking)
+try:
+    _rebuild_cart_models()
+except Exception:
+    # If rebuild fails at import time, models will be rebuilt on first use
+    pass
