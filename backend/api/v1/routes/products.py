@@ -33,6 +33,85 @@ logger = logging.getLogger(__name__)
 router = APIRouter(tags=["Products"])
 
 
+async def _populate_customizations(
+    db: AsyncSession,
+    products: List
+) -> None:
+    """
+    Populate customizations object for products with finish, color, and upholstery names.
+    Modifies products in-place by adding customizations dict.
+    
+    Note: This modifies SQLAlchemy model instances, which Pydantic will include when using from_attributes=True.
+    """
+    if not products:
+        return
+    
+    from sqlalchemy import select
+
+    from backend.models.chair import Color, Finish, Upholstery
+    
+    # Collect all IDs from all products
+    all_finish_ids = set()
+    all_color_ids = set()
+    all_upholstery_ids = set()
+    
+    for product in products:
+        if hasattr(product, 'available_finishes') and product.available_finishes:
+            all_finish_ids.update(product.available_finishes)
+        if hasattr(product, 'available_colors') and product.available_colors:
+            all_color_ids.update(product.available_colors)
+        if hasattr(product, 'available_upholsteries') and product.available_upholsteries:
+            all_upholstery_ids.update(product.available_upholsteries)
+    
+    # Fetch all finishes, colors, and upholsteries in one query each
+    finish_map = {}
+    if all_finish_ids:
+        finish_result = await db.execute(
+            select(Finish).where(Finish.id.in_(list(all_finish_ids)), Finish.is_active == True)
+        )
+        for finish in finish_result.scalars().all():
+            finish_map[finish.id] = finish.name
+    
+    color_map = {}
+    if all_color_ids:
+        color_result = await db.execute(
+            select(Color).where(Color.id.in_(list(all_color_ids)), Color.is_active == True)
+        )
+        for color in color_result.scalars().all():
+            color_map[color.id] = color.name
+    
+    upholstery_map = {}
+    if all_upholstery_ids:
+        upholstery_result = await db.execute(
+            select(Upholstery).where(Upholstery.id.in_(list(all_upholstery_ids)), Upholstery.is_active == True)
+        )
+        for upholstery in upholstery_result.scalars().all():
+            upholstery_map[upholstery.id] = upholstery.name
+    
+    # Populate customizations for each product
+    for product in products:
+        customizations = {}
+        
+        if hasattr(product, 'available_finishes') and product.available_finishes:
+            finishes = [finish_map.get(fid) for fid in product.available_finishes if finish_map.get(fid)]
+            if finishes:
+                customizations['finishes'] = finishes
+        
+        if hasattr(product, 'available_colors') and product.available_colors:
+            colors = [color_map.get(cid) for cid in product.available_colors if color_map.get(cid)]
+            if colors:
+                customizations['colors'] = colors
+        
+        if hasattr(product, 'available_upholsteries') and product.available_upholsteries:
+            upholsteries = [upholstery_map.get(uid) for uid in product.available_upholsteries if upholstery_map.get(uid)]
+            if upholsteries:
+                customizations['fabrics'] = upholsteries  # Frontend uses 'fabrics' for upholstery
+                customizations['upholstery'] = upholsteries  # Also include 'upholstery' for compatibility
+        
+        if customizations:
+            product.customizations = customizations
+
+
 async def _apply_pricing_tiers_to_products(
     db: AsyncSession,
     company: Company,
@@ -258,6 +337,12 @@ async def get_products(
         include_inactive=False
     )
     
+    # Populate customizations for all products
+    if result and 'items' in result:
+        items_list = result['items'] if isinstance(result, dict) else getattr(result, 'items', [])
+        if items_list:
+            await _populate_customizations(db, items_list)
+    
     # Apply pricing tiers if company is authenticated
     if company and result and 'items' in result:
         items_list = result['items'] if isinstance(result, dict) else getattr(result, 'items', [])
@@ -302,6 +387,10 @@ async def search_products(
         threshold=threshold
     )
     
+    # Populate customizations for search results
+    if products:
+        await _populate_customizations(db, products)
+    
     return products
 
 
@@ -330,6 +419,9 @@ async def get_product(
         product_id=product_id,
         increment_view=True  # Track popularity
     )
+    
+    # Populate customizations
+    await _populate_customizations(db, [product])
     
     # Apply pricing tier if company is authenticated
     if company:
@@ -364,6 +456,9 @@ async def get_product_by_slug(
         increment_view=True  # Track popularity
     )
     
+    # Populate customizations
+    await _populate_customizations(db, [product])
+    
     # Apply pricing tier if company is authenticated
     if company:
         await _apply_pricing_tiers_to_products(db, company, [product])
@@ -395,6 +490,9 @@ async def get_product_by_model(
         model_number=model_number,
         increment_view=True  # Track popularity
     )
+    
+    # Populate customizations
+    await _populate_customizations(db, [product])
     
     return product
 
@@ -841,6 +939,10 @@ async def get_related_products(
         product_id=product_id,
         limit=limit
     )
+    
+    # Populate customizations for related products
+    if related:
+        await _populate_customizations(db, related)
     
     # Apply pricing tiers if company is authenticated
     if company and related:

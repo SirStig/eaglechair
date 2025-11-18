@@ -1,7 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { IS_DEMO, demoLegalDocuments } from '../data/demoData';
 import { loadContentData } from '../utils/contentDataLoader';
 
 const TermsOfServicePage = () => {
@@ -10,19 +9,17 @@ const TermsOfServicePage = () => {
 
   useEffect(() => {
     const loadData = async () => {
-      if (!IS_DEMO) {
-        const content = await loadContentData();
-        if (content?.legalDocuments) {
-          setLegalDocuments(content.legalDocuments);
-        }
+      const content = await loadContentData();
+      if (content?.legalDocuments) {
+        setLegalDocuments(content.legalDocuments);
       }
       setLoading(false);
     };
     loadData();
   }, []);
 
-  // Get Terms of Service from legal documents (use demo or production data)
-  const legalData = IS_DEMO ? demoLegalDocuments : legalDocuments;
+  // Get Terms of Service from legal documents
+  const legalData = legalDocuments;
   const termsDoc = legalData.find(doc => doc.slug === 'conditions-of-sale');
   
   if (loading) {

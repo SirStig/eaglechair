@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate, Link, useLocation } from 'react-router-dom';
 import { useForm } from 'react-hook-form';
 import { motion } from 'framer-motion';
@@ -7,13 +7,12 @@ import Input from '../components/ui/Input';
 import Card from '../components/ui/Card';
 import { useAuthStore } from '../store/authStore';
 import { useCartStore } from '../store/cartStore';
-import { demoUser, demoAdminUser, IS_DEMO } from '../data/demoData';
 import { useSiteSettings } from '../hooks/useContent';
 
 const LoginPage = () => {
   const navigate = useNavigate();
   const location = useLocation();
-  const { login } = useAuthStore();
+  const { login, isAuthenticated, user } = useAuthStore();
   const cartStore = useCartStore();
   const { data: siteSettings } = useSiteSettings();
   const [error, setError] = useState(null);
@@ -23,57 +22,67 @@ const LoginPage = () => {
 
   const from = location.state?.from?.pathname || '/dashboard';
 
+  // Redirect if already authenticated - check if admin and redirect appropriately
+  useEffect(() => {
+    if (isAuthenticated && user) {
+      // If user is admin and trying to access admin routes, go to admin dashboard
+      const isAdmin = user.type === 'admin' || 
+                      user.role === 'super_admin' || 
+                      user.role === 'admin' ||
+                      user.role === 'editor';
+      
+      if (isAdmin && (from.startsWith('/admin') || location.pathname === '/login')) {
+        navigate('/admin/dashboard', { replace: true });
+      } else if (from && from !== '/login') {
+        // Redirect to the original destination
+        navigate(from, { replace: true });
+      } else {
+        // Default redirect based on user type
+        navigate(isAdmin ? '/admin/dashboard' : '/dashboard', { replace: true });
+      }
+    }
+  }, [isAuthenticated, user, navigate, from, location.pathname]);
+
   const onSubmit = async (data) => {
     setError(null);
     setSuccessMessage(null);
     
-    if (IS_DEMO) {
-      // Demo mode - simple email check
-      const isAdmin = data.email.includes('admin');
-      const demoUserData = isAdmin ? demoAdminUser : demoUser;
+    const result = await login({
+      email: data.email,
+      password: data.password,
+    }, cartStore);
+
+    if (result.success) {
+      // Get the updated user from the store after login
+      const currentUser = useAuthStore.getState().user;
+      const isAdmin = currentUser?.type === 'admin' || 
+                     currentUser?.role === 'super_admin' || 
+                     currentUser?.role === 'admin' ||
+                     currentUser?.role === 'editor';
       
-      await login({
-        email: data.email,
-        password: data.password,
-      });
-      
-      // Simulate successful login in demo mode
-      if (data.email && data.password) {
-        // Override with demo user
-        useAuthStore.setState({ 
-          user: demoUserData, 
-          isAuthenticated: true,
-          token: 'demo-token'
-        });
+      // Redirect based on user type and original destination
+      if (isAdmin && (from.startsWith('/admin') || from === '/dashboard')) {
+        navigate('/admin/dashboard', { replace: true });
+      } else if (from && from !== '/login' && !from.startsWith('/admin')) {
         navigate(from, { replace: true });
       } else {
-        setError('Please enter valid credentials');
+        navigate(isAdmin ? '/admin/dashboard' : '/dashboard', { replace: true });
       }
     } else {
-      // Real API mode
-      const result = await login({
-        email: data.email,
-        password: data.password,
-      }, cartStore);
-
-      if (result.success) {
-        navigate(from, { replace: true });
+      // Check if error is about email verification - prioritize requiresVerification flag
+      if (result.requiresVerification) {
+        // Redirect to verification page with user's email
+        navigate('/verify-email', {
+          state: {
+            email: data.email,
+            message: 'Please verify your email address before logging in. We\'ve sent a verification link to your email.',
+            from: from
+          }
+        });
       } else {
-        // Check if error is about email verification - prioritize requiresVerification flag
-        if (result.requiresVerification) {
-          // Redirect to verification page with user's email
-          navigate('/verify-email', {
-            state: {
-              email: data.email,
-              message: 'Please verify your email address before logging in. We\'ve sent a verification link to your email.',
-              from: from
-            }
-          });
-        } else {
-          // Show error message for other login failures
-          const errorMsg = result.error || 'Login failed';
-          setError(errorMsg);
-        }
+        // Show error message for other login failures
+        const errorMsg = result.error || 'Login failed';
+        setError(errorMsg);
       }
     }
   };
@@ -120,12 +129,6 @@ const LoginPage = () => {
             </motion.div>
           )}
 
-          {IS_DEMO && (
-            <div className="bg-dark-700 border-2 border-primary-500 text-dark-100 px-4 py-3 rounded-lg mb-6 text-sm">
-              <strong className="text-primary-500">Demo Mode:</strong> Use any email/password to login.
-              <br/>Try: demo@eaglechair.com or admin@eaglechair.com
-            </div>
-          )}
 
           <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
             <Input

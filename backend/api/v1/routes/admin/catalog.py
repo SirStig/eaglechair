@@ -72,18 +72,22 @@ router = APIRouter(tags=["Admin - Catalog"])
     description="Get all colors with optional filtering"
 )
 async def get_colors(
-    category: Optional[str] = Query(None, description="Filter by category (wood/metal/fabric/paint)"),
+    category: Optional[str] = Query(None, description="Filter by category (wood/metal/fabric/paint). Supports partial matching (e.g., 'wood' matches 'wood chairs')"),
     is_active: Optional[bool] = Query(None, description="Filter by active status"),
     admin: AdminUser = Depends(get_current_admin),
     db: AsyncSession = Depends(get_db)
 ):
     """Get all colors. Admin only."""
-    logger.info(f"Admin {admin.username} fetching colors")
+    logger.info(f"Admin {admin.username} fetching colors (category={category})")
+    
+    from sqlalchemy import func
     
     query = select(Color)
     
     if category:
-        query = query.where(Color.category == category)
+        # Support case-insensitive partial matching
+        # e.g., "wood" will match "wood", "wood chairs", "Wood Finish", etc.
+        query = query.where(func.lower(Color.category).contains(func.lower(category)))
     
     if is_active is not None:
         query = query.where(Color.is_active == is_active)

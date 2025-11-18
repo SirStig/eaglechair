@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { useForm } from 'react-hook-form';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -11,7 +11,7 @@ import { useSiteSettings } from '../hooks/useContent';
 
 const RegisterPage = () => {
   const navigate = useNavigate();
-  const { register: registerAuth } = useAuthStore();
+  const { register: registerAuth, isAuthenticated, user } = useAuthStore();
   const cartStore = useCartStore();
   const { data: siteSettings } = useSiteSettings();
   const [step, setStep] = useState(1);
@@ -24,6 +24,13 @@ const RegisterPage = () => {
   });
 
   const totalSteps = 4;
+
+  // Redirect to home if already authenticated
+  useEffect(() => {
+    if (isAuthenticated && user) {
+      navigate('/', { replace: true });
+    }
+  }, [isAuthenticated, user, navigate]);
 
   const validateStep = async (currentStep) => {
     let fieldsToValidate = [];

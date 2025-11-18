@@ -5,10 +5,8 @@ import Card from '../components/ui/Card';
 import Button from '../components/ui/Button';
 import Input from '../components/ui/Input';
 import EditableWrapper from '../components/admin/EditableWrapper';
-import { companyInfo } from '../data/demoData';
 import { useSiteSettings, usePageContent } from '../hooks/useContent';
 import { submitFeedback, updateSiteSettings, updatePageContent } from '../services/contentService';
-import { IS_DEMO } from '../data/demoData';
 import logger from '../utils/logger';
 
 const CONTEXT = 'ContactPage';
@@ -47,26 +45,18 @@ const ContactPage = () => {
 
   const onSubmit = async (data) => {
     try {
-      if (IS_DEMO) {
-        // Demo mode - simulate success
-        setSubmitStatus('success');
-        reset();
-        setTimeout(() => setSubmitStatus(null), 5000);
-      } else {
-        // Real API
-        await submitFeedback({
-          name: `${data.firstName} ${data.lastName}`,
-          email: data.email,
-          phone: data.phone,
-          companyName: data.company,
-          subject: data.subject,
-          message: data.message,
-          feedbackType: data.subject
-        });
-        setSubmitStatus('success');
-        reset();
-        setTimeout(() => setSubmitStatus(null), 5000);
-      }
+      await submitFeedback({
+        name: `${data.firstName} ${data.lastName}`,
+        email: data.email,
+        phone: data.phone,
+        companyName: data.company,
+        subject: data.subject,
+        message: data.message,
+        feedbackType: data.subject
+      });
+      setSubmitStatus('success');
+      reset();
+      setTimeout(() => setSubmitStatus(null), 5000);
     } catch (error) {
       setSubmitStatus('error');
     }
@@ -89,7 +79,23 @@ const ContactPage = () => {
       weekdays: siteSettings.businessHoursWeekdays,
       saturday: siteSettings.businessHoursSaturday
     }
-  } : companyInfo.contact;
+  } : {
+    phone: siteSettings?.primaryPhone || 'N/A',
+    salesPhone: siteSettings?.primaryPhone || 'N/A',
+    email: siteSettings?.primaryEmail || 'N/A',
+    salesEmail: siteSettings?.primaryEmail || 'N/A',
+    address: {
+      street: siteSettings?.addressLine1 || 'N/A',
+      city: siteSettings?.city || 'N/A',
+      state: siteSettings?.state || 'N/A',
+      zip: siteSettings?.zipCode || 'N/A',
+      fullAddress: siteSettings?.addressLine1 ? `${siteSettings.addressLine1}, ${siteSettings.city}, ${siteSettings.state} ${siteSettings.zipCode}` : 'N/A'
+    },
+    businessHours: {
+      weekdays: siteSettings?.businessHoursWeekdays || 'N/A',
+      saturday: siteSettings?.businessHoursSaturday || 'N/A'
+    }
+  };
 
   const contactInfo = [
     {

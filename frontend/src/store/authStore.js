@@ -22,6 +22,7 @@ export const useAuthStore = create(
   (set, get) => ({
       user: null,
       isAuthenticated: false,
+      isInitializing: false,
 
       login: async (credentials, cartStore = null) => {
         try {
@@ -231,14 +232,36 @@ export const useAuthStore = create(
       },
 
       // Validate and clean up auth state
+      // NOTE: This should be called sparingly to avoid redirect loops
+      // ProtectedRoute no longer calls this - it relies on isInitializing flag
       validateAndCleanup: async () => {
-        const { user, logout } = get();
+        const { user, isInitializing } = get();
+        
+        // Don't validate if auth is still initializing
+        if (isInitializing) {
+          logger.debug(AUTH_CONTEXT, 'Auth still initializing, skipping validation');
+          return true;
+        }
         
         // Check if user data is valid
         if (!isValidUser(user)) {
-          logger.warn(AUTH_CONTEXT, 'Invalid user data detected, clearing auth state');
-          await logout();
-          return false;
+          // Only clear if we also don't have tokens (might be a temporary state during init)
+          const accessToken = localStorage.getItem(ACCESS_TOKEN_KEY);
+          const refreshToken = localStorage.getItem(REFRESH_TOKEN_KEY);
+          
+          if (!accessToken && !refreshToken) {
+            logger.warn(AUTH_CONTEXT, 'Invalid user data and no tokens, clearing auth state');
+            // Don't call logout here - just clear state to avoid redirect loops
+            set({ 
+              user: null, 
+              isAuthenticated: false 
+            });
+            return false;
+          } else {
+            // We have tokens but invalid user - might be during initialization, don't clear yet
+            logger.debug(AUTH_CONTEXT, 'Invalid user data but tokens exist, waiting for validation');
+            return true;
+          }
         }
         
         // Check if tokens exist in localStorage
@@ -246,9 +269,20 @@ export const useAuthStore = create(
         const refreshToken = localStorage.getItem(REFRESH_TOKEN_KEY);
         
         if (!accessToken && !refreshToken) {
-          logger.debug(AUTH_CONTEXT, 'No tokens found in localStorage');
-          await logout();
-          return false;
+          // Only clear if user is also invalid
+          if (!isValidUser(user)) {
+            logger.debug(AUTH_CONTEXT, 'No tokens and invalid user, clearing auth state');
+            // Don't call logout here - just clear state to avoid redirect loops
+            set({ 
+              user: null, 
+              isAuthenticated: false 
+            });
+            return false;
+          } else {
+            // User is valid but no tokens - might be a race condition, don't clear
+            logger.debug(AUTH_CONTEXT, 'No tokens but valid user, skipping cleanup');
+            return true;
+          }
         }
         
         // Token validation is handled by the backend
@@ -260,6 +294,9 @@ export const useAuthStore = create(
       // Initialize auth state on app load
       initAuth: async () => {
         try {
+          // Set initializing flag to prevent premature redirects
+          set({ isInitializing: true });
+          
           // Check localStorage for stored tokens and user data
           const accessToken = localStorage.getItem(ACCESS_TOKEN_KEY);
           const refreshToken = localStorage.getItem(REFRESH_TOKEN_KEY);
@@ -293,7 +330,8 @@ export const useAuthStore = create(
               } else {
                 set({ 
                   user: userData, 
-                  isAuthenticated: true 
+                  isAuthenticated: true,
+                  isInitializing: true // Still initializing, will be set to false after backend validation
                 });
                 logger.info(AUTH_CONTEXT, 'Restored user from localStorage');
               }
@@ -346,7 +384,8 @@ export const useAuthStore = create(
                 localStorage.setItem(USER_KEY, JSON.stringify(validatedUser));
                 set({ 
                   user: validatedUser, 
-                  isAuthenticated: true 
+                  isAuthenticated: true,
+                  isInitializing: false
                 });
                 logger.info(AUTH_CONTEXT, `Session validated with backend - user type: ${validatedUser.type}`);
                 return;
@@ -397,7 +436,8 @@ export const useAuthStore = create(
                       localStorage.setItem(USER_KEY, JSON.stringify(retryUser));
                       set({ 
                         user: retryUser, 
-                        isAuthenticated: true 
+                        isAuthenticated: true,
+                        isInitializing: false
                       });
                       logger.info(AUTH_CONTEXT, 'Session restored after token refresh');
                       return;
@@ -414,10 +454,12 @@ export const useAuthStore = create(
           
           // If we get here, no valid session was found
           // Clear any stale state
+          set({ isInitializing: false });
           get().logout();
         } catch (error) {
           logger.error(AUTH_CONTEXT, 'Error during auth initialization', error);
           // On error, clear state
+          set({ isInitializing: false });
           get().logout();
         }
       },

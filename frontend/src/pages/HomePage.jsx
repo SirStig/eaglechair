@@ -12,7 +12,6 @@ import EditModal from '../components/admin/EditModal';
 import ConfirmModal from '../components/ui/ConfirmModal';
 import { useEditMode } from '../contexts/useEditMode';
 import { useToast } from '../contexts/ToastContext';
-import { demoHomeContent } from '../data/demoData';
 import { loadContentData } from '../utils/contentDataLoader';
 // Removed static import: { heroSlides as staticHeroSlides, features as staticFeatures, clientLogos as staticClientLogos, pageContent as staticPageContent }
 import { useHeroSlides, useFeatures, useClientLogos, useFeaturedProducts, usePageContent } from '../hooks/useContent';
@@ -133,7 +132,7 @@ const HomePage = () => {
     refetchLogos();
   };
 
-  // Hero Slider Settings
+  // Hero Slider Settings - Safari compatible
   const heroSettings = {
     dots: false,
     infinite: true,
@@ -144,6 +143,17 @@ const HomePage = () => {
     autoplaySpeed: 5000,
     fade: true,
     arrows: false,
+    pauseOnHover: false,
+    pauseOnFocus: false,
+    swipe: true,
+    touchMove: true,
+    // Safari-specific fixes
+    cssEase: 'ease-in-out',
+    useCSS: true,
+    useTransform: true,
+    adaptiveHeight: false,
+    // Force re-render on Safari
+    lazyLoad: 'ondemand',
   };
 
   // Client Logos Slider Settings
@@ -212,9 +222,17 @@ const HomePage = () => {
                   >
                     <div className="relative h-[calc(100vh-72px)] sm:h-[calc(100vh-88px)] md:h-[calc(100vh-96px)] lg:h-[calc(100vh-80px)] min-h-[400px] sm:min-h-[500px]">
                       <img
+                        key={`hero-${slide.id || index}-${slide.background_image_url || slide.image}`}
                         src={slide.background_image_url || slide.image}
                         alt={slide.title}
                         className="w-full h-full object-cover"
+                        loading="eager"
+                        decoding="async"
+                        style={{ 
+                          WebkitTransform: 'translateZ(0)',
+                          transform: 'translateZ(0)',
+                          willChange: 'transform'
+                        }}
                       />
                       <div className="absolute inset-0 bg-gradient-to-r from-black/70 to-black/30" />
                       
@@ -634,7 +652,7 @@ const HomePage = () => {
                 </div>
               </motion.div>
             )}
-            className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6 md:gap-8 px-4 sm:px-0"
+            className="grid grid-cols-2 md:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6 md:gap-8 px-4 sm:px-0"
           />
         </div>
       </section>

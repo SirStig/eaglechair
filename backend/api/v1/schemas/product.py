@@ -289,6 +289,7 @@ class ChairBase(BaseModel):
     features: Optional[list[str]] = None
     available_finishes: Optional[list[int]] = None
     available_upholsteries: Optional[list[int]] = None
+    available_colors: Optional[list[int]] = None  # Array of color IDs
     
     # Images (accepts either list of URLs or list of structured items)
     images: Union[List[str], List[ProductImageItem]]
@@ -373,6 +374,7 @@ class ChairUpdate(BaseModel):
     features: Optional[list[str]] = None
     available_finishes: Optional[list[int]] = None
     available_upholsteries: Optional[list[int]] = None
+    available_colors: Optional[list[int]] = None
     # Accept both URL lists and structured items when updating
     images: Optional[Union[List[str], List[ProductImageItem]]] = None
     primary_image: Optional[str] = Field(None, max_length=500)
@@ -409,6 +411,8 @@ class ChairResponse(ChairBase, TimestampSchema):
     adjusted_price: Optional[int] = None  # Price after company tier adjustment
     pricing_tier_name: Optional[str] = None  # Name of applied pricing tier
     pricing_tier_adjustment: Optional[int] = None  # Percentage adjustment applied
+    # Customizations object with names (computed from IDs)
+    customizations: Optional[dict] = None  # {finishes: [names], colors: [names], fabrics: [names]}
     
     model_config = {"from_attributes": True}
 

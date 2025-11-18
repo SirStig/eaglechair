@@ -16,7 +16,6 @@ import {
   deleteCompanyMilestone,
   deleteTeamMember
 } from '../services/contentService';
-import { demoAboutContent } from '../data/demoData';
 import LoadingSpinner from '../components/ui/LoadingSpinner';
 import logger from '../utils/logger';
 import { invalidateCache } from '../utils/cache';
@@ -37,13 +36,13 @@ const AboutPage = () => {
   const loading = valuesLoading || milestonesLoading || teamLoading;
 
   // Hero content
-  const heroTitle = heroSection?.title || demoAboutContent.hero.title;
-  const heroSubtitle = heroSection?.subtitle || demoAboutContent.hero.subtitle;
+  const heroTitle = heroSection?.title || "About Eagle Chair";
+  const heroSubtitle = heroSection?.subtitle || "Crafting Excellence in Seating Solutions";
   const heroImage = heroSection?.imageUrl || "https://images.unsplash.com/photo-1565891741441-64926e441838?w=1920";
 
   // Story content
-  const storyTitle = storySection?.title || demoAboutContent.story.title;
-  const storyContent = storySection?.content || demoAboutContent.story.paragraphs.join('\n\n');
+  const storyTitle = storySection?.title || "Our Story";
+  const storyContent = storySection?.content || "";
   const storyImage = storySection?.imageUrl || "https://images.unsplash.com/photo-1556912172-45b7abe8b7e1?w=800";
 
   // CTA content

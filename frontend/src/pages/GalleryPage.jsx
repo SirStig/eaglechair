@@ -10,7 +10,6 @@ import {
   createInstallation, 
   deleteInstallation 
 } from '../services/contentService';
-import { demoGalleryImages } from '../data/demoData';
 import LoadingSpinner from '../components/ui/LoadingSpinner';
 import logger from '../utils/logger';
 
@@ -21,8 +20,8 @@ const GalleryPage = () => {
   const [filter, setFilter] = useState('all');
   const { data: installations, loading, refetch } = useInstallations();
 
-  // Use API data or fallback to demo
-  const images = installations || demoGalleryImages;
+  // Use API data
+  const images = installations || [];
 
   const categories = ['all', ...new Set(images.map(img => img.category || img.projectType || img.project_type).filter(Boolean))];
   
