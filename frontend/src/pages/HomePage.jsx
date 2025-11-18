@@ -622,11 +622,11 @@ const HomePage = () => {
                 whileInView={{ opacity: 1, y: 0 }}
                 viewport={{ once: true }}
                 transition={{ delay: index * 0.1 }}
-                className="bg-dark-600 border border-dark-500 rounded-xl shadow-md hover:shadow-xl transition-shadow overflow-hidden"
+                className="h-full flex flex-col bg-dark-600 border border-dark-500 rounded-xl shadow-md hover:shadow-xl transition-shadow overflow-hidden"
               >
                 {/* Feature Image or Icon */}
                 {feature.image_url || feature.imageUrl ? (
-                  <div className="w-full h-48 overflow-hidden">
+                  <div className="w-full h-48 overflow-hidden flex-shrink-0">
                     <img 
                       src={feature.image_url || feature.imageUrl} 
                       alt={feature.title}
@@ -634,7 +634,7 @@ const HomePage = () => {
                     />
                   </div>
                 ) : (
-                  <div className="w-full h-12 flex justify-center items-center mt-6">
+                  <div className="w-full h-12 flex justify-center items-center mt-6 flex-shrink-0">
                     <div className="w-12 h-12 bg-primary-900 border-2 border-primary-500 rounded-lg flex items-center justify-center">
                       {feature.icon ? (
                         <span className="text-2xl">{feature.icon}</span>
@@ -646,9 +646,9 @@ const HomePage = () => {
                 )}
                 
                 {/* Feature Content */}
-                <div className="p-6">
+                <div className="p-6 flex-1 flex flex-col">
                   <h3 className="text-xl font-semibold mb-2 text-dark-50">{feature.title}</h3>
-                  <p className="text-dark-100">{feature.description}</p>
+                  <p className="text-dark-100 flex-1">{feature.description}</p>
                 </div>
               </motion.div>
             )}

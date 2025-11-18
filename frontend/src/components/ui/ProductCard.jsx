@@ -186,7 +186,11 @@ const ProductCard = ({ product, onQuickView, darkMode = false }) => {
         {/* Action Buttons */}
         <div className="mt-auto flex gap-2">
           <Link to={productUrl} className="flex-1">
-            <Button variant="primary" size="sm" className="w-full text-xs sm:text-sm">
+            <Button 
+              variant="primary" 
+              size="sm" 
+              className="w-full text-xs px-2 py-1.5 min-h-[36px] sm:text-sm sm:px-4 sm:py-2 sm:min-h-[40px]"
+            >
               View Details
             </Button>
           </Link>
@@ -197,9 +201,9 @@ const ProductCard = ({ product, onQuickView, darkMode = false }) => {
               e.preventDefault();
               onQuickView?.(product);
             }}
-            className="flex-shrink-0 px-2 sm:px-3"
+            className="flex-shrink-0 px-2 py-1.5 min-h-[36px] sm:px-3 sm:py-2 sm:min-h-[40px]"
           >
-            <svg className="h-3.5 w-3.5 sm:h-4 sm:w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <svg className="h-3 w-3 sm:h-4 sm:w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
             </svg>

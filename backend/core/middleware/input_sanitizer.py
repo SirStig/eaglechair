@@ -187,6 +187,18 @@ class InputSanitizerMiddleware(BaseHTTPMiddleware):
             "/favicon.ico",
         ]
         
+        # Skip for auth endpoints to avoid body parsing issues
+        # Auth endpoints handle their own validation and sanitization
+        auth_paths = [
+            "/api/v1/auth/login",
+            "/api/v1/auth/register",
+            "/api/v1/auth/refresh",
+            "/api/v1/auth/admin/login",
+        ]
+        
+        if any(request.url.path.startswith(path) for path in auth_paths):
+            return True
+        
         return any(request.url.path.startswith(path) for path in skip_paths)
     
     def _sanitize_query_params(self, request: Request) -> Optional[Dict[str, Any]]:
