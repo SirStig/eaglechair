@@ -1,15 +1,14 @@
 import { Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { useSiteSettings } from '../../hooks/useContent';
-import { demoFooterLinks, demoSiteSettings } from '../../data/demoData';
 
 const Footer = () => {
   const currentYear = new Date().getFullYear();
   const { data: siteSettings } = useSiteSettings();
-  const footerLinks = demoFooterLinks;
+  const footerLinks = []; // Footer links should come from API/siteSettings
   
-  // Use siteSettings if available, otherwise fall back to demo data
-  const contact = siteSettings || demoSiteSettings;
+  // Use siteSettings if available
+  const contact = siteSettings;
 
   return (
     <footer className="bg-dark-900 text-dark-100 border-t border-dark-500">
@@ -18,7 +17,15 @@ const Footer = () => {
           <div className="lg:col-span-1 sm:col-span-2 md:col-span-1 text-center sm:text-left">
             <div className="flex flex-col items-center sm:items-start">
               {siteSettings?.logoUrl ? (
-                <img src={siteSettings.logoUrl} alt={siteSettings.companyName || 'Eagle Chair'} className="h-14 sm:h-16 w-auto mb-3 sm:mb-4 opacity-80" />
+                <img 
+                  src={siteSettings.logoUrl} 
+                  alt={siteSettings.companyName || 'Eagle Chair'} 
+                  className="h-14 sm:h-16 w-auto mb-3 sm:mb-4 opacity-80"
+                  onError={(e) => {
+                    e.target.onerror = null; // Prevent infinite loop
+                    e.target.src = '/assets/eagle-chair-logo.png';
+                  }}
+                />
               ) : (
                 <img src="/assets/eagle-chair-logo.png" alt="Eagle Chair" className="h-14 sm:h-16 w-auto mb-3 sm:mb-4 opacity-80" />
               )}

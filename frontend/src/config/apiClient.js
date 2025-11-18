@@ -7,12 +7,12 @@ const CONTEXT = 'APIClient';
 // CRITICAL: No fallback to localhost - must be set in .env files
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || '';
 const API_TIMEOUT = parseInt(import.meta.env.VITE_API_TIMEOUT) || 30000;
-export const IS_DEMO_MODE = import.meta.env.VITE_DEMO_MODE === 'true';
+// Demo mode removed - always use API
+export const IS_DEMO_MODE = false;
 
 // Log configuration at startup
 logger.info(CONTEXT, `API Client Configuration:`, {
   baseURL: API_BASE_URL || '(using relative URLs)',
-  demoMode: IS_DEMO_MODE,
   mode: import.meta.env.MODE,
   buildTimestamp: typeof __BUILD_TIMESTAMP__ !== 'undefined' ? __BUILD_TIMESTAMP__ : 'unknown'
 });

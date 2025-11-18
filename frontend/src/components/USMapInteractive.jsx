@@ -1,7 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import logger from '../utils/logger';
 import { useSiteSettings } from '../hooks/useContent';
-import { companyInfo } from '../data/demoData';
 
 const CONTEXT = 'USMapInteractive';
 
@@ -278,9 +277,9 @@ const USMapInteractive = ({
               <p className="text-sm text-dark-100 mb-2">
                 <strong className="text-primary-500">Need Help?</strong>
               </p>
-              <p className="text-sm text-dark-200">
-                Call us at <span className="text-primary-500 font-semibold">{siteSettings?.primaryPhone || companyInfo.contact.phone}</span> or email{' '}
-                <span className="text-primary-500 font-semibold">{siteSettings?.primaryEmail || companyInfo.contact.email}</span>
+                <p className="text-sm text-dark-200">
+                Call us at <span className="text-primary-500 font-semibold">{siteSettings?.primaryPhone || 'N/A'}</span> or email{' '}
+                <span className="text-primary-500 font-semibold">{siteSettings?.primaryEmail || 'N/A'}</span>
               </p>
             </div>
           </div>

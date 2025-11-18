@@ -979,7 +979,7 @@ const ProductCatalogPage = () => {
                   </span>
                 </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6 mb-8">
+                <div className="grid grid-cols-2 md:grid-cols-2 xl:grid-cols-3 gap-6 mb-8">
                   {families.map((family) => (
                     <div key={family.id}>
                       <ProductFamilyCard 
@@ -1024,7 +1024,7 @@ const ProductCatalogPage = () => {
                 </div>
                 
                 {/* Products Grid */}
-                <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-5 md:gap-6 xl:gap-8 mb-8">
+                <div className="grid grid-cols-2 md:grid-cols-2 xl:grid-cols-3 gap-5 md:gap-6 xl:gap-8 mb-8">
                   {products.map((product) => (
                     <div key={product.id} className="h-full">
                       <ProductCard 

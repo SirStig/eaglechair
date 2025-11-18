@@ -4,6 +4,7 @@ import Header, { MobileMenu } from './Header';
 import Footer from './Footer';
 import { useAuthStore } from '../../store/authStore';
 import { useCartStore } from '../../store/cartStore';
+import { initDesktopViewMode } from '../../utils/viewMode';
 
 const Layout = () => {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
@@ -17,6 +18,11 @@ const Layout = () => {
       : state.guestItems;
     return items.reduce((sum, item) => sum + item.quantity, 0);
   });
+
+  // Initialize desktop view mode on mount
+  useEffect(() => {
+    initDesktopViewMode();
+  }, []);
 
   useEffect(() => {
     if (isMobileMenuOpen) {

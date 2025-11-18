@@ -1,15 +1,52 @@
 import { Navigate, useLocation } from 'react-router-dom';
-import { useEffect } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { useAuthStore } from '../store/authStore';
 
 const ProtectedRoute = ({ children, requireAdmin = false }) => {
-  const { isAuthenticated, user, validateAndCleanup } = useAuthStore();
+  const { isAuthenticated, user, isInitializing } = useAuthStore();
   const location = useLocation();
+  const [isChecking, setIsChecking] = useState(true);
+  const hasCheckedRef = useRef(false);
 
-  // Validate auth state on mount to prevent undefined user data
+  // Only check auth state once on mount, not on every render
   useEffect(() => {
-    validateAndCleanup();
-  }, [validateAndCleanup]);
+    // Skip if already checked or still initializing
+    if (hasCheckedRef.current || isInitializing) {
+      if (!isInitializing) {
+        setIsChecking(false);
+      }
+      return;
+    }
+
+    // Wait for initialization to complete
+    const checkAuth = async () => {
+      // Wait a bit for initialization to settle
+      await new Promise(resolve => setTimeout(resolve, 100));
+      
+      // If still initializing after delay, wait for it
+      if (isInitializing) {
+        return;
+      }
+      
+      hasCheckedRef.current = true;
+      setIsChecking(false);
+    };
+    
+    checkAuth();
+  }, [isInitializing]);
+
+  // Wait for auth initialization to complete before making decisions
+  if (isInitializing || isChecking) {
+    // Show loading state while checking
+    return (
+      <div className="min-h-screen bg-dark-900 flex items-center justify-center">
+        <div className="text-center">
+          <div className="h-8 w-8 border-4 border-dark-600 border-t-primary-500 rounded-full animate-spin mx-auto mb-4"></div>
+          <p className="text-dark-200">Loading...</p>
+        </div>
+      </div>
+    );
+  }
 
   // Not authenticated - redirect to login
   if (!isAuthenticated || !user) {

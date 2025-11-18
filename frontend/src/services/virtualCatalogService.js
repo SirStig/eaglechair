@@ -23,6 +23,7 @@ class VirtualCatalogService {
       headers: {
         'Content-Type': 'multipart/form-data',
       },
+      timeout: 900000, // 15 minutes (900 seconds) for large PDF uploads
       onUploadProgress: (progressEvent) => {
         if (onProgress) {
           const percentCompleted = Math.round(

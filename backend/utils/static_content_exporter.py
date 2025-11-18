@@ -28,8 +28,10 @@ class StaticContentExporter:
     Flow:
     1. Admin updates content in CMS
     2. Content saved to database
-    3. This exporter generates/updates JS file in frontend/src/data/
-    4. Frontend imports and uses the static file (no API call needed)
+    3. This exporter generates/updates JS file:
+       - Development: frontend/public/data/contentData.js (served at /data/contentData.js)
+       - Production: root-level /data/contentData.js (no public folder after build)
+    4. Frontend loads from /data/contentData.js (works in both environments)
     """
     
     def __init__(self, frontend_path: Optional[str] = None):
@@ -41,43 +43,38 @@ class StaticContentExporter:
         """
         self.frontend_path = self._resolve_frontend_path(frontend_path)
         
-        # In production (DreamHost), frontend is deployed (no src directory)
-        # Check if we're in production (no src directory exists)
-        src_data_dir = self.frontend_path / "src" / "data"
+        # Detect environment: Development has public folder, production does not
+        public_dir = self.frontend_path / "public"
+        is_development = public_dir.exists() and public_dir.is_dir()
         
-        if src_data_dir.exists():
-            # Development mode - use src directory
-            self.data_dir = src_data_dir
+        if is_development:
+            # Development mode: Write to public/data/contentData.js
+            # This is served at /data/contentData.js by Vite dev server
+            self.data_dir = public_dir / "data"
             self.content_file = self.data_dir / "contentData.js"
+            logger.info("StaticContentExporter initialized for DEVELOPMENT: writing to public/data")
         else:
-            # Production mode - frontend is deployed, use data directory directly
+            # Production mode: Write to {FRONTEND_PATH}/data/contentData.js
+            # FRONTEND_PATH is set via environment variable (e.g., /home/dh_wmujeb/joshua.eaglechair.com)
+            # No public folder exists after build, files are at root level of frontend directory
             self.data_dir = self.frontend_path / "data"
             self.content_file = self.data_dir / "contentData.js"
+            logger.info(f"StaticContentExporter initialized for PRODUCTION: writing to {self.frontend_path}/data")
         
-        # Also write to public/data for runtime access via /data/contentData.js
-        self.public_data_dir = self.frontend_path / "public" / "data"
-        self.public_content_file = self.public_data_dir / "contentData.js"
-        
-        # Also track dist directory for production builds
-        self.dist_dir = self.frontend_path / "dist"
-        self.dist_data_dir = self.dist_dir / "data"
-        self.dist_content_file = self.dist_data_dir / "contentData.js"
-        
-        # Ensure data directories exist
+        # Ensure data directory exists
         self.data_dir.mkdir(parents=True, exist_ok=True)
-        self.public_data_dir.mkdir(parents=True, exist_ok=True)
         
-        logger.info(f"StaticContentExporter initialized: {self.content_file}")
+        logger.info(f"Content file path: {self.content_file}")
     
     def _resolve_frontend_path(self, custom_path: Optional[str] = None) -> Path:
         """
         Resolve the frontend directory path.
         
-        Supports:
-        - Custom path (for testing)
-        - Environment variable FRONTEND_PATH
-        - Auto-detection relative to backend directory
-        - Production: assumes /www.eaglechair.com/ structure
+        Priority order:
+        1. Custom path (for testing)
+        2. settings.FRONTEND_PATH (from config, which reads from env var)
+        3. Environment variable FRONTEND_PATH (direct check)
+        4. Auto-detection relative to backend directory (development)
         
         Args:
             custom_path: Optional custom path override
@@ -88,35 +85,41 @@ class StaticContentExporter:
         if custom_path:
             return Path(custom_path)
         
-        # Check environment variable
+        # Check settings.FRONTEND_PATH (from config, which reads from env var)
+        # This is the preferred method as it uses the config system
+        from backend.core.config import settings
+        if settings.FRONTEND_PATH and settings.FRONTEND_PATH != "frontend":
+            # If FRONTEND_PATH is set to something other than default, use it
+            # This handles production where it's set to /home/dh_wmujeb/joshua.eaglechair.com
+            frontend_path = Path(settings.FRONTEND_PATH)
+            if frontend_path.is_absolute() or frontend_path.exists():
+                logger.info(f"Using FRONTEND_PATH from settings: {frontend_path}")
+                return frontend_path.resolve() if frontend_path.exists() else frontend_path
+        
+        # Check environment variable directly (fallback)
         env_path = os.getenv("FRONTEND_PATH")
         if env_path:
-            return Path(env_path)
+            env_path_obj = Path(env_path)
+            logger.info(f"Using FRONTEND_PATH from environment: {env_path_obj}")
+            return env_path_obj.resolve() if env_path_obj.exists() else env_path_obj
         
-        # Auto-detect based on backend location
+        # Auto-detect based on backend location (development)
         backend_dir = Path(__file__).resolve().parent.parent
         
         # Development: backend is sibling to frontend
         frontend_dev = backend_dir.parent / "frontend"
         if frontend_dev.exists():
-            logger.info(f"Using development frontend path: {frontend_dev}")
+            logger.info(f"Using development frontend path (auto-detected): {frontend_dev}")
             return frontend_dev
         
-        # Production: assume /www.eaglechair.com/backend and /www.eaglechair.com/frontend
-        # or built version at /www.eaglechair.com/dist
-        production_paths = [
-            backend_dir.parent / "frontend",
-            backend_dir.parent / "dist",
-            Path("/var/www/eaglechair.com/frontend"),
-            Path("/var/www/eaglechair.com/dist"),
-        ]
+        # Fallback: use settings.FRONTEND_PATH even if it's the default "frontend"
+        if settings.FRONTEND_PATH:
+            frontend_path = backend_dir.parent / settings.FRONTEND_PATH
+            if frontend_path.exists():
+                logger.info(f"Using FRONTEND_PATH from settings (relative): {frontend_path}")
+                return frontend_path
         
-        for path in production_paths:
-            if path.exists():
-                logger.info(f"Using production frontend path: {path}")
-                return path
-        
-        # Fallback to development path (will be created if needed)
+        # Final fallback to development path (will be created if needed)
         logger.warning(f"Frontend path not found, using: {frontend_dev}")
         return frontend_dev
     
@@ -191,7 +194,7 @@ class StaticContentExporter:
         Export all CMS content to contentData.js file.
         
         This is the main method called after content updates.
-        Writes to both src/data (for dev) and dist/data (for production).
+        Writes to public/data in development, root /data in production.
         
         Args:
             content_data: Dictionary containing all content sections:
@@ -223,12 +226,9 @@ class StaticContentExporter:
             # Generate the JavaScript file content
             js_content = self._generate_js_file(content_data)
             
-            # Write to src/data (for development)
+            # Write to the correct location based on environment
+            # (already determined in __init__)
             self._write_content_file(self.content_file, js_content)
-            
-            # Write to public/data (for runtime access via /data/contentData.js)
-            self._write_content_file(self.public_content_file, js_content)
-            logger.info(f"Also exported to public/data: {self.public_content_file}")
             
             # Update cache for easier reading
             self._update_cache(content_data)

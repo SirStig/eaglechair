@@ -193,8 +193,10 @@ const ProductEditor = ({ product, onBack }) => {
   
   const fetchColors = async () => {
     try {
-      const response = await apiClient.get('/api/v1/admin/colors');
-      setColors(response.items || []);
+      // Fetch all active colors - no category filter to show all available colors
+      // Users can select any color regardless of category
+      const response = await apiClient.get('/api/v1/admin/colors?is_active=true');
+      setColors(response.items || response || []);
     } catch (error) {
       console.error('Failed to fetch colors:', error);
       setColors([]);

@@ -1,6 +1,5 @@
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { IS_DEMO } from '../data/demoData';
 import { loadContentData } from '../utils/contentDataLoader';
 
 const GuidesPage = () => {
@@ -9,11 +8,9 @@ const GuidesPage = () => {
 
   useEffect(() => {
     const loadData = async () => {
-      if (!IS_DEMO) {
-        const content = await loadContentData();
-        if (content?.catalogs) {
-          setCatalogs(content.catalogs);
-        }
+      const content = await loadContentData();
+      if (content?.catalogs) {
+        setCatalogs(content.catalogs);
       }
       setLoading(false);
     };
@@ -21,7 +18,7 @@ const GuidesPage = () => {
   }, []);
 
   // Get guides from catalogs with category = "Guide" or similar
-  const guidesData = IS_DEMO ? [] : catalogs.filter(c => 
+  const guidesData = catalogs.filter(c => 
     c.category?.toLowerCase().includes('guide') || 
     c.category?.toLowerCase().includes('instruction') ||
     c.title?.toLowerCase().includes('guide')
@@ -74,20 +71,6 @@ const GuidesPage = () => {
       </div>
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
-        {/* Demo Mode Notice */}
-        {IS_DEMO && (
-          <div className="bg-yellow-900/20 border border-yellow-700 rounded-lg p-6 mb-8">
-            <div className="flex items-start gap-3">
-              <div className="text-yellow-500 text-2xl">⚠️</div>
-              <div>
-                <h3 className="text-yellow-500 font-semibold mb-1">Demo Mode Active</h3>
-                <p className="text-dark-200">
-                  Downloadable guides are not available in demo mode. Connect to the backend to access all guides.
-                </p>
-              </div>
-            </div>
-          </div>
-        )}
 
         {/* Guide Categories */}
         <div className="space-y-12">
@@ -103,9 +86,7 @@ const GuidesPage = () => {
 
               {category.guides.length === 0 ? (
                 <div className="text-center py-6 sm:py-8 text-dark-400">
-                  {IS_DEMO 
-                    ? 'Guides will appear when connected to the backend' 
-                    : 'No guides available in this category yet'}
+                  No guides available in this category yet
                 </div>
               ) : (
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">

@@ -5,18 +5,8 @@ import productService from './productService';
 
 // DO NOT import contentData statically - it gets bundled and cached
 // Instead we use loadContentData() which fetches from /data/ at runtime
-import { IS_DEMO } from '../data/demoData';
 
 const CONTEXT = 'ContentService';
-
-/**
- * Helper for demo mode - prevents API calls and returns success
- * This allows the admin UI to work seamlessly even in demo mode
- */
-const handleDemoWrite = (operation, entityType, entityId = null) => {
-  logger.info(CONTEXT, `[DEMO MODE] ${operation} ${entityType}${entityId ? ` ${entityId}` : ''}`);
-  return { success: true, message: `Demo mode: ${operation} ${entityType} operation simulated` };
-};
 
 /**
  * Content Service
@@ -394,9 +384,6 @@ export const getFeaturedProducts = async (limit = 4) => {
 // Update Page Content (Admin only)
 export const updatePageContent = async (pageSlug, sectionKey, updates) => {
   try {
-    if (IS_DEMO) {
-      return handleDemoWrite('UPDATE', 'PageContent');
-    }
     logger.info(CONTEXT, `Updating page content (${pageSlug}/${sectionKey})`);
     const response = await api.patch(`/api/v1/cms-admin/page-content/${pageSlug}/${sectionKey}`, updates);
     return response;
@@ -409,9 +396,6 @@ export const updatePageContent = async (pageSlug, sectionKey, updates) => {
 // Update Site Settings
 export const updateSiteSettings = async (updates) => {
   try {
-    if (IS_DEMO) {
-      return handleDemoWrite('UPDATE', 'SiteSettings');
-    }
     logger.info(CONTEXT, 'Updating site settings');
     
     // Backend expects snake_case, form data is already in snake_case, send as-is
@@ -426,9 +410,6 @@ export const updateSiteSettings = async (updates) => {
 // Update Company Info
 export const updateCompanyInfo = async (id, updates) => {
   try {
-    if (IS_DEMO) {
-      return handleDemoWrite('UPDATE', 'CompanyInfo', id);
-    }
     logger.info(CONTEXT, `Updating company info ${id}`);
     const response = await api.patch(`/api/v1/cms-admin/company-info/${id}`, updates);
     return response;
@@ -441,9 +422,6 @@ export const updateCompanyInfo = async (id, updates) => {
 // Update Team Member
 export const updateTeamMember = async (id, updates) => {
   try {
-    if (IS_DEMO) {
-      return handleDemoWrite('UPDATE', 'TeamMember', id);
-    }
     logger.info(CONTEXT, `Updating team member ${id}`);
     const response = await api.patch(`/api/v1/cms-admin/team-members/${id}`, updates);
     return response;
@@ -456,9 +434,6 @@ export const updateTeamMember = async (id, updates) => {
 // Update Hero Slide
 export const updateHeroSlide = async (id, updates) => {
   try {
-    if (IS_DEMO) {
-      return handleDemoWrite('UPDATE', 'HeroSlide', id);
-    }
     logger.info(CONTEXT, `Updating hero slide ${id}`);
     const response = await api.patch(`/api/v1/cms-admin/hero-slides/${id}`, updates);
     return response;
@@ -471,9 +446,6 @@ export const updateHeroSlide = async (id, updates) => {
 // Update Feature
 export const updateFeature = async (id, updates) => {
   try {
-    if (IS_DEMO) {
-      return handleDemoWrite('UPDATE', 'Feature', id);
-    }
     logger.info(CONTEXT, `Updating feature ${id}`);
     const response = await api.patch(`/api/v1/cms-admin/features/${id}`, updates);
     return response;
@@ -486,9 +458,6 @@ export const updateFeature = async (id, updates) => {
 // Update Client Logo
 export const updateClientLogo = async (id, updates) => {
   try {
-    if (IS_DEMO) {
-      return handleDemoWrite('UPDATE', 'ClientLogo', id);
-    }
     logger.info(CONTEXT, `Updating client logo ${id}`);
     const response = await api.patch(`/api/v1/cms-admin/client-logos/${id}`, updates);
     return response;
@@ -501,9 +470,6 @@ export const updateClientLogo = async (id, updates) => {
 // Update Sales Rep
 export const updateSalesRep = async (id, updates) => {
   try {
-    if (IS_DEMO) {
-      return handleDemoWrite('UPDATE', 'SalesRep', id);
-    }
     logger.info(CONTEXT, `Updating sales rep ${id}`);
     const response = await api.patch(`/api/v1/cms-admin/sales-reps/${id}`, updates);
     return response;
@@ -516,9 +482,6 @@ export const updateSalesRep = async (id, updates) => {
 // Update Installation
 export const updateInstallation = async (id, updates) => {
   try {
-    if (IS_DEMO) {
-      return handleDemoWrite('UPDATE', 'Installation', id);
-    }
     logger.info(CONTEXT, `Updating installation ${id}`);
     const response = await api.put(`/api/v1/cms-admin/gallery/${id}`, updates);
     return response;
@@ -531,9 +494,6 @@ export const updateInstallation = async (id, updates) => {
 // Update Contact Location
 export const updateContactLocation = async (id, updates) => {
   try {
-    if (IS_DEMO) {
-      return handleDemoWrite('UPDATE', 'ContactLocation', id);
-    }
     logger.info(CONTEXT, `Updating contact location ${id}`);
     const response = await api.patch(`/api/v1/cms-admin/contact-locations/${id}`, updates);
     return response;
@@ -546,9 +506,6 @@ export const updateContactLocation = async (id, updates) => {
 // Update Company Value
 export const updateCompanyValue = async (id, updates) => {
   try {
-    if (IS_DEMO) {
-      return handleDemoWrite('UPDATE', 'CompanyValue', id);
-    }
     logger.info(CONTEXT, `Updating company value ${id}`);
     const response = await api.patch(`/api/v1/cms-admin/company-values/${id}`, updates);
     return response;
@@ -561,9 +518,6 @@ export const updateCompanyValue = async (id, updates) => {
 // Update Company Milestone
 export const updateCompanyMilestone = async (id, updates) => {
   try {
-    if (IS_DEMO) {
-      return handleDemoWrite('UPDATE', 'CompanyMilestone', id);
-    }
     logger.info(CONTEXT, `Updating company milestone ${id}`);
     const response = await api.patch(`/api/v1/cms-admin/company-milestones/${id}`, updates);
     return response;
@@ -578,9 +532,6 @@ export const updateCompanyMilestone = async (id, updates) => {
 // Create Team Member
 export const createTeamMember = async (data) => {
   try {
-    if (IS_DEMO) {
-      return handleDemoWrite('CREATE', 'TeamMember');
-    }
     logger.info(CONTEXT, 'Creating team member');
     const response = await api.post('/api/v1/cms-admin/team-members', data);
     return response;
@@ -593,9 +544,6 @@ export const createTeamMember = async (data) => {
 // Create Hero Slide
 export const createHeroSlide = async (data) => {
   try {
-    if (IS_DEMO) {
-      return handleDemoWrite('CREATE', 'HeroSlide');
-    }
     logger.info(CONTEXT, 'Creating hero slide');
     const response = await api.post('/api/v1/cms-admin/hero-slides', data);
     return response;
@@ -608,9 +556,6 @@ export const createHeroSlide = async (data) => {
 // Create Feature
 export const createFeature = async (data) => {
   try {
-    if (IS_DEMO) {
-      return handleDemoWrite('CREATE', 'Feature');
-    }
     logger.info(CONTEXT, 'Creating feature');
     const response = await api.post('/api/v1/cms-admin/features', data);
     return response;
@@ -623,9 +568,6 @@ export const createFeature = async (data) => {
 // Create Client Logo
 export const createClientLogo = async (data) => {
   try {
-    if (IS_DEMO) {
-      return handleDemoWrite('CREATE', 'ClientLogo');
-    }
     logger.info(CONTEXT, 'Creating client logo');
     const response = await api.post('/api/v1/cms-admin/client-logos', data);
     return response;
@@ -638,9 +580,6 @@ export const createClientLogo = async (data) => {
 // Create Sales Rep
 export const createSalesRep = async (data) => {
   try {
-    if (IS_DEMO) {
-      return handleDemoWrite('CREATE', 'SalesRep');
-    }
     logger.info(CONTEXT, 'Creating sales rep');
     const response = await api.post('/api/v1/cms-admin/sales-reps', data);
     return response;
@@ -653,9 +592,6 @@ export const createSalesRep = async (data) => {
 // Create Installation
 export const createInstallation = async (data) => {
   try {
-    if (IS_DEMO) {
-      return handleDemoWrite('CREATE', 'Installation');
-    }
     logger.info(CONTEXT, 'Creating installation');
     const response = await api.post('/api/v1/cms-admin/gallery', data);
     return response;
@@ -668,9 +604,6 @@ export const createInstallation = async (data) => {
 // Create Contact Location
 export const createContactLocation = async (data) => {
   try {
-    if (IS_DEMO) {
-      return handleDemoWrite('CREATE', 'ContactLocation');
-    }
     logger.info(CONTEXT, 'Creating contact location');
     const response = await api.post('/api/v1/cms-admin/contact-locations', data);
     return response;
@@ -683,9 +616,6 @@ export const createContactLocation = async (data) => {
 // Create Company Value
 export const createCompanyValue = async (data) => {
   try {
-    if (IS_DEMO) {
-      return handleDemoWrite('CREATE', 'CompanyValue');
-    }
     logger.info(CONTEXT, 'Creating company value');
     const response = await api.post('/api/v1/cms-admin/company-values', data);
     return response;
@@ -698,9 +628,6 @@ export const createCompanyValue = async (data) => {
 // Create Company Milestone
 export const createCompanyMilestone = async (data) => {
   try {
-    if (IS_DEMO) {
-      return handleDemoWrite('CREATE', 'CompanyMilestone');
-    }
     logger.info(CONTEXT, 'Creating company milestone');
     const response = await api.post('/api/v1/cms-admin/company-milestones', data);
     return response;
@@ -727,9 +654,6 @@ export const createCompanyInfo = async (data) => {
 // Delete Team Member
 export const deleteTeamMember = async (id) => {
   try {
-    if (IS_DEMO) {
-      return handleDemoWrite('DELETE', 'TeamMember', id);
-    }
     logger.info(CONTEXT, `Deleting team member ${id}`);
     const response = await api.delete(`/api/v1/cms-admin/team-members/${id}`);
     return response;
@@ -742,9 +666,6 @@ export const deleteTeamMember = async (id) => {
 // Delete Hero Slide
 export const deleteHeroSlide = async (id) => {
   try {
-    if (IS_DEMO) {
-      return handleDemoWrite('DELETE', 'HeroSlide', id);
-    }
     logger.info(CONTEXT, `Deleting hero slide ${id}`);
     const response = await api.delete(`/api/v1/cms-admin/hero-slides/${id}`);
     return response;
@@ -757,9 +678,6 @@ export const deleteHeroSlide = async (id) => {
 // Delete Feature
 export const deleteFeature = async (id) => {
   try {
-    if (IS_DEMO) {
-      return handleDemoWrite('DELETE', 'Feature', id);
-    }
     logger.info(CONTEXT, `Deleting feature ${id}`);
     const response = await api.delete(`/api/v1/cms-admin/features/${id}`);
     return response;
@@ -772,9 +690,6 @@ export const deleteFeature = async (id) => {
 // Delete Client Logo
 export const deleteClientLogo = async (id) => {
   try {
-    if (IS_DEMO) {
-      return handleDemoWrite('DELETE', 'ClientLogo', id);
-    }
     logger.info(CONTEXT, `Deleting client logo ${id}`);
     const response = await api.delete(`/api/v1/cms-admin/client-logos/${id}`);
     return response;
@@ -787,9 +702,6 @@ export const deleteClientLogo = async (id) => {
 // Delete Sales Rep
 export const deleteSalesRep = async (id) => {
   try {
-    if (IS_DEMO) {
-      return handleDemoWrite('DELETE', 'SalesRep', id);
-    }
     logger.info(CONTEXT, `Deleting sales rep ${id}`);
     const response = await api.delete(`/api/v1/cms-admin/sales-reps/${id}`);
     return response;
@@ -802,9 +714,6 @@ export const deleteSalesRep = async (id) => {
 // Delete Installation
 export const deleteInstallation = async (id) => {
   try {
-    if (IS_DEMO) {
-      return handleDemoWrite('DELETE', 'Installation', id);
-    }
     logger.info(CONTEXT, `Deleting installation ${id}`);
     const response = await api.delete(`/api/v1/cms-admin/gallery/${id}`);
     return response;
@@ -817,9 +726,6 @@ export const deleteInstallation = async (id) => {
 // Delete Contact Location
 export const deleteContactLocation = async (id) => {
   try {
-    if (IS_DEMO) {
-      return handleDemoWrite('DELETE', 'ContactLocation', id);
-    }
     logger.info(CONTEXT, `Deleting contact location ${id}`);
     const response = await api.delete(`/api/v1/cms-admin/contact-locations/${id}`);
     return response;
@@ -832,9 +738,6 @@ export const deleteContactLocation = async (id) => {
 // Delete Company Value
 export const deleteCompanyValue = async (id) => {
   try {
-    if (IS_DEMO) {
-      return handleDemoWrite('DELETE', 'CompanyValue', id);
-    }
     logger.info(CONTEXT, `Deleting company value ${id}`);
     const response = await api.delete(`/api/v1/cms-admin/company-values/${id}`);
     return response;
@@ -847,9 +750,6 @@ export const deleteCompanyValue = async (id) => {
 // Delete Company Milestone
 export const deleteCompanyMilestone = async (id) => {
   try {
-    if (IS_DEMO) {
-      return handleDemoWrite('DELETE', 'CompanyMilestone', id);
-    }
     logger.info(CONTEXT, `Deleting company milestone ${id}`);
     const response = await api.delete(`/api/v1/cms-admin/company-milestones/${id}`);
     return response;
@@ -862,9 +762,6 @@ export const deleteCompanyMilestone = async (id) => {
 // Delete Company Info
 export const deleteCompanyInfo = async (id) => {
   try {
-    if (IS_DEMO) {
-      return handleDemoWrite('DELETE', 'CompanyInfo', id);
-    }
     logger.info(CONTEXT, `Deleting company info ${id}`);
     const response = await api.delete(`/api/v1/cms-admin/company-info/${id}`);
     return response;
@@ -904,9 +801,6 @@ export const getProductById = async (id) => {
 // Update Product
 export const updateProduct = async (id, updates) => {
   try {
-    if (IS_DEMO) {
-      return handleDemoWrite('UPDATE', 'Product', id);
-    }
     logger.info(CONTEXT, `Updating product ${id}`);
     const response = await api.patch(`/api/v1/products/${id}`, updates);
     return response;
@@ -919,9 +813,6 @@ export const updateProduct = async (id, updates) => {
 // Create Product
 export const createProduct = async (data) => {
   try {
-    if (IS_DEMO) {
-      return handleDemoWrite('CREATE', 'Product');
-    }
     logger.info(CONTEXT, 'Creating product');
     const response = await api.post('/api/v1/products', data);
     return response;
@@ -934,9 +825,6 @@ export const createProduct = async (data) => {
 // Delete Product
 export const deleteProduct = async (id) => {
   try {
-    if (IS_DEMO) {
-      return handleDemoWrite('DELETE', 'Product', id);
-    }
     logger.info(CONTEXT, `Deleting product ${id}`);
     const response = await api.delete(`/api/v1/products/${id}`);
     return response;
@@ -961,9 +849,6 @@ export const getCategories = async () => {
 // Update Category
 export const updateCategory = async (id, updates) => {
   try {
-    if (IS_DEMO) {
-      return handleDemoWrite('UPDATE', 'Category', id);
-    }
     logger.info(CONTEXT, `Updating category ${id}`);
     const response = await api.patch(`/api/v1/products/categories/${id}`, updates);
     return response;
@@ -976,9 +861,6 @@ export const updateCategory = async (id, updates) => {
 // Create Category
 export const createCategory = async (data) => {
   try {
-    if (IS_DEMO) {
-      return handleDemoWrite('CREATE', 'Category');
-    }
     logger.info(CONTEXT, 'Creating category');
     const response = await api.post('/api/v1/products/categories', data);
     return response;
@@ -991,9 +873,6 @@ export const createCategory = async (data) => {
 // Delete Category
 export const deleteCategory = async (id) => {
   try {
-    if (IS_DEMO) {
-      return handleDemoWrite('DELETE', 'Category', id);
-    }
     logger.info(CONTEXT, `Deleting category ${id}`);
     const response = await api.delete(`/api/v1/products/categories/${id}`);
     return response;

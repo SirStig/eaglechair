@@ -82,6 +82,110 @@
   }
 }
 
+/* Safari-specific fixes */
+@supports (-webkit-appearance: none) {
+  /* Fix for Safari hero slider transitions */
+  .slick-slide {
+    -webkit-transform: translateZ(0);
+    transform: translateZ(0);
+    -webkit-backface-visibility: hidden;
+    backface-visibility: hidden;
+  }
+  
+  .slick-slide img {
+    -webkit-transform: translateZ(0);
+    transform: translateZ(0);
+    will-change: transform;
+  }
+  
+  /* Fix for Safari image rendering */
+  img {
+    -webkit-transform: translateZ(0);
+    image-rendering: -webkit-optimize-contrast;
+    image-rendering: crisp-edges;
+  }
+  
+  /* Fix for Safari flexbox issues */
+  .flex {
+    -webkit-box-flex: 1;
+  }
+}
+
+/* Mac high-DPI display fixes */
+@media (-webkit-min-device-pixel-ratio: 2), (min-resolution: 192dpi) {
+  /* Ensure proper scaling on Mac Retina displays */
+  html {
+    -webkit-text-size-adjust: 100%;
+    text-size-adjust: 100%;
+  }
+  
+  /* Fix for blurry images on high-DPI */
+  img {
+    image-rendering: -webkit-optimize-contrast;
+    image-rendering: crisp-edges;
+  }
+}
+
+/* Safari 26.1+ specific fixes */
+@supports selector(:has(*)) {
+  /* Modern Safari support */
+  .slick-slider {
+    -webkit-perspective: 1000px;
+    perspective: 1000px;
+  }
+  
+  .slick-slide {
+    -webkit-transform-style: preserve-3d;
+    transform-style: preserve-3d;
+  }
+}
+
+/* Force hardware acceleration for hero slider on Safari */
+.slick-slider .slick-track {
+  -webkit-transform: translate3d(0, 0, 0);
+  transform: translate3d(0, 0, 0);
+  -webkit-backface-visibility: hidden;
+  backface-visibility: hidden;
+}
+
+/* Fix for Safari autoplay issues */
+.slick-slider.slick-initialized {
+  -webkit-animation: none;
+  animation: none;
+}
+
+/* Desktop View Mode - Override mobile responsive breakpoints */
+body.desktop-view-mode {
+  /* Force desktop breakpoints even on mobile devices */
+  min-width: 1024px;
+}
+
+body.desktop-view-mode * {
+  /* Prevent mobile-specific styles from applying */
+}
+
+/* Desktop view mode: Show desktop layout on mobile */
+@media (max-width: 1023px) {
+  body.desktop-view-mode .container {
+    max-width: 1280px;
+  }
+  
+  /* Force desktop grid layouts */
+  body.desktop-view-mode .grid {
+    /* Override mobile grid-cols-2 to use desktop breakpoints */
+  }
+  
+  /* Ensure desktop navigation is visible */
+  body.desktop-view-mode header nav {
+    display: flex !important;
+  }
+  
+  /* Hide mobile menu button when in desktop view */
+  body.desktop-view-mode [aria-label*="menu"] {
+    display: none !important;
+  }
+}
+
 /* Custom scrollbar */
 ::-webkit-scrollbar {
   width: 8px;

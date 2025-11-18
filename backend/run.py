@@ -26,7 +26,8 @@ if __name__ == "__main__":
         "log_level": settings.LOG_LEVEL.lower(),
         "access_log": True,
         "limit_max_requests": 0,  # No request limit
-        "timeout_keep_alive": 300,  # 5 minutes for large uploads
+        "timeout_keep_alive": 900,  # 15 minutes for large PDF uploads
+        "timeout_graceful_shutdown": 30,  # Graceful shutdown timeout
     }
     
     # Add proxy headers support for production (DreamHost VPS)

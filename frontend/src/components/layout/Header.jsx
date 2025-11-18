@@ -12,6 +12,7 @@ import ResourcesDropdown from './ResourcesDropdown';
 import { useSiteSettings } from '../../hooks/useContent';
 import productService from '../../services/productService';
 import logger from '../../utils/logger';
+import { isDesktopViewEnabled, toggleDesktopView } from '../../utils/viewMode';
 
 const CONTEXT = 'Header';
 
@@ -118,6 +119,10 @@ const Header = ({ isMobileMenuOpen, setIsMobileMenuOpen }) => {
                   src={siteSettings.logoUrl} 
                   alt={siteSettings.companyName || 'Eagle Chair'}
                   className="h-12 sm:h-14 md:h-16 lg:h-16 w-auto object-contain"
+                  onError={(e) => {
+                    e.target.onerror = null; // Prevent infinite loop
+                    e.target.src = '/assets/eagle-chair-logo.png';
+                  }}
                 />
               ) : (
                 <img 
@@ -439,6 +444,14 @@ export default Header;
 export const MobileMenu = ({ isMobileMenuOpen, setIsMobileMenuOpen, searchQuery, setSearchQuery, handleSearch, user, logout, cartItemCount }) => {
   const [isProductsOpen, setIsProductsOpen] = useState(false);
   const [isConnectOpen, setIsConnectOpen] = useState(false);
+  const [desktopViewEnabled, setDesktopViewEnabled] = useState(isDesktopViewEnabled());
+  
+  const handleToggleDesktopView = () => {
+    const newState = toggleDesktopView();
+    setDesktopViewEnabled(newState);
+    // Reload page to apply desktop view mode changes
+    window.location.reload();
+  };
   
   const handleMobileLinkClick = (callback) => {
     if (typeof callback === 'function') {
@@ -616,6 +629,25 @@ export const MobileMenu = ({ isMobileMenuOpen, setIsMobileMenuOpen, searchQuery,
                       </span>
                     )}
                   </Link>
+                  
+                  {/* View Desktop Site Option */}
+                  <button
+                    type="button"
+                    onClick={handleToggleDesktopView}
+                    className="flex items-center justify-between w-full px-3 py-2 rounded-lg border border-dark-700 text-dark-50 hover:border-primary-500 hover:text-primary-400 transition-colors text-left"
+                  >
+                    <span className="flex items-center gap-2">
+                      <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+                      </svg>
+                      <span>{desktopViewEnabled ? 'View Mobile Site' : 'View Desktop Site'}</span>
+                    </span>
+                    {desktopViewEnabled && (
+                      <span className="inline-flex items-center justify-center rounded-full bg-primary-500 text-xs font-semibold text-white px-2 py-0.5">
+                        ON
+                      </span>
+                    )}
+                  </button>
                 </div>
               </div>
             </div>

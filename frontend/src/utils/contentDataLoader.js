@@ -15,7 +15,9 @@ let contentCacheTimestamp = 0;
 const CACHE_DURATION = 60000; // 1 minute
 
 /**
- * Load contentData.js dynamically from public/data/
+ * Load contentData.js dynamically from /data/ path
+ * In development: served from public/data/contentData.js
+ * In production: served from root-level /data/contentData.js
  * Uses fetch with cache-busting timestamp
  */
 export const loadContentData = async () => {
