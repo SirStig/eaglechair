@@ -199,13 +199,26 @@ async def cms_options_handler(request: Request, call_next):
     """
     if request.method == "OPTIONS" and request.url.path.startswith("/api/v1/cms-admin/"):
         from fastapi.responses import Response
+        from backend.core.config import settings
+        
+        # Get the origin from the request
+        origin = request.headers.get("Origin", "")
+        
+        # Check if origin is in allowed origins
+        allowed_origin = origin if origin in settings.CORS_ORIGINS else settings.CORS_ORIGINS[0] if settings.CORS_ORIGINS else "*"
+        
+        # If credentials are allowed, we can't use "*" - must use specific origin
+        if settings.CORS_ALLOW_CREDENTIALS and allowed_origin == "*":
+            # Fallback to first allowed origin if origin not in list
+            allowed_origin = settings.CORS_ORIGINS[0] if settings.CORS_ORIGINS else origin
+        
         return Response(
             status_code=200,
             headers={
-                "Access-Control-Allow-Origin": "*",
+                "Access-Control-Allow-Origin": allowed_origin,
                 "Access-Control-Allow-Methods": "GET, POST, PUT, PATCH, DELETE, OPTIONS",
                 "Access-Control-Allow-Headers": "Authorization, X-Session-Token, X-Admin-Token, Content-Type",
-                "Access-Control-Allow-Credentials": "true",
+                "Access-Control-Allow-Credentials": "true" if settings.CORS_ALLOW_CREDENTIALS else "false",
                 "Access-Control-Max-Age": "86400",
             }
         )

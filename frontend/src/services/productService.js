@@ -209,6 +209,16 @@ export const productService = {
     const products = response.items || [];
     return transformProducts(products);
   },
+
+  /**
+   * Get product variations
+   * @param {number|string} productId - Product ID
+   * @returns {Promise<Object>} Product variations
+   */
+  getProductVariations: async (productId) => {
+    const response = await api.get(`/api/v1/products/${productId}/variations`);
+    return response.variations || [];
+  },
 };
 
 export default productService;

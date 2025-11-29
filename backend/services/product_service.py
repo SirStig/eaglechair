@@ -326,7 +326,14 @@ class ProductService:
         """
         result = await db.execute(
             select(Chair)
-            .options(selectinload(Chair.category).selectinload(Category.parent))
+            .options(
+                selectinload(Chair.category).selectinload(Category.parent),
+                selectinload(Chair.subcategory),
+                selectinload(Chair.family),
+                selectinload(Chair.variations).selectinload(ProductVariation.finish),
+                selectinload(Chair.variations).selectinload(ProductVariation.upholstery),
+                selectinload(Chair.variations).selectinload(ProductVariation.color)
+            )
             .where(Chair.id == product_id)
         )
         product = result.scalar_one_or_none()
@@ -693,13 +700,16 @@ class ProductService:
             dict with product, variations, family, subcategory info
         """
         # Get product with relationships
+        # Load variations with their finish, upholstery, and color relationships
         stmt = (
             select(Chair)
             .options(
                 selectinload(Chair.category),
                 selectinload(Chair.subcategory),
                 selectinload(Chair.family),
-                selectinload(Chair.variations)
+                selectinload(Chair.variations).selectinload(ProductVariation.finish),
+                selectinload(Chair.variations).selectinload(ProductVariation.upholstery),
+                selectinload(Chair.variations).selectinload(ProductVariation.color)
             )
             .where(Chair.id == product_id)
         )

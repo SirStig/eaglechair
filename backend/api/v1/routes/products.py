@@ -848,9 +848,36 @@ async def get_product_variations(
         include_inactive_variations=False
     )
     
+    # Serialize variations with relationships
+    from backend.utils.serializers import orm_to_dict
+    serialized_variations = []
+    for variation in result["variations"]:
+        var_dict = orm_to_dict(variation)
+        # Include relationship data
+        if variation.finish:
+            var_dict["finish"] = {
+                "id": variation.finish.id,
+                "name": variation.finish.name,
+                "type": variation.finish.finish_type.value if variation.finish.finish_type else None
+            }
+        if variation.upholstery:
+            var_dict["upholstery"] = {
+                "id": variation.upholstery.id,
+                "name": variation.upholstery.name,
+                "material_type": variation.upholstery.material_type.value if variation.upholstery.material_type else None
+            }
+        if variation.color:
+            var_dict["color"] = {
+                "id": variation.color.id,
+                "name": variation.color.name,
+                "hex_code": variation.color.hex_value,  # Color model uses hex_value, not hex_code
+                "category": variation.color.category.value if variation.color.category else None
+            }
+        serialized_variations.append(var_dict)
+    
     return {
         "product_id": product_id,
-        "variations": result["variations"]
+        "variations": serialized_variations
     }
 
 

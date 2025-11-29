@@ -4,6 +4,7 @@ Admin Product Routes
 Admin-only endpoints for product management
 """
 
+import json
 import logging
 from typing import Optional
 
@@ -64,6 +65,32 @@ async def get_all_products(
     
     # Convert ORM objects to dicts
     products_data = orm_list_to_dict_list(products)
+    
+    # Manually serialize variations for each product
+    for i, product in enumerate(products):
+        if hasattr(product, 'variations') and product.variations:
+            products_data[i]['variations'] = [
+                {
+                    'id': v.id,
+                    'sku': v.sku,
+                    'finish_id': v.finish_id,
+                    'upholstery_id': v.upholstery_id,
+                    'color_id': v.color_id,
+                    'price_adjustment': v.price_adjustment,
+                    'stock_status': v.stock_status,
+                    'is_available': v.is_available,
+                    'lead_time_days': v.lead_time_days,
+                    'display_order': v.display_order,
+                    'images': v.images if isinstance(v.images, list) else (json.loads(v.images) if isinstance(v.images, str) else []),
+                    'primary_image_url': v.primary_image_url,
+                    'finish': orm_to_dict(v.finish) if v.finish else None,
+                    'upholstery': orm_to_dict(v.upholstery) if v.upholstery else None,
+                    'color': orm_to_dict(v.color) if v.color else None,
+                }
+                for v in product.variations
+            ]
+        else:
+            products_data[i]['variations'] = []
     
     response_data = {
         "items": products_data,
@@ -126,7 +153,34 @@ async def get_product(
         # Use existing product service for single product retrieval
         from backend.services.product_service import ProductService
         product = await ProductService.get_product_by_id(db, product_id)
-        return orm_to_dict(product)
+        product_dict = orm_to_dict(product)
+        
+        # Manually serialize variations
+        if hasattr(product, 'variations') and product.variations:
+            product_dict['variations'] = [
+                {
+                    'id': v.id,
+                    'sku': v.sku,
+                    'finish_id': v.finish_id,
+                    'upholstery_id': v.upholstery_id,
+                    'color_id': v.color_id,
+                    'price_adjustment': v.price_adjustment,
+                    'stock_status': v.stock_status,
+                    'is_available': v.is_available,
+                    'lead_time_days': v.lead_time_days,
+                    'display_order': v.display_order,
+                    'images': v.images if isinstance(v.images, list) else (json.loads(v.images) if isinstance(v.images, str) else []),
+                    'primary_image_url': v.primary_image_url,
+                    'finish': orm_to_dict(v.finish) if v.finish else None,
+                    'upholstery': orm_to_dict(v.upholstery) if v.upholstery else None,
+                    'color': orm_to_dict(v.color) if v.color else None,
+                }
+                for v in product.variations
+            ]
+        else:
+            product_dict['variations'] = []
+        
+        return product_dict
         
     except ResourceNotFoundError as e:
         raise HTTPException(status_code=404, detail=str(e))

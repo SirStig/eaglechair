@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useMemo } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import Button from '../components/ui/Button';
@@ -9,7 +9,7 @@ import EditableWrapper from '../components/admin/EditableWrapper';
 import { useCartStore } from '../store/cartStore';
 import { updateProduct } from '../services/contentService';
 import productService from '../services/productService';
-import { getProductImages } from '../utils/apiHelpers';
+import { getProductImages, resolveImageUrl } from '../utils/apiHelpers';
 import { useToast } from '../contexts/ToastContext';
 import logger from '../utils/logger';
 
@@ -35,11 +35,66 @@ const ProductDetailPage = () => {
   const [selectedFinish, setSelectedFinish] = useState(null);
   const [selectedUpholstery, setSelectedUpholstery] = useState(null);
   const [showSuccessMessage, setShowSuccessMessage] = useState(false);
+  const [variations, setVariations] = useState([]);
+  const [selectedVariation, setSelectedVariation] = useState(null);
+  const [loadingVariations, setLoadingVariations] = useState(false);
 
   useEffect(() => {
     loadProduct();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [productId]);
+
+  // Reset image index when variation changes
+  useEffect(() => {
+    if (selectedVariation) {
+      setSelectedImage(0);
+    }
+  }, [selectedVariation]);
+
+  // Get images - use variation images if variation is selected, otherwise product images
+  // Use useMemo to ensure stable reference and avoid hooks order issues
+  const images = useMemo(() => {
+    if (!product) return [];
+    if (selectedVariation && selectedVariation.images) {
+      // Ensure images is an array
+      let imagesArray = selectedVariation.images;
+      if (typeof imagesArray === 'string') {
+        try {
+          imagesArray = JSON.parse(imagesArray);
+        } catch (e) {
+          imagesArray = [];
+        }
+      }
+      if (Array.isArray(imagesArray) && imagesArray.length > 0) {
+        return imagesArray.map(img => {
+          if (typeof img === 'string') return resolveImageUrl(img);
+          return resolveImageUrl(img.url || img);
+        });
+      }
+    }
+    if (selectedVariation && selectedVariation.primary_image_url) {
+      return [resolveImageUrl(selectedVariation.primary_image_url)];
+    }
+    return getProductImages(product);
+  }, [product, selectedVariation]);
+
+  // Preload first product image when product or variation changes
+  useEffect(() => {
+    if (product && images && images.length > 0) {
+      const link = document.createElement('link');
+      link.rel = 'preload';
+      link.as = 'image';
+      link.href = images[0];
+      document.head.appendChild(link);
+      
+      return () => {
+        // Cleanup: remove preload link when component unmounts or product changes
+        if (document.head.contains(link)) {
+          document.head.removeChild(link);
+        }
+      };
+    }
+  }, [product, images]);
 
   const loadProduct = async () => {
     setLoading(true);
@@ -67,8 +122,32 @@ const ProductDetailPage = () => {
         
         if (response.data.customizations?.fabrics?.[0]) {
           setSelectedUpholstery(response.data.customizations.fabrics[0]);
-        } else if (response.data.customizations?.upholstery?.[0]) {
+        } else         if (response.data.customizations?.upholstery?.[0]) {
           setSelectedUpholstery(response.data.customizations.upholstery[0]);
+        }
+        
+        // Fetch variations
+        if (response.data.id) {
+          setLoadingVariations(true);
+          logger.info(CONTEXT, `Fetching variations for product ID: ${response.data.id}`);
+          productService.getProductVariations(response.data.id)
+            .then((vars) => {
+              logger.info(CONTEXT, `Loaded ${vars?.length || 0} variations`, vars);
+              setVariations(vars || []);
+              if (vars && vars.length > 0) {
+                setSelectedVariation(vars[0]);
+                logger.info(CONTEXT, `Selected first variation: ${vars[0].sku || vars[0].id}`);
+              }
+            })
+            .catch((error) => {
+              logger.error(CONTEXT, 'Failed to load variations', error);
+              setVariations([]);
+            })
+            .finally(() => {
+              setLoadingVariations(false);
+            });
+        } else {
+          logger.warn(CONTEXT, 'Product has no ID, cannot fetch variations');
         }
       } else {
         logger.warn(CONTEXT, `Product not found: ${productId}`, response);
@@ -90,11 +169,12 @@ const ProductDetailPage = () => {
     const customizations = {
       finish: selectedFinish,
       upholstery: selectedUpholstery,
+      variation: selectedVariation,
     };
     addItem(product, quantity, customizations);
     setShowSuccessMessage(true);
     setTimeout(() => setShowSuccessMessage(false), 3000);
-    logger.info(CONTEXT, `Added to cart: ${product.name} x${quantity}`);
+    logger.info(CONTEXT, `Added to cart: ${product.name} x${quantity}${selectedVariation ? ` (variation: ${selectedVariation.sku})` : ''}`);
   };
 
   const scrollToCustomize = () => {
@@ -163,8 +243,6 @@ const ProductDetailPage = () => {
     );
   }
 
-  // Get properly formatted image URLs from the product
-  const images = getProductImages(product);
 
   return (
     <div className={`min-h-screen  ${
@@ -541,6 +619,9 @@ const ProductDetailPage = () => {
                     alt={product.name}
                     className="w-full h-auto object-contain"
                     style={{ maxHeight: '500px', mixBlendMode: 'multiply' }}
+                    loading="eager"
+                    decoding="async"
+                    fetchPriority="high"
                   />
                   
                   {/* 3D Coming Soon Badge */}
@@ -606,6 +687,98 @@ const ProductDetailPage = () => {
 
             {/* Customization Options */}
             <div>
+              {/* Variations Selection */}
+              {variations.length > 0 && (
+                <div className="mb-6">
+                  <label className="block text-sm font-medium text-slate-700 mb-3">
+                    Product Variations {loadingVariations && <span className="text-xs text-slate-400">(Loading...)</span>}
+                  </label>
+                  <select
+                    value={selectedVariation?.id || ''}
+                    onChange={(e) => {
+                      const variation = variations.find(v => v.id === parseInt(e.target.value));
+                      setSelectedVariation(variation || null);
+                      setSelectedImage(0); // Reset image when variation changes
+                    }}
+                    className="w-full px-4 py-3 text-base border-2 border-cream-300 bg-white text-slate-800 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
+                    disabled={loadingVariations}
+                  >
+                    <option value="">Select a variation...</option>
+                    {variations.map((variation) => {
+                      // Build variation display name with SKU and specifications
+                      const parts = [];
+                      if (variation.sku) {
+                        parts.push(variation.sku);
+                      }
+                      const details = [
+                        variation.finish?.name,
+                        variation.upholstery?.name,
+                        variation.color?.name
+                      ].filter(Boolean);
+                      if (details.length > 0) {
+                        parts.push(`(${details.join(' / ')})`);
+                      }
+                      const variationName = parts.join(' ') || `Variation #${variation.id}`;
+                      
+                      return (
+                        <option key={variation.id} value={variation.id}>
+                          {variationName}
+                        </option>
+                      );
+                    })}
+                  </select>
+                  {selectedVariation && (
+                    <div className="mt-4 p-4 bg-cream-50 rounded-lg border border-cream-200 space-y-3">
+                      {/* Variation Details */}
+                      <div className="text-sm text-slate-700 space-y-2">
+                        {selectedVariation.sku && (
+                          <div>
+                            <span className="font-semibold">Model/SKU:</span> {selectedVariation.sku}
+                          </div>
+                        )}
+                        {(selectedVariation.finish || selectedVariation.upholstery || selectedVariation.color) && (
+                          <div>
+                            <span className="font-semibold">Specifications:</span>
+                            <ul className="list-disc list-inside ml-2 mt-1 space-y-1">
+                              {selectedVariation.finish?.name && (
+                                <li>Finish: {selectedVariation.finish.name}</li>
+                              )}
+                              {selectedVariation.upholstery?.name && (
+                                <li>Upholstery: {selectedVariation.upholstery.name}</li>
+                              )}
+                              {selectedVariation.color?.name && (
+                                <li>Color: {selectedVariation.color.name}</li>
+                              )}
+                            </ul>
+                          </div>
+                        )}
+                      </div>
+                      {/* Stock Status & Lead Time */}
+                      <div className="flex items-center gap-2 flex-wrap pt-2 border-t border-cream-200">
+                        {selectedVariation.stock_status && (
+                          <span className={`inline-block px-3 py-1 rounded text-xs font-medium ${
+                            selectedVariation.stock_status === 'Available' 
+                              ? 'bg-green-100 text-green-800' 
+                              : 'bg-yellow-100 text-yellow-800'
+                          }`}>
+                            {selectedVariation.stock_status}
+                          </span>
+                        )}
+                        {selectedVariation.lead_time_days && (
+                          <span className="text-xs text-slate-600">Lead time: {selectedVariation.lead_time_days} days</span>
+                        )}
+                        {selectedVariation.price_adjustment !== undefined && selectedVariation.price_adjustment !== 0 && (
+                          <span className="text-xs font-medium text-slate-700">
+                            Price adjustment: {selectedVariation.price_adjustment > 0 ? '+' : ''}
+                            ${(selectedVariation.price_adjustment / 100).toFixed(2)}
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+
               {/* Finishes */}
               {product.customizations?.finishes && product.customizations.finishes.length > 0 && (
                 <div className="mb-6">

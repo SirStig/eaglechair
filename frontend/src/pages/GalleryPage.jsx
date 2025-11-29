@@ -188,6 +188,9 @@ const GalleryPage = () => {
                     alt={title}
                     className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
                     style={{ aspectRatio: '16/10', objectFit: 'cover' }}
+                    loading="lazy"
+                    decoding="async"
+                    fetchPriority="low"
                   />
                   <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/30 to-transparent opacity-0 group-hover:opacity-100 transition-opacity">
                     <div className="absolute bottom-0 left-0 right-0 p-6 text-white">

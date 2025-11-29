@@ -3,7 +3,8 @@ import { Link } from 'react-router-dom';
 import Button from './Button';
 import Tag from './Tag';
 import { useCartStore } from '../../store/cartStore';
-import { getProductImages, buildProductUrl } from '../../utils/apiHelpers';
+import { getProductImages, buildProductUrl, resolveImageUrl } from '../../utils/apiHelpers';
+import productService from '../../services/productService';
 import logger from '../../utils/logger';
 
 const CONTEXT = 'QuickViewModal';
@@ -15,11 +16,15 @@ const QuickViewModal = ({ product, isOpen, onClose }) => {
   const [selectedFinish, setSelectedFinish] = useState(null);
   const [selectedUpholstery, setSelectedUpholstery] = useState(null);
   const [selectedColor, setSelectedColor] = useState(null);
+  const [variations, setVariations] = useState([]);
+  const [selectedVariation, setSelectedVariation] = useState(null);
+  const [loadingVariations, setLoadingVariations] = useState(false);
 
   useEffect(() => {
     if (product) {
       setSelectedImage(0);
       setQuantity(1);
+      setSelectedVariation(null);
       
       // Initialize selections
       if (product.customizations?.finishes?.[0]) {
@@ -30,6 +35,30 @@ const QuickViewModal = ({ product, isOpen, onClose }) => {
       }
       if (product.customizations?.colors?.[0]) {
         setSelectedColor(product.customizations.colors[0]);
+      }
+
+      // Fetch variations
+      if (product.id) {
+        setLoadingVariations(true);
+        logger.info(CONTEXT, `Fetching variations for product ID: ${product.id}`);
+        productService.getProductVariations(product.id)
+          .then((vars) => {
+            logger.info(CONTEXT, `Loaded ${vars?.length || 0} variations`, vars);
+            setVariations(vars || []);
+            if (vars && vars.length > 0) {
+              setSelectedVariation(vars[0]);
+              logger.info(CONTEXT, `Selected first variation: ${vars[0].sku || vars[0].id}`);
+            }
+          })
+          .catch((error) => {
+            logger.error(CONTEXT, 'Failed to load variations', error);
+            setVariations([]);
+          })
+          .finally(() => {
+            setLoadingVariations(false);
+          });
+      } else {
+        logger.warn(CONTEXT, 'Product has no ID, cannot fetch variations');
       }
     }
   }, [product]);
@@ -51,17 +80,55 @@ const QuickViewModal = ({ product, isOpen, onClose }) => {
       finish: selectedFinish,
       upholstery: selectedUpholstery,
       color: selectedColor,
+      variation: selectedVariation,
     };
     addItem(product, quantity, customizations);
-    logger.info(CONTEXT, `Added to cart: ${product.name} x${quantity}`);
+    logger.info(CONTEXT, `Added to cart: ${product.name} x${quantity}${selectedVariation ? ` (variation: ${selectedVariation.sku})` : ''}`);
     onClose();
   };
 
   if (!product) return null;
 
-  // Get properly formatted image URLs from the product
-  const images = getProductImages(product);
+  // Get images - use variation images if variation is selected, otherwise product images
+  const getDisplayImages = () => {
+    if (selectedVariation && selectedVariation.images) {
+      // Ensure images is an array
+      let imagesArray = selectedVariation.images;
+      if (typeof imagesArray === 'string') {
+        try {
+          imagesArray = JSON.parse(imagesArray);
+        } catch (e) {
+          imagesArray = [];
+        }
+      }
+      if (Array.isArray(imagesArray) && imagesArray.length > 0) {
+        return imagesArray.map(img => {
+          if (typeof img === 'string') return resolveImageUrl(img);
+          return resolveImageUrl(img.url || img);
+        });
+      }
+    }
+    if (selectedVariation && selectedVariation.primary_image_url) {
+      return [resolveImageUrl(selectedVariation.primary_image_url)];
+    }
+    return getProductImages(product);
+  };
+
+  const images = getDisplayImages();
   const productUrl = buildProductUrl(product);
+
+  // Calculate price - use variation price if selected
+  const getDisplayPrice = () => {
+    const basePrice = product.base_price || product.priceRange?.min || 0;
+    if (selectedVariation && selectedVariation.price_adjustment !== undefined) {
+      const variationPrice = (basePrice + (selectedVariation.price_adjustment || 0)) / 100;
+      return `$${variationPrice.toFixed(2)}`;
+    }
+    if (product.priceRange?.min && product.priceRange?.max && product.priceRange.min !== product.priceRange.max) {
+      return `$${product.priceRange.min.toFixed(2)} - $${product.priceRange.max.toFixed(2)}`;
+    }
+    return `$${(basePrice / 100).toFixed(2)}`;
+  };
 
   return (
     <>
@@ -158,14 +225,15 @@ const QuickViewModal = ({ product, isOpen, onClose }) => {
                     )}
 
                     {/* Price */}
-                    {(product.price || product.priceRange) && (
+                    {(product.price || product.priceRange || selectedVariation) && (
                       <div className="mb-4">
                         <span className="text-2xl font-bold text-slate-900">
-                          {product.priceRange?.min && product.priceRange?.max && product.priceRange.min !== product.priceRange.max
-                            ? `$${product.priceRange.min.toFixed(2)} - $${product.priceRange.max.toFixed(2)}`
-                            : `$${((product.price || product.priceRange?.min) || 0).toFixed(2)}`}
+                          {getDisplayPrice()}
                         </span>
-                        {product.priceRange?.min && product.priceRange?.max && product.priceRange.min !== product.priceRange.max && (
+                        {selectedVariation && (
+                          <span className="text-sm text-slate-500 ml-2">per unit</span>
+                        )}
+                        {!selectedVariation && product.priceRange?.min && product.priceRange?.max && product.priceRange.min !== product.priceRange.max && (
                           <span className="text-sm text-slate-500 ml-2">per unit</span>
                         )}
                       </div>
@@ -223,6 +291,92 @@ const QuickViewModal = ({ product, isOpen, onClose }) => {
                         )}
                       </div>
                     </div>
+
+                    {/* Variations Selection */}
+                    {variations.length > 0 && (
+                      <div className="mb-6">
+                        <label className="block text-sm font-medium text-slate-700 mb-2">
+                          Product Variations {loadingVariations && <span className="text-xs text-slate-400">(Loading...)</span>}
+                        </label>
+                        <select
+                          value={selectedVariation?.id || ''}
+                          onChange={(e) => {
+                            const variation = variations.find(v => v.id === parseInt(e.target.value));
+                            setSelectedVariation(variation || null);
+                            setSelectedImage(0); // Reset image when variation changes
+                          }}
+                          className="w-full px-3 py-2 text-sm border border-cream-300 bg-white text-slate-800 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
+                          disabled={loadingVariations}
+                        >
+                          <option value="">Select a variation...</option>
+                          {variations.map((variation) => {
+                            // Build variation display name
+                            const parts = [];
+                            if (variation.sku) {
+                              parts.push(variation.sku);
+                            }
+                            const details = [
+                              variation.finish?.name,
+                              variation.upholstery?.name,
+                              variation.color?.name
+                            ].filter(Boolean);
+                            if (details.length > 0) {
+                              parts.push(`(${details.join(' / ')})`);
+                            }
+                            const variationName = parts.join(' ') || `Variation #${variation.id}`;
+                            
+                            return (
+                              <option key={variation.id} value={variation.id}>
+                                {variationName}
+                              </option>
+                            );
+                          })}
+                        </select>
+                        {selectedVariation && (
+                          <div className="mt-3 space-y-2">
+                            {/* Variation Details */}
+                            <div className="text-sm text-slate-700 space-y-1">
+                              {selectedVariation.sku && (
+                                <div>
+                                  <span className="font-medium">SKU:</span> {selectedVariation.sku}
+                                </div>
+                              )}
+                              {(selectedVariation.finish || selectedVariation.upholstery || selectedVariation.color) && (
+                                <div>
+                                  <span className="font-medium">Specifications:</span>
+                                  <ul className="list-disc list-inside ml-2 mt-1">
+                                    {selectedVariation.finish?.name && (
+                                      <li>Finish: {selectedVariation.finish.name}</li>
+                                    )}
+                                    {selectedVariation.upholstery?.name && (
+                                      <li>Upholstery: {selectedVariation.upholstery.name}</li>
+                                    )}
+                                    {selectedVariation.color?.name && (
+                                      <li>Color: {selectedVariation.color.name}</li>
+                                    )}
+                                  </ul>
+                                </div>
+                              )}
+                            </div>
+                            {/* Stock Status */}
+                            <div className="flex items-center gap-2 flex-wrap">
+                              {selectedVariation.stock_status && (
+                                <span className={`inline-block px-2 py-1 rounded text-xs ${
+                                  selectedVariation.stock_status === 'Available' 
+                                    ? 'bg-green-100 text-green-800' 
+                                    : 'bg-yellow-100 text-yellow-800'
+                                }`}>
+                                  {selectedVariation.stock_status}
+                                </span>
+                              )}
+                              {selectedVariation.lead_time_days && (
+                                <span className="text-xs text-slate-600">Lead time: {selectedVariation.lead_time_days} days</span>
+                              )}
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    )}
 
                     {/* Customization Options */}
                     <div className="space-y-3 mb-6">

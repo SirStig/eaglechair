@@ -77,6 +77,8 @@ class Settings(BaseSettings):
         "http://localhost:3000",
         "http://localhost:5173",
         "https://eaglechair.com",
+        "https://joshua.eaglechair.com",
+        "https://www.eaglechair.com",
     ]
     CORS_ALLOW_CREDENTIALS: bool = True
     # Restricted methods for security - only allow necessary HTTP methods

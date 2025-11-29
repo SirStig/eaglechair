@@ -453,14 +453,33 @@ export const useAuthStore = create(
           }
           
           // If we get here, no valid session was found
-          // Clear any stale state
-          set({ isInitializing: false });
-          get().logout();
+          // Clear any stale state but don't call logout() to avoid redirect loops
+          // Just clear the state silently - logout() will be called by ProtectedRoute if needed
+          set({ 
+            isInitializing: false,
+            user: null,
+            isAuthenticated: false
+          });
+          // Clear localStorage tokens if they exist but are invalid
+          localStorage.removeItem(ACCESS_TOKEN_KEY);
+          localStorage.removeItem(REFRESH_TOKEN_KEY);
+          localStorage.removeItem(SESSION_TOKEN_KEY);
+          localStorage.removeItem(ADMIN_TOKEN_KEY);
+          localStorage.removeItem(USER_KEY);
         } catch (error) {
           logger.error(AUTH_CONTEXT, 'Error during auth initialization', error);
-          // On error, clear state
-          set({ isInitializing: false });
-          get().logout();
+          // On error, clear state but don't call logout() to avoid redirect loops
+          set({ 
+            isInitializing: false,
+            user: null,
+            isAuthenticated: false
+          });
+          // Clear localStorage tokens
+          localStorage.removeItem(ACCESS_TOKEN_KEY);
+          localStorage.removeItem(REFRESH_TOKEN_KEY);
+          localStorage.removeItem(SESSION_TOKEN_KEY);
+          localStorage.removeItem(ADMIN_TOKEN_KEY);
+          localStorage.removeItem(USER_KEY);
         }
       },
     })
