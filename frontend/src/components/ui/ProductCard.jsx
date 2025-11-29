@@ -6,10 +6,17 @@ import { formatPrice, getProductImage, buildProductUrl } from '../../utils/apiHe
 
 const ProductCard = ({ product, onQuickView, darkMode = false }) => {
   const [imageLoaded, setImageLoaded] = useState(false);
+  const [imageError, setImageError] = useState(false);
   const [isHovered, setIsHovered] = useState(false);
 
   const handleImageLoad = () => {
     setImageLoaded(true);
+  };
+
+  const handleImageError = (e) => {
+    e.target.onerror = null; // Prevent infinite loop
+    setImageError(true);
+    setImageLoaded(true); // Show the placeholder
   };
 
   // Get images using new schema
@@ -27,9 +34,9 @@ const ProductCard = ({ product, onQuickView, darkMode = false }) => {
     ? `$${product.priceRange.min.toFixed(2)} - $${product.priceRange.max.toFixed(2)}`
     : (product.base_price ? formatPrice(product.base_price) : null);
 
-  // Get swatches - show first 4 options
-  const swatches = product.customizations?.finishes?.slice(0, 4) || 
-                   product.customizations?.colors?.slice(0, 4) || [];
+  // Get swatches - show first 5 options
+  const swatches = product.customizations?.finishes?.slice(0, 5) || 
+                   product.customizations?.colors?.slice(0, 5) || [];
 
   // Dark mode color classes
   const bgImage = darkMode ? 'bg-dark-800' : 'bg-cream-100';
@@ -58,26 +65,37 @@ const ProductCard = ({ product, onQuickView, darkMode = false }) => {
     >
       {/* Image Container - No borders, full bleed, taller aspect ratio for Eagle Chair products */}
       <Link to={productUrl} className={`block relative aspect-[3/4] overflow-hidden ${bgImage} flex-shrink-0 rounded-lg`}>
-        {!imageLoaded && (
-          <div className="absolute inset-0 flex items-center justify-center">
+        {/* Show placeholder immediately while loading */}
+        {!imageLoaded && !imageError && (
+          <div className="absolute inset-0 flex items-center justify-center bg-dark-700/20">
             <div className={`h-8 w-8 border-4 ${spinnerBorder} border-t-primary-500 rounded-full animate-spin`} />
           </div>
         )}
-        <img
-          src={displayImage || '/placeholder-product.jpg'}
-          alt={product.name}
-          onLoad={handleImageLoad}
-          onError={(e) => {
-            e.target.onerror = null; // Prevent infinite loop
-            e.target.src = '/placeholder-product.jpg';
-            setImageLoaded(true); // Show the placeholder
-          }}
-          className={`w-full h-full object-contain transition-all duration-500 ${
-            imageLoaded ? 'opacity-100' : 'opacity-0'
-          } group-hover:scale-105`}
-          style={{ mixBlendMode: 'multiply' }}
-          loading="lazy"
-        />
+        {/* Show placeholder image on error */}
+        {imageError && (
+          <img
+            src="/placeholder-product.jpg"
+            alt={product.name}
+            className="w-full h-full object-contain opacity-100"
+            style={{ mixBlendMode: 'multiply' }}
+          />
+        )}
+        {/* Main product image */}
+        {!imageError && (
+          <img
+            src={displayImage || '/placeholder-product.jpg'}
+            alt={product.name}
+            onLoad={handleImageLoad}
+            onError={handleImageError}
+            className={`w-full h-full object-contain transition-all duration-500 ${
+              imageLoaded ? 'opacity-100' : 'opacity-0'
+            } group-hover:scale-105`}
+            style={{ mixBlendMode: 'multiply' }}
+            loading="lazy"
+            decoding="async"
+            fetchPriority="low"
+          />
+        )}
         
         {/* Overlay on hover */}
         <div
@@ -164,7 +182,7 @@ const ProductCard = ({ product, onQuickView, darkMode = false }) => {
                   </span>
                 </div>
               ))}
-              {(product.customizations?.finishes?.length > 4 || product.customizations?.colors?.length > 4) && (
+              {(product.customizations?.finishes?.length > 5 || product.customizations?.colors?.length > 5) && (
                 <div className={`w-5 h-5 sm:w-6 sm:h-6 rounded-full border-2 border-dashed ${borderSwatchDashed} flex items-center justify-center text-[9px] sm:text-[10px] ${textSwatchMore}`}>
                   +
                 </div>

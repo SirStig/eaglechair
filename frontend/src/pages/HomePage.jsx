@@ -226,8 +226,9 @@ const HomePage = () => {
                         src={slide.background_image_url || slide.image}
                         alt={slide.title}
                         className="w-full h-full object-cover"
-                        loading="eager"
+                        loading={index === 0 ? "eager" : "lazy"}
                         decoding="async"
+                        fetchPriority={index === 0 ? "high" : "low"}
                         style={{ 
                           WebkitTransform: 'translateZ(0)',
                           transform: 'translateZ(0)',
@@ -631,6 +632,9 @@ const HomePage = () => {
                       src={feature.image_url || feature.imageUrl} 
                       alt={feature.title}
                       className="w-full h-full object-cover"
+                      loading="lazy"
+                      decoding="async"
+                      fetchPriority="low"
                     />
                   </div>
                 ) : (

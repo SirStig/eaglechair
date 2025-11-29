@@ -293,6 +293,9 @@ class ProductUpdate(BaseModel):
     meta_description: Optional[str] = Field(None, description="Meta description")
     keywords: Optional[List[Any]] = Field(None, description="Keywords (JSON array)")
     
+    # Variations
+    variations: Optional[List[Dict[str, Any]]] = Field(None, description="Product variations (list of variation objects)")
+    
     # Product Status
     is_active: Optional[bool] = Field(None, description="Is active")
     is_featured: Optional[bool] = Field(None, description="Is featured")

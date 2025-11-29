@@ -70,6 +70,20 @@ apiClient.interceptors.request.use(
 
 // Token refresh state
 let isRefreshing = false;
+let refreshPromise = null;
+let failedQueue = [];
+
+// Process queued requests after token refresh
+const processQueue = (error, token = null) => {
+  failedQueue.forEach(({ resolve, reject }) => {
+    if (error) {
+      reject(error);
+    } else {
+      resolve(token);
+    }
+  });
+  failedQueue = [];
+};
 
 // Response interceptor - Normalized error handling with token refresh
 // Tokens are stored in localStorage and sent via Authorization headers
@@ -89,23 +103,29 @@ apiClient.interceptors.response.use(
         return Promise.reject(handleAuthError(error));
       }
 
-      // If already refreshing, wait for it to complete
-      if (isRefreshing) {
-        // Wait for refresh to complete and retry
+      // If already refreshing, queue this request
+      if (isRefreshing && refreshPromise) {
         return new Promise((resolve, reject) => {
-          const checkRefresh = setInterval(() => {
-            if (!isRefreshing) {
-              clearInterval(checkRefresh);
-              // Retry original request with new token
-              apiClient(originalRequest).then(resolve).catch(reject);
-            }
-          }, 100);
-          
-          // Timeout after 5 seconds
-          setTimeout(() => {
-            clearInterval(checkRefresh);
-            reject(handleAuthError(error));
-          }, 5000);
+          failedQueue.push({ resolve, reject });
+        }).then((newToken) => {
+          // Retry original request with new token
+          originalRequest.headers.Authorization = `Bearer ${newToken}`;
+          // Preserve admin headers
+          const sessionToken = typeof window !== 'undefined' 
+            ? localStorage.getItem('auth_session_token') 
+            : null;
+          const adminToken = typeof window !== 'undefined' 
+            ? localStorage.getItem('auth_admin_token') 
+            : null;
+          if (sessionToken) {
+            originalRequest.headers['X-Session-Token'] = sessionToken;
+          }
+          if (adminToken) {
+            originalRequest.headers['X-Admin-Token'] = adminToken;
+          }
+          return apiClient(originalRequest);
+        }).catch((err) => {
+          return Promise.reject(err);
         });
       }
 
@@ -113,55 +133,72 @@ apiClient.interceptors.response.use(
       originalRequest._retry = true;
       isRefreshing = true;
 
-      try {
-        // Get refresh token from localStorage
-        const refreshToken = typeof window !== 'undefined' 
-          ? localStorage.getItem('auth_refresh_token') 
-          : null;
-        
-        if (!refreshToken) {
-          throw new Error('No refresh token available');
-        }
-
-        // Refresh token - send refresh_token via Authorization header
-        const refreshResponse = await apiClient.post('/api/v1/auth/refresh', {}, {
-          headers: {
-            Authorization: `Bearer ${refreshToken}`
+      // Create refresh promise
+      refreshPromise = (async () => {
+        try {
+          // Get refresh token from localStorage
+          const refreshToken = typeof window !== 'undefined' 
+            ? localStorage.getItem('auth_refresh_token') 
+            : null;
+          
+          if (!refreshToken) {
+            throw new Error('No refresh token available');
           }
-        });
+
+          // Refresh token - send refresh_token via Authorization header
+          const refreshResponse = await apiClient.post('/api/v1/auth/refresh', {}, {
+            headers: {
+              Authorization: `Bearer ${refreshToken}`
+            }
+          });
+          
+          // Update tokens in localStorage
+          if (refreshResponse.access_token) {
+            localStorage.setItem('auth_access_token', refreshResponse.access_token);
+          }
+          if (refreshResponse.refresh_token) {
+            localStorage.setItem('auth_refresh_token', refreshResponse.refresh_token);
+          }
+          // Note: Admin tokens (session_token, admin_token) are NOT refreshed
+          // They persist from login until logout - keep existing ones in localStorage
+          
+          const newAccessToken = refreshResponse.access_token;
+          
+          // Process queued requests
+          processQueue(null, newAccessToken);
+          
+          return newAccessToken;
+        } catch (refreshError) {
+          // Process queued requests with error
+          processQueue(refreshError, null);
+          throw refreshError;
+        } finally {
+          isRefreshing = false;
+          refreshPromise = null;
+        }
+      })();
+
+      try {
+        const newAccessToken = await refreshPromise;
         
-                    // Update tokens in localStorage
-                    if (refreshResponse.access_token) {
-                      localStorage.setItem('auth_access_token', refreshResponse.access_token);
-                    }
-                    if (refreshResponse.refresh_token) {
-                      localStorage.setItem('auth_refresh_token', refreshResponse.refresh_token);
-                    }
-                    // Note: Admin tokens (session_token, admin_token) are NOT refreshed
-                    // They persist from login until logout - keep existing ones in localStorage
-                    
-                    isRefreshing = false;
-                    
-                    // Retry original request with new access token
-                    originalRequest.headers.Authorization = `Bearer ${refreshResponse.access_token}`;
-                    // Preserve admin headers if they exist in localStorage
-                    const sessionToken = typeof window !== 'undefined' 
-                      ? localStorage.getItem('auth_session_token') 
-                      : null;
-                    const adminToken = typeof window !== 'undefined' 
-                      ? localStorage.getItem('auth_admin_token') 
-                      : null;
-                    if (sessionToken) {
-                      originalRequest.headers['X-Session-Token'] = sessionToken;
-                    }
-                    if (adminToken) {
-                      originalRequest.headers['X-Admin-Token'] = adminToken;
-                    }
-                    return apiClient(originalRequest);
+        // Retry original request with new access token
+        originalRequest.headers.Authorization = `Bearer ${newAccessToken}`;
+        // Preserve admin headers if they exist in localStorage
+        const sessionToken = typeof window !== 'undefined' 
+          ? localStorage.getItem('auth_session_token') 
+          : null;
+        const adminToken = typeof window !== 'undefined' 
+          ? localStorage.getItem('auth_admin_token') 
+          : null;
+        if (sessionToken) {
+          originalRequest.headers['X-Session-Token'] = sessionToken;
+        }
+        if (adminToken) {
+          originalRequest.headers['X-Admin-Token'] = adminToken;
+        }
+        return apiClient(originalRequest);
       } catch (refreshError) {
-        isRefreshing = false;
-        
-        // Refresh failed - logout user
+        // Refresh failed - clear auth state
         return Promise.reject(handleAuthError(error));
       }
     }
@@ -177,7 +214,18 @@ function handleAuthError(error) {
   // Note: This is only used in error path, so it won't affect bundle splitting
   if (typeof window !== 'undefined') {
     import('../store/authStore').then(({ useAuthStore }) => {
-      useAuthStore.getState().logout();
+      // Clear auth state without calling logout() to avoid redirect loops
+      // ProtectedRoute will handle redirects naturally
+      useAuthStore.setState({ 
+        user: null, 
+        isAuthenticated: false 
+      });
+      // Clear tokens from localStorage
+      localStorage.removeItem('auth_access_token');
+      localStorage.removeItem('auth_refresh_token');
+      localStorage.removeItem('auth_session_token');
+      localStorage.removeItem('auth_admin_token');
+      localStorage.removeItem('auth_user');
     }).catch(() => {
       // Fallback if import fails - clear localStorage manually
       localStorage.removeItem('auth_access_token');
@@ -195,10 +243,8 @@ function handleAuthError(error) {
     data: error.response?.data || null,
   };
 
-  // Only redirect if not already on login page
-  if (typeof window !== 'undefined' && window.location.pathname !== '/login') {
-    window.location.href = '/login';
-  }
+  // Don't redirect here - let React Router and ProtectedRoute handle redirects
+  // This prevents full page reloads and infinite loops
 
   return Promise.reject(normalizedError);
 }

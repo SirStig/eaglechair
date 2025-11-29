@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useNavigate, Link, useLocation } from 'react-router-dom';
 import { useForm } from 'react-hook-form';
 import { motion } from 'framer-motion';
@@ -12,36 +12,56 @@ import { useSiteSettings } from '../hooks/useContent';
 const LoginPage = () => {
   const navigate = useNavigate();
   const location = useLocation();
-  const { login, isAuthenticated, user } = useAuthStore();
+  const { login, isAuthenticated, user, isInitializing } = useAuthStore();
   const cartStore = useCartStore();
   const { data: siteSettings } = useSiteSettings();
   const [error, setError] = useState(null);
   const [successMessage, setSuccessMessage] = useState(location.state?.message || null);
+  const hasRedirectedRef = useRef(false);
   
   const { register, handleSubmit, formState: { errors } } = useForm();
 
   const from = location.state?.from?.pathname || '/dashboard';
 
   // Redirect if already authenticated - check if admin and redirect appropriately
+  // Only redirect once and wait for auth initialization to complete
   useEffect(() => {
+    // Don't redirect if still initializing or already redirected
+    if (isInitializing || hasRedirectedRef.current) {
+      return;
+    }
+
     if (isAuthenticated && user) {
+      hasRedirectedRef.current = true;
+      
       // If user is admin and trying to access admin routes, go to admin dashboard
       const isAdmin = user.type === 'admin' || 
                       user.role === 'super_admin' || 
                       user.role === 'admin' ||
                       user.role === 'editor';
       
-      if (isAdmin && (from.startsWith('/admin') || location.pathname === '/login')) {
+      // Only redirect admins to admin dashboard if they were explicitly trying to access admin routes
+      // Don't redirect if they're just opening the main site in a new tab (from will be '/dashboard' or '/')
+      if (isAdmin && from.startsWith('/admin')) {
+        // Admin was trying to access admin route, redirect to admin dashboard
         navigate('/admin/dashboard', { replace: true });
-      } else if (from && from !== '/login') {
-        // Redirect to the original destination
+      } else if (from && from !== '/login' && !from.startsWith('/admin')) {
+        // Redirect to the original destination (could be main site, dashboard, etc.)
         navigate(from, { replace: true });
-      } else {
-        // Default redirect based on user type
-        navigate(isAdmin ? '/admin/dashboard' : '/dashboard', { replace: true });
+      } else if (location.pathname === '/login' && from === '/dashboard') {
+        // User came to login from default dashboard redirect
+        // For admins, only redirect to admin dashboard if they explicitly navigated here
+        // Otherwise, let them stay on main site
+        // Don't auto-redirect admins - let them choose where to go
+        navigate('/dashboard', { replace: true });
+      } else if (location.pathname === '/login') {
+        // Only redirect if we're actually on the login page and no specific destination
+        // For regular users, go to dashboard
+        // For admins, don't force redirect - let them access main site
+        navigate('/dashboard', { replace: true });
       }
     }
-  }, [isAuthenticated, user, navigate, from, location.pathname]);
+  }, [isAuthenticated, user, navigate, from, isInitializing]);
 
   const onSubmit = async (data) => {
     setError(null);
@@ -60,13 +80,18 @@ const LoginPage = () => {
                      currentUser?.role === 'admin' ||
                      currentUser?.role === 'editor';
       
-      // Redirect based on user type and original destination
-      if (isAdmin && (from.startsWith('/admin') || from === '/dashboard')) {
+      // Redirect based on original destination, not user type
+      // Only redirect admins to admin dashboard if they were explicitly trying to access admin routes
+      if (isAdmin && from.startsWith('/admin')) {
+        // Admin was trying to access admin route
         navigate('/admin/dashboard', { replace: true });
       } else if (from && from !== '/login' && !from.startsWith('/admin')) {
+        // Redirect to the original destination (could be main site, dashboard, etc.)
         navigate(from, { replace: true });
       } else {
-        navigate(isAdmin ? '/admin/dashboard' : '/dashboard', { replace: true });
+        // Default: go to regular dashboard for both admins and regular users
+        // Admins can access admin routes via navigation if needed
+        navigate('/dashboard', { replace: true });
       }
     } else {
       // Check if error is about email verification - prioritize requiresVerification flag

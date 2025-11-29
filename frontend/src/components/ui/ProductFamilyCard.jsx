@@ -64,6 +64,8 @@ const ProductFamilyCard = ({ family, onQuickView, darkMode = false }) => {
           } group-hover:scale-105`}
           style={{ mixBlendMode: 'multiply' }}
           loading="lazy"
+          decoding="async"
+          fetchPriority="low"
         />
         
         {/* Overlay on hover */}

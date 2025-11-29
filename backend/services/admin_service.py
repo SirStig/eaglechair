@@ -18,7 +18,7 @@ from backend.core.exceptions import (
     ResourceNotFoundError,
     ValidationError,
 )
-from backend.models.chair import Category, Chair, Finish, Upholstery
+from backend.models.chair import Category, Chair, Finish, ProductVariation, Upholstery
 from backend.models.company import AdminUser, Company, CompanyStatus
 from backend.models.content import (
     FAQ,
@@ -67,7 +67,10 @@ class AdminService:
         query = select(Chair).options(
             selectinload(Chair.category),
             selectinload(Chair.subcategory),
-            selectinload(Chair.family)
+            selectinload(Chair.family),
+            selectinload(Chair.variations).selectinload(ProductVariation.finish),
+            selectinload(Chair.variations).selectinload(ProductVariation.upholstery),
+            selectinload(Chair.variations).selectinload(ProductVariation.color)
         )
         
         # Apply filters
@@ -121,15 +124,18 @@ class AdminService:
         product_data: Dict[str, Any]
     ) -> Chair:
         """
-        Create new product
+        Create new product with variations if provided
         
         Args:
             db: Database session
-            product_data: Product data
+            product_data: Product data (may include 'variations' key)
             
         Returns:
             Created product
         """
+        # Extract variations before creating product
+        variations_data = product_data.pop('variations', None)
+        
         # Validate category exists
         if product_data.get('category_id'):
             result = await db.execute(
@@ -141,6 +147,16 @@ class AdminService:
         
         product = Chair(**product_data)
         db.add(product)
+        await db.flush()  # Flush to get product.id without committing
+        
+        # Create variations if provided
+        if variations_data:
+            await AdminService._create_product_variations(
+                db=db,
+                product_id=product.id,
+                variations_data=variations_data
+            )
+        
         await db.commit()
         await db.refresh(product)
         
@@ -176,9 +192,18 @@ class AdminService:
         # Read-only fields that should not be updated via this method
         read_only_fields = {
             'id', 'created_at', 'updated_at', 'view_count', 'quote_count',
-            'variations', 'cart_items', 'quote_items', 'image_records',
+            'cart_items', 'quote_items', 'image_records',
             'category', 'subcategory', 'family'  # These are relationships, not direct fields
         }
+        
+        # Handle variations separately (before other fields)
+        if 'variations' in update_data:
+            variations_data = update_data.pop('variations')
+            await AdminService._update_product_variations(
+                db=db,
+                product_id=product_id,
+                variations_data=variations_data
+            )
         
         # Update fields (excluding read-only)
         for key, value in update_data.items():
@@ -191,6 +216,160 @@ class AdminService:
         logger.info(f"Updated product {product_id}")
         
         return product
+    
+    @staticmethod
+    async def _update_product_variations(
+        db: AsyncSession,
+        product_id: int,
+        variations_data: List[Dict[str, Any]]
+    ) -> None:
+        """
+        Update product variations - create new, update existing, delete removed
+        
+        Args:
+            db: Database session
+            product_id: Product ID
+            variations_data: List of variation dictionaries
+        """
+        from backend.models.chair import ProductVariation
+        from sqlalchemy import select
+        
+        if variations_data is None:
+            variations_data = []
+        
+        # Get existing variations for this product
+        stmt = select(ProductVariation).where(ProductVariation.product_id == product_id)
+        result = await db.execute(stmt)
+        existing_variations_by_id = {v.id: v for v in result.scalars().all()}
+        existing_variations_by_sku = {v.sku: v for v in result.scalars().all() if v.sku}
+        
+        # Track which variations we're keeping
+        kept_variation_ids = set()
+        variations_to_create = []
+        
+        # First pass: identify which variations to update vs create
+        for var_data in variations_data:
+            var_id = var_data.get('id')
+            sku = var_data.get('sku')
+            
+            if not sku:
+                logger.warning(f"Skipping variation without SKU for product {product_id}")
+                continue
+            
+            # Check if we should update an existing variation
+            variation_to_update = None
+            
+            if var_id and var_id in existing_variations_by_id:
+                # Update by ID
+                variation_to_update = existing_variations_by_id[var_id]
+                kept_variation_ids.add(var_id)
+            elif sku and sku in existing_variations_by_sku:
+                # Update by SKU (variation without ID but SKU matches existing for this product)
+                variation_to_update = existing_variations_by_sku[sku]
+                kept_variation_ids.add(variation_to_update.id)
+                logger.debug(f"Updating variation by SKU {sku} (ID: {variation_to_update.id}) for product {product_id}")
+            
+            if variation_to_update:
+                # Update existing variation
+                if 'sku' in var_data and var_data['sku'] != variation_to_update.sku:
+                    # SKU is changing - need to handle this carefully
+                    variation_to_update.sku = var_data['sku']
+                if 'finish_id' in var_data:
+                    variation_to_update.finish_id = var_data['finish_id']
+                if 'upholstery_id' in var_data:
+                    variation_to_update.upholstery_id = var_data['upholstery_id']
+                if 'color_id' in var_data:
+                    variation_to_update.color_id = var_data['color_id']
+                if 'price_adjustment' in var_data:
+                    variation_to_update.price_adjustment = int(var_data['price_adjustment'])
+                if 'stock_status' in var_data:
+                    variation_to_update.stock_status = var_data['stock_status']
+                if 'is_available' in var_data:
+                    variation_to_update.is_available = bool(var_data['is_available'])
+                if 'lead_time_days' in var_data:
+                    variation_to_update.lead_time_days = var_data['lead_time_days']
+                if 'display_order' in var_data:
+                    variation_to_update.display_order = int(var_data.get('display_order', 0))
+                if 'images' in var_data:
+                    variation_to_update.images = var_data['images']
+                if 'primary_image_url' in var_data:
+                    variation_to_update.primary_image_url = var_data['primary_image_url']
+                
+                logger.debug(f"Updated variation {variation_to_update.id} for product {product_id}")
+            else:
+                # Mark for creation (will create after deletions to avoid constraint violations)
+                variations_to_create.append(var_data)
+        
+        # Delete variations that were not in the update data FIRST
+        # This must happen before creating new ones to avoid unique constraint violations
+        for var_id, variation in existing_variations_by_id.items():
+            if var_id not in kept_variation_ids:
+                await db.delete(variation)
+                logger.debug(f"Deleted variation {var_id} for product {product_id}")
+        
+        # Flush deletions before creating new variations
+        await db.flush()
+        
+        # Now create new variations (after deletions are flushed)
+        for var_data in variations_to_create:
+            sku = var_data.get('sku')
+            new_variation = ProductVariation(
+                product_id=product_id,
+                sku=sku,
+                finish_id=var_data.get('finish_id'),
+                upholstery_id=var_data.get('upholstery_id'),
+                color_id=var_data.get('color_id'),
+                price_adjustment=int(var_data.get('price_adjustment', 0)),
+                stock_status=var_data.get('stock_status', 'Available'),
+                is_available=bool(var_data.get('is_available', True)),
+                lead_time_days=var_data.get('lead_time_days'),
+                display_order=int(var_data.get('display_order', 0)),
+                images=var_data.get('images', []),
+                primary_image_url=var_data.get('primary_image_url')
+            )
+            db.add(new_variation)
+            logger.debug(f"Created new variation with SKU {sku} for product {product_id}")
+    
+    @staticmethod
+    async def _create_product_variations(
+        db: AsyncSession,
+        product_id: int,
+        variations_data: List[Dict[str, Any]]
+    ) -> None:
+        """
+        Create product variations
+        
+        Args:
+            db: Database session
+            product_id: Product ID
+            variations_data: List of variation dictionaries
+        """
+        from backend.models.chair import ProductVariation
+        
+        if not variations_data:
+            return
+        
+        for var_data in variations_data:
+            if not var_data.get('sku'):
+                logger.warning(f"Skipping variation without SKU for product {product_id}")
+                continue
+            
+            new_variation = ProductVariation(
+                product_id=product_id,
+                sku=var_data['sku'],
+                finish_id=var_data.get('finish_id'),
+                upholstery_id=var_data.get('upholstery_id'),
+                color_id=var_data.get('color_id'),
+                price_adjustment=int(var_data.get('price_adjustment', 0)),
+                stock_status=var_data.get('stock_status', 'Available'),
+                is_available=bool(var_data.get('is_available', True)),
+                lead_time_days=var_data.get('lead_time_days'),
+                display_order=int(var_data.get('display_order', 0)),
+                images=var_data.get('images', []),
+                primary_image_url=var_data.get('primary_image_url')
+            )
+            db.add(new_variation)
+            logger.debug(f"Created variation with SKU {var_data['sku']} for product {product_id}")
     
     @staticmethod
     async def delete_product(
