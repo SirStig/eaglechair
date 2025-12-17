@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Outlet } from 'react-router-dom';
+import { Outlet, useNavigate } from 'react-router-dom';
 import Header, { MobileMenu } from './Header';
 import Footer from './Footer';
 import { useAuthStore } from '../../store/authStore';
@@ -9,6 +9,7 @@ import { initDesktopViewMode } from '../../utils/viewMode';
 const Layout = () => {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
+  const navigate = useNavigate();
   const { user, logout } = useAuthStore();
   
   // Subscribe to cart state properly - this will trigger re-renders on cart changes
@@ -50,7 +51,7 @@ const Layout = () => {
   const handleSearch = (e, options = {}) => {
     e.preventDefault();
     if (searchQuery.trim()) {
-      window.location.href = `/search?q=${encodeURIComponent(searchQuery)}`;
+      navigate(`/search?q=${encodeURIComponent(searchQuery)}`);
       if (options.closeMenu) {
         setIsMobileMenuOpen(false);
       }

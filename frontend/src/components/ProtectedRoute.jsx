@@ -8,7 +8,7 @@ const ProtectedRoute = ({ children, requireAdmin = false }) => {
   const [isChecking, setIsChecking] = useState(true);
   const hasCheckedRef = useRef(false);
 
-  // Only check auth state once on mount, not on every render
+  // Wait for initialization to complete before making decisions
   useEffect(() => {
     // Skip if already checked
     if (hasCheckedRef.current) {
@@ -16,25 +16,10 @@ const ProtectedRoute = ({ children, requireAdmin = false }) => {
     }
 
     // Wait for initialization to complete
-    const checkAuth = async () => {
-      // If still initializing, wait for it
-      if (isInitializing) {
-        // Check again after a short delay
-        setTimeout(() => {
-          if (!isInitializing) {
-            hasCheckedRef.current = true;
-            setIsChecking(false);
-          }
-        }, 100);
-        return;
-      }
-      
-      // Initialization complete, mark as checked
+    if (!isInitializing) {
       hasCheckedRef.current = true;
       setIsChecking(false);
-    };
-    
-    checkAuth();
+    }
   }, [isInitializing]);
 
   // Wait for auth initialization to complete before making decisions

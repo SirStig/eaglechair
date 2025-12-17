@@ -92,6 +92,9 @@ class RouteConfig:
         "/api/v1/content/warranties",
         "/api/v1/content/shipping-policies",
         "/api/v1/content/contentData.js",
+        
+        # SEO routes
+        "/api/v1/seo/sitemap.xml",
     }
     
     # Public route patterns (startswith matching)
@@ -126,6 +129,10 @@ class RouteConfig:
         "/static/",
         "/assets/",
         "/uploads/",
+        
+        # SEO routes with path parameters
+        "/api/v1/seo/product/",
+        "/api/v1/seo/family/",
     ]
     
     # ===== ADMIN ROUTES =====

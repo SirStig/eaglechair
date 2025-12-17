@@ -1,10 +1,11 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { ArrowLeft, Grid3x3, List } from 'lucide-react';
 import ProductCard from '../components/ui/ProductCard';
 import QuickViewModal from '../components/ui/QuickViewModal';
 import Button from '../components/ui/Button';
 import LoadingSpinner from '../components/ui/LoadingSpinner';
+import SEOHead from '../components/SEOHead';
 import productService from '../services/productService';
 import logger from '../utils/logger';
 
@@ -82,8 +83,46 @@ const ProductFamilyDetailPage = () => {
 
   const productCount = products.length;
 
+  // Generate SEO data
+  const seoTitle = family.meta_title || `${family.name} Product Family | Eagle Chair`;
+  const seoDescription = family.meta_description || (family.description ? family.description.substring(0, 160) : `Explore the ${family.name} product family from Eagle Chair. Premium commercial seating solutions.`);
+  const familyUrl = `/families/${familySlug}`;
+  const familyImage = family.banner_image_url || family.family_image || '/og-image.jpg';
+  
+  // Generate structured data
+  const familySchema = useMemo(() => {
+    if (!family) return null;
+    
+    return {
+      "@context": "https://schema.org",
+      "@type": "CollectionPage",
+      "name": family.name,
+      "description": family.description || seoDescription,
+      "image": `https://www.eaglechair.com${familyImage}`,
+      "url": `https://www.eaglechair.com${familyUrl}`,
+      "breadcrumb": {
+        "@type": "BreadcrumbList",
+        "itemListElement": [
+          { "@type": "ListItem", "position": 1, "name": "Home", "item": "https://www.eaglechair.com/" },
+          { "@type": "ListItem", "position": 2, "name": "Products", "item": "https://www.eaglechair.com/products" },
+          { "@type": "ListItem", "position": 3, "name": family.name, "item": `https://www.eaglechair.com${familyUrl}` }
+        ]
+      }
+    };
+  }, [family, familySlug, familyUrl, familyImage, seoDescription]);
+
   return (
     <div className="min-h-screen py-8 bg-gradient-to-br from-cream-50 to-cream-100">
+      <SEOHead
+        title={seoTitle}
+        description={seoDescription}
+        image={familyImage}
+        url={familyUrl}
+        type="website"
+        keywords={`${family.name}, product family, commercial seating, Eagle Chair`}
+        canonical={familyUrl}
+        structuredData={familySchema}
+      />
       <div className="w-full px-4 sm:px-6 lg:px-8 xl:px-12 2xl:px-16">
         {/* Back Button */}
         <button

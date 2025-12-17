@@ -266,7 +266,16 @@ else:
 # Frontend SPA Serving
 # ============================================================================
 
-frontend_dist_path = Path(__file__).parent.parent / "frontend" / "dist"
+# Use FRONTEND_PATH from config
+# In production: FRONTEND_PATH points to the built frontend root (already contains dist contents)
+# In development: FRONTEND_PATH is "frontend", so we append /dist
+if settings.FRONTEND_PATH and Path(settings.FRONTEND_PATH).is_absolute():
+    # Production: FRONTEND_PATH is already the built frontend root (e.g., /home/dh_wmujeb/joshua.eaglechair.com)
+    frontend_dist_path = Path(settings.FRONTEND_PATH)
+else:
+    # Development: Use relative path and append /dist (backend/../frontend/dist)
+    frontend_path = Path(settings.FRONTEND_PATH) if settings.FRONTEND_PATH != "frontend" else Path(__file__).parent.parent / "frontend"
+    frontend_dist_path = frontend_path / "dist"
 
 if frontend_dist_path.exists() and (frontend_dist_path / "index.html").exists():
     logger.info(f"[OK] Frontend dist found at {frontend_dist_path}")
@@ -277,12 +286,28 @@ if frontend_dist_path.exists() and (frontend_dist_path / "index.html").exists():
     
     # Mount data directory if it exists (for contentData.js)
     if (frontend_dist_path / "data").exists():
-        # Special handling for contentData.js - disable caching
+        # Special handling for contentData.json/js - disable caching
         from fastapi.responses import FileResponse
         
+        @app.get("/data/contentData.json", response_class=FileResponse, include_in_schema=False)
+        async def serve_content_data_json():
+            """Serve contentData.json with no-cache headers (dynamic CMS content)"""
+            content_data_file = frontend_dist_path / "data" / "contentData.json"
+            if content_data_file.exists():
+                return FileResponse(
+                    content_data_file,
+                    media_type="application/json",
+                    headers={
+                        "Cache-Control": "no-store, no-cache, must-revalidate, max-age=0",
+                        "Pragma": "no-cache",
+                        "Expires": "0",
+                    }
+                )
+            return {"detail": "Content data not found"}, 404
+        
         @app.get("/data/contentData.js", response_class=FileResponse, include_in_schema=False)
-        async def serve_content_data():
-            """Serve contentData.js with no-cache headers (dynamic CMS content)"""
+        async def serve_content_data_js():
+            """Serve contentData.js with no-cache headers (legacy format, backward compatibility)"""
             content_data_file = frontend_dist_path / "data" / "contentData.js"
             if content_data_file.exists():
                 return FileResponse(

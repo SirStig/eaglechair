@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useSearchParams, useNavigate, useParams } from 'react-router-dom';
 import { Filter, X, ChevronDown, ChevronUp, ArrowUpDown, Search, Folder, Grid3x3, Users } from 'lucide-react';
 import ProductCard from '../components/ui/ProductCard';
@@ -8,6 +8,7 @@ import Button from '../components/ui/Button';
 import LoadingSpinner from '../components/ui/LoadingSpinner';
 import QuickViewModal from '../components/ui/QuickViewModal';
 import { CardGridSkeleton } from '../components/ui/Skeleton';
+import SEOHead from '../components/SEOHead';
 import productService from '../services/productService';
 import useDebounce from '../hooks/useDebounce';
 import logger from '../utils/logger';
@@ -424,8 +425,70 @@ const ProductCatalogPage = () => {
   const showStackableFilter = !filters.category_id || activeCategory?.name === 'Chairs';
   const showOutdoorFilter = true; // All categories can have outdoor options
 
+  // Generate SEO data
+  const seoTitle = useMemo(() => {
+    if (activeCategory) {
+      return activeCategory.meta_title || `${activeCategory.name} | Eagle Chair`;
+    }
+    return 'Product Catalog | Eagle Chair';
+  }, [activeCategory]);
+
+  const seoDescription = useMemo(() => {
+    if (activeCategory && activeCategory.description) {
+      return activeCategory.meta_description || activeCategory.description.substring(0, 160);
+    }
+    return 'Browse our complete catalog of premium commercial seating solutions. Chairs, tables, booths, and more for restaurants, hotels, and hospitality venues.';
+  }, [activeCategory]);
+
+  const catalogUrl = useMemo(() => {
+    if (categoryParam && subcategoryParam) {
+      return `/products/category/${categoryParam}/${subcategoryParam}`;
+    } else if (categoryParam) {
+      return `/products/category/${categoryParam}`;
+    }
+    return '/products';
+  }, [categoryParam, subcategoryParam]);
+
+  const catalogSchema = useMemo(() => {
+    const breadcrumbItems = [
+      { "@type": "ListItem", "position": 1, "name": "Home", "item": "https://www.eaglechair.com/" },
+      { "@type": "ListItem", "position": 2, "name": "Products", "item": "https://www.eaglechair.com/products" }
+    ];
+    
+    if (activeCategory) {
+      breadcrumbItems.push({
+        "@type": "ListItem",
+        "position": 3,
+        "name": activeCategory.name,
+        "item": `https://www.eaglechair.com${catalogUrl}`
+      });
+    }
+    
+    return {
+      "@context": "https://schema.org",
+      "@type": "CollectionPage",
+      "name": activeCategory ? activeCategory.name : "Product Catalog",
+      "description": seoDescription,
+      "url": `https://www.eaglechair.com${catalogUrl}`,
+      "breadcrumb": {
+        "@type": "BreadcrumbList",
+        "itemListElement": breadcrumbItems
+      }
+    };
+  }, [activeCategory, catalogUrl, seoDescription]);
+
   return (
     <div className="min-h-screen py-8 bg-gradient-to-br from-cream-50 to-cream-100">
+      <SEOHead
+        title={seoTitle}
+        description={seoDescription}
+        image="/og-image.jpg"
+        url={catalogUrl}
+        type="website"
+        keywords={activeCategory?.meta_keywords || 'commercial seating, restaurant furniture, Eagle Chair'}
+        canonical={catalogUrl}
+        structuredData={catalogSchema}
+      />
       <div className="w-full px-4 sm:px-6 lg:px-8 xl:px-12 2xl:px-16">
         {/* Breadcrumb */}
         <div className="mb-4 sm:mb-6 text-xs sm:text-sm text-slate-600 overflow-x-auto pb-2">

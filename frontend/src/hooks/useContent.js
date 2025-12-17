@@ -20,13 +20,16 @@ export const useContent = (apiFn, defaultData = null, cacheKey, cacheTTL = 5 * 6
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
-  const fetchData = async () => {
+  const fetchData = async (retryCount = 0) => {
+    const maxRetries = 3;
+    const retryDelay = (count) => Math.min(1000 * 2 ** count, 30000); // Exponential backoff: 1s, 2s, 4s (max 30s)
+
     try {
       setLoading(true);
       setError(null);
 
       // Fetch from API with caching
-      logger.debug(CONTEXT, `Fetching from API: ${cacheKey}`);
+      logger.debug(CONTEXT, `Fetching from API: ${cacheKey}${retryCount > 0 ? ` (retry ${retryCount}/${maxRetries})` : ''}`);
       const result = await cachedFetch(cacheKey, apiFn, cacheTTL);
       
       // Use API data if available, otherwise use default data
@@ -37,6 +40,19 @@ export const useContent = (apiFn, defaultData = null, cacheKey, cacheTTL = 5 * 6
         setData(result);
       }
     } catch (err) {
+      // Retry on network errors or 5xx errors
+      const isRetryable = !err.response || (err.response.status >= 500 && err.response.status < 600);
+      
+      if (isRetryable && retryCount < maxRetries) {
+        const delay = retryDelay(retryCount);
+        logger.warn(CONTEXT, `Retrying ${cacheKey} after ${delay}ms (attempt ${retryCount + 1}/${maxRetries})`);
+        
+        setTimeout(() => {
+          fetchData(retryCount + 1);
+        }, delay);
+        return;
+      }
+      
       logger.error(CONTEXT, `Error fetching ${cacheKey}`, err);
       setError(err);
       // Use default data on error if provided
@@ -45,7 +61,9 @@ export const useContent = (apiFn, defaultData = null, cacheKey, cacheTTL = 5 * 6
         setData(defaultData);
       }
     } finally {
-      setLoading(false);
+      if (retryCount === 0) {
+        setLoading(false);
+      }
     }
   };
 

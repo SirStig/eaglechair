@@ -29,17 +29,46 @@ const apiClient = axios.create({
   // Don't set default Content-Type - let axios auto-detect based on request data
 });
 
+// Retry configuration for network errors
+const getRetryConfig = (config) => {
+  return {
+    retries: config.retry !== undefined ? config.retry : 3,
+    retryDelay: config.retryDelay || ((retryCount) => Math.min(1000 * 2 ** retryCount, 30000)),
+    retryCondition: config.retryCondition || ((error) => {
+      // Retry on network errors or 5xx server errors
+      return !error.response || (error.response.status >= 500 && error.response.status < 600);
+    })
+  };
+};
+
 // Request interceptor
 // Tokens are stored in localStorage and sent via Authorization header
 apiClient.interceptors.request.use(
   async (config) => {
-    // Get access token from localStorage and add to Authorization header
-    const accessToken = typeof window !== 'undefined' 
-      ? localStorage.getItem('auth_access_token') 
-      : null;
+    // Initialize retry config if not set
+    if (config.retry === undefined) {
+      const retryConfig = getRetryConfig(config);
+      config.retry = retryConfig.retries;
+      config.retryDelay = retryConfig.retryDelay;
+      config.retryCondition = retryConfig.retryCondition;
+      config._retryCount = config._retryCount || 0;
+    }
     
-    if (accessToken) {
-      config.headers.Authorization = `Bearer ${accessToken}`;
+    // Skip adding access token for refresh endpoint (it needs refresh token instead)
+    // Also skip if Authorization header is already set (explicit override)
+    const isRefreshEndpoint = config.url?.includes('/auth/refresh');
+    const hasExplicitAuth = config.headers?.Authorization;
+    
+    // Get access token from localStorage and add to Authorization header
+    // But skip for refresh endpoint or if header is already set
+    if (!isRefreshEndpoint && !hasExplicitAuth) {
+      const accessToken = typeof window !== 'undefined' 
+        ? localStorage.getItem('auth_access_token') 
+        : null;
+      
+      if (accessToken) {
+        config.headers.Authorization = `Bearer ${accessToken}`;
+      }
     }
     
     // For admin users, also send session_token and admin_token headers
@@ -200,6 +229,27 @@ apiClient.interceptors.response.use(
       } catch (refreshError) {
         // Refresh failed - clear auth state
         return Promise.reject(handleAuthError(error));
+      }
+    }
+
+    // Handle retry logic for network errors and 5xx errors
+    // Reuse originalRequest from above (line 116)
+    if (originalRequest && originalRequest.retry && originalRequest.retryCondition) {
+      const retryCount = originalRequest._retryCount || 0;
+      
+      if (retryCount < originalRequest.retry && originalRequest.retryCondition(error)) {
+        originalRequest._retryCount = retryCount + 1;
+        const delay = originalRequest.retryDelay(retryCount);
+        
+        logger.debug(CONTEXT, `Retrying request (attempt ${retryCount + 1}/${originalRequest.retry}) after ${delay}ms`, {
+          url: originalRequest.url
+        });
+        
+        return new Promise((resolve) => {
+          setTimeout(() => {
+            resolve(apiClient(originalRequest));
+          }, delay);
+        });
       }
     }
 

@@ -125,20 +125,51 @@ export default defineConfig(({ mode }) => {
     build: {
       outDir: 'dist',
       sourcemap: false, // Never generate source maps in production for security
-      // Let Vite handle chunk splitting automatically to avoid module resolution issues
-      // Automatic splitting is more reliable than manual chunking
       rollupOptions: {
         output: {
           // Add hash to filenames for cache busting
           entryFileNames: 'assets/[name]-[hash].js',
           chunkFileNames: 'assets/[name]-[hash].js',
           assetFileNames: 'assets/[name]-[hash].[ext]',
-          // Removed manualChunks - let Vite's automatic chunking handle it
-          // This prevents module resolution errors in production
+          // Manual chunk splitting for optimal performance
+          manualChunks: (id) => {
+            // React vendor chunk - must include all React-related packages
+            if (id.includes('node_modules/react') || 
+                id.includes('node_modules/react-dom') || 
+                id.includes('node_modules/react-router') ||
+                id.includes('node_modules/react-is') ||
+                id.includes('node_modules/react/jsx-runtime')) {
+              return 'react-vendor';
+            }
+            // Chart/visualization chunk - keep with React since it depends on it
+            if (id.includes('node_modules/recharts')) {
+              return 'react-vendor'; // Put recharts with React since it needs React.forwardRef
+            }
+            // UI libraries chunk
+            if (id.includes('node_modules/framer-motion') || id.includes('node_modules/lucide-react')) {
+              return 'ui-vendor';
+            }
+            // Query library chunk
+            if (id.includes('node_modules/@tanstack/react-query')) {
+              return 'query-vendor';
+            }
+            // Form libraries chunk
+            if (id.includes('node_modules/react-hook-form') || id.includes('node_modules/react-quill')) {
+              return 'form-vendor';
+            }
+            // Carousel chunk
+            if (id.includes('node_modules/react-slick') || id.includes('node_modules/slick-carousel')) {
+              return 'carousel-vendor';
+            }
+            // Map libraries chunk
+            if (id.includes('node_modules/leaflet') || id.includes('node_modules/react-leaflet')) {
+              return 'map-vendor';
+            }
+          },
         },
       },
       // Increase chunk size warning limit
-      chunkSizeWarningLimit: 1500,
+      chunkSizeWarningLimit: 200, // Industry standard: 200KB per chunk
     },
     
     // Define app metadata

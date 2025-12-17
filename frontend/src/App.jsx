@@ -1,6 +1,6 @@
 import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { useEffect } from 'react';
+import { useEffect, lazy, Suspense } from 'react';
 import Layout from './components/layout/Layout';
 import ProtectedRoute from './components/ProtectedRoute';
 import ScrollToTop from './components/ScrollToTop';
@@ -11,46 +11,49 @@ import { ToastProvider } from './contexts/ToastContext';
 import EditModeToggle from './components/admin/EditModeToggle';
 import { useAuthStore } from './store/authStore';
 import { useCartStore } from './store/cartStore';
+import LoadingSpinner from './components/ui/LoadingSpinner';
 
-// Pages
-import HomePage from './pages/HomePage';
-import ProductCatalogPage from './pages/ProductCatalogPage';
-import ProductDetailPage from './pages/ProductDetailPage';
-import ProductFamilyDetailPage from './pages/ProductFamilyDetailPage';
-import SearchPage from './pages/SearchPage';
-import GalleryPage from './pages/GalleryPage';
-import AboutPage from './pages/AboutPage';
-import ContactPage from './pages/ContactPage';
-import FindARepPage from './pages/FindARepPage';
-import CartPage from './pages/CartPage';
-import QuoteRequestPage from './pages/QuoteRequestPage';
-import LoginPage from './pages/LoginPage';
-import RegisterPage from './pages/RegisterPage';
-import EmailVerificationPage from './pages/EmailVerificationPage';
-import ForgotPasswordPage from './pages/ForgotPasswordPage';
-import ResetPasswordPage from './pages/ResetPasswordPage';
-import TermsOfServicePage from './pages/TermsOfServicePage';
-import PrivacyPolicyPage from './pages/PrivacyPolicyPage';
-import GeneralInformationPage from './pages/GeneralInformationPage';
-import DashboardPage from './pages/DashboardPage';
-import NewAdminDashboard from './pages/admin/NewAdminDashboard';
+// Lazy load all pages for route-based code splitting
+const HomePage = lazy(() => import('./pages/HomePage'));
+const ProductCatalogPage = lazy(() => import('./pages/ProductCatalogPage'));
+const ProductDetailPage = lazy(() => import('./pages/ProductDetailPage'));
+const ProductFamilyDetailPage = lazy(() => import('./pages/ProductFamilyDetailPage'));
+const SearchPage = lazy(() => import('./pages/SearchPage'));
+const GalleryPage = lazy(() => import('./pages/GalleryPage'));
+const AboutPage = lazy(() => import('./pages/AboutPage'));
+const ContactPage = lazy(() => import('./pages/ContactPage'));
+const FindARepPage = lazy(() => import('./pages/FindARepPage'));
+const CartPage = lazy(() => import('./pages/CartPage'));
+const QuoteRequestPage = lazy(() => import('./pages/QuoteRequestPage'));
+const LoginPage = lazy(() => import('./pages/LoginPage'));
+const RegisterPage = lazy(() => import('./pages/RegisterPage'));
+const EmailVerificationPage = lazy(() => import('./pages/EmailVerificationPage'));
+const ForgotPasswordPage = lazy(() => import('./pages/ForgotPasswordPage'));
+const ResetPasswordPage = lazy(() => import('./pages/ResetPasswordPage'));
+const TermsOfServicePage = lazy(() => import('./pages/TermsOfServicePage'));
+const PrivacyPolicyPage = lazy(() => import('./pages/PrivacyPolicyPage'));
+const GeneralInformationPage = lazy(() => import('./pages/GeneralInformationPage'));
+const DashboardPage = lazy(() => import('./pages/DashboardPage'));
+const NewAdminDashboard = lazy(() => import('./pages/admin/NewAdminDashboard'));
 
 // Resource Pages
-import VirtualCatalogsPage from './pages/VirtualCatalogsPage';
-import WoodFinishesPage from './pages/WoodFinishesPage';
-import HardwarePage from './pages/HardwarePage';
-import LaminatesPage from './pages/LaminatesPage';
-import UpholsteryPage from './pages/UpholsteryPage';
-import GuidesPage from './pages/GuidesPage';
-import SeatBackTermsPage from './pages/SeatBackTermsPage';
+const VirtualCatalogsPage = lazy(() => import('./pages/VirtualCatalogsPage'));
+const WoodFinishesPage = lazy(() => import('./pages/WoodFinishesPage'));
+const HardwarePage = lazy(() => import('./pages/HardwarePage'));
+const LaminatesPage = lazy(() => import('./pages/LaminatesPage'));
+const UpholsteryPage = lazy(() => import('./pages/UpholsteryPage'));
+const GuidesPage = lazy(() => import('./pages/GuidesPage'));
+const SeatBackTermsPage = lazy(() => import('./pages/SeatBackTermsPage'));
 
-// Create a client
+// Create a client with industry-standard retry configuration
 const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
       refetchOnWindowFocus: false,
-      retry: 1,
+      retry: 3, // Industry standard: 3 retries
+      retryDelay: (attemptIndex) => Math.min(1000 * 2 ** attemptIndex, 30000), // Exponential backoff: 1s, 2s, 4s (max 30s)
       staleTime: 5 * 60 * 1000, // 5 minutes
+      gcTime: 10 * 60 * 1000, // 10 minutes (renamed from cacheTime in v5)
     },
   },
 });
@@ -78,14 +81,15 @@ function App() {
   return (
     <ErrorBoundary>
       <QueryClientProvider client={queryClient}>
-        <Router>
-          <CartSync />
-          <AdminAuthProvider>
+          <Router>
+            <CartSync />
+            <AdminAuthProvider>
             <EditModeProvider>
               <ToastProvider>
                 <ScrollToTop />
                 <EditModeToggle />
-                <Routes>
+                <Suspense fallback={<LoadingSpinner />}>
+                  <Routes>
           {/* Public Routes */}
           <Route path="/login" element={<LoginPage />} />
           <Route path="/register" element={<RegisterPage />} />
@@ -191,7 +195,8 @@ function App() {
             {/* 404 */}
             <Route path="*" element={<NotFound />} />
           </Route>
-          </Routes>
+                  </Routes>
+                </Suspense>
                 </ToastProvider>
               </EditModeProvider>
             </AdminAuthProvider>

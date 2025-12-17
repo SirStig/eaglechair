@@ -14,6 +14,7 @@ from backend.api.v1.routes import (
     dashboard,
     products,
     quotes,
+    seo,
 )
 from backend.api.v1.routes.admin.router import router as admin_router
 
@@ -39,6 +40,9 @@ router.include_router(cms_content.router, prefix="/content")
 
 # Include CMS admin routes (admin-only content management with static export)
 router.include_router(cms_admin.router)
+
+# Include SEO routes (sitemap, meta tags)
+router.include_router(seo.router)
 
 # Include admin routes
 router.include_router(admin_router)
