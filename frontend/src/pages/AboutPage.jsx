@@ -135,6 +135,9 @@ const AboutPage = () => {
             src={heroImage}
             alt="Workshop"
             className="w-full h-full object-cover"
+            loading="eager"
+            fetchPriority="high"
+            decoding="async"
           />
         </div>
         
@@ -204,6 +207,9 @@ const AboutPage = () => {
                   src={storyImage}
                   alt="Our Team"
                   className="rounded-2xl shadow-2xl"
+                  loading="eager"
+                  fetchPriority="high"
+                  decoding="async"
                 />
               </EditableWrapper>
             </motion.div>
