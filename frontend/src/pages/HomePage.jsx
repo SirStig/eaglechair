@@ -2,6 +2,7 @@ import { useState, useMemo } from 'react';
 import { Link } from 'react-router-dom';
 // eslint-disable-next-line no-unused-vars
 import { motion } from 'framer-motion';
+import { Helmet } from 'react-helmet-async';
 import Slider from 'react-slick';
 import Button from '../components/ui/Button';
 import ProductCard from '../components/ui/ProductCard';
@@ -153,8 +154,8 @@ const HomePage = () => {
     useCSS: true,
     useTransform: true,
     adaptiveHeight: false,
-    // Force re-render on Safari
-    lazyLoad: 'ondemand',
+    // Disable lazy loading - preload all hero images for smooth transitions
+    lazyLoad: false,
   };
 
   // Client Logos Slider Settings
@@ -229,6 +230,12 @@ const HomePage = () => {
     }
   }), [siteSettings, seoDescription]);
 
+  // Preload first 3 hero images for instant display
+  const preloadImages = useMemo(() => {
+    if (!slides || slides.length === 0) return [];
+    return slides.slice(0, 3).map(slide => slide.background_image_url || slide.image).filter(Boolean);
+  }, [slides]);
+
   return (
     <div className="min-h-screen">
       <SEOHead
@@ -241,6 +248,20 @@ const HomePage = () => {
         canonical="/"
         structuredData={homeSchema}
       />
+      {/* Preload critical hero images */}
+      {preloadImages.length > 0 && (
+        <Helmet>
+          {preloadImages.map((imageUrl, idx) => (
+            <link 
+              key={`preload-hero-${idx}`}
+              rel="preload" 
+              as="image" 
+              href={imageUrl} 
+              fetchPriority={idx === 0 ? "high" : idx === 1 ? "high" : "auto"}
+            />
+          ))}
+        </Helmet>
+      )}
       {/* Hero Slider */}
       <section className="relative">
         {heroLoading ? (
@@ -266,9 +287,9 @@ const HomePage = () => {
                         src={slide.background_image_url || slide.image}
                         alt={slide.title}
                         className="w-full h-full object-cover"
-                        loading={index === 0 ? "eager" : "lazy"}
+                        loading="eager"
                         decoding="async"
-                        fetchPriority={index === 0 ? "high" : "low"}
+                        fetchPriority={index === 0 ? "high" : index < 3 ? "high" : "auto"}
                         style={{ 
                           WebkitTransform: 'translateZ(0)',
                           transform: 'translateZ(0)',
