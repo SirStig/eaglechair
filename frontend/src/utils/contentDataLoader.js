@@ -1,9 +1,11 @@
 /**
  * Content Data Dynamic Loader
  * 
- * Loads contentData.js from /data/ at runtime with cache busting
+ * Loads contentData.json from /data/ at runtime with cache busting
  * This prevents Vite from bundling it, allowing the backend to update it
  * without requiring a frontend rebuild.
+ * 
+ * Uses JSON format instead of JS exports for security (no Function constructor/eval)
  */
 
 import logger from './logger';
@@ -15,9 +17,20 @@ let contentCacheTimestamp = 0;
 const CACHE_DURATION = 60000; // 1 minute
 
 /**
- * Load contentData.js dynamically from /data/ path
- * In development: served from public/data/contentData.js
- * In production: served from root-level /data/contentData.js
+ * Validate content structure
+ */
+const validateContent = (content) => {
+  if (!content || typeof content !== 'object') {
+    return false;
+  }
+  const required = ['siteSettings', 'heroSlides', 'salesReps'];
+  return required.every(key => content[key] !== undefined);
+};
+
+/**
+ * Load contentData.json dynamically from /data/ path
+ * In development: served from public/data/contentData.json
+ * In production: served from root-level /data/contentData.json
  * Uses fetch with cache-busting timestamp
  */
 export const loadContentData = async () => {
@@ -29,84 +42,106 @@ export const loadContentData = async () => {
   }
   
   try {
-    // Fetch with cache-busting timestamp
+    // Try JSON format first (new secure format)
     const timestamp = now;
-    const response = await fetch(`/data/contentData.js?t=${timestamp}`, {
-      cache: 'no-store', // Never cache
+    let response = await fetch(`/data/contentData.json?t=${timestamp}`, {
+      cache: 'no-store',
       headers: {
         'Cache-Control': 'no-cache, no-store, must-revalidate',
         'Pragma': 'no-cache'
       }
     });
     
+    // Fallback to .js for backward compatibility during migration
     if (!response.ok) {
-      throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-    }
-    
-    const jsCode = await response.text();
-    
-    // Parse the ES6 module exports
-    const exports = {};
-    
-    // Split by "export const" and parse each one
-    const exportBlocks = jsCode.split(/export\s+const\s+(\w+)\s*=/);
-    
-    for (let i = 1; i < exportBlocks.length; i += 2) {
-      const varName = exportBlocks[i];
-      let varValueStr = exportBlocks[i + 1];
+      logger.debug(CONTEXT, 'contentData.json not found, trying contentData.js for backward compatibility');
+      response = await fetch(`/data/contentData.js?t=${timestamp}`, {
+        cache: 'no-store',
+        headers: {
+          'Cache-Control': 'no-cache, no-store, must-revalidate',
+          'Pragma': 'no-cache'
+        }
+      });
       
-      // Find the semicolon that ends this export (not inside strings/objects/arrays)
-      let braceDepth = 0;
-      let bracketDepth = 0;
-      let inString = false;
-      let stringChar = null;
-      let endIndex = 0;
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+      }
       
-      for (let j = 0; j < varValueStr.length; j++) {
-        const char = varValueStr[j];
-        const prevChar = j > 0 ? varValueStr[j - 1] : null;
+      // Legacy JS format - parse exports (temporary during migration)
+      const jsCode = await response.text();
+      const exports = {};
+      const exportBlocks = jsCode.split(/export\s+const\s+(\w+)\s*=/);
+      
+      for (let i = 1; i < exportBlocks.length; i += 2) {
+        const varName = exportBlocks[i];
+        let varValueStr = exportBlocks[i + 1];
         
-        if (!inString) {
-          if (char === '{') braceDepth++;
-          else if (char === '}') braceDepth--;
-          else if (char === '[') bracketDepth++;
-          else if (char === ']') bracketDepth--;
-          else if ((char === '"' || char === "'" || char === '`') && prevChar !== '\\') {
-            inString = true;
-            stringChar = char;
-          } else if (char === ';' && braceDepth === 0 && bracketDepth === 0) {
-            endIndex = j;
-            break;
+        let braceDepth = 0;
+        let bracketDepth = 0;
+        let inString = false;
+        let stringChar = null;
+        let endIndex = 0;
+        
+        for (let j = 0; j < varValueStr.length; j++) {
+          const char = varValueStr[j];
+          const prevChar = j > 0 ? varValueStr[j - 1] : null;
+          
+          if (!inString) {
+            if (char === '{') braceDepth++;
+            else if (char === '}') braceDepth--;
+            else if (char === '[') bracketDepth++;
+            else if (char === ']') bracketDepth--;
+            else if ((char === '"' || char === "'" || char === '`') && prevChar !== '\\') {
+              inString = true;
+              stringChar = char;
+            } else if (char === ';' && braceDepth === 0 && bracketDepth === 0) {
+              endIndex = j;
+              break;
+            }
+          } else {
+            if (char === stringChar && prevChar !== '\\') {
+              inString = false;
+              stringChar = null;
+            }
           }
-        } else {
-          if (char === stringChar && prevChar !== '\\') {
-            inString = false;
-            stringChar = null;
-          }
+        }
+        
+        varValueStr = varValueStr.substring(0, endIndex).trim();
+        
+        try {
+          const parseValue = new Function('return (' + varValueStr + ')');
+          exports[varName] = parseValue();
+          logger.debug(CONTEXT, `Parsed ${varName} (legacy JS format)`);
+        } catch (e) {
+          logger.error(CONTEXT, `Failed to parse ${varName}:`, e);
         }
       }
       
-      varValueStr = varValueStr.substring(0, endIndex).trim();
-      
-      try {
-        // Use Function constructor instead of eval for better security
-        // Creates a new execution context isolated from current scope
-        const parseValue = new Function('return (' + varValueStr + ')');
-        exports[varName] = parseValue();
-        logger.debug(CONTEXT, `Parsed ${varName}: ${Array.isArray(exports[varName]) ? `${exports[varName].length} items` : 'object'}`);
-      } catch (e) {
-        logger.error(CONTEXT, `Failed to parse ${varName}:`, e);
+      if (!validateContent(exports)) {
+        throw new Error('Invalid content structure');
       }
+      
+      contentCache = exports;
+      contentCacheTimestamp = now;
+      logger.info(CONTEXT, `Loaded contentData.js (legacy format, ${Object.keys(exports).length} exports)`);
+      return exports;
     }
     
-    contentCache = exports;
+    // JSON format (secure)
+    const jsonData = await response.json();
+    
+    if (!validateContent(jsonData)) {
+      throw new Error('Invalid content structure: missing required fields');
+    }
+    
+    contentCache = jsonData;
     contentCacheTimestamp = now;
     
-    logger.info(CONTEXT, `Loaded contentData.js (${Object.keys(exports).length} exports)`);
-    return exports;
+    logger.info(CONTEXT, `Loaded contentData.json (${Object.keys(jsonData).length} exports)`);
+    return jsonData;
     
   } catch (error) {
-    logger.error(CONTEXT, 'Failed to load /data/contentData.js:', error);
+    logger.error(CONTEXT, 'Failed to load /data/contentData.json:', error);
     return null;
   }
 };

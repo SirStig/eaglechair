@@ -6,6 +6,7 @@ import Tag from '../components/ui/Tag';
 import LoadingSpinner from '../components/ui/LoadingSpinner';
 import ProductCard from '../components/ui/ProductCard';
 import EditableWrapper from '../components/admin/EditableWrapper';
+import SEOHead from '../components/SEOHead';
 import { useCartStore } from '../store/cartStore';
 import { updateProduct } from '../services/contentService';
 import productService from '../services/productService';
@@ -243,11 +244,79 @@ const ProductDetailPage = () => {
     );
   }
 
+  // Generate SEO data
+  const seoTitle = product.meta_title || `${product.name} | Eagle Chair`;
+  const seoDescription = product.meta_description || (product.description ? product.description.substring(0, 160) : `Shop ${product.name} from Eagle Chair. Premium commercial seating solutions.`);
+  const productUrl = categorySlug && subcategorySlug && productSlug 
+    ? `/products/${categorySlug}/${subcategorySlug}/${productSlug}`
+    : `/products/${product.id}`;
+  const productImage = images && images.length > 0 ? images[0] : (product.primary_image_url || '/og-image.jpg');
+  
+  // Generate structured data (JSON-LD)
+  const productSchema = useMemo(() => {
+    if (!product) return null;
+    
+    const breadcrumbItems = [
+      { "@type": "ListItem", "position": 1, "name": "Home", "item": "https://www.eaglechair.com/" },
+      { "@type": "ListItem", "position": 2, "name": "Products", "item": "https://www.eaglechair.com/products" }
+    ];
+    
+    if (product.category) {
+      const categoryName = typeof product.category === 'object' ? product.category.name : product.category;
+      breadcrumbItems.push({
+        "@type": "ListItem",
+        "position": breadcrumbItems.length + 1,
+        "name": categoryName,
+        "item": `https://www.eaglechair.com/products/category/${categorySlug || product.category.slug || ''}`
+      });
+    }
+    
+    breadcrumbItems.push({
+      "@type": "ListItem",
+      "position": breadcrumbItems.length + 1,
+      "name": product.name,
+      "item": `https://www.eaglechair.com${productUrl}`
+    });
+    
+    return {
+      "@context": "https://schema.org",
+      "@type": "Product",
+      "name": product.name,
+      "description": product.description || seoDescription,
+      "image": images && images.length > 0 ? images.map(img => `https://www.eaglechair.com${img}`) : [`https://www.eaglechair.com${productImage}`],
+      "sku": product.sku || product.model_number || product.id.toString(),
+      "brand": {
+        "@type": "Brand",
+        "name": "Eagle Chair"
+      },
+      "offers": {
+        "@type": "Offer",
+        "price": product.base_price || 0,
+        "priceCurrency": "USD",
+        "availability": product.stock_status === 'In Stock' ? "https://schema.org/InStock" : "https://schema.org/OutOfStock",
+        "url": `https://www.eaglechair.com${productUrl}`
+      },
+      "breadcrumb": {
+        "@type": "BreadcrumbList",
+        "itemListElement": breadcrumbItems
+      }
+    };
+  }, [product, images, productUrl, categorySlug, seoDescription, productImage]);
 
   return (
     <div className={`min-h-screen  ${
       'bg-gradient-to-br from-cream-50 to-cream-100'
     }`}>
+      <SEOHead
+        title={seoTitle}
+        description={seoDescription}
+        image={productImage}
+        url={productUrl}
+        type="product"
+        keywords={product.meta_keywords || `${product.name}, commercial seating, restaurant chairs, Eagle Chair`}
+        canonical={productUrl}
+        structuredData={productSchema}
+      />
       {/* Success Message */}
       <AnimatePresence>
         {showSuccessMessage && (
@@ -301,6 +370,9 @@ const ProductDetailPage = () => {
                     alt={product.name}
                     className="w-full h-auto object-contain"
                     style={{ maxHeight: '500px', mixBlendMode: 'multiply' }}
+                    loading={selectedImage === 0 ? "eager" : "lazy"}
+                    fetchPriority={selectedImage === 0 ? "high" : "low"}
+                    decoding="async"
                   />
                 </div>
 

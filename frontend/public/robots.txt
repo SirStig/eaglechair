@@ -5,7 +5,7 @@ User-agent: *
 Allow: /
 
 # Sitemaps
-Sitemap: https://www.eaglechair.com/sitemap.xml
+Sitemap: https://www.eaglechair.com/api/v1/seo/sitemap.xml
 
 # Disallow admin and API paths from search engines
 Disallow: /api/

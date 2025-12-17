@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { Link } from 'react-router-dom';
 // eslint-disable-next-line no-unused-vars
 import { motion } from 'framer-motion';
@@ -10,11 +10,12 @@ import EditableWrapper from '../components/admin/EditableWrapper';
 import EditableList from '../components/admin/EditableList';
 import EditModal from '../components/admin/EditModal';
 import ConfirmModal from '../components/ui/ConfirmModal';
+import SEOHead from '../components/SEOHead';
 import { useEditMode } from '../contexts/useEditMode';
 import { useToast } from '../contexts/ToastContext';
 import { loadContentData } from '../utils/contentDataLoader';
 // Removed static import: { heroSlides as staticHeroSlides, features as staticFeatures, clientLogos as staticClientLogos, pageContent as staticPageContent }
-import { useHeroSlides, useFeatures, useClientLogos, useFeaturedProducts, usePageContent } from '../hooks/useContent';
+import { useHeroSlides, useFeatures, useClientLogos, useFeaturedProducts, usePageContent, useSiteSettings } from '../hooks/useContent';
 import { 
   updatePageContent,
   updateHeroSlide,
@@ -199,8 +200,47 @@ const HomePage = () => {
   const ctaSecondaryText = ctaSection?.secondary_cta_text || "Find a Rep";
   const ctaSecondaryLink = ctaSection?.secondary_cta_link || "/find-a-rep";
 
+  // SEO data
+  const { data: siteSettings } = useSiteSettings();
+  const seoTitle = siteSettings?.metaTitle || 'Eagle Chair - Premium Commercial Seating Solutions';
+  const seoDescription = siteSettings?.metaDescription || 'Eagle Chair manufactures premium commercial seating for restaurants, hotels, healthcare facilities, and hospitality venues. Explore our durable, customizable furniture solutions.';
+  const seoKeywords = siteSettings?.metaKeywords || 'commercial seating, restaurant chairs, hotel furniture, healthcare seating, hospitality furniture, custom chairs, commercial furniture, Eagle Chair';
+  
+  const homeSchema = useMemo(() => ({
+    "@context": "https://schema.org",
+    "@type": "Organization",
+    "name": siteSettings?.companyName || "Eagle Chair",
+    "url": "https://www.eaglechair.com",
+    "logo": siteSettings?.logoUrl ? `https://www.eaglechair.com${siteSettings.logoUrl}` : "https://www.eaglechair.com/og-image.jpg",
+    "description": seoDescription,
+    "address": {
+      "@type": "PostalAddress",
+      "streetAddress": siteSettings?.addressLine1 || "",
+      "addressLocality": siteSettings?.city || "",
+      "addressRegion": siteSettings?.state || "",
+      "postalCode": siteSettings?.zipCode || "",
+      "addressCountry": siteSettings?.country || "US"
+    },
+    "contactPoint": {
+      "@type": "ContactPoint",
+      "telephone": siteSettings?.primaryPhone || "",
+      "contactType": "Customer Service",
+      "email": siteSettings?.primaryEmail || ""
+    }
+  }), [siteSettings, seoDescription]);
+
   return (
     <div className="min-h-screen">
+      <SEOHead
+        title={seoTitle}
+        description={seoDescription}
+        image="/og-image.jpg"
+        url="/"
+        type="website"
+        keywords={seoKeywords}
+        canonical="/"
+        structuredData={homeSchema}
+      />
       {/* Hero Slider */}
       <section className="relative">
         {heroLoading ? (

@@ -23,8 +23,7 @@ const LoginPage = () => {
 
   const from = location.state?.from?.pathname || '/dashboard';
 
-  // Redirect if already authenticated - check if admin and redirect appropriately
-  // Only redirect once and wait for auth initialization to complete
+  // Redirect if already authenticated - only after initialization completes
   useEffect(() => {
     // Don't redirect if still initializing or already redirected
     if (isInitializing || hasRedirectedRef.current) {
@@ -34,34 +33,21 @@ const LoginPage = () => {
     if (isAuthenticated && user) {
       hasRedirectedRef.current = true;
       
-      // If user is admin and trying to access admin routes, go to admin dashboard
       const isAdmin = user.type === 'admin' || 
                       user.role === 'super_admin' || 
                       user.role === 'admin' ||
                       user.role === 'editor';
       
-      // Only redirect admins to admin dashboard if they were explicitly trying to access admin routes
-      // Don't redirect if they're just opening the main site in a new tab (from will be '/dashboard' or '/')
-      if (isAdmin && from.startsWith('/admin')) {
-        // Admin was trying to access admin route, redirect to admin dashboard
-        navigate('/admin/dashboard', { replace: true });
-      } else if (from && from !== '/login' && !from.startsWith('/admin')) {
-        // Redirect to the original destination (could be main site, dashboard, etc.)
+      // Simple redirect logic: use from path, or default based on admin status
+      if (from && from !== '/login' && from !== '/') {
         navigate(from, { replace: true });
-      } else if (location.pathname === '/login' && from === '/dashboard') {
-        // User came to login from default dashboard redirect
-        // For admins, only redirect to admin dashboard if they explicitly navigated here
-        // Otherwise, let them stay on main site
-        // Don't auto-redirect admins - let them choose where to go
-        navigate('/dashboard', { replace: true });
-      } else if (location.pathname === '/login') {
-        // Only redirect if we're actually on the login page and no specific destination
-        // For regular users, go to dashboard
-        // For admins, don't force redirect - let them access main site
+      } else if (isAdmin && from.startsWith('/admin')) {
+        navigate('/admin/dashboard', { replace: true });
+      } else {
         navigate('/dashboard', { replace: true });
       }
     }
-  }, [isAuthenticated, user, navigate, from, isInitializing]);
+  }, [isAuthenticated, user, navigate, from, isInitializing, location.pathname]);
 
   const onSubmit = async (data) => {
     setError(null);
@@ -80,17 +66,12 @@ const LoginPage = () => {
                      currentUser?.role === 'admin' ||
                      currentUser?.role === 'editor';
       
-      // Redirect based on original destination, not user type
-      // Only redirect admins to admin dashboard if they were explicitly trying to access admin routes
-      if (isAdmin && from.startsWith('/admin')) {
-        // Admin was trying to access admin route
-        navigate('/admin/dashboard', { replace: true });
-      } else if (from && from !== '/login' && !from.startsWith('/admin')) {
-        // Redirect to the original destination (could be main site, dashboard, etc.)
+      // Simple redirect: use from path, or default based on admin status
+      if (from && from !== '/login' && from !== '/') {
         navigate(from, { replace: true });
+      } else if (isAdmin && from.startsWith('/admin')) {
+        navigate('/admin/dashboard', { replace: true });
       } else {
-        // Default: go to regular dashboard for both admins and regular users
-        // Admins can access admin routes via navigation if needed
         navigate('/dashboard', { replace: true });
       }
     } else {
