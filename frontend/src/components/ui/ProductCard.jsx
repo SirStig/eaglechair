@@ -22,10 +22,10 @@ const ProductCard = ({ product, onQuickView, darkMode = false }) => {
   // Get images using new schema
   const primaryImage = getProductImage(product, 0);
   const secondaryImage = getProductImage(product, 1);
-  
+
   // Use primary image by default, switch to secondary on hover if available
-  const displayImage = isHovered && secondaryImage 
-    ? secondaryImage 
+  const displayImage = isHovered && secondaryImage
+    ? secondaryImage
     : primaryImage;
 
   // Format price using transformed product data (base_price in cents)
@@ -35,8 +35,8 @@ const ProductCard = ({ product, onQuickView, darkMode = false }) => {
     : (product.base_price ? formatPrice(product.base_price) : null);
 
   // Get swatches - show first 5 options
-  const swatches = product.customizations?.finishes?.slice(0, 5) || 
-                   product.customizations?.colors?.slice(0, 5) || [];
+  const swatches = product.customizations?.finishes?.slice(0, 5) ||
+    product.customizations?.colors?.slice(0, 5) || [];
 
   // Dark mode color classes
   const bgImage = darkMode ? 'bg-dark-800' : 'bg-cream-100';
@@ -58,7 +58,7 @@ const ProductCard = ({ product, onQuickView, darkMode = false }) => {
   const productUrl = buildProductUrl(product);
 
   return (
-    <div 
+    <div
       className="group flex flex-col h-full bg-transparent"
       onMouseEnter={() => setIsHovered(true)}
       onMouseLeave={() => setIsHovered(false)}
@@ -87,21 +87,19 @@ const ProductCard = ({ product, onQuickView, darkMode = false }) => {
             alt={product.name}
             onLoad={handleImageLoad}
             onError={handleImageError}
-            className={`w-full h-full object-contain transition-all duration-500 ${
-              imageLoaded ? 'opacity-100' : 'opacity-0'
-            } group-hover:scale-105`}
+            className={`w-full h-full object-contain transition-all duration-500 ${imageLoaded ? 'opacity-100' : 'opacity-0'
+              } group-hover:scale-105`}
             style={{ mixBlendMode: 'multiply' }}
             loading="lazy"
             decoding="async"
-            fetchPriority="low"
+            fetchpriority="low"
           />
         )}
-        
+
         {/* Overlay on hover */}
         <div
-          className={`absolute inset-0 bg-black/30 flex items-center justify-center gap-2 transition-opacity duration-300 ${
-            isHovered ? 'opacity-100' : 'opacity-0 pointer-events-none'
-          }`}
+          className={`absolute inset-0 bg-black/30 flex items-center justify-center gap-2 transition-opacity duration-300 ${isHovered ? 'opacity-100' : 'opacity-0 pointer-events-none'
+            }`}
         >
           <Button
             variant="primary"
@@ -204,9 +202,9 @@ const ProductCard = ({ product, onQuickView, darkMode = false }) => {
         {/* Action Buttons */}
         <div className="mt-auto flex gap-2">
           <Link to={productUrl} className="flex-1">
-            <Button 
-              variant="primary" 
-              size="sm" 
+            <Button
+              variant="primary"
+              size="sm"
               className="w-full text-xs px-2 py-1.5 min-h-[36px] sm:text-sm sm:px-4 sm:py-2 sm:min-h-[40px]"
             >
               View Details
