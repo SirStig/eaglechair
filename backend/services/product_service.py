@@ -1027,7 +1027,104 @@ class ProductService:
         
         result = await db.execute(query)
         return list(result.scalars().all())
-    
+
+    # ========================================================================
+    # Cache Management
+    # ========================================================================
+
+    @staticmethod
+    async def get_cache_timestamps(db: AsyncSession) -> Dict[str, str]:
+        """
+        Get latest update timestamps for all product-related data
+
+        This endpoint helps mobile apps determine if their cached data is stale
+        by checking the last modification time for each data type.
+
+        Args:
+            db: Database session
+
+        Returns:
+            Dict with timestamps for each data type:
+            {
+                "products": "2024-12-27T10:30:00Z",
+                "categories": "2024-12-27T10:30:00Z",
+                "variations": "2024-12-27T10:30:00Z",
+                "colors": "2024-12-27T10:30:00Z",
+                "finishes": "2024-12-27T10:30:00Z",
+                "upholsteries": "2024-12-27T10:30:00Z",
+                "families": "2024-12-27T10:30:00Z",
+                "subcategories": "2024-12-27T10:30:00Z"
+            }
+        """
+        timestamps = {}
+
+        # Products (chairs)
+        result = await db.execute(
+            select(func.max(Chair.updated_at))
+            .where(Chair.is_active == True)
+        )
+        timestamps["products"] = result.scalar() or None
+
+        # Categories
+        result = await db.execute(
+            select(func.max(Category.updated_at))
+            .where(Category.is_active == True)
+        )
+        timestamps["categories"] = result.scalar() or None
+
+        # Product Variations
+        result = await db.execute(
+            select(func.max(ProductVariation.updated_at))
+            .where(ProductVariation.is_available == True)
+        )
+        timestamps["variations"] = result.scalar() or None
+
+        # Colors
+        result = await db.execute(
+            select(func.max(Color.updated_at))
+            .where(Color.is_active == True)
+        )
+        timestamps["colors"] = result.scalar() or None
+
+        # Finishes
+        result = await db.execute(
+            select(func.max(Finish.updated_at))
+            .where(Finish.is_active == True)
+        )
+        timestamps["finishes"] = result.scalar() or None
+
+        # Upholsteries
+        result = await db.execute(
+            select(func.max(Upholstery.updated_at))
+            .where(Upholstery.is_active == True)
+        )
+        timestamps["upholsteries"] = result.scalar() or None
+
+        # Product Families
+        result = await db.execute(
+            select(func.max(ProductFamily.updated_at))
+            .where(ProductFamily.is_active == True)
+        )
+        timestamps["families"] = result.scalar() or None
+
+        # Product Subcategories
+        result = await db.execute(
+            select(func.max(ProductSubcategory.updated_at))
+            .where(ProductSubcategory.is_active == True)
+        )
+        timestamps["subcategories"] = result.scalar() or None
+
+        # Convert datetime objects to ISO format strings
+        for key, timestamp in timestamps.items():
+            if timestamp:
+                # Convert to UTC and format as ISO string
+                timestamps[key] = timestamp.isoformat() + "Z" if timestamp.tzinfo else timestamp.isoformat() + "Z"
+            else:
+                timestamps[key] = None
+
+        logger.info("Retrieved cache timestamps")
+        return timestamps
+
     # ========================================================================
     # Search Index Management
     # ========================================================================

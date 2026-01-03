@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useMemo } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
-import { motion, AnimatePresence } from 'framer-motion';
+import { AnimatePresence } from 'framer-motion';
 import Button from '../components/ui/Button';
 import Tag from '../components/ui/Tag';
 import LoadingSpinner from '../components/ui/LoadingSpinner';
@@ -24,10 +24,10 @@ const ProductDetailPage = () => {
   const toast = useToast();
   // Always use light theme on product pages
   const isLightTheme = true;
-  
+
   // Determine product identifier - priority: productSlug > id
   const productId = productSlug || id;
-  
+
   const [product, setProduct] = useState(null);
   const [relatedProducts, setRelatedProducts] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -87,7 +87,7 @@ const ProductDetailPage = () => {
       link.as = 'image';
       link.href = images[0];
       document.head.appendChild(link);
-      
+
       return () => {
         // Cleanup: remove preload link when component unmounts or product changes
         if (document.head.contains(link)) {
@@ -97,36 +97,96 @@ const ProductDetailPage = () => {
     }
   }, [product, images]);
 
+
+  // Generate SEO data
+  const seoTitle = product?.meta_title || (product ? `${product.name} | Eagle Chair` : 'Eagle Chair');
+  const seoDescription = product?.meta_description || (product?.description ? product.description.substring(0, 160) : (product ? `Shop ${product.name} from Eagle Chair. Premium commercial seating solutions.` : 'Shop Eagle Chair. Premium commercial seating solutions.'));
+  const productUrl = categorySlug && subcategorySlug && productSlug
+    ? `/products/${categorySlug}/${subcategorySlug}/${productSlug}`
+    : (product ? `/products/${product.id}` : '/products');
+  const productImage = images && images.length > 0 ? images[0] : (product?.primary_image_url || '/og-image.jpg');
+
+  // Generate structured data (JSON-LD)
+  const productSchema = useMemo(() => {
+    if (!product) return null;
+
+    const breadcrumbItems = [
+      { "@type": "ListItem", "position": 1, "name": "Home", "item": "https://www.eaglechair.com/" },
+      { "@type": "ListItem", "position": 2, "name": "Products", "item": "https://www.eaglechair.com/products" }
+    ];
+
+    if (product.category) {
+      const categoryName = typeof product.category === 'object' ? product.category.name : product.category;
+      breadcrumbItems.push({
+        "@type": "ListItem",
+        "position": breadcrumbItems.length + 1,
+        "name": categoryName,
+        "item": `https://www.eaglechair.com/products/category/${categorySlug || product.category.slug || ''}`
+      });
+    }
+
+    breadcrumbItems.push({
+      "@type": "ListItem",
+      "position": breadcrumbItems.length + 1,
+      "name": product.name,
+      "item": `https://www.eaglechair.com${productUrl}`
+    });
+
+    return {
+      "@context": "https://schema.org",
+      "@type": "Product",
+      "name": product.name,
+      "description": product.description || seoDescription,
+      "image": images && images.length > 0 ? images.map(img => `https://www.eaglechair.com${img}`) : [`https://www.eaglechair.com${productImage}`],
+      "sku": product.sku || product.model_number || product.id.toString(),
+      "brand": {
+        "@type": "Brand",
+        "name": "Eagle Chair"
+      },
+      "offers": {
+        "@type": "Offer",
+        "price": product.base_price || 0,
+        "priceCurrency": "USD",
+        "availability": product.stock_status === 'In Stock' ? "https://schema.org/InStock" : "https://schema.org/OutOfStock",
+        "url": `https://www.eaglechair.com${productUrl}`
+      },
+      "breadcrumb": {
+        "@type": "BreadcrumbList",
+        "itemListElement": breadcrumbItems
+      }
+    };
+  }, [product, images, productUrl, categorySlug, seoDescription, productImage]);
+
   const loadProduct = async () => {
     setLoading(true);
-    
+
     try {
       logger.info(CONTEXT, `Loading product with ID/slug: ${productId}`);
-      
+
       // Use productService which handles both demo and real API modes
       const response = await productService.getProductById(productId);
-      
+
       logger.debug(CONTEXT, 'Product service response:', response);
-      
+
       if (response && response.data) {
         setProduct(response.data);
         setRelatedProducts(response.related || []);
-        
+
         logger.info(CONTEXT, `Successfully loaded product: ${response.data.name}`);
-        
+
         // Initialize selections
         if (response.data.customizations?.finishes?.[0]) {
           setSelectedFinish(response.data.customizations.finishes[0]);
         } else if (response.data.customizations?.colors?.[0]) {
           setSelectedFinish(response.data.customizations.colors[0]);
         }
-        
+
         if (response.data.customizations?.fabrics?.[0]) {
           setSelectedUpholstery(response.data.customizations.fabrics[0]);
-        } else         if (response.data.customizations?.upholstery?.[0]) {
+        } else if (response.data.customizations?.upholstery?.[0]) {
           setSelectedUpholstery(response.data.customizations.upholstery[0]);
         }
-        
+
         // Fetch variations
         if (response.data.id) {
           setLoadingVariations(true);
@@ -233,9 +293,8 @@ const ProductDetailPage = () => {
 
   if (!product) {
     return (
-      <div className={`min-h-screen flex items-center justify-center  ${
-        'bg-gradient-to-br from-cream-50 to-cream-100'
-      }`}>
+      <div className={`min-h-screen flex items-center justify-center  ${'bg-gradient-to-br from-cream-50 to-cream-100'
+        }`}>
         <div className="text-center">
           <h2 className="text-2xl font-bold mb-4 text-slate-800">Product Not Found</h2>
           <Button onClick={() => navigate('/products')}>Back to Products</Button>
@@ -244,69 +303,11 @@ const ProductDetailPage = () => {
     );
   }
 
-  // Generate SEO data
-  const seoTitle = product.meta_title || `${product.name} | Eagle Chair`;
-  const seoDescription = product.meta_description || (product.description ? product.description.substring(0, 160) : `Shop ${product.name} from Eagle Chair. Premium commercial seating solutions.`);
-  const productUrl = categorySlug && subcategorySlug && productSlug 
-    ? `/products/${categorySlug}/${subcategorySlug}/${productSlug}`
-    : `/products/${product.id}`;
-  const productImage = images && images.length > 0 ? images[0] : (product.primary_image_url || '/og-image.jpg');
-  
-  // Generate structured data (JSON-LD)
-  const productSchema = useMemo(() => {
-    if (!product) return null;
-    
-    const breadcrumbItems = [
-      { "@type": "ListItem", "position": 1, "name": "Home", "item": "https://www.eaglechair.com/" },
-      { "@type": "ListItem", "position": 2, "name": "Products", "item": "https://www.eaglechair.com/products" }
-    ];
-    
-    if (product.category) {
-      const categoryName = typeof product.category === 'object' ? product.category.name : product.category;
-      breadcrumbItems.push({
-        "@type": "ListItem",
-        "position": breadcrumbItems.length + 1,
-        "name": categoryName,
-        "item": `https://www.eaglechair.com/products/category/${categorySlug || product.category.slug || ''}`
-      });
-    }
-    
-    breadcrumbItems.push({
-      "@type": "ListItem",
-      "position": breadcrumbItems.length + 1,
-      "name": product.name,
-      "item": `https://www.eaglechair.com${productUrl}`
-    });
-    
-    return {
-      "@context": "https://schema.org",
-      "@type": "Product",
-      "name": product.name,
-      "description": product.description || seoDescription,
-      "image": images && images.length > 0 ? images.map(img => `https://www.eaglechair.com${img}`) : [`https://www.eaglechair.com${productImage}`],
-      "sku": product.sku || product.model_number || product.id.toString(),
-      "brand": {
-        "@type": "Brand",
-        "name": "Eagle Chair"
-      },
-      "offers": {
-        "@type": "Offer",
-        "price": product.base_price || 0,
-        "priceCurrency": "USD",
-        "availability": product.stock_status === 'In Stock' ? "https://schema.org/InStock" : "https://schema.org/OutOfStock",
-        "url": `https://www.eaglechair.com${productUrl}`
-      },
-      "breadcrumb": {
-        "@type": "BreadcrumbList",
-        "itemListElement": breadcrumbItems
-      }
-    };
-  }, [product, images, productUrl, categorySlug, seoDescription, productImage]);
+
 
   return (
-    <div className={`min-h-screen  ${
-      'bg-gradient-to-br from-cream-50 to-cream-100'
-    }`}>
+    <div className={`min-h-screen  ${'bg-gradient-to-br from-cream-50 to-cream-100'
+      }`}>
       <SEOHead
         title={seoTitle}
         description={seoDescription}
@@ -332,9 +333,8 @@ const ProductDetailPage = () => {
       </AnimatePresence>
 
       {/* Hero Section */}
-      <section className={`border-b  ${
-        'bg-cream-50/50 border-cream-200'
-      }`}>
+      <section className={`border-b  ${'bg-cream-50/50 border-cream-200'
+        }`}>
         <div className="w-full px-4 sm:px-6 lg:px-8 xl:px-12 py-8 sm:py-12">
           {/* Breadcrumb */}
           <div className="mb-4 sm:mb-6 text-xs sm:text-sm text-slate-600">
@@ -344,11 +344,11 @@ const ProductDetailPage = () => {
             {product.category && (
               <>
                 {' '}/{' '}
-                <Link 
-                  to={typeof product.category === 'object' && product.category.slug 
+                <Link
+                  to={typeof product.category === 'object' && product.category.slug
                     ? `/products/category/${product.category.parent_slug || product.category.slug}`
                     : '/products'
-                  } 
+                  }
                   className="hover:text-primary-500"
                 >
                   {typeof product.category === 'object' ? product.category.name : product.category}
@@ -436,7 +436,7 @@ const ProductDetailPage = () => {
               >
                 <h1 className="text-2xl sm:text-3xl md:text-4xl font-bold text-slate-800 mb-3">{product.name}</h1>
               </EditableWrapper>
-              
+
               {/* Model Number */}
               {product.model_number && (
                 <EditableWrapper
@@ -695,7 +695,7 @@ const ProductDetailPage = () => {
                     decoding="async"
                     fetchPriority="high"
                   />
-                  
+
                   {/* 3D Coming Soon Badge */}
                   <div className="absolute bottom-12 left-4 right-4 bg-cream-50/90 backdrop-blur-sm border border-primary-500 rounded-lg p-3 text-center">
                     <p className="text-primary-400 font-semibold text-sm">3D Customization Coming Soon</p>
@@ -791,7 +791,7 @@ const ProductDetailPage = () => {
                         parts.push(`(${details.join(' / ')})`);
                       }
                       const variationName = parts.join(' ') || `Variation #${variation.id}`;
-                      
+
                       return (
                         <option key={variation.id} value={variation.id}>
                           {variationName}
@@ -828,11 +828,10 @@ const ProductDetailPage = () => {
                       {/* Stock Status & Lead Time */}
                       <div className="flex items-center gap-2 flex-wrap pt-2 border-t border-cream-200">
                         {selectedVariation.stock_status && (
-                          <span className={`inline-block px-3 py-1 rounded text-xs font-medium ${
-                            selectedVariation.stock_status === 'Available' 
-                              ? 'bg-green-100 text-green-800' 
-                              : 'bg-yellow-100 text-yellow-800'
-                          }`}>
+                          <span className={`inline-block px-3 py-1 rounded text-xs font-medium ${selectedVariation.stock_status === 'Available'
+                            ? 'bg-green-100 text-green-800'
+                            : 'bg-yellow-100 text-yellow-800'
+                            }`}>
                             {selectedVariation.stock_status}
                           </span>
                         )}
@@ -862,11 +861,10 @@ const ProductDetailPage = () => {
                       <button
                         key={idx}
                         onClick={() => setSelectedFinish(finish)}
-                        className={`p-3 rounded-lg border-2 transition-all text-sm font-medium min-h-[44px] ${
-                          selectedFinish === finish
-                            ? 'border-primary-600 bg-primary-50 text-primary-900'
-                            : 'border-cream-300 bg-white text-slate-700 hover:border-primary-400'
-                        }`}
+                        className={`p-3 rounded-lg border-2 transition-all text-sm font-medium min-h-[44px] ${selectedFinish === finish
+                          ? 'border-primary-600 bg-primary-50 text-primary-900'
+                          : 'border-cream-300 bg-white text-slate-700 hover:border-primary-400'
+                          }`}
                       >
                         {finish}
                       </button>
@@ -905,11 +903,10 @@ const ProductDetailPage = () => {
                       <button
                         key={idx}
                         onClick={() => setSelectedFinish(color)}
-                        className={`p-3 rounded-lg border-2 transition-all text-sm font-medium min-h-[44px] ${
-                          selectedFinish === color
-                            ? 'border-primary-600 bg-primary-50 text-primary-900'
-                            : 'border-cream-300 bg-white text-slate-700 hover:border-primary-400'
-                        }`}
+                        className={`p-3 rounded-lg border-2 transition-all text-sm font-medium min-h-[44px] ${selectedFinish === color
+                          ? 'border-primary-600 bg-primary-50 text-primary-900'
+                          : 'border-cream-300 bg-white text-slate-700 hover:border-primary-400'
+                          }`}
                       >
                         {color}
                       </button>

@@ -1044,19 +1044,63 @@ async def get_product_price_range(
 ):
     """
     Get product price range.
-    
+
     **Public endpoint** - No authentication required.
-    
+
     Shows min and max prices based on available variations.
     Useful for product listings to display price ranges.
     """
     logger.info(f"Fetching price range for product {product_id} (company={company_id})")
-    
+
     price_range = await PricingService.get_product_price_range(
         db=db,
         product_id=product_id,
         company_id=company_id
     )
-    
+
     return price_range
+
+
+# ============================================================================
+# Cache Management
+# ============================================================================
+
+@router.get(
+    "/cache/timestamps",
+    summary="Get cache timestamps",
+    description="Get last update timestamps for all product data types to enable mobile app cache invalidation"
+)
+async def get_cache_timestamps(
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    Get last update timestamps for product-related data.
+
+    **Public endpoint** - No authentication required.
+
+    This endpoint helps mobile apps determine if their cached data is stale
+    by checking the last modification time for each data type.
+
+    Returns timestamps for:
+    - products: Last product update
+    - categories: Last category update
+    - variations: Last product variation update
+    - colors: Last color update
+    - finishes: Last finish update
+    - upholsteries: Last upholstery update
+    - families: Last product family update
+    - subcategories: Last product subcategory update
+
+    Mobile apps should call this endpoint periodically and compare returned
+    timestamps with their cached data timestamps. If a timestamp is newer,
+    they should update that specific data type from the API.
+    """
+    logger.info("Fetching cache timestamps for mobile app cache invalidation")
+
+    timestamps = await ProductService.get_cache_timestamps(db=db)
+
+    return {
+        "timestamps": timestamps,
+        "message": "Use these timestamps to determine if cached data needs updating"
+    }
 

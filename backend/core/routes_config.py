@@ -68,6 +68,9 @@ class RouteConfig:
         "/api/v1/finishes",
         "/api/v1/upholsteries",
         "/api/v1/colors",
+
+        # Cache management endpoints
+        "/api/v1/cache/timestamps",
         
         # Content routes - Traditional content (content.py)
         "/api/v1/content/faq/categories",

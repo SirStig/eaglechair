@@ -1,230 +1,15 @@
 {
   "siteSettings": {},
-  "heroSlides": [
-    {
-      "id": 1,
-      "title": "Welcome to Eagle Chair",
-      "subtitle": "Premium Commercial Furniture for Restaurants & Hospitality",
-      "image": "https://www.eaglechair.com/wp-content/uploads/2018/04/Carmine.6305P.install-v.10-e1691698608946-960x600.jpg",
-      "ctaText": "Explore Products",
-      "ctaLink": "/products",
-      "displayOrder": 1
-    },
-    {
-      "id": 2,
-      "title": "Crafted with Excellence",
-      "subtitle": "Family-Owned. American-Made. Built to Last.",
-      "image": "https://www.eaglechair.com/wp-content/uploads/2014/10/Cafe-Neustadt.5001V.6016V.install-v2y-e1691698549306-960x600.jpg",
-      "ctaText": "Our Story",
-      "ctaLink": "/about",
-      "displayOrder": 2
-    },
-    {
-      "id": 3,
-      "title": "Complete Furniture Solutions",
-      "subtitle": "Chairs, Tables, Barstools & Booths for Every Commercial Space",
-      "image": "https://www.eaglechair.com/wp-content/uploads/2017/06/Budapest-Cafe.6018V.install-v2-e1691698439957-960x600.jpg",
-      "ctaText": "View Gallery",
-      "ctaLink": "/gallery",
-      "displayOrder": 3
-    }
-  ],
+  "heroSlides": [],
   "salesReps": [],
-  "galleryImages": [
-    {
-      "id": 1,
-      "title": "Eagle Chair Installations",
-      "category": null,
-      "url": "https://www.eaglechair.com/wp-content/uploads/2024/01/IMG_8681-960x600.jpeg",
-      "images": [
-        {
-          "url": "https://www.eaglechair.com/wp-content/uploads/2024/01/IMG_8681-960x600.jpeg",
-          "title": "Restaurant Installation",
-          "description": null,
-          "order": 1
-        },
-        {
-          "url": "https://www.eaglechair.com/wp-content/uploads/2023/10/IMG_0694-960x600.jpeg",
-          "title": "Commercial Dining Space",
-          "description": null,
-          "order": 2
-        },
-        {
-          "url": "https://www.eaglechair.com/wp-content/uploads/2014/10/Cafe-Neustadt.5001V.6016V.install-v2y-e1691698549306-960x600.jpg",
-          "title": "Cafe Neustadt - Models 5001V & 6016V",
-          "description": null,
-          "order": 3
-        },
-        {
-          "url": "https://www.eaglechair.com/wp-content/uploads/2018/04/Carmine.6305P.install-v.10-e1691698608946-960x600.jpg",
-          "title": "Carmine Restaurant - Model 6305P",
-          "description": null,
-          "order": 4
-        },
-        {
-          "url": "https://www.eaglechair.com/wp-content/uploads/2021/02/Baja-Sur.8621-Lanzac.6576.Atlanta-bases-400-table..install-v507-copy-e1691698160654-960x600.jpg",
-          "title": "Baja Sur - 8621 & 6576 with Atlanta Bases",
-          "description": null,
-          "order": 5
-        },
-        {
-          "url": "https://www.eaglechair.com/wp-content/uploads/2017/06/Budapest-Cafe.6018V.install-v2-e1691698439957-960x600.jpg",
-          "title": "Budapest Cafe - Model 6018V",
-          "description": null,
-          "order": 6
-        }
-      ],
-      "description": null,
-      "location": null,
-      "clientName": null
-    }
-  ],
+  "galleryImages": [],
   "pageContent": [],
-  "features": [
-    {
-      "id": 1,
-      "title": "American Made",
-      "description": "All our furniture is manufactured in the USA with premium materials and superior craftsmanship.",
-      "icon": "🇺🇸"
-    },
-    {
-      "id": 2,
-      "title": "Commercial Grade",
-      "description": "Built to withstand heavy daily use in the most demanding commercial environments.",
-      "icon": "🛡️"
-    },
-    {
-      "id": 3,
-      "title": "Custom Options",
-      "description": "Extensive customization options including finishes, fabrics, and sizes to match your vision.",
-      "icon": "🎨"
-    },
-    {
-      "id": 4,
-      "title": "Quick Turnaround",
-      "description": "Fast production and shipping to get your furniture delivered when you need it.",
-      "icon": "⚡"
-    },
-    {
-      "id": 5,
-      "title": "Warranty Backed",
-      "description": "Comprehensive warranty coverage because we stand behind the quality of our products.",
-      "icon": "✓"
-    },
-    {
-      "id": 6,
-      "title": "Expert Support",
-      "description": "Dedicated sales representatives to help you choose the perfect furniture for your space.",
-      "icon": "👥"
-    }
-  ],
-  "companyValues": [
-    {
-      "id": 1,
-      "title": "Quality First",
-      "description": "We never compromise on materials or craftsmanship. Every piece is built to last.",
-      "icon": null
-    },
-    {
-      "id": 2,
-      "title": "Customer Partnership",
-      "description": "We build lasting relationships with our clients, supporting them every step of the way.",
-      "icon": null
-    },
-    {
-      "id": 3,
-      "title": "American Made",
-      "description": "Proudly manufacturing in the USA, supporting local communities and jobs.",
-      "icon": null
-    },
-    {
-      "id": 4,
-      "title": "Sustainability",
-      "description": "Committed to environmentally responsible practices and materials.",
-      "icon": null
-    }
-  ],
-  "companyMilestones": [
-    {
-      "id": 1,
-      "year": "1984",
-      "title": "Company Founded",
-      "description": "Eagle Chair was established in Houston, Texas by the Yuglich Family"
-    },
-    {
-      "id": 2,
-      "year": "1995",
-      "title": "Expansion",
-      "description": "Opened new manufacturing facility and doubled capacity"
-    },
-    {
-      "id": 3,
-      "year": "2005",
-      "title": "National Distribution",
-      "description": "Expanded distribution network to serve nationwide"
-    },
-    {
-      "id": 4,
-      "year": "2024",
-      "title": "Continued Excellence",
-      "description": "Continuing the Yuglich Family legacy of quality craftsmanship"
-    }
-  ],
-  "teamMembers": [
-    {
-      "id": 1,
-      "name": "Katarina Kac-Statton",
-      "title": "Leadership",
-      "bio": "Leading Eagle Chair with dedication to quality and customer satisfaction.",
-      "email": null,
-      "phone": null,
-      "image": "/team/katarina.jpg",
-      "linkedinUrl": null
-    },
-    {
-      "id": 2,
-      "name": "Maximilian Kac",
-      "title": "Leadership",
-      "bio": "Continuing the Yuglich Family legacy of excellence in commercial furniture.",
-      "email": null,
-      "phone": null,
-      "image": "/team/maximilian.jpg",
-      "linkedinUrl": null
-    }
-  ],
-  "clientLogos": [
-    {
-      "id": 1,
-      "name": "Major Restaurant Chain",
-      "logoUrl": "/logos/client-1.png",
-      "websiteUrl": null
-    },
-    {
-      "id": 2,
-      "name": "Hotel Group",
-      "logoUrl": "/logos/client-2.png",
-      "websiteUrl": null
-    },
-    {
-      "id": 3,
-      "name": "Healthcare Facility",
-      "logoUrl": "/logos/client-3.png",
-      "websiteUrl": null
-    }
-  ],
+  "features": [],
+  "companyValues": [],
+  "companyMilestones": [],
+  "teamMembers": [],
+  "clientLogos": [],
   "legalDocuments": [
-    {
-      "id": 25,
-      "documentType": "privacy_policy",
-      "title": "Privacy Policy",
-      "content": "Privacy Policy placeholder. Please update with official content.",
-      "slug": "privacy-policy",
-      "version": "1.0",
-      "effectiveDate": null,
-      "shortDescription": null,
-      "isActive": true,
-      "displayOrder": 0
-    },
     {
       "id": 1,
       "documentType": "price_list",
@@ -514,16 +299,7 @@
       "displayOrder": 24
     }
   ],
-  "warranties": [
-    {
-      "id": 1,
-      "warrantyType": "Limited Warranty",
-      "title": "Limited Warranty",
-      "description": "Warranty information placeholder. Please update via admin.",
-      "duration": null,
-      "coverage": null
-    }
-  ],
+  "warranties": [],
   "faqs": [],
   "faqCategories": [],
   "catalogs": [],
@@ -532,7 +308,7 @@
   "hardware": [],
   "laminates": [],
   "_metadata": {
-    "lastUpdated": "2025-12-17T17:20:52.929433",
+    "lastUpdated": "2026-01-03T20:32:32.254980",
     "version": "1.0.0",
     "generatedBy": "StaticContentExporter"
   }

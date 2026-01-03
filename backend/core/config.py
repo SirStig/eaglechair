@@ -17,27 +17,27 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 def load_environment_file():
     """
     Load environment-specific .env file based on ENVIRONMENT variable
-    
+
     Priority order:
     1. backend/.env.local (highest priority - for local overrides)
     2. backend/.env.{ENVIRONMENT} (e.g., .env.development, .env.production)
     3. backend/.env (fallback)
-    
+
     Environment files should be located in the backend/ directory
     """
     # Get the backend directory path
     backend_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-    
+
     # Get current environment, default to 'development'
     environment = os.getenv("ENVIRONMENT", "development")
-    
+
     # Define file paths in priority order (relative to backend directory)
     env_files = [
         os.path.join(backend_dir, ".env.local"),  # Local overrides (highest priority)
         os.path.join(backend_dir, f".env.{environment}"),  # Environment-specific file
         os.path.join(backend_dir, ".env"),  # Fallback file
     ]
-    
+
     # Load files in reverse order so higher priority files override lower ones
     for env_file in reversed(env_files):
         if os.path.exists(env_file):
@@ -52,26 +52,26 @@ load_environment_file()
 class Settings(BaseSettings):
     """
     Application Settings
-    
+
     All configuration values can be set via environment variables or .env file
     """
-    
+
     # Application Info
     APP_NAME: str = "EagleChair API"
     APP_VERSION: str = "1.0.0"
     APP_DESCRIPTION: str = "Premium Chair Company Backend API"
     ENVIRONMENT: str = "development"
     DEBUG: bool = False
-    
+
     # API Configuration
     API_V1_PREFIX: str = "/api/v1"
     API_V2_PREFIX: str = "/api/v2"
-    
+
     # Server Configuration
     HOST: str = "0.0.0.0"
     PORT: int = 8000
     RELOAD: bool = True
-    
+
     # CORS Configuration
     CORS_ORIGINS: list[str] = [
         "http://localhost:3000",
@@ -91,8 +91,10 @@ class Settings(BaseSettings):
         "X-Admin-Token",
         "X-Request-ID",
     ]
-    
-    @field_validator('CORS_ORIGINS', 'CORS_ALLOW_METHODS', 'CORS_ALLOW_HEADERS', mode='before')
+
+    @field_validator(
+        "CORS_ORIGINS", "CORS_ALLOW_METHODS", "CORS_ALLOW_HEADERS", mode="before"
+    )
     @classmethod
     def parse_json_list(cls, v):
         """Parse JSON string from .env file into Python list"""
@@ -103,37 +105,39 @@ class Settings(BaseSettings):
                 # If it's not valid JSON, treat it as a single item list
                 return [v]
         return v
-    
+
     # Database Configuration
     DATABASE_URL: str = "postgresql://postgres:postgres@postgres:5432/eaglechair"
     DATABASE_POOL_SIZE: int = 20
     DATABASE_MAX_OVERFLOW: int = 10
     DATABASE_ECHO: bool = False
-    
+
     # Redis Configuration (for caching)
     REDIS_URL: str = "redis://localhost:6379/0"
     REDIS_CACHE_TTL: int = 300  # 5 minutes default
-    
+
     # Security Configuration
     SECRET_KEY: str = "your-secret-key-change-this-in-production"
     ALGORITHM: str = "HS256"
-    
+
     # Token Expiration - Company Users (longer sessions for business users)
     COMPANY_ACCESS_TOKEN_EXPIRE_MINUTES: int = 60  # 1 hour
     COMPANY_REFRESH_TOKEN_EXPIRE_DAYS: int = 30  # 30 days
-    
+
     # Token Expiration - Admin Users (shorter sessions for security)
     ADMIN_ACCESS_TOKEN_EXPIRE_MINUTES: int = 30  # 30 minutes
     ADMIN_REFRESH_TOKEN_EXPIRE_DAYS: int = 1  # 1 day
-    
+
     # Password Reset
     PASSWORD_RESET_TOKEN_EXPIRE_HOURS: int = 1  # 1 hour
     PASSWORD_MIN_LENGTH: int = 8
-    
+
     # Rate Limiting (increased for normal website usage with multiple parallel requests)
-    RATE_LIMIT_PER_MINUTE: int = 120  # Increased from 60 to accommodate page loads with multiple API calls
+    RATE_LIMIT_PER_MINUTE: int = (
+        120  # Increased from 60 to accommodate page loads with multiple API calls
+    )
     RATE_LIMIT_ENABLED: bool = True  # Can be overridden by TESTING mode
-    
+
     # Email Configuration (SMTP)
     # REQUIRED for sending emails:
     # - SMTP_HOST: SMTP server hostname (e.g., "smtp.gmail.com", "mail.yourdomain.com")
@@ -150,63 +154,68 @@ class Settings(BaseSettings):
     SMTP_FROM_NAME: Optional[str] = "EagleChair"  # From name
     SMTP_TLS: bool = True  # Use STARTTLS (True, default for port 587) or SSL/TLS (False, for port 465)
     ADMIN_EMAIL: str = "admin@eaglechair.com"  # For admin notifications
-    
+
     # AWS Configuration (for media storage)
     AWS_ACCESS_KEY_ID: Optional[str] = None
     AWS_SECRET_ACCESS_KEY: Optional[str] = None
     AWS_REGION: str = "us-east-1"
     AWS_S3_BUCKET: Optional[str] = None
-    
+
     # Payment Configuration (Stripe)
     STRIPE_PUBLIC_KEY: Optional[str] = None
     STRIPE_SECRET_KEY: Optional[str] = None
     STRIPE_WEBHOOK_SECRET: Optional[str] = None
-    
+
     # DreamHost HTTPS Configuration
     HTTPS_REDIRECT: bool = False  # Disable - proxy handles HTTPS
     SECURE_SSL_REDIRECT: bool = False  # Disable - proxy handles HTTPS
-    
+
     # Reverse Proxy Configuration (DreamHost VPS)
     # IMPORTANT: Set FORWARDED_ALLOW_IPS to your specific proxy IP(s) in production
     # Example: "127.0.0.1,::1" for local proxy, or "203.0.113.0/24" for CIDR notation
     # DO NOT use "*" in production - this trusts all proxies and is a security risk
-    FORWARDED_ALLOW_IPS: str = "*"  # Development default - MUST be overridden in production
+    FORWARDED_ALLOW_IPS: str = (
+        "*"  # Development default - MUST be overridden in production
+    )
     ROOT_PATH: str = ""  # Set to "/api" if proxy strips path prefix
     ALLOWED_HOSTS: list[str] = ["*"]  # Or specify your domain
     PROXY_HEADERS: bool = True  # Enable proxy header support
-    
+
     # Logging Configuration
     LOG_LEVEL: str = "INFO"
     LOG_FORMAT: str = "json"
-    
+
     # Fuzzy Search Configuration
     FUZZY_SEARCH_THRESHOLD: int = 80  # Match threshold (0-100)
-    
+
     # Frontend Configuration
     # Path to frontend root directory for serving temporary files
     # Dev: frontend, Prod: /home/dh_wmujeb/joshua.eaglechair.com
     FRONTEND_PATH: str = "frontend"
     FRONTEND_URL: str = "http://localhost:5173"  # Frontend URL for email links
-    
+
+    # Image Configuration
+    IMAGE_BASE_URL: str = "https://www.eaglechair.com"  # Base URL for product images
+
     # Performance Configuration
     ENABLE_CACHE: bool = True
     ENABLE_COMPRESSION: bool = True
-    
+
     # Testing Configuration
     TESTING: bool = False
-    TEST_DATABASE_URL: str = "postgresql+asyncpg://user:password@localhost:5432/eaglechair_test"
-    
-    model_config = SettingsConfigDict(
-        env_file_encoding="utf-8",
-        case_sensitive=True,
-        extra="ignore"
+    TEST_DATABASE_URL: str = (
+        "postgresql+asyncpg://user:password@localhost:5432/eaglechair_test"
     )
-    
+
+    model_config = SettingsConfigDict(
+        env_file_encoding="utf-8", case_sensitive=True, extra="ignore"
+    )
+
     @property
     def database_url_sync(self) -> str:
         """Get synchronous database URL for Alembic migrations"""
         return self.DATABASE_URL
-    
+
     @property
     def database_url_async(self) -> str:
         """Get asynchronous database URL for async database operations"""
@@ -219,17 +228,17 @@ class Settings(BaseSettings):
         elif "+asyncpg" not in self.DATABASE_URL:
             return self.DATABASE_URL.replace("postgresql://", "postgresql+asyncpg://")
         return self.DATABASE_URL
-    
+
     @property
     def is_production(self) -> bool:
         """Check if running in production mode"""
         return not self.DEBUG and not self.TESTING
-    
-    @model_validator(mode='after')
+
+    @model_validator(mode="after")
     def validate_production_settings(self):
         """
         Validate that production environment is properly configured.
-        
+
         This validator runs after all fields are set and ensures that:
         - SECRET_KEY is not the default value
         - SECRET_KEY meets minimum length requirements
@@ -240,9 +249,9 @@ class Settings(BaseSettings):
         if not self.is_production:
             # Skip validation in development/testing
             return self
-        
+
         errors = []
-        
+
         # Validate SECRET_KEY
         default_secret = "your-secret-key-change-this-in-production"
         if self.SECRET_KEY == default_secret:
@@ -255,7 +264,7 @@ class Settings(BaseSettings):
                 f"SECRET_KEY must be at least 32 characters in production. "
                 f"Current length: {len(self.SECRET_KEY)}"
             )
-        
+
         # Validate DATABASE_URL
         default_db_url = "postgresql://postgres:postgres@postgres:5432/eaglechair"
         if self.DATABASE_URL == default_db_url:
@@ -263,38 +272,40 @@ class Settings(BaseSettings):
                 "DATABASE_URL must be set via environment variable in production. "
                 "Default value is not allowed."
             )
-        
+
         # Validate DEBUG is False
         if self.DEBUG:
             errors.append(
                 "DEBUG must be False in production. Set DEBUG=false in environment variables."
             )
-        
+
         # Validate required production variables
         required_vars = {
-            'SMTP_HOST': self.SMTP_HOST,
-            'SMTP_USER': self.SMTP_USER,
-            'SMTP_PASSWORD': self.SMTP_PASSWORD,
+            "SMTP_HOST": self.SMTP_HOST,
+            "SMTP_USER": self.SMTP_USER,
+            "SMTP_PASSWORD": self.SMTP_PASSWORD,
         }
-        
+
         missing_vars = [var for var, value in required_vars.items() if not value]
         if missing_vars:
             errors.append(
                 f"Required production variables are missing: {', '.join(missing_vars)}. "
                 "Please set these via environment variables."
             )
-        
+
         # Validate FORWARDED_ALLOW_IPS is not wildcard
         if self.FORWARDED_ALLOW_IPS == "*":
             errors.append(
                 "FORWARDED_ALLOW_IPS should be set to specific proxy IP addresses in production, "
                 "not '*' (wildcard). Set FORWARDED_ALLOW_IPS to your proxy IP(s)."
             )
-        
+
         if errors:
-            error_message = "Production environment validation failed:\n" + "\n".join(f"  - {err}" for err in errors)
+            error_message = "Production environment validation failed:\n" + "\n".join(
+                f"  - {err}" for err in errors
+            )
             raise ValueError(error_message)
-        
+
         return self
 
 
@@ -302,7 +313,7 @@ class Settings(BaseSettings):
 def get_settings() -> Settings:
     """
     Get cached settings instance
-    
+
     Returns:
         Settings: Application settings singleton
     """
@@ -311,4 +322,3 @@ def get_settings() -> Settings:
 
 # Create a global settings instance
 settings = get_settings()
-
