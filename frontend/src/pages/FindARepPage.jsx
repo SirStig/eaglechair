@@ -1,4 +1,5 @@
 import { useState, useCallback, useMemo } from 'react';
+import { motion } from 'framer-motion';
 import Card from '../components/ui/Card';
 import USMapInteractive from '../components/USMapInteractive';
 import EditableWrapper from '../components/admin/EditableWrapper';

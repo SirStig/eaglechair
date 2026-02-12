@@ -7,7 +7,7 @@ import Button from '../components/ui/Button';
 import LoadingSpinner from '../components/ui/LoadingSpinner';
 import SEOHead from '../components/SEOHead';
 import productService from '../services/productService';
-import { resolveFileUrl } from '../utils/apiHelpers';
+import { resolveFileUrl, resolveImageUrl } from '../utils/apiHelpers';
 import logger from '../utils/logger';
 
 const CONTEXT = 'ProductFamilyDetailPage';
@@ -42,7 +42,7 @@ const ProductFamilyDetailPage = () => {
   const seoTitle = family ? (family.meta_title || `${family.name} Product Family | Eagle Chair`) : '';
   const seoDescription = family ? (family.meta_description || (family.description ? family.description.substring(0, 160) : `Explore the ${family.name} product family from Eagle Chair. Premium commercial seating solutions.`)) : '';
   const familyUrl = family ? `/families/${familySlug}` : '';
-  const familyImage = family ? (family.banner_image_url || family.family_image || '/og-image.jpg') : '/og-image.jpg';
+  const familyImage = family ? resolveImageUrl(family.banner_image_url || family.family_image || '/og-image.jpg') : '/og-image.jpg';
 
   const familySchema = useMemo(() => {
     if (!family) return null;
@@ -150,20 +150,17 @@ const ProductFamilyDetailPage = () => {
         {/* Family Header */}
         <div className="mb-8">
           {/* Two Column Layout */}
-          <div className="grid grid-cols-1 lg:grid-cols-[400px_1fr] gap-6 sm:gap-8 mb-6 sm:mb-8">
+          <div className="grid grid-cols-1 lg:grid-cols-[min(320px,28vw)_1fr] gap-6 sm:gap-8 mb-6 sm:mb-8">
             {/* Left Column - Family Image and Info */}
             <div className="space-y-6">
-              {/* Banner Image - Portrait aspect */}
-              {(family.banner_image_url || family.family_image) && (
-                <div className="relative w-full aspect-[3/4] overflow-hidden bg-cream-100 rounded-2xl shadow-xl">
-                  <img
-                    src={family.banner_image_url || family.family_image}
-                    alt={family.name}
-                    className="w-full h-full object-contain"
-                    style={{ mixBlendMode: 'multiply' }}
-                  />
-                </div>
-              )}
+              <div className="relative w-full max-h-[min(42vh,340px)] aspect-[3/4] overflow-hidden bg-cream-100 rounded-2xl shadow-xl">
+                <img
+                  src={familyImage}
+                  alt={family.name}
+                  className="w-full h-full object-contain"
+                  style={{ mixBlendMode: 'multiply' }}
+                />
+              </div>
 
               {/* Family Info */}
               <div>
@@ -265,6 +262,7 @@ const ProductFamilyDetailPage = () => {
                   key={product.id}
                   product={product}
                   onQuickView={handleQuickView}
+                  compact
                 />
               ))}
             </div>
@@ -276,7 +274,7 @@ const ProductFamilyDetailPage = () => {
                   className="bg-white rounded-xl shadow-md border border-cream-200 p-4 sm:p-6 flex flex-col md:flex-row gap-4 sm:gap-6 hover:shadow-lg transition-shadow"
                 >
                   {/* Product Image */}
-                  <div className="w-full md:w-48 h-48 flex-shrink-0 mx-auto md:mx-0">
+                  <div className="w-full md:w-40 h-40 flex-shrink-0 mx-auto md:mx-0">
                     <Link to={`/products/${product.slug || product.id}`}>
                       <img
                         src={product.primary_image_url || product.images?.[0]?.url || '/placeholder-product.jpg'}

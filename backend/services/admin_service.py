@@ -78,7 +78,8 @@ class AdminService:
             query = query.where(
                 or_(
                     Chair.name.ilike(f"%{search}%"),
-                    Chair.description.ilike(f"%{search}%"),
+                    Chair.short_description.ilike(f"%{search}%"),
+                    Chair.full_description.ilike(f"%{search}%"),
                     Chair.model_number.ilike(f"%{search}%"),
                 )
             )
@@ -95,7 +96,8 @@ class AdminService:
             count_query = count_query.where(
                 or_(
                     Chair.name.ilike(f"%{search}%"),
-                    Chair.description.ilike(f"%{search}%"),
+                    Chair.short_description.ilike(f"%{search}%"),
+                    Chair.full_description.ilike(f"%{search}%"),
                     Chair.model_number.ilike(f"%{search}%"),
                 )
             )
