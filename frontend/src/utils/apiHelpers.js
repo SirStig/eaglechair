@@ -77,7 +77,7 @@ export const formatPriceRange = (minCents, maxCents) => {
 export const resolveImageUrl = (imageData) => {
   // Handle null/undefined
   if (!imageData) return '/placeholder.png';
-  
+
   // Helper function to process URL string
   const processUrl = (url) => {
     // External URL (starts with http/https)
@@ -91,7 +91,7 @@ export const resolveImageUrl = (imageData) => {
       }
       return url;
     }
-    
+
     // Handle temporary catalog images (from virtual catalog uploads)
     // These are stored in frontend/tmp/images/ and served by frontend web server
     if (url.startsWith('/tmp/')) {
@@ -100,17 +100,17 @@ export const resolveImageUrl = (imageData) => {
       // Prod: Web server (nginx/apache) serves from /home/dh_wmujeb/joshua.eaglechair.com/tmp/
       return url;  // Return as-is, frontend will serve it
     }
-    
+
     // Handle wp-content paths (from seeded content)
     if (url.includes('/wp-content/uploads/') || url.includes('wp-content/uploads/')) {
       // Extract just the wp-content portion
-      const wpContentPath = url.includes('/wp-content/') 
+      const wpContentPath = url.includes('/wp-content/')
         ? url.substring(url.indexOf('/wp-content/'))
         : `/wp-content/${url.substring(url.indexOf('wp-content/'))}`;
       // Point to original site for legacy WordPress content
       return `https://www.eaglechair.com${wpContentPath}`;
     }
-    
+
     // Already has /uploads prefix - in dev, Vite proxy will forward to backend
     // In production, we add the full domain
     if (url.startsWith('/uploads')) {
@@ -121,29 +121,29 @@ export const resolveImageUrl = (imageData) => {
       // Production: add domain
       return `https://joshua.eaglechair.com${url}`;
     }
-    
+
     // Relative path - add /uploads prefix
     const urlPath = url.startsWith('/') ? url : `/uploads/${url}`;
-    
+
     // In development, return as-is (Vite proxy handles it)
     if (import.meta.env.DEV) {
       return urlPath;
     }
-    
+
     // Production: add domain
     return `https://joshua.eaglechair.com${urlPath}`;
   };
-  
+
   // Handle object format {url: "...", type: "...", ...}
   if (typeof imageData === 'object' && imageData.url) {
     return processUrl(imageData.url);
   }
-  
+
   // Handle string URL
   if (typeof imageData === 'string') {
     return processUrl(imageData);
   }
-  
+
   return '/placeholder.png';
 };
 
@@ -159,32 +159,32 @@ export const getProductImage = (product, index = 0) => {
     const image = product.images[index] || product.images[0];
     return resolveImageUrl(image);
   }
-  
+
   // Try primary_image_url (cart/quote enriched data)
   if (product.primary_image_url) {
     return resolveImageUrl(product.primary_image_url);
   }
-  
+
   // Try thumbnail
   if (product.thumbnail) {
     return resolveImageUrl(product.thumbnail);
   }
-  
+
   // Try image_url (cart/quote enriched data)
   if (product.image_url) {
     return resolveImageUrl(product.image_url);
   }
-  
+
   // Fallback to primary_image (legacy)
   if (product.primary_image) {
     return resolveImageUrl(product.primary_image);
   }
-  
+
   // Legacy field support
   if (product.image) {
     return resolveImageUrl(product.image);
   }
-  
+
   return '/placeholder.png';
 };
 
@@ -197,33 +197,58 @@ export const getProductImages = (product) => {
   if (product.images && Array.isArray(product.images)) {
     return product.images.map(img => resolveImageUrl(img));
   }
-  
+
   // Fallback to single primary_image_url (cart/quote enriched data)
   if (product.primary_image_url) {
     return [resolveImageUrl(product.primary_image_url)];
   }
-  
+
   // Fallback to thumbnail
   if (product.thumbnail) {
     return [resolveImageUrl(product.thumbnail)];
   }
-  
+
   // Fallback to image_url
   if (product.image_url) {
     return [resolveImageUrl(product.image_url)];
   }
-  
+
   // Fallback to single primary_image (legacy)
   if (product.primary_image) {
     return [resolveImageUrl(product.primary_image)];
   }
-  
+
   // Legacy support
   if (product.image) {
     return [resolveImageUrl(product.image)];
   }
-  
+
   return ['/placeholder.png'];
+};
+
+/**
+ * Get product hover images for carousel
+ * Strictly returns only images with type='hover'
+ * @param {object} product - Product object from API
+ * @returns {string[]} Array of hover image URLs (including primary as first if needed, or just hover images)
+ */
+export const getProductHoverImages = (product) => {
+  const primaryImage = getProductImage(product, 0);
+
+  let hoverImages = [];
+
+  if (product.images && Array.isArray(product.images)) {
+    hoverImages = product.images
+      .filter(img => img && (img.type === 'hover' || (typeof img === 'object' && img.type === 'hover')))
+      .map(img => resolveImageUrl(img));
+  }
+
+  if (hoverImages.length > 0) {
+    const uniqueImages = new Set([primaryImage, ...hoverImages]);
+    return Array.from(uniqueImages);
+  }
+
+  return [primaryImage];
 };
 
 // ============================================================================
@@ -238,13 +263,13 @@ export const getProductImages = (product) => {
  */
 export const formatFileSize = (bytes, decimals = 2) => {
   if (!bytes || bytes === 0) return '0 Bytes';
-  
+
   const k = 1024;
   const dm = decimals < 0 ? 0 : decimals;
   const sizes = ['Bytes', 'KB', 'MB', 'GB', 'TB'];
-  
+
   const i = Math.floor(Math.log(bytes) / Math.log(k));
-  
+
   return parseFloat((bytes / Math.pow(k, i)).toFixed(dm)) + ' ' + sizes[i];
 };
 
@@ -256,14 +281,14 @@ export const formatFileSize = (bytes, decimals = 2) => {
  */
 export const resolveFileUrl = (fileUrl) => {
   if (!fileUrl) return '';
-  
+
   // Helper function to process URL string
   const processUrl = (url) => {
     // External URL (starts with http/https)
     if (url.startsWith('http')) {
       return url;
     }
-    
+
     // Already has /uploads prefix - in dev, Vite proxy will forward to backend
     // In production, we add the full domain
     if (url.startsWith('/uploads')) {
@@ -274,19 +299,19 @@ export const resolveFileUrl = (fileUrl) => {
       // Production: add domain
       return `https://joshua.eaglechair.com${url}`;
     }
-    
+
     // Relative path - add /uploads prefix
     const urlPath = url.startsWith('/') ? url : `/uploads/${url}`;
-    
+
     // In development, return as-is (Vite proxy handles it)
     if (import.meta.env.DEV) {
       return urlPath;
     }
-    
+
     // Production: add domain
     return `https://joshua.eaglechair.com${urlPath}`;
   };
-  
+
   return processUrl(fileUrl);
 };
 
@@ -302,13 +327,13 @@ export const resolveFileUrl = (fileUrl) => {
  */
 export const formatDate = (isoString, options = {}) => {
   if (!isoString) return '';
-  
+
   const defaultOptions = {
     year: 'numeric',
     month: 'short',
     day: 'numeric',
   };
-  
+
   const date = new Date(isoString);
   return new Intl.DateTimeFormat('en-US', { ...defaultOptions, ...options }).format(date);
 };
@@ -320,7 +345,7 @@ export const formatDate = (isoString, options = {}) => {
  */
 export const formatRelativeTime = (isoString) => {
   if (!isoString) return '';
-  
+
   const date = new Date(isoString);
   const now = new Date();
   const diffMs = now - date;
@@ -328,12 +353,12 @@ export const formatRelativeTime = (isoString) => {
   const diffMin = Math.floor(diffSec / 60);
   const diffHour = Math.floor(diffMin / 60);
   const diffDay = Math.floor(diffHour / 24);
-  
+
   if (diffSec < 60) return 'just now';
   if (diffMin < 60) return `${diffMin} minute${diffMin !== 1 ? 's' : ''} ago`;
   if (diffHour < 24) return `${diffHour} hour${diffHour !== 1 ? 's' : ''} ago`;
   if (diffDay < 30) return `${diffDay} day${diffDay !== 1 ? 's' : ''} ago`;
-  
+
   return formatDate(isoString);
 };
 
@@ -352,7 +377,7 @@ export const transformProduct = (product) => {
   const categoryId = typeof product.category === 'object' ? product.category?.id : product.category_id;
   const categorySlug = typeof product.category === 'object' ? product.category?.slug : null;
   const parentCategorySlug = typeof product.category === 'object' ? product.category?.parent_slug : null;
-  
+
   return {
     ...product,
     // Add legacy fields for backward compatibility
@@ -403,7 +428,7 @@ export const transformCategory = (category) => {
  */
 export const transformPaginatedResponse = (response, itemTransformer = null) => {
   if (!response) return { items: [], total: 0, page: 1, page_size: 20, total_pages: 0 };
-  
+
   return {
     ...response,
     items: itemTransformer ? response.items.map(itemTransformer) : response.items,
@@ -421,10 +446,10 @@ export const transformPaginatedResponse = (response, itemTransformer = null) => 
  */
 export const buildProductUrl = (product) => {
   if (!product) return '/products';
-  
+
   // If we have category slug information, build hierarchical URL
   const categoryObj = typeof product.category === 'object' ? product.category : null;
-  
+
   if (categoryObj) {
     // Check if category has a parent (is subcategory)
     if (categoryObj.parent_id && categoryObj.parent_slug) {
@@ -435,12 +460,12 @@ export const buildProductUrl = (product) => {
       return `/products/${categoryObj.slug}/uncategorized/${product.slug || product.id}`;
     }
   }
-  
+
   // Fallback to simple URL with slugs from transformed product
   if (product.parentCategorySlug && product.categorySlug) {
     return `/products/${product.parentCategorySlug}/${product.categorySlug}/${product.slug || product.id}`;
   }
-  
+
   // Final fallback: direct product URL
   return `/products/${product.slug || product.id}`;
 };
@@ -471,8 +496,8 @@ export const isInStock = (product) => {
  * @returns {boolean} True if product is custom
  */
 export const isCustomProduct = (product) => {
-  return product?.is_custom_only === true || 
-         product?.stock_status?.toLowerCase().includes('made to order');
+  return product?.is_custom_only === true ||
+    product?.stock_status?.toLowerCase().includes('made to order');
 };
 
 // ============================================================================
@@ -485,25 +510,26 @@ export default {
   priceToCents,
   formatPrice,
   formatPriceRange,
-  
+
   // Images
   resolveImageUrl,
   getProductImage,
   getProductImages,
-  
+  getProductHoverImages,
+
   // Dates
   formatDate,
   formatRelativeTime,
-  
+
   // Transformation
   transformProduct,
   transformProducts,
   transformCategory,
   transformPaginatedResponse,
-  
+
   // URL building
   buildProductUrl,
-  
+
   // Validation
   hasValidPrice,
   isInStock,

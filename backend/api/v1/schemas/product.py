@@ -325,6 +325,7 @@ class ChairBase(BaseModel):
     # Images (accepts either list of URLs or list of structured items)
     images: Union[List[str], List[ProductImageItem]]
     primary_image: Optional[str] = Field(None, max_length=500)
+    hover_images: Optional[List[str]] = []
     thumbnail: Optional[str] = Field(None, max_length=500)
 
     # Additional Media
@@ -411,6 +412,7 @@ class ChairUpdate(BaseModel):
     # Accept both URL lists and structured items when updating
     images: Optional[Union[List[str], List[ProductImageItem]]] = None
     primary_image: Optional[str] = Field(None, max_length=500)
+    hover_images: Optional[List[str]] = None
     thumbnail: Optional[str] = Field(None, max_length=500)
     dimensional_drawing_url: Optional[str] = Field(None, max_length=500)
     cad_file_url: Optional[str] = Field(None, max_length=500)

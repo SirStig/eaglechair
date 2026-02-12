@@ -11,22 +11,22 @@ const CartPage = () => {
   const { isAuthenticated, user } = useAuthStore();
   const [cartSynced, setCartSynced] = useState(false);
   const navigate = useNavigate();
-  
+
   // Check if user needs email verification
   const isUnverified = user && user.type === 'company' && !user.isVerified;
-  
+
   // Subscribe to cart state properly - this will trigger re-renders on cart changes
   const cartStore = useCartStore();
   const { removeItem, updateQuantity, clearCart } = cartStore;
-  
+
   const items = useCartStore((state) => {
-    return state.isAuthenticated && state.backendCart 
+    return state.isAuthenticated && state.backendCart
       ? (state.backendCart.items || [])
       : state.guestItems;
   });
-  
+
   const subtotal = useCartStore((state) => {
-    const cartItems = state.isAuthenticated && state.backendCart 
+    const cartItems = state.isAuthenticated && state.backendCart
       ? (state.backendCart.items || [])
       : state.guestItems;
     return cartItems.reduce((sum, item) => {
@@ -34,7 +34,7 @@ const CartPage = () => {
       return sum + (price * item.quantity);
     }, 0);
   });
-  
+
   const isLoading = useCartStore((state) => state.isLoading);
 
   // Ensure cart is synced when authenticated user visits cart page
@@ -47,7 +47,7 @@ const CartPage = () => {
         await cartStore.switchToAuthMode();
       }
     };
-    
+
     syncCart();
   }, [isAuthenticated, cartStore.isAuthenticated, cartSynced, cartStore]);
 
@@ -85,7 +85,7 @@ const CartPage = () => {
         {/* Header */}
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-10">
           <div>
-            <h1 className="text-2xl sm:text-3xl md:text-4xl font-bold text-slate-800 mb-2">Shopping Cart</h1>
+            <h1 className="text-2xl sm:text-3xl md:text-4xl font-bold text-slate-800 mb-2">Quoting Cart</h1>
             <p className="text-slate-600">
               {items.length} {items.length === 1 ? 'item' : 'items'} • {items.reduce((sum, item) => sum + item.quantity, 0)} total units
             </p>
@@ -113,7 +113,7 @@ const CartPage = () => {
                 const productCategory = product.category || '';  // Already a string from backend
                 const productSubcategory = product.subcategory || '';  // Already a string from backend
                 const productPrice = product.price || product.base_price || 0;
-                
+
                 return (
                   <motion.div
                     key={item.id || index}
@@ -145,7 +145,7 @@ const CartPage = () => {
                                 {productName}
                               </h3>
                             </Link>
-                            
+
                             <div className="flex flex-wrap items-center gap-2 text-sm">
                               {productCategory && (
                                 <span className="text-slate-600">
@@ -304,7 +304,7 @@ const CartPage = () => {
           <div className="lg:col-span-1">
             <Card className="lg:sticky lg:top-24 bg-white border-cream-200 shadow-lg">
               <h2 className="text-xl sm:text-2xl font-bold mb-4 sm:mb-6 text-slate-800 pb-4 border-b border-cream-200">Order Summary</h2>
-              
+
               <div className="space-y-4 mb-6">
                 <div className="flex justify-between items-center py-2">
                   <span className="text-slate-600 font-medium">Items in Cart</span>
@@ -316,7 +316,7 @@ const CartPage = () => {
                     {items.reduce((sum, item) => sum + item.quantity, 0)}
                   </span>
                 </div>
-                
+
                 {subtotal > 0 && (
                   <>
                     <div className="border-t border-cream-200 my-4"></div>
@@ -353,8 +353,8 @@ const CartPage = () => {
                     <p className="text-sm text-yellow-300 mb-2">
                       <strong>Email verification required</strong> to submit quote requests.
                     </p>
-                    <Link 
-                      to="/verify-email" 
+                    <Link
+                      to="/verify-email"
                       state={{ email: user?.email }}
                       className="text-xs text-yellow-400 hover:text-yellow-300 underline"
                     >
@@ -362,8 +362,8 @@ const CartPage = () => {
                     </Link>
                   </div>
                 )}
-                <Link 
-                  to={isUnverified ? '#' : "/quote-request"} 
+                <Link
+                  to={isUnverified ? '#' : "/quote-request"}
                   className="block"
                   onClick={(e) => {
                     if (isUnverified) {
@@ -372,9 +372,9 @@ const CartPage = () => {
                     }
                   }}
                 >
-                  <Button 
-                    variant="primary" 
-                    size="lg" 
+                  <Button
+                    variant="primary"
+                    size="lg"
                     className="w-full shadow-md hover:shadow-lg transition-shadow"
                     disabled={isUnverified}
                   >

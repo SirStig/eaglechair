@@ -1,13 +1,14 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import Tag from './Tag';
 import Button from './Button';
-import { formatPrice, getProductImage, buildProductUrl } from '../../utils/apiHelpers';
+import { formatPrice, getProductHoverImages, buildProductUrl } from '../../utils/apiHelpers';
 
 const ProductCard = ({ product, onQuickView, darkMode = false }) => {
   const [imageLoaded, setImageLoaded] = useState(false);
   const [imageError, setImageError] = useState(false);
   const [isHovered, setIsHovered] = useState(false);
+  const [activeImageIndex, setActiveImageIndex] = useState(0);
 
   const handleImageLoad = () => {
     setImageLoaded(true);
@@ -19,14 +20,30 @@ const ProductCard = ({ product, onQuickView, darkMode = false }) => {
     setImageLoaded(true); // Show the placeholder
   };
 
-  // Get images using new schema
-  const primaryImage = getProductImage(product, 0);
-  const secondaryImage = getProductImage(product, 1);
+  // Get all images for carousel (Primary + Hover images)
+  // Logic: Primary -> Hover 1 -> Hover 2 -> Primary ...
+  const carouselImages = getProductHoverImages(product);
+  const hasCarousel = carouselImages.length > 1;
 
-  // Use primary image by default, switch to secondary on hover if available
-  const displayImage = isHovered && secondaryImage
-    ? secondaryImage
-    : primaryImage;
+  // Handle carousel rotation
+  useEffect(() => {
+    let interval;
+
+    if (isHovered && hasCarousel) {
+      // Start cycling through images
+      interval = setInterval(() => {
+        setActiveImageIndex(prev => (prev + 1) % carouselImages.length);
+      }, 1200); // 1.2s interval
+    } else {
+      // Reset to primary image when not hovered
+      setActiveImageIndex(0);
+    }
+
+    return () => clearInterval(interval);
+  }, [isHovered, hasCarousel, carouselImages.length]);
+
+  // Determine which image to display
+  const displayImage = carouselImages[activeImageIndex];
 
   // Format price using transformed product data (base_price in cents)
   // priceRange is added by transformProduct helper with { min, max } in dollars
@@ -82,18 +99,38 @@ const ProductCard = ({ product, onQuickView, darkMode = false }) => {
         )}
         {/* Main product image */}
         {!imageError && (
-          <img
-            src={displayImage || '/placeholder-product.jpg'}
-            alt={product.name}
-            onLoad={handleImageLoad}
-            onError={handleImageError}
-            className={`w-full h-full object-contain transition-all duration-500 ${imageLoaded ? 'opacity-100' : 'opacity-0'
-              } group-hover:scale-105`}
-            style={{ mixBlendMode: 'multiply' }}
-            loading="lazy"
-            decoding="async"
-            fetchpriority="low"
-          />
+          <div className="w-full h-full relative">
+            {/* We use a key based on the image URL to force re-render/fade if needed, 
+                but for smooth transition we might want to keep the same img tag and just change src 
+                OR use multiple images and fade between them. 
+                For now, simple src swap with transition class on parent or img. */}
+            <img
+              key={displayImage} // Force transition when image changes
+              src={displayImage || '/placeholder-product.jpg'}
+              alt={product.name}
+              onLoad={handleImageLoad}
+              onError={handleImageError}
+              className={`w-full h-full object-contain transition-all duration-500 ${imageLoaded ? 'opacity-100' : 'opacity-0'
+                } ${isHovered && !hasCarousel ? 'group-hover:scale-105' : ''}`}
+              style={{ mixBlendMode: 'multiply' }}
+              loading="lazy"
+              decoding="async"
+              fetchpriority="low"
+            />
+
+            {/* Carousel Indicators (optional, keeping minimal for now as requested) */}
+            {hasCarousel && isHovered && (
+              <div className="absolute bottom-2 left-0 right-0 flex justify-center gap-1.5 z-10">
+                {carouselImages.map((_, idx) => (
+                  <div
+                    key={idx}
+                    className={`w-1.5 h-1.5 rounded-full transition-colors duration-300 ${idx === activeImageIndex ? 'bg-primary-600' : 'bg-slate-300/60'
+                      }`}
+                  />
+                ))}
+              </div>
+            )}
+          </div>
         )}
 
         {/* Overlay on hover */}
