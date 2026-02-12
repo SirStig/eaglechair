@@ -4,13 +4,13 @@ import Button from '../../ui/Button';
 import { useToast } from '../../../contexts/ToastContext';
 import apiClient from '../../../config/apiClient';
 import { resolveImageUrl } from '../../../utils/apiHelpers';
-import { 
-  FileText, 
-  DollarSign, 
-  Ruler, 
-  Image as ImageIcon, 
-  RefreshCw, 
-  Settings, 
+import {
+  FileText,
+  DollarSign,
+  Ruler,
+  Image as ImageIcon,
+  RefreshCw,
+  Settings,
   Search,
   Upload,
   X,
@@ -76,10 +76,11 @@ const ProductEditor = ({ product, onBack }) => {
     ada_compliant: false,
     meta_title: '',
     meta_description: '',
-    ...product
+    ...product,
+    hover_images: Array.isArray(product?.hover_images) ? product.hover_images : []
   });
   const [saving, setSaving] = useState(false);
-  
+
   // Dropdowns data
   const [categories, setCategories] = useState([]);
   const [subcategories, setSubcategories] = useState([]);
@@ -87,7 +88,7 @@ const ProductEditor = ({ product, onBack }) => {
   const [finishes, setFinishes] = useState([]);
   const [upholsteries, setUpholsteries] = useState([]);
   const [colors, setColors] = useState([]);
-  
+
   // Multi-value fields
   const [images, setImages] = useState(Array.isArray(product?.images) ? product.images : []);
   const [uploadingImage, setUploadingImage] = useState(false);
@@ -103,20 +104,20 @@ const ProductEditor = ({ product, onBack }) => {
     const formData = new FormData();
     formData.append('file', file);
     formData.append('subfolder', subfolder);
-    
+
     const response = await apiClient.post('/api/v1/admin/upload/image', formData, {
       headers: {
         'Content-Type': 'multipart/form-data',
       },
     });
-    
+
     return response.url;
   };
 
   // Image delete helper function
   const deleteImage = async (url) => {
     if (!url) return;
-    
+
     try {
       await apiClient.delete('/api/v1/admin/upload/image', {
         data: { url }
@@ -134,7 +135,7 @@ const ProductEditor = ({ product, onBack }) => {
     fetchUpholsteries();
     fetchColors();
   }, []);
-  
+
   // Fetch subcategories when category changes
   useEffect(() => {
     if (formData.category_id) {
@@ -152,7 +153,7 @@ const ProductEditor = ({ product, onBack }) => {
       console.error('Failed to fetch categories:', error);
     }
   };
-  
+
   const fetchSubcategories = async (categoryId) => {
     try {
       const response = await apiClient.get(`/api/v1/admin/subcategories?category_id=${categoryId}`);
@@ -170,7 +171,7 @@ const ProductEditor = ({ product, onBack }) => {
       console.error('Failed to fetch families:', error);
     }
   };
-  
+
   const fetchFinishes = async () => {
     try {
       const response = await apiClient.get('/api/v1/admin/finishes');
@@ -180,7 +181,7 @@ const ProductEditor = ({ product, onBack }) => {
       setFinishes([]);
     }
   };
-  
+
   const fetchUpholsteries = async () => {
     try {
       const response = await apiClient.get('/api/v1/admin/upholsteries');
@@ -190,7 +191,7 @@ const ProductEditor = ({ product, onBack }) => {
       setUpholsteries([]);
     }
   };
-  
+
   const fetchColors = async () => {
     try {
       // Fetch all active colors - no category filter to show all available colors
@@ -216,7 +217,7 @@ const ProductEditor = ({ product, onBack }) => {
         flame_certifications: flameCerts,
         green_certifications: greenCerts,
       };
-      
+
       if (product?._isNew) {
         await apiClient.post('/api/v1/admin/products', saveData);
       } else {
@@ -235,7 +236,7 @@ const ProductEditor = ({ product, onBack }) => {
   const handleChange = (field, value) => {
     setFormData(prev => ({ ...prev, [field]: value }));
   };
-  
+
   const handleArrayChange = (field, value) => {
     const arr = value.split(',').map(v => v.trim()).filter(Boolean);
     setFormData(prev => ({ ...prev, [field]: arr }));
@@ -284,7 +285,7 @@ const ProductEditor = ({ product, onBack }) => {
                   placeholder="e.g., 6246"
                 />
               </div>
-              
+
               <div>
                 <label className="block text-sm font-medium text-dark-200 mb-2">
                   Model Suffix
@@ -330,7 +331,7 @@ const ProductEditor = ({ product, onBack }) => {
                   ))}
                 </select>
               </div>
-              
+
               <div>
                 <label className="block text-sm font-medium text-dark-200 mb-2">
                   Subcategory
@@ -518,7 +519,7 @@ const ProductEditor = ({ product, onBack }) => {
                 />
               </div>
             </div>
-            
+
             <h3 className="text-lg font-bold text-dark-50 pt-4">Additional Dimensions (inches)</h3>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <div>
@@ -580,7 +581,7 @@ const ProductEditor = ({ product, onBack }) => {
             <div>
               <h3 className="text-lg font-semibold text-dark-50 mb-4">Key Product Images</h3>
               <p className="text-sm text-dark-400 mb-4">These images are used in product catalog views and cards</p>
-              
+
               <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
                 {/* Primary Image */}
                 <div>
@@ -636,25 +637,33 @@ const ProductEditor = ({ product, onBack }) => {
                   </div>
                 </div>
 
-                {/* Hover Image */}
+                {/* Hover Image 1 (Front View) */}
                 <div>
                   <label className="block text-sm font-medium text-dark-200 mb-2">
-                    Hover Image
-                    <span className="block text-xs text-dark-400 font-normal">Shown on card hover</span>
+                    Hover Image 1 *
+                    <span className="block text-xs text-dark-400 font-normal">First rollover image (Front)</span>
                   </label>
                   <div className="relative">
-                    {formData.hover_image_url ? (
+                    {formData.hover_images && formData.hover_images[0] ? (
                       <div className="relative group">
                         <img
-                          src={resolveImageUrl(formData.hover_image_url)}
-                          alt="Hover"
+                          src={resolveImageUrl(formData.hover_images[0])}
+                          alt="Hover 1"
                           className="w-full h-48 object-contain bg-dark-700 rounded-lg border-2 border-dark-600"
                         />
                         <button
                           type="button"
                           onClick={async () => {
-                            await deleteImage(formData.hover_image_url);
-                            handleChange('hover_image_url', null);
+                            await deleteImage(formData.hover_images[0]);
+                            const newHoverImages = [...(formData.hover_images || [])];
+                            newHoverImages[0] = null; // Clear first slot but keep array structure or index logic?
+                            // Better: Filter out nulls or just set index 0 to null/empty string if we want strict slots.
+                            // User request: "hover 1 and hover 2". Suggests slots.
+                            // Let's treat it as an array where index matters.
+                            newHoverImages[0] = "";
+                            // Filter out empty strings only if we want to compact, but user wants slots.
+                            // Use updated array.
+                            handleChange('hover_images', newHoverImages);
                           }}
                           className="absolute top-2 right-2 p-2 bg-red-500 text-white rounded-lg opacity-0 group-hover:opacity-100 transition-opacity"
                         >
@@ -664,7 +673,7 @@ const ProductEditor = ({ product, onBack }) => {
                     ) : (
                       <div className="border-2 border-dashed border-dark-600 rounded-lg p-4 text-center hover:border-primary-500 transition-colors cursor-pointer relative">
                         <Upload className="w-8 h-8 text-dark-400 mx-auto mb-2" />
-                        <p className="text-sm text-dark-400 mb-2">Click to upload</p>
+                        <p className="text-sm text-dark-400 mb-2">Upload Hover 1</p>
                         <input
                           type="file"
                           accept="image/*"
@@ -674,7 +683,69 @@ const ProductEditor = ({ product, onBack }) => {
                               setUploadingImage(true);
                               try {
                                 const url = await uploadImage(file);
-                                handleChange('hover_image_url', url);
+                                const newHoverImages = [...(formData.hover_images || [])];
+                                newHoverImages[0] = url;
+                                handleChange('hover_images', newHoverImages);
+                              } catch (error) {
+                                console.error('Upload failed:', error);
+                                alert('Failed to upload image');
+                              } finally {
+                                setUploadingImage(false);
+                              }
+                            }
+                          }}
+                          className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+                        />
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                {/* Hover Image 2 (Detail/Second View) */}
+                <div>
+                  <label className="block text-sm font-medium text-dark-200 mb-2">
+                    Hover Image 2
+                    <span className="block text-xs text-dark-400 font-normal">Second rollover image</span>
+                  </label>
+                  <div className="relative">
+                    {formData.hover_images && formData.hover_images[1] ? (
+                      <div className="relative group">
+                        <img
+                          src={resolveImageUrl(formData.hover_images[1])}
+                          alt="Hover 2"
+                          className="w-full h-48 object-contain bg-dark-700 rounded-lg border-2 border-dark-600"
+                        />
+                        <button
+                          type="button"
+                          onClick={async () => {
+                            await deleteImage(formData.hover_images[1]);
+                            const newHoverImages = [...(formData.hover_images || [])];
+                            newHoverImages[1] = ""; // Clear second slot
+                            handleChange('hover_images', newHoverImages);
+                          }}
+                          className="absolute top-2 right-2 p-2 bg-red-500 text-white rounded-lg opacity-0 group-hover:opacity-100 transition-opacity"
+                        >
+                          <X className="w-4 h-4" />
+                        </button>
+                      </div>
+                    ) : (
+                      <div className="border-2 border-dashed border-dark-600 rounded-lg p-4 text-center hover:border-primary-500 transition-colors cursor-pointer relative">
+                        <Upload className="w-8 h-8 text-dark-400 mx-auto mb-2" />
+                        <p className="text-sm text-dark-400 mb-2">Upload Hover 2</p>
+                        <input
+                          type="file"
+                          accept="image/*"
+                          onChange={async (e) => {
+                            const file = e.target.files?.[0];
+                            if (file) {
+                              setUploadingImage(true);
+                              try {
+                                const url = await uploadImage(file);
+                                const newHoverImages = [...(formData.hover_images || [])];
+                                // Ensure index 0 exists (fill with empty string if undefined)
+                                if (!newHoverImages[0]) newHoverImages[0] = "";
+                                newHoverImages[1] = url;
+                                handleChange('hover_images', newHoverImages);
                               } catch (error) {
                                 console.error('Upload failed:', error);
                                 alert('Failed to upload image');
@@ -750,7 +821,7 @@ const ProductEditor = ({ product, onBack }) => {
             <div>
               <h3 className="text-lg font-semibold text-dark-50 mb-4">Gallery Images</h3>
               <p className="text-sm text-dark-400 mb-4">Additional product photos for detail views</p>
-              
+
               <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 mb-4">
                 {images.map((img, index) => (
                   <div key={index} className="relative group">
@@ -776,7 +847,7 @@ const ProductEditor = ({ product, onBack }) => {
                   </div>
                 ))}
               </div>
-              
+
               <div className="border-2 border-dashed border-dark-600 rounded-lg p-6 text-center hover:border-primary-500 transition-colors cursor-pointer relative">
                 <Upload className="w-10 h-10 text-dark-400 mx-auto mb-3" />
                 <p className="text-dark-200 mb-2">Add Gallery Images</p>
@@ -790,7 +861,7 @@ const ProductEditor = ({ product, onBack }) => {
                   onChange={async (e) => {
                     const files = Array.from(e.target.files || []);
                     if (files.length === 0) return;
-                    
+
                     setUploadingImage(true);
                     try {
                       const uploadPromises = files.map(file => uploadImage(file));
@@ -814,13 +885,13 @@ const ProductEditor = ({ product, onBack }) => {
               <div>
                 <h3 className="text-lg font-semibold text-dark-50 mb-4">Variation Images</h3>
                 <p className="text-sm text-dark-400 mb-4">Specific images for each product variation</p>
-                
+
                 {variations.map((variation, index) => (
                   <div key={index} className="bg-dark-800 rounded-lg p-4 mb-4">
                     <h4 className="text-md font-medium text-dark-100 mb-3">
                       Variation: {variation.sku || `Variation ${index + 1}`}
                     </h4>
-                    
+
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                       {/* Variation Primary Image */}
                       <div>
@@ -918,7 +989,7 @@ const ProductEditor = ({ product, onBack }) => {
                               onChange={async (e) => {
                                 const files = Array.from(e.target.files || []);
                                 if (files.length === 0) return;
-                                
+
                                 try {
                                   const uploadPromises = files.map(file => uploadImage(file));
                                   const urls = await Promise.all(uploadPromises);
@@ -949,12 +1020,12 @@ const ProductEditor = ({ product, onBack }) => {
             <div className="flex items-center justify-between">
               <h3 className="text-lg font-semibold text-dark-50">Product Variations</h3>
               <Button
-                onClick={() => setVariations([...variations, { 
-                  sku: '', 
+                onClick={() => setVariations([...variations, {
+                  sku: '',
                   finish_id: null,
                   upholstery_id: null,
                   color_id: null,
-                  price_adjustment: 0, 
+                  price_adjustment: 0,
                   stock_status: 'Available',
                   is_available: true
                 }])}
@@ -965,11 +1036,11 @@ const ProductEditor = ({ product, onBack }) => {
                 Add Variation
               </Button>
             </div>
-            
+
             <p className="text-sm text-dark-300">
               Variations represent specific combinations of finish, upholstery, and color options for this product.
             </p>
-            
+
             {variations.length === 0 ? (
               <div className="text-center py-12 bg-dark-700 rounded-lg border-2 border-dashed border-dark-600">
                 <RefreshCw className="w-12 h-12 text-dark-400 mx-auto mb-4" />
@@ -1021,7 +1092,7 @@ const ProductEditor = ({ product, onBack }) => {
                             </select>
                           </div>
                         </div>
-                        
+
                         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                           <div>
                             <label className="block text-sm font-medium text-dark-200 mb-2">
@@ -1042,7 +1113,7 @@ const ProductEditor = ({ product, onBack }) => {
                               ))}
                             </select>
                           </div>
-                          
+
                           <div>
                             <label className="block text-sm font-medium text-dark-200 mb-2">
                               Upholstery
@@ -1062,7 +1133,7 @@ const ProductEditor = ({ product, onBack }) => {
                               ))}
                             </select>
                           </div>
-                          
+
                           <div>
                             <label className="block text-sm font-medium text-dark-200 mb-2">
                               Color
@@ -1083,7 +1154,7 @@ const ProductEditor = ({ product, onBack }) => {
                             </select>
                           </div>
                         </div>
-                        
+
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                           <div>
                             <label className="block text-sm font-medium text-dark-200 mb-2">
@@ -1105,7 +1176,7 @@ const ProductEditor = ({ product, onBack }) => {
                               />
                             </div>
                           </div>
-                          
+
                           <div className="flex items-end">
                             <label className="flex items-center gap-2 cursor-pointer pb-2">
                               <input
@@ -1141,7 +1212,7 @@ const ProductEditor = ({ product, onBack }) => {
         return (
           <div className="space-y-6">
             <h3 className="text-lg font-semibold text-dark-50">Materials & Construction</h3>
-            
+
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <div>
                 <label className="block text-sm font-medium text-dark-200 mb-2">
@@ -1156,7 +1227,7 @@ const ProductEditor = ({ product, onBack }) => {
                 />
               </div>
             </div>
-            
+
             <div>
               <label className="block text-sm font-medium text-dark-200 mb-2">
                 Construction Details
@@ -1169,7 +1240,7 @@ const ProductEditor = ({ product, onBack }) => {
                 placeholder="Describe construction methods, joinery, reinforcements, etc."
               />
             </div>
-            
+
             <div>
               <label className="block text-sm font-medium text-dark-200 mb-2">
                 Available Finishes
@@ -1194,7 +1265,7 @@ const ProductEditor = ({ product, onBack }) => {
                 ))}
               </div>
             </div>
-            
+
             <div>
               <label className="block text-sm font-medium text-dark-200 mb-2">
                 Available Upholsteries
@@ -1219,7 +1290,7 @@ const ProductEditor = ({ product, onBack }) => {
                 ))}
               </div>
             </div>
-            
+
             <div>
               <label className="block text-sm font-medium text-dark-200 mb-2">
                 Available Colors
@@ -1241,8 +1312,8 @@ const ProductEditor = ({ product, onBack }) => {
                     />
                     <div className="flex items-center gap-2">
                       {color.hex_value && (
-                        <div 
-                          className="w-4 h-4 rounded border border-dark-500" 
+                        <div
+                          className="w-4 h-4 rounded border border-dark-500"
                           style={{ backgroundColor: color.hex_value }}
                         />
                       )}
@@ -1259,7 +1330,7 @@ const ProductEditor = ({ product, onBack }) => {
         return (
           <div className="space-y-6">
             <h3 className="text-lg font-semibold text-dark-50">Features & Inventory</h3>
-            
+
             <div>
               <label className="block text-sm font-medium text-dark-200 mb-2">
                 Features (comma-separated)
@@ -1273,7 +1344,7 @@ const ProductEditor = ({ product, onBack }) => {
               />
               <p className="text-xs text-dark-400 mt-1">Separate multiple features with commas</p>
             </div>
-            
+
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
               <div>
                 <label className="block text-sm font-medium text-dark-200 mb-2">
@@ -1291,7 +1362,7 @@ const ProductEditor = ({ product, onBack }) => {
                   <option value="Discontinued">Discontinued</option>
                 </select>
               </div>
-              
+
               <div>
                 <label className="block text-sm font-medium text-dark-200 mb-2">
                   Lead Time (days)
@@ -1304,7 +1375,7 @@ const ProductEditor = ({ product, onBack }) => {
                   placeholder="0"
                 />
               </div>
-              
+
               <div>
                 <label className="block text-sm font-medium text-dark-200 mb-2">
                   Minimum Order Quantity
@@ -1325,7 +1396,7 @@ const ProductEditor = ({ product, onBack }) => {
         return (
           <div className="space-y-6">
             <h3 className="text-lg font-semibold text-dark-50">Certifications & Usage</h3>
-            
+
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <div>
                 <label className="block text-sm font-medium text-dark-200 mb-2">
@@ -1342,7 +1413,7 @@ const ProductEditor = ({ product, onBack }) => {
                   placeholder="e.g., CAL 117, UFAC Class 1"
                 />
               </div>
-              
+
               <div>
                 <label className="block text-sm font-medium text-dark-200 mb-2">
                   Green Certifications (comma-separated)
@@ -1359,7 +1430,7 @@ const ProductEditor = ({ product, onBack }) => {
                 />
               </div>
             </div>
-            
+
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <div>
                 <label className="block text-sm font-medium text-dark-200 mb-2">
@@ -1373,7 +1444,7 @@ const ProductEditor = ({ product, onBack }) => {
                   placeholder="e.g., Restaurant, Healthcare, Office"
                 />
               </div>
-              
+
               <div className="flex items-center gap-6">
                 <label className="flex items-center gap-2 cursor-pointer">
                   <input
@@ -1384,7 +1455,7 @@ const ProductEditor = ({ product, onBack }) => {
                   />
                   <span className="text-dark-200">ADA Compliant</span>
                 </label>
-                
+
                 <label className="flex items-center gap-2 cursor-pointer">
                   <input
                     type="checkbox"
@@ -1396,7 +1467,7 @@ const ProductEditor = ({ product, onBack }) => {
                 </label>
               </div>
             </div>
-            
+
             <div>
               <label className="block text-sm font-medium text-dark-200 mb-2">
                 Warranty Information
@@ -1409,7 +1480,7 @@ const ProductEditor = ({ product, onBack }) => {
                 placeholder="Warranty details..."
               />
             </div>
-            
+
             <div>
               <label className="block text-sm font-medium text-dark-200 mb-2">
                 Care Instructions
@@ -1429,7 +1500,7 @@ const ProductEditor = ({ product, onBack }) => {
         return (
           <div className="space-y-6">
             <h3 className="text-lg font-semibold text-dark-50">SEO & Analytics</h3>
-            
+
             <div>
               <label className="block text-sm font-medium text-dark-200 mb-2">
                 Meta Title
@@ -1455,7 +1526,7 @@ const ProductEditor = ({ product, onBack }) => {
                 placeholder="SEO optimized description"
               />
             </div>
-            
+
             <div>
               <label className="block text-sm font-medium text-dark-200 mb-2">
                 Keywords (comma-separated)
@@ -1468,11 +1539,11 @@ const ProductEditor = ({ product, onBack }) => {
                 placeholder="chair, dining, restaurant, commercial"
               />
             </div>
-            
+
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <div className="space-y-4">
                 <h4 className="text-md font-medium text-dark-100">Product Flags</h4>
-                
+
                 <label className="flex items-center gap-2 cursor-pointer">
                   <input
                     type="checkbox"
@@ -1482,7 +1553,7 @@ const ProductEditor = ({ product, onBack }) => {
                   />
                   <span className="text-dark-200">Active (visible on site)</span>
                 </label>
-                
+
                 <label className="flex items-center gap-2 cursor-pointer">
                   <input
                     type="checkbox"
@@ -1492,7 +1563,7 @@ const ProductEditor = ({ product, onBack }) => {
                   />
                   <span className="text-dark-200">Featured Product</span>
                 </label>
-                
+
                 <label className="flex items-center gap-2 cursor-pointer">
                   <input
                     type="checkbox"
@@ -1502,7 +1573,7 @@ const ProductEditor = ({ product, onBack }) => {
                   />
                   <span className="text-dark-200">New Product</span>
                 </label>
-                
+
                 <label className="flex items-center gap-2 cursor-pointer">
                   <input
                     type="checkbox"
@@ -1513,10 +1584,10 @@ const ProductEditor = ({ product, onBack }) => {
                   <span className="text-dark-200">Custom Only (requires quote)</span>
                 </label>
               </div>
-              
+
               <div className="space-y-4">
                 <h4 className="text-md font-medium text-dark-100">Analytics</h4>
-                
+
                 <div>
                   <label className="block text-sm font-medium text-dark-200 mb-2">
                     View Count
@@ -1528,7 +1599,7 @@ const ProductEditor = ({ product, onBack }) => {
                     className="w-full px-4 py-2 bg-dark-700 border border-dark-600 rounded-lg text-dark-400 outline-none cursor-not-allowed"
                   />
                 </div>
-                
+
                 <div>
                   <label className="block text-sm font-medium text-dark-200 mb-2">
                     Quote Count
@@ -1540,7 +1611,7 @@ const ProductEditor = ({ product, onBack }) => {
                     className="w-full px-4 py-2 bg-dark-700 border border-dark-600 rounded-lg text-dark-400 outline-none cursor-not-allowed"
                   />
                 </div>
-                
+
                 <div>
                   <label className="block text-sm font-medium text-dark-200 mb-2">
                     Display Order

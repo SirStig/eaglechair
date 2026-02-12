@@ -30,26 +30,19 @@ logger = logging.getLogger(__name__)
 
 async def seed_admin_user():
     """Create admin user and company"""
-    
+
     # Create async engine (convert postgresql:// to postgresql+asyncpg://)
     db_url = settings.DATABASE_URL
     if db_url.startswith("postgresql://"):
         db_url = db_url.replace("postgresql://", "postgresql+asyncpg://", 1)
     elif db_url.startswith("postgresql+psycopg2://"):
         db_url = db_url.replace("postgresql+psycopg2://", "postgresql+asyncpg://", 1)
-    
-    engine = create_async_engine(
-        db_url,
-        echo=False,
-        future=True
-    )
-    
+
+    engine = create_async_engine(db_url, echo=False, future=True)
+
     # Create async session factory
-    async_session_factory = async_sessionmaker(
-        engine, 
-        expire_on_commit=False
-    )
-    
+    async_session_factory = async_sessionmaker(engine, expire_on_commit=False)
+
     async with async_session_factory() as session:
         try:
             # Check if admin already exists
@@ -57,17 +50,17 @@ async def seed_admin_user():
                 select(AdminUser).where(AdminUser.email == "admin@eaglechair.com")
             )
             existing_admin = result.scalar_one_or_none()
-            
+
             if existing_admin:
                 logger.info("❌ Admin user already exists: admin@eaglechair.com")
                 return
-            
+
             # Create Eagle Chair company if it doesn't exist
             result = await session.execute(
                 select(Company).where(Company.company_name == "Eagle Chair Admin")
             )
             company = result.scalar_one_or_none()
-            
+
             if not company:
                 logger.info("Creating Eagle Chair admin company...")
                 company = Company(
@@ -77,7 +70,9 @@ async def seed_admin_user():
                     rep_last_name="Administrator",
                     rep_email="admin@eaglechair.com",
                     rep_phone="(713) 555-0100",
-                    hashed_password=SecurityManager.hash_password("temp123"),  # Temp password
+                    hashed_password=SecurityManager.hash_password(
+                        "temp123"
+                    ),  # Temp password
                     billing_address_line1="123 Furniture Boulevard",
                     billing_city="Houston",
                     billing_state="TX",
@@ -85,14 +80,14 @@ async def seed_admin_user():
                     billing_country="USA",
                     status=CompanyStatus.ACTIVE,
                     is_verified=True,
-                    is_active=True
+                    is_active=True,
                 )
                 session.add(company)
                 await session.flush()
                 logger.info(f"✅ Created company: {company.company_name}")
             else:
                 logger.info(f"✅ Company already exists: {company.company_name}")
-            
+
             # Create admin user
             logger.info("Creating admin user...")
             admin = AdminUser(
@@ -100,16 +95,17 @@ async def seed_admin_user():
                 username="admin",
                 first_name="System",
                 last_name="Administrator",
-                hashed_password=SecurityManager.hash_password("rrfdWTqx3ywWEeNgAvvp7p6CCzWTytwoVZEWGPj7"),
+                hashed_password=SecurityManager.hash_password("temp123"),
                 role=AdminRole.SUPER_ADMIN,
-                is_active=True
+                is_active=True,
             )
             session.add(admin)
             await session.commit()
-            
+
         except Exception as e:
             logger.error(f"❌ Error creating admin user: {e}")
             import traceback
+
             traceback.print_exc()
             await session.rollback()
             raise
