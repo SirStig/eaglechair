@@ -15,18 +15,18 @@ export const productService = {
   getProducts: async (params = {}) => {
     // Backend uses 'per_page' instead of 'limit', handle sorting client-side
     const { sort, limit, ...apiParams } = params;
-    
+
     // Map limit to per_page for backend
     if (limit) {
       apiParams.per_page = limit;
     }
-    
+
     const response = await api.get('/api/v1/products', { params: apiParams });
-    
+
     // Backend returns PaginatedResponse[ChairResponse]:
     // { items: [...], total: int, page: int, per_page: int, total_pages: int, has_next: bool, has_prev: bool }
     let products = response.items || [];
-    
+
     // Apply client-side sorting if sort param was provided
     if (sort) {
       switch (sort) {
@@ -53,7 +53,7 @@ export const productService = {
           break;
       }
     }
-    
+
     // Transform products to include legacy fields for backward compatibility
     // Return in expected format: { data: [...], total, page, limit/per_page, pages/total_pages }
     return {
@@ -75,18 +75,18 @@ export const productService = {
   getProductById: async (id) => {
     // Determine if ID is numeric or a slug
     const isNumericId = !isNaN(parseInt(id)) && parseInt(id).toString() === id.toString();
-    
+
     // Use appropriate endpoint
-    const endpoint = isNumericId 
-      ? `/api/v1/products/${id}` 
+    const endpoint = isNumericId
+      ? `/api/v1/products/${id}`
       : `/api/v1/products/slug/${id}`;
-    
+
     const response = await api.get(endpoint);
-    
+
     // Backend returns ChairDetailResponse directly (not wrapped)
     // ChairDetailResponse includes: product data + category + related_products
     const productData = response;
-    
+
     return {
       data: transformProduct(productData),
       related: productData.related_products ? transformProducts(productData.related_products) : []
@@ -99,10 +99,33 @@ export const productService = {
    */
   getCategories: async () => {
     // Backend returns list[CategoryResponse] directly (not paginated)
+    // Use cache with 30 minute TTL (similar to useContent hooks)
+    const CACHE_KEY = 'categories-all';
+    const CACHE_TTL = 30 * 60 * 1000;
+
+    // Import cachedFetch dynamically to avoid circular dependencies if any
+    // (though in this architecture it should be fine, but let's be safe or just use it directly if imported)
+    // We haven't imported cachedFetch yet, need to add import or implement simple cache here.
+    // Given the import is not at the top, let's implement a simple in-memory cache variable for this service
+    // to avoid modifying imports significantly.
+
+    const now = Date.now();
+    if (productService._categoriesCache &&
+      productService._categoriesCacheTime &&
+      (now - productService._categoriesCacheTime < CACHE_TTL)) {
+      return productService._categoriesCache;
+    }
+
     const response = await api.get('/api/v1/categories');
-    
+
     // Response is an array of categories
-    return Array.isArray(response) ? response : [];
+    const categories = Array.isArray(response) ? response : [];
+
+    // Update cache
+    productService._categoriesCache = categories;
+    productService._categoriesCacheTime = now;
+
+    return categories;
   },
 
   /**
@@ -113,7 +136,7 @@ export const productService = {
   getFamilies: async (params = {}) => {
     // Backend returns list[ProductFamilyResponse] with product_count
     const response = await api.get('/api/v1/families', { params });
-    
+
     return Array.isArray(response) ? response : [];
   },
 
@@ -125,11 +148,11 @@ export const productService = {
   getFamilyById: async (id) => {
     // Determine if ID is numeric or a slug
     const isNumericId = !isNaN(parseInt(id)) && parseInt(id).toString() === id.toString();
-    
-    const endpoint = isNumericId 
-      ? `/api/v1/families/${id}` 
+
+    const endpoint = isNumericId
+      ? `/api/v1/families/${id}`
       : `/api/v1/families/slug/${id}`;
-    
+
     const response = await api.get(endpoint);
     return response;
   },
@@ -182,14 +205,14 @@ export const productService = {
    */
   searchProducts: async (query, options = {}) => {
     // Use fuzzy search endpoint with threshold
-    const params = { 
+    const params = {
       q: query,
       limit: options.limit || 10,
       threshold: options.threshold || 75
     };
-    
+
     const response = await api.get('/api/v1/products/search', { params });
-    
+
     // Response is an array of products
     return transformProducts(Array.isArray(response) ? response : []);
   },
@@ -201,10 +224,10 @@ export const productService = {
    */
   getFeaturedProducts: async (limit = 6) => {
     // Backend returns PaginatedResponse, need to map per_page
-    const response = await api.get('/api/v1/products', { 
-      params: { featured: true, per_page: limit } 
+    const response = await api.get('/api/v1/products', {
+      params: { featured: true, per_page: limit }
     });
-    
+
     // Extract items from paginated response
     const products = response.items || [];
     return transformProducts(products);

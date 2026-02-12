@@ -4,12 +4,12 @@ import { useSiteSettings } from '../hooks/useContent';
 
 const CONTEXT = 'USMapInteractive';
 
-const USMapInteractive = ({ 
-  selectedState, 
-  hoveredState, 
-  onStateClick, 
+const USMapInteractive = ({
+  selectedState,
+  hoveredState,
+  onStateClick,
   onStateHover,
-  getRep 
+  getRep
 }) => {
   const containerRef = useRef(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -41,9 +41,9 @@ const USMapInteractive = ({
       .then(svgText => {
         logger.timeEnd('SVG Load');
         logger.info(CONTEXT, `SVG loaded successfully, size: ${svgText.length} bytes`);
-        
+
         container.innerHTML = svgText;
-        
+
         const svg = container.querySelector('svg');
         if (!svg) {
           throw new Error('SVG element not found in loaded content');
@@ -56,7 +56,7 @@ const USMapInteractive = ({
         svg.style.height = 'auto';
         svg.style.maxWidth = '100%';
         svg.style.display = 'block';
-        
+
         // Set viewBox if missing
         if (!svg.hasAttribute('viewBox')) {
           const width = svg.getAttribute('width');
@@ -67,7 +67,7 @@ const USMapInteractive = ({
           }
         }
         svg.setAttribute('preserveAspectRatio', 'xMidYMid meet');
-        
+
         // Find all path elements (states)
         const allPaths = Array.from(svg.querySelectorAll('path'));
         logger.info(CONTEXT, `Found ${allPaths.length} path elements`);
@@ -88,7 +88,7 @@ const USMapInteractive = ({
 
         // Map all state paths
         const stateElements = new Map();
-        
+
         allPaths.forEach(element => {
           const stateCode = getStateCode(element);
           if (stateCode) {
@@ -109,7 +109,7 @@ const USMapInteractive = ({
         // Store the map for later use
         setStateElementsMap(stateElements);
         setIsLoading(false);
-        
+
         logger.info(CONTEXT, 'Map initialization complete');
       })
       .catch(err => {
@@ -277,7 +277,7 @@ const USMapInteractive = ({
               <p className="text-sm text-dark-100 mb-2">
                 <strong className="text-primary-500">Need Help?</strong>
               </p>
-                <p className="text-sm text-dark-200">
+              <p className="text-sm text-dark-200">
                 Call us at <span className="text-primary-500 font-semibold">{siteSettings?.primaryPhone || 'N/A'}</span> or email{' '}
                 <span className="text-primary-500 font-semibold">{siteSettings?.primaryEmail || 'N/A'}</span>
               </p>
@@ -287,10 +287,10 @@ const USMapInteractive = ({
       )}
 
       {/* Map container - always rendered so ref is available */}
-      <div 
+      <div
         ref={containerRef}
         className={`w-full max-w-full overflow-hidden ${isLoading || error ? 'hidden' : ''}`}
-        style={{ minHeight: '400px' }}
+        style={{ minHeight: '200px' }}
       />
     </div>
   );

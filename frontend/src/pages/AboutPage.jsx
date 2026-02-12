@@ -26,12 +26,9 @@ const AboutPage = () => {
   const { data: values, loading: valuesLoading, refetch: refetchValues } = useCompanyValues();
   const { data: milestones, loading: milestonesLoading, refetch: refetchMilestones } = useCompanyMilestones();
   const { data: team, loading: teamLoading, refetch: refetchTeam } = useTeamMembers();
-  // eslint-disable-next-line no-unused-vars
-  const { data: heroSection, loading: heroLoading, refetch: refetchHero } = usePageContent('about', 'hero');
-  // eslint-disable-next-line no-unused-vars
-  const { data: storySection, loading: storyLoading, refetch: refetchStory } = usePageContent('about', 'story');
-  // eslint-disable-next-line no-unused-vars
-  const { data: ctaSection, loading: ctaLoading, refetch: refetchCta } = usePageContent('about', 'cta');
+  const { data: heroSection, refetch: refetchHero } = usePageContent('about', 'hero');
+  const { data: storySection, refetch: refetchStory } = usePageContent('about', 'story');
+  const { data: ctaSection, refetch: refetchCta } = usePageContent('about', 'cta');
 
   const loading = valuesLoading || milestonesLoading || teamLoading;
 
@@ -54,12 +51,12 @@ const AboutPage = () => {
     try {
       logger.info(CONTEXT, `Saving content for ${pageSlug}/${sectionKey}`);
       await updatePageContent(pageSlug, sectionKey, newData);
-      
+
       // Invalidate cache for this specific section
       const cacheKey = `page-content-${pageSlug}-${sectionKey}`;
       const invalidated = invalidateCache(cacheKey);
       logger.debug(CONTEXT, `Invalidated ${invalidated} cache entries for ${cacheKey}`);
-      
+
       // Refetch to update UI
       refetchFn();
       logger.info(CONTEXT, 'Content saved successfully');
@@ -140,7 +137,7 @@ const AboutPage = () => {
             decoding="async"
           />
         </div>
-        
+
         <div className="relative container h-full flex items-center">
           <motion.div
             initial={{ opacity: 0, y: 30 }}
@@ -159,7 +156,7 @@ const AboutPage = () => {
                 {heroTitle}
               </h1>
             </EditableWrapper>
-            
+
             <EditableWrapper
               id="about-hero-subtitle"
               type="textarea"
@@ -171,7 +168,7 @@ const AboutPage = () => {
                 {heroSubtitle}
               </p>
             </EditableWrapper>
-            
+
             <EditableWrapper
               id="about-hero-image"
               type="image"
@@ -207,8 +204,7 @@ const AboutPage = () => {
                   src={storyImage}
                   alt="Our Team"
                   className="rounded-2xl shadow-2xl"
-                  loading="eager"
-                  fetchPriority="high"
+                  loading="lazy"
                   decoding="async"
                 />
               </EditableWrapper>
@@ -227,7 +223,7 @@ const AboutPage = () => {
               >
                 <h2 className="text-2xl sm:text-3xl font-bold mb-4 sm:mb-6 text-dark-50">{storyTitle}</h2>
               </EditableWrapper>
-              
+
               <EditableWrapper
                 id="about-story-content"
                 type="textarea"
@@ -285,10 +281,11 @@ const AboutPage = () => {
                     {/* Value Image or Icon */}
                     {value.image_url || value.imageUrl ? (
                       <div className="w-full h-40 overflow-hidden mb-4">
-                        <img 
-                          src={value.image_url || value.imageUrl} 
+                        <img
+                          src={value.image_url || value.imageUrl}
                           alt={value.title}
                           className="w-full h-full object-cover"
+                          loading="lazy"
                         />
                       </div>
                     ) : (
@@ -300,7 +297,7 @@ const AboutPage = () => {
                         )}
                       </div>
                     )}
-                    
+
                     {/* Value Content */}
                     <div className="px-4 pb-4">
                       <h3 className="text-xl font-semibold mb-1 text-dark-50">{value.title}</h3>
@@ -408,6 +405,7 @@ const AboutPage = () => {
                       src={member.photo_url || member.image}
                       alt={member.name}
                       className="w-32 h-32 rounded-full mx-auto mb-4 object-cover border-4 border-primary-500"
+                      loading="lazy"
                     />
                     <h3 className="text-xl font-semibold mb-1 text-dark-50">{member.name}</h3>
                     <p className="text-dark-100">{member.title || member.role}</p>
@@ -433,7 +431,7 @@ const AboutPage = () => {
           >
             <h2 className="text-4xl font-bold mb-6 text-dark-50">{ctaTitle}</h2>
           </EditableWrapper>
-          
+
           <EditableWrapper
             id="about-cta-content"
             type="textarea"
@@ -445,7 +443,7 @@ const AboutPage = () => {
               {ctaContent}
             </p>
           </EditableWrapper>
-          
+
           <div className="flex gap-4 justify-center">
             <a href="/contact">
               <button className="px-8 py-3 bg-dark-900 text-primary-500 rounded-lg font-semibold hover:bg-dark-800 transition-colors border-2 border-primary-500">

@@ -14,10 +14,8 @@ import ConfirmModal from '../components/ui/ConfirmModal';
 import SEOHead from '../components/SEOHead';
 import { useEditMode } from '../contexts/useEditMode';
 import { useToast } from '../contexts/ToastContext';
-import { loadContentData } from '../utils/contentDataLoader';
-// Removed static import: { heroSlides as staticHeroSlides, features as staticFeatures, clientLogos as staticClientLogos, pageContent as staticPageContent }
 import { useHeroSlides, useFeatures, useClientLogos, useFeaturedProducts, usePageContent, useSiteSettings } from '../hooks/useContent';
-import { 
+import {
   updatePageContent,
   updateHeroSlide,
   updateFeature,
@@ -40,7 +38,7 @@ const HomePage = () => {
   const [confirmModal, setConfirmModal] = useState({ isOpen: false, onConfirm: null, message: '', title: '' });
   const { isEditMode } = useEditMode();
   const toast = useToast();
-  
+
   const { data: heroSlides, loading: heroLoading, refetch: refetchHero } = useHeroSlides();
   const { data: whyChooseUs, refetch: refetchFeatures } = useFeatures('home_page');
   const { data: clientLogos, refetch: refetchLogos } = useClientLogos();
@@ -52,12 +50,12 @@ const HomePage = () => {
     try {
       logger.info(CONTEXT, `Saving content for ${pageSlug}/${sectionKey}`, newData);
       await updatePageContent(pageSlug, sectionKey, newData);
-      
+
       // Invalidate cache for this specific section
       const cacheKey = `page-content-${pageSlug}-${sectionKey}`;
       const invalidated = invalidateCache(cacheKey);
       logger.debug(CONTEXT, `Invalidated ${invalidated} cache entries for ${cacheKey}`);
-      
+
       // Refetch the data to show updated content
       if (pageSlug === 'home' && sectionKey === 'cta') {
         refetchCta();
@@ -76,6 +74,7 @@ const HomePage = () => {
     refetchHero();
   };
 
+  /* eslint-disable no-unused-vars */
   const handleCreateHeroSlide = async (newData) => {
     await createHeroSlide(newData);
     invalidateCache('hero-slides');
@@ -87,6 +86,7 @@ const HomePage = () => {
     invalidateCache('hero-slides');
     refetchHero();
   };
+  /* eslint-enable no-unused-vars */
 
   // Features Handlers
   const handleUpdateFeature = async (id, updates) => {
@@ -127,12 +127,14 @@ const HomePage = () => {
     }
   };
 
+  /* eslint-disable no-unused-vars */
   const handleDeleteClientLogo = async (id) => {
     await deleteClientLogo(id);
     const invalidated = invalidateCache('client-logos');
     logger.debug(CONTEXT, `Invalidated ${invalidated} cache entries for client-logos`);
     refetchLogos();
   };
+  /* eslint-enable no-unused-vars */
 
   // Hero Slider Settings - Safari compatible
   const heroSettings = {
@@ -154,45 +156,20 @@ const HomePage = () => {
     useCSS: true,
     useTransform: true,
     adaptiveHeight: false,
-    // Disable lazy loading - preload all hero images for smooth transitions
-    lazyLoad: false,
+    // Enable on-demand loading
+    lazyLoad: 'ondemand',
   };
 
-  // Client Logos Slider Settings
-  const clientSettings = {
-    dots: false,
-    infinite: true,
-    speed: 3000,
-    slidesToShow: 5,
-    slidesToScroll: 1,
-    autoplay: true,
-    autoplaySpeed: 0,
-    cssEase: 'linear',
-    pauseOnHover: true,
-    responsive: [
-      {
-        breakpoint: 1024,
-        settings: { slidesToShow: 4 }
-      },
-      {
-        breakpoint: 768,
-        settings: { slidesToShow: 3 }
-      },
-      {
-        breakpoint: 480,
-        settings: { slidesToShow: 2 }
-      }
-    ]
-  };
 
-  // Use API data, fallback to demo
-  const slides = heroSlides || demoHomeContent.heroSlides;
-  const features = whyChooseUs || demoHomeContent.whyChooseUs;
+
+  // Use API data, fallback to empty array
+  const slides = useMemo(() => heroSlides || [], [heroSlides]);
+  const features = useMemo(() => whyChooseUs || [], [whyChooseUs]);
   const clients = clientLogos || [];
-  
+
   // Extract products array from response object
   const products = (featuredProducts?.data || featuredProducts) || [];
-  
+
   // CTA section content - use hardcoded fallback
   const ctaTitle = ctaSection?.title || "Ready to Furnish Your Space?";
   const ctaContent = ctaSection?.content || "Get a custom quote for your restaurant or hospitality project. Our team is ready to help you create the perfect atmosphere.";
@@ -206,7 +183,7 @@ const HomePage = () => {
   const seoTitle = siteSettings?.metaTitle || 'Eagle Chair - Premium Commercial Seating Solutions';
   const seoDescription = siteSettings?.metaDescription || 'Eagle Chair manufactures premium commercial seating for restaurants, hotels, healthcare facilities, and hospitality venues. Explore our durable, customizable furniture solutions.';
   const seoKeywords = siteSettings?.metaKeywords || 'commercial seating, restaurant chairs, hotel furniture, healthcare seating, hospitality furniture, custom chairs, commercial furniture, Eagle Chair';
-  
+
   const homeSchema = useMemo(() => ({
     "@context": "https://schema.org",
     "@type": "Organization",
@@ -252,11 +229,11 @@ const HomePage = () => {
       {preloadImages.length > 0 && (
         <Helmet>
           {preloadImages.map((imageUrl, idx) => (
-            <link 
+            <link
               key={`preload-hero-${idx}`}
-              rel="preload" 
-              as="image" 
-              href={imageUrl} 
+              rel="preload"
+              as="image"
+              href={imageUrl}
               fetchPriority={idx === 0 ? "high" : idx === 1 ? "high" : "auto"}
             />
           ))}
@@ -287,17 +264,17 @@ const HomePage = () => {
                         src={slide.background_image_url || slide.image}
                         alt={slide.title}
                         className="w-full h-full object-cover"
-                        loading="eager"
+                        loading={index === 0 ? "eager" : "lazy"}
                         decoding="async"
-                        fetchPriority={index === 0 ? "high" : index < 3 ? "high" : "auto"}
-                        style={{ 
+                        fetchPriority={index === 0 ? "high" : "auto"}
+                        style={{
                           WebkitTransform: 'translateZ(0)',
                           transform: 'translateZ(0)',
                           willChange: 'transform'
                         }}
                       />
                       <div className="absolute inset-0 bg-gradient-to-r from-black/70 to-black/30" />
-                      
+
                       <div className="absolute inset-0 flex items-center">
                         <div className="container">
                           <motion.div
@@ -336,7 +313,7 @@ const HomePage = () => {
           <h2 className="text-xl sm:text-2xl md:text-3xl font-bold text-center mb-6 sm:mb-8 md:mb-6 lg:mb-8 text-dark-50 px-4">
             Trusted by Leading Hospitality Brands
           </h2>
-          
+
           {/* Centered container with fading edges */}
           <div className="relative max-w-5xl mx-auto">
             {/* Edit Mode Add Button */}
@@ -355,7 +332,7 @@ const HomePage = () => {
                 </Button>
               </div>
             )}
-            
+
             {/* Create Logo Modal */}
             <EditModal
               isOpen={isCreatingLogo}
@@ -364,29 +341,29 @@ const HomePage = () => {
               elementData={{ name: '', logo_url: '', display_order: 0 }}
               elementType="client-logo"
             />
-            
+
             {/* Left fade */}
             <div className="absolute left-0 top-0 bottom-0 w-12 sm:w-16 md:w-32 bg-gradient-to-r from-dark-800 to-transparent z-10 pointer-events-none"></div>
-            
+
             {/* Right fade */}
             <div className="absolute right-0 top-0 bottom-0 w-12 sm:w-16 md:w-32 bg-gradient-to-l from-dark-800 to-transparent z-10 pointer-events-none"></div>
-            
+
             {/* Scrolling container */}
             <div className="overflow-hidden">
               {/* Calculate width and animation duration based on number of logo sets for seamless scrolling */}
-              <div 
-                className={`flex ${!isEditMode ? 'animate-scroll-infinite' : ''}`} 
-                style={{ 
-                  width: isEditMode 
-                    ? 'auto' 
-                    : clients.length < 5 
+              <div
+                className={`flex ${!isEditMode ? 'animate-scroll-infinite' : ''}`}
+                style={{
+                  width: isEditMode
+                    ? 'auto'
+                    : clients.length < 5
                       ? '800%'  // 8 sets for very few logos (1-4)
-                      : clients.length < 8 
+                      : clients.length < 8
                         ? '600%'  // 6 sets for few logos (5-7)
                         : '200%',  // 2 sets for normal amount (8+)
                   // Slow down animation significantly for fewer logos to prevent gaps
-                  animationDuration: !isEditMode 
-                    ? clients.length < 3 
+                  animationDuration: !isEditMode
+                    ? clients.length < 3
                       ? '120s'  // Very slow for 1-2 logos
                       : clients.length < 5
                         ? '80s'   // Slow for 3-4 logos
@@ -422,7 +399,7 @@ const HomePage = () => {
                           {client.name}
                         </div>
                       )}
-                      
+
                       {/* Delete button in edit mode */}
                       {isEditMode && (
                         <button
@@ -437,7 +414,7 @@ const HomePage = () => {
                                   await deleteClientLogo(client.id);
                                   refetchLogos();
                                   toast.success(`${client.name} deleted successfully`);
-                                } catch (error) {
+                                } catch (err) {
                                   toast.error('Failed to delete client logo');
                                 }
                               }
@@ -454,7 +431,7 @@ const HomePage = () => {
                     </div>
                   </EditableWrapper>
                 ))}
-                
+
                 {/* Second set of logos (duplicate for infinite scroll) - Only show when NOT in edit mode */}
                 {!isEditMode && clients.length > 0 && clients.map((client, index) => (
                   <div key={`second-${client.id}-${index}`} className="flex-shrink-0 px-3 sm:px-6 md:px-8 mx-1 sm:mx-2 md:mx-4">
@@ -474,7 +451,7 @@ const HomePage = () => {
                     </div>
                   </div>
                 ))}
-                
+
                 {/* Third set (for seamless loop when few logos) */}
                 {!isEditMode && clients.length > 0 && clients.length < 8 && clients.map((client, index) => (
                   <div key={`third-${client.id}-${index}`} className="flex-shrink-0 px-3 sm:px-6 md:px-8 mx-1 sm:mx-2 md:mx-4">
@@ -494,7 +471,7 @@ const HomePage = () => {
                     </div>
                   </div>
                 ))}
-                
+
                 {/* Fourth set (for very few logos) */}
                 {!isEditMode && clients.length > 0 && clients.length < 5 && clients.map((client, index) => (
                   <div key={`fourth-${client.id}-${index}`} className="flex-shrink-0 px-3 sm:px-6 md:px-8 mx-1 sm:mx-2 md:mx-4">
@@ -514,7 +491,7 @@ const HomePage = () => {
                     </div>
                   </div>
                 ))}
-                
+
                 {/* Fifth set (for few logos 5-7) */}
                 {!isEditMode && clients.length > 0 && clients.length < 8 && clients.map((client, index) => (
                   <div key={`fifth-${client.id}-${index}`} className="flex-shrink-0 px-3 sm:px-6 md:px-8 mx-1 sm:mx-2 md:mx-4">
@@ -534,7 +511,7 @@ const HomePage = () => {
                     </div>
                   </div>
                 ))}
-                
+
                 {/* Sixth set (for few logos 5-7) */}
                 {!isEditMode && clients.length > 0 && clients.length < 8 && clients.map((client, index) => (
                   <div key={`sixth-${client.id}-${index}`} className="flex-shrink-0 px-3 sm:px-6 md:px-8 mx-1 sm:mx-2 md:mx-4">
@@ -554,7 +531,7 @@ const HomePage = () => {
                     </div>
                   </div>
                 ))}
-                
+
                 {/* Seventh set (for very few logos 1-4) */}
                 {!isEditMode && clients.length > 0 && clients.length < 5 && clients.map((client, index) => (
                   <div key={`seventh-${client.id}-${index}`} className="flex-shrink-0 px-3 sm:px-6 md:px-8 mx-1 sm:mx-2 md:mx-4">
@@ -574,7 +551,7 @@ const HomePage = () => {
                     </div>
                   </div>
                 ))}
-                
+
                 {/* Eighth set (for very few logos 1-4) */}
                 {!isEditMode && clients.length > 0 && clients.length < 5 && clients.map((client, index) => (
                   <div key={`eighth-${client.id}-${index}`} className="flex-shrink-0 px-3 sm:px-6 md:px-8 mx-1 sm:mx-2 md:mx-4">
@@ -689,8 +666,8 @@ const HomePage = () => {
                 {/* Feature Image or Icon */}
                 {feature.image_url || feature.imageUrl ? (
                   <div className="w-full h-48 overflow-hidden flex-shrink-0">
-                    <img 
-                      src={feature.image_url || feature.imageUrl} 
+                    <img
+                      src={feature.image_url || feature.imageUrl}
                       alt={feature.title}
                       className="w-full h-full object-cover"
                       loading="lazy"
@@ -709,7 +686,7 @@ const HomePage = () => {
                     </div>
                   </div>
                 )}
-                
+
                 {/* Feature Content */}
                 <div className="p-6 flex-1 flex flex-col">
                   <h3 className="text-xl font-semibold mb-2 text-dark-50">{feature.title}</h3>
@@ -739,7 +716,7 @@ const HomePage = () => {
                 {ctaTitle}
               </h2>
             </EditableWrapper>
-            
+
             <EditableWrapper
               id="home-cta-content"
               type="textarea"
@@ -753,7 +730,7 @@ const HomePage = () => {
                 {ctaContent}
               </p>
             </EditableWrapper>
-            
+
             <EditableWrapper
               id="home-cta-buttons"
               type="object"
