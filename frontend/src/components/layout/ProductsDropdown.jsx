@@ -102,7 +102,7 @@ const ProductsDropdown = () => {
                       e.target.src = DEFAULT_BANNER;
                     }}
                     loading="eager"
-                    fetchPriority="high"
+                    fetchpriority="high"
                   />
                 </Link>
 
@@ -159,7 +159,7 @@ const ProductsDropdown = () => {
                   alt="More Categories"
                   className="absolute inset-0 w-full h-full object-cover transition-transform duration-500 group-hover:scale-110"
                   loading="eager"
-                  fetchPriority="high"
+                  fetchpriority="high"
                 />
               </Link>
 

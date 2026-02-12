@@ -2,8 +2,8 @@ import { useState } from 'react';
 import Card from '../../ui/Card';
 import Button from '../../ui/Button';
 import apiClient from '../../../config/apiClient';
-import { resolveImageUrl } from '../../../utils/apiHelpers';
-import { ArrowLeft, Upload, X } from 'lucide-react';
+import { resolveImageUrl, resolveFileUrl } from '../../../utils/apiHelpers';
+import { ArrowLeft, FileText, Upload, X } from 'lucide-react';
 
 /**
  * Product Family Editor Component
@@ -18,13 +18,15 @@ const FamilyEditor = ({ family, categories, onBack, onSave }) => {
     subcategory_id: family?.subcategory_id || null,
     family_image: family?.family_image || '',
     banner_image_url: family?.banner_image_url || '',
+    catalog_pdf_url: family?.catalog_pdf_url || '',
     overview_text: family?.overview_text || '',
     display_order: family?.display_order || 0,
     is_active: family?.is_active !== false,
     is_featured: family?.is_featured === true
   });
   const [saving, setSaving] = useState(false);
-  const [uploadingImage, setUploadingImage] = useState(null); // 'family_image' or 'banner_image_url'
+  const [uploadingImage, setUploadingImage] = useState(null);
+  const [uploadingPdf, setUploadingPdf] = useState(false);
 
   const handleChange = (field, value) => {
     setFormData(prev => ({ ...prev, [field]: value }));
@@ -67,6 +69,30 @@ const FamilyEditor = ({ family, categories, onBack, onSave }) => {
       handleChange(field, '');
     } catch (error) {
       console.error('Failed to delete image:', error);
+    }
+  };
+
+  const handlePdfUpload = async (event) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+    if (!file.name.toLowerCase().endsWith('.pdf')) {
+      alert('Please select a PDF file');
+      return;
+    }
+    setUploadingPdf(true);
+    try {
+      const formDataUpload = new FormData();
+      formDataUpload.append('file', file);
+      formDataUpload.append('subfolder', 'product-families');
+      const response = await apiClient.post('/api/v1/admin/upload/document', formDataUpload, {
+        headers: { 'Content-Type': 'multipart/form-data' }
+      });
+      handleChange('catalog_pdf_url', response.url);
+    } catch (error) {
+      console.error('Failed to upload PDF:', error);
+      alert(error.response?.data?.detail || 'Failed to upload PDF');
+    } finally {
+      setUploadingPdf(false);
     }
   };
 
@@ -238,6 +264,60 @@ const FamilyEditor = ({ family, categories, onBack, onSave }) => {
                 {renderImageControl('family_image', 'Family Image')}
                 {renderImageControl('banner_image_url', 'Banner Image')}
               </div>
+            </div>
+
+            {/* Family Catalog PDF */}
+            <div>
+              <h3 className="text-lg font-semibold text-dark-50 mb-4 pb-2 border-b border-dark-600">
+                Product Family Catalog PDF
+              </h3>
+              <label className="block text-sm font-medium text-dark-200 mb-2">
+                Catalog PDF (optional)
+              </label>
+              {formData.catalog_pdf_url ? (
+                <div className="flex items-center gap-3 p-4 bg-dark-700 border border-dark-600 rounded-lg">
+                  <FileText className="w-8 h-8 text-primary-500 flex-shrink-0" />
+                  <div className="flex-1 min-w-0">
+                    <a
+                      href={resolveFileUrl(formData.catalog_pdf_url)}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-primary-400 hover:text-primary-300 truncate block"
+                    >
+                      View catalog PDF
+                    </a>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => handleChange('catalog_pdf_url', '')}
+                    className="p-2 bg-red-600/20 hover:bg-red-600/40 text-red-400 rounded-lg transition-colors"
+                    title="Remove PDF"
+                  >
+                    <X className="w-4 h-4" />
+                  </button>
+                </div>
+              ) : (
+                <label className="relative block">
+                  <input
+                    type="file"
+                    accept=".pdf,application/pdf"
+                    onChange={handlePdfUpload}
+                    className="hidden"
+                    disabled={uploadingPdf}
+                  />
+                  <div className={`flex flex-col items-center justify-center border-2 border-dashed border-dark-600 hover:border-primary-500 rounded-lg cursor-pointer transition-all h-32 ${uploadingPdf ? 'opacity-50' : ''}`}>
+                    {uploadingPdf ? (
+                      <div className="w-8 h-8 border-2 border-dark-600 border-t-primary-500 rounded-full animate-spin" />
+                    ) : (
+                      <>
+                        <Upload className="w-10 h-10 text-dark-500 mb-2" />
+                        <span className="text-sm text-dark-400">Click to upload catalog PDF</span>
+                        <span className="text-xs text-dark-500 mt-1">PDF up to 1GB</span>
+                      </>
+                    )}
+                  </div>
+                </label>
+              )}
             </div>
 
             {/* Settings */}

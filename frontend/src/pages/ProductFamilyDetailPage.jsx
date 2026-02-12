@@ -1,12 +1,13 @@
 import { useState, useEffect, useMemo } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
-import { ArrowLeft, Grid3x3, List } from 'lucide-react';
+import { ArrowLeft, FileText, Grid3x3, List } from 'lucide-react';
 import ProductCard from '../components/ui/ProductCard';
 import QuickViewModal from '../components/ui/QuickViewModal';
 import Button from '../components/ui/Button';
 import LoadingSpinner from '../components/ui/LoadingSpinner';
 import SEOHead from '../components/SEOHead';
 import productService from '../services/productService';
+import { resolveFileUrl } from '../utils/apiHelpers';
 import logger from '../utils/logger';
 
 const CONTEXT = 'ProductFamilyDetailPage';
@@ -36,6 +37,32 @@ const ProductFamilyDetailPage = () => {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [familySlug]);
+
+  const productCount = products.length;
+  const seoTitle = family ? (family.meta_title || `${family.name} Product Family | Eagle Chair`) : '';
+  const seoDescription = family ? (family.meta_description || (family.description ? family.description.substring(0, 160) : `Explore the ${family.name} product family from Eagle Chair. Premium commercial seating solutions.`)) : '';
+  const familyUrl = family ? `/families/${familySlug}` : '';
+  const familyImage = family ? (family.banner_image_url || family.family_image || '/og-image.jpg') : '/og-image.jpg';
+
+  const familySchema = useMemo(() => {
+    if (!family) return null;
+    return {
+      "@context": "https://schema.org",
+      "@type": "CollectionPage",
+      "name": family.name,
+      "description": family.description || seoDescription,
+      "image": `https://www.eaglechair.com${familyImage}`,
+      "url": `https://www.eaglechair.com${familyUrl}`,
+      "breadcrumb": {
+        "@type": "BreadcrumbList",
+        "itemListElement": [
+          { "@type": "ListItem", "position": 1, "name": "Home", "item": "https://www.eaglechair.com/" },
+          { "@type": "ListItem", "position": 2, "name": "Products", "item": "https://www.eaglechair.com/products" },
+          { "@type": "ListItem", "position": 3, "name": family.name, "item": `https://www.eaglechair.com${familyUrl}` }
+        ]
+      }
+    };
+  }, [family, familySlug, familyUrl, familyImage, seoDescription]);
 
   const loadFamily = async () => {
     setLoading(true);
@@ -78,38 +105,8 @@ const ProductFamilyDetailPage = () => {
   }
 
   if (!family) {
-    return null; // Will redirect
+    return null;
   }
-
-  const productCount = products.length;
-
-  // Generate SEO data
-  const seoTitle = family.meta_title || `${family.name} Product Family | Eagle Chair`;
-  const seoDescription = family.meta_description || (family.description ? family.description.substring(0, 160) : `Explore the ${family.name} product family from Eagle Chair. Premium commercial seating solutions.`);
-  const familyUrl = `/families/${familySlug}`;
-  const familyImage = family.banner_image_url || family.family_image || '/og-image.jpg';
-  
-  // Generate structured data
-  const familySchema = useMemo(() => {
-    if (!family) return null;
-    
-    return {
-      "@context": "https://schema.org",
-      "@type": "CollectionPage",
-      "name": family.name,
-      "description": family.description || seoDescription,
-      "image": `https://www.eaglechair.com${familyImage}`,
-      "url": `https://www.eaglechair.com${familyUrl}`,
-      "breadcrumb": {
-        "@type": "BreadcrumbList",
-        "itemListElement": [
-          { "@type": "ListItem", "position": 1, "name": "Home", "item": "https://www.eaglechair.com/" },
-          { "@type": "ListItem", "position": 2, "name": "Products", "item": "https://www.eaglechair.com/products" },
-          { "@type": "ListItem", "position": 3, "name": family.name, "item": `https://www.eaglechair.com${familyUrl}` }
-        ]
-      }
-    };
-  }, [family, familySlug, familyUrl, familyImage, seoDescription]);
 
   return (
     <div className="min-h-screen py-8 bg-gradient-to-br from-cream-50 to-cream-100">
@@ -178,10 +175,23 @@ const ProductFamilyDetailPage = () => {
                     Category: <span className="font-medium">{family.category_name}</span>
                   </p>
                 )}
-                <div className="bg-cream-100 px-4 py-2 rounded-lg inline-block">
-                  <span className="text-sm font-semibold text-slate-800">
-                    {productCount} {productCount === 1 ? 'Product' : 'Products'}
-                  </span>
+                <div className="flex flex-wrap items-center gap-3 mb-4">
+                  <div className="bg-cream-100 px-4 py-2 rounded-lg">
+                    <span className="text-sm font-semibold text-slate-800">
+                      {productCount} {productCount === 1 ? 'Product' : 'Products'}
+                    </span>
+                  </div>
+                  {family.catalog_pdf_url && (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => window.open(resolveFileUrl(family.catalog_pdf_url), '_blank', 'noopener,noreferrer')}
+                      className="inline-flex items-center gap-2"
+                    >
+                      <FileText className="w-4 h-4" />
+                      View Product Family Catalog
+                    </Button>
+                  )}
                 </div>
               </div>
 

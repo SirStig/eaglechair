@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useMemo } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
-import { AnimatePresence } from 'framer-motion';
+import { AnimatePresence, motion } from 'framer-motion';
 import Button from '../components/ui/Button';
 import Tag from '../components/ui/Tag';
 import LoadingSpinner from '../components/ui/LoadingSpinner';
@@ -10,7 +10,7 @@ import SEOHead from '../components/SEOHead';
 import { useCartStore } from '../store/cartStore';
 import { updateProduct } from '../services/contentService';
 import productService from '../services/productService';
-import { getProductImages, resolveImageUrl } from '../utils/apiHelpers';
+import { getProductImages, resolveImageUrl, resolveFileUrl } from '../utils/apiHelpers';
 import { useToast } from '../contexts/ToastContext';
 import logger from '../utils/logger';
 
@@ -39,6 +39,7 @@ const ProductDetailPage = () => {
   const [variations, setVariations] = useState([]);
   const [selectedVariation, setSelectedVariation] = useState(null);
   const [loadingVariations, setLoadingVariations] = useState(false);
+  const [familyProducts, setFamilyProducts] = useState([]);
 
   useEffect(() => {
     loadProduct();
@@ -171,6 +172,20 @@ const ProductDetailPage = () => {
       if (response && response.data) {
         setProduct(response.data);
         setRelatedProducts(response.related || []);
+
+        // Fetch family members if family_id exists
+        if (response.data.family_id) {
+          productService.getProducts({
+            family_id: response.data.family_id,
+            limit: 5 // Fetch 5, filter self, keep 4
+          })
+            .then(res => {
+              // Filter out current product
+              const members = (res.data || []).filter(p => p.id !== response.data.id).slice(0, 4);
+              setFamilyProducts(members);
+            })
+            .catch(err => logger.error(CONTEXT, 'Failed to load family members', err));
+        }
 
         logger.info(CONTEXT, `Successfully loaded product: ${response.data.name}`);
 
@@ -371,7 +386,7 @@ const ProductDetailPage = () => {
                     className="w-full h-auto object-contain"
                     style={{ maxHeight: '500px', mixBlendMode: 'multiply' }}
                     loading={selectedImage === 0 ? "eager" : "lazy"}
-                    fetchPriority={selectedImage === 0 ? "high" : "low"}
+                    fetchpriority={selectedImage === 0 ? "high" : "low"}
                     decoding="async"
                   />
                 </div>
@@ -693,7 +708,7 @@ const ProductDetailPage = () => {
                     style={{ maxHeight: '500px', mixBlendMode: 'multiply' }}
                     loading="eager"
                     decoding="async"
-                    fetchPriority="high"
+                    fetchpriority="high"
                   />
 
                   {/* 3D Coming Soon Badge */}
@@ -979,11 +994,49 @@ const ProductDetailPage = () => {
         </div>
       </section>
 
+      {/* More from this Family */}
+      {familyProducts.length > 0 && (
+        <section className="bg-cream-50 border-t border-cream-200">
+          <div className="container mx-auto px-4 py-12 max-w-7xl">
+            <div className="flex flex-wrap items-center justify-between gap-4 mb-8">
+              <h2 className="text-2xl sm:text-3xl font-bold text-slate-800">More from this Family</h2>
+              <div className="flex items-center gap-3">
+                {product.family?.catalog_pdf_url && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => window.open(resolveFileUrl(product.family.catalog_pdf_url), '_blank', 'noopener,noreferrer')}
+                  >
+                    View Product Family Catalog
+                  </Button>
+                )}
+                {product.family && (
+                  <Link
+                    to={`/families/${product.family.slug || product.family.id}`}
+                    className="text-primary-600 hover:text-primary-700 font-medium flex items-center gap-1"
+                  >
+                    View Collection <span aria-hidden="true">&rarr;</span>
+                  </Link>
+                )}
+              </div>
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+              {familyProducts.map((familyProduct) => (
+                <ProductCard
+                  key={familyProduct.id}
+                  product={familyProduct}
+                />
+              ))}
+            </div>
+          </div>
+        </section>
+      )}
+
       {/* Related Products */}
       {relatedProducts.length > 0 && (
-        <section className="bg-white">
+        <section className="bg-white border-t border-cream-200">
           <div className="container mx-auto px-4 py-12 max-w-7xl">
-            <h2 className="text-2xl sm:text-3xl font-bold text-slate-800 mb-6 sm:mb-8">Recommended Products</h2>
+            <h2 className="text-2xl sm:text-3xl font-bold text-slate-800 mb-6 sm:mb-8">Related Products</h2>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
               {relatedProducts.map((relatedProduct) => (
                 <ProductCard

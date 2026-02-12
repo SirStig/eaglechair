@@ -47,7 +47,12 @@ async def get_families(
                 "category_id": fam.category_id,
                 "subcategory_id": fam.subcategory_id,
                 "description": fam.description,
+                "family_image": fam.family_image,
+                "banner_image_url": fam.banner_image_url,
+                "catalog_pdf_url": fam.catalog_pdf_url,
+                "overview_text": fam.overview_text,
                 "is_featured": fam.is_featured,
+                "is_active": fam.is_active,
                 "display_order": fam.display_order,
             }
             for fam in families
@@ -80,6 +85,7 @@ async def get_family(
         "description": family.description,
         "family_image": family.family_image,
         "banner_image_url": family.banner_image_url,
+        "catalog_pdf_url": family.catalog_pdf_url,
         "overview_text": family.overview_text,
         "is_featured": family.is_featured,
         "is_active": family.is_active,

@@ -114,6 +114,7 @@ class ProductFamily(Base):
     # Display
     family_image = Column(String(500), nullable=True)
     banner_image_url = Column(String(500), nullable=True)
+    catalog_pdf_url = Column(String(500), nullable=True)
     overview_text = Column(Text, nullable=True)
     display_order = Column(Integer, default=0, nullable=False)
     is_active = Column(Boolean, default=True, nullable=False)
@@ -379,6 +380,15 @@ class Chair(Base):
     # Relationships
     cart_items = relationship("CartItem", back_populates="product")
     quote_items = relationship("QuoteItem", back_populates="product")
+
+    # Self-referential many-to-many relationship for related products
+    related_products = relationship(
+        "Chair",
+        secondary="product_relations",
+        primaryjoin="Chair.id==ProductRelation.product_id",
+        secondaryjoin="Chair.id==ProductRelation.related_product_id",
+        backref="related_to",
+    )
 
     def __repr__(self) -> str:
         try:

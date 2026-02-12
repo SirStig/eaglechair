@@ -1,10 +1,29 @@
 import { api } from '../config/apiClient';
+import { loadContentData } from '../utils/contentDataLoader';
 import { transformProducts, transformProduct } from '../utils/apiHelpers';
 
-/**
- * Product Service
- * Handles all product-related API calls
- */
+const normalizeSubcategory = (s) => ({
+  ...s,
+  id: s.id,
+  name: s.name,
+  slug: s.slug,
+  display_order: s.display_order ?? s.displayOrder,
+  is_active: s.is_active ?? s.isActive,
+});
+
+const normalizeCategory = (c) => ({
+  ...c,
+  id: c.id,
+  name: c.name,
+  slug: c.slug,
+  description: c.description,
+  parent_id: c.parent_id ?? c.parentId,
+  display_order: c.display_order ?? c.displayOrder,
+  is_active: c.is_active ?? c.isActive,
+  icon_url: c.icon_url ?? c.iconUrl,
+  banner_image_url: c.banner_image_url ?? c.bannerImageUrl,
+  subcategories: (c.subcategories || []).map(normalizeSubcategory),
+});
 
 export const productService = {
   /**
@@ -94,21 +113,11 @@ export const productService = {
   },
 
   /**
-   * Get product categories
-   * @returns {Promise<Array>} Categories
+   * Get product categories (from static contentData.json when available, else API)
+   * @returns {Promise<Array>} Categories with subcategories, snake_case for UI
    */
   getCategories: async () => {
-    // Backend returns list[CategoryResponse] directly (not paginated)
-    // Use cache with 30 minute TTL (similar to useContent hooks)
-    const CACHE_KEY = 'categories-all';
     const CACHE_TTL = 30 * 60 * 1000;
-
-    // Import cachedFetch dynamically to avoid circular dependencies if any
-    // (though in this architecture it should be fine, but let's be safe or just use it directly if imported)
-    // We haven't imported cachedFetch yet, need to add import or implement simple cache here.
-    // Given the import is not at the top, let's implement a simple in-memory cache variable for this service
-    // to avoid modifying imports significantly.
-
     const now = Date.now();
     if (productService._categoriesCache &&
       productService._categoriesCacheTime &&
@@ -116,15 +125,20 @@ export const productService = {
       return productService._categoriesCache;
     }
 
+    try {
+      const content = await loadContentData();
+      if (content?.categories && Array.isArray(content.categories) && content.categories.length > 0) {
+        const categories = content.categories.map(normalizeCategory);
+        productService._categoriesCache = categories;
+        productService._categoriesCacheTime = now;
+        return categories;
+      }
+    } catch (_) {}
+
     const response = await api.get('/api/v1/categories');
-
-    // Response is an array of categories
     const categories = Array.isArray(response) ? response : [];
-
-    // Update cache
     productService._categoriesCache = categories;
     productService._categoriesCacheTime = now;
-
     return categories;
   },
 
@@ -158,11 +172,29 @@ export const productService = {
   },
 
   /**
-   * Get product subcategories
+   * Get product subcategories (from static contentData when available, else API)
    * @param {Object} params - Query parameters (category_id)
-   * @returns {Promise<Array>} Subcategories with counts
+   * @returns {Promise<Array>} Subcategories, snake_case for UI
    */
   getSubcategories: async (params = {}) => {
+    const categoryId = params?.category_id != null ? parseInt(params.category_id, 10) : null;
+    if (categoryId != null && productService._categoriesCache?.length) {
+      const cached = productService._categoriesCache.find((c) => c.id === categoryId);
+      if (cached?.subcategories && Array.isArray(cached.subcategories)) {
+        return cached.subcategories;
+      }
+    }
+    if (categoryId != null) {
+      try {
+        const content = await loadContentData();
+        if (content?.categories && Array.isArray(content.categories)) {
+          const category = content.categories.find((c) => c.id === categoryId);
+          if (category?.subcategories && Array.isArray(category.subcategories)) {
+            return category.subcategories.map(normalizeSubcategory);
+          }
+        }
+      } catch (_) {}
+    }
     const response = await api.get('/api/v1/subcategories', { params });
     return Array.isArray(response) ? response : [];
   },

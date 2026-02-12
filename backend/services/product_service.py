@@ -32,104 +32,96 @@ logger = logging.getLogger(__name__)
 
 class ProductService:
     """Service for product catalog operations"""
-    
+
     # ========================================================================
     # Category Operations
     # ========================================================================
-    
+
     @staticmethod
     async def get_categories(
         db: AsyncSession,
         include_inactive: bool = False,
-        parent_id: Optional[int] = None
+        parent_id: Optional[int] = None,
     ) -> List[Category]:
         """
         Get all categories
-        
+
         Args:
             db: Database session
             include_inactive: Include inactive categories
             parent_id: Filter by parent category ID
-            
+
         Returns:
             List of categories
         """
         query = select(Category)
-        
+
         if not include_inactive:
             query = query.where(Category.is_active == True)
-        
+
         if parent_id is not None:
             query = query.where(Category.parent_id == parent_id)
-        
+
         query = query.order_by(Category.display_order, Category.name)
-        
+
         result = await db.execute(query)
         categories = result.scalars().all()
-        
+
         logger.info(f"Retrieved {len(categories)} categories")
         return list(categories)
-    
+
     @staticmethod
-    async def get_category_by_id(
-        db: AsyncSession,
-        category_id: int
-    ) -> Category:
+    async def get_category_by_id(db: AsyncSession, category_id: int) -> Category:
         """
         Get category by ID
-        
+
         Args:
             db: Database session
             category_id: Category ID
-            
+
         Returns:
             Category instance
-            
+
         Raises:
             ResourceNotFoundError: If category not found
         """
-        result = await db.execute(
-            select(Category).where(Category.id == category_id)
-        )
+        result = await db.execute(select(Category).where(Category.id == category_id))
         category = result.scalar_one_or_none()
-        
+
         if not category:
-            raise ResourceNotFoundError(resource_type="Category", resource_id=category_id)
-        
+            raise ResourceNotFoundError(
+                resource_type="Category", resource_id=category_id
+            )
+
         return category
-    
+
     @staticmethod
-    async def get_category_by_slug(
-        db: AsyncSession,
-        slug: str
-    ) -> Category:
+    async def get_category_by_slug(db: AsyncSession, slug: str) -> Category:
         """
         Get category by slug
-        
+
         Args:
             db: Database session
             slug: Category slug
-            
+
         Returns:
             Category instance
-            
+
         Raises:
             ResourceNotFoundError: If category not found
         """
-        result = await db.execute(
-            select(Category).where(Category.slug == slug)
-        )
+        result = await db.execute(select(Category).where(Category.slug == slug))
         category = result.scalar_one_or_none()
-        
+
         if not category:
             raise ResourceNotFoundError(resource_type="Category", resource_id=slug)
-        
+
         return category
-    
+
     # ========================================================================
     # Product Operations
     # ========================================================================
-    
+
     @staticmethod
     async def get_products(
         db: AsyncSession,
@@ -154,11 +146,11 @@ class ProductService:
         in_stock_only: bool = False,
         exclude_variations: bool = False,
         smart_sort: bool = False,
-        include_inactive: bool = False
+        include_inactive: bool = False,
     ) -> Dict[str, Any]:
         """
         Get paginated products with comprehensive filters and smart sorting
-        
+
         Args:
             db: Database session
             pagination: Pagination parameters
@@ -183,87 +175,84 @@ class ProductService:
             exclude_variations: Exclude product variations, show only base products
             smart_sort: Use smart sorting (featured → new → popular → rest)
             include_inactive: Include inactive products
-            
+
         Returns:
             Paginated response dictionary
         """
         query = select(Chair).options(
             selectinload(Chair.category).selectinload(Category.parent),
             selectinload(Chair.family),
-            selectinload(Chair.subcategory)
+            selectinload(Chair.subcategory),
         )
-        
+
         # Apply filters
         if not include_inactive:
             query = query.where(Chair.is_active)
-        
+
         if category_id:
             query = query.where(Chair.category_id == category_id)
-        
+
         if subcategory_id:
             query = query.where(Chair.subcategory_id == subcategory_id)
-        
+
         if family_id:
             query = query.where(Chair.family_id == family_id)
-        
+
         if is_featured is not None:
             query = query.where(Chair.is_featured == is_featured)
-        
+
         if is_new is not None:
             query = query.where(Chair.is_new == is_new)
-        
+
         # Exclude variations (show only base products)
         if exclude_variations:
             query = query.where(
-                or_(
-                    Chair.model_suffix.is_(None),
-                    Chair.model_suffix == ""
-                )
+                or_(Chair.model_suffix.is_(None), Chair.model_suffix == "")
             )
-        
+
         # Finish filters
         if finish_ids:
             query = query.where(Chair.finish_id.in_(finish_ids))
-        
+
         # Upholstery filters
         if upholstery_ids:
             query = query.where(Chair.upholstery_id.in_(upholstery_ids))
-        
-        # Color filters  
+
+        # Color filters
         if color_ids:
             query = query.where(Chair.primary_color_id.in_(color_ids))
-        
+
         # Dimension filters
         if min_seat_height is not None:
             query = query.where(Chair.seat_height >= min_seat_height)
-        
+
         if max_seat_height is not None:
             query = query.where(Chair.seat_height <= max_seat_height)
-        
+
         if min_width is not None:
             query = query.where(Chair.width >= min_width)
-        
+
         if max_width is not None:
             query = query.where(Chair.width <= max_width)
-        
+
         # Feature filters
         if is_stackable is not None:
             query = query.where(Chair.is_stackable == is_stackable)
-        
+
         if is_outdoor is not None:
             query = query.where(Chair.is_outdoor == is_outdoor)
-        
+
         if is_ada_compliant is not None:
             query = query.where(Chair.is_ada_compliant == is_ada_compliant)
-        
+
         # Lead time filter
         if max_lead_time_days is not None:
             query = query.where(Chair.lead_time_days <= max_lead_time_days)
-        
+
         # Stock filter
         if in_stock_only:
             query = query.where(Chair.stock_quantity > 0)
-        
+
         # Search query (basic ILIKE, fuzzy search handled separately via cache)
         if search_query:
             search_term = f"%{search_query}%"
@@ -272,10 +261,10 @@ class ProductService:
                     Chair.name.ilike(search_term),
                     Chair.model_number.ilike(search_term),
                     Chair.short_description.ilike(search_term),
-                    Chair.full_description.ilike(search_term)
+                    Chair.full_description.ilike(search_term),
                 )
             )
-        
+
         # Smart sorting algorithm: featured → new → popular (view_count) → display_order → name
         if smart_sort:
             query = query.order_by(
@@ -283,44 +272,42 @@ class ProductService:
                 Chair.is_new.desc(),
                 Chair.view_count.desc(),
                 Chair.display_order,
-                Chair.name
+                Chair.name,
             )
         else:
             # Default ordering
             query = query.order_by(Chair.display_order, Chair.name)
-        
+
         # Paginate
         result = await paginate(db, query, pagination)
-        
+
         # Populate parent_slug for all products with categories
-        for product in result['items']:
+        for product in result["items"]:
             if product.category and product.category.parent:
                 product.category.parent_slug = product.category.parent.slug
-        
+
         logger.info(
             f"Retrieved {len(result['items'])} products (page {pagination.page}, "
             f"total {result['total']}, filters applied: {len([f for f in [category_id, subcategory_id, family_id, search_query] if f])})"
         )
-        
+
         return result
-    
+
     @staticmethod
     async def get_product_by_id(
-        db: AsyncSession,
-        product_id: int,
-        increment_view: bool = False
+        db: AsyncSession, product_id: int, increment_view: bool = False
     ) -> Chair:
         """
         Get product by ID
-        
+
         Args:
             db: Database session
             product_id: Product ID
             increment_view: Whether to increment view count
-            
+
         Returns:
             Chair instance
-            
+
         Raises:
             ResourceNotFoundError: If product not found
         """
@@ -330,174 +317,187 @@ class ProductService:
                 selectinload(Chair.category).selectinload(Category.parent),
                 selectinload(Chair.subcategory),
                 selectinload(Chair.family),
+                selectinload(Chair.related_products),
                 selectinload(Chair.variations).selectinload(ProductVariation.finish),
-                selectinload(Chair.variations).selectinload(ProductVariation.upholstery),
-                selectinload(Chair.variations).selectinload(ProductVariation.color)
+                selectinload(Chair.variations).selectinload(
+                    ProductVariation.upholstery
+                ),
+                selectinload(Chair.variations).selectinload(ProductVariation.color),
             )
             .where(Chair.id == product_id)
         )
         product = result.scalar_one_or_none()
-        
+
         if not product:
             raise ResourceNotFoundError(resource_type="Product", resource_id=product_id)
-        
+
         # Populate parent_slug for frontend routing
         if product.category and product.category.parent:
             product.category.parent_slug = product.category.parent.slug
-        
+
         # Increment view count
         if increment_view:
             product.view_count += 1
             await db.commit()
             await db.refresh(product)
-        
+
         return product
-    
+
     @staticmethod
     async def get_product_by_model_number(
-        db: AsyncSession,
-        model_number: str,
-        increment_view: bool = False
+        db: AsyncSession, model_number: str, increment_view: bool = False
     ) -> Chair:
         """
         Get product by model number
-        
+
         Args:
             db: Database session
             model_number: Product model number
             increment_view: Whether to increment view count
-            
+
         Returns:
             Chair instance
-            
+
         Raises:
             ResourceNotFoundError: If product not found
         """
         result = await db.execute(
             select(Chair)
-            .options(selectinload(Chair.category))
+            .options(selectinload(Chair.category), selectinload(Chair.related_products))
             .where(Chair.model_number == model_number)
         )
         product = result.scalar_one_or_none()
-        
+
         if not product:
-            raise ResourceNotFoundError(resource_type="Product", resource_id=model_number)
-        
+            raise ResourceNotFoundError(
+                resource_type="Product", resource_id=model_number
+            )
+
         # Increment view count
         if increment_view:
             product.view_count += 1
             await db.commit()
             await db.refresh(product)
-        
+
         return product
-    
+
     @staticmethod
     async def get_product_by_slug(
-        db: AsyncSession,
-        slug: str,
-        increment_view: bool = False
+        db: AsyncSession, slug: str, increment_view: bool = False
     ) -> Chair:
         """
         Get product by slug
-        
+
         Args:
             db: Database session
             slug: Product slug
             increment_view: Whether to increment view count
-            
+
         Returns:
             Chair instance
-            
+
         Raises:
             ResourceNotFoundError: If product not found
         """
         result = await db.execute(
             select(Chair)
-            .options(selectinload(Chair.category).selectinload(Category.parent))
+            .options(
+                selectinload(Chair.category).selectinload(Category.parent),
+                selectinload(Chair.subcategory),
+                selectinload(Chair.family),
+                selectinload(Chair.related_products),
+                selectinload(Chair.variations).selectinload(ProductVariation.finish),
+                selectinload(Chair.variations).selectinload(
+                    ProductVariation.upholstery
+                ),
+                selectinload(Chair.variations).selectinload(ProductVariation.color),
+            )
             .where(Chair.slug == slug)
         )
         product = result.scalar_one_or_none()
-        
+
         if not product:
             raise ResourceNotFoundError(resource_type="Product", resource_id=slug)
-        
+
         # Populate parent_slug for frontend routing
         if product.category and product.category.parent:
             product.category.parent_slug = product.category.parent.slug
-        
+
         # Increment view count
         if increment_view:
             product.view_count += 1
             await db.commit()
             await db.refresh(product)
-        
+
         return product
-    
+
     @staticmethod
     async def search_products_fuzzy(
-        db: AsyncSession,
-        search_query: str,
-        limit: int = 50,
-        threshold: int = 75
+        db: AsyncSession, search_query: str, limit: int = 50, threshold: int = 75
     ) -> List[Chair]:
         """
         Fuzzy search for products using YokedCache
-        
+
         Args:
             db: Database session
             search_query: Search query
             limit: Maximum results
             threshold: Minimum similarity score (0-100)
-            
+
         Returns:
             List of matching products sorted by relevance
         """
         from backend.services.cache_service import cache_service
-        
+
         # Try fuzzy search from cache first
         cache_results = await cache_service.fuzzy_search(
             query=search_query,
             threshold=threshold,
             max_results=limit,
-            tags=["products"]
+            tags=["products"],
         )
-        
+
         # If we have cached results, fetch the full products
         if cache_results:
             product_ids = []
             for result in cache_results:
                 # Extract product ID from cache key (format: "eaglechair:product_search:123")
                 try:
-                    key_parts = result['key'].split(':')
-                    if len(key_parts) >= 3 and key_parts[1] == 'product_search':
+                    key_parts = result["key"].split(":")
+                    if len(key_parts) >= 3 and key_parts[1] == "product_search":
                         product_ids.append(int(key_parts[2]))
                 except (ValueError, IndexError):
                     continue
-            
+
             if product_ids:
                 query = (
                     select(Chair)
                     .options(selectinload(Chair.category))
-                    .where(
-                        and_(
-                            Chair.id.in_(product_ids),
-                            Chair.is_active
-                        )
-                    )
+                    .where(and_(Chair.id.in_(product_ids), Chair.is_active))
                 )
                 result = await db.execute(query)
                 products = list(result.scalars().all())
-                
+
                 # Sort by fuzzy search score
-                product_score_map = {pid: score for pid, score in zip(product_ids, [r['score'] for r in cache_results[:len(product_ids)]])}
-                products.sort(key=lambda p: product_score_map.get(p.id, 0), reverse=True)
-                
-                logger.info(f"Fuzzy search (cached) for '{search_query}' returned {len(products)} results")
+                product_score_map = {
+                    pid: score
+                    for pid, score in zip(
+                        product_ids,
+                        [r["score"] for r in cache_results[: len(product_ids)]],
+                    )
+                }
+                products.sort(
+                    key=lambda p: product_score_map.get(p.id, 0), reverse=True
+                )
+
+                logger.info(
+                    f"Fuzzy search (cached) for '{search_query}' returned {len(products)} results"
+                )
                 return products
-        
+
         # Fallback to database ILIKE search
         search_term = f"%{search_query}%"
-        
+
         query = (
             select(Chair)
             .options(selectinload(Chair.category))
@@ -508,16 +508,16 @@ class ProductService:
                         Chair.name.ilike(search_term),
                         Chair.model_number.ilike(search_term),
                         Chair.short_description.ilike(search_term),
-                        Chair.full_description.ilike(search_term)
-                    )
+                        Chair.full_description.ilike(search_term),
+                    ),
                 )
             )
             .limit(limit)
         )
-        
+
         result = await db.execute(query)
         products = list(result.scalars().all())
-        
+
         # Lazy cache population: Index products found via database search
         # This ensures future searches will use the cache
         for product in products:
@@ -525,146 +525,138 @@ class ProductService:
                 product.name or "",
                 product.model_number or "",
                 product.short_description or "",
-                product.full_description or ""
+                product.full_description or "",
             ]
-            
+
             if product.category:
                 searchable_parts.append(product.category.name or "")
-            
+
             searchable_text = " ".join(filter(None, searchable_parts))
-            
+
             # Index asynchronously (don't await to avoid slowing down the response)
             try:
                 await cache_service.index_product_for_search(
-                    product_id=product.id,
-                    searchable_text=searchable_text,
-                    ttl=3600
+                    product_id=product.id, searchable_text=searchable_text, ttl=3600
                 )
             except Exception as e:
                 # Don't let cache errors affect search results
                 logger.debug(f"Failed to cache product {product.id} for search: {e}")
-        
-        logger.info(f"Fuzzy search (database fallback) for '{search_query}' returned {len(products)} results")
-        
+
+        logger.info(
+            f"Fuzzy search (database fallback) for '{search_query}' returned {len(products)} results"
+        )
+
         return products
-    
+
     # ========================================================================
     # Finish Operations
     # ========================================================================
-    
+
     @staticmethod
     async def get_finishes(
         db: AsyncSession,
         finish_type: Optional[str] = None,
-        include_inactive: bool = False
+        include_inactive: bool = False,
     ) -> List[Finish]:
         """
         Get all finishes
-        
+
         Args:
             db: Database session
             finish_type: Filter by finish type
             include_inactive: Include inactive finishes
-            
+
         Returns:
             List of finishes
         """
         query = select(Finish)
-        
+
         if not include_inactive:
             query = query.where(Finish.is_active == True)
-        
+
         if finish_type:
             query = query.where(Finish.finish_type == finish_type)
-        
+
         query = query.order_by(Finish.display_order, Finish.name)
-        
+
         result = await db.execute(query)
         finishes = result.scalars().all()
-        
+
         logger.info(f"Retrieved {len(finishes)} finishes")
         return list(finishes)
-    
+
     @staticmethod
-    async def get_finish_by_id(
-        db: AsyncSession,
-        finish_id: int
-    ) -> Finish:
+    async def get_finish_by_id(db: AsyncSession, finish_id: int) -> Finish:
         """
         Get finish by ID
-        
+
         Args:
             db: Database session
             finish_id: Finish ID
-            
+
         Returns:
             Finish instance
-            
+
         Raises:
             ResourceNotFoundError: If finish not found
         """
-        result = await db.execute(
-            select(Finish).where(Finish.id == finish_id)
-        )
+        result = await db.execute(select(Finish).where(Finish.id == finish_id))
         finish = result.scalar_one_or_none()
-        
+
         if not finish:
             raise ResourceNotFoundError(resource_type="Finish", resource_id=finish_id)
-        
+
         return finish
-    
+
     # ========================================================================
     # Upholstery Operations
     # ========================================================================
-    
+
     @staticmethod
     async def get_upholsteries(
         db: AsyncSession,
         material_type: Optional[str] = None,
-        include_inactive: bool = False
+        include_inactive: bool = False,
     ) -> List[Upholstery]:
         """
         Get all upholsteries
-        
+
         Args:
             db: Database session
             material_type: Filter by material type
             include_inactive: Include inactive upholsteries
-            
+
         Returns:
             List of upholsteries
         """
         query = select(Upholstery)
-        
+
         if not include_inactive:
             query = query.where(Upholstery.is_active == True)
-        
+
         if material_type:
             query = query.where(Upholstery.material_type == material_type)
-        
+
         query = query.order_by(Upholstery.display_order, Upholstery.name)
-        
+
         result = await db.execute(query)
         upholsteries = result.scalars().all()
-        
+
         logger.info(f"Retrieved {len(upholsteries)} upholsteries")
         return list(upholsteries)
-    
+
     @staticmethod
-    async def get_upholstery_by_id(
-        db: AsyncSession,
-        upholstery_id: int
-    ) -> Upholstery:
+    async def get_upholstery_by_id(db: AsyncSession, upholstery_id: int) -> Upholstery:
         """
         Get upholstery by ID
-        
+
         Args:
             db: Database session
             upholstery_id: Upholstery ID
-            
+
         Returns:
             Upholstery instance
-            
+
         Raises:
             ResourceNotFoundError: If upholstery not found
         """
@@ -672,30 +664,30 @@ class ProductService:
             select(Upholstery).where(Upholstery.id == upholstery_id)
         )
         upholstery = result.scalar_one_or_none()
-        
+
         if not upholstery:
-            raise ResourceNotFoundError(resource_type="Upholstery", resource_id=upholstery_id)
-        
+            raise ResourceNotFoundError(
+                resource_type="Upholstery", resource_id=upholstery_id
+            )
+
         return upholstery
-    
+
     # ========================================================================
     # Enhanced Product Methods (NEW - Product System Overhaul)
     # ========================================================================
-    
+
     @staticmethod
     async def get_product_with_variations(
-        db: AsyncSession,
-        product_id: int,
-        include_inactive_variations: bool = False
+        db: AsyncSession, product_id: int, include_inactive_variations: bool = False
     ) -> Dict[str, Any]:
         """
         Get product with all variations and related data
-        
+
         Args:
             db: Database session
             product_id: Product ID
             include_inactive_variations: Include inactive variations
-            
+
         Returns:
             dict with product, variations, family, subcategory info
         """
@@ -708,45 +700,46 @@ class ProductService:
                 selectinload(Chair.subcategory),
                 selectinload(Chair.family),
                 selectinload(Chair.variations).selectinload(ProductVariation.finish),
-                selectinload(Chair.variations).selectinload(ProductVariation.upholstery),
-                selectinload(Chair.variations).selectinload(ProductVariation.color)
+                selectinload(Chair.variations).selectinload(
+                    ProductVariation.upholstery
+                ),
+                selectinload(Chair.variations).selectinload(ProductVariation.color),
             )
             .where(Chair.id == product_id)
         )
         result = await db.execute(stmt)
         product = result.scalar_one_or_none()
-        
+
         if not product:
             raise ResourceNotFoundError(resource_type="Product", resource_id=product_id)
-        
+
         # Filter variations
         variations = product.variations
         if not include_inactive_variations:
             variations = [v for v in variations if v.is_available]
-        
+
         # Sort variations by display order
         variations.sort(key=lambda v: v.display_order)
-        
+
         return {
             "product": product,
             "variations": variations,
             "family": product.family,
             "subcategory": product.subcategory,
-            "category": product.category
+            "category": product.category,
         }
-    
+
     @staticmethod
     async def get_available_options(
-        db: AsyncSession,
-        product_id: int
+        db: AsyncSession, product_id: int
     ) -> Dict[str, Any]:
         """
         Get all available options for a product (colors, finishes, upholsteries)
-        
+
         Args:
             db: Database session
             product_id: Product ID
-            
+
         Returns:
             dict with colors, finishes, upholsteries lists
         """
@@ -754,10 +747,10 @@ class ProductService:
         stmt = select(Chair).where(Chair.id == product_id)
         result = await db.execute(stmt)
         product = result.scalar_one_or_none()
-        
+
         if not product:
             raise ResourceNotFoundError(resource_type="Product", resource_id=product_id)
-        
+
         # Get colors (filter by product's available_colors if specified)
         colors_query = select(Color).where(Color.is_active == True)
         if product.available_colors:
@@ -765,7 +758,7 @@ class ProductService:
         colors_query = colors_query.order_by(Color.display_order, Color.name)
         colors_result = await db.execute(colors_query)
         colors = list(colors_result.scalars().all())
-        
+
         # Get active finishes
         finishes_query = (
             select(Finish)
@@ -774,7 +767,7 @@ class ProductService:
         )
         finishes_result = await db.execute(finishes_query)
         finishes = list(finishes_result.scalars().all())
-        
+
         # Get active upholsteries
         upholsteries_query = (
             select(Upholstery)
@@ -783,44 +776,42 @@ class ProductService:
         )
         upholsteries_result = await db.execute(upholsteries_query)
         upholsteries = list(upholsteries_result.scalars().all())
-        
+
         # Get custom options applicable to this product's category
-        options_query = (
-            select(CustomOption)
-            .where(CustomOption.is_active == True)
-        )
+        options_query = select(CustomOption).where(CustomOption.is_active == True)
         options_result = await db.execute(options_query)
         all_options = options_result.scalars().all()
-        
+
         # Filter options by applicable categories
         applicable_options = []
         for option in all_options:
-            if not option.applicable_categories or product.category_id in option.applicable_categories:
+            if (
+                not option.applicable_categories
+                or product.category_id in option.applicable_categories
+            ):
                 applicable_options.append(option)
-        
+
         applicable_options.sort(key=lambda o: o.display_order)
-        
+
         return {
             "colors": colors,
             "finishes": finishes,
             "upholsteries": upholsteries,
-            "custom_options": applicable_options
+            "custom_options": applicable_options,
         }
-    
+
     @staticmethod
     async def get_product_images(
-        db: AsyncSession,
-        product_id: int,
-        variation_id: Optional[int] = None
+        db: AsyncSession, product_id: int, variation_id: Optional[int] = None
     ) -> Dict[str, Any]:
         """
         Get product images organized by type (side, front, gallery)
-        
+
         Args:
             db: Database session
             product_id: Product ID
             variation_id: Optional variation ID for variation-specific images
-            
+
         Returns:
             dict with primary_image, hover_image, gallery images
         """
@@ -828,30 +819,32 @@ class ProductService:
         stmt = select(Chair).where(Chair.id == product_id)
         result = await db.execute(stmt)
         product = result.scalar_one_or_none()
-        
+
         if not product:
             raise ResourceNotFoundError(resource_type="Product", resource_id=product_id)
-        
+
         images = {
             "primary_image_url": product.primary_image_url,
             "hover_image_url": product.hover_image_url,
-            "gallery": product.images or []
+            "gallery": product.images or [],
         }
-        
+
         # If variation specified, overlay variation images
         if variation_id:
-            var_stmt = select(ProductVariation).where(ProductVariation.id == variation_id)
+            var_stmt = select(ProductVariation).where(
+                ProductVariation.id == variation_id
+            )
             var_result = await db.execute(var_stmt)
             variation = var_result.scalar_one_or_none()
-            
+
             if variation:
                 if variation.primary_image_url:
                     images["primary_image_url"] = variation.primary_image_url
                 if variation.images:
                     images["gallery"] = variation.images + images["gallery"]
-        
+
         return images
-    
+
     @staticmethod
     async def filter_products(
         db: AsyncSession,
@@ -861,11 +854,11 @@ class ProductService:
         tags: Optional[List[str]] = None,
         search: Optional[str] = None,
         is_active: bool = True,
-        pagination: Optional[PaginationParams] = None
+        pagination: Optional[PaginationParams] = None,
     ):
         """
         Advanced product filtering
-        
+
         Args:
             db: Database session
             category_id: Filter by category
@@ -875,75 +868,75 @@ class ProductService:
             search: Search in name, model_number, description
             is_active: Filter active products
             pagination: Pagination parameters
-            
+
         Returns:
             Paginated product results
         """
         query = select(Chair).options(
             selectinload(Chair.category),
             selectinload(Chair.subcategory),
-            selectinload(Chair.family)
+            selectinload(Chair.family),
         )
-        
+
         # Apply filters
         if is_active:
             query = query.where(Chair.is_active == True)
-        
+
         if category_id:
             query = query.where(Chair.category_id == category_id)
-        
+
         if subcategory_id:
             query = query.where(Chair.subcategory_id == subcategory_id)
-        
+
         if family_id:
             query = query.where(Chair.family_id == family_id)
-        
+
         if search:
             search_term = f"%{search}%"
             query = query.where(
                 or_(
                     Chair.name.ilike(search_term),
                     Chair.model_number.ilike(search_term),
-                    Chair.description.ilike(search_term)
+                    Chair.description.ilike(search_term),
                 )
             )
-        
+
         # Tag filtering (requires join)
         if tags:
             from backend.models.chair import ProductTagAssociation
+
             query = (
-                query
-                .join(ProductTagAssociation, Chair.id == ProductTagAssociation.product_id)
+                query.join(
+                    ProductTagAssociation, Chair.id == ProductTagAssociation.product_id
+                )
                 .join(ProductTag, ProductTagAssociation.tag_id == ProductTag.id)
                 .where(ProductTag.slug.in_(tags))
                 .distinct()
             )
-        
+
         # Default ordering
         query = query.order_by(Chair.display_order, Chair.name)
-        
+
         # Paginate if requested
         if pagination:
             return await paginate(db, query, pagination)
-        
+
         result = await db.execute(query)
         products = result.scalars().all()
         return list(products)
-    
+
     @staticmethod
     async def get_related_products(
-        db: AsyncSession,
-        product_id: int,
-        limit: int = 6
+        db: AsyncSession, product_id: int, limit: int = 6
     ) -> List[Chair]:
         """
         Get related products based on family and category
-        
+
         Args:
             db: Database session
             product_id: Product ID
             limit: Max number of related products
-            
+
         Returns:
             List of related products
         """
@@ -951,18 +944,16 @@ class ProductService:
         stmt = select(Chair).where(Chair.id == product_id)
         result = await db.execute(stmt)
         product = result.scalar_one_or_none()
-        
+
         if not product:
             raise ResourceNotFoundError(resource_type="Product", resource_id=product_id)
-        
+
         # Find related products
         # Priority: Same family > Same subcategory > Same category
         query = (
-            select(Chair)
-            .where(Chair.id != product_id)
-            .where(Chair.is_active == True)
+            select(Chair).where(Chair.id != product_id).where(Chair.is_active == True)
         )
-        
+
         if product.family_id:
             # Same family products first
             query = query.where(Chair.family_id == product.family_id)
@@ -972,59 +963,61 @@ class ProductService:
         else:
             # Same category
             query = query.where(Chair.category_id == product.category_id)
-        
+
         query = query.order_by(Chair.display_order, Chair.name).limit(limit)
-        
+
         result = await db.execute(query)
         related = result.scalars().all()
-        
+
         return list(related)
-    
+
     # ========================================================================
     # Family & Subcategory Methods (NEW)
     # ========================================================================
-    
+
     @staticmethod
     async def get_families(
         db: AsyncSession,
         category_id: Optional[int] = None,
         featured_only: bool = False,
-        include_inactive: bool = False
+        include_inactive: bool = False,
     ) -> List[ProductFamily]:
         """Get product families"""
         query = select(ProductFamily)
-        
+
         if not include_inactive:
             query = query.where(ProductFamily.is_active == True)
-        
+
         if featured_only:
             query = query.where(ProductFamily.is_featured == True)
-        
+
         if category_id:
             query = query.where(ProductFamily.category_id == category_id)
-        
+
         query = query.order_by(ProductFamily.display_order, ProductFamily.name)
-        
+
         result = await db.execute(query)
         return list(result.scalars().all())
-    
+
     @staticmethod
     async def get_subcategories(
         db: AsyncSession,
         category_id: Optional[int] = None,
-        include_inactive: bool = False
+        include_inactive: bool = False,
     ) -> List[ProductSubcategory]:
         """Get product subcategories"""
         query = select(ProductSubcategory)
-        
+
         if not include_inactive:
             query = query.where(ProductSubcategory.is_active == True)
-        
+
         if category_id:
             query = query.where(ProductSubcategory.category_id == category_id)
-        
-        query = query.order_by(ProductSubcategory.display_order, ProductSubcategory.name)
-        
+
+        query = query.order_by(
+            ProductSubcategory.display_order, ProductSubcategory.name
+        )
+
         result = await db.execute(query)
         return list(result.scalars().all())
 
@@ -1060,57 +1053,55 @@ class ProductService:
 
         # Products (chairs)
         result = await db.execute(
-            select(func.max(Chair.updated_at))
-            .where(Chair.is_active == True)
+            select(func.max(Chair.updated_at)).where(Chair.is_active == True)
         )
         timestamps["products"] = result.scalar() or None
 
         # Categories
         result = await db.execute(
-            select(func.max(Category.updated_at))
-            .where(Category.is_active == True)
+            select(func.max(Category.updated_at)).where(Category.is_active == True)
         )
         timestamps["categories"] = result.scalar() or None
 
         # Product Variations
         result = await db.execute(
-            select(func.max(ProductVariation.updated_at))
-            .where(ProductVariation.is_available == True)
+            select(func.max(ProductVariation.updated_at)).where(
+                ProductVariation.is_available == True
+            )
         )
         timestamps["variations"] = result.scalar() or None
 
         # Colors
         result = await db.execute(
-            select(func.max(Color.updated_at))
-            .where(Color.is_active == True)
+            select(func.max(Color.updated_at)).where(Color.is_active == True)
         )
         timestamps["colors"] = result.scalar() or None
 
         # Finishes
         result = await db.execute(
-            select(func.max(Finish.updated_at))
-            .where(Finish.is_active == True)
+            select(func.max(Finish.updated_at)).where(Finish.is_active == True)
         )
         timestamps["finishes"] = result.scalar() or None
 
         # Upholsteries
         result = await db.execute(
-            select(func.max(Upholstery.updated_at))
-            .where(Upholstery.is_active == True)
+            select(func.max(Upholstery.updated_at)).where(Upholstery.is_active == True)
         )
         timestamps["upholsteries"] = result.scalar() or None
 
         # Product Families
         result = await db.execute(
-            select(func.max(ProductFamily.updated_at))
-            .where(ProductFamily.is_active == True)
+            select(func.max(ProductFamily.updated_at)).where(
+                ProductFamily.is_active == True
+            )
         )
         timestamps["families"] = result.scalar() or None
 
         # Product Subcategories
         result = await db.execute(
-            select(func.max(ProductSubcategory.updated_at))
-            .where(ProductSubcategory.is_active == True)
+            select(func.max(ProductSubcategory.updated_at)).where(
+                ProductSubcategory.is_active == True
+            )
         )
         timestamps["subcategories"] = result.scalar() or None
 
@@ -1118,7 +1109,11 @@ class ProductService:
         for key, timestamp in timestamps.items():
             if timestamp:
                 # Convert to UTC and format as ISO string
-                timestamps[key] = timestamp.isoformat() + "Z" if timestamp.tzinfo else timestamp.isoformat() + "Z"
+                timestamps[key] = (
+                    timestamp.isoformat() + "Z"
+                    if timestamp.tzinfo
+                    else timestamp.isoformat() + "Z"
+                )
             else:
                 timestamps[key] = None
 
@@ -1128,26 +1123,26 @@ class ProductService:
     # ========================================================================
     # Search Index Management
     # ========================================================================
-    
+
     @staticmethod
     async def warm_search_cache(db: AsyncSession) -> int:
         """
         Populate the search cache with all active products
-        
+
         This should be called during application startup to enable
         fast fuzzy search. Products are indexed with searchable text
         (name, model number, descriptions) for YokedCache fuzzy matching.
-        
+
         Args:
             db: Database session
-            
+
         Returns:
             int: Number of products indexed
         """
         from backend.services.cache_service import cache_service
-        
+
         logger.info("Starting product search cache warm-up...")
-        
+
         try:
             # Fetch all active products
             query = (
@@ -1155,42 +1150,42 @@ class ProductService:
                 .where(Chair.is_active == True)
                 .options(selectinload(Chair.category))
             )
-            
+
             result = await db.execute(query)
             products = list(result.scalars().all())
-            
+
             indexed_count = 0
-            
+
             for product in products:
                 # Build searchable text from multiple fields
                 searchable_parts = [
                     product.name or "",
                     product.model_number or "",
                     product.short_description or "",
-                    product.full_description or ""
+                    product.full_description or "",
                 ]
-                
+
                 # Add category name if available
                 if product.category:
                     searchable_parts.append(product.category.name or "")
-                
+
                 searchable_text = " ".join(filter(None, searchable_parts))
-                
+
                 # Index for fuzzy search
                 success = await cache_service.index_product_for_search(
                     product_id=product.id,
                     searchable_text=searchable_text,
-                    ttl=3600  # 1 hour
+                    ttl=3600,  # 1 hour
                 )
-                
+
                 if success:
                     indexed_count += 1
-            
-            logger.info(f"Product search cache warm-up complete: {indexed_count} products indexed")
+
+            logger.info(
+                f"Product search cache warm-up complete: {indexed_count} products indexed"
+            )
             return indexed_count
-            
+
         except Exception as e:
             logger.error(f"Error warming search cache: {e}")
             return 0
-
-

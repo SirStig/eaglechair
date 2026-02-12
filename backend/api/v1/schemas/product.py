@@ -110,6 +110,7 @@ class ProductFamilyBase(BaseModel):
     subcategory_id: Optional[int] = None
     family_image: Optional[str] = Field(None, max_length=500)
     banner_image_url: Optional[str] = Field(None, max_length=500)
+    catalog_pdf_url: Optional[str] = Field(None, max_length=500)
     overview_text: Optional[str] = None
     display_order: int = 0
     is_active: bool = True
@@ -441,6 +442,7 @@ class ChairResponse(ChairBase, TimestampSchema):
     """Schema for chair response"""
 
     id: int
+    family_id: Optional[int] = None
     view_count: int
     quote_count: int
     # Optional pricing information (only included if company is authenticated)
@@ -471,6 +473,7 @@ class ChairDetailResponse(ChairResponse):
     """Detailed chair response with related data"""
 
     category: Optional[CategoryResponse] = None
+    family: Optional[ProductFamilyResponse] = None
     related_products: Optional[list[ChairResponse]] = None
 
 

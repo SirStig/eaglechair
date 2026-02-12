@@ -22,6 +22,7 @@ from backend.database.base import get_db
 from backend.models.chair import Category, ProductSubcategory
 from backend.models.company import AdminRole, AdminUser
 from backend.utils.slug import slugify
+from backend.utils.static_content_exporter import export_content_after_update
 
 logger = logging.getLogger(__name__)
 
@@ -163,6 +164,8 @@ async def create_category(
     await db.commit()
     await db.refresh(category)
 
+    await export_content_after_update('categories', db)
+
     logger.info(f"Created category: {category.name} (ID: {category.id})")
     
     return {
@@ -235,6 +238,8 @@ async def update_category(
     
     await db.commit()
     await db.refresh(category)
+
+    await export_content_after_update('categories', db)
     
     # Load subcategories from ProductSubcategory table (not Category.parent_id)
     subcat_query = (
@@ -321,6 +326,8 @@ async def delete_category(
         category.is_active = False
     
     await db.commit()
+
+    await export_content_after_update('categories', db)
     
     return MessageResponse(
         message=f"Category '{category.name}' {'deleted' if hard_delete else 'deactivated'} successfully"

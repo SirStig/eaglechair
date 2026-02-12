@@ -190,7 +190,7 @@ const GalleryPage = () => {
                     style={{ aspectRatio: '16/10', objectFit: 'cover' }}
                     loading={index < 6 ? "eager" : "lazy"}
                     decoding="async"
-                    fetchPriority={index < 3 ? "high" : index < 6 ? "auto" : "low"}
+                    fetchpriority={index < 3 ? "high" : index < 6 ? "auto" : "low"}
                   />
                   <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/30 to-transparent opacity-0 group-hover:opacity-100 transition-opacity">
                     <div className="absolute bottom-0 left-0 right-0 p-6 text-white">
