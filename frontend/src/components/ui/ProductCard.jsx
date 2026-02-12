@@ -4,7 +4,7 @@ import Tag from './Tag';
 import Button from './Button';
 import { formatPrice, getProductHoverImages, buildProductUrl } from '../../utils/apiHelpers';
 
-const ProductCard = ({ product, onQuickView, darkMode = false }) => {
+const ProductCard = ({ product, onQuickView, darkMode = false, compact = false }) => {
   const [imageLoaded, setImageLoaded] = useState(false);
   const [imageError, setImageError] = useState(false);
   const [isHovered, setIsHovered] = useState(false);
@@ -80,8 +80,7 @@ const ProductCard = ({ product, onQuickView, darkMode = false }) => {
       onMouseEnter={() => setIsHovered(true)}
       onMouseLeave={() => setIsHovered(false)}
     >
-      {/* Image Container - No borders, full bleed, taller aspect ratio for Eagle Chair products */}
-      <Link to={productUrl} className={`block relative aspect-[3/4] overflow-hidden ${bgImage} flex-shrink-0 rounded-lg`}>
+      <Link to={productUrl} className={`block relative overflow-hidden ${bgImage} flex-shrink-0 rounded-lg ${compact ? 'aspect-[4/3]' : 'aspect-[3/4]'}`}>
         {/* Show placeholder immediately while loading */}
         {!imageLoaded && !imageError && (
           <div className="absolute inset-0 flex items-center justify-center bg-dark-700/20">

@@ -897,7 +897,8 @@ class ProductService:
                 or_(
                     Chair.name.ilike(search_term),
                     Chair.model_number.ilike(search_term),
-                    Chair.description.ilike(search_term),
+                    Chair.short_description.ilike(search_term),
+                    Chair.full_description.ilike(search_term),
                 )
             )
 
