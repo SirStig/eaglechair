@@ -963,6 +963,8 @@ async def create_subcategory(
     db.add(subcategory)
     await db.commit()
     await db.refresh(subcategory)
+
+    await export_content_after_update('categories', db)
     
     return orm_to_dict(subcategory)
 
@@ -995,6 +997,8 @@ async def update_subcategory(
     
     await db.commit()
     await db.refresh(subcategory)
+
+    await export_content_after_update('categories', db)
     
     return orm_to_dict(subcategory)
 
@@ -1027,6 +1031,8 @@ async def delete_subcategory(
         subcategory.is_active = False
     
     await db.commit()
+
+    await export_content_after_update('categories', db)
     
     return MessageResponse(
         message=f"Subcategory '{subcategory.name}' {'deleted' if hard_delete else 'deactivated'} successfully"

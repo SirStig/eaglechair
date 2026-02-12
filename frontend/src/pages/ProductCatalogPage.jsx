@@ -2,8 +2,6 @@ import { useState, useEffect, useMemo } from 'react';
 import { useSearchParams, useNavigate, useParams } from 'react-router-dom';
 import { Filter, X, ChevronDown, ChevronUp, ArrowUpDown, Search, Folder, Grid3x3, Users } from 'lucide-react';
 import ProductCard from '../components/ui/ProductCard';
-import ProductFamilyCard from '../components/ui/ProductFamilyCard';
-import ProductFamilyQuickView from '../components/ui/ProductFamilyQuickView';
 import Button from '../components/ui/Button';
 import LoadingSpinner from '../components/ui/LoadingSpinner';
 import QuickViewModal from '../components/ui/QuickViewModal';
@@ -19,7 +17,6 @@ const CONTEXT = 'ProductCatalogPage';
  * Product Catalog Page
  * 
  * Features:
- * - Product families displayed first
  * - Smart sorting: featured → new → popular (view_count) → rest
  * - Comprehensive filters: categories, subcategories, families, colors, finishes, 
  *   upholstery, lead time, dimensions, stackable, etc.
@@ -31,7 +28,7 @@ const ProductCatalogPage = () => {
   const [searchParams, setSearchParams] = useSearchParams();
   const navigate = useNavigate();
   const { category: categoryParam, subcategory: subcategoryParam } = useParams();
-  
+
   // State
   const [products, setProducts] = useState([]);
   const [families, setFamilies] = useState([]);
@@ -40,12 +37,11 @@ const ProductCatalogPage = () => {
   const [finishes, setFinishes] = useState([]);
   const [upholsteries, setUpholsteries] = useState([]);
   const [colors, setColors] = useState([]);
-  
+
   const [loading, setLoading] = useState(true);
   const [quickViewProduct, setQuickViewProduct] = useState(null);
-  const [quickViewFamily, setQuickViewFamily] = useState(null);
   const [showMobileFilters, setShowMobileFilters] = useState(false);
-  
+
   // Filter panel expansion states
   const [expandedSections, setExpandedSections] = useState({
     category: false,
@@ -55,45 +51,45 @@ const ProductCatalogPage = () => {
     dimensions: false,
     features: false,
   });
-  
+
   const [pagination, setPagination] = useState({
     page: 1,
     limit: 20,
     total: 0,
     pages: 0
   });
-  
+
   // Comprehensive filters from URL params
   const [filters, setFilters] = useState({
     category_id: searchParams.get('category_id') || '',
     subcategory_id: searchParams.get('subcategory_id') || '',
     family_id: searchParams.get('family_id') || '',
     search: searchParams.get('search') || '',
-    
+
     // Material filters
     finish_ids: searchParams.get('finish_ids')?.split(',').filter(Boolean) || [],
     upholstery_ids: searchParams.get('upholstery_ids')?.split(',').filter(Boolean) || [],
     color_ids: searchParams.get('color_ids')?.split(',').filter(Boolean) || [],
-    
+
     // Feature filters
     is_stackable: searchParams.get('is_stackable') === 'true' || null,
     is_outdoor_suitable: searchParams.get('is_outdoor_suitable') === 'true' || null,
     ada_compliant: searchParams.get('ada_compliant') === 'true' || null,
-    
+
     // Dimension filters
     min_seat_height: searchParams.get('min_seat_height') || '',
     max_seat_height: searchParams.get('max_seat_height') || '',
     min_width: searchParams.get('min_width') || '',
     max_width: searchParams.get('max_width') || '',
-    
+
     // Availability filters
     max_lead_time: searchParams.get('max_lead_time') || '',
     stock_status: searchParams.get('stock_status') || '',
-    
+
     // Quick filters
     featured: searchParams.get('featured') === 'true' || false,
     new: searchParams.get('new') === 'true' || false,
-    
+
     sortBy: searchParams.get('sort') || 'smart', // Default to smart sorting
   });
 
@@ -145,8 +141,8 @@ const ProductCatalogPage = () => {
 
   const loadSubcategories = async (categoryId) => {
     try {
-      const subcategoriesData = await productService.getSubcategories({ 
-        category_id: categoryId 
+      const subcategoriesData = await productService.getSubcategories({
+        category_id: categoryId
       });
       setSubcategories(Array.isArray(subcategoriesData) ? subcategoriesData : []);
     } catch (error) {
@@ -163,7 +159,7 @@ const ProductCatalogPage = () => {
         productService.getUpholsteries(),
         productService.getColors()
       ]);
-      
+
       setFinishes(Array.isArray(finishesData) ? finishesData : []);
       setUpholsteries(Array.isArray(upholsteriesData) ? upholsteriesData : []);
       setColors(Array.isArray(colorsData) ? colorsData : []);
@@ -175,15 +171,15 @@ const ProductCatalogPage = () => {
   const loadFamilies = async () => {
     try {
       const params = {};
-      
+
       if (filters.category_id) {
         params.category_id = parseInt(filters.category_id, 10);
       }
-      
+
       if (filters.featured) {
         params.featured_only = true;
       }
-      
+
       const familiesData = await productService.getFamilies(params);
       setFamilies(Array.isArray(familiesData) ? familiesData : []);
     } catch (error) {
@@ -194,106 +190,106 @@ const ProductCatalogPage = () => {
 
   const loadProducts = async () => {
     setLoading(true);
-    
+
     try {
       const params = {
         page: pagination.page,
         per_page: pagination.limit,
         exclude_variations: true, // Only show base products
       };
-      
+
       // Category/Subcategory filters
       if (filters.category_id) {
         params.category_id = parseInt(filters.category_id, 10);
       }
-      
+
       if (filters.subcategory_id) {
         params.subcategory_id = parseInt(filters.subcategory_id, 10);
       }
-      
+
       if (filters.family_id) {
         params.family_id = parseInt(filters.family_id, 10);
       }
-      
+
       // Search - use debounced value
       if (debouncedSearch && debouncedSearch.trim() !== '') {
         params.search = debouncedSearch.trim();
       }
-      
+
       // Material filters
       if (filters.finish_ids.length > 0) {
         params.finish_ids = filters.finish_ids.join(',');
       }
-      
+
       if (filters.upholstery_ids.length > 0) {
         params.upholstery_ids = filters.upholstery_ids.join(',');
       }
-      
+
       if (filters.color_ids.length > 0) {
         params.color_ids = filters.color_ids.join(',');
       }
-      
+
       // Feature filters
       if (filters.is_stackable !== null) {
         params.stackable = filters.is_stackable;
       }
-      
+
       if (filters.is_outdoor_suitable !== null) {
         params.outdoor = filters.is_outdoor_suitable;
       }
-      
+
       if (filters.ada_compliant !== null) {
         params.ada_compliant = filters.ada_compliant;
       }
-      
+
       // Dimension filters
       if (filters.min_seat_height) {
         params.min_seat_height = parseFloat(filters.min_seat_height);
       }
-      
+
       if (filters.max_seat_height) {
         params.max_seat_height = parseFloat(filters.max_seat_height);
       }
-      
+
       if (filters.min_width) {
         params.min_width = parseFloat(filters.min_width);
       }
-      
+
       if (filters.max_width) {
         params.max_width = parseFloat(filters.max_width);
       }
-      
+
       // Availability filters
       if (filters.max_lead_time) {
         params.max_lead_time = parseInt(filters.max_lead_time, 10);
       }
-      
+
       if (filters.stock_status === 'In Stock') {
         params.in_stock_only = true;
       }
-      
+
       // Quick filters
       if (filters.featured) {
         params.featured = true;
       }
-      
+
       if (filters.new) {
         params.new = true;
       }
-      
+
       // Sorting - use smart sort by default
       if (filters.sortBy === 'smart') {
         params.smart_sort = true;
       } else if (filters.sortBy) {
         params.sort = filters.sortBy;
       }
-      
+
       const response = await productService.getProducts(params);
-      
+
       let productsData = response.data || [];
-      
+
       logger.debug(CONTEXT, `Loaded ${response.total} products`, response);
-      
+
       setProducts(productsData);
       setPagination(prev => ({
         ...prev,
@@ -312,17 +308,17 @@ const ProductCatalogPage = () => {
   const updateFilter = (key, value) => {
     const newFilters = { ...filters, [key]: value };
     setFilters(newFilters);
-    
+
     // Reset to page 1 when filters change
     setPagination(prev => ({ ...prev, page: 1 }));
-    
+
     // Update URL params
     updateURLParams(newFilters);
   };
 
   const updateURLParams = (newFilters) => {
     const params = new URLSearchParams();
-    
+
     Object.entries(newFilters).forEach(([key, value]) => {
       if (value && value !== false && value !== '' && value !== null) {
         if (Array.isArray(value) && value.length > 0) {
@@ -332,7 +328,7 @@ const ProductCatalogPage = () => {
         }
       }
     });
-    
+
     setSearchParams(params);
   };
 
@@ -358,7 +354,7 @@ const ProductCatalogPage = () => {
       new: false,
       sortBy: 'smart',
     };
-    
+
     setFilters(clearedFilters);
     setPagination(prev => ({ ...prev, page: 1 }));
     setSearchParams({});
@@ -376,7 +372,7 @@ const ProductCatalogPage = () => {
     const newValues = currentValues.includes(value)
       ? currentValues.filter(v => v !== value)
       : [...currentValues, value];
-    
+
     updateFilter(filterKey, newValues);
   };
 
@@ -390,18 +386,14 @@ const ProductCatalogPage = () => {
     logger.info(CONTEXT, `Opening quick view for: ${product.name}`);
   };
 
-  const handleFamilyQuickView = (family) => {
-    setQuickViewFamily(family);
-    logger.info(CONTEXT, `Opening family quick view for: ${family.name}`);
-  };
 
   // Get active category details
   const activeCategory = categories.find(c => c.id === parseInt(filters.category_id));
-  
+
   // Check if any filters are active
-  const hasActiveFilters = 
-    filters.category_id || 
-    filters.subcategory_id || 
+  const hasActiveFilters =
+    filters.category_id ||
+    filters.subcategory_id ||
     filters.family_id ||
     filters.search ||
     filters.finish_ids.length > 0 ||
@@ -454,7 +446,7 @@ const ProductCatalogPage = () => {
       { "@type": "ListItem", "position": 1, "name": "Home", "item": "https://www.eaglechair.com/" },
       { "@type": "ListItem", "position": 2, "name": "Products", "item": "https://www.eaglechair.com/products" }
     ];
-    
+
     if (activeCategory) {
       breadcrumbItems.push({
         "@type": "ListItem",
@@ -463,7 +455,7 @@ const ProductCatalogPage = () => {
         "item": `https://www.eaglechair.com${catalogUrl}`
       });
     }
-    
+
     return {
       "@context": "https://schema.org",
       "@type": "CollectionPage",
@@ -493,25 +485,25 @@ const ProductCatalogPage = () => {
         {/* Breadcrumb */}
         <div className="mb-4 sm:mb-6 text-xs sm:text-sm text-slate-600 overflow-x-auto pb-2">
           <div className="flex items-center whitespace-nowrap min-w-fit">
-          <span className="cursor-pointer hover:text-primary-500" onClick={() => navigate('/')}>
-            Home
-          </span>
-          {' '}/{' '}
-          <span className="cursor-pointer hover:text-primary-500" onClick={() => navigate('/products')}>
-            Products
-          </span>
-          {activeCategory && (
-            <>
-              {' '}/{' '}
-              <span className="text-slate-800">{activeCategory.name}</span>
-            </>
-          )}
-          {subcategoryParam && (
-            <>
-              {' '}/{' '}
-              <span className="text-slate-800">{subcategoryParam}</span>
-            </>
-          )}
+            <span className="cursor-pointer hover:text-primary-500" onClick={() => navigate('/')}>
+              Home
+            </span>
+            {' '}/{' '}
+            <span className="cursor-pointer hover:text-primary-500" onClick={() => navigate('/products')}>
+              Products
+            </span>
+            {activeCategory && (
+              <>
+                {' '}/{' '}
+                <span className="text-slate-800">{activeCategory.name}</span>
+              </>
+            )}
+            {subcategoryParam && (
+              <>
+                {' '}/{' '}
+                <span className="text-slate-800">{subcategoryParam}</span>
+              </>
+            )}
           </div>
         </div>
 
@@ -528,7 +520,7 @@ const ProductCatalogPage = () => {
         <div className="grid lg:grid-cols-[320px_1fr] xl:grid-cols-[360px_1fr] gap-6 lg:gap-8">
           {/* Mobile Filter Overlay */}
           {showMobileFilters && (
-            <div 
+            <div
               className="fixed inset-0 bg-black/50 z-40 lg:hidden"
               onClick={() => setShowMobileFilters(false)}
             />
@@ -550,9 +542,8 @@ const ProductCatalogPage = () => {
               )}
             </button>
 
-            <div className={`rounded-xl shadow-lg bg-white border border-cream-200 ${
-              showMobileFilters ? 'fixed inset-4 lg:relative lg:inset-auto z-50 lg:z-auto max-h-[90vh] lg:max-h-none' : 'hidden lg:block'
-            } lg:sticky lg:top-24 overflow-hidden flex flex-col`}>
+            <div className={`rounded-xl shadow-lg bg-white border border-cream-200 ${showMobileFilters ? 'fixed inset-4 lg:relative lg:inset-auto z-50 lg:z-auto max-h-[90vh] lg:max-h-none' : 'hidden lg:block'
+              } lg:sticky lg:top-24 overflow-hidden flex flex-col`}>
               {/* Filter Header */}
               <div className="flex items-center justify-between p-4 sm:p-5 border-b border-cream-200 bg-cream-50 flex-shrink-0">
                 <h2 className="text-lg sm:text-xl font-bold text-slate-800">Filters</h2>
@@ -635,16 +626,15 @@ const ProductCatalogPage = () => {
                     </span>
                     {expandedSections.category ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
                   </button>
-                  
+
                   {expandedSections.category && (
                     <div className="space-y-1.5">
                       <button
                         onClick={() => updateFilter('category_id', '')}
-                        className={`w-full text-left px-3 py-2 rounded-lg transition-all text-sm ${
-                          !filters.category_id
+                        className={`w-full text-left px-3 py-2 rounded-lg transition-all text-sm ${!filters.category_id
                             ? 'bg-primary-600 text-white font-semibold shadow-sm'
                             : 'hover:bg-cream-100 text-slate-700'
-                        }`}
+                          }`}
                       >
                         All Categories
                       </button>
@@ -652,11 +642,10 @@ const ProductCatalogPage = () => {
                         <button
                           key={category.id}
                           onClick={() => updateFilter('category_id', category.id)}
-                          className={`w-full text-left px-3 py-2 rounded-lg transition-all text-sm ${
-                            filters.category_id === category.id || filters.category_id === String(category.id)
+                          className={`w-full text-left px-3 py-2 rounded-lg transition-all text-sm ${filters.category_id === category.id || filters.category_id === String(category.id)
                               ? 'bg-primary-600 text-white font-semibold shadow-sm'
                               : 'hover:bg-cream-100 text-slate-700'
-                          }`}
+                            }`}
                         >
                           <div className="flex items-center justify-between">
                             <span>{category.name}</span>
@@ -690,18 +679,17 @@ const ProductCatalogPage = () => {
                       </span>
                       {expandedSections.subcategory ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
                     </button>
-                    
+
                     {expandedSections.subcategory && (
                       <div className="space-y-1.5">
                         {subcategories.map((subcat) => (
                           <button
                             key={subcat.id}
                             onClick={() => updateFilter('subcategory_id', subcat.id)}
-                            className={`w-full text-left px-3 py-2 rounded-lg transition-all text-sm ${
-                              filters.subcategory_id === subcat.id || filters.subcategory_id === String(subcat.id)
+                            className={`w-full text-left px-3 py-2 rounded-lg transition-all text-sm ${filters.subcategory_id === subcat.id || filters.subcategory_id === String(subcat.id)
                                 ? 'bg-primary-600 text-white font-semibold shadow-sm'
                                 : 'hover:bg-cream-100 text-slate-700'
-                            }`}
+                              }`}
                           >
                             <div className="flex items-center justify-between">
                               <span>{subcat.name}</span>
@@ -736,16 +724,15 @@ const ProductCatalogPage = () => {
                       </span>
                       {expandedSections.family ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
                     </button>
-                    
+
                     {expandedSections.family && (
                       <div className="space-y-1.5 max-h-56 overflow-y-auto pr-1">
                         <button
                           onClick={() => updateFilter('family_id', '')}
-                          className={`w-full text-left px-3 py-2 rounded-lg transition-all text-sm ${
-                            !filters.family_id
+                          className={`w-full text-left px-3 py-2 rounded-lg transition-all text-sm ${!filters.family_id
                               ? 'bg-primary-600 text-white font-semibold shadow-sm'
                               : 'hover:bg-cream-100 text-slate-700'
-                          }`}
+                            }`}
                         >
                           All Families
                         </button>
@@ -753,11 +740,10 @@ const ProductCatalogPage = () => {
                           <button
                             key={family.id}
                             onClick={() => updateFilter('family_id', family.id)}
-                            className={`w-full text-left px-3 py-2 rounded-lg transition-all text-sm ${
-                              filters.family_id === family.id || filters.family_id === String(family.id)
+                            className={`w-full text-left px-3 py-2 rounded-lg transition-all text-sm ${filters.family_id === family.id || filters.family_id === String(family.id)
                                 ? 'bg-primary-600 text-white font-semibold shadow-sm'
                                 : 'hover:bg-cream-100 text-slate-700'
-                            }`}
+                              }`}
                           >
                             <div className="flex items-center justify-between">
                               <span className="truncate pr-2">{family.name}</span>
@@ -783,7 +769,7 @@ const ProductCatalogPage = () => {
                     <span>Materials & Finishes</span>
                     {expandedSections.filters ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
                   </button>
-                  
+
                   {expandedSections.filters && (
                     <div className="space-y-3">
                       {/* Finishes */}
@@ -841,11 +827,10 @@ const ProductCatalogPage = () => {
                               <button
                                 key={color.id}
                                 onClick={() => toggleArrayFilter('color_ids', String(color.id))}
-                                className={`w-full aspect-square rounded-lg border-2 transition-all ${
-                                  filters.color_ids.includes(String(color.id))
+                                className={`w-full aspect-square rounded-lg border-2 transition-all ${filters.color_ids.includes(String(color.id))
                                     ? 'border-primary-600 ring-2 ring-primary-200'
                                     : 'border-cream-300 hover:border-cream-400'
-                                }`}
+                                  }`}
                                 style={{ backgroundColor: color.hex_value || '#ccc' }}
                                 title={color.name}
                               />
@@ -866,7 +851,7 @@ const ProductCatalogPage = () => {
                     <span>Features</span>
                     {expandedSections.features ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
                   </button>
-                  
+
                   {expandedSections.features && (
                     <div className="space-y-2">
                       {showStackableFilter && (
@@ -880,7 +865,7 @@ const ProductCatalogPage = () => {
                           <span className="text-sm text-slate-700">Stackable</span>
                         </label>
                       )}
-                      
+
                       {showOutdoorFilter && (
                         <label className="flex items-center cursor-pointer">
                           <input
@@ -892,7 +877,7 @@ const ProductCatalogPage = () => {
                           <span className="text-sm text-slate-700">Outdoor Suitable</span>
                         </label>
                       )}
-                      
+
                       <label className="flex items-center cursor-pointer">
                         <input
                           type="checkbox"
@@ -935,7 +920,7 @@ const ProductCatalogPage = () => {
                     <span>Dimensions</span>
                     {expandedSections.dimensions ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
                   </button>
-                  
+
                   {expandedSections.dimensions && (
                     <div className="space-y-3">
                       {/* Seat Height */}
@@ -992,7 +977,7 @@ const ProductCatalogPage = () => {
                   <label className="block text-sm font-medium text-slate-700 mb-2">
                     Availability
                   </label>
-                  
+
                   <div className="space-y-2">
                     <div>
                       <label className="block text-xs font-medium text-slate-600 mb-1">
@@ -1030,36 +1015,6 @@ const ProductCatalogPage = () => {
 
           {/* Main Content */}
           <main className="lg:col-span-1">
-            {/* Product Families Section - Only show when NO filters/search active */}
-            {!loading && families.length > 0 && !filters.family_id && !hasActiveFilters && (
-              <div className="mb-12">
-                <div className="flex items-center justify-between mb-6">
-                  <h2 className="text-2xl font-bold text-slate-800">
-                    Product Families
-                  </h2>
-                  <span className="text-sm text-slate-600">
-                    {families.length} {families.length === 1 ? 'family' : 'families'}
-                  </span>
-                </div>
-
-                <div className="grid grid-cols-2 md:grid-cols-2 xl:grid-cols-3 gap-6 mb-8">
-                  {families.map((family) => (
-                    <div key={family.id}>
-                      <ProductFamilyCard 
-                        family={family}
-                        onQuickView={handleFamilyQuickView}
-                      />
-                    </div>
-                  ))}
-                </div>
-
-                <div className="border-t border-cream-300 pt-8 mb-8">
-                  <h2 className="text-2xl font-bold text-slate-800 mb-6">
-                    All Products
-                  </h2>
-                </div>
-              </div>
-            )}
 
             {/* Products Grid */}
             {loading ? (
@@ -1085,12 +1040,12 @@ const ProductCatalogPage = () => {
                     Showing {((pagination.page - 1) * pagination.limit) + 1} - {Math.min(pagination.page * pagination.limit, pagination.total)} of {pagination.total} product{pagination.total !== 1 ? 's' : ''}
                   </div>
                 </div>
-                
+
                 {/* Products Grid */}
                 <div className="grid grid-cols-2 md:grid-cols-2 xl:grid-cols-3 gap-5 md:gap-6 xl:gap-8 mb-8">
                   {products.map((product) => (
                     <div key={product.id} className="h-full">
-                      <ProductCard 
+                      <ProductCard
                         product={product}
                         onQuickView={handleQuickView}
                       />
@@ -1110,7 +1065,7 @@ const ProductCatalogPage = () => {
                     >
                       Previous
                     </Button>
-                    
+
                     <div className="flex flex-wrap gap-1 justify-center">
                       {[...Array(pagination.pages)].map((_, i) => {
                         const page = i + 1;
@@ -1123,11 +1078,10 @@ const ProductCatalogPage = () => {
                             <button
                               key={page}
                               onClick={() => handlePageChange(page)}
-                              className={`px-3 py-2 rounded min-w-[44px] min-h-[44px] text-sm font-medium transition-colors ${
-                                page === pagination.page
+                              className={`px-3 py-2 rounded min-w-[44px] min-h-[44px] text-sm font-medium transition-colors ${page === pagination.page
                                   ? 'bg-primary-500 text-white font-semibold'
                                   : 'bg-white text-slate-700 hover:bg-cream-100 border border-cream-300'
-                              }`}
+                                }`}
                             >
                               {page}
                             </button>
@@ -1141,7 +1095,7 @@ const ProductCatalogPage = () => {
                         return null;
                       })}
                     </div>
-                    
+
                     <Button
                       variant="outline"
                       size="sm"
@@ -1166,11 +1120,6 @@ const ProductCatalogPage = () => {
         onClose={() => setQuickViewProduct(null)}
       />
 
-      <ProductFamilyQuickView
-        family={quickViewFamily}
-        isOpen={!!quickViewFamily}
-        onClose={() => setQuickViewFamily(null)}
-      />
     </div>
   );
 };

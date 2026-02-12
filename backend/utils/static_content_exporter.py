@@ -236,6 +236,7 @@ class StaticContentExporter:
                 - legalDocuments: Legal docs, policies, warranties
                 - faqs: Frequently asked questions
                 - faqCategories: FAQ categories
+                - categories: Product categories with subcategories (nav dropdown)
                 - catalogs: Virtual catalogs and guides
                 - finishes: Wood finish options
                 - upholsteries: Upholstery fabric options
@@ -376,6 +377,7 @@ class StaticContentExporter:
             ("legalDocuments", "Legal Documents - Terms, policies, warranties"),
             ("faqs", "FAQs - Frequently asked questions"),
             ("faqCategories", "FAQ Categories - FAQ organization"),
+            ("categories", "Product Categories - Catalog nav with subcategories"),
             ("catalogs", "Catalogs - Virtual catalogs and guides"),
             ("finishes", "Finishes - Wood finish options and swatches"),
             ("upholsteries", "Upholsteries - Upholstery fabric options"),
@@ -633,6 +635,11 @@ class StaticContentExporter:
         """
         existing = self._read_existing_content()
         existing["faqCategories"] = categories
+        return self.export_all_content(existing)
+
+    def export_categories(self, categories: List[Dict[str, Any]]) -> bool:
+        existing = self._read_existing_content()
+        existing["categories"] = categories
         return self.export_all_content(existing)
 
     def export_catalogs(self, catalogs: List[Dict[str, Any]]) -> bool:

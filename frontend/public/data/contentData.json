@@ -9,6 +9,238 @@
   "companyMilestones": [],
   "teamMembers": [],
   "clientLogos": [],
+  "categories": [
+    {
+      "id": 1,
+      "name": "Chairs",
+      "slug": "chairs",
+      "description": "Chair frames designed by us with reinforcements, manufactured with your choice of stain color, upholstery, and add-ons.",
+      "parentId": null,
+      "displayOrder": 0,
+      "isActive": true,
+      "iconUrl": null,
+      "bannerImageUrl": null,
+      "subcategories": [
+        {
+          "id": 1,
+          "name": "Wood Chairs",
+          "slug": "wood-chairs",
+          "displayOrder": 0,
+          "isActive": true
+        },
+        {
+          "id": 2,
+          "name": "Metal Chairs",
+          "slug": "metal-chairs",
+          "displayOrder": 0,
+          "isActive": true
+        },
+        {
+          "id": 3,
+          "name": "Lounge Chairs",
+          "slug": "lounge-chairs",
+          "displayOrder": 0,
+          "isActive": true
+        },
+        {
+          "id": 4,
+          "name": "Arm Chairs",
+          "slug": "arm-chairs",
+          "displayOrder": 0,
+          "isActive": true
+        },
+        {
+          "id": 5,
+          "name": "Outdoor Chairs",
+          "slug": "outdoor-chairs",
+          "displayOrder": 0,
+          "isActive": true
+        }
+      ]
+    },
+    {
+      "id": 2,
+      "name": "Barstools",
+      "slug": "barstools",
+      "description": "Perfect for any counter or bar, you will be sure to find the Eagle Chair look that will fit your establishment.",
+      "parentId": null,
+      "displayOrder": 1,
+      "isActive": true,
+      "iconUrl": null,
+      "bannerImageUrl": null,
+      "subcategories": [
+        {
+          "id": 6,
+          "name": "Wood Barstools",
+          "slug": "wood-barstools",
+          "displayOrder": 0,
+          "isActive": true
+        },
+        {
+          "id": 7,
+          "name": "Metal Barstools",
+          "slug": "metal-barstools",
+          "displayOrder": 0,
+          "isActive": true
+        },
+        {
+          "id": 8,
+          "name": "Backless Stools",
+          "slug": "backless-barstools",
+          "displayOrder": 0,
+          "isActive": true
+        },
+        {
+          "id": 9,
+          "name": "Swivel Barstools",
+          "slug": "swivel-barstools",
+          "displayOrder": 0,
+          "isActive": true
+        },
+        {
+          "id": 10,
+          "name": "Outdoor Barstools",
+          "slug": "outdoor-barstools",
+          "displayOrder": 0,
+          "isActive": true
+        }
+      ]
+    },
+    {
+      "id": 3,
+      "name": "Table Tops",
+      "slug": "table-tops",
+      "description": "Table tops manufactured to size with various lamination and edging choices for indoor and outdoor use.",
+      "parentId": null,
+      "displayOrder": 2,
+      "isActive": true,
+      "iconUrl": null,
+      "bannerImageUrl": null,
+      "subcategories": [
+        {
+          "id": 11,
+          "name": "Indoor Table Tops",
+          "slug": "indoor-table-tops",
+          "displayOrder": 0,
+          "isActive": true
+        },
+        {
+          "id": 12,
+          "name": "Outdoor Table Tops",
+          "slug": "outdoor-table-tops",
+          "displayOrder": 0,
+          "isActive": true
+        }
+      ]
+    },
+    {
+      "id": 4,
+      "name": "Table Bases",
+      "slug": "table-bases",
+      "description": "Sturdy table bases in various styles and materials.",
+      "parentId": null,
+      "displayOrder": 3,
+      "isActive": true,
+      "iconUrl": null,
+      "bannerImageUrl": null,
+      "subcategories": [
+        {
+          "id": 13,
+          "name": "Cast Iron Bases",
+          "slug": "cast-iron-bases",
+          "displayOrder": 0,
+          "isActive": true
+        },
+        {
+          "id": 14,
+          "name": "Metal Bases",
+          "slug": "metal-table-bases",
+          "displayOrder": 0,
+          "isActive": true
+        }
+      ]
+    },
+    {
+      "id": 5,
+      "name": "Benches & Ottomans",
+      "slug": "benches-ottomans",
+      "description": "Benches and ottomans built to size for waiting lobbies or movable additional seating.",
+      "parentId": null,
+      "displayOrder": 4,
+      "isActive": true,
+      "iconUrl": null,
+      "bannerImageUrl": null,
+      "subcategories": [
+        {
+          "id": 15,
+          "name": "Wood Benches",
+          "slug": "wood-benches",
+          "displayOrder": 0,
+          "isActive": true
+        },
+        {
+          "id": 16,
+          "name": "Ottomans",
+          "slug": "ottomans",
+          "displayOrder": 0,
+          "isActive": true
+        }
+      ]
+    },
+    {
+      "id": 6,
+      "name": "Booths/Banquettes",
+      "slug": "booths-banquettes",
+      "description": "Custom booth and banquette seating solutions.",
+      "parentId": null,
+      "displayOrder": 5,
+      "isActive": true,
+      "iconUrl": null,
+      "bannerImageUrl": null,
+      "subcategories": [
+        {
+          "id": 17,
+          "name": "Settee Booths",
+          "slug": "settee-booths",
+          "displayOrder": 0,
+          "isActive": true
+        },
+        {
+          "id": 18,
+          "name": "Upholstered Booths",
+          "slug": "upholstered-booths",
+          "displayOrder": 0,
+          "isActive": true
+        },
+        {
+          "id": 19,
+          "name": "Wood Booths",
+          "slug": "wood-booths",
+          "displayOrder": 0,
+          "isActive": true
+        },
+        {
+          "id": 20,
+          "name": "Outdoor Booths",
+          "slug": "outdoor-booths",
+          "displayOrder": 0,
+          "isActive": true
+        }
+      ]
+    },
+    {
+      "id": 7,
+      "name": "Outdoor/Patio",
+      "slug": "outdoor-patio",
+      "description": "All outdoor and patio furniture designed to withstand the elements.",
+      "parentId": null,
+      "displayOrder": 6,
+      "isActive": true,
+      "iconUrl": null,
+      "bannerImageUrl": null,
+      "subcategories": []
+    }
+  ],
   "legalDocuments": [
     {
       "id": 1,
@@ -308,7 +540,7 @@
   "hardware": [],
   "laminates": [],
   "_metadata": {
-    "lastUpdated": "2026-02-12T17:01:19.595699",
+    "lastUpdated": "2026-02-12T18:20:56.714968",
     "version": "1.0.0",
     "generatedBy": "StaticContentExporter"
   }

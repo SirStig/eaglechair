@@ -1205,6 +1205,7 @@ class CMSAdminService:
             await export_content_after_update('warranties', db)
             await export_content_after_update('faqs', db)
             await export_content_after_update('faqCategories', db)
+            await export_content_after_update('categories', db)
             await export_content_after_update('catalogs', db)
             await export_content_after_update('finishes', db)
             await export_content_after_update('upholsteries', db)

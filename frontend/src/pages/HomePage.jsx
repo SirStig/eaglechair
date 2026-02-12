@@ -234,7 +234,7 @@ const HomePage = () => {
               rel="preload"
               as="image"
               href={imageUrl}
-              fetchPriority={idx === 0 ? "high" : idx === 1 ? "high" : "auto"}
+              fetchpriority={idx === 0 ? "high" : idx === 1 ? "high" : "auto"}
             />
           ))}
         </Helmet>
@@ -266,7 +266,7 @@ const HomePage = () => {
                         className="w-full h-full object-cover"
                         loading={index === 0 ? "eager" : "lazy"}
                         decoding="async"
-                        fetchPriority={index === 0 ? "high" : "auto"}
+                        fetchpriority={index === 0 ? "high" : "auto"}
                         style={{
                           WebkitTransform: 'translateZ(0)',
                           transform: 'translateZ(0)',
@@ -672,7 +672,7 @@ const HomePage = () => {
                       className="w-full h-full object-cover"
                       loading="lazy"
                       decoding="async"
-                      fetchPriority="low"
+                      fetchpriority="low"
                     />
                   </div>
                 ) : (

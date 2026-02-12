@@ -20,7 +20,8 @@ import {
   Wrench,
   Award,
   TrendingUp,
-  Package
+  Package,
+  Link
 } from 'lucide-react';
 
 /**
@@ -98,6 +99,38 @@ const ProductEditor = ({ product, onBack }) => {
   const [selectedColors, setSelectedColors] = useState(product?.available_colors || []);
   const [flameCerts, setFlameCerts] = useState(product?.flame_certifications || []);
   const [greenCerts, setGreenCerts] = useState(product?.green_certifications || []);
+
+  // Related Products state
+  const [relatedProducts, setRelatedProducts] = useState(product?.related_products || []);
+  const [relatedSearch, setRelatedSearch] = useState('');
+  const [relatedSearchResults, setRelatedSearchResults] = useState([]);
+  const [searchingRelated, setSearchingRelated] = useState(false);
+
+  // Search related products
+  useEffect(() => {
+    const searchProducts = async () => {
+      if (!relatedSearch.trim()) {
+        setRelatedSearchResults([]);
+        return;
+      }
+
+      setSearchingRelated(true);
+      try {
+        const response = await apiClient.get(`/api/v1/products?search=${relatedSearch}&page_size=10`);
+        // Filter out current product and already selected products
+        setRelatedSearchResults(
+          (response.items || []).filter(p => p.id !== product?.id && !relatedProducts.find(rp => rp.id === p.id))
+        );
+      } catch (error) {
+        console.error('Failed to search products:', error);
+      } finally {
+        setSearchingRelated(false);
+      }
+    };
+
+    const timeoutId = setTimeout(searchProducts, 500);
+    return () => clearTimeout(timeoutId);
+  }, [relatedSearch, relatedProducts, product?.id]);
 
   // Image upload helper function
   const uploadImage = async (file, subfolder = 'products') => {
@@ -216,6 +249,7 @@ const ProductEditor = ({ product, onBack }) => {
         available_colors: selectedColors,
         flame_certifications: flameCerts,
         green_certifications: greenCerts,
+        related_product_ids: relatedProducts.map(p => p.id),
       };
 
       if (product?._isNew) {
@@ -249,6 +283,7 @@ const ProductEditor = ({ product, onBack }) => {
     { id: 'images', label: 'Images', icon: ImageIcon },
     { id: 'materials', label: 'Materials', icon: Wrench },
     { id: 'features', label: 'Features', icon: Package },
+    { id: 'related', label: 'Related Products', icon: Link },
     { id: 'variations', label: 'Variations', icon: RefreshCw },
     { id: 'certifications', label: 'Certifications', icon: Award },
     { id: 'seo', label: 'SEO & Analytics', icon: TrendingUp },
@@ -1011,6 +1046,138 @@ const ProductEditor = ({ product, onBack }) => {
                 ))}
               </div>
             )}
+          </div>
+        );
+
+      case 'related':
+        return (
+          <div className="space-y-6">
+            <div>
+              <h3 className="text-lg font-bold text-dark-50 mb-4">Related Products</h3>
+              <p className="text-sm text-dark-400 mb-6">
+                Select products that are related to this item. These will be displayed in the "Related Products" section on the product page.
+              </p>
+
+              <div className="mb-8">
+                <label className="block text-sm font-medium text-dark-200 mb-2">
+                  Add Related Product
+                </label>
+                <div className="relative">
+                  <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                    <Search className="h-5 w-5 text-dark-400" />
+                  </div>
+                  <input
+                    type="text"
+                    value={relatedSearch}
+                    onChange={(e) => setRelatedSearch(e.target.value)}
+                    className="w-full pl-10 pr-4 py-2 bg-dark-700 border border-dark-600 rounded-lg text-dark-50 focus:border-primary-500 focus:ring-1 focus:ring-primary-500 outline-none"
+                    placeholder="Search products by name or SKU..."
+                  />
+                  {searchingRelated && (
+                    <div className="absolute inset-y-0 right-0 pr-3 flex items-center pointer-events-none">
+                      <div className="animate-spin h-5 w-5 border-2 border-primary-500 border-t-transparent rounded-full"></div>
+                    </div>
+                  )}
+
+                  {/* Search Results Dropdown */}
+                  {relatedSearchResults.length > 0 && (
+                    <div className="absolute z-10 w-full mt-1 bg-dark-800 border border-dark-600 rounded-lg shadow-lg max-h-60 overflow-auto">
+                      {relatedSearchResults.map(result => (
+                        <button
+                          key={result.id}
+                          type="button"
+                          onClick={() => {
+                            setRelatedProducts([...relatedProducts, result]);
+                            setRelatedSearch('');
+                            setRelatedSearchResults([]);
+                          }}
+                          className="w-full text-left px-4 py-3 hover:bg-dark-700 flex items-center gap-3 transition-colors border-b border-dark-700 last:border-0"
+                        >
+                          <img
+                            src={resolveImageUrl(result.thumbnail || result.primary_image_url)}
+                            alt={result.name}
+                            className="w-10 h-10 object-cover rounded bg-dark-600"
+                          />
+                          <div>
+                            <div className="text-dark-50 font-medium">{result.name}</div>
+                            <div className="text-xs text-dark-400">{result.sku}</div>
+                          </div>
+                          <Plus className="w-5 h-5 text-primary-500 ml-auto" />
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Selected Related Products List */}
+              <div className="space-y-4">
+                <h4 className="font-medium text-dark-100">Selected Products ({relatedProducts.length})</h4>
+                {relatedProducts.length === 0 ? (
+                  <div className="text-center py-8 border-2 border-dashed border-dark-700 rounded-lg text-dark-400">
+                    No related products selected
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-1 gap-3">
+                    {relatedProducts.map((p, index) => (
+                      <div key={p.id} className="flex items-center gap-4 p-3 bg-dark-800 rounded-lg border border-dark-700">
+                        <div className="flex-shrink-0 text-dark-400 w-6 text-center font-mono text-sm">
+                          {index + 1}
+                        </div>
+                        <img
+                          src={resolveImageUrl(p.thumbnail || p.primary_image_url)}
+                          alt={p.name}
+                          className="w-12 h-12 object-cover rounded bg-dark-600"
+                        />
+                        <div className="flex-grow">
+                          <div className="text-dark-50 font-medium">{p.name}</div>
+                          <div className="text-xs text-dark-400">{p.sku}</div>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              // Move up
+                              if (index > 0) {
+                                const newProducts = [...relatedProducts];
+                                [newProducts[index - 1], newProducts[index]] = [newProducts[index], newProducts[index - 1]];
+                                setRelatedProducts(newProducts);
+                              }
+                            }}
+                            disabled={index === 0}
+                            className={`p-1 rounded hover:bg-dark-600 ${index === 0 ? 'text-dark-600 cursor-not-allowed' : 'text-dark-300'}`}
+                          >
+                            ↑
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              // Move down
+                              if (index < relatedProducts.length - 1) {
+                                const newProducts = [...relatedProducts];
+                                [newProducts[index + 1], newProducts[index]] = [newProducts[index], newProducts[index + 1]];
+                                setRelatedProducts(newProducts);
+                              }
+                            }}
+                            disabled={index === relatedProducts.length - 1}
+                            className={`p-1 rounded hover:bg-dark-600 ${index === relatedProducts.length - 1 ? 'text-dark-600 cursor-not-allowed' : 'text-dark-300'}`}
+                          >
+                            ↓
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setRelatedProducts(relatedProducts.filter(rp => rp.id !== p.id))}
+                            className="p-2 text-red-500 hover:bg-dark-700 rounded-lg transition-colors ml-2"
+                          >
+                            <X className="w-5 h-5" />
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
           </div>
         );
 
