@@ -1,5 +1,4 @@
-import { useState } from 'react';
-import { motion } from 'framer-motion';
+import { useState, useCallback, useMemo } from 'react';
 import Card from '../components/ui/Card';
 import USMapInteractive from '../components/USMapInteractive';
 import EditableWrapper from '../components/admin/EditableWrapper';
@@ -21,14 +20,14 @@ const FindARepPage = () => {
   const { data: salesReps, refetch } = useSalesReps();
   const { data: siteSettings } = useSiteSettings();
 
-  // Use API data
-  const reps = salesReps || [];
+  // Use API data with memoization
+  const reps = useMemo(() => salesReps || [], [salesReps]);
 
   // Get rep for selected/hovered state
-  const getRep = (stateCode) => {
+  const getRep = useCallback((stateCode) => {
     if (!stateCode) return null;
     return reps.find(rep => (rep.states_covered || rep.statesCovered || rep.states).includes(stateCode));
-  };
+  }, [reps]);
 
   const displayRep = getRep(selectedState || hoveredState);
 
@@ -72,17 +71,6 @@ const FindARepPage = () => {
     }
   };
 
-  // Simplified US Map with state codes
-  const statesByRegion = {
-    northeast: ['ME', 'NH', 'VT', 'MA', 'RI', 'CT', 'NY', 'NJ', 'PA'],
-    southeast: ['MD', 'DE', 'VA', 'WV', 'KY', 'NC', 'SC', 'TN', 'GA', 'FL', 'AL', 'MS', 'LA'],
-    midwest: ['OH', 'IN', 'IL', 'MI', 'WI', 'MN', 'IA', 'MO', 'ND', 'SD', 'NE', 'KS'],
-    southwest: ['TX', 'OK', 'AR', 'NM', 'AZ'],
-    west: ['CO', 'WY', 'MT', 'ID', 'UT', 'NV', 'CA', 'OR', 'WA', 'AK', 'HI'],
-  };
-
-  const allStates = Object.values(statesByRegion).flat();
-
   return (
     <div className="min-h-screen bg-dark-800 py-8">
       <div className="container">
@@ -90,21 +78,21 @@ const FindARepPage = () => {
         <div className="text-center mb-12">
           <h1 className="text-2xl sm:text-3xl md:text-4xl font-bold mb-4 text-dark-50">Find Your Sales Representative</h1>
           <p className="text-lg text-dark-100 max-w-2xl mx-auto">
-            Click on your state to find your local Eagle Chair representative. 
+            Click on your state to find your local Eagle Chair representative.
             They're ready to help with product selection, quotes, and personalized service.
           </p>
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 sm:gap-8">
           {/* Map Section */}
-          <div className="lg:col-span-2 order-2 lg:order-1">
+          <div className="lg:col-span-2">
             <Card>
               <h2 className="text-xl sm:text-2xl font-bold mb-4 sm:mb-6 text-dark-50">Interactive US Map</h2>
-              
+
               <p className="text-center text-dark-100 mb-4">
                 Click a state to view your representative
               </p>
-              
+
               {/* US Map SVG - Direct, no nested cards */}
               <USMapInteractive
                 selectedState={selectedState}
@@ -121,7 +109,7 @@ const FindARepPage = () => {
           </div>
 
           {/* Rep Info Sidebar */}
-          <div className="order-1 lg:order-2">
+          <div className="">
             {displayRep ? (
               <EditableWrapper
                 id={`sales-rep-${displayRep.id}`}
@@ -175,10 +163,10 @@ const FindARepPage = () => {
                         <svg className="w-5 h-5 text-primary-500 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l4.553 2.276A1 1 0 0021 18.382V7.618a1 1 0 00-.553-.894L15 4m0 13V4m0 0L9 7" />
                         </svg>
-                      <div>
-                        <p className="text-sm font-medium text-dark-100">Coverage Area</p>
-                        <p className="text-sm text-dark-200">{(displayRep.states_covered || displayRep.statesCovered || displayRep.states).join(', ')}</p>
-                      </div>
+                        <div>
+                          <p className="text-sm font-medium text-dark-100">Coverage Area</p>
+                          <p className="text-sm text-dark-200">{(displayRep.states_covered || displayRep.statesCovered || displayRep.states).join(', ')}</p>
+                        </div>
                       </div>
                     </div>
 
@@ -240,9 +228,9 @@ const FindARepPage = () => {
               const states = rep.states_covered || rep.statesCovered || rep.states;
               const territory = rep.territory_name || rep.territoryName || rep.territory;
               return (
-                <Card 
-                  key={rep.id} 
-                  className="hover:shadow-xl hover:border-primary-500 transition-all cursor-pointer" 
+                <Card
+                  key={rep.id}
+                  className="hover:shadow-xl hover:border-primary-500 transition-all cursor-pointer"
                   onClick={() => setSelectedState(states[0])}
                 >
                   <h3 className="text-lg font-semibold mb-1 text-dark-50">{rep.name}</h3>

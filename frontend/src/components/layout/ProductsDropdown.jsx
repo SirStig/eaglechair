@@ -20,17 +20,17 @@ const ProductsDropdown = () => {
   const loadCategoriesAndSubcategories = async () => {
     try {
       setLoading(true);
-      
+
       // Fetch all categories
       const categoriesData = await productService.getCategories();
-      
+
       // Filter active categories and sort by display_order
       const activeCategories = (Array.isArray(categoriesData) ? categoriesData : [])
         .filter(cat => cat.is_active !== false)
         .sort((a, b) => (a.display_order || 0) - (b.display_order || 0));
-      
+
       setCategories(activeCategories);
-      
+
       // Fetch subcategories for each category
       const subcatPromises = activeCategories.map(async (cat) => {
         try {
@@ -46,17 +46,17 @@ const ProductsDropdown = () => {
           return { categoryId: cat.id, subcategories: [] };
         }
       });
-      
+
       const subcatResults = await Promise.all(subcatPromises);
-      
+
       // Convert to object keyed by category ID
       const subcatMap = {};
       subcatResults.forEach(result => {
         subcatMap[result.categoryId] = result.subcategories;
       });
-      
+
       setSubcategoriesByCategory(subcatMap);
-      
+
       logger.info(CONTEXT, `Loaded ${activeCategories.length} categories with subcategories`);
     } catch (error) {
       logger.error(CONTEXT, 'Error loading categories and subcategories', error);
@@ -84,13 +84,13 @@ const ProductsDropdown = () => {
         {displayCategories.map((category) => {
           const subcategories = subcategoriesByCategory[category.id] || [];
           const bannerImage = category.banner_image_url || DEFAULT_BANNER;
-          
+
           return (
             <div key={category.id} className="relative group">
               {/* Full height container with minimum height */}
               <div className="relative h-[500px] sm:h-[600px] overflow-hidden">
                 {/* Background Image - Full Height - Clickable */}
-                <Link 
+                <Link
                   to={`/products/category/${category.slug}`}
                   className="absolute inset-0"
                 >
@@ -101,12 +101,14 @@ const ProductsDropdown = () => {
                     onError={(e) => {
                       e.target.src = DEFAULT_BANNER;
                     }}
+                    loading="eager"
+                    fetchPriority="high"
                   />
                 </Link>
-                
+
                 {/* Dark overlay - stronger for better button visibility */}
                 <div className="absolute inset-0 bg-gradient-to-b from-black/60 via-black/70 to-black/80 group-hover:from-black/50 group-hover:via-black/60 group-hover:to-black/75 transition-all duration-300 pointer-events-none"></div>
-                
+
                 {/* Content Container - Full Height with Flex */}
                 <div className="absolute inset-0 flex flex-col justify-between p-6 sm:p-8 pointer-events-none">
                   {/* Category Title at Top */}
@@ -116,7 +118,7 @@ const ProductsDropdown = () => {
                     </h3>
                     <div className="w-16 h-1 bg-primary-500 rounded-full"></div>
                   </div>
-                  
+
                   {/* Subcategory Navigation Links - Overlaid on Image at Bottom */}
                   <div className="space-y-1 pointer-events-auto">
                     {subcategories.slice(0, 5).map((subcat) => (
@@ -128,7 +130,7 @@ const ProductsDropdown = () => {
                         {subcat.name}
                       </Link>
                     ))}
-                    
+
                     {/* View All link with distinct styling */}
                     <Link
                       to={`/products/category/${category.slug}`}
@@ -148,7 +150,7 @@ const ProductsDropdown = () => {
           <div className="relative group">
             <div className="relative h-[500px] sm:h-[600px] overflow-hidden">
               {/* Background Image */}
-              <Link 
+              <Link
                 to="/products"
                 className="absolute inset-0"
               >
@@ -156,12 +158,14 @@ const ProductsDropdown = () => {
                   src={DEFAULT_BANNER}
                   alt="More Categories"
                   className="absolute inset-0 w-full h-full object-cover transition-transform duration-500 group-hover:scale-110"
+                  loading="eager"
+                  fetchPriority="high"
                 />
               </Link>
-              
+
               {/* Dark overlay */}
               <div className="absolute inset-0 bg-gradient-to-b from-black/60 via-black/70 to-black/80 group-hover:from-black/50 group-hover:via-black/60 group-hover:to-black/75 transition-all duration-300 pointer-events-none"></div>
-              
+
               {/* Content */}
               <div className="absolute inset-0 flex flex-col justify-between p-6 sm:p-8 pointer-events-none">
                 <div>
@@ -170,7 +174,7 @@ const ProductsDropdown = () => {
                   </h3>
                   <div className="w-16 h-1 bg-primary-500 rounded-full"></div>
                 </div>
-                
+
                 {/* Additional categories list */}
                 <div className="space-y-1 pointer-events-auto">
                   {categories.slice(MAX_COLUMNS - 1).map((category) => (
@@ -182,7 +186,7 @@ const ProductsDropdown = () => {
                       {category.name}
                     </Link>
                   ))}
-                  
+
                   {/* View All Products link */}
                   <Link
                     to="/products"

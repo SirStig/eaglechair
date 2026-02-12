@@ -24,15 +24,15 @@ const Header = ({ isMobileMenuOpen, setIsMobileMenuOpen }) => {
   const searchRef = useRef(null);
   const navigate = useNavigate();
   const { user, logout } = useAuthStore();
-  
+
   // Subscribe to cart state properly - this will trigger re-renders on cart changes
   const cartItemCount = useCartStore((state) => {
-    const items = state.isAuthenticated && state.backendCart 
+    const items = state.isAuthenticated && state.backendCart
       ? (state.backendCart.items || [])
       : state.guestItems;
     return items.reduce((sum, item) => sum + item.quantity, 0);
   });
-  
+
   const { data: siteSettings } = useSiteSettings();
 
   // Search products as user types using fuzzy search
@@ -44,7 +44,7 @@ const Header = ({ isMobileMenuOpen, setIsMobileMenuOpen }) => {
             limit: 5,
             threshold: 60
           });
-          
+
           setSearchResults(results || []);
           setShowSearchResults(true);
           logger.debug(CONTEXT, `Search for "${searchQuery}" found ${results?.length || 0} results`);
@@ -73,6 +73,41 @@ const Header = ({ isMobileMenuOpen, setIsMobileMenuOpen }) => {
 
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  // Preload top category images for Products Dropdown
+  useEffect(() => {
+    const preloadCategoryImages = async () => {
+      try {
+        // Fetch categories (cached by service)
+        const categories = await productService.getCategories();
+
+        // Preload banner images for top categories (first 5)
+        // This ensures they are ready when user hovers "Products"
+        if (Array.isArray(categories)) {
+          categories.slice(0, 5).forEach(category => {
+            const imageUrl = category.banner_image_url || category.image;
+            if (imageUrl) {
+              const img = new Image();
+              img.src = imageUrl;
+              // Mark as high priority for browser
+              img.fetchPriority = 'high';
+            }
+          });
+        }
+      } catch (error) {
+        // Non-critical, just log debug
+        logger.debug(CONTEXT, 'Failed to preload category images', error);
+      }
+    };
+
+    // Defer slightly to not block critical initial rendering resources
+    // but still happen before user typically interacts
+    const timer = setTimeout(() => {
+      preloadCategoryImages();
+    }, 1000);
+
+    return () => clearTimeout(timer);
   }, []);
 
   const handleSearch = (e, options = {}) => {
@@ -115,8 +150,8 @@ const Header = ({ isMobileMenuOpen, setIsMobileMenuOpen }) => {
             >
               {/* Eagle Chair Logo Image */}
               {siteSettings?.logoUrl ? (
-                <img 
-                  src={siteSettings.logoUrl} 
+                <img
+                  src={siteSettings.logoUrl}
                   alt={siteSettings.companyName || 'Eagle Chair'}
                   className="h-12 sm:h-14 md:h-16 lg:h-16 w-auto object-contain"
                   onError={(e) => {
@@ -125,9 +160,9 @@ const Header = ({ isMobileMenuOpen, setIsMobileMenuOpen }) => {
                   }}
                 />
               ) : (
-                <img 
-                  src="/assets/eagle-chair-logo.png" 
-                  alt="Eagle Chair" 
+                <img
+                  src="/assets/eagle-chair-logo.png"
+                  alt="Eagle Chair"
                   className="h-12 sm:h-14 md:h-16 lg:h-16 w-auto object-contain"
                 />
               )}
@@ -141,10 +176,10 @@ const Header = ({ isMobileMenuOpen, setIsMobileMenuOpen }) => {
               trigger={(isOpen) => (
                 <Button variant="transparent" className="font-medium hover-lift">
                   Products
-                  <Motion.svg 
-                    className="ml-1 h-4 w-4" 
-                    fill="none" 
-                    viewBox="0 0 24 24" 
+                  <Motion.svg
+                    className="ml-1 h-4 w-4"
+                    fill="none"
+                    viewBox="0 0 24 24"
                     stroke="currentColor"
                     animate={{ rotate: isOpen ? 180 : 0 }}
                     transition={{ duration: 0.3, ease: [0.4, 0, 0.2, 1] }}
@@ -171,10 +206,10 @@ const Header = ({ isMobileMenuOpen, setIsMobileMenuOpen }) => {
               trigger={(isOpen) => (
                 <Button variant="transparent" className="font-medium hover-lift">
                   Resources
-                  <Motion.svg 
-                    className="ml-1 h-4 w-4" 
-                    fill="none" 
-                    viewBox="0 0 24 24" 
+                  <Motion.svg
+                    className="ml-1 h-4 w-4"
+                    fill="none"
+                    viewBox="0 0 24 24"
                     stroke="currentColor"
                     animate={{ rotate: isOpen ? 180 : 0 }}
                     transition={{ duration: 0.3, ease: [0.4, 0, 0.2, 1] }}
@@ -200,10 +235,10 @@ const Header = ({ isMobileMenuOpen, setIsMobileMenuOpen }) => {
               trigger={(isOpen) => (
                 <Button variant="transparent" className="font-medium hover-lift">
                   Connect
-                  <Motion.svg 
-                    className="ml-1 h-4 w-4" 
-                    fill="none" 
-                    viewBox="0 0 24 24" 
+                  <Motion.svg
+                    className="ml-1 h-4 w-4"
+                    fill="none"
+                    viewBox="0 0 24 24"
                     stroke="currentColor"
                     animate={{ rotate: isOpen ? 180 : 0 }}
                     transition={{ duration: 0.3, ease: [0.4, 0, 0.2, 1] }}
@@ -333,10 +368,10 @@ const Header = ({ isMobileMenuOpen, setIsMobileMenuOpen }) => {
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
                       </svg>
                       {user.companyName || user.username || 'User'}
-                      <Motion.svg 
-                        className="ml-1 h-4 w-4 inline-block" 
-                        fill="none" 
-                        viewBox="0 0 24 24" 
+                      <Motion.svg
+                        className="ml-1 h-4 w-4 inline-block"
+                        fill="none"
+                        viewBox="0 0 24 24"
                         stroke="currentColor"
                         animate={{ rotate: isOpen ? 180 : 0 }}
                         transition={{ duration: 0.3, ease: [0.4, 0, 0.2, 1] }}
@@ -410,12 +445,12 @@ const Header = ({ isMobileMenuOpen, setIsMobileMenuOpen }) => {
               aria-label={isMobileMenuOpen ? 'Close menu' : 'Open menu'}
               aria-expanded={isMobileMenuOpen}
             >
-              <Motion.svg 
-                className="h-6 w-6" 
-                fill="none" 
-                viewBox="0 0 24 24" 
+              <Motion.svg
+                className="h-6 w-6"
+                fill="none"
+                viewBox="0 0 24 24"
                 stroke="currentColor"
-                animate={{ 
+                animate={{
                   rotate: isMobileMenuOpen ? 90 : 0,
                   scale: isMobileMenuOpen ? 0.9 : 1
                 }}
@@ -445,14 +480,14 @@ export const MobileMenu = ({ isMobileMenuOpen, setIsMobileMenuOpen, searchQuery,
   const [isProductsOpen, setIsProductsOpen] = useState(false);
   const [isConnectOpen, setIsConnectOpen] = useState(false);
   const [desktopViewEnabled, setDesktopViewEnabled] = useState(isDesktopViewEnabled());
-  
+
   const handleToggleDesktopView = () => {
     const newState = toggleDesktopView();
     setDesktopViewEnabled(newState);
     // Reload page to apply desktop view mode changes
     window.location.reload();
   };
-  
+
   const handleMobileLinkClick = (callback) => {
     if (typeof callback === 'function') {
       callback();
@@ -506,15 +541,15 @@ export const MobileMenu = ({ isMobileMenuOpen, setIsMobileMenuOpen, searchQuery,
                 <nav className="flex flex-col gap-3 text-base text-dark-50">
                   {/* Products Dropdown */}
                   <div>
-                    <button 
+                    <button
                       onClick={() => setIsProductsOpen(!isProductsOpen)}
                       className="flex items-center justify-between w-full py-2 hover:text-primary-400 transition-colors"
                     >
                       <span>Products</span>
-                      <Motion.svg 
-                        className="h-4 w-4" 
-                        fill="none" 
-                        viewBox="0 0 24 24" 
+                      <Motion.svg
+                        className="h-4 w-4"
+                        fill="none"
+                        viewBox="0 0 24 24"
                         stroke="currentColor"
                         animate={{ rotate: isProductsOpen ? 180 : 0 }}
                         transition={{ duration: 0.3 }}
@@ -522,13 +557,13 @@ export const MobileMenu = ({ isMobileMenuOpen, setIsMobileMenuOpen, searchQuery,
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
                       </Motion.svg>
                     </button>
-                    
-                    <MobileProductsMenu 
-                      isOpen={isProductsOpen} 
-                      onNavigate={() => setIsMobileMenuOpen(false)} 
+
+                    <MobileProductsMenu
+                      isOpen={isProductsOpen}
+                      onNavigate={() => setIsMobileMenuOpen(false)}
                     />
                   </div>
-                  
+
                   <Link to="/gallery" onClick={() => setIsMobileMenuOpen(false)} className="py-2 hover:text-primary-400 transition-colors">
                     Gallery
                   </Link>
@@ -538,18 +573,18 @@ export const MobileMenu = ({ isMobileMenuOpen, setIsMobileMenuOpen, searchQuery,
                   <Link to="/virtual-catalogs" onClick={() => setIsMobileMenuOpen(false)} className="py-2 hover:text-primary-400 transition-colors">
                     Resources
                   </Link>
-                  
+
                   {/* Connect Dropdown */}
                   <div>
-                    <button 
+                    <button
                       onClick={() => setIsConnectOpen(!isConnectOpen)}
                       className="flex items-center justify-between w-full py-2 hover:text-primary-400 transition-colors"
                     >
                       <span>Connect</span>
-                      <Motion.svg 
-                        className="h-4 w-4" 
-                        fill="none" 
-                        viewBox="0 0 24 24" 
+                      <Motion.svg
+                        className="h-4 w-4"
+                        fill="none"
+                        viewBox="0 0 24 24"
                         stroke="currentColor"
                         animate={{ rotate: isConnectOpen ? 180 : 0 }}
                         transition={{ duration: 0.3 }}
@@ -557,7 +592,7 @@ export const MobileMenu = ({ isMobileMenuOpen, setIsMobileMenuOpen, searchQuery,
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
                       </Motion.svg>
                     </button>
-                    
+
                     <AnimatePresence>
                       {isConnectOpen && (
                         <Motion.div
@@ -577,7 +612,7 @@ export const MobileMenu = ({ isMobileMenuOpen, setIsMobileMenuOpen, searchQuery,
                       )}
                     </AnimatePresence>
                   </div>
-                  
+
                   <Link to="/quote-request" onClick={() => setIsMobileMenuOpen(false)} className="py-2 hover:text-primary-400 transition-colors">
                     Request a Quote
                   </Link>
@@ -629,7 +664,7 @@ export const MobileMenu = ({ isMobileMenuOpen, setIsMobileMenuOpen, searchQuery,
                       </span>
                     )}
                   </Link>
-                  
+
                   {/* View Desktop Site Option */}
                   <button
                     type="button"
