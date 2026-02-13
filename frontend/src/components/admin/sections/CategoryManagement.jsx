@@ -238,7 +238,7 @@ const CategoryManagement = () => {
   const fetchCategories = async () => {
     try {
       const response = await apiClient.get('/api/v1/admin/categories');
-      setCategories(response);
+      setCategories(Array.isArray(response) ? response : []);
     } catch (error) {
       console.error('Failed to fetch categories:', error);
     } finally {
@@ -295,23 +295,17 @@ const CategoryManagement = () => {
       : null;
   const isSubcategory = !!editingCategory?.id && categories.some((c) => c.subcategories?.some((s) => s.id === editingCategory.id));
 
-  if (editingCategory !== null) {
-    return (
-      <CategoryEditor
-        key={`${editingCategory?.id ?? 'new'}-${editingCategory?.parent_id ?? ''}-${isSubcategory}`}
-        category={editingCategory.id ? editingCategory : null}
-        categories={categories}
-        parentCategory={parentCategoryForSubcategory}
-        isSubcategory={isSubcategory}
-        onBack={handleBack}
-        onSave={handleSave}
-      />
-    );
-  }
-
-  // Count subcategories for a category
   const getSubcategoryCount = (category) => {
     return category.subcategories?.length || 0;
+  };
+
+  const getCategoryName = (categoryId) => {
+    for (const c of categories) {
+      if (c.id === categoryId) return c.name;
+      const sub = c.subcategories?.find(s => s.id === categoryId);
+      if (sub) return sub.name;
+    }
+    return 'N/A';
   };
 
   const toggleExpanded = (categoryId) => {
@@ -373,9 +367,22 @@ const CategoryManagement = () => {
     [topLevelCategories, handleReorder, fetchCategories]
   );
 
+  if (editingCategory !== null) {
+    return (
+      <CategoryEditor
+        key={`${editingCategory?.id ?? 'new'}-${editingCategory?.parent_id ?? ''}-${isSubcategory}`}
+        category={editingCategory.id ? editingCategory : null}
+        categories={categories}
+        parentCategory={parentCategoryForSubcategory}
+        isSubcategory={isSubcategory}
+        onBack={handleBack}
+        onSave={handleSave}
+      />
+    );
+  }
+
   return (
     <div className="p-6 space-y-6">
-      {/* Header */}
       <div className="flex items-center justify-between">
         <div>
           <h2 className="text-2xl sm:text-3xl font-bold text-dark-50">Category Management</h2>

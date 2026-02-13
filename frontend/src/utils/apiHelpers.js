@@ -56,6 +56,14 @@ export const formatPriceRange = (minCents, maxCents) => {
   return `${formatPrice(minCents)} - ${formatPrice(maxCents)}`;
 };
 
+export const ensurePriceCents = (value) => {
+  const n = Number(value);
+  if (Number.isNaN(n)) return 0;
+  if (n > 0 && n < 10000 && n !== Math.floor(n))
+    return Math.round(n * 100);
+  return Math.round(n);
+};
+
 // ============================================================================
 // Image Utilities
 // ============================================================================
@@ -485,6 +493,7 @@ export default {
   priceToCents,
   formatPrice,
   formatPriceRange,
+  ensurePriceCents,
 
   // Images
   resolveImageUrl,

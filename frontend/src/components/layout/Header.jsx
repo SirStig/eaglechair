@@ -13,6 +13,7 @@ import { useSiteSettings } from '../../hooks/useContent';
 import productService from '../../services/productService';
 import logger from '../../utils/logger';
 import { isDesktopViewEnabled, toggleDesktopView } from '../../utils/viewMode';
+import { getProductImage } from '../../utils/apiHelpers';
 
 const CONTEXT = 'Header';
 
@@ -330,7 +331,7 @@ const Header = ({ isMobileMenuOpen, setIsMobileMenuOpen }) => {
                         >
                           <span className="w-10 shrink-0 aspect-[4/5] overflow-hidden rounded bg-dark-700">
                             <img
-                              src={product.image || '/placeholder-product.png'}
+                              src={getProductImage(product)}
                               alt={product.name}
                               className="w-full h-full object-cover"
                               loading="lazy"

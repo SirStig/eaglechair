@@ -168,6 +168,23 @@ class QuoteService:
                 f"belonging to company {cart.company_id}"
             )
             raise AuthorizationError("You don't have permission to access this cart")
+
+        from backend.services.pricing_service import PricingService
+        company_result = await db.execute(
+            select(Company).where(Company.id == company_id)
+        )
+        company = company_result.scalar_one_or_none()
+        for item in cart.items:
+            base_price = item.product.base_price or 0
+            unit_price = base_price
+            if company and base_price and item.product.category_id:
+                tier_adjustment, _ = await PricingService._get_company_tier_adjustment(
+                    db, company_id, item.product.category_id, base_price
+                )
+                unit_price = base_price + tier_adjustment
+            item.unit_price = unit_price
+            item.line_total = item.quantity * (unit_price + (item.customization_cost or 0))
+        await db.commit()
         
         return cart
     
