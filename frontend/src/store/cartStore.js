@@ -5,6 +5,8 @@ import logger from '../utils/logger';
 
 const CONTEXT = 'CartStore';
 
+let mergeInProgress = false;
+
 /**
  * Cart Store
  * 
@@ -54,8 +56,8 @@ export const useCartStore = create(
       getTotalPrice: () => {
         const items = get().getItems();
         return items.reduce((sum, item) => {
-          const price = item.product?.price || item.product?.base_price || 0;
-          return sum + (price * item.quantity);
+          const priceCents = item.unit_price ?? item.product?.price ?? item.product?.base_price ?? 0;
+          return sum + (priceCents * item.quantity);
         }, 0);
       },
 
@@ -243,6 +245,34 @@ export const useCartStore = create(
         }
       },
 
+      updateItemNotes: async (itemIndex, notes) => {
+        const isAuth = get().isAuthenticated;
+        
+        if (isAuth) {
+          const items = get().getItems();
+          const item = items[itemIndex];
+          if (item && item.id) {
+            await get().updateItemInBackend(item.id, { item_notes: notes || null });
+          }
+        } else {
+          set((state) => {
+            const newItems = [...state.guestItems];
+            const it = newItems[itemIndex];
+            if (it) {
+              newItems[itemIndex] = {
+                ...it,
+                customizations: {
+                  ...(it.customizations || {}),
+                  custom_notes: notes || null,
+                }
+              };
+            }
+            return { guestItems: newItems };
+          });
+          logger.info(CONTEXT, 'Updated item notes in guest cart');
+        }
+      },
+
       updateItemInBackend: async (cartItemId, updates) => {
         set({ isLoading: true });
         try {
@@ -349,15 +379,20 @@ export const useCartStore = create(
       // ========================================================================
       
       mergeGuestCart: async () => {
+        if (mergeInProgress) {
+          logger.info(CONTEXT, 'Merge already in progress, skipping');
+          return;
+        }
         const guestItems = get().guestItems;
         
         if (guestItems.length === 0) {
           logger.info(CONTEXT, 'No guest items to merge');
-          set({ isAuthenticated: true });
+          set({ guestItems: [], isAuthenticated: true });
           await get().loadBackendCart();
           return;
         }
 
+        mergeInProgress = true;
         logger.info(CONTEXT, `Merging ${guestItems.length} guest items into backend cart`);
 
         set({ isLoading: true });
@@ -439,18 +474,17 @@ export const useCartStore = create(
             logger.info(CONTEXT, 'Guest cart merged using fallback method');
           } catch (fallbackError) {
             logger.error(CONTEXT, 'Fallback merge also failed', fallbackError);
-            // If fallback also fails, still try to load backend cart (might already exist)
             try {
               await get().loadBackendCart();
-              set({ isAuthenticated: true });
+              set({ guestItems: [], isAuthenticated: true });
               logger.info(CONTEXT, 'Loaded existing backend cart after merge failure');
             } catch (loadError) {
               logger.error(CONTEXT, 'Failed to load backend cart', loadError);
-              // Stay in guest mode
               set({ isAuthenticated: false });
             }
           }
         } finally {
+          mergeInProgress = false;
           set({ isLoading: false });
         }
       },
@@ -469,9 +503,11 @@ export const useCartStore = create(
         logger.info(CONTEXT, 'Switched to guest cart mode');
       },
 
-      // Switch to authenticated mode (on login)
       switchToAuthMode: async () => {
-        // Don't set isAuthenticated yet - wait for merge to complete
+        if (get().isAuthenticated) {
+          logger.info(CONTEXT, 'Already in auth mode, skipping sync');
+          return;
+        }
         await get().mergeGuestCart();
         logger.info(CONTEXT, 'Switched to authenticated cart mode');
       },

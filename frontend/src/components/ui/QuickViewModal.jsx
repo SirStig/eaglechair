@@ -4,6 +4,7 @@ import Button from './Button';
 import Tag from './Tag';
 import { useCartStore } from '../../store/cartStore';
 import { getProductImages, buildProductUrl, resolveImageUrl } from '../../utils/apiHelpers';
+import SwatchImage from './SwatchImage';
 import productService from '../../services/productService';
 import logger from '../../utils/logger';
 
@@ -230,12 +231,10 @@ const QuickViewModal = ({ product, isOpen, onClose }) => {
                         <span className="text-2xl font-bold text-slate-900">
                           {getDisplayPrice()}
                         </span>
-                        {selectedVariation && (
-                          <span className="text-sm text-slate-500 ml-2">per unit</span>
-                        )}
-                        {!selectedVariation && product.priceRange?.min && product.priceRange?.max && product.priceRange.min !== product.priceRange.max && (
-                          <span className="text-sm text-slate-500 ml-2">per unit</span>
-                        )}
+                        <span className="text-sm text-slate-500 ml-2">
+                          {(selectedVariation || (product.priceRange?.min && product.priceRange?.max && product.priceRange.min !== product.priceRange.max)) ? 'per unit · ' : ''}
+                          Est. listing
+                        </span>
                       </div>
                     )}
 
@@ -386,15 +385,24 @@ const QuickViewModal = ({ product, isOpen, onClose }) => {
                           <label className="block text-sm font-medium text-slate-700 mb-2">
                             Finish
                           </label>
-                          <select
-                            value={selectedFinish || ''}
-                            onChange={(e) => setSelectedFinish(e.target.value)}
-                            className="w-full px-3 py-2 text-sm border border-cream-300 bg-white text-slate-800 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
-                          >
-                            {product.customizations.finishes.map((finish, idx) => (
-                              <option key={idx} value={finish}>{finish}</option>
-                            ))}
-                          </select>
+                          <div className="flex flex-wrap gap-1.5">
+                            {product.customizations.finishes.map((finish, idx) => {
+                              const f = typeof finish === 'object' ? finish : { name: finish };
+                              const isSelected = typeof selectedFinish === 'object' ? selectedFinish?.id === f.id : selectedFinish === f.name;
+                              return (
+                                <button
+                                  key={f.id ?? idx}
+                                  type="button"
+                                  onClick={() => setSelectedFinish(f)}
+                                  className={`p-1.5 rounded-lg border-2 transition-all flex items-center gap-1.5 ${isSelected ? 'border-primary-600 bg-primary-50' : 'border-cream-300 bg-white hover:border-primary-400'}`}
+                                  title={f.name}
+                                >
+                                  <SwatchImage item={f} size="sm" rounded="circle" zoom />
+                                  <span className="text-xs truncate max-w-[60px]">{f.name}</span>
+                                </button>
+                              );
+                            })}
+                          </div>
                         </div>
                       )}
 
@@ -404,15 +412,24 @@ const QuickViewModal = ({ product, isOpen, onClose }) => {
                           <label className="block text-sm font-medium text-slate-700 mb-2">
                             Upholstery
                           </label>
-                          <select
-                            value={selectedUpholstery || ''}
-                            onChange={(e) => setSelectedUpholstery(e.target.value)}
-                            className="w-full px-3 py-2 text-sm border border-cream-300 bg-white text-slate-800 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
-                          >
-                            {product.customizations.fabrics.map((fabric, idx) => (
-                              <option key={idx} value={fabric}>{fabric}</option>
-                            ))}
-                          </select>
+                          <div className="flex flex-wrap gap-1.5">
+                            {product.customizations.fabrics.map((fabric, idx) => {
+                              const f = typeof fabric === 'object' ? fabric : { name: fabric };
+                              const isSelected = typeof selectedUpholstery === 'object' ? selectedUpholstery?.id === f.id : selectedUpholstery === f.name;
+                              return (
+                                <button
+                                  key={f.id ?? idx}
+                                  type="button"
+                                  onClick={() => setSelectedUpholstery(f)}
+                                  className={`p-1.5 rounded-lg border-2 transition-all flex items-center gap-1.5 ${isSelected ? 'border-primary-600 bg-primary-50' : 'border-cream-300 bg-white hover:border-primary-400'}`}
+                                  title={f.name}
+                                >
+                                  <SwatchImage item={f} size="sm" rounded="circle" zoom />
+                                  <span className="text-xs truncate max-w-[60px]">{f.name}</span>
+                                </button>
+                              );
+                            })}
+                          </div>
                         </div>
                       )}
 
@@ -422,15 +439,24 @@ const QuickViewModal = ({ product, isOpen, onClose }) => {
                           <label className="block text-sm font-medium text-slate-700 mb-2">
                             Color
                           </label>
-                          <select
-                            value={selectedColor || ''}
-                            onChange={(e) => setSelectedColor(e.target.value)}
-                            className="w-full px-3 py-2 text-sm border border-cream-300 bg-white text-slate-800 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
-                          >
-                            {product.customizations.colors.map((color, idx) => (
-                              <option key={idx} value={color}>{color}</option>
-                            ))}
-                          </select>
+                          <div className="flex flex-wrap gap-1.5">
+                            {product.customizations.colors.map((color, idx) => {
+                              const c = typeof color === 'object' ? color : { name: color };
+                              const isSelected = typeof selectedColor === 'object' ? selectedColor?.id === c.id : selectedColor === c.name;
+                              return (
+                                <button
+                                  key={c.id ?? idx}
+                                  type="button"
+                                  onClick={() => setSelectedColor(c)}
+                                  className={`p-1.5 rounded-lg border-2 transition-all flex items-center gap-1.5 ${isSelected ? 'border-primary-600 bg-primary-50' : 'border-cream-300 bg-white hover:border-primary-400'}`}
+                                  title={c.name}
+                                >
+                                  <SwatchImage item={c} size="sm" rounded="circle" zoom />
+                                  <span className="text-xs truncate max-w-[60px]">{c.name}</span>
+                                </button>
+                              );
+                            })}
+                          </div>
                         </div>
                       )}
 

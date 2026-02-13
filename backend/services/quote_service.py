@@ -20,7 +20,7 @@ from backend.core.exceptions import (
     ValidationError,
 )
 from backend.models.chair import Chair
-from backend.models.company import Company
+from backend.models.company import Company, CompanyShippingAddress
 from backend.models.quote import (
     Cart,
     CartItem,
@@ -28,6 +28,8 @@ from backend.models.quote import (
     QuoteAttachment,
     QuoteHistory,
     QuoteItem,
+    QuoteItemAllocation,
+    QuoteShippingDestination,
     QuoteStatus,
     SavedConfiguration,
 )
@@ -585,172 +587,342 @@ class QuoteService:
         shipping_state: Optional[str] = None,
         shipping_zip: Optional[str] = None,
         shipping_country: str = "USA",
+        shipping_destination_id: Optional[int] = None,
+        shipping_destinations: Optional[List[Dict[str, Any]]] = None,
+        allocations: Optional[List[Dict[str, int]]] = None,
         project_name: Optional[str] = None,
         project_description: Optional[str] = None,
         desired_delivery_date: Optional[str] = None,
-        special_instructions: Optional[str] = None
+        special_instructions: Optional[str] = None,
     ) -> Quote:
-        """
-        Convert cart to quote request
-        
-        Args:
-            db: Database session
-            company_id: Company ID
-            cart_id: Cart ID to convert
-            shipping_address_line1: Shipping address line 1
-            shipping_address_line2: Optional shipping address line 2
-            shipping_city: City (uses company shipping address if not provided)
-            shipping_state: State (uses company shipping address if not provided)
-            shipping_zip: ZIP code (uses company shipping address if not provided)
-            shipping_country: Country (defaults to USA)
-            project_name: Optional project name
-            project_description: Optional project description
-            desired_delivery_date: Optional requested delivery date
-            special_instructions: Optional special instructions
-            
-        Returns:
-            Created quote request
-            
-        Raises:
-            ValidationError: If cart is empty
-        """
         from sqlalchemy import select
 
-        from backend.models.company import Company
-        
-        # Fetch company to get contact information
         result = await db.execute(
-            select(Company).where(Company.id == company_id)
+            select(Company).where(Company.id == company_id).options(selectinload(Company.shipping_addresses))
         )
         company = result.scalar_one_or_none()
-        
         if not company:
             raise ValidationError(f"Company {company_id} not found")
-        
-        # Get cart with items
+
         cart = await QuoteService.get_cart_with_items(db, cart_id, company_id)
-        
         if not cart.items:
             raise ValidationError("Cannot create quote request from empty cart")
-        
-        # Use company shipping address if not fully provided, otherwise fallback to billing
-        if not shipping_address_line1 or not shipping_city:
-            # Check if company has a separate shipping address
-            if company.shipping_address_line1 and company.shipping_city:
-                # Use company shipping address, but allow override from request
-                if not shipping_address_line1:
-                    shipping_address_line1 = company.shipping_address_line1
-                if not shipping_address_line2:
-                    shipping_address_line2 = company.shipping_address_line2
-                if not shipping_city:
-                    shipping_city = company.shipping_city
-                if not shipping_state:
-                    shipping_state = company.shipping_state
-                if not shipping_zip:
-                    shipping_zip = company.shipping_zip
-                if shipping_country == "USA":
-                    shipping_country = company.shipping_country or "USA"
+
+        dests: List[Dict[str, Any]] = []
+        if shipping_destinations and len(shipping_destinations) > 0:
+            dests = [{"label": d.get("label"), "line1": d["line1"], "line2": d.get("line2"), "city": d["city"], "state": d["state"], "zip": d["zip"], "country": d.get("country", "USA")} for d in shipping_destinations]
+        elif shipping_destination_id is not None:
+            addr_result = await db.execute(
+                select(CompanyShippingAddress).where(
+                    CompanyShippingAddress.id == shipping_destination_id,
+                    CompanyShippingAddress.company_id == company_id,
+                )
+            )
+            addr = addr_result.scalar_one_or_none()
+            if not addr:
+                raise ValidationError("Shipping address not found")
+            dests = [{"label": addr.label, "line1": addr.line1, "line2": addr.line2, "city": addr.city, "state": addr.state, "zip": addr.zip, "country": addr.country or "USA"}]
+        elif shipping_address_line1 and shipping_city:
+            dests = [{"label": None, "line1": shipping_address_line1, "line2": shipping_address_line2, "city": shipping_city, "state": shipping_state or "", "zip": shipping_zip or "", "country": shipping_country or "USA"}]
+        else:
+            addrs = list(company.shipping_addresses or [])
+            if addrs:
+                a = addrs[0]
+                dests = [{"label": a.label, "line1": a.line1, "line2": a.line2, "city": a.city, "state": a.state, "zip": a.zip, "country": a.country or "USA"}]
             else:
-                # Fallback to billing address
-                if not shipping_address_line1:
-                    shipping_address_line1 = company.billing_address_line1
-                if not shipping_address_line2:
-                    shipping_address_line2 = company.billing_address_line2
-                if not shipping_city:
-                    shipping_city = company.billing_city
-                if not shipping_state:
-                    shipping_state = company.billing_state
-                if not shipping_zip:
-                    shipping_zip = company.billing_zip
-                if shipping_country == "USA":
-                    shipping_country = company.billing_country or "USA"
-        
-        # Generate quote number
+                dests = [{"label": None, "line1": company.billing_address_line1, "line2": company.billing_address_line2, "city": company.billing_city, "state": company.billing_state, "zip": company.billing_zip, "country": company.billing_country or "USA"}]
+
+        first = dests[0]
         quote_number = await QuoteService._generate_quote_number(db)
-        
-        # Build contact name from rep first and last name
         contact_name = f"{company.rep_first_name} {company.rep_last_name}".strip()
-        
-        # Create quote request using company contact info
         quote_request = Quote(
             quote_number=quote_number,
             company_id=company_id,
-            # Contact information from company profile
             contact_name=contact_name,
             contact_email=company.rep_email,
             contact_phone=company.rep_phone,
-            # Project information
             project_name=project_name,
             project_description=project_description,
             desired_delivery_date=desired_delivery_date,
-            # Shipping information
-            shipping_address_line1=shipping_address_line1,
-            shipping_address_line2=shipping_address_line2,
-            shipping_city=shipping_city,
-            shipping_state=shipping_state,
-            shipping_zip=shipping_zip,
-            shipping_country=shipping_country,
-            # Special instructions
+            shipping_address_line1=first["line1"],
+            shipping_address_line2=first.get("line2"),
+            shipping_city=first["city"],
+            shipping_state=first["state"],
+            shipping_zip=first["zip"],
+            shipping_country=first.get("country", "USA"),
             special_instructions=special_instructions,
-            # Status
-            status=QuoteStatus.SUBMITTED,  # Quote request is submitted for review
+            status=QuoteStatus.SUBMITTED,
         )
-        
         db.add(quote_request)
-        await db.flush()  # Get quote_request.id
-        
-        # Convert cart items to quote items
-        for cart_item in cart.items:
-            # Get product information (should be loaded from get_cart_with_items)
+        await db.flush()
+
+        for i, d in enumerate(dests):
+            dest = QuoteShippingDestination(
+                quote_id=quote_request.id,
+                label=d.get("label"),
+                line1=d["line1"],
+                line2=d.get("line2"),
+                city=d["city"],
+                state=d["state"],
+                zip=d["zip"],
+                country=d.get("country", "USA"),
+                sort_order=i,
+            )
+            db.add(dest)
+        await db.flush()
+        result_dests = await db.execute(
+            select(QuoteShippingDestination).where(QuoteShippingDestination.quote_id == quote_request.id).order_by(QuoteShippingDestination.sort_order, QuoteShippingDestination.id)
+        )
+        dest_list = result_dests.scalars().all()
+        dest_ids_by_index = {idx: dest.id for idx, dest in enumerate(dest_list)}
+
+        cart_items_list = list(cart.items)
+        alloc_map: Dict[int, Dict[int, int]] = {}
+        if allocations and len(dests) > 1:
+            for a in allocations:
+                ci_idx = a.get("cart_item_index", 0)
+                dest_idx = a.get("destination_index", 0)
+                qty = a.get("quantity", 0)
+                if ci_idx not in alloc_map:
+                    alloc_map[ci_idx] = {}
+                alloc_map[ci_idx][dest_idx] = alloc_map[ci_idx].get(dest_idx, 0) + qty
+            for ci_idx in range(len(cart_items_list)):
+                if ci_idx not in alloc_map:
+                    alloc_map[ci_idx] = {0: cart_items_list[ci_idx].quantity}
+        else:
+            for ci_idx in range(len(cart_items_list)):
+                alloc_map[ci_idx] = {0: cart_items_list[ci_idx].quantity}
+
+        for ci_idx, cart_item in enumerate(cart_items_list):
             product = cart_item.product
             if not product:
-                logger.warning(f"Cart item {cart_item.id} has no product, skipping")
                 continue
-            
-            # Calculate line total
-            line_total = cart_item.quantity * (cart_item.unit_price + cart_item.customization_cost)
-            
+            item_qty = sum(alloc_map.get(ci_idx, {}).values())
+            if item_qty <= 0:
+                item_qty = cart_item.quantity
+            line_total = item_qty * (cart_item.unit_price + cart_item.customization_cost)
             quote_item = QuoteItem(
-                quote_id=quote_request.id,  # Use quote_id, not quote_request_id
+                quote_id=quote_request.id,
                 product_id=cart_item.product_id,
                 product_model_number=product.model_number or "",
                 product_name=product.name or "",
-                quantity=cart_item.quantity,
+                quantity=item_qty,
                 unit_price=cart_item.unit_price,
                 customization_cost=cart_item.customization_cost,
                 line_total=line_total,
                 selected_finish_id=cart_item.selected_finish_id,
                 selected_upholstery_id=cart_item.selected_upholstery_id,
                 item_notes=cart_item.item_notes,
-                custom_options=cart_item.custom_options
+                custom_options=cart_item.custom_options,
             )
             db.add(quote_item)
-        
-        # Calculate quote totals from cart
+            await db.flush()
+            for dest_idx, qty in alloc_map.get(ci_idx, {}).items():
+                if qty <= 0:
+                    continue
+                dest_id = dest_ids_by_index.get(dest_idx)
+                if dest_id is None:
+                    continue
+                db.add(QuoteItemAllocation(quote_item_id=quote_item.id, quote_shipping_destination_id=dest_id, quantity=qty))
+
         subtotal = sum(item.quantity * (item.unit_price + item.customization_cost) for item in cart.items)
         quote_request.subtotal = subtotal
-        quote_request.tax_amount = 0  # Will be calculated by admin
-        quote_request.shipping_cost = 0  # Will be calculated by admin
+        quote_request.tax_amount = 0
+        quote_request.shipping_cost = 0
         quote_request.discount_amount = 0
         quote_request.total_amount = subtotal
-        
-        # Set submission timestamp
-        from datetime import datetime
         quote_request.submitted_at = datetime.utcnow().isoformat()
-        
-        # Mark cart as inactive
         cart.is_active = False
-        
         await db.commit()
         await db.refresh(quote_request)
-        
-        logger.info(
-            f"Created quote request {quote_number} for company {company_id} "
-            f"with {len(cart.items)} items"
-        )
-        
+        logger.info(f"Created quote request {quote_number} for company {company_id} with {len(cart.items)} items")
         return quote_request
-    
+
+    @staticmethod
+    async def create_guest_quote_request(
+        db: AsyncSession,
+        payload: Dict[str, Any],
+        files: Optional[List[tuple]] = None,
+    ) -> Quote:
+        """
+        Create a quote request from guest (no auth). Payload must contain:
+        contact_email, contact_name, contact_phone, billing_address, shipping_destinations,
+        project_name, project_description, desired_delivery_date, special_instructions, rush_order, items.
+        files: optional list of (filename, content_bytes, content_type).
+        """
+        from backend.services.email_service import EmailService
+        from backend.core.config import settings
+        from pathlib import Path as PathLib
+        import time
+        import json
+
+        items_data = payload.get("items") or []
+        if not items_data:
+            raise ValidationError("At least one item is required")
+
+        shipping_dests = payload.get("shipping_destinations") or []
+        if not shipping_dests:
+            raise ValidationError("At least one shipping destination is required")
+
+        first_dest = shipping_dests[0]
+        quote_number = await QuoteService._generate_quote_number(db)
+
+        quote_request = Quote(
+            quote_number=quote_number,
+            company_id=None,
+            contact_name=payload.get("contact_name", ""),
+            contact_email=payload.get("contact_email", ""),
+            contact_phone=payload.get("contact_phone", ""),
+            project_name=payload.get("project_name"),
+            project_description=payload.get("project_description"),
+            desired_delivery_date=payload.get("desired_delivery_date"),
+            shipping_address_line1=first_dest.get("line1", ""),
+            shipping_address_line2=first_dest.get("line2"),
+            shipping_city=first_dest.get("city", ""),
+            shipping_state=first_dest.get("state", ""),
+            shipping_zip=first_dest.get("zip", ""),
+            shipping_country=first_dest.get("country", "USA"),
+            special_instructions=payload.get("special_instructions"),
+            rush_order=bool(payload.get("rush_order")),
+            status=QuoteStatus.SUBMITTED,
+        )
+        db.add(quote_request)
+        await db.flush()
+
+        for i, d in enumerate(shipping_dests):
+            dest = QuoteShippingDestination(
+                quote_id=quote_request.id,
+                label=d.get("label"),
+                line1=d.get("line1", ""),
+                line2=d.get("line2"),
+                city=d.get("city", ""),
+                state=d.get("state", ""),
+                zip=d.get("zip", ""),
+                country=d.get("country", "USA"),
+                sort_order=i,
+            )
+            db.add(dest)
+        await db.flush()
+
+        result_dests = await db.execute(
+            select(QuoteShippingDestination)
+            .where(QuoteShippingDestination.quote_id == quote_request.id)
+            .order_by(QuoteShippingDestination.sort_order, QuoteShippingDestination.id)
+        )
+        dest_list = result_dests.scalars().all()
+        dest_ids_by_index = {idx: d.id for idx, d in enumerate(dest_list)}
+
+        subtotal = 0
+        for idx, item_data in enumerate(items_data):
+            product_id = item_data.get("product_id")
+            quantity = int(item_data.get("quantity", 1))
+            if quantity < 1:
+                continue
+
+            result = await db.execute(
+                select(Chair).where(Chair.id == product_id)
+            )
+            product = result.scalar_one_or_none()
+            if not product:
+                raise ResourceNotFoundError(resource_type="Product", resource_id=product_id)
+            if not product.is_active:
+                raise ValidationError(f"Product {product.name} is no longer available")
+
+            base_price = product.base_price or 0
+            customization_cost = 0
+            unit_price = base_price
+            line_total = quantity * (unit_price + customization_cost)
+            subtotal += line_total
+
+            quote_item = QuoteItem(
+                quote_id=quote_request.id,
+                product_id=product.id,
+                product_model_number=product.model_number or "",
+                product_name=product.name or "",
+                quantity=quantity,
+                unit_price=unit_price,
+                customization_cost=customization_cost,
+                line_total=line_total,
+                selected_finish_id=item_data.get("selected_finish_id"),
+                selected_upholstery_id=item_data.get("selected_upholstery_id"),
+                item_notes=item_data.get("item_notes"),
+                custom_options=item_data.get("custom_options"),
+            )
+            db.add(quote_item)
+            await db.flush()
+
+            dest_id = dest_ids_by_index.get(0)
+            if dest_id is not None:
+                db.add(QuoteItemAllocation(
+                    quote_item_id=quote_item.id,
+                    quote_shipping_destination_id=dest_id,
+                    quantity=quantity,
+                ))
+
+        quote_request.subtotal = subtotal
+        quote_request.tax_amount = 0
+        quote_request.shipping_cost = 0
+        quote_request.discount_amount = 0
+        quote_request.total_amount = subtotal
+        quote_request.submitted_at = datetime.utcnow().isoformat()
+
+        if files:
+            try:
+                from backend.api.v1.routes.admin.upload import get_upload_base_dir
+                upload_base = get_upload_base_dir()
+                quote_upload_dir = upload_base / "quotes" / quote_number
+                quote_upload_dir.mkdir(parents=True, exist_ok=True)
+                base_resolved = upload_base.resolve()
+                for fname, fcontent, ftype in files:
+                    safe_name = "".join(c for c in (fname or "file") if c.isalnum() or c in ".-_") or "file"
+                    ext = PathLib(safe_name).suffix or (".pdf" if "pdf" in (ftype or "") else ".bin")
+                    if not ext.startswith("."):
+                        ext = "." + ext
+                    unique_name = f"{int(time.time() * 1000)}_{safe_name}"
+                    file_path = quote_upload_dir / unique_name
+                    file_path.write_bytes(fcontent)
+                    if not str(file_path.resolve()).startswith(str(base_resolved)):
+                        raise ValidationError("Invalid upload path")
+                    url_path = f"/uploads/quotes/{quote_number}/{unique_name}"
+                    att = QuoteAttachment(
+                        quote_id=quote_request.id,
+                        file_name=fname or unique_name,
+                        file_url=url_path,
+                        file_type=ftype or "application/octet-stream",
+                        file_size_bytes=len(fcontent),
+                        attachment_type="general",
+                        uploaded_by="guest",
+                        uploaded_at=datetime.utcnow().isoformat(),
+                    )
+                    db.add(att)
+            except ImportError:
+                logger.warning("Could not save quote attachments: upload module not available")
+
+        await db.commit()
+        await db.refresh(quote_request)
+
+        try:
+            company_name = payload.get("contact_name") or payload.get("contact_email") or "Guest"
+            await EmailService.send_quote_created_email(
+                db=db,
+                to_email=payload.get("contact_email", ""),
+                company_name=company_name,
+                quote_number=quote_number,
+                item_count=len(items_data),
+            )
+            await EmailService.send_admin_quote_notification(
+                db=db,
+                quote_number=quote_number,
+                company_name=company_name,
+                item_count=len(items_data),
+                contact_email=payload.get("contact_email", ""),
+            )
+        except Exception as e:
+            logger.error(f"Failed to send quote emails: {e}", exc_info=True)
+
+        logger.info(f"Created guest quote request {quote_number} with {len(items_data)} items")
+        return quote_request
+
     @staticmethod
     async def get_company_quotes(
         db: AsyncSession,
@@ -811,18 +983,17 @@ class QuoteService:
             select(Quote)
             .options(
                 selectinload(Quote.items).selectinload(QuoteItem.product),
+                selectinload(Quote.items).selectinload(QuoteItem.allocations),
+                selectinload(Quote.shipping_destinations),
                 selectinload(Quote.company)
             )
             .where(Quote.id == quote_id)
         )
         quote = result.scalar_one_or_none()
-        
         if not quote:
             raise ResourceNotFoundError(resource_type="Quote", resource_id=quote_id)
-        
         if quote.company_id != company_id:
             raise AuthorizationError("You don't have permission to view this quote")
-        
         return quote
     
     # ========================================================================

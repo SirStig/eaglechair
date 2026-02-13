@@ -3,6 +3,7 @@ import Card from '../../ui/Card';
 import Button from '../../ui/Button';
 import ConfirmModal from '../../ui/ConfirmModal';
 import { useToast } from '../../../contexts/ToastContext';
+import { useAdminRefresh } from '../../../contexts/AdminRefreshContext';
 import apiClient from '../../../config/apiClient';
 import { resolveImageUrl } from '../../../utils/apiHelpers';
 import { Edit, Trash2, Armchair, X } from 'lucide-react';
@@ -13,6 +14,7 @@ import UpholsteryEditor from './UpholsteryEditor';
  */
 const UpholsteryManagement = () => {
   const toast = useToast();
+  const { refreshKeys } = useAdminRefresh();
   const [upholsteries, setUpholsteries] = useState([]);
   const [colors, setColors] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -41,7 +43,7 @@ const UpholsteryManagement = () => {
   useEffect(() => {
     fetchUpholsteries();
     fetchColors();
-  }, [fetchUpholsteries]);
+  }, [fetchUpholsteries, refreshKeys.upholstery]);
 
   const fetchColors = async () => {
     try {
@@ -66,6 +68,7 @@ const UpholsteryManagement = () => {
 
   const handleSave = () => {
     setEditingUpholstery(null);
+    toast.success(editingUpholstery === 'new' ? 'Upholstery created' : 'Upholstery updated');
     fetchUpholsteries();
   };
 

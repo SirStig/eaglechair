@@ -136,16 +136,10 @@ const ForgotPasswordPage = () => {
             </Button>
           </form>
 
-          <div className="mt-6 pt-6 border-t border-dark-700 text-center space-y-3">
+          <div className="mt-6 pt-6 border-t border-dark-700 text-center">
             <Link to="/login" className="block text-sm text-primary-500 hover:text-primary-400 transition-colors">
               ← Back to Login
             </Link>
-            <p className="text-sm text-dark-300">
-              Don't have an account?{' '}
-              <Link to="/register" className="text-primary-500 hover:text-primary-400">
-                Create Account
-              </Link>
-            </p>
           </div>
         </Card>
       </motion.div>

@@ -73,9 +73,6 @@ const TermsOfServicePage = () => {
             <Link to="/general-information" className="text-primary-500 hover:text-primary-400">
               View All Policies →
             </Link>
-            <Link to="/register" className="text-primary-500 hover:text-primary-400 font-medium">
-              Continue to Registration →
-            </Link>
           </div>
         </div>
       </motion.div>

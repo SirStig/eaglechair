@@ -7,15 +7,20 @@ Dashboard endpoints for authenticated companies (separate from quotes/cart route
 import logging
 from typing import Optional
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import JSONResponse
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from backend.api.dependencies import get_current_company
+from backend.api.v1.schemas.company import (
+    CompanyShippingAddressCreate,
+    CompanyShippingAddressResponse,
+    CompanyShippingAddressUpdate,
+)
 from backend.database.base import get_db
-from backend.models.company import Company
+from backend.models.company import Company, CompanyShippingAddress
 from backend.models.quote import Quote, QuoteStatus
 
 logger = logging.getLogger(__name__)
@@ -149,9 +154,14 @@ async def get_dashboard_quotes(
     description="Get current company profile information"
 )
 async def get_dashboard_profile(
-    company: Company = Depends(get_current_company)
+    company: Company = Depends(get_current_company),
+    db: AsyncSession = Depends(get_db),
 ):
     """Get company profile information."""
+    result = await db.execute(
+        select(Company).where(Company.id == company.id).options(selectinload(Company.shipping_addresses))
+    )
+    company = result.scalar_one()
     return {
         "id": company.id,
         "companyName": company.company_name,
@@ -176,14 +186,20 @@ async def get_dashboard_profile(
             "zip": company.billing_zip,
             "country": company.billing_country,
         },
-        "shippingAddress": {
-            "line1": company.shipping_address_line1,
-            "line2": company.shipping_address_line2,
-            "city": company.shipping_city,
-            "state": company.shipping_state,
-            "zip": company.shipping_zip,
-            "country": company.shipping_country,
-        } if company.shipping_address_line1 else None,
+        "shippingAddresses": [
+            {
+                "id": a.id,
+                "label": a.label,
+                "line1": a.line1,
+                "line2": a.line2,
+                "city": a.city,
+                "state": a.state,
+                "zip": a.zip,
+                "country": a.country,
+                "sortOrder": a.sort_order,
+            }
+            for a in (company.shipping_addresses or [])
+        ],
         "paymentTerms": company.payment_terms,
         "creditLimit": company.credit_limit,
     }
@@ -200,18 +216,11 @@ async def update_dashboard_profile(
     db: AsyncSession = Depends(get_db)
 ):
     """Update company profile information."""
-    # Allowed fields for update (tax_id is excluded - must be changed via support)
     allowed_fields = {
-        # Company info
         "company_name", "legal_name", "industry", "website",
-        # Representative info
         "rep_first_name", "rep_last_name", "rep_title", "rep_phone",
-        # Billing address
         "billing_address_line1", "billing_address_line2",
         "billing_city", "billing_state", "billing_zip", "billing_country",
-        # Shipping address
-        "shipping_address_line1", "shipping_address_line2",
-        "shipping_city", "shipping_state", "shipping_zip", "shipping_country"
     }
     
     # Prevent tax_id from being updated
@@ -237,6 +246,84 @@ async def update_dashboard_profile(
         logger.info(f"Profile updated for company {company.id}: {updated_count} fields changed")
     
     return {"message": "Profile updated successfully"}
+
+
+@router.post(
+    "/shipping-addresses",
+    response_model=CompanyShippingAddressResponse,
+    summary="Add shipping address",
+)
+async def create_dashboard_shipping_address(
+    data: CompanyShippingAddressCreate,
+    company: Company = Depends(get_current_company),
+    db: AsyncSession = Depends(get_db),
+):
+    addr = CompanyShippingAddress(
+        company_id=company.id,
+        label=data.label,
+        line1=data.line1,
+        line2=data.line2,
+        city=data.city,
+        state=data.state,
+        zip=data.zip,
+        country=data.country,
+        sort_order=data.sort_order,
+    )
+    db.add(addr)
+    await db.commit()
+    await db.refresh(addr)
+    return addr
+
+
+@router.put(
+    "/shipping-addresses/{address_id}",
+    response_model=CompanyShippingAddressResponse,
+    summary="Update shipping address",
+)
+async def update_dashboard_shipping_address(
+    address_id: int,
+    data: CompanyShippingAddressUpdate,
+    company: Company = Depends(get_current_company),
+    db: AsyncSession = Depends(get_db),
+):
+    result = await db.execute(
+        select(CompanyShippingAddress).where(
+            CompanyShippingAddress.id == address_id,
+            CompanyShippingAddress.company_id == company.id,
+        )
+    )
+    addr = result.scalar_one_or_none()
+    if not addr:
+        raise HTTPException(status_code=404, detail="Shipping address not found")
+    update = data.model_dump(exclude_unset=True)
+    for k, v in update.items():
+        setattr(addr, k, v)
+    await db.commit()
+    await db.refresh(addr)
+    return addr
+
+
+@router.delete(
+    "/shipping-addresses/{address_id}",
+    status_code=204,
+    summary="Delete shipping address",
+)
+async def delete_dashboard_shipping_address(
+    address_id: int,
+    company: Company = Depends(get_current_company),
+    db: AsyncSession = Depends(get_db),
+):
+    result = await db.execute(
+        select(CompanyShippingAddress).where(
+            CompanyShippingAddress.id == address_id,
+            CompanyShippingAddress.company_id == company.id,
+        )
+    )
+    addr = result.scalar_one_or_none()
+    if not addr:
+        raise HTTPException(status_code=404, detail="Shipping address not found")
+    await db.delete(addr)
+    await db.commit()
 
 
 @router.get(

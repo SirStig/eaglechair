@@ -3,6 +3,7 @@ import { motion } from 'framer-motion';
 import Card from '../../ui/Card';
 import Button from '../../ui/Button';
 import apiClient from '../../../config/apiClient';
+import { useAdminRefresh } from '../../../contexts/AdminRefreshContext';
 import { 
   Package, 
   FileText, 
@@ -24,12 +25,13 @@ import {
  * - Quick actions
  */
 const DashboardOverview = ({ onNavigate }) => {
+  const { refreshKeys } = useAdminRefresh();
   const [stats, setStats] = useState(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     fetchStats();
-  }, []);
+  }, [refreshKeys.overview]);
 
   const fetchStats = async () => {
     try {

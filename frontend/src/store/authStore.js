@@ -24,57 +24,27 @@ export const useAuthStore = create(
       isAuthenticated: false,
       isInitializing: false,
 
-      login: async (credentials, cartStore = null) => {
+      login: async (credentials) => {
         try {
-          // Use configured API client with proper base URL
-          // Tokens are returned in response body and stored in localStorage
           const data = await apiClient.post('/api/v1/auth/login', credentials);
-          
-          // Extract tokens and user data from response
           const accessToken = data.access_token;
           const refreshToken = data.refresh_token;
-          const sessionToken = data.session_token; // Admin only
-          const adminToken = data.admin_token; // Admin only
+          const sessionToken = data.session_token;
+          const adminToken = data.admin_token;
           const user = data.user;
-          
-          // Validate user data
+
           if (!isValidUser(user)) {
             throw new Error('Invalid user data received from server');
           }
-          
-          // Store tokens and user in localStorage for persistent sessions
-          if (accessToken) {
-            localStorage.setItem(ACCESS_TOKEN_KEY, accessToken);
-          }
-          if (refreshToken) {
-            localStorage.setItem(REFRESH_TOKEN_KEY, refreshToken);
-          }
-          // Store admin-specific tokens if present
-          if (sessionToken) {
-            localStorage.setItem(SESSION_TOKEN_KEY, sessionToken);
-          }
-          if (adminToken) {
-            localStorage.setItem(ADMIN_TOKEN_KEY, adminToken);
-          }
-          if (user) {
-            localStorage.setItem(USER_KEY, JSON.stringify(user));
-          }
-          
-          set({ 
-            user, 
-            isAuthenticated: true 
-          });
-          
-          // Merge guest cart if cartStore is provided
-          if (cartStore && typeof cartStore.switchToAuthMode === 'function') {
-            try {
-              await cartStore.switchToAuthMode();
-              logger.info(AUTH_CONTEXT, 'Guest cart merged on login');
-            } catch (error) {
-              logger.error(AUTH_CONTEXT, 'Error merging cart on login', error);
-            }
-          }
-          
+
+          if (accessToken) localStorage.setItem(ACCESS_TOKEN_KEY, accessToken);
+          if (refreshToken) localStorage.setItem(REFRESH_TOKEN_KEY, refreshToken);
+          if (sessionToken) localStorage.setItem(SESSION_TOKEN_KEY, sessionToken);
+          if (adminToken) localStorage.setItem(ADMIN_TOKEN_KEY, adminToken);
+          if (user) localStorage.setItem(USER_KEY, JSON.stringify(user));
+
+          set({ user, isAuthenticated: true });
+
           logger.info(AUTH_CONTEXT, 'Login successful, tokens stored in localStorage');
           return { success: true, user };
         } catch (error) {
@@ -154,21 +124,7 @@ export const useAuthStore = create(
               localStorage.setItem(USER_KEY, JSON.stringify(user));
             }
             
-            set({ 
-              user, 
-              isAuthenticated: true 
-            });
-            
-            // Merge guest cart if cartStore is provided
-            if (cartStore && typeof cartStore.switchToAuthMode === 'function') {
-              try {
-                await cartStore.switchToAuthMode();
-                logger.info(AUTH_CONTEXT, 'Guest cart merged on registration');
-              } catch (error) {
-                logger.error(AUTH_CONTEXT, 'Error merging cart on registration', error);
-              }
-            }
-            
+            set({ user, isAuthenticated: true });
             return { success: true, user };
           }
           

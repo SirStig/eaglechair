@@ -5,11 +5,15 @@ import apiClient from '../../../config/apiClient';
 import { resolveImageUrl } from '../../../utils/apiHelpers';
 import { Edit, Trash2, Wrench, X, Plus } from 'lucide-react';
 import HardwareEditor from './HardwareEditor';
+import { useToast } from '../../../contexts/ToastContext';
+import { useAdminRefresh } from '../../../contexts/AdminRefreshContext';
 
 /**
  * Hardware Management - Table Layout
  */
 const HardwareManagement = () => {
+  const toast = useToast();
+  const { refreshKeys } = useAdminRefresh();
   const [hardware, setHardware] = useState([]);
   const [loading, setLoading] = useState(true);
   const [editingHardware, setEditingHardware] = useState(null);
@@ -33,7 +37,7 @@ const HardwareManagement = () => {
 
   useEffect(() => {
     fetchHardware();
-  }, [fetchHardware]);
+  }, [fetchHardware, refreshKeys.hardware]);
 
   const handleCreate = () => {
     setEditingHardware('new');
@@ -49,6 +53,7 @@ const HardwareManagement = () => {
 
   const handleSave = () => {
     setEditingHardware(null);
+    toast.success(editingHardware === 'new' ? 'Hardware created' : 'Hardware updated');
     fetchHardware();
   };
 
@@ -57,10 +62,11 @@ const HardwareManagement = () => {
     
     try {
       await apiClient.delete(`/api/v1/admin/catalog/hardware/${hardwareId}`);
-      fetchHardware();
+      toast.success('Hardware deleted');
+      await fetchHardware();
     } catch (error) {
       console.error('Failed to delete hardware:', error);
-      alert(error.response?.data?.detail || 'Failed to delete hardware');
+      toast.error(error.response?.data?.detail || 'Failed to delete hardware');
     }
   };
 

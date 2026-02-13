@@ -268,7 +268,7 @@ const Header = ({ isMobileMenuOpen, setIsMobileMenuOpen }) => {
           </nav>
 
           {/* Right Side: Search, Account, Cart */}
-          <div className="flex items-center gap-2 sm:gap-4">
+          <div className="flex items-center gap-2">
             {/* Search with Results Dropdown - Hidden on mobile */}
             <form onSubmit={handleSearch} className="hidden lg:block relative flex-shrink-0" ref={searchRef}>
               <div className="relative">
@@ -324,18 +324,22 @@ const Header = ({ isMobileMenuOpen, setIsMobileMenuOpen }) => {
                       {searchResults.map((product) => (
                         <button
                           key={product.id}
+                          type="button"
                           onClick={() => handleResultClick(product.slug)}
                           className="w-full px-4 py-3 flex items-center gap-3 hover:bg-dark-700 transition-colors text-left"
                         >
-                          <img
-                            src={product.image || '/placeholder-product.png'}
-                            alt={product.name}
-                            className="w-12 h-12 object-cover rounded"
-                            onError={(e) => {
-                              e.target.onerror = null; // Prevent infinite loop
-                              e.target.src = '/placeholder-product.png';
-                            }}
-                          />
+                          <span className="w-10 shrink-0 aspect-[4/5] overflow-hidden rounded bg-dark-700">
+                            <img
+                              src={product.image || '/placeholder-product.png'}
+                              alt={product.name}
+                              className="w-full h-full object-cover"
+                              loading="lazy"
+                              onError={(e) => {
+                                e.target.onerror = null;
+                                e.target.src = '/placeholder-product.png';
+                              }}
+                            />
+                          </span>
                           <div className="flex-1 min-w-0">
                             <p className="text-sm font-medium text-dark-50 truncate">
                               {product.name}
@@ -347,6 +351,7 @@ const Header = ({ isMobileMenuOpen, setIsMobileMenuOpen }) => {
                         </button>
                       ))}
                       <button
+                        type="button"
                         onClick={(event) => handleSearch(event)}
                         className="w-full px-4 py-2 text-sm text-primary-500 hover:bg-dark-700 transition-colors text-center border-t border-dark-500"
                       >
@@ -384,18 +389,6 @@ const Header = ({ isMobileMenuOpen, setIsMobileMenuOpen }) => {
                   contentClassName="w-48"
                 >
                   <div className="py-2">
-                    <Link
-                      to="/dashboard"
-                      className="block px-4 py-2 text-sm text-dark-50 hover:bg-dark-700 transition-colors rounded-md"
-                    >
-                      Dashboard
-                    </Link>
-                    <Link
-                      to="/dashboard/quotes"
-                      className="block px-4 py-2 text-sm text-dark-50 hover:bg-dark-700 transition-colors rounded-md"
-                    >
-                      My Quotes
-                    </Link>
                     {(user.role === 'super_admin' || user.role === 'admin' || user.type === 'admin') && (
                       <Link
                         to="/admin/dashboard"
@@ -412,13 +405,7 @@ const Header = ({ isMobileMenuOpen, setIsMobileMenuOpen }) => {
                     </button>
                   </div>
                 </Dropdown>
-              ) : (
-                <Link to="/login" className="block">
-                  <Button variant="outline" size="sm" className="hover-lift">
-                    Login / Register
-                  </Button>
-                </Link>
-              )}
+              ) : null}
             </div>
 
             {/* Cart */}
@@ -622,12 +609,6 @@ export const MobileMenu = ({ isMobileMenuOpen, setIsMobileMenuOpen, searchQuery,
                   {user ? (
                     <div className="space-y-2">
                       <p className="text-xs text-dark-300 uppercase tracking-wide">Account</p>
-                      <Link to="/dashboard" onClick={() => setIsMobileMenuOpen(false)} className="block py-2 text-dark-50 hover:text-primary-400 transition-colors">
-                        Dashboard
-                      </Link>
-                      <Link to="/dashboard/quotes" onClick={() => setIsMobileMenuOpen(false)} className="block py-2 text-dark-50 hover:text-primary-400 transition-colors">
-                        My Quotes
-                      </Link>
                       {(user.role === 'super_admin' || user.role === 'admin' || user.type === 'admin') && (
                         <Link to="/admin/dashboard" onClick={() => setIsMobileMenuOpen(false)} className="block py-2 text-dark-50 hover:text-primary-400 transition-colors">
                           Admin Panel
@@ -641,11 +622,7 @@ export const MobileMenu = ({ isMobileMenuOpen, setIsMobileMenuOpen, searchQuery,
                         Logout
                       </button>
                     </div>
-                  ) : (
-                    <Link to="/login" onClick={() => setIsMobileMenuOpen(false)} className="inline-flex items-center justify-center w-full px-4 py-3 rounded-lg border border-primary-500 text-primary-500 font-semibold hover:bg-primary-500/10 transition-colors text-sm">
-                      Login / Register
-                    </Link>
-                  )}
+                  ) : null}
 
                   <Link
                     to="/cart"

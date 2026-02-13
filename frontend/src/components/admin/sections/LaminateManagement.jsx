@@ -5,11 +5,15 @@ import apiClient from '../../../config/apiClient';
 import { resolveImageUrl } from '../../../utils/apiHelpers';
 import { Edit, Trash2, Layers, X, Plus } from 'lucide-react';
 import LaminateEditor from './LaminateEditor';
+import { useToast } from '../../../contexts/ToastContext';
+import { useAdminRefresh } from '../../../contexts/AdminRefreshContext';
 
 /**
  * Laminate Management - Table Layout
  */
 const LaminateManagement = () => {
+  const toast = useToast();
+  const { refreshKeys } = useAdminRefresh();
   const [laminates, setLaminates] = useState([]);
   const [loading, setLoading] = useState(true);
   const [editingLaminate, setEditingLaminate] = useState(null);
@@ -33,7 +37,7 @@ const LaminateManagement = () => {
 
   useEffect(() => {
     fetchLaminates();
-  }, [fetchLaminates]);
+  }, [fetchLaminates, refreshKeys.laminates]);
 
   const handleCreate = () => {
     setEditingLaminate('new');
@@ -49,6 +53,7 @@ const LaminateManagement = () => {
 
   const handleSave = () => {
     setEditingLaminate(null);
+    toast.success(editingLaminate === 'new' ? 'Laminate created' : 'Laminate updated');
     fetchLaminates();
   };
 
@@ -57,10 +62,11 @@ const LaminateManagement = () => {
     
     try {
       await apiClient.delete(`/api/v1/admin/catalog/laminates/${laminateId}`);
-      fetchLaminates();
+      toast.success('Laminate deleted');
+      await fetchLaminates();
     } catch (error) {
       console.error('Failed to delete laminate:', error);
-      alert(error.response?.data?.detail || 'Failed to delete laminate');
+      toast.error(error.response?.data?.detail || 'Failed to delete laminate');
     }
   };
 

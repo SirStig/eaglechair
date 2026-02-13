@@ -5,8 +5,10 @@ import Input from '../../ui/Input';
 import Modal from '../../ui/Modal';
 import apiClient from '../../../config/apiClient';
 import AdminCompanyDetailView from './AdminCompanyDetailView';
+import { useAdminRefresh } from '../../../contexts/AdminRefreshContext';
 
 const CompanyManagement = () => {
+  const { refreshKeys } = useAdminRefresh();
   const [companies, setCompanies] = useState([]);
   const [loading, setLoading] = useState(true);
   const [page, setPage] = useState(1);
@@ -22,7 +24,7 @@ const CompanyManagement = () => {
     if (!selectedCompanyId) {
       fetchCompanies();
     }
-  }, [page, selectedCompanyId]);
+  }, [page, selectedCompanyId, refreshKeys.companies]);
 
   const fetchCompanies = async () => {
     setLoading(true);

@@ -13,6 +13,26 @@ from sqlalchemy.orm import relationship
 from backend.database.base import Base
 
 
+class CompanyShippingAddress(Base):
+    __tablename__ = "company_shipping_addresses"
+
+    id = Column(Integer, primary_key=True, index=True)
+    company_id = Column(Integer, ForeignKey("companies.id", ondelete="CASCADE"), nullable=False)
+    company = relationship("Company", back_populates="shipping_addresses")
+
+    label = Column(String(100), nullable=True)
+    line1 = Column(String(255), nullable=False)
+    line2 = Column(String(255), nullable=True)
+    city = Column(String(100), nullable=False)
+    state = Column(String(50), nullable=False)
+    zip = Column(String(20), nullable=False)
+    country = Column(String(100), default="USA", nullable=False)
+    sort_order = Column(Integer, nullable=True)
+
+    def __repr__(self) -> str:
+        return f"<CompanyShippingAddress(id={self.id}, company_id={self.company_id})>"
+
+
 class CompanyStatus(str, enum.Enum):
     """Company account status"""
     PENDING = "pending"
@@ -114,14 +134,6 @@ class Company(Base):
     billing_zip = Column(String(20), nullable=False)
     billing_country = Column(String(100), default="USA", nullable=False)
     
-    # Shipping Address (can be different from billing)
-    shipping_address_line1 = Column(String(255), nullable=True)
-    shipping_address_line2 = Column(String(255), nullable=True)
-    shipping_city = Column(String(100), nullable=True)
-    shipping_state = Column(String(50), nullable=True)
-    shipping_zip = Column(String(20), nullable=True)
-    shipping_country = Column(String(100), nullable=True)
-    
     # Account Status
     status = Column(SQLEnum(CompanyStatus), default=CompanyStatus.PENDING, nullable=False)
     is_verified = Column(Boolean, default=False, nullable=False)
@@ -145,6 +157,12 @@ class Company(Base):
     admin_notes = Column(Text, nullable=True)
     
     # Relationships
+    shipping_addresses = relationship(
+        "CompanyShippingAddress",
+        back_populates="company",
+        cascade="all, delete-orphan",
+        order_by=[CompanyShippingAddress.sort_order, CompanyShippingAddress.id],
+    )
     quotes = relationship("Quote", back_populates="company")
     carts = relationship("Cart", back_populates="company")
     

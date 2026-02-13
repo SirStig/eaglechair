@@ -9,21 +9,34 @@ import { ArrowLeft, Upload, X } from 'lucide-react';
  * Category Editor Component
  * Separate component for editing/creating categories with image upload
  */
-const CategoryEditor = ({ category, categories, onBack, onSave }) => {
-  const [formData, setFormData] = useState({
-    name: category?.name || '',
-    slug: category?.slug || '',
-    description: category?.description || '',
-    parent_id: category?.parent_id || null,
-    icon_url: category?.icon_url || '',
-    banner_image_url: category?.banner_image_url || '',
-    meta_title: category?.meta_title || '',
-    meta_description: category?.meta_description || '',
-    display_order: category?.display_order || 0,
-    is_active: category?.is_active !== false
+const CategoryEditor = ({ category, categories, parentCategory, isSubcategory, onBack, onSave }) => {
+  const subcategoryMode = isSubcategory || (parentCategory && !category);
+  const [formData, setFormData] = useState(() => {
+    if (subcategoryMode) {
+      return {
+        name: category?.name || '',
+        slug: category?.slug || '',
+        description: category?.description || '',
+        display_order: category?.display_order ?? 0,
+        is_active: category?.is_active !== false,
+        category_id: parentCategory?.id ?? category?.category_id ?? null
+      };
+    }
+    return {
+      name: category?.name || '',
+      slug: category?.slug || '',
+      description: category?.description || '',
+      parent_id: category?.parent_id || null,
+      icon_url: category?.icon_url || '',
+      banner_image_url: category?.banner_image_url || '',
+      meta_title: category?.meta_title || '',
+      meta_description: category?.meta_description || '',
+      display_order: category?.display_order || 0,
+      is_active: category?.is_active !== false
+    };
   });
   const [saving, setSaving] = useState(false);
-  const [uploadingImage, setUploadingImage] = useState(null); // 'icon_url' or 'banner_image_url'
+  const [uploadingImage, setUploadingImage] = useState(null);
 
   const handleChange = (field, value) => {
     setFormData(prev => ({ ...prev, [field]: value }));
@@ -54,17 +67,35 @@ const CategoryEditor = ({ category, categories, onBack, onSave }) => {
     }
   };
 
+  const urlPathForDelete = (url) => {
+    if (!url || typeof url !== 'string') return '';
+    const s = url.trim();
+    if (s.startsWith('http://') || s.startsWith('https://')) {
+      try {
+        return new URL(s).pathname || s;
+      } catch {
+        return s;
+      }
+    }
+    return s.startsWith('/') ? s : `/${s}`;
+  };
+
   const deleteImage = async (field, currentUrl) => {
     if (!confirm('Delete this image?')) return;
-    
     try {
       if (currentUrl) {
+        const path = urlPathForDelete(currentUrl);
         await apiClient.delete('/api/v1/admin/upload/image', {
-          data: { url: currentUrl }
+          data: { url: path }
         });
       }
       handleChange(field, '');
     } catch (error) {
+      const is404 = error?.status === 404 || error?.response?.status === 404;
+      if (is404) {
+        handleChange(field, '');
+        return;
+      }
       console.error('Failed to delete image:', error);
     }
   };
@@ -124,17 +155,40 @@ const CategoryEditor = ({ category, categories, onBack, onSave }) => {
   const handleSubmit = async (e) => {
     e.preventDefault();
     setSaving(true);
-    
     try {
-      if (category) {
-        await apiClient.put(`/api/v1/admin/categories/${category.id}`, formData);
+      if (subcategoryMode) {
+        const categoryId = formData.category_id ?? parentCategory?.id;
+        if (!categoryId) {
+          alert('Parent category is required');
+          setSaving(false);
+          return;
+        }
+        const payload = {
+          name: formData.name,
+          slug: formData.slug,
+          category_id: categoryId,
+          description: formData.description || null,
+          display_order: formData.display_order ?? 0,
+          is_active: formData.is_active !== false
+        };
+        if (category?.id) {
+          await apiClient.put(`/api/v1/admin/catalog/subcategories/${category.id}`, payload);
+          onSave('Subcategory updated');
+        } else {
+          await apiClient.post('/api/v1/admin/catalog/subcategories', payload);
+          onSave('Subcategory created');
+        }
       } else {
-        await apiClient.post('/api/v1/admin/categories', formData);
+        if (category) {
+          await apiClient.put(`/api/v1/admin/categories/${category.id}`, formData);
+        } else {
+          await apiClient.post('/api/v1/admin/categories', formData);
+        }
+        onSave();
       }
-      onSave();
     } catch (error) {
-      console.error('Failed to save category:', error);
-      alert(error.response?.data?.detail || 'Failed to save category');
+      console.error('Failed to save:', error);
+      alert(error.response?.data?.detail || 'Failed to save');
     } finally {
       setSaving(false);
     }
@@ -153,10 +207,14 @@ const CategoryEditor = ({ category, categories, onBack, onSave }) => {
         </button>
         <div>
           <h2 className="text-3xl font-bold text-dark-50">
-            {category ? `Edit: ${category.name}` : 'Create Category'}
+            {subcategoryMode
+              ? (category ? `Edit: ${category.name}` : `Create Subcategory${parentCategory ? ` under ${parentCategory.name}` : ''}`)
+              : (category ? `Edit: ${category.name}` : 'Create Category')}
           </h2>
           <p className="text-dark-300 mt-1">
-            {category ? 'Update category details and images' : 'Add a new product category'}
+            {subcategoryMode
+              ? (category ? 'Update subcategory details' : 'Add a new subcategory under this category')
+              : (category ? 'Update category details and images' : 'Add a new product category')}
           </p>
         </div>
       </div>
@@ -173,14 +231,14 @@ const CategoryEditor = ({ category, categories, onBack, onSave }) => {
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className="block text-sm font-medium text-dark-200 mb-2">
-                    Category Name *
+                    {subcategoryMode ? 'Subcategory Name' : 'Category Name'} *
                   </label>
                   <input
                     type="text"
                     value={formData.name}
                     onChange={(e) => handleChange('name', e.target.value)}
                     className="w-full px-4 py-2 bg-dark-700 border border-dark-600 rounded-lg text-dark-50 focus:border-primary-500 focus:ring-1 focus:ring-primary-500 outline-none transition-all"
-                    placeholder="e.g., Chairs"
+                    placeholder={subcategoryMode ? 'e.g., Office Chairs' : 'e.g., Chairs'}
                     required
                   />
                 </div>
@@ -214,52 +272,53 @@ const CategoryEditor = ({ category, categories, onBack, onSave }) => {
               />
             </div>
 
-            {/* Images */}
-            <div>
-              <h3 className="text-lg font-semibold text-dark-50 mb-4 pb-2 border-b border-dark-600">
-                Images
-              </h3>
-              <div className="grid grid-cols-2 gap-6">
-                {renderImageControl('icon_url', 'Icon Image')}
-                {renderImageControl('banner_image_url', 'Banner Image')}
-              </div>
-              <p className="text-xs text-dark-400 mt-2">
-                Icon: Square image for category display. Banner: Wide banner for category header.
-              </p>
-            </div>
-
-            {/* SEO */}
-            <div>
-              <h3 className="text-lg font-semibold text-dark-50 mb-4 pb-2 border-b border-dark-600">
-                SEO
-              </h3>
-              <div className="space-y-4">
+            {!subcategoryMode && (
+              <>
                 <div>
-                  <label className="block text-sm font-medium text-dark-200 mb-2">
-                    Meta Title
-                  </label>
-                  <input
-                    type="text"
-                    value={formData.meta_title}
-                    onChange={(e) => handleChange('meta_title', e.target.value)}
-                    className="w-full px-4 py-2 bg-dark-700 border border-dark-600 rounded-lg text-dark-50 focus:border-primary-500 focus:ring-1 focus:ring-primary-500 outline-none transition-all"
-                    placeholder="SEO title for search engines"
-                  />
+                  <h3 className="text-lg font-semibold text-dark-50 mb-4 pb-2 border-b border-dark-600">
+                    Images
+                  </h3>
+                  <div className="grid grid-cols-2 gap-6">
+                    {renderImageControl('icon_url', 'Icon Image')}
+                    {renderImageControl('banner_image_url', 'Banner Image')}
+                  </div>
+                  <p className="text-xs text-dark-400 mt-2">
+                    Icon: Square image for category display. Banner: Wide banner for category header.
+                  </p>
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-dark-200 mb-2">
-                    Meta Description
-                  </label>
-                  <textarea
-                    value={formData.meta_description}
-                    onChange={(e) => handleChange('meta_description', e.target.value)}
-                    rows={2}
-                    className="w-full px-4 py-2 bg-dark-700 border border-dark-600 rounded-lg text-dark-50 focus:border-primary-500 focus:ring-1 focus:ring-primary-500 outline-none transition-all"
-                    placeholder="SEO description for search engines"
-                  />
+                  <h3 className="text-lg font-semibold text-dark-50 mb-4 pb-2 border-b border-dark-600">
+                    SEO
+                  </h3>
+                  <div className="space-y-4">
+                    <div>
+                      <label className="block text-sm font-medium text-dark-200 mb-2">
+                        Meta Title
+                      </label>
+                      <input
+                        type="text"
+                        value={formData.meta_title}
+                        onChange={(e) => handleChange('meta_title', e.target.value)}
+                        className="w-full px-4 py-2 bg-dark-700 border border-dark-600 rounded-lg text-dark-50 focus:border-primary-500 focus:ring-1 focus:ring-primary-500 outline-none transition-all"
+                        placeholder="SEO title for search engines"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-dark-200 mb-2">
+                        Meta Description
+                      </label>
+                      <textarea
+                        value={formData.meta_description}
+                        onChange={(e) => handleChange('meta_description', e.target.value)}
+                        rows={2}
+                        className="w-full px-4 py-2 bg-dark-700 border border-dark-600 rounded-lg text-dark-50 focus:border-primary-500 focus:ring-1 focus:ring-primary-500 outline-none transition-all"
+                        placeholder="SEO description for search engines"
+                      />
+                    </div>
+                  </div>
                 </div>
-              </div>
-            </div>
+              </>
+            )}
 
             {/* Settings */}
             <div>
@@ -267,21 +326,38 @@ const CategoryEditor = ({ category, categories, onBack, onSave }) => {
                 Settings
               </h3>
               <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-medium text-dark-200 mb-2">
-                    Parent Category
-                  </label>
-                  <select
-                    value={formData.parent_id || ''}
-                    onChange={(e) => handleChange('parent_id', e.target.value ? parseInt(e.target.value) : null)}
-                    className="w-full px-4 py-2 bg-dark-700 border border-dark-600 rounded-lg text-dark-50 focus:border-primary-500 focus:ring-1 focus:ring-primary-500 outline-none transition-all"
-                  >
-                    <option value="">None (Top-level category)</option>
-                    {categories.filter(cat => !cat.parent_id && cat.id !== category?.id).map((cat) => (
-                      <option key={cat.id} value={cat.id}>{cat.name}</option>
-                    ))}
-                  </select>
-                </div>
+                {subcategoryMode ? (
+                  <div>
+                    <label className="block text-sm font-medium text-dark-200 mb-2">
+                      Parent Category
+                    </label>
+                    <select
+                      value={formData.category_id ?? ''}
+                      onChange={(e) => handleChange('category_id', e.target.value ? parseInt(e.target.value) : null)}
+                      className="w-full px-4 py-2 bg-dark-700 border border-dark-600 rounded-lg text-dark-50 focus:border-primary-500 focus:ring-1 focus:ring-primary-500 outline-none transition-all"
+                    >
+                      {categories.filter((cat) => !cat.parent_id).map((cat) => (
+                        <option key={cat.id} value={cat.id}>{cat.name}</option>
+                      ))}
+                    </select>
+                  </div>
+                ) : (
+                  <div>
+                    <label className="block text-sm font-medium text-dark-200 mb-2">
+                      Parent Category
+                    </label>
+                    <select
+                      value={formData.parent_id || ''}
+                      onChange={(e) => handleChange('parent_id', e.target.value ? parseInt(e.target.value) : null)}
+                      className="w-full px-4 py-2 bg-dark-700 border border-dark-600 rounded-lg text-dark-50 focus:border-primary-500 focus:ring-1 focus:ring-primary-500 outline-none transition-all"
+                    >
+                      <option value="">None (Top-level category)</option>
+                      {categories.filter((cat) => !cat.parent_id && cat.id !== category?.id).map((cat) => (
+                        <option key={cat.id} value={cat.id}>{cat.name}</option>
+                      ))}
+                    </select>
+                  </div>
+                )}
                 <div>
                   <label className="block text-sm font-medium text-dark-200 mb-2">
                     Display Order
@@ -326,7 +402,7 @@ const CategoryEditor = ({ category, categories, onBack, onSave }) => {
             disabled={saving || !formData.name || !formData.slug}
             className="bg-primary-600 hover:bg-primary-500 px-6 py-3"
           >
-            {saving ? 'Saving...' : category ? 'Update Category' : 'Create Category'}
+            {saving ? 'Saving...' : subcategoryMode ? (category ? 'Update Subcategory' : 'Create Subcategory') : (category ? 'Update Category' : 'Create Category')}
           </Button>
         </div>
       </form>

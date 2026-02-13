@@ -4,11 +4,54 @@ EagleChair Quote and Cart Models
 Models for quote requests and shopping cart (quotes only, no actual purchasing)
 """
 
-from sqlalchemy import Column, Integer, String, Text, Boolean, Float, ForeignKey, JSON, Enum as SQLEnum
+from sqlalchemy import Column, Integer, String, Text, Boolean, Float, ForeignKey, JSON, Enum as SQLEnum, UniqueConstraint
 from sqlalchemy.orm import relationship
 import enum
 
 from backend.database.base import Base
+
+
+class QuoteShippingDestination(Base):
+    __tablename__ = "quote_shipping_destinations"
+
+    id = Column(Integer, primary_key=True, index=True)
+    quote_id = Column(Integer, ForeignKey("quotes.id", ondelete="CASCADE"), nullable=False)
+    quote = relationship("Quote", back_populates="shipping_destinations")
+
+    label = Column(String(100), nullable=True)
+    line1 = Column(String(255), nullable=False)
+    line2 = Column(String(255), nullable=True)
+    city = Column(String(100), nullable=False)
+    state = Column(String(50), nullable=False)
+    zip = Column(String(20), nullable=False)
+    country = Column(String(100), default="USA", nullable=False)
+    sort_order = Column(Integer, nullable=True)
+
+    allocations = relationship(
+        "QuoteItemAllocation",
+        back_populates="quote_shipping_destination",
+        cascade="all, delete-orphan",
+    )
+
+    def __repr__(self) -> str:
+        return f"<QuoteShippingDestination(id={self.id}, quote_id={self.quote_id})>"
+
+
+class QuoteItemAllocation(Base):
+    __tablename__ = "quote_item_allocations"
+    __table_args__ = (UniqueConstraint("quote_item_id", "quote_shipping_destination_id", name="uq_quote_item_destination"),)
+
+    id = Column(Integer, primary_key=True, index=True)
+    quote_item_id = Column(Integer, ForeignKey("quote_items.id", ondelete="CASCADE"), nullable=False)
+    quote_item = relationship("QuoteItem", back_populates="allocations")
+    quote_shipping_destination_id = Column(
+        Integer, ForeignKey("quote_shipping_destinations.id", ondelete="CASCADE"), nullable=False
+    )
+    quote_shipping_destination = relationship("QuoteShippingDestination", back_populates="allocations")
+    quantity = Column(Integer, nullable=False)
+
+    def __repr__(self) -> str:
+        return f"<QuoteItemAllocation(quote_item_id={self.quote_item_id}, dest_id={self.quote_shipping_destination_id}, qty={self.quantity})>"
 
 
 class QuoteStatus(str, enum.Enum):
@@ -32,8 +75,8 @@ class Quote(Base):
     id = Column(Integer, primary_key=True, index=True)
     quote_number = Column(String(50), unique=True, index=True, nullable=False)
     
-    # Company/Customer
-    company_id = Column(Integer, ForeignKey("companies.id"), nullable=False)
+    # Company/Customer (nullable for guest quotes)
+    company_id = Column(Integer, ForeignKey("companies.id"), nullable=True)
     company = relationship("Company", back_populates="quotes")
     
     # Contact Information (at time of quote)
@@ -89,9 +132,15 @@ class Quote(Base):
     
     # Relationships
     items = relationship("QuoteItem", back_populates="quote", cascade="all, delete-orphan")
+    shipping_destinations = relationship(
+        "QuoteShippingDestination",
+        back_populates="quote",
+        cascade="all, delete-orphan",
+        order_by=[QuoteShippingDestination.sort_order, QuoteShippingDestination.id],
+    )
     attachments = relationship("QuoteAttachment", back_populates="quote", cascade="all, delete-orphan")
     history = relationship("QuoteHistory", back_populates="quote", cascade="all, delete-orphan")
-    
+
     def __repr__(self) -> str:
         return f"<Quote(id={self.id}, number={self.quote_number}, status={self.status})>"
 
@@ -131,7 +180,13 @@ class QuoteItem(Base):
     
     # Special notes for this item
     item_notes = Column(Text, nullable=True)
-    
+
+    allocations = relationship(
+        "QuoteItemAllocation",
+        back_populates="quote_item",
+        cascade="all, delete-orphan",
+    )
+
     def __repr__(self) -> str:
         return f"<QuoteItem(id={self.id}, product={self.product_name}, qty={self.quantity})>"
 

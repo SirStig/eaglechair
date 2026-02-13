@@ -4,11 +4,15 @@ import Button from '../../ui/Button';
 import FamilyEditor from './FamilyEditor';
 import apiClient from '../../../config/apiClient';
 import { resolveImageUrl } from '../../../utils/apiHelpers';
+import { useToast } from '../../../contexts/ToastContext';
+import { useAdminRefresh } from '../../../contexts/AdminRefreshContext';
 
 /**
  * Product Family Management with Full CRUD
  */
 const FamilyManagement = () => {
+  const toast = useToast();
+  const { refreshKeys } = useAdminRefresh();
   const [families, setFamilies] = useState([]);
   const [categories, setCategories] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -25,8 +29,7 @@ const FamilyManagement = () => {
       }
     };
     loadData();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [filterCategory, filterActive]);
+  }, [filterCategory, filterActive, refreshKeys.families]);
 
   const fetchFamilies = async () => {
     try {
@@ -65,6 +68,7 @@ const FamilyManagement = () => {
   const handleSave = () => {
     setShowEditor(false);
     setEditingFamily(null);
+    toast.success(editingFamily ? 'Family updated' : 'Family created');
     fetchFamilies();
   };
 
@@ -78,10 +82,11 @@ const FamilyManagement = () => {
     
     try {
       await apiClient.delete(`/api/v1/admin/catalog/families/${familyId}`);
-      fetchFamilies();
+      toast.success('Family deleted');
+      await fetchFamilies();
     } catch (error) {
       console.error('Failed to delete family:', error);
-      alert(error.response?.data?.detail || 'Failed to delete family');
+      toast.error(error.response?.data?.detail || 'Failed to delete family');
     }
   };
 

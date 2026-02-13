@@ -324,6 +324,26 @@ async def get_catalog(
     return catalog
 
 
+@router.get(
+    "/laminates",
+    summary="Get laminates",
+    description="Retrieve all available laminate options"
+)
+async def get_laminates(db: AsyncSession = Depends(get_db)):
+    laminates = await ContentService.get_laminates(db=db, include_inactive=False)
+    return laminates
+
+
+@router.get(
+    "/hardware",
+    summary="Get hardware",
+    description="Retrieve all available hardware options"
+)
+async def get_hardware(db: AsyncSession = Depends(get_db)):
+    hardware = await ContentService.get_hardware(db=db, include_inactive=False)
+    return hardware
+
+
 # ============================================================================
 # Installation Guide Endpoints
 # ============================================================================

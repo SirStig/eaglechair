@@ -4,10 +4,17 @@ EagleChair Product Models
 Comprehensive models for chairs, booths, tables with categories, finishes, materials, etc.
 """
 
-from sqlalchemy import JSON, Boolean, Column, Float, ForeignKey, Integer, String, Text
+from sqlalchemy import JSON, Boolean, Column, Float, ForeignKey, Integer, String, Table, Text
 from sqlalchemy.orm import relationship
 
 from backend.database.base import Base
+
+chair_secondary_families = Table(
+    "chair_secondary_families",
+    Base.metadata,
+    Column("chair_id", Integer, ForeignKey("chairs.id", ondelete="CASCADE"), primary_key=True),
+    Column("family_id", Integer, ForeignKey("product_families.id", ondelete="CASCADE"), primary_key=True),
+)
 
 
 class Category(Base):
@@ -285,6 +292,11 @@ class Chair(Base):
         Integer, ForeignKey("product_families.id", ondelete="SET NULL"), nullable=True
     )
     family = relationship("ProductFamily", backref="products")
+    secondary_families = relationship(
+        "ProductFamily",
+        secondary=chair_secondary_families,
+        backref="secondary_products",
+    )
 
     # Pricing
     base_price = Column(Integer, nullable=False)  # In cents

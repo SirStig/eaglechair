@@ -5,11 +5,15 @@ import apiClient from '../../../config/apiClient';
 import { resolveImageUrl } from '../../../utils/apiHelpers';
 import { Edit, Trash2, Palette, X } from 'lucide-react';
 import FinishEditor from './FinishEditor';
+import { useToast } from '../../../contexts/ToastContext';
+import { useAdminRefresh } from '../../../contexts/AdminRefreshContext';
 
 /**
  * Finish Management - Table Layout with Separate Editor
  */
 const FinishManagement = () => {
+  const toast = useToast();
+  const { refreshKeys } = useAdminRefresh();
   const [finishes, setFinishes] = useState([]);
   const [colors, setColors] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -35,7 +39,7 @@ const FinishManagement = () => {
   useEffect(() => {
     fetchFinishes();
     fetchColors();
-  }, [fetchFinishes]);
+  }, [fetchFinishes, refreshKeys.finishes]);
 
   const fetchColors = async () => {
     try {
@@ -60,6 +64,7 @@ const FinishManagement = () => {
 
   const handleSave = () => {
     setEditingFinish(null);
+    toast.success(editingFinish === 'new' ? 'Finish created' : 'Finish updated');
     fetchFinishes();
   };
 
@@ -68,10 +73,11 @@ const FinishManagement = () => {
     
     try {
       await apiClient.delete(`/api/v1/admin/catalog/finishes/${finishId}`);
-      fetchFinishes();
+      toast.success('Finish deleted');
+      await fetchFinishes();
     } catch (error) {
       console.error('Failed to delete finish:', error);
-      alert(error.response?.data?.detail || 'Failed to delete finish');
+      toast.error(error.response?.data?.detail || 'Failed to delete finish');
     }
   };
 

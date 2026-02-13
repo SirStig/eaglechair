@@ -27,7 +27,7 @@ const Footer = () => {
     resources: [
       { name: 'Virtual Catalogs', path: '/virtual-catalogs' },
       { name: 'Guides', path: '/guides' },
-      { name: 'Request a Quote', path: '/quote' }
+      { name: 'Request a Quote', path: '/quote-request' }
     ],
     legal: [
       { name: 'Terms of Service', path: '/terms' },
@@ -186,10 +186,13 @@ const Footer = () => {
             </ul>
           </div>
         </div>
-        <div className="border-t border-dark-700 pt-6 sm:pt-8 mt-6 sm:mt-8">
+        <div className="border-t border-dark-700 pt-6 sm:pt-8 mt-6 sm:mt-8 flex flex-col sm:flex-row items-center justify-center gap-2 sm:gap-4">
           <p className="text-sm text-center text-dark-200">
             {currentYear} {companyName}. All rights reserved. Family-owned and operated since 1984.
           </p>
+          <Link to="/login" className="text-xs text-dark-400 hover:text-primary-500">
+            Admin
+          </Link>
         </div>
       </div>
     </footer>

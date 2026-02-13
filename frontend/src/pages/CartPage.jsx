@@ -1,55 +1,42 @@
-import { Link, useNavigate } from 'react-router-dom';
-import { useEffect, useState } from 'react';
+import { useState, useRef, useEffect } from 'react';
+import { Link } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import Button from '../components/ui/Button';
 import Card from '../components/ui/Card';
-import Badge from '../components/ui/Badge';
 import { useCartStore } from '../store/cartStore';
-import { useAuthStore } from '../store/authStore';
+import { getProductImage, buildProductUrl } from '../utils/apiHelpers';
 
 const CartPage = () => {
-  const { isAuthenticated, user } = useAuthStore();
-  const [cartSynced, setCartSynced] = useState(false);
-  const navigate = useNavigate();
+  const [brokenImageKeys, setBrokenImageKeys] = useState(() => new Set());
+  const [editingNotesIndex, setEditingNotesIndex] = useState(null);
+  const notesInputRef = useRef(null);
 
-  // Check if user needs email verification
-  const isUnverified = user && user.type === 'company' && !user.isVerified;
-
-  // Subscribe to cart state properly - this will trigger re-renders on cart changes
+  useEffect(() => {
+    if (editingNotesIndex !== null && notesInputRef.current) {
+      notesInputRef.current.focus();
+    }
+  }, [editingNotesIndex]);
   const cartStore = useCartStore();
-  const { removeItem, updateQuantity, clearCart } = cartStore;
-
-  const items = useCartStore((state) => {
-    return state.isAuthenticated && state.backendCart
+  const { removeItem, updateQuantity, clearCart, updateItemNotes } = cartStore;
+  const items = useCartStore((state) =>
+    state.isAuthenticated && state.backendCart
       ? (state.backendCart.items || [])
-      : state.guestItems;
-  });
+      : state.guestItems
+  );
+
+  const markImageBroken = (key) => setBrokenImageKeys((prev) => new Set(prev).add(key));
 
   const subtotal = useCartStore((state) => {
     const cartItems = state.isAuthenticated && state.backendCart
       ? (state.backendCart.items || [])
       : state.guestItems;
     return cartItems.reduce((sum, item) => {
-      const price = item.product?.price || item.product?.base_price || 0;
-      return sum + (price * item.quantity);
+      const priceCents = item.unit_price ?? item.product?.price ?? item.product?.base_price ?? 0;
+      return sum + (priceCents * item.quantity);
     }, 0);
   });
 
   const isLoading = useCartStore((state) => state.isLoading);
-
-  // Ensure cart is synced when authenticated user visits cart page
-  useEffect(() => {
-    const syncCart = async () => {
-      // Only sync once and if user is authenticated but cart store isn't in auth mode
-      if (isAuthenticated && !cartStore.isAuthenticated && !cartSynced) {
-        console.log('CartPage: User authenticated but cart not synced, switching to auth mode');
-        setCartSynced(true); // Prevent multiple calls
-        await cartStore.switchToAuthMode();
-      }
-    };
-
-    syncCart();
-  }, [isAuthenticated, cartStore.isAuthenticated, cartSynced, cartStore]);
 
   if (items.length === 0) {
     return (
@@ -107,12 +94,18 @@ const CartPage = () => {
             <AnimatePresence>
               {items.map((item, index) => {
                 const product = item.product || {};
-                // Use the enriched product data from backend
-                const productImage = product.primary_image_url || product.thumbnail || product.image_url || product.image || '/placeholder-product.jpg';
+                const productImage = getProductImage(product);
+                const productUrl = buildProductUrl(product);
+                const itemKey = item.id ?? `guest-${index}`;
+                const imageBroken = brokenImageKeys.has(itemKey);
                 const productName = product.name || 'Product';
-                const productCategory = product.category || '';  // Already a string from backend
-                const productSubcategory = product.subcategory || '';  // Already a string from backend
-                const productPrice = product.price || product.base_price || 0;
+                const productCategory = typeof product.category === 'object' && product.category
+                  ? (product.category.name || product.category.slug || '')
+                  : (product.category || '');
+                const productSubcategory = typeof product.subcategory === 'object' && product.subcategory
+                  ? (product.subcategory.name || product.subcategory.slug || '')
+                  : (product.subcategory || '');
+                const priceCents = item.unit_price ?? product.price ?? product.base_price ?? 0;
 
                 return (
                   <motion.div
@@ -124,15 +117,23 @@ const CartPage = () => {
                   >
                     <Card className="bg-white border-cream-200 hover:shadow-lg transition-shadow overflow-hidden">
                       <div className="flex flex-col md:flex-row gap-6">
-                        {/* Product Image */}
-                        <Link to={`/products/${product.slug || product.id}`} className="flex-shrink-0">
-                          <div className="relative w-full sm:w-32 md:w-20 lg:w-24 bg-cream-50 rounded-lg overflow-hidden border border-cream-200 flex items-center justify-center mx-auto sm:mx-0" style={{ minHeight: '120px', maxHeight: '180px' }}>
-                            <img
-                              src={productImage}
-                              alt={productName}
-                              className="w-full h-auto object-contain hover:scale-105 transition-transform duration-300 max-h-[180px]"
-                              style={{ mixBlendMode: 'multiply' }}
-                            />
+                        <Link to={productUrl} className="flex-shrink-0">
+                          <div className="relative w-28 sm:w-32 aspect-[3/4] bg-cream-50 rounded-lg overflow-hidden border border-cream-200 flex items-center justify-center mx-auto sm:mx-0">
+                            {imageBroken ? (
+                              <div className="absolute inset-0 flex items-center justify-center text-cream-400">
+                                <svg className="w-12 h-12" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                                </svg>
+                              </div>
+                            ) : (
+                              <img
+                                src={productImage}
+                                alt={productName}
+                                onError={() => markImageBroken(itemKey)}
+                                className="w-full h-full object-contain hover:scale-105 transition-transform duration-300"
+                                style={{ mixBlendMode: 'multiply' }}
+                              />
+                            )}
                           </div>
                         </Link>
 
@@ -140,7 +141,7 @@ const CartPage = () => {
                         <div className="flex-1 min-w-0 flex flex-col">
                           {/* Title and Category */}
                           <div className="mb-4">
-                            <Link to={`/products/${product.id}`}>
+                            <Link to={productUrl}>
                               <h3 className="text-xl font-bold mb-2 text-slate-800 hover:text-primary-600 transition-colors">
                                 {productName}
                               </h3>
@@ -179,21 +180,74 @@ const CartPage = () => {
                           )}
 
                           {/* Customizations */}
-                          {item.customizations && Object.keys(item.customizations).filter(key => item.customizations[key]).length > 0 && (
+                          {item.customizations && Object.keys(item.customizations).filter(key => key !== 'custom_notes' && key !== 'item_notes' && item.customizations[key]).length > 0 && (
                             <div className="mb-4">
                               <p className="text-xs font-semibold text-slate-700 mb-2 uppercase tracking-wide">Selected Options</p>
                               <div className="flex flex-wrap gap-2">
                                 {Object.entries(item.customizations).map(([key, value]) => {
-                                  if (!value) return null;
+                                  if (key === 'custom_notes' || key === 'item_notes' || !value) return null;
+                                  const displayValue = typeof value === 'object'
+                                    ? (value.name || value.slug || value.sku || value.label || '')
+                                    : String(value);
+                                  if (!displayValue) return null;
                                   return (
                                     <div key={key} className="bg-primary-50 border border-primary-200 text-primary-700 px-3 py-1.5 rounded-md text-sm font-medium">
-                                      <span className="capitalize">{key}</span>: <span className="font-semibold">{value}</span>
+                                      <span className="capitalize">{key}</span>: <span className="font-semibold">{displayValue}</span>
                                     </div>
                                   );
                                 })}
                               </div>
                             </div>
                           )}
+
+                          {/* Custom Notes / Requests */}
+                          <div className="mb-4">
+                            <p className="text-xs font-semibold text-slate-700 mb-2 uppercase tracking-wide">Custom Requests / Notes</p>
+                            {editingNotesIndex === index ? (
+                              <div>
+                                <textarea
+                                  ref={notesInputRef}
+                                  defaultValue={item.customizations?.custom_notes ?? item.item_notes ?? ''}
+                                  placeholder="Add custom requests or notes for this product..."
+                                  rows={3}
+                                  className="w-full px-3 py-2 border border-cream-300 bg-white text-slate-800 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 text-sm resize-y mb-2"
+                                />
+                                <div className="flex gap-2">
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      const val = notesInputRef.current?.value?.trim() || null;
+                                      updateItemNotes(index, val);
+                                      setEditingNotesIndex(null);
+                                    }}
+                                    className="text-sm font-medium text-primary-600 hover:text-primary-700"
+                                  >
+                                    Save
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => setEditingNotesIndex(null)}
+                                    className="text-sm text-slate-500 hover:text-slate-700"
+                                  >
+                                    Cancel
+                                  </button>
+                                </div>
+                              </div>
+                            ) : (
+                              <button
+                                type="button"
+                                onClick={() => setEditingNotesIndex(index)}
+                                className="w-full text-left p-3 bg-cream-50 border border-cream-200 rounded-lg hover:border-cream-300 transition-colors group"
+                              >
+                                {(item.customizations?.custom_notes ?? item.item_notes) ? (
+                                  <p className="text-sm text-slate-700 whitespace-pre-wrap">{item.customizations?.custom_notes ?? item.item_notes}</p>
+                                ) : (
+                                  <p className="text-sm text-slate-500 italic">Click to add custom requests or notes...</p>
+                                )}
+                                <span className="text-xs text-slate-400 mt-1 block group-hover:text-primary-500">Edit</span>
+                              </button>
+                            )}
+                          </div>
 
                           {/* Product Specs */}
                           {(product.width || product.depth || product.height || product.lead_time_days) && (
@@ -241,16 +295,6 @@ const CartPage = () => {
                                 </button>
                               </div>
 
-                              {/* Edit Button */}
-                              <button
-                                className="text-sm text-primary-600 hover:text-primary-700 font-medium transition-colors flex items-center gap-1"
-                              >
-                                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-                                </svg>
-                                Edit
-                              </button>
-
                               {/* Remove Button */}
                               <button
                                 onClick={() => removeItem(index)}
@@ -265,13 +309,13 @@ const CartPage = () => {
 
                             {/* Price */}
                             <div className="text-right">
-                              {productPrice > 0 ? (
+                              {priceCents > 0 ? (
                                 <>
                                   <p className="text-2xl font-bold text-slate-800">
-                                    ${((productPrice / 100) * item.quantity).toFixed(2)}
+                                    ${((priceCents / 100) * item.quantity).toFixed(2)}
                                   </p>
                                   <p className="text-sm text-slate-500">
-                                    ${(productPrice / 100).toFixed(2)} × {item.quantity}
+                                    Estimated listing: ${(priceCents / 100).toFixed(2)} × {item.quantity}
                                   </p>
                                 </>
                               ) : (
@@ -321,13 +365,13 @@ const CartPage = () => {
                   <>
                     <div className="border-t border-cream-200 my-4"></div>
                     <div className="flex justify-between items-baseline py-2 bg-primary-50 -mx-6 px-6 py-4 rounded-lg">
-                      <span className="font-bold text-slate-800 text-lg">Estimated Subtotal</span>
+                      <span className="font-bold text-slate-800 text-lg">Estimated Subtotal (listing/base prices)</span>
                       <span className="font-bold text-primary-600 text-2xl">
                         ${(subtotal / 100).toFixed(2)}
                       </span>
                     </div>
                     <p className="text-xs text-slate-500 text-center italic mt-2">
-                      *Final pricing subject to quote approval
+                      *Prices are estimated listing/base only. Final pricing subject to quote approval and may be higher.
                     </p>
                   </>
                 )}
@@ -348,40 +392,16 @@ const CartPage = () => {
               </div>
 
               <div className="space-y-3">
-                {isUnverified && (
-                  <div className="bg-yellow-900/20 border border-yellow-600 rounded-lg p-3 mb-2">
-                    <p className="text-sm text-yellow-300 mb-2">
-                      <strong>Email verification required</strong> to submit quote requests.
-                    </p>
-                    <Link
-                      to="/verify-email"
-                      state={{ email: user?.email }}
-                      className="text-xs text-yellow-400 hover:text-yellow-300 underline"
-                    >
-                      Verify your email →
-                    </Link>
-                  </div>
-                )}
-                <Link
-                  to={isUnverified ? '#' : "/quote-request"}
-                  className="block"
-                  onClick={(e) => {
-                    if (isUnverified) {
-                      e.preventDefault();
-                      navigate('/verify-email', { state: { email: user?.email } });
-                    }
-                  }}
-                >
+                <Link to="/quote-request" className="block">
                   <Button
                     variant="primary"
                     size="lg"
                     className="w-full shadow-md hover:shadow-lg transition-shadow"
-                    disabled={isUnverified}
                   >
                     <svg className="w-5 h-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
                     </svg>
-                    {isUnverified ? 'Verification Required' : 'Request Quote'}
+                    Request Quote
                   </Button>
                 </Link>
 

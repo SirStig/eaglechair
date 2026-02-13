@@ -14,6 +14,7 @@ from backend.database.base import get_db
 from backend.models.chair import Finish
 from backend.models.company import AdminRole, AdminUser
 from backend.utils.serializers import orm_to_dict
+from backend.utils.static_content_exporter import export_content_after_update
 
 router = APIRouter()
 
@@ -69,7 +70,7 @@ async def create_finish(
     db.add(finish)
     await db.commit()
     await db.refresh(finish)
-
+    await export_content_after_update("finishes", db)
     return orm_to_dict(finish)
 
 
@@ -98,12 +99,12 @@ async def update_finish(
 
     await db.commit()
     await db.refresh(finish)
-
+    await export_content_after_update("finishes", db)
     return orm_to_dict(finish)
 
 
 @router.delete(
-    "{finish_id}",
+    "/{finish_id}",
     response_model=None,
     summary="Delete finish (Admin)",
     description="Delete a finish (soft delete by marking inactive)",
@@ -127,5 +128,5 @@ async def delete_finish(
         finish.is_active = False
 
     await db.commit()
-
+    await export_content_after_update("finishes", db)
     return {"message": f"Finish '{finish.name}' {'deleted' if hard_delete else 'deactivated'} successfully"}

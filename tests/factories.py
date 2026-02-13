@@ -77,8 +77,11 @@ fake = Faker()
 # Company & Admin Factories
 # ============================================================================
 
+def _company_shipping_keys():
+    return {"shipping_address_line1", "shipping_address_line2", "shipping_city", "shipping_state", "shipping_zip", "shipping_country"}
+
+
 async def create_company(db_session, **kwargs):
-    """Create a Company instance."""
     import uuid
     unique_id = uuid.uuid4().hex[:8]
     defaults = {
@@ -90,7 +93,7 @@ async def create_company(db_session, **kwargs):
         "rep_first_name": fake.first_name(),
         "rep_last_name": fake.last_name(),
         "rep_title": fake.job(),
-        "rep_email": f"test-{unique_id}@{fake.domain_name()}",  # Ensure uniqueness
+        "rep_email": f"test-{unique_id}@{fake.domain_name()}",
         "rep_phone": fake.phone_number(),
         "billing_address_line1": fake.street_address(),
         "billing_address_line2": fake.secondary_address(),
@@ -102,9 +105,23 @@ async def create_company(db_session, **kwargs):
         "status": CompanyStatus.PENDING,
         "is_active": True,
     }
+    shipping = {k: kwargs.pop(k, None) for k in _company_shipping_keys() if k in kwargs}
     defaults.update(kwargs)
     company = Company(**defaults)
     db_session.add(company)
+    await db_session.flush()
+    if shipping.get("shipping_address_line1") or shipping.get("shipping_city"):
+        from backend.models.company import CompanyShippingAddress
+        addr = CompanyShippingAddress(
+            company_id=company.id,
+            line1=shipping.get("shipping_address_line1") or company.billing_address_line1,
+            line2=shipping.get("shipping_address_line2"),
+            city=shipping.get("shipping_city") or company.billing_city,
+            state=shipping.get("shipping_state") or company.billing_state,
+            zip=shipping.get("shipping_zip") or company.billing_zip,
+            country=shipping.get("shipping_country") or "USA",
+        )
+        db_session.add(addr)
     await db_session.commit()
     await db_session.refresh(company)
     return company

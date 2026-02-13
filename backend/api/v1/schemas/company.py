@@ -81,6 +81,43 @@ class CompanyRegistration(CompanyBase):
         return v
 
 
+class CompanyShippingAddressCreate(BaseModel):
+    label: Optional[str] = Field(None, max_length=100)
+    line1: str = Field(..., max_length=255)
+    line2: Optional[str] = Field(None, max_length=255)
+    city: str = Field(..., max_length=100)
+    state: str = Field(..., max_length=50)
+    zip: str = Field(..., max_length=20)
+    country: str = Field("USA", max_length=100)
+    sort_order: Optional[int] = None
+
+
+class CompanyShippingAddressUpdate(BaseModel):
+    label: Optional[str] = Field(None, max_length=100)
+    line1: Optional[str] = Field(None, max_length=255)
+    line2: Optional[str] = Field(None, max_length=255)
+    city: Optional[str] = Field(None, max_length=100)
+    state: Optional[str] = Field(None, max_length=50)
+    zip: Optional[str] = Field(None, max_length=20)
+    country: Optional[str] = Field(None, max_length=100)
+    sort_order: Optional[int] = None
+
+
+class CompanyShippingAddressResponse(BaseModel):
+    id: int
+    label: Optional[str]
+    line1: str
+    line2: Optional[str]
+    city: str
+    state: str
+    zip: str
+    country: str
+    sort_order: Optional[int]
+
+    class Config:
+        from_attributes = True
+
+
 class CompanyUpdate(BaseModel):
     """Schema for updating company information"""
     company_name: Optional[str] = Field(None, max_length=255)
@@ -98,12 +135,6 @@ class CompanyUpdate(BaseModel):
     billing_state: Optional[str] = Field(None, max_length=50)
     billing_zip: Optional[str] = Field(None, max_length=20)
     billing_country: Optional[str] = Field(None, max_length=100)
-    shipping_address_line1: Optional[str] = Field(None, max_length=255)
-    shipping_address_line2: Optional[str] = Field(None, max_length=255)
-    shipping_city: Optional[str] = Field(None, max_length=100)
-    shipping_state: Optional[str] = Field(None, max_length=50)
-    shipping_zip: Optional[str] = Field(None, max_length=20)
-    shipping_country: Optional[str] = Field(None, max_length=100)
 
 
 class CompanyAdminUpdate(BaseModel):
@@ -129,14 +160,6 @@ class CompanyAdminUpdate(BaseModel):
     billing_state: Optional[str] = Field(None, max_length=50)
     billing_zip: Optional[str] = Field(None, max_length=20)
     billing_country: Optional[str] = Field(None, max_length=100)
-    
-    # Shipping Address
-    shipping_address_line1: Optional[str] = Field(None, max_length=255)
-    shipping_address_line2: Optional[str] = Field(None, max_length=255)
-    shipping_city: Optional[str] = Field(None, max_length=100)
-    shipping_state: Optional[str] = Field(None, max_length=50)
-    shipping_zip: Optional[str] = Field(None, max_length=20)
-    shipping_country: Optional[str] = Field(None, max_length=100)
     
     # Account Status
     status: Optional[CompanyStatusEnum] = None
@@ -170,12 +193,6 @@ class CompanyResponse(CompanyBase, TimestampSchema):
     billing_state: str
     billing_zip: str
     billing_country: str
-    shipping_address_line1: Optional[str]
-    shipping_address_line2: Optional[str]
-    shipping_city: Optional[str]
-    shipping_state: Optional[str]
-    shipping_zip: Optional[str]
-    shipping_country: Optional[str]
     resale_certificate: Optional[str]
     credit_limit: Optional[int]
     payment_terms: Optional[str]

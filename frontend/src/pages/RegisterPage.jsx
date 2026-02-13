@@ -187,33 +187,40 @@ const RegisterPage = () => {
           <p className="text-dark-200">Join {siteSettings?.companyName || "Eagle Chair"} for exclusive trade pricing and services</p>
         </div>
 
-        {/* Progress Bar */}
         <div className="mb-8">
-          <div className="flex justify-between mb-2 gap-1 sm:gap-2">
+          <div className="flex">
             {[1, 2, 3, 4].map((s) => (
-              <div key={s} className="flex items-center flex-1">
-                <div className={`
-                  w-8 h-8 sm:w-10 sm:h-10 rounded-full flex items-center justify-center font-semibold transition-all duration-300 text-sm sm:text-base
-                  ${step >= s ? 'bg-primary-600 text-white' : 'bg-dark-700 text-dark-400'}
-                `}>
-                  {s}
+              <div key={s} className="flex-1 flex flex-col items-center min-w-0">
+                <div className="flex items-center w-full">
+                  {s > 1 && (
+                    <div
+                      className={`flex-1 h-1 transition-all duration-300 ${step > s - 1 ? 'bg-primary-600' : 'bg-dark-700'}`}
+                    />
+                  )}
+                  <div
+                    className={`
+                      w-8 h-8 sm:w-10 sm:h-10 rounded-full flex items-center justify-center font-semibold transition-all duration-300 text-sm sm:text-base flex-shrink-0
+                      ${step >= s ? 'bg-primary-600 text-white' : 'bg-dark-700 text-dark-400'}
+                    `}
+                  >
+                    {s}
+                  </div>
+                  {s < 4 && (
+                    <div
+                      className={`flex-1 h-1 transition-all duration-300 ${step > s ? 'bg-primary-600' : 'bg-dark-700'}`}
+                    />
+                  )}
                 </div>
-                {s < 4 && (
-                  <div className={`
-                    flex-1 h-1 mx-1 sm:mx-2 transition-all duration-300
-                    ${step > s ? 'bg-primary-600' : 'bg-dark-700'}
-                  `} />
-                )}
+                <span className="text-xs text-dark-300 mt-2 text-center w-full truncate">
+                  {s === 1 && 'Company'}
+                  {s === 2 && 'Contact'}
+                  {s === 3 && 'Address'}
+                  {s === 4 && 'Security'}
+                </span>
               </div>
             ))}
           </div>
-          <div className="flex justify-between text-xs text-dark-300 px-0 sm:px-2">
-            <span className="hidden xs:inline">Company</span>
-            <span className="hidden xs:inline">Contact</span>
-            <span className="hidden sm:inline">Address</span>
-            <span className="hidden sm:inline">Security</span>
-            <span className="xs:hidden text-[10px]">Step {step}/4</span>
-          </div>
+          <p className="text-center text-xs text-dark-400 mt-1 sm:hidden">Step {step} of 4</p>
         </div>
 
         <Card className="bg-dark-800 border-dark-700">

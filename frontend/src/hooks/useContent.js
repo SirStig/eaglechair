@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { cachedFetch } from '../utils/cache';
+import { cachedFetch, deleteCacheKey } from '../utils/cache';
 import logger from '../utils/logger';
 import * as contentService from '../services/contentService';
 
@@ -73,6 +73,7 @@ export const useContent = (apiFn, defaultData = null, cacheKey, cacheTTL = 5 * 6
   }, deps);
 
   const refetch = () => {
+    deleteCacheKey(cacheKey);
     fetchData();
   };
 

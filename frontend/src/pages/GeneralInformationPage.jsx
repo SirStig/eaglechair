@@ -158,7 +158,7 @@ const GeneralInformationPage = () => {
                     Contact Us
                   </button>
                 </Link>
-                <Link to="/quote">
+                <Link to="/quote-request">
                   <button className="px-6 py-3 bg-dark-700 hover:bg-dark-600 text-dark-50 font-semibold rounded-lg transition-colors border border-dark-600">
                     Request a Quote
                   </button>

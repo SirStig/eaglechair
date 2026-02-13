@@ -8,6 +8,7 @@ import logging
 from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query
+from pydantic import BaseModel
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
@@ -24,7 +25,7 @@ from backend.api.v1.schemas.quote import (
 from backend.core.exceptions import ResourceNotFoundError, ValidationError
 from backend.database.base import get_db
 from backend.models.company import AdminRole, AdminUser
-from backend.models.quote import Quote, QuoteItem, QuoteStatus
+from backend.models.quote import Quote, QuoteItem, QuoteShippingDestination, QuoteItemAllocation, QuoteStatus
 from backend.services.admin_service import AdminService
 from backend.utils.serializers import orm_to_dict
 
@@ -61,7 +62,6 @@ async def get_all_quotes(
     quotes_data = []
     for quote in quotes:
         quote_dict = orm_to_dict(quote)
-        # Add company info if relationship is loaded
         if quote.company:
             quote_dict["company_name"] = quote.company.company_name
             quote_dict["company_id"] = quote.company.id
@@ -70,6 +70,12 @@ async def get_all_quotes(
             )
             quote_dict["contact_email"] = quote.company.rep_email
             quote_dict["contact_phone"] = quote.company.rep_phone
+        else:
+            quote_dict["company_name"] = "Guest"
+            quote_dict["company_id"] = None
+            quote_dict["contact_name"] = quote.contact_name or ""
+            quote_dict["contact_email"] = quote.contact_email or ""
+            quote_dict["contact_phone"] = quote.contact_phone or ""
 
         # Serialize quote items with product info
         if quote.items:
@@ -129,14 +135,14 @@ async def get_quote(
     logger.info(f"Admin {admin.username} fetching quote {quote_id}")
 
     try:
-        # Fetch quote directly for admin (no company authorization check)
-
         result = await db.execute(
             select(Quote)
             .where(Quote.id == quote_id)
             .options(
                 selectinload(Quote.company),
                 selectinload(Quote.items).selectinload(QuoteItem.product),
+                selectinload(Quote.items).selectinload(QuoteItem.allocations),
+                selectinload(Quote.shipping_destinations),
             )
         )
         quote = result.scalar_one_or_none()
@@ -145,7 +151,7 @@ async def get_quote(
             raise ResourceNotFoundError(resource_type="Quote", resource_id=quote_id)
 
         quote_dict = orm_to_dict(quote)
-        # Enrich with company info
+        quote_dict["shipping_destinations"] = [orm_to_dict(d) for d in (quote.shipping_destinations or [])]
         if quote.company:
             quote_dict["company_name"] = quote.company.company_name
             quote_dict["company_id"] = quote.company.id
@@ -154,13 +160,18 @@ async def get_quote(
             )
             quote_dict["contact_email"] = quote.company.rep_email
             quote_dict["contact_phone"] = quote.company.rep_phone
+        else:
+            quote_dict["company_name"] = "Guest"
+            quote_dict["company_id"] = None
+            quote_dict["contact_name"] = quote.contact_name or ""
+            quote_dict["contact_email"] = quote.contact_email or ""
+            quote_dict["contact_phone"] = quote.contact_phone or ""
 
-        # Serialize quote items with product info
         if quote.items:
             quote_dict["items"] = []
             for item in quote.items:
                 item_dict = orm_to_dict(item)
-                # Add product info if loaded
+                item_dict["allocations"] = [orm_to_dict(a) for a in (item.allocations or [])]
                 if item.product:
                     item_dict["product"] = {
                         "id": item.product.id,
@@ -236,7 +247,6 @@ async def update_quote_status(
             raise ResourceNotFoundError(resource_type="Quote", resource_id=quote_id)
 
         quote_dict = orm_to_dict(quote)
-        # Enrich with company info
         if quote.company:
             quote_dict["company_name"] = quote.company.company_name
             quote_dict["company_id"] = quote.company.id
@@ -245,8 +255,13 @@ async def update_quote_status(
             )
             quote_dict["contact_email"] = quote.company.rep_email
             quote_dict["contact_phone"] = quote.company.rep_phone
+        else:
+            quote_dict["company_name"] = "Guest"
+            quote_dict["company_id"] = None
+            quote_dict["contact_name"] = quote.contact_name or ""
+            quote_dict["contact_email"] = quote.contact_email or ""
+            quote_dict["contact_phone"] = quote.contact_phone or ""
 
-        # Serialize quote items with product info
         if quote.items:
             quote_dict["items"] = []
             for item in quote.items:
@@ -337,10 +352,23 @@ async def update_quote(
             await AdminService.recalculate_quote_totals(db=db, quote_id=quote_id)
         else:
             await db.commit()
-            await db.refresh(quote)
+
+        result = await db.execute(
+            select(Quote)
+            .where(Quote.id == quote_id)
+            .options(
+                selectinload(Quote.company),
+                selectinload(Quote.items).selectinload(QuoteItem.product),
+                selectinload(Quote.items).selectinload(QuoteItem.allocations),
+                selectinload(Quote.shipping_destinations),
+            )
+        )
+        quote = result.scalar_one_or_none()
+        if not quote:
+            raise ResourceNotFoundError(resource_type="Quote", resource_id=quote_id)
 
         quote_dict = orm_to_dict(quote)
-        # Enrich with company info
+        quote_dict["shipping_destinations"] = [orm_to_dict(d) for d in (quote.shipping_destinations or [])]
         if quote.company:
             quote_dict["company_name"] = quote.company.company_name
             quote_dict["company_id"] = quote.company.id
@@ -349,13 +377,18 @@ async def update_quote(
             )
             quote_dict["contact_email"] = quote.company.rep_email
             quote_dict["contact_phone"] = quote.company.rep_phone
+        else:
+            quote_dict["company_name"] = "Guest"
+            quote_dict["company_id"] = None
+            quote_dict["contact_name"] = quote.contact_name or ""
+            quote_dict["contact_email"] = quote.contact_email or ""
+            quote_dict["contact_phone"] = quote.contact_phone or ""
 
-        # Serialize quote items with product info
         if quote.items:
             quote_dict["items"] = []
             for item in quote.items:
                 item_dict = orm_to_dict(item)
-                # Add product info if loaded
+                item_dict["allocations"] = [orm_to_dict(a) for a in (item.allocations or [])]
                 if item.product:
                     item_dict["product"] = {
                         "id": item.product.id,
@@ -414,15 +447,14 @@ async def assign_quote(
         quote.assigned_to_admin_id = admin.id
         await db.commit()
 
-        # Reload quote with relationships for response
-        from sqlalchemy.orm import selectinload
-
         result = await db.execute(
             select(Quote)
             .where(Quote.id == quote_id)
             .options(
                 selectinload(Quote.company),
                 selectinload(Quote.items).selectinload(QuoteItem.product),
+                selectinload(Quote.items).selectinload(QuoteItem.allocations),
+                selectinload(Quote.shipping_destinations),
             )
         )
         quote = result.scalar_one_or_none()
@@ -431,7 +463,7 @@ async def assign_quote(
             raise ResourceNotFoundError(resource_type="Quote", resource_id=quote_id)
 
         quote_dict = orm_to_dict(quote)
-        # Enrich with company info
+        quote_dict["shipping_destinations"] = [orm_to_dict(d) for d in (quote.shipping_destinations or [])]
         if quote.company:
             quote_dict["company_name"] = quote.company.company_name
             quote_dict["company_id"] = quote.company.id
@@ -440,13 +472,18 @@ async def assign_quote(
             )
             quote_dict["contact_email"] = quote.company.rep_email
             quote_dict["contact_phone"] = quote.company.rep_phone
+        else:
+            quote_dict["company_name"] = "Guest"
+            quote_dict["company_id"] = None
+            quote_dict["contact_name"] = quote.contact_name or ""
+            quote_dict["contact_email"] = quote.contact_email or ""
+            quote_dict["contact_phone"] = quote.contact_phone or ""
 
-        # Serialize quote items with product info
         if quote.items:
             quote_dict["items"] = []
             for item in quote.items:
                 item_dict = orm_to_dict(item)
-                # Add product info if loaded
+                item_dict["allocations"] = [orm_to_dict(a) for a in (item.allocations or [])]
                 if item.product:
                     item_dict["product"] = {
                         "id": item.product.id,
@@ -721,3 +758,99 @@ async def delete_quote_item(
 
     except ResourceNotFoundError as e:
         raise HTTPException(status_code=404, detail=str(e))
+
+
+# ============================================================================
+# Quote Shipping Destinations & Allocations (Admin)
+# ============================================================================
+
+class QuoteDestinationInput(BaseModel):
+    label: Optional[str] = None
+    line1: str
+    line2: Optional[str] = None
+    city: str
+    state: str
+    zip: str
+    country: str = "USA"
+
+
+class QuoteAllocationInput(BaseModel):
+    quote_shipping_destination_id: int
+    quantity: int
+
+
+@router.put(
+    "/{quote_id}/shipping-destinations",
+    summary="Replace quote shipping destinations (Admin)",
+)
+async def replace_quote_shipping_destinations(
+    quote_id: int,
+    destinations: list[QuoteDestinationInput],
+    admin: AdminUser = Depends(require_role(AdminRole.ADMIN)),
+    db: AsyncSession = Depends(get_db),
+):
+    if not destinations:
+        raise HTTPException(status_code=400, detail="At least one destination required")
+    result = await db.execute(select(Quote).where(Quote.id == quote_id).options(selectinload(Quote.items), selectinload(Quote.shipping_destinations)))
+    quote = result.scalar_one_or_none()
+    if not quote:
+        raise HTTPException(status_code=404, detail="Quote not found")
+    for d in quote.shipping_destinations or []:
+        await db.delete(d)
+    await db.flush()
+    for i, d in enumerate(destinations):
+        dest = QuoteShippingDestination(
+            quote_id=quote_id,
+            label=d.label,
+            line1=d.line1,
+            line2=d.line2,
+            city=d.city,
+            state=d.state,
+            zip=d.zip,
+            country=d.country,
+            sort_order=i,
+        )
+        db.add(dest)
+    await db.flush()
+    new_dests = (await db.execute(select(QuoteShippingDestination).where(QuoteShippingDestination.quote_id == quote_id).order_by(QuoteShippingDestination.sort_order, QuoteShippingDestination.id))).scalars().all()
+    first_dest_id = new_dests[0].id if new_dests else None
+    for item in quote.items or []:
+        for a in item.allocations or []:
+            await db.delete(a)
+        if first_dest_id and item.quantity > 0:
+            db.add(QuoteItemAllocation(quote_item_id=item.id, quote_shipping_destination_id=first_dest_id, quantity=item.quantity))
+    await db.commit()
+    return MessageResponse(message="Shipping destinations updated")
+
+
+@router.put(
+    "/{quote_id}/items/{item_id}/allocations",
+    summary="Replace quote item allocations (Admin)",
+)
+async def replace_quote_item_allocations(
+    quote_id: int,
+    item_id: int,
+    allocations: list[QuoteAllocationInput],
+    admin: AdminUser = Depends(require_role(AdminRole.ADMIN)),
+    db: AsyncSession = Depends(get_db),
+):
+    result = await db.execute(
+        select(QuoteItem).where(QuoteItem.id == item_id, QuoteItem.quote_id == quote_id).options(selectinload(QuoteItem.allocations))
+    )
+    item = result.scalar_one_or_none()
+    if not item:
+        raise HTTPException(status_code=404, detail="Quote item not found")
+    dest_ids = (await db.execute(select(QuoteShippingDestination.id).where(QuoteShippingDestination.quote_id == quote_id))).scalars().all()
+    dest_ids = [r[0] for r in dest_ids]
+    total = sum(a.quantity for a in allocations)
+    if total != item.quantity:
+        raise HTTPException(status_code=400, detail=f"Allocation total {total} must equal item quantity {item.quantity}")
+    for a in item.allocations or []:
+        await db.delete(a)
+    for a in allocations:
+        if a.quote_shipping_destination_id not in dest_ids:
+            raise HTTPException(status_code=400, detail="Invalid quote_shipping_destination_id")
+        if a.quantity > 0:
+            db.add(QuoteItemAllocation(quote_item_id=item_id, quote_shipping_destination_id=a.quote_shipping_destination_id, quantity=a.quantity))
+    await db.commit()
+    return MessageResponse(message="Allocations updated")

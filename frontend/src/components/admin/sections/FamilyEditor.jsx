@@ -138,7 +138,7 @@ const FamilyEditor = ({ family, categories, onBack, onSave }) => {
                 <>
                   <Upload className="w-10 h-10 text-dark-500 mb-2" />
                   <span className="text-sm text-dark-400">Click to upload {label.toLowerCase()}</span>
-                  <span className="text-xs text-dark-500 mt-1">PNG, JPG up to 10MB</span>
+                  <span className="text-xs text-dark-500 mt-1">PNG, JPG up to 50MB</span>
                 </>
               )}
             </div>

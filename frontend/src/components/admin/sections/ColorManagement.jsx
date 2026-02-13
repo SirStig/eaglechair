@@ -5,12 +5,16 @@ import apiClient from '../../../config/apiClient';
 import { resolveImageUrl } from '../../../utils/apiHelpers';
 import { Edit2, Trash2, Palette } from 'lucide-react';
 import ColorEditor from './ColorEditor';
+import { useToast } from '../../../contexts/ToastContext';
+import { useAdminRefresh } from '../../../contexts/AdminRefreshContext';
 
 /**
  * Color Management Component
  * Table-based color list with separate editor component
  */
 const ColorManagement = () => {
+  const toast = useToast();
+  const { refreshKeys } = useAdminRefresh();
   const [colors, setColors] = useState([]);
   const [loading, setLoading] = useState(true);
   const [editingColor, setEditingColor] = useState(null);
@@ -19,8 +23,7 @@ const ColorManagement = () => {
 
   useEffect(() => {
     fetchColors();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [filterCategory, filterActive]);
+  }, [filterCategory, filterActive, refreshKeys.colors]);
 
   const fetchColors = async () => {
     try {
@@ -51,6 +54,7 @@ const ColorManagement = () => {
 
   const handleSave = () => {
     setEditingColor(null);
+    toast.success(editingColor?.id ? 'Color updated' : 'Color created');
     fetchColors();
   };
 
@@ -59,10 +63,11 @@ const ColorManagement = () => {
     
     try {
       await apiClient.delete(`/api/v1/admin/colors/${colorId}`);
-      fetchColors();
+      toast.success('Color deleted');
+      await fetchColors();
     } catch (error) {
       console.error('Failed to delete color:', error);
-      alert(error.response?.data?.detail || 'Failed to delete color');
+      toast.error(error.response?.data?.detail || 'Failed to delete color');
     }
   };
 

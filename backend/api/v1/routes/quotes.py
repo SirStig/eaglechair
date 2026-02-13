@@ -4,10 +4,11 @@ Quote Routes - API v1
 Cart and quote management for authenticated companies
 """
 
+import json
 import logging
 from typing import Optional
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException, Request
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from backend.api.dependencies import get_current_company
@@ -16,9 +17,10 @@ from backend.api.v1.schemas.quote import (
     CartItemCreate,
     CartItemResponse,
     CartItemUpdate,
-    CartResponse,
     ConvertCartToQuoteRequest,
+    GuestQuoteRequest,
     QuoteResponse,
+    CartResponse,
     QuoteWithItems,
 )
 from backend.database.base import get_db
@@ -371,6 +373,13 @@ async def create_quote_request(
     # Get active cart
     cart = await QuoteService.get_or_create_cart(db, company.id)
 
+    shipping_destinations_list = None
+    if quote_data.shipping_destinations:
+        shipping_destinations_list = [d.model_dump() for d in quote_data.shipping_destinations]
+    allocations_list = None
+    if quote_data.allocations:
+        allocations_list = [a.model_dump() for a in quote_data.allocations]
+
     quote_request = await QuoteService.create_quote_request(
         db=db,
         company_id=company.id,
@@ -380,7 +389,10 @@ async def create_quote_request(
         shipping_city=quote_data.shipping_city,
         shipping_state=quote_data.shipping_state,
         shipping_zip=quote_data.shipping_zip,
-        shipping_country=quote_data.shipping_country,
+        shipping_country=quote_data.shipping_country or "USA",
+        shipping_destination_id=quote_data.shipping_destination_id,
+        shipping_destinations=shipping_destinations_list,
+        allocations=allocations_list,
         project_name=quote_data.project_name,
         project_description=quote_data.project_description,
         desired_delivery_date=quote_data.desired_delivery_date,
@@ -389,6 +401,61 @@ async def create_quote_request(
 
     logger.info(
         f"Quote request created: {quote_request.quote_number} for company {company.id}"
+    )
+
+    return quote_request
+
+
+@router.post(
+    "/request-guest",
+    response_model=QuoteResponse,
+    status_code=201,
+    summary="Request quote (guest)",
+    description="Create a quote request without authentication. Provide contact and shipping info.",
+)
+async def create_guest_quote_request(
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Create a quote request as a guest (no account required).
+
+    Accepts JSON body or multipart/form-data (quote_data as JSON string, optional files).
+    """
+    content_type = request.headers.get("content-type", "")
+    files_tuples = []
+
+    if "multipart/form-data" in content_type:
+        form = await request.form()
+        quote_data_str = form.get("quote_data")
+        if not quote_data_str:
+            raise HTTPException(status_code=400, detail="quote_data is required")
+        try:
+            payload = json.loads(quote_data_str)
+        except json.JSONDecodeError as e:
+            raise HTTPException(status_code=400, detail=f"Invalid quote_data JSON: {e}") from e
+        uploaded_files = form.getlist("files")
+        for uf in uploaded_files:
+            if hasattr(uf, "read") and uf.filename:
+                content = await uf.read()
+                files_tuples.append((uf.filename, content, uf.content_type or "application/octet-stream"))
+    else:
+        try:
+            payload = await request.json()
+        except Exception as e:
+            raise HTTPException(status_code=400, detail="Invalid JSON body") from e
+
+    try:
+        quote_data = GuestQuoteRequest(**payload)
+    except Exception as e:
+        raise HTTPException(status_code=422, detail=str(e)) from e
+
+    payload_dict = quote_data.model_dump(mode="json")
+
+    quote_request = await QuoteService.create_guest_quote_request(
+        db=db,
+        payload=payload_dict,
+        files=files_tuples if files_tuples else None,
     )
 
     return quote_request

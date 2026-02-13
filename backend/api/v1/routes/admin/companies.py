@@ -11,6 +11,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import JSONResponse
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
 
 from backend.api.dependencies import get_current_admin, require_role
 from backend.api.v1.schemas.admin import (
@@ -19,7 +20,13 @@ from backend.api.v1.schemas.admin import (
     CompanyStatusUpdate,
 )
 from backend.api.v1.schemas.common import MessageResponse
-from backend.api.v1.schemas.company import CompanyAdminUpdate, CompanyResponse
+from backend.api.v1.schemas.company import (
+    CompanyAdminUpdate,
+    CompanyResponse,
+    CompanyShippingAddressCreate,
+    CompanyShippingAddressResponse,
+    CompanyShippingAddressUpdate,
+)
 from backend.core.config import settings
 from backend.core.exceptions import (
     ResourceAlreadyExistsError,
@@ -32,6 +39,7 @@ from backend.models.company import (
     AdminUser,
     Company,
     CompanyPricing,
+    CompanyShippingAddress,
     CompanyStatus,
 )
 from backend.services.admin_service import AdminService
@@ -103,17 +111,15 @@ async def get_company(
     logger.info(f"Admin {admin.username} fetching company {company_id}")
     
     try:
-        # Fetch company
         result = await db.execute(
-            select(Company).where(Company.id == company_id)
+            select(Company).where(Company.id == company_id).options(selectinload(Company.shipping_addresses))
         )
         company = result.scalar_one_or_none()
-        
         if not company:
             raise ResourceNotFoundError(resource_type="Company", resource_id=company_id)
-        
-        return orm_to_dict(company)
-        
+        data = orm_to_dict(company)
+        data["shipping_addresses"] = [orm_to_dict(a) for a in (company.shipping_addresses or [])]
+        return data
     except ResourceNotFoundError as e:
         raise HTTPException(status_code=404, detail=str(e))
 
@@ -222,6 +228,90 @@ async def update_company(
         raise HTTPException(status_code=404, detail=str(e))
     except ValidationError as e:
         raise HTTPException(status_code=400, detail=str(e))
+
+
+@router.post(
+    "/{company_id}/shipping-addresses",
+    response_model=CompanyShippingAddressResponse,
+    summary="Add company shipping address (Admin)",
+)
+async def admin_create_company_shipping_address(
+    company_id: int,
+    data: CompanyShippingAddressCreate,
+    admin: AdminUser = Depends(require_role(AdminRole.ADMIN)),
+    db: AsyncSession = Depends(get_db),
+):
+    result = await db.execute(select(Company).where(Company.id == company_id))
+    company = result.scalar_one_or_none()
+    if not company:
+        raise HTTPException(status_code=404, detail="Company not found")
+    addr = CompanyShippingAddress(
+        company_id=company_id,
+        label=data.label,
+        line1=data.line1,
+        line2=data.line2,
+        city=data.city,
+        state=data.state,
+        zip=data.zip,
+        country=data.country,
+        sort_order=data.sort_order,
+    )
+    db.add(addr)
+    await db.commit()
+    await db.refresh(addr)
+    return addr
+
+
+@router.put(
+    "/{company_id}/shipping-addresses/{address_id}",
+    response_model=CompanyShippingAddressResponse,
+    summary="Update company shipping address (Admin)",
+)
+async def admin_update_company_shipping_address(
+    company_id: int,
+    address_id: int,
+    data: CompanyShippingAddressUpdate,
+    admin: AdminUser = Depends(require_role(AdminRole.ADMIN)),
+    db: AsyncSession = Depends(get_db),
+):
+    result = await db.execute(
+        select(CompanyShippingAddress).where(
+            CompanyShippingAddress.id == address_id,
+            CompanyShippingAddress.company_id == company_id,
+        )
+    )
+    addr = result.scalar_one_or_none()
+    if not addr:
+        raise HTTPException(status_code=404, detail="Shipping address not found")
+    for k, v in data.model_dump(exclude_unset=True).items():
+        setattr(addr, k, v)
+    await db.commit()
+    await db.refresh(addr)
+    return addr
+
+
+@router.delete(
+    "/{company_id}/shipping-addresses/{address_id}",
+    status_code=204,
+    summary="Delete company shipping address (Admin)",
+)
+async def admin_delete_company_shipping_address(
+    company_id: int,
+    address_id: int,
+    admin: AdminUser = Depends(require_role(AdminRole.ADMIN)),
+    db: AsyncSession = Depends(get_db),
+):
+    result = await db.execute(
+        select(CompanyShippingAddress).where(
+            CompanyShippingAddress.id == address_id,
+            CompanyShippingAddress.company_id == company_id,
+        )
+    )
+    addr = result.scalar_one_or_none()
+    if not addr:
+        raise HTTPException(status_code=404, detail="Shipping address not found")
+    await db.delete(addr)
+    await db.commit()
 
 
 @router.delete(

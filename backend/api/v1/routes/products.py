@@ -9,6 +9,7 @@ from typing import List, Optional
 
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import attributes as sa_attributes
 
 from backend.api.dependencies import get_optional_company
 from backend.api.v1.schemas.common import MessageResponse
@@ -70,40 +71,56 @@ async def _populate_customizations(
             select(Finish).where(Finish.id.in_(list(all_finish_ids)), Finish.is_active == True)
         )
         for finish in finish_result.scalars().all():
-            finish_map[finish.id] = finish.name
-    
+            finish_map[finish.id] = {
+                "id": finish.id,
+                "name": finish.name,
+                "image_url": finish.image_url,
+                "color_hex": getattr(finish, "color_hex", None),
+            }
+
     color_map = {}
     if all_color_ids:
         color_result = await db.execute(
             select(Color).where(Color.id.in_(list(all_color_ids)), Color.is_active == True)
         )
         for color in color_result.scalars().all():
-            color_map[color.id] = color.name
-    
+            color_map[color.id] = {
+                "id": color.id,
+                "name": color.name,
+                "image_url": color.image_url,
+                "color_hex": getattr(color, "hex_value", None) or getattr(color, "color_hex", None),
+            }
+
     upholstery_map = {}
     if all_upholstery_ids:
         upholstery_result = await db.execute(
             select(Upholstery).where(Upholstery.id.in_(list(all_upholstery_ids)), Upholstery.is_active == True)
         )
         for upholstery in upholstery_result.scalars().all():
-            upholstery_map[upholstery.id] = upholstery.name
+            upholstery_map[upholstery.id] = {
+                "id": upholstery.id,
+                "name": upholstery.name,
+                "image_url": upholstery.image_url,
+                "swatch_image_url": getattr(upholstery, "swatch_image_url", None),
+                "color_hex": getattr(upholstery, "color_hex", None),
+            }
     
     # Populate customizations for each product
     for product in products:
         customizations = {}
         
         if hasattr(product, 'available_finishes') and product.available_finishes:
-            finishes = [finish_map.get(fid) for fid in product.available_finishes if finish_map.get(fid)]
+            finishes = [finish_map[fid] for fid in product.available_finishes if fid in finish_map]
             if finishes:
                 customizations['finishes'] = finishes
         
         if hasattr(product, 'available_colors') and product.available_colors:
-            colors = [color_map.get(cid) for cid in product.available_colors if color_map.get(cid)]
+            colors = [color_map[cid] for cid in product.available_colors if cid in color_map]
             if colors:
                 customizations['colors'] = colors
         
         if hasattr(product, 'available_upholsteries') and product.available_upholsteries:
-            upholsteries = [upholstery_map.get(uid) for uid in product.available_upholsteries if upholstery_map.get(uid)]
+            upholsteries = [upholstery_map[uid] for uid in product.available_upholsteries if uid in upholstery_map]
             if upholsteries:
                 customizations['fabrics'] = upholsteries  # Frontend uses 'fabrics' for upholstery
                 customizations['upholstery'] = upholsteries  # Also include 'upholstery' for compatibility
@@ -420,13 +437,14 @@ async def get_product(
         increment_view=True  # Track popularity
     )
     
-    # Populate customizations
     await _populate_customizations(db, [product])
-    
-    # Apply pricing tier if company is authenticated
+
     if company:
         await _apply_pricing_tiers_to_products(db, company, [product])
-    
+
+    related = await ProductService.get_related_products(db, product.id, limit=6)
+    sa_attributes.set_committed_value(product, "related_products", related)
+
     return product
 
 
@@ -456,13 +474,14 @@ async def get_product_by_slug(
         increment_view=True  # Track popularity
     )
     
-    # Populate customizations
     await _populate_customizations(db, [product])
-    
-    # Apply pricing tier if company is authenticated
+
     if company:
         await _apply_pricing_tiers_to_products(db, company, [product])
-    
+
+    related = await ProductService.get_related_products(db, product.id, limit=6)
+    sa_attributes.set_committed_value(product, "related_products", related)
+
     return product
 
 
@@ -490,10 +509,12 @@ async def get_product_by_model(
         model_number=model_number,
         increment_view=True  # Track popularity
     )
-    
-    # Populate customizations
+
     await _populate_customizations(db, [product])
-    
+
+    related = await ProductService.get_related_products(db, product.id, limit=6)
+    sa_attributes.set_committed_value(product, "related_products", related)
+
     return product
 
 
@@ -631,27 +652,28 @@ async def get_families(
     """
     logger.info(f"Fetching families (category_id={category_id}, featured_only={featured_only})")
     
-    from sqlalchemy import func, select
+    from sqlalchemy import func, or_, select
 
-    from backend.models.chair import Chair, ProductFamily
-    
-    # Get families with product counts
+    from backend.models.chair import Chair, ProductFamily, chair_secondary_families
+
     families = await ProductService.get_families(
         db=db,
         category_id=category_id,
         featured_only=featured_only,
         include_inactive=False
     )
-    
-    # Add product counts
+
     for family in families:
+        subq = select(chair_secondary_families.c.chair_id).where(
+            chair_secondary_families.c.family_id == family.id
+        )
         count_stmt = select(func.count(Chair.id)).where(
-            Chair.family_id == family.id,
-            Chair.is_active == True
+            Chair.is_active == True,
+            or_(Chair.family_id == family.id, Chair.id.in_(subq)),
         )
         count_result = await db.execute(count_stmt)
         family.product_count = count_result.scalar() or 0
-    
+
     return families
 
 
@@ -672,27 +694,28 @@ async def get_family_by_id(
     """
     logger.info(f"Fetching family {family_id}")
     
-    from sqlalchemy import func, select
+    from sqlalchemy import func, or_, select
 
     from backend.core.exceptions import ResourceNotFoundError
-    from backend.models.chair import Chair, ProductFamily
-    
-    # Get family
+    from backend.models.chair import Chair, ProductFamily, chair_secondary_families
+
     stmt = select(ProductFamily).where(ProductFamily.id == family_id)
     result = await db.execute(stmt)
     family = result.scalar_one_or_none()
-    
+
     if not family:
         raise ResourceNotFoundError(resource_type="ProductFamily", resource_id=family_id)
-    
-    # Add product count
+
+    subq = select(chair_secondary_families.c.chair_id).where(
+        chair_secondary_families.c.family_id == family.id
+    )
     count_stmt = select(func.count(Chair.id)).where(
-        Chair.family_id == family.id,
-        Chair.is_active == True
+        Chair.is_active == True,
+        or_(Chair.family_id == family.id, Chair.id.in_(subq)),
     )
     count_result = await db.execute(count_stmt)
     family.product_count = count_result.scalar() or 0
-    
+
     return family
 
 
@@ -713,27 +736,28 @@ async def get_family_by_slug(
     """
     logger.info(f"Fetching family with slug '{slug}'")
     
-    from sqlalchemy import func, select
+    from sqlalchemy import func, or_, select
 
     from backend.core.exceptions import ResourceNotFoundError
-    from backend.models.chair import Chair, ProductFamily
-    
-    # Get family
+    from backend.models.chair import Chair, ProductFamily, chair_secondary_families
+
     stmt = select(ProductFamily).where(ProductFamily.slug == slug)
     result = await db.execute(stmt)
     family = result.scalar_one_or_none()
-    
+
     if not family:
         raise ResourceNotFoundError(resource_type="ProductFamily", resource_id=slug)
-    
-    # Add product count
+
+    subq = select(chair_secondary_families.c.chair_id).where(
+        chair_secondary_families.c.family_id == family.id
+    )
     count_stmt = select(func.count(Chair.id)).where(
-        Chair.family_id == family.id,
-        Chair.is_active == True
+        Chair.is_active == True,
+        or_(Chair.family_id == family.id, Chair.id.in_(subq)),
     )
     count_result = await db.execute(count_stmt)
     family.product_count = count_result.scalar() or 0
-    
+
     return family
 
 

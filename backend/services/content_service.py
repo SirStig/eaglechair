@@ -18,7 +18,9 @@ from backend.models.content import (
     ContactLocation,
     FAQCategory,
     Feedback,
+    Hardware,
     Installation,
+    Laminate,
     TeamMember,
 )
 from backend.utils.static_content_exporter import export_content_after_update
@@ -628,7 +630,73 @@ class ContentService:
         
         logger.info(f"Retrieved {len(catalogs)} catalogs")
         return list(catalogs)
-    
+
+    @staticmethod
+    async def get_laminates(
+        db: AsyncSession,
+        include_inactive: bool = False
+    ) -> List[dict]:
+        query = select(Laminate)
+        if not include_inactive:
+            query = query.where(Laminate.is_active == True)
+        query = query.order_by(Laminate.display_order, Laminate.brand, Laminate.pattern_name)
+        result = await db.execute(query)
+        items = result.scalars().all()
+        return [
+            {
+                "id": lam.id,
+                "patternName": lam.pattern_name,
+                "patternCode": lam.pattern_code,
+                "brand": lam.brand,
+                "description": lam.description,
+                "swatchImageUrl": lam.swatch_image_url,
+                "fullImageUrl": lam.full_image_url,
+                "colorFamily": lam.color_family,
+                "finishType": lam.finish_type,
+                "thickness": lam.thickness,
+                "grade": lam.grade,
+                "supplierName": lam.supplier_name,
+                "supplierWebsite": lam.supplier_website,
+                "isInStock": lam.is_in_stock,
+                "leadTimeDays": lam.lead_time_days,
+                "isActive": lam.is_active,
+                "isPopular": getattr(lam, "is_popular", False),
+                "isFeatured": getattr(lam, "is_featured", False),
+            }
+            for lam in items
+        ]
+
+    @staticmethod
+    async def get_hardware(
+        db: AsyncSession,
+        include_inactive: bool = False
+    ) -> List[dict]:
+        query = select(Hardware)
+        if not include_inactive:
+            query = query.where(Hardware.is_active == True)
+        query = query.order_by(Hardware.display_order, Hardware.name)
+        result = await db.execute(query)
+        items = result.scalars().all()
+        return [
+            {
+                "id": h.id,
+                "name": h.name,
+                "description": h.description,
+                "imageUrl": h.image_url,
+                "category": h.category,
+                "modelNumber": h.model_number,
+                "sku": h.sku,
+                "material": h.material,
+                "finish": h.finish,
+                "dimensions": h.dimensions,
+                "weightCapacity": h.weight_capacity,
+                "installationNotes": h.installation_notes,
+                "isActive": h.is_active,
+                "isFeatured": getattr(h, "is_featured", False),
+            }
+            for h in items
+        ]
+
     @staticmethod
     async def get_catalog_by_id(
         db: AsyncSession,
