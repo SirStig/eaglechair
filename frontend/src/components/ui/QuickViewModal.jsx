@@ -253,6 +253,9 @@ const QuickViewModal = ({ product, isOpen, onClose }) => {
                             {product.width && <p>W: {product.width}"</p>}
                             {product.depth && <p>D: {product.depth}"</p>}
                             {product.height && <p>H: {product.height}"</p>}
+                            {product.upholstery_amount != null && product.upholstery_amount > 0 && (
+                              <p>Upholstery: {Number(product.upholstery_amount) === parseInt(product.upholstery_amount, 10) ? product.upholstery_amount : Number(product.upholstery_amount).toFixed(1)} yd</p>
+                            )}
                           </div>
                         </div>
 

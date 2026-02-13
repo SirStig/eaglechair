@@ -16,6 +16,7 @@ import time
 from pathlib import Path
 from typing import List, Optional
 
+from pydantic import BaseModel
 from fastapi import (
     APIRouter,
     Depends,
@@ -60,6 +61,15 @@ from backend.utils.static_content_exporter import export_content_after_update
 logger = logging.getLogger(__name__)
 
 router = APIRouter(tags=["Admin - Catalog"])
+
+
+class ReorderItem(BaseModel):
+    id: int
+    display_order: int
+
+
+class ReorderBody(BaseModel):
+    order: List[ReorderItem]
 
 
 # ============================================================================
@@ -230,6 +240,7 @@ async def delete_color(
 )
 async def get_finishes(
     finish_type: Optional[str] = Query(None, description="Filter by finish type"),
+    grade: Optional[str] = Query(None, description="Filter by grade (Standard, Premium, Premium Plus, Artisan)"),
     is_active: Optional[bool] = Query(None, description="Filter by active status"),
     admin: AdminUser = Depends(get_current_admin),
     db: AsyncSession = Depends(get_db)
@@ -241,6 +252,9 @@ async def get_finishes(
     
     if finish_type:
         query = query.where(Finish.finish_type == finish_type)
+    
+    if grade:
+        query = query.where(Finish.grade == grade)
     
     if is_active is not None:
         query = query.where(Finish.is_active == is_active)
@@ -264,6 +278,7 @@ async def create_finish(
     finish_code: Optional[str] = None,
     description: Optional[str] = None,
     finish_type: Optional[str] = None,
+    grade: str = "Standard",
     color_id: Optional[int] = None,
     color_hex: Optional[str] = None,
     image_url: Optional[str] = None,
@@ -281,6 +296,7 @@ async def create_finish(
         finish_code=finish_code,
         description=description,
         finish_type=finish_type,
+        grade=grade,
         color_id=color_id,
         color_hex=color_hex,
         image_url=image_url,
@@ -299,6 +315,26 @@ async def create_finish(
     return orm_to_dict(finish)
 
 
+@router.post(
+    "/finishes/reorder",
+    summary="Batch reorder finishes (Admin)",
+)
+async def reorder_finishes(
+    body: ReorderBody,
+    admin: AdminUser = Depends(require_role(AdminRole.ADMIN)),
+    db: AsyncSession = Depends(get_db),
+):
+    for item in body.order:
+        stmt = select(Finish).where(Finish.id == item.id)
+        result = await db.execute(stmt)
+        finish = result.scalar_one_or_none()
+        if finish:
+            finish.display_order = item.display_order
+    await db.commit()
+    await export_content_after_update('finishes', db)
+    return {"message": "Order updated", "count": len(body.order)}
+
+
 @router.put(
     "/finishes/{finish_id}",
     summary="Update finish (Admin)",
@@ -310,6 +346,7 @@ async def update_finish(
     finish_code: Optional[str] = None,
     description: Optional[str] = None,
     finish_type: Optional[str] = None,
+    grade: Optional[str] = None,
     color_id: Optional[int] = None,
     color_hex: Optional[str] = None,
     image_url: Optional[str] = None,
@@ -337,6 +374,8 @@ async def update_finish(
         finish.description = description
     if finish_type is not None:
         finish.finish_type = finish_type
+    if grade is not None:
+        finish.grade = grade
     if color_id is not None:
         finish.color_id = color_id
     if color_hex is not None:
@@ -508,6 +547,26 @@ async def create_upholstery(
     await export_content_after_update('upholsteries', db)
     
     return orm_to_dict(upholstery)
+
+
+@router.post(
+    "/upholsteries/reorder",
+    summary="Batch reorder upholsteries (Admin)",
+)
+async def reorder_upholsteries(
+    body: ReorderBody,
+    admin: AdminUser = Depends(require_role(AdminRole.ADMIN)),
+    db: AsyncSession = Depends(get_db),
+):
+    for item in body.order:
+        stmt = select(Upholstery).where(Upholstery.id == item.id)
+        result = await db.execute(stmt)
+        upholstery = result.scalar_one_or_none()
+        if upholstery:
+            upholstery.display_order = item.display_order
+    await db.commit()
+    await export_content_after_update('upholsteries', db)
+    return {"message": "Order updated", "count": len(body.order)}
 
 
 @router.put(
@@ -844,6 +903,25 @@ async def create_family(
     return orm_to_dict(family)
 
 
+@router.post(
+    "/families/reorder",
+    summary="Batch reorder families (Admin)",
+)
+async def reorder_families(
+    body: ReorderBody,
+    admin: AdminUser = Depends(require_role(AdminRole.ADMIN)),
+    db: AsyncSession = Depends(get_db),
+):
+    for item in body.order:
+        stmt = select(ProductFamily).where(ProductFamily.id == item.id)
+        result = await db.execute(stmt)
+        family = result.scalar_one_or_none()
+        if family:
+            family.display_order = item.display_order
+    await db.commit()
+    return {"message": "Order updated", "count": len(body.order)}
+
+
 @router.put(
     "/families/{family_id}",
     summary="Update family (Admin)",
@@ -1124,6 +1202,27 @@ async def create_laminate(
     return orm_to_dict(laminate)
 
 
+@router.post(
+    "/laminates/reorder",
+    summary="Batch reorder laminates (Admin)",
+    description="Set display_order for multiple laminates in one request",
+)
+async def reorder_laminates(
+    body: ReorderBody,
+    admin: AdminUser = Depends(require_role(AdminRole.ADMIN)),
+    db: AsyncSession = Depends(get_db),
+):
+    for item in body.order:
+        stmt = select(Laminate).where(Laminate.id == item.id)
+        result = await db.execute(stmt)
+        laminate = result.scalar_one_or_none()
+        if laminate:
+            laminate.display_order = item.display_order
+    await db.commit()
+    await export_content_after_update('laminates', db)
+    return {"message": "Order updated", "count": len(body.order)}
+
+
 @router.put(
     "/laminates/{laminate_id}",
     summary="Update laminate (Admin)",
@@ -1391,6 +1490,26 @@ async def create_catalog(
     return orm_to_dict(catalog)
 
 
+@router.post(
+    "/catalogs/reorder",
+    summary="Batch reorder catalogs (Admin)",
+)
+async def reorder_catalogs(
+    body: ReorderBody,
+    admin: AdminUser = Depends(require_role(AdminRole.ADMIN)),
+    db: AsyncSession = Depends(get_db),
+):
+    for item in body.order:
+        stmt = select(Catalog).where(Catalog.id == item.id)
+        result = await db.execute(stmt)
+        catalog = result.scalar_one_or_none()
+        if catalog:
+            catalog.display_order = item.display_order
+    await db.commit()
+    await export_content_after_update('catalogs', db)
+    return {"message": "Order updated", "count": len(body.order)}
+
+
 @router.put(
     "/catalogs/{catalog_id}",
     summary="Update catalog (Admin)",
@@ -1649,6 +1768,26 @@ async def create_hardware(
     await export_content_after_update('hardware', db)
     
     return orm_to_dict(hardware)
+
+
+@router.post(
+    "/hardware/reorder",
+    summary="Batch reorder hardware (Admin)",
+)
+async def reorder_hardware(
+    body: ReorderBody,
+    admin: AdminUser = Depends(require_role(AdminRole.ADMIN)),
+    db: AsyncSession = Depends(get_db),
+):
+    for item in body.order:
+        stmt = select(Hardware).where(Hardware.id == item.id)
+        result = await db.execute(stmt)
+        hardware = result.scalar_one_or_none()
+        if hardware:
+            hardware.display_order = item.display_order
+    await db.commit()
+    await export_content_after_update('hardware', db)
+    return {"message": "Order updated", "count": len(body.order)}
 
 
 @router.put(

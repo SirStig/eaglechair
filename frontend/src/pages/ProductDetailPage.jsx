@@ -563,7 +563,10 @@ const ProductDetailPage = () => {
                   {(product.shipping_weight != null || product.weight != null) && (
                     <p>Shipping Weight : {product.shipping_weight ?? product.weight} lbs</p>
                   )}
-                  {!product.width && !product.depth && !product.height && !product.seat_height && !product.seat_width && !product.seat_depth && !product.arm_height && !product.back_height && !product.weight && !product.shipping_weight && (
+                  {product.upholstery_amount != null && product.upholstery_amount > 0 && (
+                    <p>Upholstery : {Number(product.upholstery_amount) === parseInt(product.upholstery_amount, 10) ? product.upholstery_amount : Number(product.upholstery_amount).toFixed(1)} yd</p>
+                  )}
+                  {!product.width && !product.depth && !product.height && !product.seat_height && !product.seat_width && !product.seat_depth && !product.arm_height && !product.back_height && !product.weight && !product.shipping_weight && (product.upholstery_amount == null || product.upholstery_amount <= 0) && (
                     <p className="text-slate-500">—</p>
                   )}
                 </div>

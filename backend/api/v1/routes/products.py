@@ -530,6 +530,7 @@ async def get_product_by_model(
 )
 async def get_finishes(
     finish_type: Optional[str] = Query(None, description="Filter by finish type"),
+    grade: Optional[str] = Query(None, description="Filter by grade (Standard, Premium, Premium Plus, Artisan)"),
     db: AsyncSession = Depends(get_db)
 ):
     """
@@ -537,11 +538,12 @@ async def get_finishes(
     
     **Public endpoint** - No authentication required.
     """
-    logger.info(f"Fetching finishes (type={finish_type})")
+    logger.info(f"Fetching finishes (type={finish_type}, grade={grade})")
     
     finishes = await ProductService.get_finishes(
         db=db,
         finish_type=finish_type,
+        grade=grade,
         include_inactive=False
     )
     

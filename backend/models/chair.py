@@ -150,6 +150,9 @@ class Finish(Base):
     finish_type = Column(
         String(50), nullable=True
     )  # e.g., "Wood Stain", "Paint", "Metal", "Powder Coat"
+    grade = Column(
+        String(20), nullable=False, default="Standard", server_default="Standard"
+    )  # Standard | Premium | Premium Plus | Artisan
 
     # Color reference (NEW - references Color table)
     color_id = Column(
@@ -332,6 +335,7 @@ class Chair(Base):
     available_finishes = Column(JSON, nullable=True)  # Array of finish IDs
     available_upholsteries = Column(JSON, nullable=True)  # Array of upholstery IDs
     available_colors = Column(JSON, nullable=True)  # Array of color IDs (NEW)
+    upholstery_amount = Column(Float, nullable=True)  # Yards of upholstery used when product uses it
 
     # Images (stored as JSON array with enhanced structure)
     # Structure: [{"url": "...", "type": "side|front|gallery", "order": 1, "alt": "..."}, ...]

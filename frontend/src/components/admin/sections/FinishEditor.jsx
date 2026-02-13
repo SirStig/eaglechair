@@ -16,6 +16,7 @@ const FinishEditor = ({ finish, onBack, onSave }) => {
     finish_code: finish?.finish_code || '',
     description: finish?.description || '',
     finish_type: finish?.finish_type || '',
+    grade: finish?.grade || 'Standard',
     color_id: finish?.color_id || null,
     color_hex: finish?.color_hex || '',
     image_url: finish?.image_url || '',
@@ -200,6 +201,22 @@ const FinishEditor = ({ finish, onBack, onSave }) => {
                     <option value="Lacquer">Lacquer</option>
                     <option value="Veneer">Veneer</option>
                     <option value="Chrome">Chrome</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-dark-200 mb-2">
+                    Grade *
+                  </label>
+                  <select
+                    value={formData.grade}
+                    onChange={(e) => handleChange('grade', e.target.value)}
+                    className="w-full px-4 py-2 bg-dark-700 border border-dark-600 rounded-lg text-dark-50 focus:border-primary-500 focus:ring-1 focus:ring-primary-500 outline-none transition-all"
+                    required
+                  >
+                    <option value="Standard">Standard</option>
+                    <option value="Premium">Premium</option>
+                    <option value="Premium Plus">Premium Plus</option>
+                    <option value="Artisan">Artisan</option>
                   </select>
                 </div>
                 <div>

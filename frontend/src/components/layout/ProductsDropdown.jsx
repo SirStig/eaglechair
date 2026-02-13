@@ -113,7 +113,7 @@ const ProductsDropdown = () => {
                 <div className="absolute inset-0 flex flex-col justify-between p-6 sm:p-8 pointer-events-none">
                   {/* Category Title at Top */}
                   <div>
-                    <h3 className="text-white font-bold text-2xl sm:text-3xl mb-2 drop-shadow-lg">
+                    <h3 className="text-white font-bold mb-2 drop-shadow-lg text-[clamp(0.875rem,1.25vw+0.75rem,1.875rem)]">
                       {category.name}
                     </h3>
                     <div className="w-16 h-1 bg-primary-500 rounded-full"></div>
@@ -169,7 +169,7 @@ const ProductsDropdown = () => {
               {/* Content */}
               <div className="absolute inset-0 flex flex-col justify-between p-6 sm:p-8 pointer-events-none">
                 <div>
-                  <h3 className="text-white font-bold text-2xl sm:text-3xl mb-2 drop-shadow-lg">
+                  <h3 className="text-white font-bold mb-2 drop-shadow-lg text-[clamp(0.875rem,1.25vw+0.75rem,1.875rem)]">
                     More Categories
                   </h3>
                   <div className="w-16 h-1 bg-primary-500 rounded-full"></div>

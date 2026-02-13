@@ -82,15 +82,15 @@ const CatalogManagement = () => {
 
   const handleReorder = useCallback(
     async (ordered) => {
-      await Promise.all(
-        ordered.map((item, index) => {
-          const form = new FormData();
-          form.append('display_order', String(index));
-          return apiClient.put(`/api/v1/admin/catalog/catalogs/${item.id}`, form);
-        })
-      );
-      toast.success('Display order updated');
-      fetchCatalogs();
+      const order = ordered.map((item, index) => ({ id: item.id, display_order: index }));
+      try {
+        await apiClient.post('/api/v1/admin/catalog/catalogs/reorder', { order });
+        toast.success('Display order updated');
+        fetchCatalogs();
+      } catch (err) {
+        toast.error(err.response?.data?.detail || 'Failed to update order');
+        throw err;
+      }
     },
     [fetchCatalogs, toast]
   );

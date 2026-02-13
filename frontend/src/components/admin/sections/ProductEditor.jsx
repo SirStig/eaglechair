@@ -63,6 +63,7 @@ const ProductEditor = ({ product, onBack }) => {
     back_height: null,
     weight: null,
     shipping_weight: null,
+    upholstery_amount: null,
     frame_material: '',
     construction_details: '',
     features: [],
@@ -1369,6 +1370,24 @@ const ProductEditor = ({ product, onBack }) => {
                     <span className="text-sm text-dark-200">{finish.name}</span>
                   </label>
                 ))}
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div>
+                <label className="block text-sm font-medium text-dark-200 mb-2">
+                  Upholstery Amount (yards)
+                </label>
+                <input
+                  type="number"
+                  step="0.1"
+                  min="0"
+                  value={formData.upholstery_amount ?? ''}
+                  onChange={(e) => handleChange('upholstery_amount', e.target.value === '' ? null : parseFloat(e.target.value))}
+                  className="w-full px-4 py-2 bg-dark-700 border border-dark-600 rounded-lg text-dark-50 focus:border-primary-500 focus:ring-1 focus:ring-primary-500 outline-none"
+                  placeholder="e.g., 2.5 (leave empty if N/A)"
+                />
+                <p className="text-xs text-dark-400 mt-1">Yards of upholstery used when this product uses upholstery</p>
               </div>
             </div>
 
