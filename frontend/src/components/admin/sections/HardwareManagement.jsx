@@ -1,10 +1,11 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import Card from '../../ui/Card';
 import Button from '../../ui/Button';
 import apiClient from '../../../config/apiClient';
 import { resolveImageUrl } from '../../../utils/apiHelpers';
 import { Edit, Trash2, Wrench, X, Plus } from 'lucide-react';
 import HardwareEditor from './HardwareEditor';
+import ReorderableTable from '../ReorderableTable';
 import { useToast } from '../../../contexts/ToastContext';
 import { useAdminRefresh } from '../../../contexts/AdminRefreshContext';
 
@@ -76,6 +77,23 @@ const HardwareManagement = () => {
   };
 
   const uniqueCategories = [...new Set(hardware.map(h => h.category).filter(Boolean))];
+  const sortedHardware = useMemo(
+    () => [...(hardware || [])].sort((a, b) => (a.display_order ?? 0) - (b.display_order ?? 0)),
+    [hardware]
+  );
+
+  const handleReorder = useCallback(
+    async (ordered) => {
+      await Promise.all(
+        ordered.map((item, index) =>
+          apiClient.put(`/api/v1/admin/catalog/hardware/${item.id}`, { display_order: index })
+        )
+      );
+      toast.success('Display order updated');
+      fetchHardware();
+    },
+    [fetchHardware, toast]
+  );
 
   // Show editor if editing/creating
   if (editingHardware) {
@@ -164,92 +182,93 @@ const HardwareManagement = () => {
             </p>
           </div>
         ) : (
-          <div className="overflow-x-auto -mx-4 sm:mx-0">
-            <table className="w-full min-w-[800px]">
-              <thead>
-                <tr className="border-b border-dark-700">
-                  <th className="px-3 sm:px-4 py-3 text-left text-xs sm:text-sm font-semibold text-dark-300 uppercase tracking-wider">Image</th>
-                  <th className="px-3 sm:px-4 py-3 text-left text-xs sm:text-sm font-semibold text-dark-300 uppercase tracking-wider">Name</th>
-                  <th className="px-3 sm:px-4 py-3 text-left text-xs sm:text-sm font-semibold text-dark-300 uppercase tracking-wider">Category</th>
-                  <th className="px-3 sm:px-4 py-3 text-left text-xs sm:text-sm font-semibold text-dark-300 uppercase tracking-wider">Model</th>
-                  <th className="px-3 sm:px-4 py-3 text-left text-xs sm:text-sm font-semibold text-dark-300 uppercase tracking-wider">Status</th>
-                  <th className="px-3 sm:px-4 py-3 text-right text-xs sm:text-sm font-semibold text-dark-300 uppercase tracking-wider">Actions</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-dark-700">
-                {hardware.map((item) => (
-                  <tr key={item.id} className="hover:bg-dark-750 transition-colors">
-                    <td className="px-4 py-3">
-                      {item.image_url ? (
-                        <img
-                          src={resolveImageUrl(item.image_url)}
-                          alt={item.name}
-                          className="w-12 h-12 object-cover rounded border border-dark-600"
-                        />
-                      ) : (
-                        <div className="w-12 h-12 rounded border border-dark-600 flex items-center justify-center bg-dark-700">
-                          <Wrench className="w-6 h-6 text-dark-500" />
-                        </div>
-                      )}
-                    </td>
-                    <td className="px-4 py-3">
-                      <div className="font-semibold text-dark-50">{item.name}</div>
-                      {item.description && (
-                        <div className="text-sm text-dark-400 mt-0.5 max-w-xs truncate">
-                          {item.description}
-                        </div>
-                      )}
-                    </td>
-                    <td className="px-4 py-3">
-                      {item.category ? (
-                        <span className="px-2 py-1 bg-primary-900/30 text-primary-400 text-xs rounded">
-                          {item.category}
-                        </span>
-                      ) : (
-                        <span className="text-dark-500 text-sm">—</span>
-                      )}
-                    </td>
-                    <td className="px-4 py-3">
-                      {item.model_number ? (
-                        <span className="px-2 py-1 bg-dark-700 text-dark-300 text-xs rounded font-mono">
-                          {item.model_number}
-                        </span>
-                      ) : (
-                        <span className="text-dark-500 text-sm">—</span>
-                      )}
-                    </td>
-                    <td className="px-4 py-3">
-                      <span className={`px-2 py-1 text-xs rounded ${
-                        item.is_active
-                          ? 'bg-green-900/30 text-green-400'
-                          : 'bg-red-900/30 text-red-400'
-                      }`}>
-                        {item.is_active ? 'Active' : 'Inactive'}
-                      </span>
-                    </td>
-                    <td className="px-4 py-3 text-right">
-                      <div className="flex justify-end gap-2">
-                        <button
-                          onClick={() => handleEdit(item)}
-                          className="p-2 text-primary-400 hover:bg-primary-900/20 rounded transition-colors"
-                          title="Edit hardware"
-                        >
-                          <Edit className="w-4 h-4" />
-                        </button>
-                        <button
-                          onClick={() => handleDelete(item.id)}
-                          className="p-2 text-red-400 hover:bg-red-900/20 rounded transition-colors"
-                          title="Delete hardware"
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+          <ReorderableTable
+            items={sortedHardware}
+            setItems={(next) => setHardware(next.map((item, i) => ({ ...item, display_order: i })))}
+            getItemId={(item) => item.id}
+            onReorder={handleReorder}
+            minWidth="800px"
+            headerCells={
+              <>
+                <th className="px-3 sm:px-4 py-3 text-left text-xs sm:text-sm font-semibold text-dark-300 uppercase tracking-wider">Image</th>
+                <th className="px-3 sm:px-4 py-3 text-left text-xs sm:text-sm font-semibold text-dark-300 uppercase tracking-wider">Name</th>
+                <th className="px-3 sm:px-4 py-3 text-left text-xs sm:text-sm font-semibold text-dark-300 uppercase tracking-wider">Category</th>
+                <th className="px-3 sm:px-4 py-3 text-left text-xs sm:text-sm font-semibold text-dark-300 uppercase tracking-wider">Model</th>
+                <th className="px-3 sm:px-4 py-3 text-left text-xs sm:text-sm font-semibold text-dark-300 uppercase tracking-wider">Status</th>
+                <th className="px-3 sm:px-4 py-3 text-right text-xs sm:text-sm font-semibold text-dark-300 uppercase tracking-wider">Actions</th>
+              </>
+            }
+            renderRow={(item) => (
+              <>
+                <td className="px-4 py-3">
+                  {item.image_url ? (
+                    <img
+                      src={resolveImageUrl(item.image_url)}
+                      alt={item.name}
+                      className="w-12 h-12 object-cover rounded border border-dark-600"
+                    />
+                  ) : (
+                    <div className="w-12 h-12 rounded border border-dark-600 flex items-center justify-center bg-dark-700">
+                      <Wrench className="w-6 h-6 text-dark-500" />
+                    </div>
+                  )}
+                </td>
+                <td className="px-4 py-3">
+                  <div className="font-semibold text-dark-50">{item.name}</div>
+                  {item.description && (
+                    <div className="text-sm text-dark-400 mt-0.5 max-w-xs truncate">
+                      {item.description}
+                    </div>
+                  )}
+                </td>
+                <td className="px-4 py-3">
+                  {item.category ? (
+                    <span className="px-2 py-1 bg-primary-900/30 text-primary-400 text-xs rounded">
+                      {item.category}
+                    </span>
+                  ) : (
+                    <span className="text-dark-500 text-sm">—</span>
+                  )}
+                </td>
+                <td className="px-4 py-3">
+                  {item.model_number ? (
+                    <span className="px-2 py-1 bg-dark-700 text-dark-300 text-xs rounded font-mono">
+                      {item.model_number}
+                    </span>
+                  ) : (
+                    <span className="text-dark-500 text-sm">—</span>
+                  )}
+                </td>
+                <td className="px-4 py-3">
+                  <span className={`px-2 py-1 text-xs rounded ${
+                    item.is_active
+                      ? 'bg-green-900/30 text-green-400'
+                      : 'bg-red-900/30 text-red-400'
+                  }`}>
+                    {item.is_active ? 'Active' : 'Inactive'}
+                  </span>
+                </td>
+                <td className="px-4 py-3 text-right">
+                  <div className="flex justify-end gap-2">
+                    <button
+                      onClick={() => handleEdit(item)}
+                      className="p-2 text-primary-400 hover:bg-primary-900/20 rounded transition-colors"
+                      title="Edit hardware"
+                    >
+                      <Edit className="w-4 h-4" />
+                    </button>
+                    <button
+                      onClick={() => handleDelete(item.id)}
+                      className="p-2 text-red-400 hover:bg-red-900/20 rounded transition-colors"
+                      title="Delete hardware"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </button>
+                  </div>
+                </td>
+              </>
+            )}
+          />
         )}
       </Card>
     </div>

@@ -307,6 +307,8 @@ const HomePage = () => {
       </section>
 
 
+      {false && (
+      <>
       {/* Trusted By - Infinite Scrolling Logos */}
       <section className="py-6 sm:py-8 md:py-10 lg:py-8 bg-dark-800 overflow-hidden">
         <div className="container">
@@ -576,6 +578,8 @@ const HomePage = () => {
           </div>
         </div>
       </section>
+      </>
+      )}
 
       {/* Featured Products */}
       <section className="py-12 sm:py-16 md:py-20 bg-cream-50">

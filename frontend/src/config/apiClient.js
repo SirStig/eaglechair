@@ -30,12 +30,18 @@ const apiClient = axios.create({
 });
 
 // Retry configuration for network errors
+const isAbortedError = (error) => {
+  return error?.code === 'ERR_CANCELED' ||
+    error?.name === 'CanceledError' ||
+    /aborted|NS_BINDING/i.test(error?.message || '');
+};
+
 const getRetryConfig = (config) => {
   return {
     retries: config.retry !== undefined ? config.retry : 3,
     retryDelay: config.retryDelay || ((retryCount) => Math.min(1000 * 2 ** retryCount, 30000)),
     retryCondition: config.retryCondition || ((error) => {
-      // Retry on network errors or 5xx server errors
+      if (isAbortedError(error)) return false;
       return !error.response || (error.response.status >= 500 && error.response.status < 600);
     })
   };

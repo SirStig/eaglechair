@@ -1,9 +1,10 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import Card from '../../ui/Card';
 import Button from '../../ui/Button';
 import FamilyEditor from './FamilyEditor';
 import apiClient from '../../../config/apiClient';
 import { resolveImageUrl } from '../../../utils/apiHelpers';
+import ReorderableTable from '../ReorderableTable';
 import { useToast } from '../../../contexts/ToastContext';
 import { useAdminRefresh } from '../../../contexts/AdminRefreshContext';
 
@@ -95,6 +96,24 @@ const FamilyManagement = () => {
     return category?.name || 'N/A';
   };
 
+  const sortedFamilies = useMemo(
+    () => [...(families || [])].sort((a, b) => (a.display_order ?? 0) - (b.display_order ?? 0)),
+    [families]
+  );
+
+  const handleReorder = useCallback(
+    async (ordered) => {
+      await Promise.all(
+        ordered.map((item, index) =>
+          apiClient.put(`/api/v1/admin/catalog/families/${item.id}`, { display_order: index })
+        )
+      );
+      toast.success('Display order updated');
+      fetchFamilies();
+    },
+    [fetchFamilies, toast]
+  );
+
   // Show editor if editing or creating
   if (showEditor) {
     return (
@@ -170,102 +189,96 @@ const FamilyManagement = () => {
             </Button>
           </div>
         ) : (
-          <div className="overflow-x-auto -mx-4 sm:mx-0">
-            <table className="w-full min-w-[900px]">
-              <thead>
-                <tr className="border-b border-dark-600">
-                  <th className="px-3 sm:px-4 py-3 text-left text-xs sm:text-sm font-medium text-dark-300">Image</th>
-                  <th className="px-3 sm:px-4 py-3 text-left text-xs sm:text-sm font-medium text-dark-300">Family Name</th>
-                  <th className="px-3 sm:px-4 py-3 text-left text-xs sm:text-sm font-medium text-dark-300">Slug</th>
-                  <th className="px-3 sm:px-4 py-3 text-left text-xs sm:text-sm font-medium text-dark-300">Category</th>
-                  <th className="px-3 sm:px-4 py-3 text-center text-xs sm:text-sm font-medium text-dark-300">Order</th>
-                  <th className="px-3 sm:px-4 py-3 text-left text-xs sm:text-sm font-medium text-dark-300">Status</th>
-                  <th className="px-3 sm:px-4 py-3 text-right text-xs sm:text-sm font-medium text-dark-300">Actions</th>
-                </tr>
-              </thead>
-              <tbody>
-                {families.map((family) => (
-                  <tr
-                    key={family.id}
-                    className="border-b border-dark-700 hover:bg-dark-700/50 transition-colors"
-                  >
-                    <td className="px-3 sm:px-4 py-3 sm:py-4">
-                      {family.family_image ? (
-                        <img
-                          src={resolveImageUrl(family.family_image)}
-                          alt={family.name}
-                          className="w-12 h-12 sm:w-16 sm:h-16 object-contain bg-dark-700 rounded-lg border border-dark-600"
-                        />
-                      ) : (
-                        <div className="w-12 h-12 sm:w-16 sm:h-16 bg-dark-600 rounded-lg flex items-center justify-center">
-                          <span className="text-dark-400 text-[10px] sm:text-xs">No image</span>
-                        </div>
+          <ReorderableTable
+            items={sortedFamilies}
+            setItems={(next) => setFamilies(next.map((item, i) => ({ ...item, display_order: i })))}
+            getItemId={(item) => item.id}
+            onReorder={handleReorder}
+            minWidth="900px"
+            headerCells={
+              <>
+                <th className="px-3 sm:px-4 py-3 text-left text-xs sm:text-sm font-medium text-dark-300">Image</th>
+                <th className="px-3 sm:px-4 py-3 text-left text-xs sm:text-sm font-medium text-dark-300">Family Name</th>
+                <th className="px-3 sm:px-4 py-3 text-left text-xs sm:text-sm font-medium text-dark-300">Slug</th>
+                <th className="px-3 sm:px-4 py-3 text-left text-xs sm:text-sm font-medium text-dark-300">Category</th>
+                <th className="px-3 sm:px-4 py-3 text-left text-xs sm:text-sm font-medium text-dark-300">Status</th>
+                <th className="px-3 sm:px-4 py-3 text-right text-xs sm:text-sm font-medium text-dark-300">Actions</th>
+              </>
+            }
+            renderRow={(family) => (
+              <>
+                <td className="px-3 sm:px-4 py-3 sm:py-4">
+                  {family.family_image ? (
+                    <img
+                      src={resolveImageUrl(family.family_image)}
+                      alt={family.name}
+                      className="w-12 h-12 sm:w-16 sm:h-16 object-contain bg-dark-700 rounded-lg border border-dark-600"
+                    />
+                  ) : (
+                    <div className="w-12 h-12 sm:w-16 sm:h-16 bg-dark-600 rounded-lg flex items-center justify-center">
+                      <span className="text-dark-400 text-[10px] sm:text-xs">No image</span>
+                    </div>
+                  )}
+                </td>
+                <td className="px-3 sm:px-4 py-3 sm:py-4">
+                  <div className="flex items-center gap-2">
+                    <div className="min-w-0">
+                      <p className="font-medium text-xs sm:text-sm md:text-base text-dark-50 truncate">{family.name}</p>
+                      {family.description && (
+                        <p className="text-[10px] sm:text-xs text-dark-400 line-clamp-1">
+                          {family.description}
+                        </p>
                       )}
-                    </td>
-                    <td className="px-3 sm:px-4 py-3 sm:py-4">
-                      <div className="flex items-center gap-2">
-                        <div className="min-w-0">
-                          <p className="font-medium text-xs sm:text-sm md:text-base text-dark-50 truncate">{family.name}</p>
-                          {family.description && (
-                            <p className="text-[10px] sm:text-xs text-dark-400 line-clamp-1">
-                              {family.description}
-                            </p>
-                          )}
-                        </div>
-                        {family.is_featured && (
-                          <span className="px-1.5 sm:px-2 py-0.5 bg-yellow-900/30 text-yellow-400 text-[10px] sm:text-xs rounded whitespace-nowrap flex-shrink-0">
-                            Featured
-                          </span>
-                        )}
-                      </div>
-                    </td>
-                    <td className="px-3 sm:px-4 py-3 sm:py-4">
-                      <span className="font-mono text-xs sm:text-sm text-dark-300">/{family.slug}</span>
-                    </td>
-                    <td className="px-3 sm:px-4 py-3 sm:py-4 text-xs sm:text-sm text-dark-200">
-                      {getCategoryName(family.category_id)}
-                    </td>
-                    <td className="px-3 sm:px-4 py-3 sm:py-4 text-center">
-                      <span className="text-xs sm:text-sm text-dark-200 font-medium">{family.display_order}</span>
-                    </td>
-                    <td className="px-3 sm:px-4 py-3 sm:py-4">
-                      <span className={`
-                        px-2 py-1 rounded text-xs font-medium
-                        ${family.is_active
-                          ? 'bg-green-900/30 text-green-500'
-                          : 'bg-dark-600 text-dark-300'
-                        }
-                      `}>
-                        {family.is_active ? 'Active' : 'Inactive'}
+                    </div>
+                    {family.is_featured && (
+                      <span className="px-1.5 sm:px-2 py-0.5 bg-yellow-900/30 text-yellow-400 text-[10px] sm:text-xs rounded whitespace-nowrap flex-shrink-0">
+                        Featured
                       </span>
-                    </td>
-                    <td className="px-3 sm:px-4 py-3 sm:py-4">
-                      <div className="flex items-center justify-end gap-2">
-                        <button
-                          onClick={() => handleEdit(family)}
-                          className="p-2 text-primary-400 hover:bg-primary-900/20 rounded-lg transition-colors"
-                          title="Edit family"
-                        >
-                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-                          </svg>
-                        </button>
-                        <button
-                          onClick={() => handleDelete(family.id)}
-                          className="p-2 text-red-400 hover:bg-red-900/20 rounded-lg transition-colors"
-                          title="Delete family"
-                        >
-                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                          </svg>
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+                    )}
+                  </div>
+                </td>
+                <td className="px-3 sm:px-4 py-3 sm:py-4">
+                  <span className="font-mono text-xs sm:text-sm text-dark-300">/{family.slug}</span>
+                </td>
+                <td className="px-3 sm:px-4 py-3 sm:py-4 text-xs sm:text-sm text-dark-200">
+                  {getCategoryName(family.category_id)}
+                </td>
+                <td className="px-3 sm:px-4 py-3 sm:py-4">
+                  <span className={`
+                    px-2 py-1 rounded text-xs font-medium
+                    ${family.is_active
+                      ? 'bg-green-900/30 text-green-500'
+                      : 'bg-dark-600 text-dark-300'
+                    }
+                  `}>
+                    {family.is_active ? 'Active' : 'Inactive'}
+                  </span>
+                </td>
+                <td className="px-3 sm:px-4 py-3 sm:py-4">
+                  <div className="flex items-center justify-end gap-2">
+                    <button
+                      onClick={() => handleEdit(family)}
+                      className="p-2 text-primary-400 hover:bg-primary-900/20 rounded-lg transition-colors"
+                      title="Edit family"
+                    >
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                      </svg>
+                    </button>
+                    <button
+                      onClick={() => handleDelete(family.id)}
+                      className="p-2 text-red-400 hover:bg-red-900/20 rounded-lg transition-colors"
+                      title="Delete family"
+                    >
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                      </svg>
+                    </button>
+                  </div>
+                </td>
+              </>
+            )}
+          />
         )}
       </Card>
     </div>

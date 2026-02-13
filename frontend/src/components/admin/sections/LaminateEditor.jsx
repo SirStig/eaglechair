@@ -124,14 +124,16 @@ const LaminateEditor = ({ laminate, onBack, onSave }) => {
     }
   };
 
+  const isUploading = uploadingSwatch || uploadingFullImage;
+
   return (
     <div className="p-6 space-y-6">
       {/* Header */}
       <div className="flex items-center gap-4">
         <button
           onClick={onBack}
-          className="p-2 hover:bg-dark-700 rounded-lg transition-colors"
-          disabled={saving}
+          className="p-2 hover:bg-dark-700 rounded-lg transition-colors disabled:opacity-50 disabled:pointer-events-none"
+          disabled={saving || isUploading}
         >
           <ArrowLeft className="w-5 h-5 text-dark-300" />
         </button>
@@ -343,7 +345,10 @@ const LaminateEditor = ({ laminate, onBack, onSave }) => {
                       />
                       <div className={`flex flex-col items-center justify-center w-32 h-32 border-2 border-dashed border-dark-600 hover:border-primary-500 rounded-lg cursor-pointer transition-all ${uploadingSwatch ? 'opacity-50' : ''}`}>
                         {uploadingSwatch ? (
-                          <div className="w-8 h-8 border-2 border-dark-600 border-t-primary-500 rounded-full animate-spin" />
+                          <>
+                            <div className="w-8 h-8 border-2 border-dark-600 border-t-primary-500 rounded-full animate-spin mb-2" />
+                            <span className="text-sm text-primary-400 font-medium">Uploading...</span>
+                          </>
                         ) : (
                           <>
                             <Upload className="w-10 h-10 text-dark-500 mb-2" />
@@ -384,7 +389,10 @@ const LaminateEditor = ({ laminate, onBack, onSave }) => {
                       />
                       <div className={`flex flex-col items-center justify-center w-32 h-32 border-2 border-dashed border-dark-600 hover:border-primary-500 rounded-lg cursor-pointer transition-all ${uploadingFullImage ? 'opacity-50' : ''}`}>
                         {uploadingFullImage ? (
-                          <div className="w-8 h-8 border-2 border-dark-600 border-t-primary-500 rounded-full animate-spin" />
+                          <>
+                            <div className="w-8 h-8 border-2 border-dark-600 border-t-primary-500 rounded-full animate-spin mb-2" />
+                            <span className="text-sm text-primary-400 font-medium">Uploading...</span>
+                          </>
                         ) : (
                           <>
                             <Upload className="w-10 h-10 text-dark-500 mb-2" />
@@ -545,17 +553,17 @@ const LaminateEditor = ({ laminate, onBack, onSave }) => {
           <Button
             type="button"
             onClick={onBack}
-            disabled={saving}
+            disabled={saving || isUploading}
             className="bg-dark-600 hover:bg-dark-500 text-dark-200 px-6 py-3"
           >
             Cancel
           </Button>
           <Button
             type="submit"
-            disabled={saving || !formData.brand || !formData.pattern_name}
+            disabled={saving || isUploading || !formData.brand || !formData.pattern_name}
             className="bg-primary-600 hover:bg-primary-500 px-6 py-3"
           >
-            {saving ? 'Saving...' : laminate ? 'Update Laminate' : 'Create Laminate'}
+            {isUploading ? 'Uploading...' : saving ? 'Saving...' : laminate ? 'Update Laminate' : 'Create Laminate'}
           </Button>
         </div>
       </form>

@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import Card from '../../ui/Card';
 import Button from '../../ui/Button';
 import ConfirmModal from '../../ui/ConfirmModal';
@@ -8,6 +8,7 @@ import apiClient from '../../../config/apiClient';
 import { resolveImageUrl } from '../../../utils/apiHelpers';
 import { Edit, Trash2, Armchair, X } from 'lucide-react';
 import UpholsteryEditor from './UpholsteryEditor';
+import ReorderableTable from '../ReorderableTable';
 
 /**
  * Upholstery Management - Table Layout with Separate Editor
@@ -100,6 +101,24 @@ const UpholsteryManagement = () => {
     setFilterGrade('');
     setFilterActive('all');
   };
+
+  const sortedUpholsteries = useMemo(
+    () => [...(upholsteries || [])].sort((a, b) => (a.display_order ?? 0) - (b.display_order ?? 0)),
+    [upholsteries]
+  );
+
+  const handleReorder = useCallback(
+    async (ordered) => {
+      await Promise.all(
+        ordered.map((item, index) =>
+          apiClient.put(`/api/v1/admin/upholsteries/${item.id}`, { display_order: index })
+        )
+      );
+      toast.success('Display order updated');
+      fetchUpholsteries();
+    },
+    [fetchUpholsteries, toast]
+  );
 
   // Show editor if editing/creating
   if (editingUpholstery) {
@@ -214,144 +233,114 @@ const UpholsteryManagement = () => {
             )}
           </div>
         ) : (
-          <div className="overflow-x-auto -mx-4 sm:mx-0">
-            <table className="w-full min-w-[1000px]">
-              <thead>
-                <tr className="border-b border-dark-700">
-                  <th className="px-3 sm:px-4 py-3 text-left text-xs sm:text-sm font-semibold text-dark-300 uppercase tracking-wider">
-                    Swatch
-                  </th>
-                  <th className="px-3 sm:px-4 py-3 text-left text-xs sm:text-sm font-semibold text-dark-300 uppercase tracking-wider">
-                    Name
-                  </th>
-                  <th className="px-3 sm:px-4 py-3 text-left text-xs sm:text-sm font-semibold text-dark-300 uppercase tracking-wider">
-                    Code
-                  </th>
-                  <th className="px-3 sm:px-4 py-3 text-left text-xs sm:text-sm font-semibold text-dark-300 uppercase tracking-wider">
-                    Type
-                  </th>
-                  <th className="px-3 sm:px-4 py-3 text-left text-xs sm:text-sm font-semibold text-dark-300 uppercase tracking-wider">
-                    Grade
-                  </th>
-                  <th className="px-3 sm:px-4 py-3 text-left text-xs sm:text-sm font-semibold text-dark-300 uppercase tracking-wider">
-                    Color
-                  </th>
-                  <th className="px-3 sm:px-4 py-3 text-left text-xs sm:text-sm font-semibold text-dark-300 uppercase tracking-wider">
-                    Status
-                  </th>
-                  <th className="px-3 sm:px-4 py-3 text-right text-xs sm:text-sm font-semibold text-dark-300 uppercase tracking-wider">
-                    Actions
-                  </th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-dark-700">
-                {upholsteries.map((upholstery) => (
-                  <tr key={upholstery.id} className="hover:bg-dark-750 transition-colors">
-                    {/* Swatch */}
-                    <td className="px-4 py-3">
-                      {upholstery.swatch_image_url ? (
-                        <img
-                          src={resolveImageUrl(upholstery.swatch_image_url)}
-                          alt={upholstery.name}
-                          className="w-12 h-12 object-cover rounded border border-dark-600"
-                        />
-                      ) : (
-                        <div className="w-12 h-12 rounded border border-dark-600 flex items-center justify-center bg-dark-700">
-                          <Armchair className="w-6 h-6 text-dark-500" />
-                        </div>
-                      )}
-                    </td>
-
-                    {/* Name */}
-                    <td className="px-4 py-3">
-                      <div className="font-semibold text-dark-50">{upholstery.name}</div>
-                      {upholstery.description && (
-                        <div className="text-sm text-dark-400 mt-0.5 max-w-xs truncate">
-                          {upholstery.description}
-                        </div>
-                      )}
-                      {upholstery.is_com && (
-                        <span className="inline-block mt-1 px-2 py-0.5 bg-blue-900/30 text-blue-400 text-xs rounded">
-                          COM
-                        </span>
-                      )}
-                    </td>
-
-                    {/* Code */}
-                    <td className="px-4 py-3">
-                      {upholstery.material_code ? (
-                        <span className="px-2 py-1 bg-dark-700 text-dark-300 text-xs rounded font-mono">
-                          {upholstery.material_code}
-                        </span>
-                      ) : (
-                        <span className="text-dark-500 text-sm">—</span>
-                      )}
-                    </td>
-
-                    {/* Type */}
-                    <td className="px-4 py-3">
-                      {upholstery.material_type ? (
-                        <span className="px-2 py-1 bg-primary-900/30 text-primary-400 text-xs rounded">
-                          {upholstery.material_type}
-                        </span>
-                      ) : (
-                        <span className="text-dark-500 text-sm">—</span>
-                      )}
-                    </td>
-
-                    {/* Grade */}
-                    <td className="px-4 py-3">
-                      {upholstery.grade ? (
-                        <span className="px-2 py-1 bg-purple-900/30 text-purple-400 text-xs rounded font-semibold">
-                          {upholstery.grade}
-                        </span>
-                      ) : (
-                        <span className="text-dark-500 text-sm">—</span>
-                      )}
-                    </td>
-
-                    {/* Color */}
-                    <td className="px-4 py-3">
-                      <div className="text-sm text-dark-300">
-                        {upholstery.color_id ? getColorName(upholstery.color_id) : '—'}
-                      </div>
-                    </td>
-
-                    {/* Status */}
-                    <td className="px-4 py-3">
-                      <span className={`px-2 py-1 text-xs rounded ${
-                        upholstery.is_active
-                          ? 'bg-green-900/30 text-green-400'
-                          : 'bg-red-900/30 text-red-400'
-                      }`}>
-                        {upholstery.is_active ? 'Active' : 'Inactive'}
-                      </span>
-                    </td>
-
-                    {/* Actions */}
-                    <td className="px-4 py-3 text-right">
-                      <div className="flex justify-end gap-2">
-                        <button
-                          onClick={() => handleEdit(upholstery)}
-                          className="p-2 text-primary-400 hover:bg-primary-900/20 rounded transition-colors"
-                          title="Edit upholstery"
-                        >
-                          <Edit className="w-4 h-4" />
-                        </button>
-                        <button
-                          onClick={() => handleDelete(upholstery)}
-                          className="p-2 text-red-400 hover:bg-red-900/20 rounded transition-colors"
-                          title="Delete upholstery"
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+          <ReorderableTable
+            items={sortedUpholsteries}
+            setItems={(next) => setUpholsteries(next.map((item, i) => ({ ...item, display_order: i })))}
+            getItemId={(item) => item.id}
+            onReorder={handleReorder}
+            minWidth="1000px"
+            headerCells={
+              <>
+                <th className="px-3 sm:px-4 py-3 text-left text-xs sm:text-sm font-semibold text-dark-300 uppercase tracking-wider">Swatch</th>
+                <th className="px-3 sm:px-4 py-3 text-left text-xs sm:text-sm font-semibold text-dark-300 uppercase tracking-wider">Name</th>
+                <th className="px-3 sm:px-4 py-3 text-left text-xs sm:text-sm font-semibold text-dark-300 uppercase tracking-wider">Code</th>
+                <th className="px-3 sm:px-4 py-3 text-left text-xs sm:text-sm font-semibold text-dark-300 uppercase tracking-wider">Type</th>
+                <th className="px-3 sm:px-4 py-3 text-left text-xs sm:text-sm font-semibold text-dark-300 uppercase tracking-wider">Grade</th>
+                <th className="px-3 sm:px-4 py-3 text-left text-xs sm:text-sm font-semibold text-dark-300 uppercase tracking-wider">Color</th>
+                <th className="px-3 sm:px-4 py-3 text-left text-xs sm:text-sm font-semibold text-dark-300 uppercase tracking-wider">Status</th>
+                <th className="px-3 sm:px-4 py-3 text-right text-xs sm:text-sm font-semibold text-dark-300 uppercase tracking-wider">Actions</th>
+              </>
+            }
+            renderRow={(upholstery) => (
+              <>
+                <td className="px-4 py-3">
+                  {upholstery.swatch_image_url ? (
+                    <img
+                      src={resolveImageUrl(upholstery.swatch_image_url)}
+                      alt={upholstery.name}
+                      className="w-12 h-12 object-cover rounded border border-dark-600"
+                    />
+                  ) : (
+                    <div className="w-12 h-12 rounded border border-dark-600 flex items-center justify-center bg-dark-700">
+                      <Armchair className="w-6 h-6 text-dark-500" />
+                    </div>
+                  )}
+                </td>
+                <td className="px-4 py-3">
+                  <div className="font-semibold text-dark-50">{upholstery.name}</div>
+                  {upholstery.description && (
+                    <div className="text-sm text-dark-400 mt-0.5 max-w-xs truncate">
+                      {upholstery.description}
+                    </div>
+                  )}
+                  {upholstery.is_com && (
+                    <span className="inline-block mt-1 px-2 py-0.5 bg-blue-900/30 text-blue-400 text-xs rounded">
+                      COM
+                    </span>
+                  )}
+                </td>
+                <td className="px-4 py-3">
+                  {upholstery.material_code ? (
+                    <span className="px-2 py-1 bg-dark-700 text-dark-300 text-xs rounded font-mono">
+                      {upholstery.material_code}
+                    </span>
+                  ) : (
+                    <span className="text-dark-500 text-sm">—</span>
+                  )}
+                </td>
+                <td className="px-4 py-3">
+                  {upholstery.material_type ? (
+                    <span className="px-2 py-1 bg-primary-900/30 text-primary-400 text-xs rounded">
+                      {upholstery.material_type}
+                    </span>
+                  ) : (
+                    <span className="text-dark-500 text-sm">—</span>
+                  )}
+                </td>
+                <td className="px-4 py-3">
+                  {upholstery.grade ? (
+                    <span className="px-2 py-1 bg-purple-900/30 text-purple-400 text-xs rounded font-semibold">
+                      {upholstery.grade}
+                    </span>
+                  ) : (
+                    <span className="text-dark-500 text-sm">—</span>
+                  )}
+                </td>
+                <td className="px-4 py-3">
+                  <div className="text-sm text-dark-300">
+                    {upholstery.color_id ? getColorName(upholstery.color_id) : '—'}
+                  </div>
+                </td>
+                <td className="px-4 py-3">
+                  <span className={`px-2 py-1 text-xs rounded ${
+                    upholstery.is_active
+                      ? 'bg-green-900/30 text-green-400'
+                      : 'bg-red-900/30 text-red-400'
+                  }`}>
+                    {upholstery.is_active ? 'Active' : 'Inactive'}
+                  </span>
+                </td>
+                <td className="px-4 py-3 text-right">
+                  <div className="flex justify-end gap-2">
+                    <button
+                      onClick={() => handleEdit(upholstery)}
+                      className="p-2 text-primary-400 hover:bg-primary-900/20 rounded transition-colors"
+                      title="Edit upholstery"
+                    >
+                      <Edit className="w-4 h-4" />
+                    </button>
+                    <button
+                      onClick={() => handleDelete(upholstery)}
+                      className="p-2 text-red-400 hover:bg-red-900/20 rounded transition-colors"
+                      title="Delete upholstery"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </button>
+                  </div>
+                </td>
+              </>
+            )}
+          />
         )}
       </Card>
 
