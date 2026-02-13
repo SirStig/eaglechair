@@ -42,6 +42,7 @@ async def get_finishes(
                 "name": finish.name,
                 "finish_code": finish.finish_code,
                 "finish_type": finish.finish_type,
+                "grade": getattr(finish, "grade", "Standard"),
                 "color_hex": finish.color_hex,
                 "image_url": finish.image_url,
                 "additional_cost": finish.additional_cost,

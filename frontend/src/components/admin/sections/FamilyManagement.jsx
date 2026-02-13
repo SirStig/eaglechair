@@ -103,13 +103,15 @@ const FamilyManagement = () => {
 
   const handleReorder = useCallback(
     async (ordered) => {
-      await Promise.all(
-        ordered.map((item, index) =>
-          apiClient.put(`/api/v1/admin/catalog/families/${item.id}`, { display_order: index })
-        )
-      );
-      toast.success('Display order updated');
-      fetchFamilies();
+      const order = ordered.map((item, index) => ({ id: item.id, display_order: index }));
+      try {
+        await apiClient.post('/api/v1/admin/catalog/families/reorder', { order });
+        toast.success('Display order updated');
+        fetchFamilies();
+      } catch (err) {
+        toast.error(err.response?.data?.detail || 'Failed to update order');
+        throw err;
+      }
     },
     [fetchFamilies, toast]
   );

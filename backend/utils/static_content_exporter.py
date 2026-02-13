@@ -1249,6 +1249,7 @@ async def export_content_after_update(content_type: str, db: "AsyncSession") -> 
                         "finishCode": f.finish_code,
                         "description": f.description,
                         "finishType": f.finish_type,
+                        "grade": f.grade if hasattr(f, "grade") else "Standard",
                         "colorHex": f.color_hex,
                         "colorFamily": f.color.name if f.color_id and f.color else None,
                         "imageUrl": f.image_url,

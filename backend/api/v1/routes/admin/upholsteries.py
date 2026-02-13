@@ -5,9 +5,10 @@ Admin-only endpoints for upholstery management
 """
 
 import logging
-from typing import Optional
+from typing import List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
+from pydantic import BaseModel
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -131,6 +132,35 @@ async def create_upholstery(
     await export_content_after_update("upholsteries", db)
     logger.info(f"Created upholstery: {upholstery.name} (ID: {upholstery.id})")
     return orm_to_dict(upholstery)
+
+
+class ReorderItem(BaseModel):
+    id: int
+    display_order: int
+
+
+class ReorderBody(BaseModel):
+    order: List[ReorderItem]
+
+
+@router.post(
+    "/reorder",
+    summary="Batch reorder upholsteries (Admin)",
+)
+async def reorder_upholsteries(
+    body: ReorderBody,
+    admin: AdminUser = Depends(get_current_admin),
+    db: AsyncSession = Depends(get_db),
+):
+    for item in body.order:
+        stmt = select(Upholstery).where(Upholstery.id == item.id)
+        result = await db.execute(stmt)
+        upholstery = result.scalar_one_or_none()
+        if upholstery:
+            upholstery.display_order = item.display_order
+    await db.commit()
+    await export_content_after_update("upholsteries", db)
+    return {"message": "Order updated", "count": len(body.order)}
 
 
 @router.put(

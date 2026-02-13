@@ -154,37 +154,20 @@ export const resolveImageUrl = (imageData) => {
  * @returns {string} Image URL
  */
 export const getProductImage = (product, index = 0) => {
-  // Try images array first
+  if (product.primary_image_url)
+    return resolveImageUrl(product.primary_image_url);
+  if (product.image_url)
+    return resolveImageUrl(product.image_url);
+  if (product.thumbnail)
+    return resolveImageUrl(product.thumbnail);
+  if (product.primary_image)
+    return resolveImageUrl(product.primary_image);
   if (product.images && Array.isArray(product.images) && product.images.length > 0) {
     const image = product.images[index] || product.images[0];
     return resolveImageUrl(image);
   }
-
-  // Try primary_image_url (cart/quote enriched data)
-  if (product.primary_image_url) {
-    return resolveImageUrl(product.primary_image_url);
-  }
-
-  // Try thumbnail
-  if (product.thumbnail) {
-    return resolveImageUrl(product.thumbnail);
-  }
-
-  // Try image_url (cart/quote enriched data)
-  if (product.image_url) {
-    return resolveImageUrl(product.image_url);
-  }
-
-  // Fallback to primary_image (legacy)
-  if (product.primary_image) {
-    return resolveImageUrl(product.primary_image);
-  }
-
-  // Legacy field support
-  if (product.image) {
+  if (product.image)
     return resolveImageUrl(product.image);
-  }
-
   return '/placeholder.png';
 };
 

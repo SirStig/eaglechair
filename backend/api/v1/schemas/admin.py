@@ -224,6 +224,9 @@ class ProductCreate(BaseModel):
     available_colors: Optional[List[Any]] = Field(
         None, description="Available color IDs (JSON array)"
     )
+    upholstery_amount: Optional[float] = Field(
+        None, ge=0, description="Upholstery yardage used when product uses upholstery"
+    )
 
     # Images
     images: Optional[List[Any]] = Field(None, description="Images JSON array")
@@ -356,6 +359,9 @@ class ProductUpdate(BaseModel):
     )
     available_colors: Optional[List[Any]] = Field(
         None, description="Available color IDs (JSON array)"
+    )
+    upholstery_amount: Optional[float] = Field(
+        None, ge=0, description="Upholstery yardage used when product uses upholstery"
     )
 
     # Images
@@ -526,6 +532,11 @@ class FinishCreate(BaseModel):
     finish_type: Optional[str] = Field(
         None, max_length=50, description="Finish type (e.g., Wood Stain, Paint)"
     )
+    grade: str = Field(
+        "Standard",
+        max_length=20,
+        description="Finish grade: Standard, Premium, Premium Plus, Artisan",
+    )
     color_id: Optional[int] = Field(None, description="Color reference ID")
     color_hex: Optional[str] = Field(None, max_length=7, description="Hex color code")
     image_url: Optional[str] = Field(
@@ -547,6 +558,11 @@ class FinishUpdate(BaseModel):
     finish_code: Optional[str] = Field(None, max_length=50, description="Finish code")
     description: Optional[str] = Field(None, description="Finish description")
     finish_type: Optional[str] = Field(None, max_length=50, description="Finish type")
+    grade: Optional[str] = Field(
+        None,
+        max_length=20,
+        description="Finish grade: Standard, Premium, Premium Plus, Artisan",
+    )
     color_id: Optional[int] = Field(None, description="Color reference ID")
     color_hex: Optional[str] = Field(None, max_length=7, description="Hex color code")
     image_url: Optional[str] = Field(

@@ -342,13 +342,15 @@ const CategoryManagement = () => {
 
   const handleReorder = useCallback(
     async (ordered) => {
-      await Promise.all(
-        ordered.map((cat, index) =>
-          apiClient.post(`/api/v1/admin/categories/${cat.id}/reorder?new_order=${index}`)
-        )
-      );
-      toast.success('Display order updated');
-      fetchCategories();
+      const order = ordered.map((cat, index) => ({ id: cat.id, display_order: index }));
+      try {
+        await apiClient.post('/api/v1/admin/categories/reorder', { order });
+        toast.success('Display order updated');
+        fetchCategories();
+      } catch (err) {
+        toast.error(err.response?.data?.detail || 'Failed to update order');
+        throw err;
+      }
     },
     [fetchCategories, toast]
   );

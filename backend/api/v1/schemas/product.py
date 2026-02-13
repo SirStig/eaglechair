@@ -165,6 +165,7 @@ class FinishBase(BaseModel):
     finish_code: Optional[str] = Field(None, max_length=50)
     description: Optional[str] = None
     finish_type: Optional[str] = Field(None, max_length=50)
+    grade: str = Field("Standard", max_length=20)
     color_hex: Optional[str] = Field(None, max_length=7)
     image_url: Optional[str] = Field(None, max_length=500)
     is_custom: bool = False
@@ -187,6 +188,7 @@ class FinishUpdate(BaseModel):
     finish_code: Optional[str] = Field(None, max_length=50)
     description: Optional[str] = None
     finish_type: Optional[str] = Field(None, max_length=50)
+    grade: Optional[str] = Field(None, max_length=20)
     color_hex: Optional[str] = Field(None, max_length=7)
     image_url: Optional[str] = Field(None, max_length=500)
     is_custom: Optional[bool] = None
@@ -322,6 +324,7 @@ class ChairBase(BaseModel):
     available_finishes: Optional[list[int]] = None
     available_upholsteries: Optional[list[int]] = None
     available_colors: Optional[list[int]] = None  # Array of color IDs
+    upholstery_amount: Optional[float] = None  # Yards of upholstery used when product uses it
 
     # Images (accepts either list of URLs or list of structured items)
     images: Union[List[str], List[ProductImageItem]]
@@ -416,6 +419,7 @@ class ChairUpdate(BaseModel):
     available_finishes: Optional[list[int]] = None
     available_upholsteries: Optional[list[int]] = None
     available_colors: Optional[list[int]] = None
+    upholstery_amount: Optional[float] = None
     # Accept both URL lists and structured items when updating
     images: Optional[Union[List[str], List[ProductImageItem]]] = None
     primary_image: Optional[str] = Field(None, max_length=500)

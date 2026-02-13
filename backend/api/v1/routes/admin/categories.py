@@ -8,6 +8,7 @@ import logging
 from typing import List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
+from pydantic import BaseModel
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -27,6 +28,15 @@ from backend.utils.static_content_exporter import export_content_after_update
 logger = logging.getLogger(__name__)
 
 router = APIRouter(tags=["Admin - Categories"])
+
+
+class ReorderItem(BaseModel):
+    id: int
+    display_order: int
+
+
+class ReorderBody(BaseModel):
+    order: List[ReorderItem]
 
 
 # ============================================================================
@@ -335,9 +345,30 @@ async def delete_category(
 
 
 @router.post(
+    "/reorder",
+    summary="Batch reorder categories (Admin)",
+    description="Set display_order for multiple top-level categories in one request",
+)
+async def batch_reorder_categories(
+    body: ReorderBody,
+    admin: AdminUser = Depends(require_role(AdminRole.ADMIN)),
+    db: AsyncSession = Depends(get_db),
+):
+    for item in body.order:
+        stmt = select(Category).where(Category.id == item.id, Category.parent_id.is_(None))
+        result = await db.execute(stmt)
+        category = result.scalar_one_or_none()
+        if category:
+            category.display_order = item.display_order
+    await db.commit()
+    await export_content_after_update('categories', db)
+    return {"message": "Order updated", "count": len(body.order)}
+
+
+@router.post(
     "/{category_id}/reorder",
-    summary="Reorder categories (Admin)",
-    description="Update display order for categories"
+    summary="Reorder single category (Admin)",
+    description="Update display order for one category"
 )
 async def reorder_categories(
     category_id: int,

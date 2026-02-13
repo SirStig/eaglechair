@@ -596,6 +596,7 @@ class ProductService:
     async def get_finishes(
         db: AsyncSession,
         finish_type: Optional[str] = None,
+        grade: Optional[str] = None,
         include_inactive: bool = False,
     ) -> List[Finish]:
         """
@@ -604,6 +605,7 @@ class ProductService:
         Args:
             db: Database session
             finish_type: Filter by finish type
+            grade: Filter by grade (Standard, Premium, Premium Plus, Artisan)
             include_inactive: Include inactive finishes
 
         Returns:
@@ -616,6 +618,9 @@ class ProductService:
 
         if finish_type:
             query = query.where(Finish.finish_type == finish_type)
+
+        if grade:
+            query = query.where(Finish.grade == grade)
 
         query = query.order_by(Finish.display_order, Finish.name)
 

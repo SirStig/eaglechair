@@ -4,7 +4,7 @@ Admin Colors Routes
 CRUD operations for colors
 """
 
-from typing import Optional
+from typing import List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
@@ -15,6 +15,15 @@ from backend.database.base import get_db
 from backend.models.chair import Color
 
 router = APIRouter()
+
+
+class ReorderItem(BaseModel):
+    id: int
+    display_order: int
+
+
+class ReorderBody(BaseModel):
+    order: List[ReorderItem]
 
 
 # Pydantic schemas
@@ -142,6 +151,21 @@ async def create_color(
         "display_order": color.display_order,
         "is_active": color.is_active,
     }
+
+
+@router.post("/reorder")
+async def reorder_colors(
+    body: ReorderBody,
+    db: AsyncSession = Depends(get_db),
+):
+    for item in body.order:
+        query = select(Color).where(Color.id == item.id)
+        result = await db.execute(query)
+        color = result.scalar_one_or_none()
+        if color:
+            color.display_order = item.display_order
+    await db.commit()
+    return {"message": "Order updated", "count": len(body.order)}
 
 
 @router.put("/{color_id}")

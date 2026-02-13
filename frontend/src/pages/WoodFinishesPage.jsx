@@ -8,17 +8,14 @@ import LoadingSpinner from '../components/ui/LoadingSpinner';
 const WoodFinishesPage = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedType, setSelectedType] = useState('all');
+  const [selectedGrade, setSelectedGrade] = useState('all');
   const { data: finishes = [], loading } = useFinishes();
 
-  // Get finishes data
   const finishesData = finishes || [];
-
-  // Extract unique types
   const types = ['all', ...new Set(finishesData.map(f => f.finishType).filter(Boolean))];
+  const grades = ['all', 'Standard', 'Premium', 'Premium Plus', 'Artisan'];
 
-  // Filter finishes
   const filteredFinishes = finishesData.filter(finish => {
-    // Default isActive to true if not set (for backwards compatibility)
     const isActive = finish.isActive !== undefined ? finish.isActive : true;
     if (!isActive) return false;
     
@@ -26,7 +23,9 @@ const WoodFinishesPage = () => {
                          finish.description?.toLowerCase().includes(searchTerm.toLowerCase()) ||
                          finish.colorFamily?.toLowerCase().includes(searchTerm.toLowerCase());
     const matchesType = selectedType === 'all' || finish.finishType === selectedType;
-    return matchesSearch && matchesType;
+    const grade = finish.grade || 'Standard';
+    const matchesGrade = selectedGrade === 'all' || grade === selectedGrade;
+    return matchesSearch && matchesType && matchesGrade;
   });
 
   if (loading) {
@@ -55,7 +54,7 @@ const WoodFinishesPage = () => {
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         <div className="bg-white rounded-lg p-6 border border-cream-200 mb-8">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div>
               <label className="block text-sm font-medium text-slate-700 mb-2">
                 Search Finishes
@@ -85,6 +84,23 @@ const WoodFinishesPage = () => {
                 ))}
               </select>
             </div>
+
+            <div>
+              <label className="block text-sm font-medium text-slate-700 mb-2">
+                Grade
+              </label>
+              <select
+                value={selectedGrade}
+                onChange={(e) => setSelectedGrade(e.target.value)}
+                className="w-full px-4 py-2 bg-white border border-slate-300 rounded-lg text-slate-800 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
+              >
+                {grades.map(g => (
+                  <option key={g} value={g}>
+                    {g === 'all' ? 'All Grades' : g}
+                  </option>
+                ))}
+              </select>
+            </div>
           </div>
         </div>
 
@@ -92,11 +108,11 @@ const WoodFinishesPage = () => {
           <div className="text-center py-16">
             <Palette className="w-16 h-16 text-slate-400 mx-auto mb-4" />
             <h3 className="text-xl font-semibold text-slate-700 mb-2">
-              {searchTerm || selectedType !== 'all' ? 'No finishes found' : 'No finishes available'}
+              {searchTerm || selectedType !== 'all' || selectedGrade !== 'all' ? 'No finishes found' : 'No finishes available'}
             </h3>
             <p className="text-slate-500">
-              {searchTerm || selectedType !== 'all' 
-                ? 'Try adjusting your search or filters' 
+              {searchTerm || selectedType !== 'all' || selectedGrade !== 'all'
+                ? 'Try adjusting your search or filters'
                 : 'Check back soon for available finishes'}
             </p>
           </div>
@@ -156,6 +172,9 @@ const WoodFinishesPage = () => {
                   )}
 
                   <div className="flex flex-wrap gap-2">
+                    <span className="px-2 py-1 text-xs bg-primary-100 text-primary-700 rounded font-medium">
+                      {finish.grade || 'Standard'}
+                    </span>
                     {finish.finishType && (
                       <span className="px-2 py-1 text-xs bg-slate-100 text-slate-700 rounded">
                         {finish.finishType}

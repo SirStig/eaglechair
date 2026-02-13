@@ -20,12 +20,14 @@ const FinishManagement = () => {
   const [loading, setLoading] = useState(true);
   const [editingFinish, setEditingFinish] = useState(null);
   const [filterType, setFilterType] = useState('');
+  const [filterGrade, setFilterGrade] = useState('');
   const [filterActive, setFilterActive] = useState('all');
 
   const fetchFinishes = useCallback(async () => {
     try {
       const params = {};
       if (filterType) params.finish_type = filterType;
+      if (filterGrade) params.grade = filterGrade;
       if (filterActive !== 'all') params.is_active = filterActive === 'active';
       
       const response = await apiClient.get('/api/v1/admin/catalog/finishes', { params });
@@ -35,7 +37,7 @@ const FinishManagement = () => {
     } finally {
       setLoading(false);
     }
-  }, [filterType, filterActive]);
+  }, [filterType, filterGrade, filterActive]);
 
   useEffect(() => {
     fetchFinishes();
@@ -89,6 +91,7 @@ const FinishManagement = () => {
 
   const clearFilters = () => {
     setFilterType('');
+    setFilterGrade('');
     setFilterActive('all');
   };
 
@@ -99,13 +102,15 @@ const FinishManagement = () => {
 
   const handleReorder = useCallback(
     async (ordered) => {
-      await Promise.all(
-        ordered.map((item, index) =>
-          apiClient.put(`/api/v1/admin/catalog/finishes/${item.id}`, { display_order: index })
-        )
-      );
-      toast.success('Display order updated');
-      fetchFinishes();
+      const order = ordered.map((item, index) => ({ id: item.id, display_order: index }));
+      try {
+        await apiClient.post('/api/v1/admin/catalog/finishes/reorder', { order });
+        toast.success('Display order updated');
+        fetchFinishes();
+      } catch (err) {
+        toast.error(err.response?.data?.detail || 'Failed to update order');
+        throw err;
+      }
     },
     [fetchFinishes, toast]
   );
@@ -160,6 +165,22 @@ const FinishManagement = () => {
           </div>
           <div className="flex-1">
             <label className="block text-sm font-medium text-dark-200 mb-2">
+              Filter by Grade
+            </label>
+            <select
+              value={filterGrade}
+              onChange={(e) => setFilterGrade(e.target.value)}
+              className="w-full px-4 py-2 bg-dark-700 border border-dark-600 rounded-lg text-dark-50 focus:border-primary-500 focus:ring-1 focus:ring-primary-500 outline-none transition-all"
+            >
+              <option value="">All Grades</option>
+              <option value="Standard">Standard</option>
+              <option value="Premium">Premium</option>
+              <option value="Premium Plus">Premium Plus</option>
+              <option value="Artisan">Artisan</option>
+            </select>
+          </div>
+          <div className="flex-1">
+            <label className="block text-sm font-medium text-dark-200 mb-2">
               Filter by Status
             </label>
             <select
@@ -172,7 +193,7 @@ const FinishManagement = () => {
               <option value="inactive">Inactive Only</option>
             </select>
           </div>
-          {(filterType || filterActive !== 'all') && (
+          {(filterType || filterGrade || filterActive !== 'all') && (
             <div className="flex items-end">
               <Button
                 onClick={clearFilters}
@@ -197,11 +218,11 @@ const FinishManagement = () => {
             <Palette className="w-16 h-16 text-dark-600 mx-auto mb-4" />
             <h3 className="text-lg font-semibold text-dark-300 mb-2">No Finishes Found</h3>
             <p className="text-dark-400 mb-6">
-              {filterType || filterActive !== 'all' 
+              {filterType || filterGrade || filterActive !== 'all' 
                 ? 'Try adjusting your filters' 
                 : 'Create your first finish option to get started'}
             </p>
-            {!filterType && filterActive === 'all' && (
+            {!filterType && !filterGrade && filterActive === 'all' && (
               <Button onClick={handleCreate} className="bg-primary-600 hover:bg-primary-500">
                 Create First Finish
               </Button>
@@ -220,6 +241,7 @@ const FinishManagement = () => {
                 <th className="px-3 sm:px-4 py-3 text-left text-xs sm:text-sm font-semibold text-dark-300 uppercase tracking-wider">Name</th>
                 <th className="px-3 sm:px-4 py-3 text-left text-xs sm:text-sm font-semibold text-dark-300 uppercase tracking-wider">Code</th>
                 <th className="px-3 sm:px-4 py-3 text-left text-xs sm:text-sm font-semibold text-dark-300 uppercase tracking-wider">Type</th>
+                <th className="px-3 sm:px-4 py-3 text-left text-xs sm:text-sm font-semibold text-dark-300 uppercase tracking-wider">Grade</th>
                 <th className="px-3 sm:px-4 py-3 text-left text-xs sm:text-sm font-semibold text-dark-300 uppercase tracking-wider">Color</th>
                 <th className="px-3 sm:px-4 py-3 text-left text-xs sm:text-sm font-semibold text-dark-300 uppercase tracking-wider">Price</th>
                 <th className="px-3 sm:px-4 py-3 text-left text-xs sm:text-sm font-semibold text-dark-300 uppercase tracking-wider">Status</th>
@@ -272,6 +294,11 @@ const FinishManagement = () => {
                   ) : (
                     <span className="text-dark-500 text-xs sm:text-sm">—</span>
                   )}
+                </td>
+                <td className="px-3 sm:px-4 py-3">
+                  <span className="px-2 py-1 bg-dark-600 text-dark-200 text-xs rounded">
+                    {finish.grade || 'Standard'}
+                  </span>
                 </td>
                 <td className="px-3 sm:px-4 py-3">
                   <div className="text-xs sm:text-sm text-dark-300">
