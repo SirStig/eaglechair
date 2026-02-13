@@ -113,23 +113,23 @@ const LaminatesPage = () => {
               >
                 {/* Swatch Image */}
                 {laminate.swatchImageUrl ? (
-                  <div className="aspect-square overflow-hidden bg-dark-900">
+                  <div className="aspect-square overflow-hidden rounded-full bg-dark-900">
                     <img
                       src={laminate.swatchImageUrl}
                       alt={laminate.patternName}
-                      className="w-full h-full object-cover"
+                      className="w-full h-full object-cover scale-125"
                     />
                   </div>
                 ) : laminate.fullImageUrl ? (
-                  <div className="aspect-square overflow-hidden bg-dark-900">
+                  <div className="aspect-square overflow-hidden rounded-full bg-dark-900">
                     <img
                       src={laminate.fullImageUrl}
                       alt={laminate.patternName}
-                      className="w-full h-full object-cover"
+                      className="w-full h-full object-cover scale-125"
                     />
                   </div>
                 ) : (
-                  <div className="aspect-square bg-gradient-to-br from-dark-700 to-dark-900 flex items-center justify-center">
+                  <div className="aspect-square rounded-full bg-gradient-to-br from-dark-700 to-dark-900 flex items-center justify-center">
                     <Layers className="w-16 h-16 text-dark-500" />
                   </div>
                 )}

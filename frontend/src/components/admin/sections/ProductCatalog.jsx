@@ -4,6 +4,8 @@ import Card from '../../ui/Card';
 import Button from '../../ui/Button';
 import apiClient from '../../../config/apiClient';
 import { resolveImageUrl } from '../../../utils/apiHelpers';
+import { useToast } from '../../../contexts/ToastContext';
+import { useAdminRefresh } from '../../../contexts/AdminRefreshContext';
 
 /**
  * Product Catalog Management
@@ -15,6 +17,8 @@ import { resolveImageUrl } from '../../../utils/apiHelpers';
  * - Bulk operations
  */
 const ProductCatalog = ({ onEdit }) => {
+  const toast = useToast();
+  const { refreshKeys } = useAdminRefresh();
   const [products, setProducts] = useState([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
@@ -28,8 +32,7 @@ const ProductCatalog = ({ onEdit }) => {
   useEffect(() => {
     fetchProducts();
     fetchCategories();
-    // eslint-disable-next-line
-  }, [page, search, categoryFilter, statusFilter]);
+  }, [page, search, categoryFilter, statusFilter, refreshKeys.catalog]);
 
   const fetchProducts = async () => {
     setLoading(true);
@@ -66,9 +69,11 @@ const ProductCatalog = ({ onEdit }) => {
       await apiClient.patch(`/api/v1/admin/products/${productId}`, {
         is_active: !currentStatus
       });
-      fetchProducts();
+      toast.success(currentStatus ? 'Product deactivated' : 'Product activated');
+      await fetchProducts();
     } catch (error) {
       console.error('Failed to toggle product status:', error);
+      toast.error('Failed to update product status');
     }
   };
 
@@ -79,18 +84,21 @@ const ProductCatalog = ({ onEdit }) => {
     const userInput = prompt(confirmMessage);
     if (userInput !== 'DELETE') {
       if (userInput !== null) {
-        alert('Deletion cancelled. You must type DELETE to confirm.');
+        toast.warning('Deletion cancelled. You must type DELETE to confirm.');
       }
       return;
     }
     
+    setLoading(true);
     try {
       await apiClient.delete(`/api/v1/admin/products/${productId}`);
-      alert('Product deleted successfully');
-      fetchProducts();
+      toast.success('Product deleted');
+      await fetchProducts();
     } catch (error) {
       console.error('Failed to delete product:', error);
-      alert('Failed to delete product. Please try again.');
+      toast.error('Failed to delete product. Please try again.');
+    } finally {
+      setLoading(false);
     }
   };
 

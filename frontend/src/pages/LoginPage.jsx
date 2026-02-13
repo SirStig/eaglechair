@@ -6,14 +6,12 @@ import Button from '../components/ui/Button';
 import Input from '../components/ui/Input';
 import Card from '../components/ui/Card';
 import { useAuthStore } from '../store/authStore';
-import { useCartStore } from '../store/cartStore';
 import { useSiteSettings } from '../hooks/useContent';
 
 const LoginPage = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const { login, isAuthenticated, user, isInitializing } = useAuthStore();
-  const cartStore = useCartStore();
   const { data: siteSettings } = useSiteSettings();
   const [error, setError] = useState(null);
   const [successMessage, setSuccessMessage] = useState(location.state?.message || null);
@@ -21,30 +19,19 @@ const LoginPage = () => {
   
   const { register, handleSubmit, formState: { errors } } = useForm();
 
-  const from = location.state?.from?.pathname || '/dashboard';
+  const from = location.state?.from?.pathname || '/admin/dashboard';
 
-  // Redirect if already authenticated - only after initialization completes
   useEffect(() => {
-    // Don't redirect if still initializing or already redirected
-    if (isInitializing || hasRedirectedRef.current) {
-      return;
-    }
-
+    if (isInitializing || hasRedirectedRef.current) return;
     if (isAuthenticated && user) {
       hasRedirectedRef.current = true;
-      
-      const isAdmin = user.type === 'admin' || 
-                      user.role === 'super_admin' || 
-                      user.role === 'admin' ||
-                      user.role === 'editor';
-      
-      // Simple redirect logic: use from path, or default based on admin status
+      const isAdmin = user.type === 'admin' || user.role === 'super_admin' || user.role === 'admin' || user.role === 'editor';
       if (from && from !== '/login' && from !== '/') {
         navigate(from, { replace: true });
-      } else if (isAdmin && from.startsWith('/admin')) {
+      } else if (isAdmin) {
         navigate('/admin/dashboard', { replace: true });
       } else {
-        navigate('/dashboard', { replace: true });
+        navigate('/', { replace: true });
       }
     }
   }, [isAuthenticated, user, navigate, from, isInitializing, location.pathname]);
@@ -52,27 +39,17 @@ const LoginPage = () => {
   const onSubmit = async (data) => {
     setError(null);
     setSuccessMessage(null);
-    
-    const result = await login({
-      email: data.email,
-      password: data.password,
-    }, cartStore);
+    const result = await login({ email: data.email, password: data.password });
 
     if (result.success) {
-      // Get the updated user from the store after login
       const currentUser = useAuthStore.getState().user;
-      const isAdmin = currentUser?.type === 'admin' || 
-                     currentUser?.role === 'super_admin' || 
-                     currentUser?.role === 'admin' ||
-                     currentUser?.role === 'editor';
-      
-      // Simple redirect: use from path, or default based on admin status
+      const isAdmin = currentUser?.type === 'admin' || currentUser?.role === 'super_admin' || currentUser?.role === 'admin' || currentUser?.role === 'editor';
       if (from && from !== '/login' && from !== '/') {
         navigate(from, { replace: true });
-      } else if (isAdmin && from.startsWith('/admin')) {
+      } else if (isAdmin) {
         navigate('/admin/dashboard', { replace: true });
       } else {
-        navigate('/dashboard', { replace: true });
+        navigate('/', { replace: true });
       }
     } else {
       // Check if error is about email verification - prioritize requiresVerification flag
@@ -110,8 +87,8 @@ const LoginPage = () => {
               transition={{ type: "spring", stiffness: 300 }}
             />
           </Link>
-          <h2 className="text-2xl sm:text-3xl font-bold mb-2 text-dark-50">Welcome Back</h2>
-          <p className="text-dark-200">Sign in to manage your account and orders</p>
+          <h2 className="text-2xl sm:text-3xl font-bold mb-2 text-dark-50">Admin Login</h2>
+          <p className="text-dark-200">Sign in to access the admin panel</p>
         </div>
 
         <Card className="bg-dark-800 border-dark-700">
@@ -171,17 +148,6 @@ const LoginPage = () => {
           <div className="mt-4 text-center">
             <Link to="/forgot-password" className="text-sm text-primary-500 hover:text-primary-400 transition-colors">
               Forgot your password?
-            </Link>
-          </div>
-
-          <div className="mt-6 pt-6 border-t border-dark-700 text-center">
-            <p className="text-sm text-dark-200 mb-3">
-              Don't have an account?
-            </p>
-            <Link to="/register">
-              <Button variant="secondary" size="md" className="w-full">
-                Create Account
-              </Button>
             </Link>
           </div>
         </Card>

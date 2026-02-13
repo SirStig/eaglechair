@@ -548,7 +548,8 @@ async def get_tmp_product(
         # Images
         "images": product.images if isinstance(product.images, list) else [],
         "primary_image_url": product.primary_image_url,
-        "hover_image_url": product.hover_image_url,
+        "hover_image_url": (product.hover_images or [None])[0] if product.hover_images else None,
+        "hover_images": product.hover_images if isinstance(product.hover_images, list) else [],
         "thumbnail": product.thumbnail,
         
         # Additional Media
@@ -669,7 +670,7 @@ async def update_tmp_product(
         'available_finishes', 'available_upholsteries', 'available_colors',
         
         # Images
-        'images', 'primary_image_url', 'hover_image_url', 'thumbnail',
+        'images', 'primary_image_url', 'hover_images', 'thumbnail',
         
         # Additional Media
         'dimensional_drawing_url', 'cad_file_url', 'spec_sheet_url',

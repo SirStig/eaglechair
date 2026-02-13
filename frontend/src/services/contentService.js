@@ -39,7 +39,9 @@ const getStaticOrAPI = async (getDataFn, apiFetcher, contextMessage) => {
     const staticContent = await loadContentData();
     if (staticContent) {
       const data = getDataFn(staticContent);
-      if (data !== undefined && data !== null) {
+      const hasData = data !== undefined && data !== null &&
+        !(Array.isArray(data) && data.length === 0);
+      if (hasData) {
         logger.debug(CONTEXT, `${contextMessage} (from static file)`);
         return data;
       }
@@ -275,8 +277,8 @@ export const getFinishes = async () => {
   return getStaticOrAPI(
     (content) => content.finishes || [],
     async () => {
-      const response = await api.get('/api/v1/content/finishes');
-      return response;
+      const response = await api.get('/api/v1/finishes');
+      return Array.isArray(response) ? response : [];
     },
     'Fetching finishes'
   );
@@ -287,8 +289,8 @@ export const getUpholsteries = async () => {
   return getStaticOrAPI(
     (content) => content.upholsteries || [],
     async () => {
-      const response = await api.get('/api/v1/content/upholsteries');
-      return response;
+      const response = await api.get('/api/v1/upholsteries');
+      return Array.isArray(response) ? response : [];
     },
     'Fetching upholsteries'
   );
@@ -300,7 +302,7 @@ export const getLaminates = async () => {
     (content) => content.laminates || [],
     async () => {
       const response = await api.get('/api/v1/content/laminates');
-      return response;
+      return Array.isArray(response) ? response : [];
     },
     'Fetching laminates'
   );
@@ -312,7 +314,7 @@ export const getHardware = async () => {
     (content) => content.hardware || [],
     async () => {
       const response = await api.get('/api/v1/content/hardware');
-      return response;
+      return Array.isArray(response) ? response : [];
     },
     'Fetching hardware'
   );
@@ -329,11 +331,11 @@ export const getCatalogs = async (catalogType = null) => {
       return catalogs;
     },
     async () => {
-      const url = catalogType 
+      const url = catalogType
         ? `/api/v1/content/catalogs?type=${catalogType}`
         : '/api/v1/content/catalogs';
       const response = await api.get(url);
-      return response;
+      return Array.isArray(response) ? response : [];
     },
     `Fetching catalogs${catalogType ? ` of type ${catalogType}` : ''}`
   );

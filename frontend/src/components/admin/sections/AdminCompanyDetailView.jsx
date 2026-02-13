@@ -18,6 +18,8 @@ import {
   CheckCircle,
   XCircle,
   Clock,
+  Plus,
+  Trash2,
 } from 'lucide-react';
 import { formatPrice } from '../../../utils/apiHelpers';
 
@@ -30,6 +32,10 @@ const AdminCompanyDetailView = ({ companyId, onBack, onUpdated }) => {
   const [error, setError] = useState(null);
   const [pricingTiers, setPricingTiers] = useState([]);
   const [loadingTiers, setLoadingTiers] = useState(false);
+  const [addressModalOpen, setAddressModalOpen] = useState(false);
+  const [editingAddressId, setEditingAddressId] = useState(null);
+  const [addressForm, setAddressForm] = useState({ label: '', line1: '', line2: '', city: '', state: '', zip: '', country: 'USA' });
+  const [addressSaving, setAddressSaving] = useState(false);
 
   useEffect(() => {
     if (companyId) {
@@ -68,13 +74,6 @@ const AdminCompanyDetailView = ({ companyId, onBack, onUpdated }) => {
         billing_state: data.billing_state || '',
         billing_zip: data.billing_zip || '',
         billing_country: data.billing_country || 'USA',
-        // Shipping Address
-        shipping_address_line1: data.shipping_address_line1 || '',
-        shipping_address_line2: data.shipping_address_line2 || '',
-        shipping_city: data.shipping_city || '',
-        shipping_state: data.shipping_state || '',
-        shipping_zip: data.shipping_zip || '',
-        shipping_country: data.shipping_country || 'USA',
         // Account Status
         status: data.status || 'pending',
         is_verified: data.is_verified || false,
@@ -129,6 +128,64 @@ const AdminCompanyDetailView = ({ companyId, onBack, onUpdated }) => {
     }
   };
 
+  const openAddAddress = () => {
+    setEditingAddressId(null);
+    setAddressForm({ label: '', line1: '', line2: '', city: '', state: '', zip: '', country: 'USA' });
+    setAddressModalOpen(true);
+  };
+
+  const openEditAddress = (addr) => {
+    setEditingAddressId(addr.id);
+    setAddressForm({
+      label: addr.label || '',
+      line1: addr.line1 || '',
+      line2: addr.line2 || '',
+      city: addr.city || '',
+      state: addr.state || '',
+      zip: addr.zip || '',
+      country: addr.country || 'USA',
+    });
+    setAddressModalOpen(true);
+  };
+
+  const closeAddressModal = () => {
+    setAddressModalOpen(false);
+    setEditingAddressId(null);
+  };
+
+  const saveAddress = async () => {
+    if (!addressForm.line1?.trim() || !addressForm.city?.trim() || !addressForm.state?.trim() || !addressForm.zip?.trim()) {
+      alert('Please fill in required address fields.');
+      return;
+    }
+    try {
+      setAddressSaving(true);
+      if (editingAddressId) {
+        await apiClient.put(`/api/v1/admin/companies/${companyId}/shipping-addresses/${editingAddressId}`, addressForm);
+      } else {
+        await apiClient.post(`/api/v1/admin/companies/${companyId}/shipping-addresses`, addressForm);
+      }
+      await loadCompany();
+      closeAddressModal();
+    } catch (err) {
+      console.error('Error saving address:', err);
+      alert('Failed to save address.');
+    } finally {
+      setAddressSaving(false);
+    }
+  };
+
+  const deleteAddress = async (id) => {
+    if (!window.confirm('Remove this shipping address?')) return;
+    try {
+      await apiClient.delete(`/api/v1/admin/companies/${companyId}/shipping-addresses/${id}`);
+      await loadCompany();
+    } catch (err) {
+      console.error('Error deleting address:', err);
+      alert('Failed to delete address.');
+    }
+  };
+
   const handleCancel = () => {
     setIsEditing(false);
     if (company) {
@@ -149,12 +206,6 @@ const AdminCompanyDetailView = ({ companyId, onBack, onUpdated }) => {
         billing_state: company.billing_state || '',
         billing_zip: company.billing_zip || '',
         billing_country: company.billing_country || 'USA',
-        shipping_address_line1: company.shipping_address_line1 || '',
-        shipping_address_line2: company.shipping_address_line2 || '',
-        shipping_city: company.shipping_city || '',
-        shipping_state: company.shipping_state || '',
-        shipping_zip: company.shipping_zip || '',
-        shipping_country: company.shipping_country || 'USA',
         status: company.status || 'pending',
         is_verified: company.is_verified || false,
         is_active: company.is_active !== undefined ? company.is_active : true,
@@ -480,63 +531,64 @@ const AdminCompanyDetailView = ({ companyId, onBack, onUpdated }) => {
             )}
           </Card>
 
-          {/* Shipping Address */}
+          {/* Shipping Addresses */}
           <Card>
-            <h3 className="text-lg font-bold text-dark-50 mb-4 flex items-center gap-2">
-              <MapPin className="w-5 h-5" />
-              Shipping Address
-            </h3>
-            {isEditing ? (
-              <div className="space-y-3">
-                <Input
-                  placeholder="Address Line 1"
-                  value={formData.shipping_address_line1 || ''}
-                  onChange={(e) => setFormData({ ...formData, shipping_address_line1: e.target.value })}
-                />
-                <Input
-                  placeholder="Address Line 2 (optional)"
-                  value={formData.shipping_address_line2 || ''}
-                  onChange={(e) => setFormData({ ...formData, shipping_address_line2: e.target.value })}
-                />
-                <div className="grid grid-cols-2 gap-2">
-                  <Input
-                    placeholder="City"
-                    value={formData.shipping_city || ''}
-                    onChange={(e) => setFormData({ ...formData, shipping_city: e.target.value })}
-                  />
-                  <Input
-                    placeholder="State"
-                    value={formData.shipping_state || ''}
-                    onChange={(e) => setFormData({ ...formData, shipping_state: e.target.value })}
-                  />
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-lg font-bold text-dark-50 flex items-center gap-2">
+                <MapPin className="w-5 h-5" />
+                Shipping Addresses
+              </h3>
+              <Button variant="outline" size="sm" onClick={openAddAddress} className="flex items-center gap-1">
+                <Plus className="w-4 h-4" />
+                Add
+              </Button>
+            </div>
+            <div className="space-y-3">
+              {(company?.shipping_addresses || []).length === 0 ? (
+                <p className="text-dark-400 text-sm">No shipping addresses.</p>
+              ) : (
+                (company?.shipping_addresses || []).map((addr) => (
+                  <div
+                    key={addr.id}
+                    className="flex items-start justify-between gap-4 p-3 rounded-lg bg-dark-700 border border-dark-600"
+                  >
+                    <div>
+                      {addr.label && <p className="font-medium text-dark-100">{addr.label}</p>}
+                      <p className="text-sm text-dark-300">
+                        {addr.line1}
+                        {addr.line2 ? `, ${addr.line2}` : ''} — {addr.city}, {addr.state} {addr.zip}
+                      </p>
+                    </div>
+                    <div className="flex items-center gap-2 shrink-0">
+                      <Button variant="ghost" size="sm" onClick={() => openEditAddress(addr)}>Edit</Button>
+                      <Button variant="ghost" size="sm" onClick={() => deleteAddress(addr.id)} className="text-red-400 hover:text-red-300">
+                        <Trash2 className="w-4 h-4" />
+                      </Button>
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+            {addressModalOpen && (
+              <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60" onClick={closeAddressModal}>
+                <div className="bg-dark-700 border border-dark-600 rounded-lg shadow-xl max-w-md w-full p-6 space-y-4" onClick={e => e.stopPropagation()}>
+                  <h3 className="text-lg font-semibold text-dark-50">{editingAddressId ? 'Edit' : 'Add'} Shipping Address</h3>
+                  <Input placeholder="Label (e.g. Warehouse)" value={addressForm.label} onChange={e => setAddressForm(f => ({ ...f, label: e.target.value }))} />
+                  <Input placeholder="Address Line 1 *" value={addressForm.line1} onChange={e => setAddressForm(f => ({ ...f, line1: e.target.value }))} />
+                  <Input placeholder="Address Line 2" value={addressForm.line2} onChange={e => setAddressForm(f => ({ ...f, line2: e.target.value }))} />
+                  <div className="grid grid-cols-2 gap-2">
+                    <Input placeholder="City *" value={addressForm.city} onChange={e => setAddressForm(f => ({ ...f, city: e.target.value }))} />
+                    <Input placeholder="State *" value={addressForm.state} onChange={e => setAddressForm(f => ({ ...f, state: e.target.value }))} />
+                  </div>
+                  <div className="grid grid-cols-2 gap-2">
+                    <Input placeholder="ZIP *" value={addressForm.zip} onChange={e => setAddressForm(f => ({ ...f, zip: e.target.value }))} />
+                    <Input placeholder="Country" value={addressForm.country} onChange={e => setAddressForm(f => ({ ...f, country: e.target.value }))} />
+                  </div>
+                  <div className="flex justify-end gap-2 pt-2">
+                    <Button variant="outline" onClick={closeAddressModal}>Cancel</Button>
+                    <Button variant="primary" onClick={saveAddress} disabled={addressSaving}>{addressSaving ? 'Saving...' : 'Save'}</Button>
+                  </div>
                 </div>
-                <div className="grid grid-cols-2 gap-2">
-                  <Input
-                    placeholder="ZIP"
-                    value={formData.shipping_zip || ''}
-                    onChange={(e) => setFormData({ ...formData, shipping_zip: e.target.value })}
-                  />
-                  <Input
-                    placeholder="Country"
-                    value={formData.shipping_country || 'USA'}
-                    onChange={(e) => setFormData({ ...formData, shipping_country: e.target.value })}
-                  />
-                </div>
-              </div>
-            ) : (
-              <div className="space-y-2 text-sm text-dark-200">
-                {company?.shipping_address_line1 ? (
-                  <>
-                    <p>{company.shipping_address_line1}</p>
-                    {company.shipping_address_line2 && <p>{company.shipping_address_line2}</p>}
-                    <p>
-                      {company.shipping_city || ''}, {company.shipping_state || ''} {company.shipping_zip || ''}
-                    </p>
-                    <p>{company.shipping_country || 'USA'}</p>
-                  </>
-                ) : (
-                  <p className="text-dark-400">Same as billing address</p>
-                )}
               </div>
             )}
           </Card>

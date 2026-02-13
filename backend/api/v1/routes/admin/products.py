@@ -154,14 +154,11 @@ async def get_product(
         product_dict = orm_to_dict(product)
         if product.family is not None:
             product_dict["family"] = orm_to_dict(product.family)
+        product_dict["secondary_family_ids"] = [
+            f.id for f in (product.secondary_families or [])
+        ]
 
-        # Serialize related products if present
-        if hasattr(product, "related_products") and product.related_products:
-            product_dict["related_products"] = orm_list_to_dict_list(
-                product.related_products
-            )
-        else:
-            product_dict["related_products"] = []
+        product_dict["related_products"] = []
 
         # Manually serialize variations
         if hasattr(product, "variations") and product.variations:

@@ -854,6 +854,15 @@ const AdminQuoteDetailView = ({ quoteId, onBack, onUpdated }) => {
                                   <span className="text-accent-500 font-bold text-base">{formatCurrency(item.line_total)}</span>
                                 </div>
                               </div>
+                              {item.allocations && item.allocations.length > 0 && quote?.shipping_destinations?.length > 0 && (
+                                <p className="text-sm text-dark-400 mt-2">
+                                  Split: {item.allocations.map((a) => {
+                                    const dest = quote.shipping_destinations.find((d) => d.id === a.quote_shipping_destination_id);
+                                    const label = dest?.label || dest?.line1 || `Dest ${a.quote_shipping_destination_id}`;
+                                    return `${a.quantity} → ${label}`;
+                                  }).join(', ')}
+                                </p>
+                              )}
 
                               {/* Finish & Upholstery */}
                               {(item.selected_finish_id || item.selected_upholstery_id) && (
@@ -971,59 +980,31 @@ const AdminQuoteDetailView = ({ quoteId, onBack, onUpdated }) => {
             </div>
           </Card>
 
-          {/* Shipping Address */}
+          {/* Shipping Destinations */}
           <Card>
             <h3 className="text-lg font-bold text-dark-50 mb-4 flex items-center gap-2">
               <MapPin className="w-5 h-5" />
-              Shipping Address
+              {quote?.shipping_destinations?.length > 1 ? 'Shipping Destinations' : 'Shipping Address'}
             </h3>
-            {isEditing ? (
-              <div className="space-y-3">
-                <Input
-                  placeholder="Address Line 1"
-                  value={formData.shipping_address_line1 || ''}
-                  onChange={(e) => setFormData({ ...formData, shipping_address_line1: e.target.value })}
-                />
-                <Input
-                  placeholder="Address Line 2 (optional)"
-                  value={formData.shipping_address_line2 || ''}
-                  onChange={(e) => setFormData({ ...formData, shipping_address_line2: e.target.value })}
-                />
-                <div className="grid grid-cols-2 gap-2">
-                  <Input
-                    placeholder="City"
-                    value={formData.shipping_city || ''}
-                    onChange={(e) => setFormData({ ...formData, shipping_city: e.target.value })}
-                  />
-                  <Input
-                    placeholder="State"
-                    value={formData.shipping_state || ''}
-                    onChange={(e) => setFormData({ ...formData, shipping_state: e.target.value })}
-                  />
-                </div>
-                <div className="grid grid-cols-2 gap-2">
-                  <Input
-                    placeholder="ZIP"
-                    value={formData.shipping_zip || ''}
-                    onChange={(e) => setFormData({ ...formData, shipping_zip: e.target.value })}
-                  />
-                  <Input
-                    placeholder="Country"
-                    value={formData.shipping_country || 'USA'}
-                    onChange={(e) => setFormData({ ...formData, shipping_country: e.target.value })}
-                  />
-                </div>
-              </div>
-            ) : (
-              <div className="space-y-2 text-sm text-dark-200">
-                <p>{quote?.shipping_address_line1 || ''}</p>
-                {quote?.shipping_address_line2 && <p>{quote.shipping_address_line2}</p>}
-                <p>
-                  {quote?.shipping_city || ''}, {quote?.shipping_state || ''} {quote?.shipping_zip || ''}
-                </p>
-                <p>{quote?.shipping_country || 'USA'}</p>
-              </div>
-            )}
+            <div className="space-y-3">
+              {(quote?.shipping_destinations && quote.shipping_destinations.length > 0)
+                ? quote.shipping_destinations.map((d) => (
+                    <div key={d.id} className="text-sm text-dark-200 p-2 rounded bg-dark-700">
+                      {d.label && <p className="font-medium text-dark-100">{d.label}</p>}
+                      <p>{d.line1}</p>
+                      {d.line2 && <p>{d.line2}</p>}
+                      <p>{d.city}, {d.state} {d.zip} {d.country}</p>
+                    </div>
+                  ))
+                : (
+                    <div className="space-y-2 text-sm text-dark-200">
+                      <p>{quote?.shipping_address_line1 || ''}</p>
+                      {quote?.shipping_address_line2 && <p>{quote.shipping_address_line2}</p>}
+                      <p>{quote?.shipping_city || ''}, {quote?.shipping_state || ''} {quote?.shipping_zip || ''}</p>
+                      <p>{quote?.shipping_country || 'USA'}</p>
+                    </div>
+                  )}
+            </div>
           </Card>
 
           {/* Summary */}

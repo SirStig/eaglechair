@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import Tag from './Tag';
 import Button from './Button';
 import { formatPrice, getProductHoverImages, buildProductUrl } from '../../utils/apiHelpers';
+import SwatchImage from './SwatchImage';
 
 const ProductCard = ({ product, onQuickView, darkMode = false, compact = false }) => {
   const [imageLoaded, setImageLoaded] = useState(false);
@@ -51,9 +52,9 @@ const ProductCard = ({ product, onQuickView, darkMode = false, compact = false }
     ? `$${product.priceRange.min.toFixed(2)} - $${product.priceRange.max.toFixed(2)}`
     : (product.base_price ? formatPrice(product.base_price) : null);
 
-  // Get swatches - show first 5 options
-  const swatches = product.customizations?.finishes?.slice(0, 5) ||
-    product.customizations?.colors?.slice(0, 5) || [];
+  const finishes = product.customizations?.finishes?.slice(0, 5) || [];
+  const colors = product.customizations?.colors?.slice(0, 5) || [];
+  const swatches = finishes.length > 0 ? finishes : colors;
 
   // Dark mode color classes
   const bgImage = darkMode ? 'bg-dark-800' : 'bg-cream-100';
@@ -204,18 +205,19 @@ const ProductCard = ({ product, onQuickView, darkMode = false, compact = false }
         {swatches.length > 0 && (
           <div className="mb-2 sm:mb-3">
             <p className={`text-[10px] sm:text-xs ${textSwatchLabel} mb-1.5 sm:mb-2`}>Available in {swatches.length}+ options:</p>
-            <div className="flex gap-1 sm:gap-1.5">
-              {swatches.map((swatch, idx) => (
-                <div
-                  key={idx}
-                  className={`w-5 h-5 sm:w-6 sm:h-6 rounded-full border-2 ${borderSwatch} bg-gradient-to-br from-slate-200 to-slate-400 flex items-center justify-center`}
-                  title={swatch}
-                >
-                  <span className="text-[7px] sm:text-[8px] font-bold text-white drop-shadow">
-                    {swatch.substring(0, 1)}
-                  </span>
-                </div>
-              ))}
+            <div className="flex gap-1 sm:gap-1.5 items-center">
+              {swatches.map((swatch, idx) => {
+                const item = typeof swatch === 'object' ? swatch : { name: swatch };
+                return (
+                  <SwatchImage
+                    key={item.id ?? idx}
+                    item={item}
+                    size="xs"
+                    rounded="circle"
+                    zoom
+                  />
+                );
+              })}
               {(product.customizations?.finishes?.length > 5 || product.customizations?.colors?.length > 5) && (
                 <div className={`w-5 h-5 sm:w-6 sm:h-6 rounded-full border-2 border-dashed ${borderSwatchDashed} flex items-center justify-center text-[9px] sm:text-[10px] ${textSwatchMore}`}>
                   +
@@ -229,9 +231,10 @@ const ProductCard = ({ product, onQuickView, darkMode = false, compact = false }
         {priceDisplay && (
           <div className="mb-3 sm:mb-4">
             <span className={`text-lg sm:text-xl font-bold ${textPrice}`}>{priceDisplay}</span>
-            {product.priceRange?.min && product.priceRange?.max && product.priceRange.min !== product.priceRange.max && (
-              <span className={`text-[10px] sm:text-xs ${textPriceNote} ml-1`}>per unit</span>
-            )}
+            <span className={`text-[10px] sm:text-xs ${textPriceNote} ml-1`}>
+              {product.priceRange?.min && product.priceRange?.max && product.priceRange.min !== product.priceRange.max ? 'per unit · ' : ''}
+              Est. listing
+            </span>
           </div>
         )}
 

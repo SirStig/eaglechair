@@ -7,7 +7,7 @@ Schemas for chairs, categories, finishes, and upholsteries
 from datetime import datetime
 from typing import Any, List, Optional, Union
 
-from pydantic import BaseModel, Field, computed_field, field_validator
+from pydantic import BaseModel, Field, computed_field, field_validator, model_validator
 
 from backend.api.v1.schemas.common import TimestampSchema
 from backend.core.config import settings
@@ -326,6 +326,7 @@ class ChairBase(BaseModel):
     # Images (accepts either list of URLs or list of structured items)
     images: Union[List[str], List[ProductImageItem]]
     primary_image: Optional[str] = Field(None, max_length=500)
+    primary_image_url: Optional[str] = Field(None, max_length=500)
     hover_images: Optional[List[str]] = []
     thumbnail: Optional[str] = Field(None, max_length=500)
 
@@ -372,8 +373,13 @@ class ChairBase(BaseModel):
             return []
         if isinstance(v, list):
             return v
-        # If it's a string like '[]' or JSON, return empty list
         return []
+
+    @model_validator(mode="after")
+    def set_primary_image_from_url(self):
+        if self.primary_image is None and self.primary_image_url:
+            return self.model_copy(update={"primary_image": self.primary_image_url})
+        return self
 
 
 class ChairCreate(ChairBase):

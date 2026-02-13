@@ -117,23 +117,23 @@ const WoodFinishesPage = () => {
               >
                 {/* Swatch Image */}
                 {finish.swatchImageUrl ? (
-                  <div className="aspect-square overflow-hidden bg-dark-900">
+                  <div className="aspect-square overflow-hidden rounded-full bg-dark-900">
                     <img
                       src={finish.swatchImageUrl}
                       alt={finish.name}
-                      className="w-full h-full object-cover"
+                      className="w-full h-full object-cover scale-125"
                     />
                   </div>
                 ) : finish.imageUrl ? (
-                  <div className="aspect-square overflow-hidden bg-dark-900">
+                  <div className="aspect-square overflow-hidden rounded-full bg-dark-900">
                     <img
                       src={finish.imageUrl}
                       alt={finish.name}
-                      className="w-full h-full object-cover"
+                      className="w-full h-full object-cover scale-125"
                     />
                   </div>
                 ) : (
-                  <div className="aspect-square bg-gradient-to-br from-dark-700 to-dark-900 flex items-center justify-center">
+                  <div className="aspect-square bg-gradient-to-br from-dark-700 to-dark-900 flex items-center justify-center rounded-full">
                     <Palette className="w-16 h-16 text-dark-500" />
                   </div>
                 )}

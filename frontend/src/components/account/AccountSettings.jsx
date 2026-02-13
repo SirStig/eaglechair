@@ -14,6 +14,8 @@ import {
   Save,
   X,
   AlertCircle,
+  Plus,
+  Trash2,
 } from 'lucide-react';
 import apiClient from '../../config/apiClient';
 
@@ -23,6 +25,10 @@ const AccountSettings = () => {
   const [isEditingProfile, setIsEditingProfile] = useState(false);
   const [profileFormData, setProfileFormData] = useState(null);
   const [profileSaving, setProfileSaving] = useState(false);
+  const [addressModalOpen, setAddressModalOpen] = useState(false);
+  const [editingAddressId, setEditingAddressId] = useState(null);
+  const [addressForm, setAddressForm] = useState({ label: '', line1: '', line2: '', city: '', state: '', zip: '', country: 'USA' });
+  const [addressSaving, setAddressSaving] = useState(false);
 
   useEffect(() => {
     loadProfileData();
@@ -58,12 +64,6 @@ const AccountSettings = () => {
         billing_state: profileData.billingAddress?.state || '',
         billing_zip: profileData.billingAddress?.zip || '',
         billing_country: profileData.billingAddress?.country || '',
-        shipping_address_line1: profileData.shippingAddress?.line1 || '',
-        shipping_address_line2: profileData.shippingAddress?.line2 || '',
-        shipping_city: profileData.shippingAddress?.city || '',
-        shipping_state: profileData.shippingAddress?.state || '',
-        shipping_zip: profileData.shippingAddress?.zip || '',
-        shipping_country: profileData.shippingAddress?.country || '',
       });
       setIsEditingProfile(true);
     }
@@ -98,6 +98,64 @@ const AccountSettings = () => {
       ...prev,
       [field]: value
     }));
+  };
+
+  const openAddAddress = () => {
+    setEditingAddressId(null);
+    setAddressForm({ label: '', line1: '', line2: '', city: '', state: '', zip: '', country: 'USA' });
+    setAddressModalOpen(true);
+  };
+
+  const openEditAddress = (addr) => {
+    setEditingAddressId(addr.id);
+    setAddressForm({
+      label: addr.label || '',
+      line1: addr.line1 || '',
+      line2: addr.line2 || '',
+      city: addr.city || '',
+      state: addr.state || '',
+      zip: addr.zip || '',
+      country: addr.country || 'USA',
+    });
+    setAddressModalOpen(true);
+  };
+
+  const closeAddressModal = () => {
+    setAddressModalOpen(false);
+    setEditingAddressId(null);
+  };
+
+  const saveAddress = async () => {
+    if (!addressForm.line1?.trim() || !addressForm.city?.trim() || !addressForm.state?.trim() || !addressForm.zip?.trim()) {
+      alert('Please fill in required address fields (Line 1, City, State, ZIP).');
+      return;
+    }
+    try {
+      setAddressSaving(true);
+      if (editingAddressId) {
+        await apiClient.put(`/api/v1/dashboard/shipping-addresses/${editingAddressId}`, addressForm);
+      } else {
+        await apiClient.post('/api/v1/dashboard/shipping-addresses', addressForm);
+      }
+      await loadProfileData();
+      closeAddressModal();
+    } catch (err) {
+      console.error('Error saving address:', err);
+      alert('Failed to save address.');
+    } finally {
+      setAddressSaving(false);
+    }
+  };
+
+  const deleteAddress = async (id) => {
+    if (!window.confirm('Remove this shipping address?')) return;
+    try {
+      await apiClient.delete(`/api/v1/dashboard/shipping-addresses/${id}`);
+      await loadProfileData();
+    } catch (err) {
+      console.error('Error deleting address:', err);
+      alert('Failed to delete address.');
+    }
   };
 
   if (loading) {
@@ -377,93 +435,66 @@ const AccountSettings = () => {
           </div>
         </Card>
 
-        {/* Shipping Address */}
+        {/* Shipping Addresses */}
         <Card className="p-6 bg-dark-700 border-dark-600">
-          <h2 className="text-lg font-semibold text-dark-50 mb-4 flex items-center gap-2">
-            <Package className="w-5 h-5" />
-            Shipping Address
-          </h2>
-          <div className="grid md:grid-cols-2 gap-6">
-            <div className="md:col-span-2">
-              <label className="block text-sm font-medium text-dark-200 mb-1">
-                Address Line 1
-              </label>
-              {isEditingProfile ? (
-                <Input
-                  value={profileFormData.shipping_address_line1}
-                  onChange={(e) => handleFormChange('shipping_address_line1', e.target.value)}
-                />
-              ) : (
-                <p className="text-dark-50">{profileData.shippingAddress?.line1 || 'N/A'}</p>
-              )}
-            </div>
-            <div className="md:col-span-2">
-              <label className="block text-sm font-medium text-dark-200 mb-1">
-                Address Line 2
-              </label>
-              {isEditingProfile ? (
-                <Input
-                  value={profileFormData.shipping_address_line2}
-                  onChange={(e) => handleFormChange('shipping_address_line2', e.target.value)}
-                  placeholder="Optional"
-                />
-              ) : (
-                <p className="text-dark-50">{profileData.shippingAddress?.line2 || 'N/A'}</p>
-              )}
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-dark-200 mb-1">
-                City
-              </label>
-              {isEditingProfile ? (
-                <Input
-                  value={profileFormData.shipping_city}
-                  onChange={(e) => handleFormChange('shipping_city', e.target.value)}
-                />
-              ) : (
-                <p className="text-dark-50">{profileData.shippingAddress?.city || 'N/A'}</p>
-              )}
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-dark-200 mb-1">
-                State
-              </label>
-              {isEditingProfile ? (
-                <Input
-                  value={profileFormData.shipping_state}
-                  onChange={(e) => handleFormChange('shipping_state', e.target.value)}
-                />
-              ) : (
-                <p className="text-dark-50">{profileData.shippingAddress?.state || 'N/A'}</p>
-              )}
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-dark-200 mb-1">
-                ZIP Code
-              </label>
-              {isEditingProfile ? (
-                <Input
-                  value={profileFormData.shipping_zip}
-                  onChange={(e) => handleFormChange('shipping_zip', e.target.value)}
-                />
-              ) : (
-                <p className="text-dark-50">{profileData.shippingAddress?.zip || 'N/A'}</p>
-              )}
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-dark-200 mb-1">
-                Country
-              </label>
-              {isEditingProfile ? (
-                <Input
-                  value={profileFormData.shipping_country}
-                  onChange={(e) => handleFormChange('shipping_country', e.target.value)}
-                />
-              ) : (
-                <p className="text-dark-50">{profileData.shippingAddress?.country || 'N/A'}</p>
-              )}
-            </div>
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-lg font-semibold text-dark-50 flex items-center gap-2">
+              <Package className="w-5 h-5" />
+              Shipping Addresses
+            </h2>
+            <Button variant="outline" size="sm" onClick={openAddAddress} className="flex items-center gap-1">
+              <Plus className="w-4 h-4" />
+              Add
+            </Button>
           </div>
+          <div className="space-y-3">
+            {(profileData.shippingAddresses || []).length === 0 ? (
+              <p className="text-dark-400 text-sm">No shipping addresses. Add one for quote requests.</p>
+            ) : (
+              (profileData.shippingAddresses || []).map((addr) => (
+                <div
+                  key={addr.id}
+                  className="flex items-start justify-between gap-4 p-3 rounded-lg bg-dark-600 border border-dark-500"
+                >
+                  <div>
+                    {addr.label && <p className="font-medium text-dark-100">{addr.label}</p>}
+                    <p className="text-sm text-dark-300">
+                      {addr.line1}
+                      {addr.line2 ? `, ${addr.line2}` : ''} — {addr.city}, {addr.state} {addr.zip}
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-2 shrink-0">
+                    <Button variant="ghost" size="sm" onClick={() => openEditAddress(addr)}>Edit</Button>
+                    <Button variant="ghost" size="sm" onClick={() => deleteAddress(addr.id)} className="text-red-400 hover:text-red-300">
+                      <Trash2 className="w-4 h-4" />
+                    </Button>
+                  </div>
+                </div>
+              ))
+            )}
+          </div>
+          {addressModalOpen && (
+            <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60" onClick={closeAddressModal}>
+              <div className="bg-dark-700 border border-dark-600 rounded-lg shadow-xl max-w-md w-full p-6 space-y-4" onClick={e => e.stopPropagation()}>
+                <h3 className="text-lg font-semibold text-dark-50">{editingAddressId ? 'Edit' : 'Add'} Shipping Address</h3>
+                <Input placeholder="Label (e.g. Warehouse)" value={addressForm.label} onChange={e => setAddressForm(f => ({ ...f, label: e.target.value }))} />
+                <Input placeholder="Address Line 1 *" value={addressForm.line1} onChange={e => setAddressForm(f => ({ ...f, line1: e.target.value }))} />
+                <Input placeholder="Address Line 2" value={addressForm.line2} onChange={e => setAddressForm(f => ({ ...f, line2: e.target.value }))} />
+                <div className="grid grid-cols-2 gap-2">
+                  <Input placeholder="City *" value={addressForm.city} onChange={e => setAddressForm(f => ({ ...f, city: e.target.value }))} />
+                  <Input placeholder="State *" value={addressForm.state} onChange={e => setAddressForm(f => ({ ...f, state: e.target.value }))} />
+                </div>
+                <div className="grid grid-cols-2 gap-2">
+                  <Input placeholder="ZIP *" value={addressForm.zip} onChange={e => setAddressForm(f => ({ ...f, zip: e.target.value }))} />
+                  <Input placeholder="Country" value={addressForm.country} onChange={e => setAddressForm(f => ({ ...f, country: e.target.value }))} />
+                </div>
+                <div className="flex justify-end gap-2 pt-2">
+                  <Button variant="outline" onClick={closeAddressModal}>Cancel</Button>
+                  <Button variant="primary" onClick={saveAddress} disabled={addressSaving}>{addressSaving ? 'Saving...' : 'Save'}</Button>
+                </div>
+              </div>
+            </div>
+          )}
         </Card>
 
         {/* Action Buttons */}

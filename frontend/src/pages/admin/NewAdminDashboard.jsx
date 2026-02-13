@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Navigate, useNavigate, useLocation } from 'react-router-dom';
 import { useAuthStore } from '../../store/authStore';
+import { AdminRefreshProvider, useAdminRefresh } from '../../contexts/AdminRefreshContext';
 import { 
   LayoutDashboard, 
   TrendingUp, 
@@ -58,10 +59,11 @@ import EmailTemplateManagement from '../../components/admin/sections/EmailTempla
  * - Smooth animations
  * - Responsive design
  */
-const NewAdminDashboard = () => {
+const NewAdminDashboardInner = () => {
   const { user } = useAuthStore();
   const navigate = useNavigate();
   const location = useLocation();
+  const { invalidate } = useAdminRefresh();
   const [selectedProduct, setSelectedProduct] = useState(null);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
@@ -174,12 +176,24 @@ const NewAdminDashboard = () => {
     }
   ];
 
+  const handleBackFromEditor = () => {
+    invalidate('catalog');
+    setSelectedProduct(null);
+  };
+
+  const handleNavigate = (path, sectionId) => {
+    invalidate(sectionId);
+    navigate(path);
+    setSelectedProduct(null);
+    setIsMobileMenuOpen(false);
+  };
+
   const renderSection = () => {
     if (selectedProduct) {
       return (
         <ProductEditor 
           product={selectedProduct} 
-          onBack={() => setSelectedProduct(null)}
+          onBack={handleBackFromEditor}
         />
       );
     }
@@ -287,11 +301,7 @@ const NewAdminDashboard = () => {
                   return (
                     <button
                       key={item.id}
-                      onClick={() => {
-                        navigate(item.path);
-                        setSelectedProduct(null);
-                        setIsMobileMenuOpen(false);
-                      }}
+                      onClick={() => handleNavigate(item.path, item.id)}
                       className={`
                         w-full flex items-center gap-3 px-4 py-2.5 rounded-lg
                         transition-all duration-200 group
@@ -386,5 +396,11 @@ const NewAdminDashboard = () => {
     </div>
   );
 };
+
+const NewAdminDashboard = () => (
+  <AdminRefreshProvider>
+    <NewAdminDashboardInner />
+  </AdminRefreshProvider>
+);
 
 export default NewAdminDashboard;

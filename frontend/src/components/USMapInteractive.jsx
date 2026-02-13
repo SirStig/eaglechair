@@ -12,6 +12,10 @@ const USMapInteractive = ({
   getRep
 }) => {
   const containerRef = useRef(null);
+  const selectedStateRef = useRef(selectedState);
+  const hoveredStateRef = useRef(hoveredState);
+  selectedStateRef.current = selectedState;
+  hoveredStateRef.current = hoveredState;
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState(null);
   const [stateElementsMap, setStateElementsMap] = useState(null);
@@ -136,29 +140,34 @@ const USMapInteractive = ({
       elements.forEach(element => {
         // Set base styles
         element.style.cursor = hasRep ? 'pointer' : 'default';
-        element.style.transition = 'fill 0.2s ease-in-out, stroke 0.2s ease-in-out';
+        element.style.transition = 'fill 0.25s ease-out, stroke 0.25s ease-out, opacity 0.25s ease-out';
         element.style.strokeWidth = '1';
-        element.style.stroke = '#525252'; // Dark border
+        element.style.stroke = '#525252';
 
-        // Function to update element style
         const updateStyle = () => {
-          const isSelected = selectedState === stateCode;
-          const isHovered = hoveredState === stateCode;
+          const currentSelected = selectedStateRef.current;
+          const currentHovered = hoveredStateRef.current;
+          const isSelected = currentSelected === stateCode;
+          const isHovered = currentHovered === stateCode;
 
+          element.style.opacity = '1';
           if (isSelected) {
-            element.style.fill = '#f4a52d'; // Gold for selected
+            element.style.fill = '#f4a52d';
             element.style.strokeWidth = '2';
             element.style.stroke = '#d4af37';
           } else if (isHovered && hasRep) {
-            element.style.fill = '#fbbf24'; // Lighter gold for hover
+            element.style.fill = '#fbbf24';
             element.style.strokeWidth = '1.5';
+            element.style.stroke = '#525252';
           } else if (hasRep) {
-            element.style.fill = '#6b6b6b'; // Medium gray for available states
+            element.style.fill = '#6b6b6b';
             element.style.strokeWidth = '1';
+            element.style.stroke = '#525252';
           } else {
-            element.style.fill = '#3a3a3a'; // Dark gray for unavailable
+            element.style.fill = '#3a3a3a';
             element.style.opacity = '0.7';
             element.style.strokeWidth = '1';
+            element.style.stroke = '#525252';
           }
         };
 

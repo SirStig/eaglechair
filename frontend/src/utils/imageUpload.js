@@ -28,10 +28,9 @@ export const uploadImage = async (file, subfolder = 'general') => {
       throw new Error('File must be an image');
     }
     
-    // Validate file size (max 10MB)
-    const maxSize = 10 * 1024 * 1024;
+    const maxSize = 50 * 1024 * 1024;
     if (file.size > maxSize) {
-      throw new Error('Image size must be less than 10MB');
+      throw new Error('Image size must be less than 50MB');
     }
     
     // Generate unique filename

@@ -197,26 +197,37 @@ const QuoteDetailsView = ({ quoteId, onBack }) => {
           </div>
         </Card>
 
-        {/* Shipping Address */}
+        {/* Shipping */}
         <Card className="p-4 bg-dark-700 border-dark-600">
           <h3 className="text-lg font-semibold text-dark-50 mb-4 flex items-center gap-2">
             <Truck className="w-5 h-5" />
-            Shipping Address
+            {quote.shipping_destinations?.length > 1 ? 'Shipping Destinations' : 'Shipping Address'}
           </h3>
-          <div className="space-y-2 text-sm">
-            <div className="flex items-start gap-2">
-              <MapPin className="w-4 h-4 text-dark-400 mt-0.5" />
-              <div className="text-dark-50">
-                <p>{quote.shipping_address_line1}</p>
-                {quote.shipping_address_line2 && (
-                  <p>{quote.shipping_address_line2}</p>
+          <div className="space-y-3 text-sm">
+            {(quote.shipping_destinations && quote.shipping_destinations.length > 0)
+              ? quote.shipping_destinations.map((d) => (
+                  <div key={d.id} className="flex items-start gap-2">
+                    <MapPin className="w-4 h-4 text-dark-400 mt-0.5 shrink-0" />
+                    <div className="text-dark-50">
+                      {d.label && <p className="font-medium text-dark-100">{d.label}</p>}
+                      <p>{d.line1}</p>
+                      {d.line2 && <p>{d.line2}</p>}
+                      <p>{d.city}, {d.state} {d.zip}</p>
+                      <p>{d.country}</p>
+                    </div>
+                  </div>
+                ))
+              : (
+                  <div className="flex items-start gap-2">
+                    <MapPin className="w-4 h-4 text-dark-400 mt-0.5" />
+                    <div className="text-dark-50">
+                      <p>{quote.shipping_address_line1}</p>
+                      {quote.shipping_address_line2 && <p>{quote.shipping_address_line2}</p>}
+                      <p>{quote.shipping_city}, {quote.shipping_state} {quote.shipping_zip}</p>
+                      <p>{quote.shipping_country}</p>
+                    </div>
+                  </div>
                 )}
-                <p>
-                  {quote.shipping_city}, {quote.shipping_state} {quote.shipping_zip}
-                </p>
-                <p>{quote.shipping_country}</p>
-              </div>
-            </div>
           </div>
         </Card>
 
@@ -316,6 +327,15 @@ const QuoteDetailsView = ({ quoteId, onBack }) => {
                         <span>Customization: {formatCurrency(item.customization_cost)}</span>
                       )}
                     </div>
+                    {item.allocations && item.allocations.length > 0 && quote.shipping_destinations?.length > 0 && (
+                      <p className="text-sm text-dark-400 mt-1">
+                        Split: {item.allocations.map((a) => {
+                          const dest = quote.shipping_destinations.find((d) => d.id === a.quote_shipping_destination_id);
+                          const label = dest?.label || dest?.line1 || `Destination ${a.quote_shipping_destination_id}`;
+                          return `${a.quantity} → ${label}`;
+                        }).join(', ')}
+                      </p>
+                    )}
                     {item.item_notes && (
                       <div className="mt-2 pt-2 border-t border-dark-600">
                         <p className="text-sm text-dark-400">Notes:</p>

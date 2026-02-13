@@ -108,6 +108,7 @@ class RequestValidationMiddleware(BaseHTTPMiddleware):
             "/image",
             "/media",
             "/file",
+            "/quotes",
         ]
         return any(pattern in path.lower() for pattern in file_upload_paths)
     

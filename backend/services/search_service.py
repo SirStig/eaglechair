@@ -153,18 +153,19 @@ class SearchService:
                 scored_products = []
                 
                 for product in all_products:
-                    # Calculate fuzzy scores for different fields
                     name_score = fuzz.partial_ratio(query_lower, product.name.lower())
                     model_score = fuzz.partial_ratio(query_lower, product.model_number.lower())
-                    desc_score = fuzz.partial_ratio(query_lower, product.description.lower() if product.description else "")
-                    
-                    # Category name fuzzy match
+                    desc = (product.short_description or "") + " " + (product.full_description or "")
+                    desc_score = fuzz.partial_ratio(query_lower, desc.lower())
                     category_score = 0
                     if product.category:
                         category_score = fuzz.partial_ratio(query_lower, product.category.name.lower())
-                    
-                    # Take the best score
-                    best_score = max(name_score, model_score, desc_score, category_score)
+                    keyword_score = 0
+                    kw_list = product.keywords if isinstance(product.keywords, list) else []
+                    for k in kw_list:
+                        if k:
+                            keyword_score = max(keyword_score, fuzz.partial_ratio(query_lower, str(k).lower()))
+                    best_score = max(name_score, model_score, desc_score, category_score, keyword_score)
                     
                     if best_score >= fuzzy_threshold:
                         scored_products.append((product, best_score))
@@ -173,13 +174,14 @@ class SearchService:
                 scored_products.sort(key=lambda x: x[1], reverse=True)
                 products = [p[0] for p in scored_products]
             else:
-                # Use exact substring matching
                 products = [
                     p for p in all_products
                     if (query_lower in p.name.lower() or
                         query_lower in p.model_number.lower() or
-                        (p.description and query_lower in p.description.lower()) or
-                        (p.category and query_lower in p.category.name.lower()))
+                        (p.short_description and query_lower in p.short_description.lower()) or
+                        (p.full_description and query_lower in p.full_description.lower()) or
+                        (p.category and query_lower in p.category.name.lower()) or
+                        (isinstance(p.keywords, list) and any(query_lower in (k or "").lower() for k in p.keywords)))
                 ]
         else:
             products = all_products

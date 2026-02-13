@@ -158,9 +158,8 @@ class InputSanitizerMiddleware(BaseHTTPMiddleware):
                         }
                     )
             
-            # 3. Sanitize request body (if applicable)
-            if request.method in ["POST", "PUT", "PATCH"]:
-                await self._sanitize_request_body(request)
+            # 3. Request body sanitization disabled - consumes stream and breaks
+            # downstream parsing behind reverse proxies (e.g. DreamHost)
             
             # Process the request
             response = await call_next(request)

@@ -15,6 +15,7 @@ from backend.models.legal import (
 # Company and Admin models
 from backend.models.company import (
     Company,
+    CompanyShippingAddress,
     CompanyStatus,
     AdminUser,
     AdminRole,
@@ -57,6 +58,8 @@ from backend.models.quote import (
     Quote,
     QuoteStatus,
     QuoteItem,
+    QuoteShippingDestination,
+    QuoteItemAllocation,
     Cart,
     CartItem,
     SavedConfiguration,
@@ -70,6 +73,7 @@ __all__ = [
     "ShippingPolicy",
     # Company & Admin
     "Company",
+    "CompanyShippingAddress",
     "CompanyStatus",
     "AdminUser",
     "AdminRole",
@@ -103,6 +107,8 @@ __all__ = [
     "Quote",
     "QuoteStatus",
     "QuoteItem",
+    "QuoteShippingDestination",
+    "QuoteItemAllocation",
     "Cart",
     "CartItem",
     "SavedConfiguration",

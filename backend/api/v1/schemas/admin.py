@@ -173,7 +173,8 @@ class ProductCreate(BaseModel):
     # Category & Family
     category_id: int = Field(..., description="Category ID (required)")
     subcategory_id: Optional[int] = Field(None, description="Subcategory ID")
-    family_id: Optional[int] = Field(None, description="Product family ID")
+    family_id: Optional[int] = Field(None, description="Primary product family ID")
+    secondary_family_ids: Optional[List[int]] = Field(default_factory=list, description="Additional family IDs for listing in other families")
 
     # Pricing
     base_price: int = Field(0, ge=0, description="Base price in cents")
@@ -229,8 +230,8 @@ class ProductCreate(BaseModel):
     primary_image_url: Optional[str] = Field(
         None, max_length=500, description="Primary image URL"
     )
-    hover_image_url: Optional[str] = Field(
-        None, max_length=500, description="Hover image URL"
+    hover_images: Optional[List[str]] = Field(
+        None, description="Hover image URLs (array)"
     )
     thumbnail: Optional[str] = Field(None, max_length=500, description="Thumbnail URL")
     dimensional_drawing_url: Optional[str] = Field(
@@ -279,11 +280,6 @@ class ProductCreate(BaseModel):
     # Display
     display_order: int = Field(0, ge=0, description="Display order")
 
-    # Related Products
-    related_product_ids: Optional[List[int]] = Field(
-        None, description="Related product IDs"
-    )
-
 
 class ProductUpdate(BaseModel):
     """Update product request - all fields optional for PATCH"""
@@ -310,7 +306,8 @@ class ProductUpdate(BaseModel):
     # Category & Family
     category_id: Optional[int] = Field(None, description="Category ID")
     subcategory_id: Optional[int] = Field(None, description="Subcategory ID")
-    family_id: Optional[int] = Field(None, description="Product family ID")
+    family_id: Optional[int] = Field(None, description="Primary product family ID")
+    secondary_family_ids: Optional[List[int]] = Field(None, description="Additional family IDs for listing in other families")
 
     # Pricing
     base_price: Optional[int] = Field(None, ge=0, description="Base price in cents")
@@ -366,8 +363,8 @@ class ProductUpdate(BaseModel):
     primary_image_url: Optional[str] = Field(
         None, max_length=500, description="Primary image URL"
     )
-    hover_image_url: Optional[str] = Field(
-        None, max_length=500, description="Hover image URL"
+    hover_images: Optional[List[str]] = Field(
+        None, description="Hover image URLs (array)"
     )
     thumbnail: Optional[str] = Field(None, max_length=500, description="Thumbnail URL")
     dimensional_drawing_url: Optional[str] = Field(
@@ -422,11 +419,6 @@ class ProductUpdate(BaseModel):
 
     # Display
     display_order: Optional[int] = Field(None, ge=0, description="Display order")
-
-    # Related Products
-    related_product_ids: Optional[List[int]] = Field(
-        None, description="Related product IDs"
-    )
 
 
 class ProductListResponse(BaseModel):

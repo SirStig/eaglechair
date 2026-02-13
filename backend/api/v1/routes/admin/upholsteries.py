@@ -17,6 +17,7 @@ from backend.database.base import get_db
 from backend.models.chair import Upholstery
 from backend.models.company import AdminUser
 from backend.utils.serializers import orm_list_to_dict_list, orm_to_dict
+from backend.utils.static_content_exporter import export_content_after_update
 
 logger = logging.getLogger(__name__)
 
@@ -127,9 +128,8 @@ async def create_upholstery(
     db.add(upholstery)
     await db.commit()
     await db.refresh(upholstery)
-    
+    await export_content_after_update("upholsteries", db)
     logger.info(f"Created upholstery: {upholstery.name} (ID: {upholstery.id})")
-    
     return orm_to_dict(upholstery)
 
 
@@ -165,9 +165,8 @@ async def update_upholstery(
     
     await db.commit()
     await db.refresh(upholstery)
-    
+    await export_content_after_update("upholsteries", db)
     logger.info(f"Updated upholstery: {upholstery.name} (ID: {upholstery.id})")
-    
     return orm_to_dict(upholstery)
 
 
@@ -197,9 +196,8 @@ async def delete_upholstery(
     
     await db.delete(upholstery)
     await db.commit()
-    
+    await export_content_after_update("upholsteries", db)
     logger.info(f"Deleted upholstery: {upholstery.name} (ID: {upholstery_id})")
-    
     return {
         "message": "Upholstery deleted successfully"
     }

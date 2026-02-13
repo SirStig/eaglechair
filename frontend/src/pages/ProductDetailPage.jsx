@@ -10,7 +10,8 @@ import SEOHead from '../components/SEOHead';
 import { useCartStore } from '../store/cartStore';
 import { updateProduct } from '../services/contentService';
 import productService from '../services/productService';
-import { getProductImages, resolveImageUrl, resolveFileUrl } from '../utils/apiHelpers';
+import { getProductImages, getProductGalleryImages, resolveImageUrl, resolveFileUrl } from '../utils/apiHelpers';
+import SwatchImage from '../components/ui/SwatchImage';
 import { useToast } from '../contexts/ToastContext';
 import logger from '../utils/logger';
 
@@ -32,6 +33,7 @@ const ProductDetailPage = () => {
   const [relatedProducts, setRelatedProducts] = useState([]);
   const [loading, setLoading] = useState(true);
   const [selectedImage, setSelectedImage] = useState(0);
+  const [customizeImageIndex, setCustomizeImageIndex] = useState(0);
   const [quantity, setQuantity] = useState(1);
   const [selectedFinish, setSelectedFinish] = useState(null);
   const [selectedUpholstery, setSelectedUpholstery] = useState(null);
@@ -40,6 +42,8 @@ const ProductDetailPage = () => {
   const [selectedVariation, setSelectedVariation] = useState(null);
   const [loadingVariations, setLoadingVariations] = useState(false);
   const [familyProducts, setFamilyProducts] = useState([]);
+  const [customNotes, setCustomNotes] = useState('');
+  const [notesExpanded, setNotesExpanded] = useState(false);
 
   useEffect(() => {
     loadProduct();
@@ -52,6 +56,10 @@ const ProductDetailPage = () => {
       setSelectedImage(0);
     }
   }, [selectedVariation]);
+
+  useEffect(() => {
+    setCustomizeImageIndex(0);
+  }, [productId]);
 
   // Get images - use variation images if variation is selected, otherwise product images
   // Use useMemo to ensure stable reference and avoid hooks order issues
@@ -79,6 +87,26 @@ const ProductDetailPage = () => {
     }
     return getProductImages(product);
   }, [product, selectedVariation]);
+
+  const heroImageCount = product ? 1 + (product.hover_images?.length || 0) : 0;
+  const carouselImages = images.length > 0 ? images.slice(0, Math.max(1, Math.min(heroImageCount, images.length))) : [];
+  const galleryOnlyImages = useMemo(() => (product ? getProductGalleryImages(product) : []), [product]);
+  const [gallerySelectedIndex, setGallerySelectedIndex] = useState(0);
+  const galleryIntervalRef = useRef(null);
+
+  useEffect(() => {
+    setGallerySelectedIndex(0);
+  }, [productId]);
+
+  useEffect(() => {
+    if (galleryOnlyImages.length <= 1) return;
+    galleryIntervalRef.current = setInterval(() => {
+      setGallerySelectedIndex(prev => (prev + 1) % galleryOnlyImages.length);
+    }, 5000);
+    return () => {
+      if (galleryIntervalRef.current) clearInterval(galleryIntervalRef.current);
+    };
+  }, [galleryOnlyImages.length]);
 
   // Preload first product image when product or variation changes
   useEffect(() => {
@@ -246,8 +274,10 @@ const ProductDetailPage = () => {
       finish: selectedFinish,
       upholstery: selectedUpholstery,
       variation: selectedVariation,
+      custom_notes: customNotes?.trim() || null,
     };
     addItem(product, quantity, customizations);
+    setCustomNotes('');
     setShowSuccessMessage(true);
     setTimeout(() => setShowSuccessMessage(false), 3000);
     logger.info(CONTEXT, `Added to cart: ${product.name} x${quantity}${selectedVariation ? ` (variation: ${selectedVariation.sku})` : ''}`);
@@ -276,10 +306,10 @@ const ProductDetailPage = () => {
     }
   };
 
-  const handleDownloadImage = () => {
-    const imageUrl = product.images?.[selectedImage] || product.image;
+  const handleDownloadImage = (imageUrl) => {
+    const url = imageUrl || images[selectedImage] || product.primary_image_url || product.image;
     const link = document.createElement('a');
-    link.href = imageUrl;
+    link.href = url;
     link.download = `${product.slug || product.name}.jpg`;
     link.click();
   };
@@ -375,13 +405,12 @@ const ProductDetailPage = () => {
           </div>
 
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 sm:gap-8 lg:gap-12">
-            {/* Image Gallery */}
+            {/* Hero image (primary + hover only) */}
             <div className="flex items-center justify-center">
               <div className="relative inline-block w-full">
-                {/* Main Image */}
                 <div className="bg-white rounded-xl overflow-hidden border border-cream-200">
                   <img
-                    src={images[selectedImage]}
+                    src={carouselImages[Math.min(selectedImage, carouselImages.length - 1)] || carouselImages[0] || images[0]}
                     alt={product.name}
                     className="w-full h-auto object-contain"
                     style={{ maxHeight: '500px', mixBlendMode: 'multiply' }}
@@ -391,32 +420,28 @@ const ProductDetailPage = () => {
                   />
                 </div>
 
-                {/* Gallery Navigation */}
-                {images.length > 1 && (
+                {carouselImages.length > 1 && (
                   <>
-                    {/* Previous Button */}
                     <button
-                      onClick={() => setSelectedImage(selectedImage === 0 ? images.length - 1 : selectedImage - 1)}
+                      type="button"
+                      onClick={() => setSelectedImage(selectedImage === 0 ? carouselImages.length - 1 : selectedImage - 1)}
                       className="absolute left-2 sm:left-3 top-1/2 -translate-y-1/2 w-10 h-10 sm:w-12 sm:h-12 flex items-center justify-center bg-cream-50/80 hover:bg-cream-50 border border-cream-300 rounded-full transition-colors min-w-[44px] min-h-[44px] z-10"
                     >
                       <svg className="w-5 h-5 sm:w-6 sm:h-6 text-slate-800" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
                       </svg>
                     </button>
-
-                    {/* Next Button */}
                     <button
-                      onClick={() => setSelectedImage(selectedImage === images.length - 1 ? 0 : selectedImage + 1)}
+                      type="button"
+                      onClick={() => setSelectedImage(selectedImage === carouselImages.length - 1 ? 0 : selectedImage + 1)}
                       className="absolute right-2 sm:right-3 top-1/2 -translate-y-1/2 w-10 h-10 sm:w-12 sm:h-12 flex items-center justify-center bg-cream-50/80 hover:bg-cream-50 border border-cream-300 rounded-full transition-colors min-w-[44px] min-h-[44px] z-10"
                     >
                       <svg className="w-5 h-5 sm:w-6 sm:h-6 text-slate-800" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
                       </svg>
                     </button>
-
-                    {/* Image Counter */}
                     <div className="absolute top-3 left-1/2 -translate-x-1/2 px-3 py-1.5 bg-cream-50/80 border border-cream-300 rounded-full text-sm text-slate-800">
-                      {selectedImage + 1} / {images.length}
+                      {Math.min(selectedImage, carouselImages.length - 1) + 1} / {carouselImages.length}
                     </div>
                   </>
                 )}
@@ -465,30 +490,24 @@ const ProductDetailPage = () => {
                 </EditableWrapper>
               )}
 
-              {/* Description */}
-              <EditableWrapper
-                id={`product-description-${product.id}`}
-                type="textarea"
-                data={{
-                  short_description: product.short_description,
-                  full_description: product.full_description,
-                  description: product.description
-                }}
-                onSave={handleUpdateProduct}
-                label="Product Description"
-              >
-                <div className="text-slate-700 leading-relaxed space-y-4 mb-6">
-                  {product.short_description && (
-                    <p className="text-lg">{product.short_description}</p>
-                  )}
-                  {product.full_description && (
-                    <p>{product.full_description}</p>
-                  )}
-                  {!product.short_description && !product.full_description && product.description && (
-                    <p>{product.description}</p>
-                  )}
-                </div>
-              </EditableWrapper>
+              {/* Description - full description only; hidden when empty */}
+              {(product.full_description || product.description) && (
+                <EditableWrapper
+                  id={`product-description-${product.id}`}
+                  type="textarea"
+                  data={{
+                    short_description: product.short_description,
+                    full_description: product.full_description,
+                    description: product.description
+                  }}
+                  onSave={handleUpdateProduct}
+                  label="Product Description"
+                >
+                  <div className="text-slate-700 leading-relaxed space-y-4 mb-6">
+                    <p className="text-base">{product.full_description || product.description}</p>
+                  </div>
+                </EditableWrapper>
+              )}
 
               {/* Customize Now Button */}
               <Button
@@ -503,193 +522,133 @@ const ProductDetailPage = () => {
         </div>
       </section>
 
-      {/* Specifications & Resources */}
+      {/* Features | Weight & Dimensions | Certifications - single clean row */}
       <section className="bg-white border-b border-cream-200">
-        <div className="container mx-auto px-4 py-16 max-w-7xl">
-          <h2 className="text-2xl sm:text-3xl font-bold text-slate-800 mb-6 sm:mb-8">Specifications & Details</h2>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 sm:gap-8">
-            {/* Features */}
-            {product.features && product.features.length > 0 && (
+        <div className="container mx-auto px-4 py-12 sm:py-16 max-w-7xl">
+          <div className="max-w-5xl mx-auto">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-10 md:gap-12 text-left">
+              {/* Features */}
               <div>
-                <h3 className="text-xl font-semibold text-slate-800 mb-4">Features</h3>
-                <ul className="space-y-2 text-slate-700 text-base">
-                  {product.features.map((feature, idx) => (
-                    <li key={idx} className="flex items-start">
-                      <span className="text-primary-500 mr-2 mt-1">•</span>
-                      <span>{feature}</span>
-                    </li>
-                  ))}
-                </ul>
+                <h3 className="text-lg font-bold text-slate-800 mb-5">Features</h3>
+                {product.features && product.features.length > 0 ? (
+                  <ul className="space-y-3.5 text-slate-700 text-[15px] leading-relaxed">
+                    {product.features.map((feature, idx) => (
+                      <li key={idx} className="flex items-start gap-2">
+                        <span className="text-slate-400 mt-0.5">–</span>
+                        <span>{feature}</span>
+                      </li>
+                    ))}
+                  </ul>
+                ) : (
+                  <p className="text-slate-500 text-[15px]">—</p>
+                )}
               </div>
-            )}
 
-            {/* Available Variations */}
-            {(product.customizations?.finishes || product.customizations?.fabrics || product.customizations?.colors) && (
+              {/* Weight & Dimensions */}
               <div>
-                <h3 className="text-xl font-semibold text-slate-800 mb-4">Available Variations</h3>
-                <div className="space-y-2.5 text-slate-700 text-base">
-                  {product.customizations.finishes && (
-                    <div>
-                      <span className="font-medium text-slate-800">Finishes:</span>
-                      <p className="mt-1">{product.customizations.finishes.join(', ')}</p>
-                    </div>
+                <h3 className="text-lg font-bold text-slate-800 mb-5">Weight & Dimensions</h3>
+                <div className="space-y-3.5 text-slate-700 text-[15px] leading-relaxed">
+                  {(product.width || product.depth || product.height) && (
+                    <p>
+                      Overall Dimensions : {[product.depth && `${product.depth}" D`, product.width && `${product.width}" W`, product.height && `${product.height}" H`].filter(Boolean).join(' x ')}
+                    </p>
                   )}
-                  {product.customizations.fabrics && (
-                    <div>
-                      <span className="font-medium text-slate-800">Upholstery:</span>
-                      <p className="mt-1">{product.customizations.fabrics.join(', ')}</p>
-                    </div>
+                  {product.seat_height && <p>Seat Height : {product.seat_height}"</p>}
+                  {(product.seat_width || product.seat_depth) && (
+                    <p>Seat : {[product.seat_width && `${product.seat_width}" W`, product.seat_depth && `${product.seat_depth}" D`].filter(Boolean).join(' x ')}</p>
                   )}
-                  {product.customizations.colors && (
-                    <div>
-                      <span className="font-medium text-slate-800">Colors:</span>
-                      <p className="mt-1">{product.customizations.colors.join(', ')}</p>
-                    </div>
+                  {(product.arm_height || product.back_height) && (
+                    <p>{[product.arm_height && `Arm Height : ${product.arm_height}"`, product.back_height && `Back Height : ${product.back_height}"`].filter(Boolean).join(' · ')}</p>
+                  )}
+                  {(product.shipping_weight != null || product.weight != null) && (
+                    <p>Shipping Weight : {product.shipping_weight ?? product.weight} lbs</p>
+                  )}
+                  {!product.width && !product.depth && !product.height && !product.seat_height && !product.seat_width && !product.seat_depth && !product.arm_height && !product.back_height && !product.weight && !product.shipping_weight && (
+                    <p className="text-slate-500">—</p>
                   )}
                 </div>
               </div>
-            )}
 
-            {/* Dimensions & Weight */}
-            <div>
-              <h3 className="text-xl font-semibold text-slate-800 mb-4">Dimensions & Weight</h3>
-              <div className="space-y-2 text-slate-700 text-base">
-                {product.width && (
-                  <div className="flex justify-between">
-                    <span>Width:</span>
-                    <span className="font-medium text-slate-800">{product.width}"</span>
-                  </div>
-                )}
-                {product.depth && (
-                  <div className="flex justify-between">
-                    <span>Depth:</span>
-                    <span className="font-medium text-slate-800">{product.depth}"</span>
-                  </div>
-                )}
-                {product.height && (
-                  <div className="flex justify-between">
-                    <span>Height:</span>
-                    <span className="font-medium text-slate-800">{product.height}"</span>
-                  </div>
-                )}
-                {product.seat_width && (
-                  <div className="flex justify-between">
-                    <span>Seat Width:</span>
-                    <span className="font-medium text-slate-800">{product.seat_width}"</span>
-                  </div>
-                )}
-                {product.seat_depth && (
-                  <div className="flex justify-between">
-                    <span>Seat Depth:</span>
-                    <span className="font-medium text-slate-800">{product.seat_depth}"</span>
-                  </div>
-                )}
-                {product.seat_height && (
-                  <div className="flex justify-between">
-                    <span>Seat Height:</span>
-                    <span className="font-medium text-slate-800">{product.seat_height}"</span>
-                  </div>
-                )}
-                {product.arm_height && (
-                  <div className="flex justify-between">
-                    <span>Arm Height:</span>
-                    <span className="font-medium text-slate-800">{product.arm_height}"</span>
-                  </div>
-                )}
-                {product.back_height && (
-                  <div className="flex justify-between">
-                    <span>Back Height:</span>
-                    <span className="font-medium text-slate-800">{product.back_height}"</span>
-                  </div>
-                )}
-                {product.weight && (
-                  <div className="flex justify-between">
-                    <span>Weight:</span>
-                    <span className="font-medium text-slate-800">{product.weight} lbs</span>
-                  </div>
-                )}
-                {product.shipping_weight && (
-                  <div className="flex justify-between">
-                    <span>Ship Weight:</span>
-                    <span className="font-medium text-slate-800">{product.shipping_weight} lbs</span>
-                  </div>
-                )}
-              </div>
-            </div>
-
-          </div>
-
-          {/* Additional Details Row */}
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 sm:gap-8 mt-6 sm:mt-8 pt-6 sm:pt-8 border-t border-cream-200">
-            {/* Construction Details */}
-            {product.construction_details && (
+              {/* Certifications */}
               <div>
-                <h3 className="text-xl font-semibold text-slate-800 mb-3">Construction</h3>
-                <p className="text-slate-700 text-base leading-relaxed">{product.construction_details}</p>
+                <h3 className="text-lg font-bold text-slate-800 mb-5">Certifications</h3>
+                <div className="space-y-3.5 text-slate-700 text-[15px] leading-relaxed">
+                  {product.flame_certifications && product.flame_certifications.length > 0 && (
+                    <p>{product.flame_certifications.join(', ')}</p>
+                  )}
+                  {product.green_certifications && product.green_certifications.length > 0 && (
+                    <p>{product.green_certifications.join(', ')}</p>
+                  )}
+                  {product.ada_compliant && <p>ADA Compliant</p>}
+                  {(!product.flame_certifications || product.flame_certifications.length === 0) &&
+                    (!product.green_certifications || product.green_certifications.length === 0) &&
+                    !product.ada_compliant && (
+                      <p className="text-slate-500">—</p>
+                    )}
+                </div>
+                {(product.spec_sheet_url || product.dimensional_drawing_url || product.cad_file_url) && (
+                  <div className="mt-5 pt-4 border-t border-cream-200">
+                    <p className="text-slate-500 text-sm mb-2">Resources</p>
+                    <div className="flex flex-col gap-2 text-[15px]">
+                      {product.spec_sheet_url && (
+                        <a href={resolveFileUrl(product.spec_sheet_url)} download className="text-slate-700 hover:text-slate-900 underline">
+                          Spec Sheet
+                        </a>
+                      )}
+                      {product.dimensional_drawing_url && (
+                        <a href={resolveFileUrl(product.dimensional_drawing_url)} download className="text-slate-700 hover:text-slate-900 underline">
+                          Dimensional Drawing
+                        </a>
+                      )}
+                      {product.cad_file_url && (
+                        <a href={resolveFileUrl(product.cad_file_url)} download className="text-slate-700 hover:text-slate-900 underline">
+                          CAD File
+                        </a>
+                      )}
+                    </div>
+                  </div>
+                )}
               </div>
-            )}
-
-            {/* Care & Warranty */}
-            <div>
-              {product.care_instructions && (
-                <div className="mb-4">
-                  <h3 className="text-xl font-semibold text-slate-800 mb-3">Care Instructions</h3>
-                  <p className="text-slate-700 text-base leading-relaxed">{product.care_instructions}</p>
-                </div>
-              )}
-              {product.warranty_info && (
-                <div>
-                  <h3 className="text-xl font-semibold text-slate-800 mb-3">Warranty</h3>
-                  <p className="text-slate-700 text-base leading-relaxed">{product.warranty_info}</p>
-                </div>
-              )}
-            </div>
-
-            {/* Certifications & Resources */}
-            <div>
-              {(product.flame_certifications || product.green_certifications || product.ada_compliant) && (
-                <div className="mb-4">
-                  <h3 className="text-xl font-semibold text-slate-800 mb-3">Certifications</h3>
-                  <div className="space-y-1.5 text-slate-700 text-base">
-                    {product.flame_certifications && (
-                      <p>{product.flame_certifications.join(', ')}</p>
-                    )}
-                    {product.green_certifications && (
-                      <p>{product.green_certifications.join(', ')}</p>
-                    )}
-                    {product.ada_compliant && (
-                      <p>ADA Compliant</p>
-                    )}
-                  </div>
-                </div>
-              )}
-              {(product.spec_sheet_url || product.dimensional_drawing_url || product.cad_file_url) && (
-                <div>
-                  <h3 className="text-xl font-semibold text-slate-800 mb-3">Resources</h3>
-                  <div className="flex flex-col gap-2 text-base">
-                    {product.spec_sheet_url && (
-                      <a href={product.spec_sheet_url} download className="text-primary-500 hover:text-primary-400 underline">
-                        Spec Sheet
-                      </a>
-                    )}
-                    {product.dimensional_drawing_url && (
-                      <a href={product.dimensional_drawing_url} download className="text-primary-500 hover:text-primary-400 underline">
-                        Dimensional Drawing
-                      </a>
-                    )}
-                    {product.cad_file_url && (
-                      <a href={product.cad_file_url} download className="text-primary-500 hover:text-primary-400 underline">
-                        CAD File
-                      </a>
-                    )}
-                  </div>
-                </div>
-              )}
             </div>
           </div>
         </div>
       </section>
+
+      {/* Gallery - only gallery images (not primary/hover/thumbnail); 16:9; large left, strip right; auto-rotate 5s */}
+      {galleryOnlyImages.length > 0 && (
+        <section className="bg-white border-b border-cream-200">
+          <div className="container mx-auto px-4 py-16 max-w-7xl">
+            <h2 className="text-2xl sm:text-3xl font-bold text-slate-800 mb-6 sm:mb-8 text-center">Gallery</h2>
+            <div className="flex flex-col lg:flex-row gap-4 lg:gap-6 max-w-6xl mx-auto">
+              <div className="flex-1 min-w-0 aspect-video overflow-hidden">
+                <img
+                  src={galleryOnlyImages[gallerySelectedIndex]}
+                  alt={`${product.name} gallery ${gallerySelectedIndex + 1}`}
+                  className="w-full h-full object-cover block"
+                  loading="lazy"
+                />
+              </div>
+              <div className="flex lg:flex-col gap-2 overflow-x-auto lg:overflow-y-auto lg:overflow-x-visible max-h-none lg:max-h-[360px] pb-2 lg:pb-0 flex-shrink-0 lg:w-48 xl:w-56">
+                {galleryOnlyImages.map((url, idx) => (
+                  <button
+                    key={idx}
+                    type="button"
+                    onClick={() => setGallerySelectedIndex(idx)}
+                    className={`flex-shrink-0 aspect-video overflow-hidden block w-32 sm:w-40 lg:w-full text-left focus:outline-none ${idx === gallerySelectedIndex ? 'opacity-100' : 'opacity-70 hover:opacity-100'}`}
+                  >
+                    <img
+                      src={url}
+                      alt=""
+                      className="w-full h-full object-cover block"
+                      loading="lazy"
+                    />
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
+        </section>
+      )}
 
       {/* Customize & Quote Section */}
       <section ref={customizeRef} className="bg-cream-50 border-b border-cream-200 scroll-mt-20">
@@ -697,12 +656,12 @@ const ProductDetailPage = () => {
           <h2 className="text-2xl sm:text-3xl font-bold text-slate-800 mb-6 sm:mb-8">Customize & Request Quote</h2>
 
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 lg:gap-12">
-            {/* 3D Model Placeholder / Product Image */}
+            {/* 3D Model Placeholder / Product Image (primary + hover only) */}
             <div className="flex items-center justify-center">
               <div className="relative inline-block">
                 <div className="bg-white rounded-xl overflow-hidden border border-cream-200">
                   <img
-                    src={images[selectedImage]}
+                    src={carouselImages[customizeImageIndex] || carouselImages[0]}
                     alt={product.name}
                     className="w-full h-auto object-contain"
                     style={{ maxHeight: '500px', mixBlendMode: 'multiply' }}
@@ -718,40 +677,36 @@ const ProductDetailPage = () => {
                   </div>
                 </div>
 
-                {/* Gallery Navigation */}
-                {images.length > 1 && (
+                {carouselImages.length > 1 && (
                   <>
-                    {/* Previous Button */}
                     <button
-                      onClick={() => setSelectedImage(selectedImage === 0 ? images.length - 1 : selectedImage - 1)}
+                      type="button"
+                      onClick={() => setCustomizeImageIndex(customizeImageIndex === 0 ? carouselImages.length - 1 : customizeImageIndex - 1)}
                       className="absolute left-3 top-1/2 -translate-y-1/2 w-10 h-10 flex items-center justify-center bg-cream-50/80 hover:bg-cream-50 border border-cream-300 rounded-full transition-colors"
                     >
                       <svg className="w-6 h-6 text-slate-800" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
                       </svg>
                     </button>
-
-                    {/* Next Button */}
                     <button
-                      onClick={() => setSelectedImage(selectedImage === images.length - 1 ? 0 : selectedImage + 1)}
+                      type="button"
+                      onClick={() => setCustomizeImageIndex(customizeImageIndex === carouselImages.length - 1 ? 0 : customizeImageIndex + 1)}
                       className="absolute right-3 top-1/2 -translate-y-1/2 w-10 h-10 flex items-center justify-center bg-cream-50/80 hover:bg-cream-50 border border-cream-300 rounded-full transition-colors"
                     >
                       <svg className="w-6 h-6 text-slate-800" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
                       </svg>
                     </button>
-
-                    {/* Image Counter */}
                     <div className="absolute top-3 left-1/2 -translate-x-1/2 px-3 py-1.5 bg-cream-50/80 border border-cream-300 rounded-full text-sm text-slate-800">
-                      {selectedImage + 1} / {images.length}
+                      {customizeImageIndex + 1} / {carouselImages.length}
                     </div>
                   </>
                 )}
 
-                {/* Image Actions */}
                 <div className="flex items-center justify-center gap-6 text-sm mt-3">
                   <button
-                    onClick={handleDownloadImage}
+                    type="button"
+                    onClick={() => handleDownloadImage(carouselImages[customizeImageIndex] || carouselImages[0])}
                     className="text-primary-500 hover:text-primary-400 underline transition-colors flex items-center gap-1.5"
                   >
                     <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -855,7 +810,7 @@ const ProductDetailPage = () => {
                         )}
                         {selectedVariation.price_adjustment !== undefined && selectedVariation.price_adjustment !== 0 && (
                           <span className="text-xs font-medium text-slate-700">
-                            Price adjustment: {selectedVariation.price_adjustment > 0 ? '+' : ''}
+                            Price adjustment (est. listing): {selectedVariation.price_adjustment > 0 ? '+' : ''}
                             ${(selectedVariation.price_adjustment / 100).toFixed(2)}
                           </span>
                         )}
@@ -872,18 +827,23 @@ const ProductDetailPage = () => {
                     Select Finish
                   </label>
                   <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 sm:gap-3">
-                    {product.customizations.finishes.map((finish, idx) => (
-                      <button
-                        key={idx}
-                        onClick={() => setSelectedFinish(finish)}
-                        className={`p-3 rounded-lg border-2 transition-all text-sm font-medium min-h-[44px] ${selectedFinish === finish
-                          ? 'border-primary-600 bg-primary-50 text-primary-900'
-                          : 'border-cream-300 bg-white text-slate-700 hover:border-primary-400'
-                          }`}
-                      >
-                        {finish}
-                      </button>
-                    ))}
+                    {product.customizations.finishes.map((finish, idx) => {
+                      const f = typeof finish === 'object' ? finish : { name: finish };
+                      const isSelected = typeof selectedFinish === 'object' ? selectedFinish?.id === f.id : selectedFinish === f.name;
+                      return (
+                        <button
+                          key={f.id ?? idx}
+                          onClick={() => setSelectedFinish(f)}
+                          className={`p-2 sm:p-3 rounded-lg border-2 transition-all text-sm font-medium min-h-[44px] flex items-center gap-2 ${isSelected
+                            ? 'border-primary-600 bg-primary-50 text-primary-900'
+                            : 'border-cream-300 bg-white text-slate-700 hover:border-primary-400'
+                            }`}
+                        >
+                          <SwatchImage item={f} size="md" rounded="circle" zoom />
+                          <span className="truncate">{f.name}</span>
+                        </button>
+                      );
+                    })}
                   </div>
                 </div>
               )}
@@ -894,16 +854,25 @@ const ProductDetailPage = () => {
                   <label className="block text-sm font-medium text-slate-700 mb-3">
                     Select Upholstery
                   </label>
-                  <select
-                    value={selectedUpholstery || ''}
-                    onChange={(e) => setSelectedUpholstery(e.target.value)}
-                    className="w-full px-4 py-3 border border-cream-300 bg-white text-slate-800 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
-                  >
-                    <option value="">Select a fabric</option>
-                    {product.customizations.fabrics.map((fabric, idx) => (
-                      <option key={idx} value={fabric}>{fabric}</option>
-                    ))}
-                  </select>
+                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 sm:gap-3">
+                    {product.customizations.fabrics.map((fabric, idx) => {
+                      const f = typeof fabric === 'object' ? fabric : { name: fabric };
+                      const isSelected = typeof selectedUpholstery === 'object' ? selectedUpholstery?.id === f.id : selectedUpholstery === f.name;
+                      return (
+                        <button
+                          key={f.id ?? idx}
+                          onClick={() => setSelectedUpholstery(f)}
+                          className={`p-2 sm:p-3 rounded-lg border-2 transition-all text-sm font-medium min-h-[44px] flex items-center gap-2 ${isSelected
+                            ? 'border-primary-600 bg-primary-50 text-primary-900'
+                            : 'border-cream-300 bg-white text-slate-700 hover:border-primary-400'
+                            }`}
+                        >
+                          <SwatchImage item={f} size="md" rounded="circle" zoom />
+                          <span className="truncate">{f.name}</span>
+                        </button>
+                      );
+                    })}
+                  </div>
                 </div>
               )}
 
@@ -914,21 +883,54 @@ const ProductDetailPage = () => {
                     Select Color
                   </label>
                   <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 sm:gap-3">
-                    {product.customizations.colors.map((color, idx) => (
-                      <button
-                        key={idx}
-                        onClick={() => setSelectedFinish(color)}
-                        className={`p-3 rounded-lg border-2 transition-all text-sm font-medium min-h-[44px] ${selectedFinish === color
-                          ? 'border-primary-600 bg-primary-50 text-primary-900'
-                          : 'border-cream-300 bg-white text-slate-700 hover:border-primary-400'
-                          }`}
-                      >
-                        {color}
-                      </button>
-                    ))}
+                    {product.customizations.colors.map((color, idx) => {
+                      const c = typeof color === 'object' ? color : { name: color };
+                      const isSelected = typeof selectedFinish === 'object' ? selectedFinish?.id === c.id : selectedFinish === c.name;
+                      return (
+                        <button
+                          key={c.id ?? idx}
+                          onClick={() => setSelectedFinish(c)}
+                          className={`p-2 sm:p-3 rounded-lg border-2 transition-all text-sm font-medium min-h-[44px] flex items-center gap-2 ${isSelected
+                            ? 'border-primary-600 bg-primary-50 text-primary-900'
+                            : 'border-cream-300 bg-white text-slate-700 hover:border-primary-400'
+                            }`}
+                        >
+                          <SwatchImage item={c} size="md" rounded="circle" zoom />
+                          <span className="truncate">{c.name}</span>
+                        </button>
+                      );
+                    })}
                   </div>
                 </div>
               )}
+
+              {/* Custom Requests / Notes */}
+              <div className="mb-6">
+                <button
+                  type="button"
+                  onClick={() => setNotesExpanded(!notesExpanded)}
+                  className="flex items-center justify-between w-full text-left text-sm font-medium text-slate-700 py-2 px-3 rounded-lg hover:bg-cream-100 transition-colors"
+                >
+                  <span>Custom Requests / Notes</span>
+                  <svg
+                    className={`w-5 h-5 text-slate-500 transition-transform ${notesExpanded ? 'rotate-180' : ''}`}
+                    fill="none"
+                    viewBox="0 0 24 24"
+                    stroke="currentColor"
+                  >
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                  </svg>
+                </button>
+                {notesExpanded && (
+                  <textarea
+                    value={customNotes}
+                    onChange={(e) => setCustomNotes(e.target.value)}
+                    placeholder="Add custom requests, special instructions, or notes for this product..."
+                    rows={4}
+                    className="w-full mt-2 px-4 py-3 border border-cream-300 bg-white text-slate-800 placeholder-slate-400 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 text-base resize-y min-h-[100px]"
+                  />
+                )}
+              </div>
 
               {/* Quantity Selector */}
               <div className="mb-6">
@@ -959,7 +961,7 @@ const ProductDetailPage = () => {
               </div>
 
               {/* Action Buttons */}
-              <div className="space-y-3">
+              <div>
                 <Button
                   variant="primary"
                   className="w-full text-base py-3 px-6"
@@ -969,17 +971,6 @@ const ProductDetailPage = () => {
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z" />
                   </svg>
                   Add {quantity} to Cart
-                </Button>
-
-                <Button
-                  variant="outline"
-                  className="w-full text-base py-3 px-6"
-                  onClick={() => navigate('/quote')}
-                >
-                  <svg className="w-5 h-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                  </svg>
-                  Request Custom Quote
                 </Button>
               </div>
 

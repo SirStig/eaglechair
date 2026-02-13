@@ -18,7 +18,7 @@ from backend.core.exceptions import (
     ResourceNotFoundError,
     ValidationError,
 )
-from backend.models.chair import Category, Chair, Finish, ProductVariation, Upholstery
+from backend.models.chair import Category, Chair, Finish, ProductFamily, ProductVariation, Upholstery
 from backend.models.company import AdminUser, Company, CompanyStatus
 from backend.models.content import (
     FAQ,
@@ -134,11 +134,9 @@ class AdminService:
         Returns:
             Created product
         """
-        # Extract variations and related products
         variations_data = product_data.pop("variations", None)
-        related_product_ids = product_data.pop("related_product_ids", None)
+        secondary_family_ids = product_data.pop("secondary_family_ids", None) or []
 
-        # Validate category exists
         if product_data.get("category_id"):
             result = await db.execute(
                 select(Category).where(Category.id == product_data["category_id"])
@@ -149,18 +147,17 @@ class AdminService:
 
         product = Chair(**product_data)
         db.add(product)
-        await db.flush()  # Flush to get product.id without committing
+        await db.flush()
 
-        # Create variations if provided
+        if secondary_family_ids:
+            fam_result = await db.execute(
+                select(ProductFamily).where(ProductFamily.id.in_(secondary_family_ids))
+            )
+            product.secondary_families = list(fam_result.scalars().all())
+
         if variations_data:
             await AdminService._update_product_variations(
                 db=db, product_id=product.id, variations_data=variations_data
-            )
-
-        # Update related products if provided
-        if related_product_ids is not None:
-            await AdminService._update_product_relations(
-                db=db, product_id=product.id, related_product_ids=related_product_ids
             )
 
         await db.commit()
@@ -185,7 +182,11 @@ class AdminService:
         Returns:
             Updated product
         """
-        result = await db.execute(select(Chair).where(Chair.id == product_id))
+        result = await db.execute(
+            select(Chair)
+            .where(Chair.id == product_id)
+            .options(selectinload(Chair.secondary_families))
+        )
         product = result.scalar_one_or_none()
 
         if not product:
@@ -203,24 +204,23 @@ class AdminService:
             "image_records",
             "category",
             "subcategory",
-            "family",  # These are relationships, not direct fields
+            "family",
+            "secondary_families",
         }
 
-        # Handle variations separately (before other fields)
+        if "secondary_family_ids" in update_data:
+            secondary_family_ids = update_data.pop("secondary_family_ids") or []
+            fam_result = await db.execute(
+                select(ProductFamily).where(ProductFamily.id.in_(secondary_family_ids))
+            )
+            product.secondary_families = list(fam_result.scalars().all())
+
         if "variations" in update_data:
             variations_data = update_data.pop("variations")
             await AdminService._update_product_variations(
                 db=db, product_id=product_id, variations_data=variations_data
             )
 
-        # Handle related products separately
-        if "related_product_ids" in update_data:
-            related_product_ids = update_data.pop("related_product_ids")
-            await AdminService._update_product_relations(
-                db=db, product_id=product_id, related_product_ids=related_product_ids
-            )
-
-        # Update fields (excluding read-only)
         for key, value in update_data.items():
             if key not in read_only_fields and hasattr(product, key):
                 setattr(product, key, value)
@@ -399,63 +399,6 @@ class AdminService:
             logger.debug(
                 f"Created variation with SKU {var_data['sku']} for product {product_id}"
             )
-
-    @staticmethod
-    async def _update_product_relations(
-        db: AsyncSession, product_id: int, related_product_ids: List[int]
-    ) -> None:
-        """
-        Update product relations (add/remove related products)
-
-        Args:
-            db: Database session
-            product_id: Product ID
-            related_product_ids: List of related product IDs
-        """
-        from backend.models.chair import Chair, ProductRelation
-
-        # Validate that related products existing
-        if related_product_ids:
-            stmt = select(Chair.id).where(Chair.id.in_(related_product_ids))
-            result = await db.execute(stmt)
-            valid_ids = result.scalars().all()
-
-            if len(valid_ids) != len(set(related_product_ids)):
-                # Some IDs are invalid
-                missing_ids = set(related_product_ids) - set(valid_ids)
-                logger.warning(f"Invalid related product IDs ignored: {missing_ids}")
-
-        # Delete existing relations
-        # We delete all and recreate to ensure order and avoid complex diffing
-        stmt = select(ProductRelation).where(
-            ProductRelation.product_id == product_id,
-            ProductRelation.relation_type == "related",
-        )
-        result = await db.execute(stmt)
-        existing_relations = result.scalars().all()
-
-        for rel in existing_relations:
-            await db.delete(rel)
-
-        await db.flush()
-
-        # Create new relations
-        for idx, related_id in enumerate(related_product_ids or []):
-            # Don't relate to self
-            if related_id == product_id:
-                continue
-
-            new_relation = ProductRelation(
-                product_id=product_id,
-                related_product_id=related_id,
-                relation_type="related",
-                display_order=idx,
-            )
-            db.add(new_relation)
-
-        logger.debug(
-            f"Updated relations for product {product_id}: {len(related_product_ids or [])} related products"
-        )
 
     @staticmethod
     async def delete_product(db: AsyncSession, product_id: int) -> bool:
@@ -719,12 +662,13 @@ class AdminService:
             )
             quote_for_email = result.scalar_one_or_none()
 
-            if quote_for_email and quote_for_email.company:
+            if quote_for_email and quote_for_email.contact_email:
+                to_email = quote_for_email.company.rep_email if quote_for_email.company else quote_for_email.contact_email
+                company_name = quote_for_email.company.company_name if quote_for_email.company else (quote_for_email.contact_name or "Guest")
                 quote_url = (
                     f"{settings.FRONTEND_URL}/quotes/{quote_for_email.quote_number}"
                 )
 
-                # Prepare items for email
                 items_data = []
                 if quote_for_email.items:
                     for item in quote_for_email.items:
@@ -738,12 +682,11 @@ class AdminService:
                             }
                         )
 
-                # Send detailed quote email if we have items, otherwise send simple update
                 if items_data:
                     await EmailService.send_quote_detailed_email(
                         db=db,
-                        to_email=quote_for_email.company.rep_email,
-                        company_name=quote_for_email.company.company_name,
+                        to_email=to_email,
+                        company_name=company_name,
                         quote_number=quote_for_email.quote_number,
                         status=status.value,
                         items=items_data,
@@ -760,8 +703,8 @@ class AdminService:
                 else:
                     await EmailService.send_quote_updated_email(
                         db=db,
-                        to_email=quote_for_email.company.rep_email,
-                        company_name=quote_for_email.company.company_name,
+                        to_email=to_email,
+                        company_name=company_name,
                         quote_number=quote_for_email.quote_number,
                         status=status.value,
                         admin_notes=admin_notes,
@@ -769,9 +712,7 @@ class AdminService:
                         quoted_lead_time=quote_for_email.quoted_lead_time,
                         quote_url=quote_url,
                     )
-                logger.info(
-                    f"Quote update email sent to {quote_for_email.company.rep_email}"
-                )
+                logger.info(f"Quote update email sent to {to_email}")
         except Exception as e:
             logger.error(f"Failed to send quote update email: {e}", exc_info=True)
             # Don't fail the update if email fails

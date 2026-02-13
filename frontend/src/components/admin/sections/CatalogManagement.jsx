@@ -4,11 +4,15 @@ import Button from '../../ui/Button';
 import apiClient from '../../../config/apiClient';
 import { Edit, Trash2, FileText, X, Plus } from 'lucide-react';
 import CatalogEditor from './CatalogEditor';
+import { useToast } from '../../../contexts/ToastContext';
+import { useAdminRefresh } from '../../../contexts/AdminRefreshContext';
 
 /**
  * Catalog Management - Table Layout
  */
 const CatalogManagement = () => {
+  const toast = useToast();
+  const { refreshKeys } = useAdminRefresh();
   const [catalogs, setCatalogs] = useState([]);
   const [loading, setLoading] = useState(true);
   const [editingCatalog, setEditingCatalog] = useState(null);
@@ -32,7 +36,7 @@ const CatalogManagement = () => {
 
   useEffect(() => {
     fetchCatalogs();
-  }, [fetchCatalogs]);
+  }, [fetchCatalogs, refreshKeys.catalogs]);
 
   const handleCreate = () => {
     setEditingCatalog('new');
@@ -48,6 +52,7 @@ const CatalogManagement = () => {
 
   const handleSave = () => {
     setEditingCatalog(null);
+    toast.success(editingCatalog === 'new' ? 'Catalog created' : 'Catalog updated');
     fetchCatalogs();
   };
 
@@ -56,10 +61,11 @@ const CatalogManagement = () => {
     
     try {
       await apiClient.delete(`/api/v1/admin/catalog/catalogs/${catalogId}`);
-      fetchCatalogs();
+      toast.success('Catalog deleted');
+      await fetchCatalogs();
     } catch (error) {
       console.error('Failed to delete catalog:', error);
-      alert(error.response?.data?.detail || 'Failed to delete catalog');
+      toast.error(error.response?.data?.detail || 'Failed to delete catalog');
     }
   };
 

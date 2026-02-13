@@ -8,6 +8,7 @@ import logging
 import mimetypes
 import time
 from pathlib import Path
+from urllib.parse import urlparse
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
 from pydantic import BaseModel
@@ -66,7 +67,7 @@ ALLOWED_DOCUMENT_MIMES = {
     "application/zip"
 }
 
-MAX_FILE_SIZE = 10 * 1024 * 1024  # 10MB
+MAX_FILE_SIZE = 50 * 1024 * 1024  # 50MB
 MAX_PDF_SIZE = 1 * 1024 * 1024 * 1024  # 1GB for PDFs
 
 
@@ -113,45 +114,42 @@ def sanitize_subfolder(subfolder: str) -> str:
     return subfolder or "default"
 
 
-def validate_mime_type(content: bytes, expected_mimes: set, filename: str) -> bool:
-    """
-    Validate file content MIME type matches expected types.
-    
-    Args:
-        content: File content bytes
-        expected_mimes: Set of allowed MIME types
-        filename: Filename for fallback MIME detection
-        
-    Returns:
-        True if MIME type is valid
-    """
-    # Detect MIME type from content (first bytes magic numbers)
-    detected_mime = None
-    
-    # Check magic numbers (file signatures)
+MIME_TO_IMAGE_EXT = {
+    "image/png": ".png",
+    "image/jpeg": ".jpg",
+    "image/jpg": ".jpg",
+    "image/gif": ".gif",
+    "image/webp": ".webp",
+    "image/svg+xml": ".svg",
+}
+
+
+def detect_mime_from_content(content: bytes, filename: str) -> str | None:
     if content.startswith(b'\x89PNG\r\n\x1a\n'):
-        detected_mime = "image/png"
-    elif content.startswith(b'\xff\xd8\xff'):
-        detected_mime = "image/jpeg"
-    elif content.startswith(b'GIF87a') or content.startswith(b'GIF89a'):
-        detected_mime = "image/gif"
-    elif content.startswith(b'RIFF') and b'WEBP' in content[:12]:
-        detected_mime = "image/webp"
-    elif content.startswith(b'%PDF'):
-        detected_mime = "application/pdf"
-    elif content.startswith(b'PK\x03\x04'):  # ZIP files (also DOCX)
-        # Could be ZIP or DOCX, check extension
-        if filename.lower().endswith('.docx'):
-            detected_mime = "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
-        else:
-            detected_mime = "application/zip"
-    elif content.startswith(b'\xd0\xcf\x11\xe0\xa1\xb1\x1a\xe1'):  # OLE (DOC)
-        detected_mime = "application/msword"
-    
-    # Fallback to mimetypes if magic number detection fails
-    if not detected_mime:
-        detected_mime, _ = mimetypes.guess_type(filename)
-    
+        return "image/png"
+    if content.startswith(b'\xff\xd8\xff'):
+        return "image/jpeg"
+    if content.startswith(b'GIF87a') or content.startswith(b'GIF89a'):
+        return "image/gif"
+    if content.startswith(b'RIFF') and b'WEBP' in content[:12]:
+        return "image/webp"
+    if content.startswith(b'%PDF'):
+        return "application/pdf"
+    if content.startswith(b'PK\x03\x04'):
+        return "application/vnd.openxmlformats-officedocument.wordprocessingml.document" if filename.lower().endswith('.docx') else "application/zip"
+    if content.startswith(b'\xd0\xcf\x11\xe0\xa1\xb1\x1a\xe1'):
+        return "application/msword"
+    content_start = content.lstrip()
+    if content_start.startswith(b'\xef\xbb\xbf'):
+        content_start = content_start[3:]
+    if content_start.startswith(b'<?xml') or content_start.startswith(b'<svg') or content_start.startswith(b'<!DOCTYPE'):
+        return "image/svg+xml"
+    detected, _ = mimetypes.guess_type(filename)
+    return detected
+
+
+def validate_mime_type(content: bytes, expected_mimes: set, filename: str) -> bool:
+    detected_mime = detect_mime_from_content(content, filename)
     return detected_mime in expected_mimes if detected_mime else False
 
 
@@ -180,43 +178,38 @@ async def upload_image(
     - **filename**: Optional custom filename (will be sanitized)
     """
     try:
-        # Validate filename exists
-        if not file.filename:
-            raise HTTPException(status_code=400, detail="Filename is required")
-        
-        # Sanitize filename to prevent path traversal
-        sanitized_filename = sanitize_filename(file.filename)
-        if not sanitized_filename:
-            raise HTTPException(status_code=400, detail="Invalid filename")
-        
-        # Sanitize subfolder to prevent path traversal
-        subfolder = sanitize_subfolder(subfolder)
-        
-        # Validate file extension
-        file_ext = Path(sanitized_filename).suffix.lower()
-        if file_ext not in ALLOWED_IMAGE_EXTENSIONS:
-            raise HTTPException(
-                status_code=400,
-                detail=f"Invalid file type. Allowed: {', '.join(ALLOWED_IMAGE_EXTENSIONS)}"
-            )
-        
-        # Read file content
         content = await file.read()
-        
-        # Validate file size
+        if len(content) < 1:
+            raise HTTPException(status_code=400, detail="File is empty")
         if len(content) > MAX_FILE_SIZE:
             raise HTTPException(
                 status_code=400,
                 detail=f"File too large. Maximum size: {MAX_FILE_SIZE / 1024 / 1024}MB"
             )
-        
-        # Validate MIME type matches extension (prevent file type spoofing)
-        if not validate_mime_type(content, ALLOWED_IMAGE_MIMES, sanitized_filename):
-            raise HTTPException(
-                status_code=400,
-                detail="File content does not match declared file type"
-            )
-        
+
+        detected_mime = detect_mime_from_content(content, file.filename or "")
+        if not detected_mime or detected_mime not in ALLOWED_IMAGE_MIMES:
+            if file.content_type and file.content_type.lower() in {m.lower() for m in ALLOWED_IMAGE_MIMES}:
+                detected_mime = file.content_type.split(";")[0].strip().lower()
+                if detected_mime == "image/jpg":
+                    detected_mime = "image/jpeg"
+            else:
+                logger.warning(f"Image upload rejected: len={len(content)}, content_type={file.content_type}, filename={file.filename}, first_bytes={content[:16].hex() if len(content) >= 16 else content.hex()}")
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"Invalid file type. Allowed: {', '.join(ALLOWED_IMAGE_EXTENSIONS)}"
+                )
+
+        file_ext = MIME_TO_IMAGE_EXT.get(detected_mime)
+        if not file_ext:
+            file_ext = Path(sanitize_filename(file.filename or "image")).suffix.lower()
+        if file_ext not in ALLOWED_IMAGE_EXTENSIONS:
+            file_ext = ".png"
+
+        subfolder = sanitize_subfolder(subfolder)
+        base_name = Path(sanitize_filename(file.filename or "image")).stem
+        base_name = "".join(c for c in base_name if c.isalnum() or c in "-_") or "image"
+
         # Create upload directory
         upload_dir = UPLOAD_BASE_DIR / "images" / subfolder
         upload_dir.mkdir(parents=True, exist_ok=True)
@@ -227,13 +220,7 @@ async def upload_image(
         if not str(upload_dir_resolved).startswith(str(base_resolved)):
             raise HTTPException(status_code=400, detail="Invalid upload path")
         
-        # Generate unique filename with timestamp
         timestamp = int(time.time())
-        base_name = Path(sanitized_filename).stem
-        # Additional sanitization for base name
-        base_name = "".join(c for c in base_name if c.isalnum() or c in "-_")
-        if not base_name:
-            base_name = "image"
         filename = f"{base_name}_{timestamp}{file_ext}"
         
         # Full file path
@@ -278,21 +265,19 @@ async def delete_image(
     **Admin only** - Requires admin authentication.
     """
     try:
-        # Extract path from URL (e.g., "/uploads/images/products/image.jpg")
-        url_path = request.url
-        if url_path.startswith('/'):
-            url_path = url_path[1:]  # Remove leading slash
-        
-        # Security check - ensure path is within uploads directory
-        if not url_path.startswith('uploads/'):
+        raw = request.url.strip()
+        if raw.startswith(("http://", "https://")):
+            try:
+                parsed = urlparse(raw)
+                url_path = (parsed.path or "").lstrip("/")
+            except Exception:
+                url_path = raw
+        else:
+            url_path = raw.lstrip("/")
+        if not url_path.startswith("uploads/"):
             raise HTTPException(status_code=400, detail="Invalid file path")
-        
-        # Construct full file path using UPLOAD_BASE_DIR
-        # Remove "uploads/" prefix and use the rest as relative path
-        relative_path = url_path.replace('uploads/', '', 1)  # Remove first occurrence
+        relative_path = url_path.replace("uploads/", "", 1)
         file_path = UPLOAD_BASE_DIR / relative_path
-        
-        # Additional security check - ensure resolved path is still within UPLOAD_BASE_DIR
         try:
             file_path = file_path.resolve()
             base_resolved = UPLOAD_BASE_DIR.resolve()
@@ -300,16 +285,9 @@ async def delete_image(
                 raise HTTPException(status_code=400, detail="Invalid file path - outside upload directory")
         except (ValueError, OSError):
             raise HTTPException(status_code=400, detail="Invalid file path")
-        
-        # Check if file exists
-        if not file_path.exists():
-            raise HTTPException(status_code=404, detail="File not found")
-        
-        # Delete file
-        file_path.unlink()
-        
-        logger.info(f"Image deleted: {url_path} by admin {current_admin.id}")
-        
+        if file_path.exists():
+            file_path.unlink()
+            logger.info(f"Image deleted: {url_path} by admin {current_admin.id}")
         return {
             "success": True,
             "message": "Image deleted successfully"

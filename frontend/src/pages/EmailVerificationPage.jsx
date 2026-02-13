@@ -229,18 +229,11 @@ const EmailVerificationPage = () => {
             </Button>
           </form>
 
-          <div className="mt-6 pt-6 border-t border-dark-700 text-center space-y-4">
+          <div className="mt-6 pt-6 border-t border-dark-700 text-center">
             <div className="text-sm text-dark-300">
               <p className="mb-2">Already verified?</p>
               <Link to="/login" className="text-primary-500 hover:text-primary-400 font-medium">
                 Go to Login
-              </Link>
-            </div>
-            
-            <div className="text-sm text-dark-300">
-              <p className="mb-2">Don't have an account?</p>
-              <Link to="/register" className="text-primary-500 hover:text-primary-400 font-medium">
-                Create Account
               </Link>
             </div>
           </div>

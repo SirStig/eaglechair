@@ -189,66 +189,58 @@ export const getProductImage = (product, index = 0) => {
 };
 
 /**
- * Get all product images as array of URLs
+ * Get all product images as array of URLs (primary, hover, gallery; excludes thumbnail)
  * @param {object} product - Product object from API
  * @returns {string[]} Array of image URLs
  */
 export const getProductImages = (product) => {
-  if (product.images && Array.isArray(product.images)) {
-    return product.images.map(img => resolveImageUrl(img));
-  }
-
-  // Fallback to single primary_image_url (cart/quote enriched data)
-  if (product.primary_image_url) {
-    return [resolveImageUrl(product.primary_image_url)];
-  }
-
-  // Fallback to thumbnail
-  if (product.thumbnail) {
-    return [resolveImageUrl(product.thumbnail)];
-  }
-
-  // Fallback to image_url
-  if (product.image_url) {
-    return [resolveImageUrl(product.image_url)];
-  }
-
-  // Fallback to single primary_image (legacy)
-  if (product.primary_image) {
-    return [resolveImageUrl(product.primary_image)];
-  }
-
-  // Legacy support
-  if (product.image) {
-    return [resolveImageUrl(product.image)];
-  }
-
+  const primary = product.primary_image_url || product.primary_image || product.image_url || product.image;
+  const primaryUrl = primary ? resolveImageUrl(primary) : null;
+  const hoverList = Array.isArray(product.hover_images) ? product.hover_images.map(img => resolveImageUrl(img)) : [];
+  const galleryList = Array.isArray(product.images) ? product.images.map(img => resolveImageUrl(img)) : [];
+  const combined = [primaryUrl, ...hoverList, ...galleryList].filter(Boolean);
+  const seen = new Set();
+  const deduped = combined.filter(url => {
+    if (seen.has(url)) return false;
+    seen.add(url);
+    return true;
+  });
+  if (deduped.length > 0) return deduped;
+  if (product.thumbnail) return [resolveImageUrl(product.thumbnail)];
   return ['/placeholder.png'];
 };
 
 /**
- * Get product hover images for carousel
- * Strictly returns only images with type='hover'
+ * Get product hover images for carousel (primary + hover_images array from API)
  * @param {object} product - Product object from API
- * @returns {string[]} Array of hover image URLs (including primary as first if needed, or just hover images)
+ * @returns {string[]} Array of hover image URLs (primary first, then hover_images)
  */
 export const getProductHoverImages = (product) => {
   const primaryImage = getProductImage(product, 0);
-
-  let hoverImages = [];
-
+  if (product.hover_images && Array.isArray(product.hover_images) && product.hover_images.length > 0) {
+    const hoverUrls = product.hover_images.map(img => resolveImageUrl(img));
+    const unique = new Set([primaryImage, ...hoverUrls]);
+    return Array.from(unique);
+  }
   if (product.images && Array.isArray(product.images)) {
-    hoverImages = product.images
+    const typeHover = product.images
       .filter(img => img && (img.type === 'hover' || (typeof img === 'object' && img.type === 'hover')))
       .map(img => resolveImageUrl(img));
+    if (typeHover.length > 0) {
+      return [primaryImage, ...typeHover];
+    }
   }
-
-  if (hoverImages.length > 0) {
-    const uniqueImages = new Set([primaryImage, ...hoverImages]);
-    return Array.from(uniqueImages);
-  }
-
   return [primaryImage];
+};
+
+/**
+ * Get only gallery images (product.images), excluding primary, hover, and thumbnail.
+ * @param {object} product - Product object from API
+ * @returns {string[]} Array of gallery image URLs
+ */
+export const getProductGalleryImages = (product) => {
+  if (!product?.images || !Array.isArray(product.images)) return [];
+  return product.images.map(img => resolveImageUrl(img));
 };
 
 // ============================================================================
@@ -516,6 +508,7 @@ export default {
   getProductImage,
   getProductImages,
   getProductHoverImages,
+  getProductGalleryImages,
 
   // Dates
   formatDate,

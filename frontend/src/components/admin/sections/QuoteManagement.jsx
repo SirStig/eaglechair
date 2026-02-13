@@ -3,6 +3,7 @@ import Card from '../../ui/Card';
 import Button from '../../ui/Button';
 import apiClient from '../../../config/apiClient';
 import AdminQuoteDetailView from './AdminQuoteDetailView';
+import { useAdminRefresh } from '../../../contexts/AdminRefreshContext';
 import { 
   FileText, 
   Search, 
@@ -16,6 +17,7 @@ import {
 } from 'lucide-react';
 
 const QuoteManagement = () => {
+  const { refreshKeys } = useAdminRefresh();
   const [quotes, setQuotes] = useState([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
@@ -30,8 +32,7 @@ const QuoteManagement = () => {
 
   useEffect(() => {
     fetchQuotes();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [pagination.page, statusFilter]);
+  }, [pagination.page, statusFilter, refreshKeys.quotes]);
 
   const fetchQuotes = useCallback(async () => {
     try {

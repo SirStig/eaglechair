@@ -131,7 +131,7 @@ class QuoteResponse(QuoteBase, TimestampSchema):
     """Schema for quote response"""
     id: int
     quote_number: str
-    company_id: int
+    company_id: Optional[int] = None
     status: QuoteStatusEnum
     subtotal: int
     tax_amount: int
@@ -172,6 +172,32 @@ class QuoteItemCreate(QuoteItemBase):
     pass
 
 
+class QuoteShippingDestinationResponse(BaseModel):
+    id: int
+    quote_id: int
+    label: Optional[str]
+    line1: str
+    line2: Optional[str]
+    city: str
+    state: str
+    zip: str
+    country: str
+    sort_order: Optional[int]
+
+    class Config:
+        from_attributes = True
+
+
+class QuoteItemAllocationResponse(BaseModel):
+    id: int
+    quote_item_id: int
+    quote_shipping_destination_id: int
+    quantity: int
+
+    class Config:
+        from_attributes = True
+
+
 class QuoteItemResponse(QuoteItemBase):
     """Schema for quote item response"""
     id: int
@@ -181,7 +207,8 @@ class QuoteItemResponse(QuoteItemBase):
     unit_price: int
     customization_cost: int
     line_total: int
-    
+    allocations: list[QuoteItemAllocationResponse] = []
+
     class Config:
         from_attributes = True
 
@@ -211,8 +238,9 @@ class QuoteItemAdminCreate(BaseModel):
 
 
 class QuoteWithItems(QuoteResponse):
-    """Quote response with items"""
+    """Quote response with items, shipping destinations, and item allocations"""
     items: list[QuoteItemResponse] = []
+    shipping_destinations: list[QuoteShippingDestinationResponse] = []
 
 
 # ============================================================================
@@ -420,21 +448,76 @@ class SavedConfigurationResponse(SavedConfigurationBase, TimestampSchema):
 # Convert Cart to Quote
 # ============================================================================
 
+class ShippingDestinationInput(BaseModel):
+    """One shipping destination (address) for a quote request"""
+    label: Optional[str] = Field(None, max_length=100)
+    line1: str = Field(..., max_length=255)
+    line2: Optional[str] = Field(None, max_length=255)
+    city: str = Field(..., max_length=100)
+    state: str = Field(..., max_length=50)
+    zip: str = Field(..., max_length=20)
+    country: str = Field("USA", max_length=100)
+
+
+class AllocationInput(BaseModel):
+    """Quantity of a cart line item allocated to a destination (by index)"""
+    cart_item_index: int = Field(..., ge=0)
+    destination_index: int = Field(..., ge=0)
+    quantity: int = Field(..., gt=0)
+
+
+class GuestQuoteItemInput(BaseModel):
+    """Single item for guest quote request"""
+    product_id: int
+    quantity: int = Field(..., gt=0)
+    selected_finish_id: Optional[int] = None
+    selected_upholstery_id: Optional[int] = None
+    item_notes: Optional[str] = None
+    custom_options: Optional[dict] = None
+
+
+class BillingAddressInput(BaseModel):
+    """Billing address for guest quote"""
+    line1: str = Field(..., max_length=255)
+    line2: Optional[str] = Field(None, max_length=255)
+    city: str = Field(..., max_length=100)
+    state: str = Field(..., max_length=50)
+    zip: str = Field(..., max_length=20)
+    country: str = Field("USA", max_length=100)
+
+
+class GuestQuoteRequest(BaseModel):
+    """Schema for guest quote request (no auth required)"""
+    contact_email: EmailStr
+    contact_name: str = Field(..., max_length=255)
+    contact_phone: str = Field(..., max_length=20)
+    rep_name: Optional[str] = Field(None, max_length=255)
+    billing_address: BillingAddressInput
+    shipping_destinations: list[ShippingDestinationInput] = Field(..., min_length=1)
+    project_name: Optional[str] = Field(None, max_length=255)
+    project_description: Optional[str] = None
+    desired_delivery_date: Optional[str] = Field(None, max_length=50)
+    special_instructions: Optional[str] = None
+    rush_order: bool = False
+    items: list[GuestQuoteItemInput] = Field(..., min_length=1)
+
+
 class ConvertCartToQuoteRequest(BaseModel):
-    """Schema for converting cart to quote - contact info comes from company profile"""
-    # Shipping info is required
-    shipping_address_line1: str = Field(..., max_length=255)
+    """Schema for converting cart to quote. One of: single address fields, shipping_destination_id, or shipping_destinations+allocations."""
+    shipping_address_line1: Optional[str] = Field(None, max_length=255)
     shipping_address_line2: Optional[str] = Field(None, max_length=255)
-    shipping_city: str = Field(..., max_length=100)
-    shipping_state: str = Field(..., max_length=50)
-    shipping_zip: str = Field(..., max_length=20)
-    shipping_country: str = Field("USA", max_length=100)
-    # Optional project info
+    shipping_city: Optional[str] = Field(None, max_length=100)
+    shipping_state: Optional[str] = Field(None, max_length=50)
+    shipping_zip: Optional[str] = Field(None, max_length=20)
+    shipping_country: Optional[str] = Field(None, max_length=100)
+    shipping_destination_id: Optional[int] = None
+    shipping_destinations: Optional[list[ShippingDestinationInput]] = None
+    allocations: Optional[list[AllocationInput]] = None
     project_name: Optional[str] = Field(None, max_length=255)
     project_description: Optional[str] = None
     project_type: Optional[str] = Field(None, max_length=100)
     estimated_quantity: Optional[int] = None
-    target_budget: Optional[int] = None  # In cents
+    target_budget: Optional[int] = None
     desired_delivery_date: Optional[str] = Field(None, max_length=50)
     special_instructions: Optional[str] = None
     requires_com: bool = False

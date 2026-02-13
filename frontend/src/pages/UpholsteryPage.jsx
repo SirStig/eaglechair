@@ -118,23 +118,23 @@ const UpholsteryPage = () => {
               >
                 {/* Swatch Image */}
                 {upholstery.swatchImageUrl ? (
-                  <div className="aspect-square overflow-hidden bg-dark-900">
+                  <div className="aspect-square overflow-hidden rounded-full bg-dark-900">
                     <img
                       src={upholstery.swatchImageUrl}
                       alt={upholstery.name}
-                      className="w-full h-full object-cover"
+                      className="w-full h-full object-cover scale-125"
                     />
                   </div>
                 ) : upholstery.imageUrl ? (
-                  <div className="aspect-square overflow-hidden bg-dark-900">
+                  <div className="aspect-square overflow-hidden rounded-full bg-dark-900">
                     <img
                       src={upholstery.imageUrl}
                       alt={upholstery.name}
-                      className="w-full h-full object-cover"
+                      className="w-full h-full object-cover scale-125"
                     />
                   </div>
                 ) : (
-                  <div className="aspect-square bg-gradient-to-br from-dark-700 to-dark-900 flex items-center justify-center">
+                  <div className="aspect-square rounded-full bg-gradient-to-br from-dark-700 to-dark-900 flex items-center justify-center">
                     <Scissors className="w-16 h-16 text-dark-500" />
                   </div>
                 )}

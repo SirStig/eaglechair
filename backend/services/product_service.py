@@ -7,9 +7,10 @@ Handles product catalog operations (chairs, categories, finishes, upholstery)
 import logging
 from typing import Any, Dict, List, Optional
 
-from sqlalchemy import and_, func, or_, select
+from sqlalchemy import and_, cast, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
+from sqlalchemy.types import String
 
 from backend.core.exceptions import ResourceNotFoundError, ValidationError
 from backend.models.chair import (
@@ -23,11 +24,31 @@ from backend.models.chair import (
     ProductTag,
     ProductVariation,
     Upholstery,
+    chair_secondary_families,
 )
 from backend.utils.pagination import PaginationParams, paginate
 from backend.utils.slug import slugify
 
 logger = logging.getLogger(__name__)
+
+
+def _is_model_like_query(query: str) -> bool:
+    q = (query or "").strip()
+    if not q or len(q) > 10:
+        return False
+    return all(c.isalnum() or c in ".- " for c in q)
+
+
+def _rank_by_model_match(product: Chair, query: str) -> int:
+    q = (query or "").strip().lower()
+    if not q or not product.model_number:
+        return 0
+    mn = product.model_number.lower()
+    if mn == q:
+        return 2
+    if mn.startswith(q):
+        return 1
+    return 0
 
 
 class ProductService:
@@ -196,7 +217,12 @@ class ProductService:
             query = query.where(Chair.subcategory_id == subcategory_id)
 
         if family_id:
-            query = query.where(Chair.family_id == family_id)
+            subq = select(chair_secondary_families.c.chair_id).where(
+                chair_secondary_families.c.family_id == family_id
+            )
+            query = query.where(
+                or_(Chair.family_id == family_id, Chair.id.in_(subq))
+            )
 
         if is_featured is not None:
             query = query.where(Chair.is_featured == is_featured)
@@ -253,15 +279,16 @@ class ProductService:
         if in_stock_only:
             query = query.where(Chair.stock_quantity > 0)
 
-        # Search query (basic ILIKE, fuzzy search handled separately via cache)
         if search_query:
             search_term = f"%{search_query}%"
+            keyword_match = cast(Chair.keywords, String).ilike(search_term)
             query = query.where(
                 or_(
                     Chair.name.ilike(search_term),
                     Chair.model_number.ilike(search_term),
                     Chair.short_description.ilike(search_term),
                     Chair.full_description.ilike(search_term),
+                    keyword_match,
                 )
             )
 
@@ -317,7 +344,7 @@ class ProductService:
                 selectinload(Chair.category).selectinload(Category.parent),
                 selectinload(Chair.subcategory),
                 selectinload(Chair.family),
-                selectinload(Chair.related_products),
+                selectinload(Chair.secondary_families),
                 selectinload(Chair.variations).selectinload(ProductVariation.finish),
                 selectinload(Chair.variations).selectinload(
                     ProductVariation.upholstery
@@ -363,7 +390,7 @@ class ProductService:
         """
         result = await db.execute(
             select(Chair)
-            .options(selectinload(Chair.category), selectinload(Chair.related_products))
+            .options(selectinload(Chair.category))
             .where(Chair.model_number == model_number)
         )
         product = result.scalar_one_or_none()
@@ -405,7 +432,6 @@ class ProductService:
                 selectinload(Chair.category).selectinload(Category.parent),
                 selectinload(Chair.subcategory),
                 selectinload(Chair.family),
-                selectinload(Chair.related_products),
                 selectinload(Chair.variations).selectinload(ProductVariation.finish),
                 selectinload(Chair.variations).selectinload(
                     ProductVariation.upholstery
@@ -478,7 +504,6 @@ class ProductService:
                 result = await db.execute(query)
                 products = list(result.scalars().all())
 
-                # Sort by fuzzy search score
                 product_score_map = {
                     pid: score
                     for pid, score in zip(
@@ -486,9 +511,18 @@ class ProductService:
                         [r["score"] for r in cache_results[: len(product_ids)]],
                     )
                 }
-                products.sort(
-                    key=lambda p: product_score_map.get(p.id, 0), reverse=True
-                )
+                if _is_model_like_query(search_query):
+                    products.sort(
+                        key=lambda p: (
+                            -_rank_by_model_match(p, search_query),
+                            product_score_map.get(p.id, 0),
+                        ),
+                        reverse=True,
+                    )
+                else:
+                    products.sort(
+                        key=lambda p: product_score_map.get(p.id, 0), reverse=True
+                    )
 
                 logger.info(
                     f"Fuzzy search (cached) for '{search_query}' returned {len(products)} results"
@@ -498,6 +532,7 @@ class ProductService:
         # Fallback to database ILIKE search
         search_term = f"%{search_query}%"
 
+        keyword_match = cast(Chair.keywords, String).ilike(search_term)
         query = (
             select(Chair)
             .options(selectinload(Chair.category))
@@ -509,6 +544,7 @@ class ProductService:
                         Chair.model_number.ilike(search_term),
                         Chair.short_description.ilike(search_term),
                         Chair.full_description.ilike(search_term),
+                        keyword_match,
                     ),
                 )
             )
@@ -518,8 +554,11 @@ class ProductService:
         result = await db.execute(query)
         products = list(result.scalars().all())
 
-        # Lazy cache population: Index products found via database search
-        # This ensures future searches will use the cache
+        if _is_model_like_query(search_query):
+            products.sort(
+                key=lambda p: -_rank_by_model_match(p, search_query),
+            )
+
         for product in products:
             searchable_parts = [
                 product.name or "",
@@ -527,10 +566,11 @@ class ProductService:
                 product.short_description or "",
                 product.full_description or "",
             ]
-
             if product.category:
                 searchable_parts.append(product.category.name or "")
-
+            kw = product.keywords
+            if isinstance(kw, list):
+                searchable_parts.append(" ".join(str(k) for k in kw if k))
             searchable_text = " ".join(filter(None, searchable_parts))
 
             # Index asynchronously (don't await to avoid slowing down the response)
@@ -823,9 +863,11 @@ class ProductService:
         if not product:
             raise ResourceNotFoundError(resource_type="Product", resource_id=product_id)
 
+        hover = product.hover_images or []
         images = {
             "primary_image_url": product.primary_image_url,
-            "hover_image_url": product.hover_image_url,
+            "hover_image_url": hover[0] if len(hover) > 0 else None,
+            "hover_images": hover,
             "gallery": product.images or [],
         }
 
@@ -889,7 +931,12 @@ class ProductService:
             query = query.where(Chair.subcategory_id == subcategory_id)
 
         if family_id:
-            query = query.where(Chair.family_id == family_id)
+            subq = select(chair_secondary_families.c.chair_id).where(
+                chair_secondary_families.c.family_id == family_id
+            )
+            query = query.where(
+                or_(Chair.family_id == family_id, Chair.id.in_(subq))
+            )
 
         if search:
             search_term = f"%{search}%"
@@ -930,18 +977,6 @@ class ProductService:
     async def get_related_products(
         db: AsyncSession, product_id: int, limit: int = 6
     ) -> List[Chair]:
-        """
-        Get related products based on family and category
-
-        Args:
-            db: Database session
-            product_id: Product ID
-            limit: Max number of related products
-
-        Returns:
-            List of related products
-        """
-        # Get source product
         stmt = select(Chair).where(Chair.id == product_id)
         result = await db.execute(stmt)
         product = result.scalar_one_or_none()
@@ -949,28 +984,35 @@ class ProductService:
         if not product:
             raise ResourceNotFoundError(resource_type="Product", resource_id=product_id)
 
-        # Find related products
-        # Priority: Same family > Same subcategory > Same category
-        query = (
-            select(Chair).where(Chair.id != product_id).where(Chair.is_active == True)
+        source_keywords = (
+            [str(k).strip().lower() for k in product.keywords if k]
+            if isinstance(product.keywords, list)
+            else []
         )
+        if not source_keywords:
+            return []
 
-        if product.family_id:
-            # Same family products first
-            query = query.where(Chair.family_id == product.family_id)
-        elif product.subcategory_id:
-            # Same subcategory
-            query = query.where(Chair.subcategory_id == product.subcategory_id)
-        else:
-            # Same category
-            query = query.where(Chair.category_id == product.category_id)
-
-        query = query.order_by(Chair.display_order, Chair.name).limit(limit)
-
+        query = (
+            select(Chair)
+            .options(selectinload(Chair.category))
+            .where(Chair.id != product_id, Chair.is_active == True)
+        )
         result = await db.execute(query)
-        related = result.scalars().all()
+        candidates = list(result.scalars().all())
 
-        return list(related)
+        scored = []
+        for c in candidates:
+            c_keywords = (
+                [str(k).strip().lower() for k in c.keywords if k]
+                if isinstance(c.keywords, list)
+                else []
+            )
+            match_count = len(set(source_keywords) & set(c_keywords))
+            if match_count > 0:
+                scored.append((c, match_count))
+
+        scored.sort(key=lambda x: (-x[1], x[0].display_order or 0, x[0].name or ""))
+        return [c for c, _ in scored[:limit]]
 
     # ========================================================================
     # Family & Subcategory Methods (NEW)
@@ -1158,18 +1200,17 @@ class ProductService:
             indexed_count = 0
 
             for product in products:
-                # Build searchable text from multiple fields
                 searchable_parts = [
                     product.name or "",
                     product.model_number or "",
                     product.short_description or "",
                     product.full_description or "",
                 ]
-
-                # Add category name if available
                 if product.category:
                     searchable_parts.append(product.category.name or "")
-
+                kw = product.keywords
+                if isinstance(kw, list):
+                    searchable_parts.append(" ".join(str(k) for k in kw if k))
                 searchable_text = " ".join(filter(None, searchable_parts))
 
                 # Index for fuzzy search

@@ -5,20 +5,24 @@ import apiClient from '../../../config/apiClient';
 import { resolveImageUrl } from '../../../utils/apiHelpers';
 import { Edit2, Trash2, FolderTree } from 'lucide-react';
 import CategoryEditor from './CategoryEditor';
+import { useToast } from '../../../contexts/ToastContext';
+import { useAdminRefresh } from '../../../contexts/AdminRefreshContext';
 
 /**
  * Category Management Component
  * Table-based category list with separate editor component
  */
 const CategoryManagement = () => {
+  const toast = useToast();
+  const { refreshKeys } = useAdminRefresh();
   const [categories, setCategories] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [editingCategory, setEditingCategory] = useState(null); // null or category object to edit
+  const [editingCategory, setEditingCategory] = useState(null);
   const [expandedCategories, setExpandedCategories] = useState(new Set());
   
   useEffect(() => {
     fetchCategories();
-  }, []);
+  }, [refreshKeys.categories]);
   
   const fetchCategories = async () => {
     try {
@@ -43,29 +47,51 @@ const CategoryManagement = () => {
     setEditingCategory(null);
   };
 
-  const handleSave = () => {
+  const handleSave = (message) => {
     setEditingCategory(null);
+    toast.success(message || (editingCategory?.id ? 'Category updated' : 'Category created'));
     fetchCategories();
   };
   
   const handleDelete = async (categoryId) => {
     if (!confirm('Are you sure you want to delete this category?')) return;
-    
     try {
       await apiClient.delete(`/api/v1/admin/categories/${categoryId}`);
-      fetchCategories();
+      toast.success('Category deleted');
+      await fetchCategories();
     } catch (error) {
       console.error('Failed to delete category:', error);
-      alert(error.response?.data?.detail || 'Failed to delete category');
+      toast.error(error.response?.data?.detail || 'Failed to delete category');
     }
   };
 
-  // Show editor if editing/creating
+  const handleDeleteSubcategory = async (subcategoryId) => {
+    if (!confirm('Are you sure you want to delete this subcategory?')) return;
+    try {
+      await apiClient.delete(`/api/v1/admin/catalog/subcategories/${subcategoryId}`);
+      toast.success('Subcategory deleted');
+      await fetchCategories();
+    } catch (error) {
+      console.error('Failed to delete subcategory:', error);
+      toast.error(error.response?.data?.detail || 'Failed to delete subcategory');
+    }
+  };
+
+  const parentCategoryForSubcategory = editingCategory?.parent_id != null && !editingCategory?.id
+    ? categories.find((c) => c.id === editingCategory.parent_id)
+    : editingCategory?.id && categories.some((c) => c.subcategories?.some((s) => s.id === editingCategory.id))
+      ? categories.find((c) => c.subcategories?.some((s) => s.id === editingCategory.id))
+      : null;
+  const isSubcategory = !!editingCategory?.id && categories.some((c) => c.subcategories?.some((s) => s.id === editingCategory.id));
+
   if (editingCategory !== null) {
     return (
       <CategoryEditor
+        key={`${editingCategory?.id ?? 'new'}-${editingCategory?.parent_id ?? ''}-${isSubcategory}`}
         category={editingCategory.id ? editingCategory : null}
         categories={categories}
+        parentCategory={parentCategoryForSubcategory}
+        isSubcategory={isSubcategory}
         onBack={handleBack}
         onSave={handleSave}
       />
@@ -328,7 +354,7 @@ const CategoryManagement = () => {
                                 <Edit2 className="w-3.5 h-3.5" />
                               </button>
                               <button
-                                onClick={() => handleDelete(subcat.id)}
+                                onClick={() => handleDeleteSubcategory(subcat.id)}
                                 className="p-1.5 text-red-400 hover:bg-red-900/20 rounded-lg transition-colors"
                                 title="Delete subcategory"
                               >

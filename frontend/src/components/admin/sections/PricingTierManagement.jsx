@@ -5,6 +5,8 @@ import Badge from '../../ui/Badge';
 import apiClient from '../../../config/apiClient';
 import { Edit2, Trash2, DollarSign, Plus, Users } from 'lucide-react';
 import PricingTierEditor from './PricingTierEditor';
+import { useToast } from '../../../contexts/ToastContext';
+import { useAdminRefresh } from '../../../contexts/AdminRefreshContext';
 
 /**
  * Pricing Tier Management Component
@@ -12,6 +14,8 @@ import PricingTierEditor from './PricingTierEditor';
  * Manages reusable pricing tiers that can be assigned to companies
  */
 const PricingTierManagement = () => {
+  const toast = useToast();
+  const { refreshKeys } = useAdminRefresh();
   const [tiers, setTiers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [editingTier, setEditingTier] = useState(null);
@@ -19,8 +23,7 @@ const PricingTierManagement = () => {
 
   useEffect(() => {
     fetchTiers();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [includeInactive]);
+  }, [includeInactive, refreshKeys['pricing-tiers']]);
 
   const fetchTiers = async () => {
     try {
@@ -51,6 +54,7 @@ const PricingTierManagement = () => {
 
   const handleSave = () => {
     setEditingTier(null);
+    toast.success(editingTier?.id ? 'Pricing tier updated' : 'Pricing tier created');
     fetchTiers();
   };
 
@@ -61,11 +65,11 @@ const PricingTierManagement = () => {
     
     try {
       await apiClient.delete(`/api/v1/admin/pricing-tiers/${tierId}`);
-      alert('Pricing tier deleted successfully');
-      fetchTiers();
+      toast.success('Pricing tier deleted');
+      await fetchTiers();
     } catch (error) {
       console.error('Failed to delete pricing tier:', error);
-      alert(error.response?.data?.detail || 'Failed to delete pricing tier');
+      toast.error(error.response?.data?.detail || 'Failed to delete pricing tier');
     }
   };
 

@@ -56,6 +56,7 @@ class RouteConfig:
         "/api/v1/auth/resend-verification",
         "/api/v1/auth/password/reset-request",
         "/api/v1/auth/password/reset",
+        "/api/v1/quotes/request-guest",
         
         # Note: /api/v1/auth/me is intentionally NOT public - it requires authentication
         # It's used to check if user is authenticated, 401 is expected response when not logged in
@@ -79,6 +80,8 @@ class RouteConfig:
         "/api/v1/content/about",
         "/api/v1/content/contact/locations",
         "/api/v1/content/catalogs",
+        "/api/v1/content/laminates",
+        "/api/v1/content/hardware",
         "/api/v1/content/installations",  # Installation guides from content.py
         "/api/v1/content/feedback",
         

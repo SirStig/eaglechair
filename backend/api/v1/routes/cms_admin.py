@@ -39,6 +39,7 @@ from backend.api.v1.schemas.content import (
     TeamMemberCreate,
     TeamMemberUpdate,
 )
+from backend.core.exceptions import ResourceNotFoundError
 from backend.database.base import get_db
 from backend.models.company import Company
 from backend.models.legal import LegalDocumentType
@@ -624,11 +625,11 @@ async def delete_installation(
     
     try:
         await CMSAdminService.delete_installation(db, installation_id)
-        
         return MessageResponse(
             message="Installation entry deleted and exported successfully"
         )
-        
+    except ResourceNotFoundError:
+        raise
     except Exception as e:
         logger.error(f"Failed to delete installation: {e}", exc_info=True)
         raise HTTPException(

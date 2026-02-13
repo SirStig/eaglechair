@@ -26,14 +26,12 @@ const FindARepPage = lazy(() => import('./pages/FindARepPage'));
 const CartPage = lazy(() => import('./pages/CartPage'));
 const QuoteRequestPage = lazy(() => import('./pages/QuoteRequestPage'));
 const LoginPage = lazy(() => import('./pages/LoginPage'));
-const RegisterPage = lazy(() => import('./pages/RegisterPage'));
 const EmailVerificationPage = lazy(() => import('./pages/EmailVerificationPage'));
 const ForgotPasswordPage = lazy(() => import('./pages/ForgotPasswordPage'));
 const ResetPasswordPage = lazy(() => import('./pages/ResetPasswordPage'));
 const TermsOfServicePage = lazy(() => import('./pages/TermsOfServicePage'));
 const PrivacyPolicyPage = lazy(() => import('./pages/PrivacyPolicyPage'));
 const GeneralInformationPage = lazy(() => import('./pages/GeneralInformationPage'));
-const DashboardPage = lazy(() => import('./pages/DashboardPage'));
 const NewAdminDashboard = lazy(() => import('./pages/admin/NewAdminDashboard'));
 
 // Resource Pages
@@ -58,21 +56,16 @@ const queryClient = new QueryClient({
   },
 });
 
-// Cart Sync Component - ensures cart store syncs with auth store on app load
 function CartSync() {
   const authIsAuthenticated = useAuthStore((state) => state.isAuthenticated);
-  const cartStore = useCartStore();
+  const cartIsAuthenticated = useCartStore((state) => state.isAuthenticated);
+  const switchToGuestMode = useCartStore((state) => state.switchToGuestMode);
 
   useEffect(() => {
-    // Sync cart store with auth store on mount
-    if (authIsAuthenticated && !cartStore.isAuthenticated) {
-      console.log('App: User is authenticated, syncing cart store');
-      cartStore.switchToAuthMode();
-    } else if (!authIsAuthenticated && cartStore.isAuthenticated) {
-      console.log('App: User is not authenticated, switching cart to guest mode');
-      cartStore.switchToGuestMode();
+    if (!authIsAuthenticated && cartIsAuthenticated) {
+      switchToGuestMode();
     }
-  }, [authIsAuthenticated, cartStore]);
+  }, [authIsAuthenticated, cartIsAuthenticated, switchToGuestMode]);
 
   return null;
 }
@@ -92,7 +85,6 @@ function App() {
                   <Routes>
           {/* Public Routes */}
           <Route path="/login" element={<LoginPage />} />
-          <Route path="/register" element={<RegisterPage />} />
           <Route path="/verify-email" element={<EmailVerificationPage />} />
           <Route path="/forgot-password" element={<ForgotPasswordPage />} />
           <Route path="/reset-password" element={<ResetPasswordPage />} />
@@ -149,48 +141,6 @@ function App() {
           {/* Shopping & Quotes */}
             <Route path="/cart" element={<CartPage />} />
             <Route path="/quote-request" element={<QuoteRequestPage />} />
-
-            {/* Protected User Routes */}
-            <Route
-              path="/dashboard"
-              element={
-                <ProtectedRoute>
-                  <DashboardPage />
-                </ProtectedRoute>
-              }
-            />
-            <Route
-              path="/dashboard/quotes"
-              element={
-                <ProtectedRoute>
-                  <DashboardPage />
-                </ProtectedRoute>
-              }
-            />
-            <Route
-              path="/dashboard/account"
-              element={
-                <ProtectedRoute>
-                  <DashboardPage />
-                </ProtectedRoute>
-              }
-            />
-            <Route
-              path="/quotes"
-              element={
-                <ProtectedRoute>
-                  <DashboardPage />
-                </ProtectedRoute>
-              }
-            />
-            <Route
-              path="/quotes/:id"
-              element={
-                <ProtectedRoute>
-                  <DashboardPage />
-                </ProtectedRoute>
-              }
-            />
 
             {/* 404 */}
             <Route path="*" element={<NotFound />} />

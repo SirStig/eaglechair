@@ -22,7 +22,7 @@ from backend.core.exceptions import (
 from backend.core.logging_config import security_logger
 from backend.core.security import security_manager
 from backend.core.config import settings
-from backend.models.company import AdminUser, Company
+from backend.models.company import AdminUser, Company, CompanyShippingAddress
 from backend.services.email_service import EmailService
 
 logger = logging.getLogger(__name__)
@@ -71,22 +71,34 @@ class AuthService:
         # Hash password
         hashed_password = security_manager.hash_password(password)
         
-        # Remove rep_email from company_data if it exists to avoid duplicate keyword argument
-        company_data_clean = {k: v for k, v in company_data.items() if k != 'rep_email'}
-        
-        # Generate email verification token
-        verification_token = security_manager.create_password_reset_token(email)  # Reuse this method for verification
-        
-        # Create company (not verified initially)
+        shipping_fields = {
+            'shipping_address_line1', 'shipping_address_line2', 'shipping_city',
+            'shipping_state', 'shipping_zip', 'shipping_country'
+        }
+        company_data_clean = {k: v for k, v in company_data.items() if k != 'rep_email' and k not in shipping_fields}
+        shipping_data = {k: company_data.get(k) for k in shipping_fields}
+
+        verification_token = security_manager.create_password_reset_token(email)
         new_company = Company(
             rep_email=email,
             hashed_password=hashed_password,
             email_verification_token=verification_token,
-            is_verified=False,  # Must verify email before account is activated
+            is_verified=False,
             **company_data_clean
         )
-        
         db.add(new_company)
+        await db.flush()
+        if shipping_data.get('shipping_address_line1') or shipping_data.get('shipping_city'):
+            addr = CompanyShippingAddress(
+                company_id=new_company.id,
+                line1=shipping_data.get('shipping_address_line1') or new_company.billing_address_line1,
+                line2=shipping_data.get('shipping_address_line2'),
+                city=shipping_data.get('shipping_city') or new_company.billing_city,
+                state=shipping_data.get('shipping_state') or new_company.billing_state,
+                zip=shipping_data.get('shipping_zip') or new_company.billing_zip,
+                country=shipping_data.get('shipping_country') or new_company.billing_country or 'USA',
+            )
+            db.add(addr)
         await db.commit()
         await db.refresh(new_company)
         

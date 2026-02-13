@@ -305,11 +305,12 @@ const ProductFamilyDetailPage = () => {
                     )}
 
                     <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 sm:gap-4">
-                      {product.base_price && (
+                      {product.base_price ? (
                         <span className="text-xl sm:text-2xl font-bold text-slate-900">
                           ${(product.base_price / 100).toFixed(2)}
+                          <span className="text-sm font-normal text-slate-500 ml-1">Est. listing</span>
                         </span>
-                      )}
+                      ) : null}
 
                       <div className="flex flex-col sm:flex-row gap-2">
                         <Button

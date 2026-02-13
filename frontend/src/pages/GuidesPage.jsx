@@ -143,7 +143,7 @@ const GuidesPage = () => {
               <p className="text-sm text-dark-300 mb-3">
                 Get pricing and availability for your project.
               </p>
-              <Link to="/quote" className="text-primary-400 hover:text-primary-300 text-sm font-medium">
+              <Link to="/quote-request" className="text-primary-400 hover:text-primary-300 text-sm font-medium">
                 Get Quote →
               </Link>
             </div>

@@ -21,7 +21,6 @@ import {
   Award,
   TrendingUp,
   Package,
-  Link
 } from 'lucide-react';
 
 /**
@@ -49,6 +48,7 @@ const ProductEditor = ({ product, onBack }) => {
     category_id: null,
     subcategory_id: null,
     family_id: null,
+    secondary_family_ids: [],
     short_description: '',
     full_description: '',
     base_price: 0,
@@ -78,7 +78,9 @@ const ProductEditor = ({ product, onBack }) => {
     meta_title: '',
     meta_description: '',
     ...product,
-    hover_images: Array.isArray(product?.hover_images) ? product.hover_images : []
+    hover_images: Array.isArray(product?.hover_images) ? product.hover_images : [],
+    keywords: Array.isArray(product?.keywords) ? product.keywords : [],
+    secondary_family_ids: Array.isArray(product?.secondary_family_ids) ? product.secondary_family_ids : [],
   });
   const [saving, setSaving] = useState(false);
 
@@ -100,37 +102,7 @@ const ProductEditor = ({ product, onBack }) => {
   const [flameCerts, setFlameCerts] = useState(product?.flame_certifications || []);
   const [greenCerts, setGreenCerts] = useState(product?.green_certifications || []);
 
-  // Related Products state
-  const [relatedProducts, setRelatedProducts] = useState(product?.related_products || []);
-  const [relatedSearch, setRelatedSearch] = useState('');
-  const [relatedSearchResults, setRelatedSearchResults] = useState([]);
-  const [searchingRelated, setSearchingRelated] = useState(false);
-
-  // Search related products
-  useEffect(() => {
-    const searchProducts = async () => {
-      if (!relatedSearch.trim()) {
-        setRelatedSearchResults([]);
-        return;
-      }
-
-      setSearchingRelated(true);
-      try {
-        const response = await apiClient.get(`/api/v1/products?search=${relatedSearch}&page_size=10`);
-        // Filter out current product and already selected products
-        setRelatedSearchResults(
-          (response.items || []).filter(p => p.id !== product?.id && !relatedProducts.find(rp => rp.id === p.id))
-        );
-      } catch (error) {
-        console.error('Failed to search products:', error);
-      } finally {
-        setSearchingRelated(false);
-      }
-    };
-
-    const timeoutId = setTimeout(searchProducts, 500);
-    return () => clearTimeout(timeoutId);
-  }, [relatedSearch, relatedProducts, product?.id]);
+  const [keywordInput, setKeywordInput] = useState('');
 
   // Image upload helper function
   const uploadImage = async (file, subfolder = 'products') => {
@@ -240,8 +212,10 @@ const ProductEditor = ({ product, onBack }) => {
   const handleSave = async () => {
     setSaving(true);
     try {
+      const hoverImages = (formData.hover_images || []).filter((u) => u && String(u).trim());
       const saveData = {
         ...formData,
+        hover_images: hoverImages,
         images,
         variations,
         available_finishes: selectedFinishes,
@@ -249,7 +223,6 @@ const ProductEditor = ({ product, onBack }) => {
         available_colors: selectedColors,
         flame_certifications: flameCerts,
         green_certifications: greenCerts,
-        related_product_ids: relatedProducts.map(p => p.id),
       };
 
       if (product?._isNew) {
@@ -283,7 +256,6 @@ const ProductEditor = ({ product, onBack }) => {
     { id: 'images', label: 'Images', icon: ImageIcon },
     { id: 'materials', label: 'Materials', icon: Wrench },
     { id: 'features', label: 'Features', icon: Package },
-    { id: 'related', label: 'Related Products', icon: Link },
     { id: 'variations', label: 'Variations', icon: RefreshCw },
     { id: 'certifications', label: 'Certifications', icon: Award },
     { id: 'seo', label: 'SEO & Analytics', icon: TrendingUp },
@@ -399,6 +371,39 @@ const ProductEditor = ({ product, onBack }) => {
                   ))}
                 </select>
               </div>
+
+              <div className="md:col-span-2">
+                <label className="block text-sm font-medium text-dark-200 mb-2">
+                  Also show in these families
+                </label>
+                <p className="text-sm text-dark-400 mb-2">
+                  Product will appear in these family pages in addition to its main family above.
+                </p>
+                <div className="flex flex-wrap gap-3 max-h-40 overflow-y-auto p-3 bg-dark-700 border border-dark-600 rounded-lg">
+                  {families
+                    .filter(f => f.id !== formData.family_id)
+                    .map(family => (
+                      <label key={family.id} className="inline-flex items-center gap-2 cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={(formData.secondary_family_ids || []).includes(family.id)}
+                          onChange={(e) => {
+                            const current = formData.secondary_family_ids || [];
+                            const next = e.target.checked
+                              ? [...current, family.id]
+                              : current.filter(id => id !== family.id);
+                            handleChange('secondary_family_ids', next);
+                          }}
+                          className="rounded border-dark-500 bg-dark-600 text-primary-500 focus:ring-primary-500"
+                        />
+                        <span className="text-sm text-dark-100">{family.name}</span>
+                      </label>
+                    ))}
+                  {families.filter(f => f.id !== formData.family_id).length === 0 && (
+                    <span className="text-sm text-dark-400">No other families available.</span>
+                  )}
+                </div>
+              </div>
             </div>
 
             <div>
@@ -425,6 +430,71 @@ const ProductEditor = ({ product, onBack }) => {
                 className="w-full px-4 py-2 bg-dark-700 border border-dark-600 rounded-lg text-dark-50 focus:border-primary-500 focus:ring-1 focus:ring-primary-500 outline-none"
                 placeholder="Detailed product description"
               />
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-dark-200 mb-2">
+                Keywords / Tags
+              </label>
+              <p className="text-sm text-dark-400 mb-2">
+                Add keywords to improve search and related product matching (e.g. fancy, dance club, outdoor).
+              </p>
+              <div className="flex flex-wrap gap-2 mb-2">
+                {(formData.keywords || []).map((kw, i) => (
+                  <span
+                    key={i}
+                    className="inline-flex items-center gap-1 px-3 py-1 rounded-full bg-dark-600 text-dark-100 text-sm"
+                  >
+                    {kw}
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const next = (formData.keywords || []).filter((_, j) => j !== i);
+                        handleChange('keywords', next);
+                      }}
+                      className="p-0.5 rounded hover:bg-dark-500 text-dark-300 hover:text-dark-50"
+                    >
+                      <X className="w-3.5 h-3.5" />
+                    </button>
+                  </span>
+                ))}
+              </div>
+              <div className="flex gap-2">
+                <input
+                  type="text"
+                  value={keywordInput}
+                  onChange={(e) => setKeywordInput(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      e.preventDefault();
+                      const parts = keywordInput.split(',').map(s => s.trim()).filter(Boolean);
+                      if (parts.length > 0) {
+                        const existing = formData.keywords || [];
+                        const next = [...new Set([...existing, ...parts])];
+                        handleChange('keywords', next);
+                        setKeywordInput('');
+                      }
+                    }
+                  }}
+                  className="flex-1 px-4 py-2 bg-dark-700 border border-dark-600 rounded-lg text-dark-50 focus:border-primary-500 focus:ring-1 focus:ring-primary-500 outline-none"
+                  placeholder="Add keyword (comma-separated) and press Enter"
+                />
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => {
+                    const parts = keywordInput.split(',').map(s => s.trim()).filter(Boolean);
+                    if (parts.length > 0) {
+                      const existing = formData.keywords || [];
+                      const next = [...new Set([...existing, ...parts])];
+                      handleChange('keywords', next);
+                      setKeywordInput('');
+                    }
+                  }}
+                >
+                  Add
+                </Button>
+              </div>
             </div>
           </div>
         );
@@ -690,15 +760,11 @@ const ProductEditor = ({ product, onBack }) => {
                           type="button"
                           onClick={async () => {
                             await deleteImage(formData.hover_images[0]);
-                            const newHoverImages = [...(formData.hover_images || [])];
-                            newHoverImages[0] = null; // Clear first slot but keep array structure or index logic?
-                            // Better: Filter out nulls or just set index 0 to null/empty string if we want strict slots.
-                            // User request: "hover 1 and hover 2". Suggests slots.
-                            // Let's treat it as an array where index matters.
-                            newHoverImages[0] = "";
-                            // Filter out empty strings only if we want to compact, but user wants slots.
-                            // Use updated array.
-                            handleChange('hover_images', newHoverImages);
+                            setFormData(prev => {
+                              const next = [...(prev.hover_images || [])];
+                              next[0] = '';
+                              return { ...prev, hover_images: next };
+                            });
                           }}
                           className="absolute top-2 right-2 p-2 bg-red-500 text-white rounded-lg opacity-0 group-hover:opacity-100 transition-opacity"
                         >
@@ -718,9 +784,11 @@ const ProductEditor = ({ product, onBack }) => {
                               setUploadingImage(true);
                               try {
                                 const url = await uploadImage(file);
-                                const newHoverImages = [...(formData.hover_images || [])];
-                                newHoverImages[0] = url;
-                                handleChange('hover_images', newHoverImages);
+                                setFormData(prev => {
+                                  const next = [...(prev.hover_images || [])];
+                                  next[0] = url;
+                                  return { ...prev, hover_images: next };
+                                });
                               } catch (error) {
                                 console.error('Upload failed:', error);
                                 alert('Failed to upload image');
@@ -754,9 +822,11 @@ const ProductEditor = ({ product, onBack }) => {
                           type="button"
                           onClick={async () => {
                             await deleteImage(formData.hover_images[1]);
-                            const newHoverImages = [...(formData.hover_images || [])];
-                            newHoverImages[1] = ""; // Clear second slot
-                            handleChange('hover_images', newHoverImages);
+                            setFormData(prev => {
+                              const next = [...(prev.hover_images || [])];
+                              next[1] = '';
+                              return { ...prev, hover_images: next };
+                            });
                           }}
                           className="absolute top-2 right-2 p-2 bg-red-500 text-white rounded-lg opacity-0 group-hover:opacity-100 transition-opacity"
                         >
@@ -776,11 +846,12 @@ const ProductEditor = ({ product, onBack }) => {
                               setUploadingImage(true);
                               try {
                                 const url = await uploadImage(file);
-                                const newHoverImages = [...(formData.hover_images || [])];
-                                // Ensure index 0 exists (fill with empty string if undefined)
-                                if (!newHoverImages[0]) newHoverImages[0] = "";
-                                newHoverImages[1] = url;
-                                handleChange('hover_images', newHoverImages);
+                                setFormData(prev => {
+                                  const next = [...(prev.hover_images || [])];
+                                  if (next.length < 2) next.length = 2;
+                                  next[1] = url;
+                                  return { ...prev, hover_images: next };
+                                });
                               } catch (error) {
                                 console.error('Upload failed:', error);
                                 alert('Failed to upload image');
@@ -1046,138 +1117,6 @@ const ProductEditor = ({ product, onBack }) => {
                 ))}
               </div>
             )}
-          </div>
-        );
-
-      case 'related':
-        return (
-          <div className="space-y-6">
-            <div>
-              <h3 className="text-lg font-bold text-dark-50 mb-4">Related Products</h3>
-              <p className="text-sm text-dark-400 mb-6">
-                Select products that are related to this item. These will be displayed in the "Related Products" section on the product page.
-              </p>
-
-              <div className="mb-8">
-                <label className="block text-sm font-medium text-dark-200 mb-2">
-                  Add Related Product
-                </label>
-                <div className="relative">
-                  <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                    <Search className="h-5 w-5 text-dark-400" />
-                  </div>
-                  <input
-                    type="text"
-                    value={relatedSearch}
-                    onChange={(e) => setRelatedSearch(e.target.value)}
-                    className="w-full pl-10 pr-4 py-2 bg-dark-700 border border-dark-600 rounded-lg text-dark-50 focus:border-primary-500 focus:ring-1 focus:ring-primary-500 outline-none"
-                    placeholder="Search products by name or SKU..."
-                  />
-                  {searchingRelated && (
-                    <div className="absolute inset-y-0 right-0 pr-3 flex items-center pointer-events-none">
-                      <div className="animate-spin h-5 w-5 border-2 border-primary-500 border-t-transparent rounded-full"></div>
-                    </div>
-                  )}
-
-                  {/* Search Results Dropdown */}
-                  {relatedSearchResults.length > 0 && (
-                    <div className="absolute z-10 w-full mt-1 bg-dark-800 border border-dark-600 rounded-lg shadow-lg max-h-60 overflow-auto">
-                      {relatedSearchResults.map(result => (
-                        <button
-                          key={result.id}
-                          type="button"
-                          onClick={() => {
-                            setRelatedProducts([...relatedProducts, result]);
-                            setRelatedSearch('');
-                            setRelatedSearchResults([]);
-                          }}
-                          className="w-full text-left px-4 py-3 hover:bg-dark-700 flex items-center gap-3 transition-colors border-b border-dark-700 last:border-0"
-                        >
-                          <img
-                            src={resolveImageUrl(result.thumbnail || result.primary_image_url)}
-                            alt={result.name}
-                            className="w-10 h-10 object-cover rounded bg-dark-600"
-                          />
-                          <div>
-                            <div className="text-dark-50 font-medium">{result.name}</div>
-                            <div className="text-xs text-dark-400">{result.sku}</div>
-                          </div>
-                          <Plus className="w-5 h-5 text-primary-500 ml-auto" />
-                        </button>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              </div>
-
-              {/* Selected Related Products List */}
-              <div className="space-y-4">
-                <h4 className="font-medium text-dark-100">Selected Products ({relatedProducts.length})</h4>
-                {relatedProducts.length === 0 ? (
-                  <div className="text-center py-8 border-2 border-dashed border-dark-700 rounded-lg text-dark-400">
-                    No related products selected
-                  </div>
-                ) : (
-                  <div className="grid grid-cols-1 gap-3">
-                    {relatedProducts.map((p, index) => (
-                      <div key={p.id} className="flex items-center gap-4 p-3 bg-dark-800 rounded-lg border border-dark-700">
-                        <div className="flex-shrink-0 text-dark-400 w-6 text-center font-mono text-sm">
-                          {index + 1}
-                        </div>
-                        <img
-                          src={resolveImageUrl(p.thumbnail || p.primary_image_url)}
-                          alt={p.name}
-                          className="w-12 h-12 object-cover rounded bg-dark-600"
-                        />
-                        <div className="flex-grow">
-                          <div className="text-dark-50 font-medium">{p.name}</div>
-                          <div className="text-xs text-dark-400">{p.sku}</div>
-                        </div>
-                        <div className="flex items-center gap-2">
-                          <button
-                            type="button"
-                            onClick={() => {
-                              // Move up
-                              if (index > 0) {
-                                const newProducts = [...relatedProducts];
-                                [newProducts[index - 1], newProducts[index]] = [newProducts[index], newProducts[index - 1]];
-                                setRelatedProducts(newProducts);
-                              }
-                            }}
-                            disabled={index === 0}
-                            className={`p-1 rounded hover:bg-dark-600 ${index === 0 ? 'text-dark-600 cursor-not-allowed' : 'text-dark-300'}`}
-                          >
-                            ↑
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => {
-                              // Move down
-                              if (index < relatedProducts.length - 1) {
-                                const newProducts = [...relatedProducts];
-                                [newProducts[index + 1], newProducts[index]] = [newProducts[index], newProducts[index + 1]];
-                                setRelatedProducts(newProducts);
-                              }
-                            }}
-                            disabled={index === relatedProducts.length - 1}
-                            className={`p-1 rounded hover:bg-dark-600 ${index === relatedProducts.length - 1 ? 'text-dark-600 cursor-not-allowed' : 'text-dark-300'}`}
-                          >
-                            ↓
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => setRelatedProducts(relatedProducts.filter(rp => rp.id !== p.id))}
-                            className="p-2 text-red-500 hover:bg-dark-700 rounded-lg transition-colors ml-2"
-                          >
-                            <X className="w-5 h-5" />
-                          </button>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-            </div>
           </div>
         );
 
@@ -1691,19 +1630,6 @@ const ProductEditor = ({ product, onBack }) => {
                 rows={3}
                 className="w-full px-4 py-2 bg-dark-700 border border-dark-600 rounded-lg text-dark-50 focus:border-primary-500 focus:ring-1 focus:ring-primary-500 outline-none"
                 placeholder="SEO optimized description"
-              />
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-dark-200 mb-2">
-                Keywords (comma-separated)
-              </label>
-              <input
-                type="text"
-                value={formData.keywords?.join(', ') || ''}
-                onChange={(e) => handleArrayChange('keywords', e.target.value)}
-                className="w-full px-4 py-2 bg-dark-700 border border-dark-600 rounded-lg text-dark-50 focus:border-primary-500 focus:ring-1 focus:ring-primary-500 outline-none"
-                placeholder="chair, dining, restaurant, commercial"
               />
             </div>
 
