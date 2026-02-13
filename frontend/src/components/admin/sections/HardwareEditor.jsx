@@ -117,14 +117,16 @@ const HardwareEditor = ({ hardware, onBack, onSave }) => {
     }
   };
 
+  const isUploading = uploadingImage || uploadingThumbnail;
+
   return (
     <div className="p-6 space-y-6">
       {/* Header */}
       <div className="flex items-center gap-4">
         <button
           onClick={onBack}
-          className="p-2 hover:bg-dark-700 rounded-lg transition-colors"
-          disabled={saving}
+          className="p-2 hover:bg-dark-700 rounded-lg transition-colors disabled:opacity-50 disabled:pointer-events-none"
+          disabled={saving || isUploading}
         >
           <ArrowLeft className="w-5 h-5 text-dark-300" />
         </button>
@@ -305,7 +307,10 @@ const HardwareEditor = ({ hardware, onBack, onSave }) => {
                       />
                       <div className={`flex flex-col items-center justify-center w-48 h-32 border-2 border-dashed border-dark-600 hover:border-primary-500 rounded-lg cursor-pointer transition-all ${uploadingImage ? 'opacity-50' : ''}`}>
                         {uploadingImage ? (
-                          <div className="w-8 h-8 border-2 border-dark-600 border-t-primary-500 rounded-full animate-spin" />
+                          <>
+                            <div className="w-8 h-8 border-2 border-dark-600 border-t-primary-500 rounded-full animate-spin mb-2" />
+                            <span className="text-sm text-primary-400 font-medium">Uploading...</span>
+                          </>
                         ) : (
                           <>
                             <Upload className="w-10 h-10 text-dark-500 mb-2" />
@@ -346,7 +351,10 @@ const HardwareEditor = ({ hardware, onBack, onSave }) => {
                       />
                       <div className={`flex flex-col items-center justify-center w-48 h-32 border-2 border-dashed border-dark-600 hover:border-primary-500 rounded-lg cursor-pointer transition-all ${uploadingThumbnail ? 'opacity-50' : ''}`}>
                         {uploadingThumbnail ? (
-                          <div className="w-8 h-8 border-2 border-dark-600 border-t-primary-500 rounded-full animate-spin" />
+                          <>
+                            <div className="w-8 h-8 border-2 border-dark-600 border-t-primary-500 rounded-full animate-spin mb-2" />
+                            <span className="text-sm text-primary-400 font-medium">Uploading...</span>
+                          </>
                         ) : (
                           <>
                             <Upload className="w-10 h-10 text-dark-500 mb-2" />
@@ -455,17 +463,17 @@ const HardwareEditor = ({ hardware, onBack, onSave }) => {
           <Button
             type="button"
             onClick={onBack}
-            disabled={saving}
+            disabled={saving || isUploading}
             className="bg-dark-600 hover:bg-dark-500 text-dark-200 px-6 py-3"
           >
             Cancel
           </Button>
           <Button
             type="submit"
-            disabled={saving || !formData.name}
+            disabled={saving || isUploading || !formData.name}
             className="bg-primary-600 hover:bg-primary-500 px-6 py-3"
           >
-            {saving ? 'Saving...' : hardware ? 'Update Hardware' : 'Create Hardware'}
+            {isUploading ? 'Uploading...' : saving ? 'Saving...' : hardware ? 'Update Hardware' : 'Create Hardware'}
           </Button>
         </div>
       </form>

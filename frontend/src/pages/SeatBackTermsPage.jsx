@@ -165,51 +165,48 @@ const SeatBackTermsPage = () => {
   ];
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-dark-900 via-dark-800 to-dark-900">
-      {/* Header */}
-      <div className="bg-dark-900/80 border-b border-dark-700 sticky top-[80px] z-40 backdrop-blur-sm">
+    <div className="min-h-screen bg-gradient-to-br from-cream-50 to-cream-100">
+      <div className="bg-cream-50/80 border-b border-cream-200 sticky top-[80px] z-40 backdrop-blur-sm">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
           <div>
-            <Link to="/" className="text-primary-500 hover:text-primary-400 text-sm mb-2 inline-block">
+            <Link to="/" className="text-primary-500 hover:text-primary-600 text-sm mb-2 inline-block">
               ← Back to Home
             </Link>
-            <h1 className="text-3xl md:text-4xl font-bold text-dark-50">Seat & Back Terminology</h1>
-            <p className="text-dark-300 mt-2">Understanding furniture construction and design terms</p>
+            <h1 className="text-3xl md:text-4xl font-bold text-slate-800">Seat & Back Terminology</h1>
+            <p className="text-slate-600 mt-2">Understanding furniture construction and design terms</p>
           </div>
         </div>
       </div>
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
-        {/* Introduction */}
-        <div className="bg-gradient-to-r from-primary-900/20 to-dark-800 border border-primary-700/30 rounded-lg p-8 mb-12">
-          <h2 className="text-2xl font-bold text-dark-50 mb-4">Understanding Our Furniture</h2>
-          <p className="text-dark-200 mb-4">
+        <div className="bg-white border border-cream-200 rounded-lg p-8 mb-12">
+          <h2 className="text-2xl font-bold text-slate-800 mb-4">Understanding Our Furniture</h2>
+          <p className="text-slate-700 mb-4">
             This guide explains the terminology we use to describe our chairs, barstools, and other seating products. 
             Understanding these terms will help you make informed decisions when selecting furniture for your project.
           </p>
-          <p className="text-dark-300">
+          <p className="text-slate-600">
             All our furniture is built using traditional construction methods with modern enhancements for durability 
             in commercial environments. Every piece is crafted with care in our Houston, Texas facility.
           </p>
         </div>
 
-        {/* Terminology Sections */}
         <div className="space-y-12">
           {terminology.map((section, index) => (
-            <section key={index} className="bg-dark-800 rounded-lg border border-dark-700 p-8">
+            <section key={index} className="bg-white rounded-lg border border-cream-200 p-8">
               <div className="flex items-center gap-4 mb-8">
                 <div className="text-5xl">{section.icon}</div>
-                <h2 className="text-3xl font-bold text-dark-50">{section.category}</h2>
+                <h2 className="text-3xl font-bold text-slate-800">{section.category}</h2>
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 {section.terms.map((item, termIndex) => (
                   <div
                     key={termIndex}
-                    className="bg-dark-900 border border-dark-600 rounded-lg p-6 hover:border-primary-500 transition-colors"
+                    className="bg-cream-50/50 border border-cream-200 rounded-lg p-6 hover:border-primary-500 transition-colors"
                   >
-                    <h3 className="text-xl font-bold text-primary-400 mb-3">{item.term}</h3>
-                    <p className="text-dark-200 leading-relaxed">{item.description}</p>
+                    <h3 className="text-xl font-bold text-primary-600 mb-3">{item.term}</h3>
+                    <p className="text-slate-700 leading-relaxed">{item.description}</p>
                   </div>
                 ))}
               </div>
@@ -217,67 +214,65 @@ const SeatBackTermsPage = () => {
           ))}
         </div>
 
-        {/* Visual Diagrams Note */}
-        <div className="mt-12 bg-dark-800 border border-dark-700 rounded-lg p-8">
-          <h2 className="text-2xl font-bold text-dark-50 mb-4">📐 Need Visual References?</h2>
-          <p className="text-dark-200 mb-4">
+        <div className="mt-12 bg-white border border-cream-200 rounded-lg p-8">
+          <h2 className="text-2xl font-bold text-slate-800 mb-4">📐 Need Visual References?</h2>
+          <p className="text-slate-700 mb-4">
             For detailed diagrams showing these components on actual products, please refer to:
           </p>
-          <ul className="space-y-2 text-dark-300">
+          <ul className="space-y-2 text-slate-600">
             <li className="flex items-start gap-2">
-              <span className="text-primary-400 mt-1">→</span>
+              <span className="text-primary-600 mt-1">→</span>
               <span>Individual product specification sheets (available on each product page)</span>
             </li>
             <li className="flex items-start gap-2">
-              <span className="text-primary-400 mt-1">→</span>
+              <span className="text-primary-600 mt-1">→</span>
               <span>Our virtual catalogs section for complete line sheets</span>
             </li>
             <li className="flex items-start gap-2">
-              <span className="text-primary-400 mt-1">→</span>
+              <span className="text-primary-600 mt-1">→</span>
               <span>CAD files and technical drawings (available for download)</span>
             </li>
           </ul>
         </div>
 
-        {/* Related Resources */}
-        <div className="mt-16 pt-8 border-t border-dark-700">
-          <h2 className="text-2xl font-bold text-dark-50 mb-6">Related Resources</h2>
+        <div className="mt-16 pt-8 border-t border-cream-200">
+          <h2 className="text-2xl font-bold text-slate-800 mb-6">Related Resources</h2>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <Link
               to="/resources/guides"
-              className="bg-dark-800 border border-dark-700 rounded-lg p-6 hover:border-primary-500 transition-colors group"
+              className="bg-white border border-cream-200 rounded-lg p-6 hover:border-primary-500 transition-colors group"
             >
               <div className="text-3xl mb-3">📖</div>
-              <h3 className="text-lg font-semibold text-dark-50 mb-2 group-hover:text-primary-400">
+              <h3 className="text-lg font-semibold text-slate-800 mb-2 group-hover:text-primary-600">
                 Guides & Instructions
               </h3>
-              <p className="text-dark-400 text-sm">
+              <p className="text-slate-500 text-sm">
                 Installation and care guides
               </p>
             </Link>
 
             <Link
               to="/virtual-catalogs"
-              className="bg-dark-800 border border-dark-700 rounded-lg p-6 hover:border-primary-500 transition-colors group"
+              className="bg-white border border-cream-200 rounded-lg p-6 hover:border-primary-500 transition-colors group"
             >
               <div className="text-3xl mb-3">📚</div>
-              <h3 className="text-lg font-semibold text-dark-50 mb-2 group-hover:text-primary-400">
+              <h3 className="text-lg font-semibold text-slate-800 mb-2 group-hover:text-primary-600">
                 Virtual Catalogs
               </h3>
-              <p className="text-dark-400 text-sm">
+              <p className="text-slate-500 text-sm">
                 Download complete product catalogs
               </p>
             </Link>
 
             <Link
               to="/contact"
-              className="bg-dark-800 border border-dark-700 rounded-lg p-6 hover:border-primary-500 transition-colors group"
+              className="bg-white border border-cream-200 rounded-lg p-6 hover:border-primary-500 transition-colors group"
             >
               <div className="text-3xl mb-3">💬</div>
-              <h3 className="text-lg font-semibold text-dark-50 mb-2 group-hover:text-primary-400">
+              <h3 className="text-lg font-semibold text-slate-800 mb-2 group-hover:text-primary-600">
                 Contact Us
               </h3>
-              <p className="text-dark-400 text-sm">
+              <p className="text-slate-500 text-sm">
                 Questions? Our team can help
               </p>
             </Link>

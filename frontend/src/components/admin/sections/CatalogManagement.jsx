@@ -1,9 +1,10 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import Card from '../../ui/Card';
 import Button from '../../ui/Button';
 import apiClient from '../../../config/apiClient';
 import { Edit, Trash2, FileText, X, Plus } from 'lucide-react';
 import CatalogEditor from './CatalogEditor';
+import ReorderableTable from '../ReorderableTable';
 import { useToast } from '../../../contexts/ToastContext';
 import { useAdminRefresh } from '../../../contexts/AdminRefreshContext';
 
@@ -73,6 +74,26 @@ const CatalogManagement = () => {
     setFilterType('');
     setFilterActive('all');
   };
+
+  const sortedCatalogs = useMemo(
+    () => [...(catalogs || [])].sort((a, b) => (a.display_order ?? 0) - (b.display_order ?? 0)),
+    [catalogs]
+  );
+
+  const handleReorder = useCallback(
+    async (ordered) => {
+      await Promise.all(
+        ordered.map((item, index) => {
+          const form = new FormData();
+          form.append('display_order', String(index));
+          return apiClient.put(`/api/v1/admin/catalog/catalogs/${item.id}`, form);
+        })
+      );
+      toast.success('Display order updated');
+      fetchCatalogs();
+    },
+    [fetchCatalogs, toast]
+  );
 
   // Show editor if editing/creating
   if (editingCatalog) {
@@ -167,82 +188,83 @@ const CatalogManagement = () => {
             </p>
           </div>
         ) : (
-          <div className="overflow-x-auto -mx-4 sm:mx-0">
-            <table className="w-full min-w-[800px]">
-              <thead>
-                <tr className="border-b border-dark-700">
-                  <th className="px-3 sm:px-4 py-3 text-left text-xs sm:text-sm font-semibold text-dark-300 uppercase tracking-wider">Title</th>
-                  <th className="px-3 sm:px-4 py-3 text-left text-xs sm:text-sm font-semibold text-dark-300 uppercase tracking-wider">Type</th>
-                  <th className="px-3 sm:px-4 py-3 text-left text-xs sm:text-sm font-semibold text-dark-300 uppercase tracking-wider">File Type</th>
-                  <th className="px-3 sm:px-4 py-3 text-left text-xs sm:text-sm font-semibold text-dark-300 uppercase tracking-wider">Version</th>
-                  <th className="px-3 sm:px-4 py-3 text-left text-xs sm:text-sm font-semibold text-dark-300 uppercase tracking-wider">Status</th>
-                  <th className="px-3 sm:px-4 py-3 text-right text-xs sm:text-sm font-semibold text-dark-300 uppercase tracking-wider">Actions</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-dark-700">
-                {catalogs.map((catalog) => (
-                  <tr key={catalog.id} className="hover:bg-dark-750 transition-colors">
-                    <td className="px-3 sm:px-4 py-3">
-                      <div className="font-semibold text-sm sm:text-base text-dark-50">{catalog.title}</div>
-                      {catalog.description && (
-                        <div className="text-xs sm:text-sm text-dark-400 mt-0.5 max-w-xs truncate">
-                          {catalog.description}
-                        </div>
-                      )}
-                    </td>
-                    <td className="px-3 sm:px-4 py-3">
-                      {catalog.catalog_type ? (
-                        <span className="px-2 py-1 bg-primary-900/30 text-primary-400 text-xs rounded">
-                          {catalog.catalog_type}
-                        </span>
-                      ) : (
-                        <span className="text-dark-500 text-sm">—</span>
-                      )}
-                    </td>
-                    <td className="px-3 sm:px-4 py-3">
-                      <span className="px-2 py-1 bg-dark-700 text-dark-300 text-xs rounded uppercase">
-                        {catalog.file_type || 'PDF'}
-                      </span>
-                    </td>
-                    <td className="px-3 sm:px-4 py-3">
-                      {catalog.version ? (
-                        <span className="text-xs sm:text-sm text-dark-300 font-mono">v{catalog.version}</span>
-                      ) : (
-                        <span className="text-dark-500 text-xs sm:text-sm">—</span>
-                      )}
-                    </td>
-                    <td className="px-3 sm:px-4 py-3">
-                      <span className={`px-2 py-1 text-xs rounded ${
-                        catalog.is_active
-                          ? 'bg-green-900/30 text-green-400'
-                          : 'bg-red-900/30 text-red-400'
-                      }`}>
-                        {catalog.is_active ? 'Active' : 'Inactive'}
-                      </span>
-                    </td>
-                    <td className="px-3 sm:px-4 py-3 text-right">
-                      <div className="flex justify-end gap-2">
-                        <button
-                          onClick={() => handleEdit(catalog)}
-                          className="p-2 text-primary-400 hover:bg-primary-900/20 rounded transition-colors"
-                          title="Edit catalog"
-                        >
-                          <Edit className="w-4 h-4" />
-                        </button>
-                        <button
-                          onClick={() => handleDelete(catalog.id)}
-                          className="p-2 text-red-400 hover:bg-red-900/20 rounded transition-colors"
-                          title="Delete catalog"
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+          <ReorderableTable
+            items={sortedCatalogs}
+            setItems={(next) => setCatalogs(next.map((item, i) => ({ ...item, display_order: i })))}
+            getItemId={(item) => item.id}
+            onReorder={handleReorder}
+            minWidth="800px"
+            headerCells={
+              <>
+                <th className="px-3 sm:px-4 py-3 text-left text-xs sm:text-sm font-semibold text-dark-300 uppercase tracking-wider">Title</th>
+                <th className="px-3 sm:px-4 py-3 text-left text-xs sm:text-sm font-semibold text-dark-300 uppercase tracking-wider">Type</th>
+                <th className="px-3 sm:px-4 py-3 text-left text-xs sm:text-sm font-semibold text-dark-300 uppercase tracking-wider">File Type</th>
+                <th className="px-3 sm:px-4 py-3 text-left text-xs sm:text-sm font-semibold text-dark-300 uppercase tracking-wider">Version</th>
+                <th className="px-3 sm:px-4 py-3 text-left text-xs sm:text-sm font-semibold text-dark-300 uppercase tracking-wider">Status</th>
+                <th className="px-3 sm:px-4 py-3 text-right text-xs sm:text-sm font-semibold text-dark-300 uppercase tracking-wider">Actions</th>
+              </>
+            }
+            renderRow={(catalog) => (
+              <>
+                <td className="px-3 sm:px-4 py-3">
+                  <div className="font-semibold text-sm sm:text-base text-dark-50">{catalog.title}</div>
+                  {catalog.description && (
+                    <div className="text-xs sm:text-sm text-dark-400 mt-0.5 max-w-xs truncate">
+                      {catalog.description}
+                    </div>
+                  )}
+                </td>
+                <td className="px-3 sm:px-4 py-3">
+                  {catalog.catalog_type ? (
+                    <span className="px-2 py-1 bg-primary-900/30 text-primary-400 text-xs rounded">
+                      {catalog.catalog_type}
+                    </span>
+                  ) : (
+                    <span className="text-dark-500 text-sm">—</span>
+                  )}
+                </td>
+                <td className="px-3 sm:px-4 py-3">
+                  <span className="px-2 py-1 bg-dark-700 text-dark-300 text-xs rounded uppercase">
+                    {catalog.file_type || 'PDF'}
+                  </span>
+                </td>
+                <td className="px-3 sm:px-4 py-3">
+                  {catalog.version ? (
+                    <span className="text-xs sm:text-sm text-dark-300 font-mono">v{catalog.version}</span>
+                  ) : (
+                    <span className="text-dark-500 text-xs sm:text-sm">—</span>
+                  )}
+                </td>
+                <td className="px-3 sm:px-4 py-3">
+                  <span className={`px-2 py-1 text-xs rounded ${
+                    catalog.is_active
+                      ? 'bg-green-900/30 text-green-400'
+                      : 'bg-red-900/30 text-red-400'
+                  }`}>
+                    {catalog.is_active ? 'Active' : 'Inactive'}
+                  </span>
+                </td>
+                <td className="px-3 sm:px-4 py-3 text-right">
+                  <div className="flex justify-end gap-2">
+                    <button
+                      onClick={() => handleEdit(catalog)}
+                      className="p-2 text-primary-400 hover:bg-primary-900/20 rounded transition-colors"
+                      title="Edit catalog"
+                    >
+                      <Edit className="w-4 h-4" />
+                    </button>
+                    <button
+                      onClick={() => handleDelete(catalog.id)}
+                      className="p-2 text-red-400 hover:bg-red-900/20 rounded transition-colors"
+                      title="Delete catalog"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </button>
+                  </div>
+                </td>
+              </>
+            )}
+          />
         )}
       </Card>
     </div>

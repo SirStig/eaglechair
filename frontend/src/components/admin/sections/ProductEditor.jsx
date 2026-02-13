@@ -1733,7 +1733,8 @@ const ProductEditor = ({ product, onBack }) => {
         <div className="flex items-center gap-4">
           <button
             onClick={onBack}
-            className="p-2 hover:bg-dark-700 rounded-lg transition-colors"
+            className="p-2 hover:bg-dark-700 rounded-lg transition-colors disabled:opacity-50 disabled:pointer-events-none"
+            disabled={saving || uploadingImage}
           >
             ← Back
           </button>
@@ -1747,11 +1748,11 @@ const ProductEditor = ({ product, onBack }) => {
           </div>
         </div>
         <div className="flex gap-3">
-          <Button variant="outline" onClick={onBack}>
+          <Button variant="outline" onClick={onBack} disabled={saving || uploadingImage}>
             Cancel
           </Button>
-          <Button onClick={handleSave} disabled={saving}>
-            {saving ? 'Saving...' : 'Save Product'}
+          <Button onClick={handleSave} disabled={saving || uploadingImage}>
+            {uploadingImage ? 'Uploading...' : saving ? 'Saving...' : 'Save Product'}
           </Button>
         </div>
       </div>

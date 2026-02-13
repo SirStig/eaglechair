@@ -100,11 +100,13 @@ const CategoryEditor = ({ category, categories, parentCategory, isSubcategory, o
     }
   };
 
+  const isUploading = uploadingImage !== null;
+
   const renderImageControl = (field, label) => {
-    const isUploading = uploadingImage === field;
+    const fieldUploading = uploadingImage === field;
     const currentValue = formData[field];
     const isIcon = field === 'icon_url';
-    
+
     return (
       <div>
         <label className="block text-sm font-medium text-dark-200 mb-2">
@@ -133,11 +135,14 @@ const CategoryEditor = ({ category, categories, parentCategory, isSubcategory, o
               accept="image/*"
               onChange={(e) => handleImageUpload(e, field)}
               className="hidden"
-              disabled={isUploading}
+              disabled={fieldUploading}
             />
-            <div className={`flex flex-col items-center justify-center border-2 border-dashed border-dark-600 hover:border-primary-500 rounded-lg cursor-pointer transition-all ${isIcon ? 'h-32 w-32' : 'h-32 w-full'} ${isUploading ? 'opacity-50' : ''}`}>
-              {isUploading ? (
-                <div className="w-8 h-8 border-2 border-dark-600 border-t-primary-500 rounded-full animate-spin" />
+            <div className={`flex flex-col items-center justify-center border-2 border-dashed border-dark-600 hover:border-primary-500 rounded-lg cursor-pointer transition-all ${isIcon ? 'h-32 w-32' : 'h-32 w-full'} ${fieldUploading ? 'opacity-50' : ''}`}>
+              {fieldUploading ? (
+                <>
+                  <div className="w-8 h-8 border-2 border-dark-600 border-t-primary-500 rounded-full animate-spin mb-2" />
+                  <span className="text-sm text-primary-400 font-medium">Uploading...</span>
+                </>
               ) : (
                 <>
                   <Upload className="w-10 h-10 text-dark-500 mb-2" />
@@ -200,8 +205,8 @@ const CategoryEditor = ({ category, categories, parentCategory, isSubcategory, o
       <div className="flex items-center gap-4">
         <button
           onClick={onBack}
-          className="p-2 hover:bg-dark-700 rounded-lg transition-colors"
-          disabled={saving}
+          className="p-2 hover:bg-dark-700 rounded-lg transition-colors disabled:opacity-50 disabled:pointer-events-none"
+          disabled={saving || isUploading}
         >
           <ArrowLeft className="w-5 h-5 text-dark-300" />
         </button>
@@ -392,17 +397,17 @@ const CategoryEditor = ({ category, categories, parentCategory, isSubcategory, o
           <Button
             type="button"
             onClick={onBack}
-            disabled={saving}
+            disabled={saving || isUploading}
             className="bg-dark-600 hover:bg-dark-500 text-dark-200 px-6 py-3"
           >
             Cancel
           </Button>
           <Button
             type="submit"
-            disabled={saving || !formData.name || !formData.slug}
+            disabled={saving || isUploading || !formData.name || !formData.slug}
             className="bg-primary-600 hover:bg-primary-500 px-6 py-3"
           >
-            {saving ? 'Saving...' : subcategoryMode ? (category ? 'Update Subcategory' : 'Create Subcategory') : (category ? 'Update Category' : 'Create Category')}
+            {isUploading ? 'Uploading...' : saving ? 'Saving...' : subcategoryMode ? (category ? 'Update Subcategory' : 'Create Subcategory') : (category ? 'Update Category' : 'Create Category')}
           </Button>
         </div>
       </form>

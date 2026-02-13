@@ -344,19 +344,24 @@ const ContactPage = () => {
               </div>
             </div>
             
-            {/* Google Maps Embed */}
+            {/* Google Maps Embed - only when address is loaded to avoid wrong place */}
             <div className="h-96 w-full">
-              <iframe
-                title="Eagle Chair Location"
-                src={`https://www.google.com/maps/embed/v1/place?key=AIzaSyBFw0Qbyq9zTFTd-tUY6dZWTgaQzuU17R8&q=${encodeURIComponent(contact.address.fullAddress)}&zoom=15`}
-                width="100%"
-                height="100%"
-                style={{ border: 0 }}
-                allowFullScreen=""
-                loading="lazy"
-                referrerPolicy="no-referrer-when-downgrade"
-                className="grayscale"
-              />
+              {siteSettings?.addressLine1 && contact.address.fullAddress && contact.address.fullAddress !== 'N/A' ? (
+                <iframe
+                  key={contact.address.fullAddress}
+                  title="Eagle Chair Location"
+                  src={`https://www.google.com/maps/embed/v1/place?key=AIzaSyBFw0Qbyq9zTFTd-tUY6dZWTgaQzuU17R8&q=${encodeURIComponent(contact.address.fullAddress)}&zoom=15`}
+                  width="100%"
+                  height="100%"
+                  style={{ border: 0 }}
+                  allowFullScreen=""
+                  loading="lazy"
+                  referrerPolicy="no-referrer-when-downgrade"
+                  className="grayscale"
+                />
+              ) : (
+                <div className="h-full w-full flex items-center justify-center bg-dark-700 text-dark-300">Loading map…</div>
+              )}
             </div>
           </div>
         </Card>

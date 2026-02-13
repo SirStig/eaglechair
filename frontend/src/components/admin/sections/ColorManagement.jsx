@@ -1,10 +1,11 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import Card from '../../ui/Card';
 import Button from '../../ui/Button';
 import apiClient from '../../../config/apiClient';
 import { resolveImageUrl } from '../../../utils/apiHelpers';
 import { Edit2, Trash2, Palette } from 'lucide-react';
 import ColorEditor from './ColorEditor';
+import ReorderableTable from '../ReorderableTable';
 import { useToast } from '../../../contexts/ToastContext';
 import { useAdminRefresh } from '../../../contexts/AdminRefreshContext';
 
@@ -70,6 +71,24 @@ const ColorManagement = () => {
       toast.error(error.response?.data?.detail || 'Failed to delete color');
     }
   };
+
+  const sortedColors = useMemo(
+    () => [...(colors || [])].sort((a, b) => (a.display_order ?? 0) - (b.display_order ?? 0)),
+    [colors]
+  );
+
+  const handleReorder = useCallback(
+    async (ordered) => {
+      await Promise.all(
+        ordered.map((item, index) =>
+          apiClient.put(`/api/v1/admin/colors/${item.id}`, { display_order: index })
+        )
+      );
+      toast.success('Display order updated');
+      fetchColors();
+    },
+    [fetchColors, toast]
+  );
 
   // Show editor if editing/creating
   if (editingColor !== null) {
@@ -171,124 +190,112 @@ const ColorManagement = () => {
             </Button>
           </div>
         ) : (
-          <div className="overflow-x-auto -mx-4 sm:mx-0">
-            <table className="w-full min-w-[900px]">
-              <thead>
-                <tr className="border-b border-dark-700">
-                  <th className="text-left px-3 sm:px-6 py-3 sm:py-4 text-xs sm:text-sm font-semibold text-dark-200">Swatch</th>
-                  <th className="text-left px-3 sm:px-6 py-3 sm:py-4 text-xs sm:text-sm font-semibold text-dark-200">Name</th>
-                  <th className="text-left px-3 sm:px-6 py-3 sm:py-4 text-xs sm:text-sm font-semibold text-dark-200">Code</th>
-                  <th className="text-left px-3 sm:px-6 py-3 sm:py-4 text-xs sm:text-sm font-semibold text-dark-200">Hex Value</th>
-                  <th className="text-left px-3 sm:px-6 py-3 sm:py-4 text-xs sm:text-sm font-semibold text-dark-200">Category</th>
-                  <th className="text-left px-3 sm:px-6 py-3 sm:py-4 text-xs sm:text-sm font-semibold text-dark-200">Status</th>
-                  <th className="text-right px-3 sm:px-6 py-3 sm:py-4 text-xs sm:text-sm font-semibold text-dark-200">Actions</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-dark-700">
-                {colors.map((color) => (
-                  <tr key={color.id} className="hover:bg-dark-750 transition-colors">
-                    {/* Swatch */}
-                    <td className="px-3 sm:px-6 py-3 sm:py-4">
-                      <div className="flex items-center gap-2">
-                        {color.image_url ? (
-                          <img 
-                            src={resolveImageUrl(color.image_url)} 
-                            alt={color.name}
-                            className="w-8 h-8 sm:w-10 sm:h-10 object-cover rounded-lg border border-dark-600"
-                          />
-                        ) : color.hex_value ? (
-                          <div 
-                            className="w-8 h-8 sm:w-10 sm:h-10 rounded-lg border-2 border-dark-600"
-                            style={{ backgroundColor: color.hex_value }}
-                          />
-                        ) : (
-                          <div className="w-8 h-8 sm:w-10 sm:h-10 bg-dark-700 rounded-lg border border-dark-600 flex items-center justify-center">
-                            <Palette className="w-4 h-4 sm:w-5 sm:h-5 text-dark-500" />
-                          </div>
-                        )}
+          <ReorderableTable
+            items={sortedColors}
+            setItems={(next) => setColors(next.map((item, i) => ({ ...item, display_order: i })))}
+            getItemId={(item) => item.id}
+            onReorder={handleReorder}
+            minWidth="900px"
+            headerCells={
+              <>
+                <th className="text-left px-3 sm:px-6 py-3 sm:py-4 text-xs sm:text-sm font-semibold text-dark-200">Swatch</th>
+                <th className="text-left px-3 sm:px-6 py-3 sm:py-4 text-xs sm:text-sm font-semibold text-dark-200">Name</th>
+                <th className="text-left px-3 sm:px-6 py-3 sm:py-4 text-xs sm:text-sm font-semibold text-dark-200">Code</th>
+                <th className="text-left px-3 sm:px-6 py-3 sm:py-4 text-xs sm:text-sm font-semibold text-dark-200">Hex Value</th>
+                <th className="text-left px-3 sm:px-6 py-3 sm:py-4 text-xs sm:text-sm font-semibold text-dark-200">Category</th>
+                <th className="text-left px-3 sm:px-6 py-3 sm:py-4 text-xs sm:text-sm font-semibold text-dark-200">Status</th>
+                <th className="text-right px-3 sm:px-6 py-3 sm:py-4 text-xs sm:text-sm font-semibold text-dark-200">Actions</th>
+              </>
+            }
+            renderRow={(color) => (
+              <>
+                <td className="px-3 sm:px-6 py-3 sm:py-4">
+                  <div className="flex items-center gap-2">
+                    {color.image_url ? (
+                      <img 
+                        src={resolveImageUrl(color.image_url)} 
+                        alt={color.name}
+                        className="w-8 h-8 sm:w-10 sm:h-10 object-cover rounded-lg border border-dark-600"
+                      />
+                    ) : color.hex_value ? (
+                      <div 
+                        className="w-8 h-8 sm:w-10 sm:h-10 rounded-lg border-2 border-dark-600"
+                        style={{ backgroundColor: color.hex_value }}
+                      />
+                    ) : (
+                      <div className="w-8 h-8 sm:w-10 sm:h-10 bg-dark-700 rounded-lg border border-dark-600 flex items-center justify-center">
+                        <Palette className="w-4 h-4 sm:w-5 sm:h-5 text-dark-500" />
                       </div>
-                    </td>
-                    
-                    {/* Name */}
-                    <td className="px-3 sm:px-6 py-3 sm:py-4">
-                      <div className="font-medium text-xs sm:text-sm md:text-base text-dark-50">{color.name}</div>
-                      <div className="text-[10px] sm:text-xs text-dark-400 mt-1">Order: {color.display_order}</div>
-                    </td>
-                    
-                    {/* Code */}
-                    <td className="px-3 sm:px-6 py-3 sm:py-4">
-                      {color.color_code ? (
-                        <code className="text-xs sm:text-sm text-dark-300 bg-dark-700 px-2 py-1 rounded">
-                          {color.color_code}
-                        </code>
-                      ) : (
-                        <span className="text-dark-500 text-xs sm:text-sm">—</span>
-                      )}
-                    </td>
-                    
-                    {/* Hex Value */}
-                    <td className="px-3 sm:px-6 py-3 sm:py-4">
-                      {color.hex_value ? (
-                        <div className="flex items-center gap-1 sm:gap-2">
-                          <div 
-                            className="w-5 h-5 sm:w-6 sm:h-6 rounded border border-dark-600 flex-shrink-0"
-                            style={{ backgroundColor: color.hex_value }}
-                          />
-                          <code className="text-xs sm:text-sm text-dark-300 font-mono">
-                            {color.hex_value}
-                          </code>
-                        </div>
-                      ) : (
-                        <span className="text-dark-500 text-xs sm:text-sm">—</span>
-                      )}
-                    </td>
-                    
-                    {/* Category */}
-                    <td className="px-3 sm:px-6 py-3 sm:py-4">
-                      {color.category ? (
-                        <span className="inline-flex items-center px-2.5 py-1 bg-dark-700 border border-dark-600 text-dark-300 text-xs rounded-md font-medium capitalize">
-                          {color.category}
-                        </span>
-                      ) : (
-                        <span className="text-dark-500 text-xs">Uncategorized</span>
-                      )}
-                    </td>
-                    
-                    {/* Status */}
-                    <td className="px-3 sm:px-6 py-3 sm:py-4">
-                      <span className={`inline-flex items-center px-2.5 py-1 rounded-md text-xs font-medium ${
-                        color.is_active
-                          ? 'bg-green-900/30 border border-green-800 text-green-400'
-                          : 'bg-red-900/30 border border-red-800 text-red-400'
-                      }`}>
-                        {color.is_active ? 'Active' : 'Inactive'}
-                      </span>
-                    </td>
-                    
-                    {/* Actions */}
-                    <td className="px-3 sm:px-6 py-3 sm:py-4">
-                      <div className="flex items-center justify-end gap-2">
-                        <button
-                          onClick={() => handleEdit(color)}
-                          className="p-2 text-primary-400 hover:bg-primary-900/20 rounded-lg transition-colors"
-                          title="Edit color"
-                        >
-                          <Edit2 className="w-4 h-4" />
-                        </button>
-                        <button
-                          onClick={() => handleDelete(color.id)}
-                          className="p-2 text-red-400 hover:bg-red-900/20 rounded-lg transition-colors"
-                          title="Delete color"
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+                    )}
+                  </div>
+                </td>
+                <td className="px-3 sm:px-6 py-3 sm:py-4">
+                  <div className="font-medium text-xs sm:text-sm md:text-base text-dark-50">{color.name}</div>
+                  <div className="text-[10px] sm:text-xs text-dark-400 mt-1">Order: {color.display_order}</div>
+                </td>
+                <td className="px-3 sm:px-6 py-3 sm:py-4">
+                  {color.color_code ? (
+                    <code className="text-xs sm:text-sm text-dark-300 bg-dark-700 px-2 py-1 rounded">
+                      {color.color_code}
+                    </code>
+                  ) : (
+                    <span className="text-dark-500 text-xs sm:text-sm">—</span>
+                  )}
+                </td>
+                <td className="px-3 sm:px-6 py-3 sm:py-4">
+                  {color.hex_value ? (
+                    <div className="flex items-center gap-1 sm:gap-2">
+                      <div 
+                        className="w-5 h-5 sm:w-6 sm:h-6 rounded border border-dark-600 flex-shrink-0"
+                        style={{ backgroundColor: color.hex_value }}
+                      />
+                      <code className="text-xs sm:text-sm text-dark-300 font-mono">
+                        {color.hex_value}
+                      </code>
+                    </div>
+                  ) : (
+                    <span className="text-dark-500 text-xs sm:text-sm">—</span>
+                  )}
+                </td>
+                <td className="px-3 sm:px-6 py-3 sm:py-4">
+                  {color.category ? (
+                    <span className="inline-flex items-center px-2.5 py-1 bg-dark-700 border border-dark-600 text-dark-300 text-xs rounded-md font-medium capitalize">
+                      {color.category}
+                    </span>
+                  ) : (
+                    <span className="text-dark-500 text-xs">Uncategorized</span>
+                  )}
+                </td>
+                <td className="px-3 sm:px-6 py-3 sm:py-4">
+                  <span className={`inline-flex items-center px-2.5 py-1 rounded-md text-xs font-medium ${
+                    color.is_active
+                      ? 'bg-green-900/30 border border-green-800 text-green-400'
+                      : 'bg-red-900/30 border border-red-800 text-red-400'
+                  }`}>
+                    {color.is_active ? 'Active' : 'Inactive'}
+                  </span>
+                </td>
+                <td className="px-3 sm:px-6 py-3 sm:py-4">
+                  <div className="flex items-center justify-end gap-2">
+                    <button
+                      onClick={() => handleEdit(color)}
+                      className="p-2 text-primary-400 hover:bg-primary-900/20 rounded-lg transition-colors"
+                      title="Edit color"
+                    >
+                      <Edit2 className="w-4 h-4" />
+                    </button>
+                    <button
+                      onClick={() => handleDelete(color.id)}
+                      className="p-2 text-red-400 hover:bg-red-900/20 rounded-lg transition-colors"
+                      title="Delete color"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </button>
+                  </div>
+                </td>
+              </>
+            )}
+          />
         )}
       </Card>
     </div>

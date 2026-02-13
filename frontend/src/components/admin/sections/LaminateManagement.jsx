@@ -1,10 +1,11 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import Card from '../../ui/Card';
 import Button from '../../ui/Button';
 import apiClient from '../../../config/apiClient';
 import { resolveImageUrl } from '../../../utils/apiHelpers';
 import { Edit, Trash2, Layers, X, Plus } from 'lucide-react';
 import LaminateEditor from './LaminateEditor';
+import ReorderableTable from '../ReorderableTable';
 import { useToast } from '../../../contexts/ToastContext';
 import { useAdminRefresh } from '../../../contexts/AdminRefreshContext';
 
@@ -76,6 +77,23 @@ const LaminateManagement = () => {
   };
 
   const uniqueBrands = [...new Set(laminates.map(l => l.brand).filter(Boolean))];
+  const sortedLaminates = useMemo(
+    () => [...(laminates || [])].sort((a, b) => (a.display_order ?? 0) - (b.display_order ?? 0)),
+    [laminates]
+  );
+
+  const handleReorder = useCallback(
+    async (ordered) => {
+      await Promise.all(
+        ordered.map((item, index) =>
+          apiClient.put(`/api/v1/admin/catalog/laminates/${item.id}`, { display_order: index })
+        )
+      );
+      toast.success('Display order updated');
+      fetchLaminates();
+    },
+    [fetchLaminates, toast]
+  );
 
   // Show editor if editing/creating
   if (editingLaminate) {
@@ -164,86 +182,87 @@ const LaminateManagement = () => {
             </p>
           </div>
         ) : (
-          <div className="overflow-x-auto -mx-4 sm:mx-0">
-            <table className="w-full min-w-[800px]">
-              <thead>
-                <tr className="border-b border-dark-700">
-                  <th className="px-3 sm:px-4 py-3 text-left text-xs sm:text-sm font-semibold text-dark-300 uppercase tracking-wider">Swatch</th>
-                  <th className="px-3 sm:px-4 py-3 text-left text-xs sm:text-sm font-semibold text-dark-300 uppercase tracking-wider">Brand</th>
-                  <th className="px-3 sm:px-4 py-3 text-left text-xs sm:text-sm font-semibold text-dark-300 uppercase tracking-wider">Pattern</th>
-                  <th className="px-3 sm:px-4 py-3 text-left text-xs sm:text-sm font-semibold text-dark-300 uppercase tracking-wider">Code</th>
-                  <th className="px-3 sm:px-4 py-3 text-left text-xs sm:text-sm font-semibold text-dark-300 uppercase tracking-wider">Status</th>
-                  <th className="px-3 sm:px-4 py-3 text-right text-xs sm:text-sm font-semibold text-dark-300 uppercase tracking-wider">Actions</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-dark-700">
-                {laminates.map((laminate) => (
-                  <tr key={laminate.id} className="hover:bg-dark-750 transition-colors">
-                    <td className="px-4 py-3">
-                      {laminate.swatch_image_url ? (
-                        <img
-                          src={resolveImageUrl(laminate.swatch_image_url)}
-                          alt={laminate.pattern_name}
-                          className="w-12 h-12 object-cover rounded border border-dark-600"
-                        />
-                      ) : (
-                        <div className="w-12 h-12 rounded border border-dark-600 flex items-center justify-center bg-dark-700">
-                          <Layers className="w-6 h-6 text-dark-500" />
-                        </div>
-                      )}
-                    </td>
-                    <td className="px-4 py-3">
-                      <div className="font-semibold text-dark-50">{laminate.brand}</div>
-                    </td>
-                    <td className="px-4 py-3">
-                      <div className="font-semibold text-dark-50">{laminate.pattern_name}</div>
-                      {laminate.description && (
-                        <div className="text-sm text-dark-400 mt-0.5 max-w-xs truncate">
-                          {laminate.description}
-                        </div>
-                      )}
-                    </td>
-                    <td className="px-4 py-3">
-                      {laminate.pattern_code ? (
-                        <span className="px-2 py-1 bg-dark-700 text-dark-300 text-xs rounded font-mono">
-                          {laminate.pattern_code}
-                        </span>
-                      ) : (
-                        <span className="text-dark-500 text-sm">—</span>
-                      )}
-                    </td>
-                    <td className="px-4 py-3">
-                      <span className={`px-2 py-1 text-xs rounded ${
-                        laminate.is_active
-                          ? 'bg-green-900/30 text-green-400'
-                          : 'bg-red-900/30 text-red-400'
-                      }`}>
-                        {laminate.is_active ? 'Active' : 'Inactive'}
-                      </span>
-                    </td>
-                    <td className="px-4 py-3 text-right">
-                      <div className="flex justify-end gap-2">
-                        <button
-                          onClick={() => handleEdit(laminate)}
-                          className="p-2 text-primary-400 hover:bg-primary-900/20 rounded transition-colors"
-                          title="Edit laminate"
-                        >
-                          <Edit className="w-4 h-4" />
-                        </button>
-                        <button
-                          onClick={() => handleDelete(laminate.id)}
-                          className="p-2 text-red-400 hover:bg-red-900/20 rounded transition-colors"
-                          title="Delete laminate"
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+          <ReorderableTable
+            items={sortedLaminates}
+            setItems={(next) => setLaminates(next.map((item, i) => ({ ...item, display_order: i })))}
+            getItemId={(item) => item.id}
+            onReorder={handleReorder}
+            minWidth="800px"
+            headerCells={
+              <>
+                <th className="px-3 sm:px-4 py-3 text-left text-xs sm:text-sm font-semibold text-dark-300 uppercase tracking-wider">Swatch</th>
+                <th className="px-3 sm:px-4 py-3 text-left text-xs sm:text-sm font-semibold text-dark-300 uppercase tracking-wider">Brand</th>
+                <th className="px-3 sm:px-4 py-3 text-left text-xs sm:text-sm font-semibold text-dark-300 uppercase tracking-wider">Pattern</th>
+                <th className="px-3 sm:px-4 py-3 text-left text-xs sm:text-sm font-semibold text-dark-300 uppercase tracking-wider">Code</th>
+                <th className="px-3 sm:px-4 py-3 text-left text-xs sm:text-sm font-semibold text-dark-300 uppercase tracking-wider">Status</th>
+                <th className="px-3 sm:px-4 py-3 text-right text-xs sm:text-sm font-semibold text-dark-300 uppercase tracking-wider">Actions</th>
+              </>
+            }
+            renderRow={(laminate) => (
+              <>
+                <td className="px-4 py-3">
+                  {laminate.swatch_image_url ? (
+                    <img
+                      src={resolveImageUrl(laminate.swatch_image_url)}
+                      alt={laminate.pattern_name}
+                      className="w-12 h-12 object-cover rounded border border-dark-600"
+                    />
+                  ) : (
+                    <div className="w-12 h-12 rounded border border-dark-600 flex items-center justify-center bg-dark-700">
+                      <Layers className="w-6 h-6 text-dark-500" />
+                    </div>
+                  )}
+                </td>
+                <td className="px-4 py-3">
+                  <div className="font-semibold text-dark-50">{laminate.brand}</div>
+                </td>
+                <td className="px-4 py-3">
+                  <div className="font-semibold text-dark-50">{laminate.pattern_name}</div>
+                  {laminate.description && (
+                    <div className="text-sm text-dark-400 mt-0.5 max-w-xs truncate">
+                      {laminate.description}
+                    </div>
+                  )}
+                </td>
+                <td className="px-4 py-3">
+                  {laminate.pattern_code ? (
+                    <span className="px-2 py-1 bg-dark-700 text-dark-300 text-xs rounded font-mono">
+                      {laminate.pattern_code}
+                    </span>
+                  ) : (
+                    <span className="text-dark-500 text-sm">—</span>
+                  )}
+                </td>
+                <td className="px-4 py-3">
+                  <span className={`px-2 py-1 text-xs rounded ${
+                    laminate.is_active
+                      ? 'bg-green-900/30 text-green-400'
+                      : 'bg-red-900/30 text-red-400'
+                  }`}>
+                    {laminate.is_active ? 'Active' : 'Inactive'}
+                  </span>
+                </td>
+                <td className="px-4 py-3 text-right">
+                  <div className="flex justify-end gap-2">
+                    <button
+                      onClick={() => handleEdit(laminate)}
+                      className="p-2 text-primary-400 hover:bg-primary-900/20 rounded transition-colors"
+                      title="Edit laminate"
+                    >
+                      <Edit className="w-4 h-4" />
+                    </button>
+                    <button
+                      onClick={() => handleDelete(laminate.id)}
+                      className="p-2 text-red-400 hover:bg-red-900/20 rounded transition-colors"
+                      title="Delete laminate"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </button>
+                  </div>
+                </td>
+              </>
+            )}
+          />
         )}
       </Card>
     </div>

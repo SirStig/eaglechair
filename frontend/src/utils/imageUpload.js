@@ -45,9 +45,10 @@ export const uploadImage = async (file, subfolder = 'general') => {
     formData.append('subfolder', subfolder);
     formData.append('filename', filename);
     
-    // Upload to backend endpoint using axios (includes auth token)
-    // Note: Must delete Content-Type header so axios auto-detects FormData and sets proper boundary
-    const response = await api.post('/api/v1/admin/upload/image', formData);
+    const response = await api.post('/api/v1/admin/upload/image', formData, {
+      timeout: 120000,
+      retry: 0
+    });
     
     // apiClient interceptor already unwraps response.data, so response IS the data
     const imageUrl = response.url || `${UPLOAD_DIR}/${subfolder}/${filename}`;

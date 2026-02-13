@@ -395,12 +395,13 @@ const VirtualCatalogUpload = () => {
           {/* File Input */}
           <div className="max-w-md mx-auto">
             <label className="block">
-              <div className="border-2 border-dashed border-dark-600 rounded-lg p-8 hover:border-primary-500 transition-colors cursor-pointer">
+              <div className={`border-2 border-dashed border-dark-600 rounded-lg p-8 hover:border-primary-500 transition-colors cursor-pointer ${uploadState.uploading ? 'opacity-60 pointer-events-none' : ''}`}>
                 <input
                   type="file"
                   accept=".pdf"
                   onChange={handleFileSelect}
                   className="hidden"
+                  disabled={uploadState.uploading}
                 />
                 {uploadState.file ? (
                   <div className="flex items-center justify-center gap-2 text-dark-50">
@@ -603,18 +604,27 @@ const VirtualCatalogUpload = () => {
               onClick={handleClearSession}
               variant="outline"
               size="sm"
-              disabled={tmpProducts.length === 0}
+              disabled={tmpProducts.length === 0 || uploadState.uploading || loading}
             >
               <XCircle className="w-4 h-4 mr-2" />
               Clear Session
             </Button>
             <Button
               onClick={handleImportToProduction}
-              disabled={tmpProducts.length === 0}
+              disabled={tmpProducts.length === 0 || uploadState.uploading || loading}
               className="bg-green-500 hover:bg-green-600"
             >
-              <CheckCircle className="w-4 h-4 mr-2" />
-              Import to Production
+              {loading ? (
+                <>
+                  <RefreshCw className="w-4 h-4 mr-2 animate-spin" />
+                  Importing...
+                </>
+              ) : (
+                <>
+                  <CheckCircle className="w-4 h-4 mr-2" />
+                  Import to Production
+                </>
+              )}
             </Button>
           </div>
         </div>
@@ -744,7 +754,17 @@ const VirtualCatalogUpload = () => {
         />
       ) : (
         <>
-          {/* Header */}
+          {(uploadState.uploading || (uploadState.status?.status === 'parsing')) && (
+          <div className="flex items-center gap-3 px-4 py-3 bg-primary-500/15 border border-primary-500/40 rounded-lg">
+            <RefreshCw className="w-5 h-5 text-primary-500 animate-spin flex-shrink-0" />
+            <span className="text-primary-200 font-medium">
+              {uploadState.uploading ? `Uploading... ${uploadState.uploadProgress}%` : 'Processing PDF...'}
+              {uploadState.status?.current_step && !uploadState.uploading && ` — ${uploadState.status.current_step}`}
+            </span>
+          </div>
+        )}
+
+      {/* Header */}
           <div className="flex items-center justify-between">
             <div>
               <h2 className="text-2xl font-bold text-dark-50">Virtual Catalog Upload</h2>
@@ -763,7 +783,8 @@ const VirtualCatalogUpload = () => {
               activeTab === 'upload'
                 ? 'text-primary-500 border-b-2 border-primary-500'
                 : 'text-dark-400 hover:text-dark-200'
-            }`}
+            } disabled:opacity-50 disabled:pointer-events-none`}
+            disabled={uploadState.uploading}
           >
             Upload
           </button>
@@ -773,19 +794,19 @@ const VirtualCatalogUpload = () => {
               activeTab === 'review'
                 ? 'text-primary-500 border-b-2 border-primary-500'
                 : 'text-dark-400 hover:text-dark-200'
-            }`}
-            disabled={tmpProducts.length === 0}
+            } disabled:opacity-50 disabled:pointer-events-none`}
+            disabled={tmpProducts.length === 0 || uploadState.uploading}
           >
             Review ({tmpProducts.length})
           </button>
         </div>
         
-        {/* Cleanup button */}
         <Button
           onClick={handleCleanupExpired}
           variant="outline"
           size="sm"
           className="mb-2"
+          disabled={uploadState.uploading || loading}
         >
           <Trash2 className="w-4 h-4 mr-2" />
           Cleanup Expired

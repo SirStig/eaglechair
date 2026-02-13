@@ -61,6 +61,7 @@ const EditModal = ({ isOpen, onClose, onSave, elementData, elementType }) => {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    if (uploadingImage || loading) return;
     setLoading(true);
     setError(null);
     
