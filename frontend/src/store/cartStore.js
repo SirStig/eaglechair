@@ -2,6 +2,7 @@ import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import apiClient from '../config/apiClient';
 import logger from '../utils/logger';
+import { ensurePriceCents } from '../utils/apiHelpers';
 
 const CONTEXT = 'CartStore';
 
@@ -56,7 +57,8 @@ export const useCartStore = create(
       getTotalPrice: () => {
         const items = get().getItems();
         return items.reduce((sum, item) => {
-          const priceCents = item.unit_price ?? item.product?.price ?? item.product?.base_price ?? 0;
+          const raw = item.unit_price ?? item.product?.price ?? item.product?.base_price ?? 0;
+          const priceCents = ensurePriceCents(raw);
           return sum + (priceCents * item.quantity);
         }, 0);
       },

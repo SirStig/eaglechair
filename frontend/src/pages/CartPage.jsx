@@ -4,7 +4,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import Button from '../components/ui/Button';
 import Card from '../components/ui/Card';
 import { useCartStore } from '../store/cartStore';
-import { getProductImage, buildProductUrl } from '../utils/apiHelpers';
+import { getProductImage, buildProductUrl, ensurePriceCents, formatPrice } from '../utils/apiHelpers';
 
 const CartPage = () => {
   const [brokenImageKeys, setBrokenImageKeys] = useState(() => new Set());
@@ -31,7 +31,8 @@ const CartPage = () => {
       ? (state.backendCart.items || [])
       : state.guestItems;
     return cartItems.reduce((sum, item) => {
-      const priceCents = item.unit_price ?? item.product?.price ?? item.product?.base_price ?? 0;
+      const raw = item.unit_price ?? item.product?.price ?? item.product?.base_price ?? 0;
+      const priceCents = ensurePriceCents(raw);
       return sum + (priceCents * item.quantity);
     }, 0);
   });
@@ -105,7 +106,7 @@ const CartPage = () => {
                 const productSubcategory = typeof product.subcategory === 'object' && product.subcategory
                   ? (product.subcategory.name || product.subcategory.slug || '')
                   : (product.subcategory || '');
-                const priceCents = item.unit_price ?? product.price ?? product.base_price ?? 0;
+                const priceCents = ensurePriceCents(item.unit_price ?? product.price ?? product.base_price ?? 0);
 
                 return (
                   <motion.div
@@ -312,10 +313,10 @@ const CartPage = () => {
                               {priceCents > 0 ? (
                                 <>
                                   <p className="text-2xl font-bold text-slate-800">
-                                    ${((priceCents / 100) * item.quantity).toFixed(2)}
+                                    {formatPrice(priceCents * item.quantity)}
                                   </p>
                                   <p className="text-sm text-slate-500">
-                                    Estimated listing: ${(priceCents / 100).toFixed(2)} × {item.quantity}
+                                    Estimated listing: {formatPrice(priceCents)} × {item.quantity}
                                   </p>
                                 </>
                               ) : (
@@ -367,7 +368,7 @@ const CartPage = () => {
                     <div className="flex justify-between items-baseline py-2 bg-primary-50 -mx-6 px-6 py-4 rounded-lg">
                       <span className="font-bold text-slate-800 text-lg">Estimated Subtotal (listing/base prices)</span>
                       <span className="font-bold text-primary-600 text-2xl">
-                        ${(subtotal / 100).toFixed(2)}
+                        {formatPrice(subtotal)}
                       </span>
                     </div>
                     <p className="text-xs text-slate-500 text-center italic mt-2">

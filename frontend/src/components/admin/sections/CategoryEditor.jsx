@@ -11,6 +11,7 @@ import { ArrowLeft, Upload, X } from 'lucide-react';
  */
 const CategoryEditor = ({ category, categories, parentCategory, isSubcategory, onBack, onSave }) => {
   const subcategoryMode = isSubcategory || (parentCategory && !category);
+  const categoriesList = Array.isArray(categories) ? categories : [];
   const [formData, setFormData] = useState(() => {
     if (subcategoryMode) {
       return {
@@ -19,7 +20,7 @@ const CategoryEditor = ({ category, categories, parentCategory, isSubcategory, o
         description: category?.description || '',
         display_order: category?.display_order ?? 0,
         is_active: category?.is_active !== false,
-        category_id: parentCategory?.id ?? category?.category_id ?? null
+        category_id: (parentCategory?.id != null ? parentCategory.id : category?.category_id) ?? null
       };
     }
     return {
@@ -213,8 +214,8 @@ const CategoryEditor = ({ category, categories, parentCategory, isSubcategory, o
         <div>
           <h2 className="text-3xl font-bold text-dark-50">
             {subcategoryMode
-              ? (category ? `Edit: ${category.name}` : `Create Subcategory${parentCategory ? ` under ${parentCategory.name}` : ''}`)
-              : (category ? `Edit: ${category.name}` : 'Create Category')}
+              ? (category ? `Edit: ${String(category.name ?? '')}` : `Create Subcategory${parentCategory ? ` under ${String(parentCategory.name ?? '')}` : ''}`)
+              : (category ? `Edit: ${String(category.name ?? '')}` : 'Create Category')}
           </h2>
           <p className="text-dark-300 mt-1">
             {subcategoryMode
@@ -238,9 +239,9 @@ const CategoryEditor = ({ category, categories, parentCategory, isSubcategory, o
                   <label className="block text-sm font-medium text-dark-200 mb-2">
                     {subcategoryMode ? 'Subcategory Name' : 'Category Name'} *
                   </label>
-                  <input
+                    <input
                     type="text"
-                    value={formData.name}
+                    value={formData.name ?? ''}
                     onChange={(e) => handleChange('name', e.target.value)}
                     className="w-full px-4 py-2 bg-dark-700 border border-dark-600 rounded-lg text-dark-50 focus:border-primary-500 focus:ring-1 focus:ring-primary-500 outline-none transition-all"
                     placeholder={subcategoryMode ? 'e.g., Office Chairs' : 'e.g., Chairs'}
@@ -251,9 +252,9 @@ const CategoryEditor = ({ category, categories, parentCategory, isSubcategory, o
                   <label className="block text-sm font-medium text-dark-200 mb-2">
                     Slug *
                   </label>
-                  <input
+                    <input
                     type="text"
-                    value={formData.slug}
+                    value={formData.slug ?? ''}
                     onChange={(e) => handleChange('slug', e.target.value)}
                     className="w-full px-4 py-2 bg-dark-700 border border-dark-600 rounded-lg text-dark-50 font-mono focus:border-primary-500 focus:ring-1 focus:ring-primary-500 outline-none transition-all"
                     placeholder="chairs"
@@ -269,7 +270,7 @@ const CategoryEditor = ({ category, categories, parentCategory, isSubcategory, o
                 Description
               </label>
               <textarea
-                value={formData.description}
+                value={formData.description ?? ''}
                 onChange={(e) => handleChange('description', e.target.value)}
                 rows={3}
                 className="w-full px-4 py-2 bg-dark-700 border border-dark-600 rounded-lg text-dark-50 focus:border-primary-500 focus:ring-1 focus:ring-primary-500 outline-none transition-all"
@@ -302,7 +303,7 @@ const CategoryEditor = ({ category, categories, parentCategory, isSubcategory, o
                       </label>
                       <input
                         type="text"
-                        value={formData.meta_title}
+                        value={formData.meta_title ?? ''}
                         onChange={(e) => handleChange('meta_title', e.target.value)}
                         className="w-full px-4 py-2 bg-dark-700 border border-dark-600 rounded-lg text-dark-50 focus:border-primary-500 focus:ring-1 focus:ring-primary-500 outline-none transition-all"
                         placeholder="SEO title for search engines"
@@ -313,7 +314,7 @@ const CategoryEditor = ({ category, categories, parentCategory, isSubcategory, o
                         Meta Description
                       </label>
                       <textarea
-                        value={formData.meta_description}
+                        value={formData.meta_description ?? ''}
                         onChange={(e) => handleChange('meta_description', e.target.value)}
                         rows={2}
                         className="w-full px-4 py-2 bg-dark-700 border border-dark-600 rounded-lg text-dark-50 focus:border-primary-500 focus:ring-1 focus:ring-primary-500 outline-none transition-all"
@@ -341,8 +342,8 @@ const CategoryEditor = ({ category, categories, parentCategory, isSubcategory, o
                       onChange={(e) => handleChange('category_id', e.target.value ? parseInt(e.target.value) : null)}
                       className="w-full px-4 py-2 bg-dark-700 border border-dark-600 rounded-lg text-dark-50 focus:border-primary-500 focus:ring-1 focus:ring-primary-500 outline-none transition-all"
                     >
-                      {categories.filter((cat) => !cat.parent_id).map((cat) => (
-                        <option key={cat.id} value={cat.id}>{cat.name}</option>
+                      {categoriesList.filter((cat) => !cat.parent_id).map((cat) => (
+                        <option key={cat.id} value={cat.id}>{String(cat.name ?? '')}</option>
                       ))}
                     </select>
                   </div>
@@ -357,8 +358,8 @@ const CategoryEditor = ({ category, categories, parentCategory, isSubcategory, o
                       className="w-full px-4 py-2 bg-dark-700 border border-dark-600 rounded-lg text-dark-50 focus:border-primary-500 focus:ring-1 focus:ring-primary-500 outline-none transition-all"
                     >
                       <option value="">None (Top-level category)</option>
-                      {categories.filter((cat) => !cat.parent_id && cat.id !== category?.id).map((cat) => (
-                        <option key={cat.id} value={cat.id}>{cat.name}</option>
+                      {categoriesList.filter((cat) => !cat.parent_id && cat.id !== category?.id).map((cat) => (
+                        <option key={cat.id} value={cat.id}>{String(cat.name ?? '')}</option>
                       ))}
                     </select>
                   </div>
@@ -369,7 +370,7 @@ const CategoryEditor = ({ category, categories, parentCategory, isSubcategory, o
                   </label>
                   <input
                     type="number"
-                    value={formData.display_order}
+                    value={Number(formData.display_order) || 0}
                     onChange={(e) => handleChange('display_order', parseInt(e.target.value) || 0)}
                     className="w-full px-4 py-2 bg-dark-700 border border-dark-600 rounded-lg text-dark-50 focus:border-primary-500 focus:ring-1 focus:ring-primary-500 outline-none transition-all"
                     min="0"

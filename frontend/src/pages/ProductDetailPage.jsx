@@ -5,6 +5,7 @@ import Button from '../components/ui/Button';
 import Tag from '../components/ui/Tag';
 import LoadingSpinner from '../components/ui/LoadingSpinner';
 import ProductCard from '../components/ui/ProductCard';
+import QuickViewModal from '../components/ui/QuickViewModal';
 import EditableWrapper from '../components/admin/EditableWrapper';
 import SEOHead from '../components/SEOHead';
 import { useCartStore } from '../store/cartStore';
@@ -42,6 +43,7 @@ const ProductDetailPage = () => {
   const [selectedVariation, setSelectedVariation] = useState(null);
   const [loadingVariations, setLoadingVariations] = useState(false);
   const [familyProducts, setFamilyProducts] = useState([]);
+  const [quickViewProduct, setQuickViewProduct] = useState(null);
   const [customNotes, setCustomNotes] = useState('');
   const [notesExpanded, setNotesExpanded] = useState(false);
 
@@ -313,6 +315,8 @@ const ProductDetailPage = () => {
     link.download = `${product.slug || product.name}.jpg`;
     link.click();
   };
+
+  const handleQuickView = (p) => setQuickViewProduct(p);
 
   // Product update handler
   const handleUpdateProduct = async (updates) => {
@@ -1019,6 +1023,7 @@ const ProductDetailPage = () => {
                 <ProductCard
                   key={familyProduct.id}
                   product={familyProduct}
+                  onQuickView={handleQuickView}
                 />
               ))}
             </div>
@@ -1036,12 +1041,19 @@ const ProductDetailPage = () => {
                 <ProductCard
                   key={relatedProduct.id}
                   product={relatedProduct}
+                  onQuickView={handleQuickView}
                 />
               ))}
             </div>
           </div>
         </section>
       )}
+
+      <QuickViewModal
+        product={quickViewProduct}
+        isOpen={!!quickViewProduct}
+        onClose={() => setQuickViewProduct(null)}
+      />
     </div>
   );
 };

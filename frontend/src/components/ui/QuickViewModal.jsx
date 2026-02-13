@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom';
 import Button from './Button';
 import Tag from './Tag';
 import { useCartStore } from '../../store/cartStore';
-import { getProductImages, buildProductUrl, resolveImageUrl } from '../../utils/apiHelpers';
+import { getProductImages, buildProductUrl, resolveImageUrl, formatPrice, ensurePriceCents } from '../../utils/apiHelpers';
 import SwatchImage from './SwatchImage';
 import productService from '../../services/productService';
 import logger from '../../utils/logger';
@@ -118,17 +118,18 @@ const QuickViewModal = ({ product, isOpen, onClose }) => {
   const images = getDisplayImages();
   const productUrl = buildProductUrl(product);
 
-  // Calculate price - use variation price if selected
   const getDisplayPrice = () => {
-    const basePrice = product.base_price || product.priceRange?.min || 0;
+    const baseCents = ensurePriceCents(product.base_price || product.priceRange?.min || 0);
     if (selectedVariation && selectedVariation.price_adjustment !== undefined) {
-      const variationPrice = (basePrice + (selectedVariation.price_adjustment || 0)) / 100;
-      return `$${variationPrice.toFixed(2)}`;
+      const adjCents = ensurePriceCents(selectedVariation.price_adjustment);
+      return formatPrice(baseCents + adjCents);
     }
-    if (product.priceRange?.min && product.priceRange?.max && product.priceRange.min !== product.priceRange.max) {
-      return `$${product.priceRange.min.toFixed(2)} - $${product.priceRange.max.toFixed(2)}`;
+    if (product.priceRange?.min != null && product.priceRange?.max != null && product.priceRange.min !== product.priceRange.max) {
+      const minCents = ensurePriceCents(product.priceRange.min);
+      const maxCents = ensurePriceCents(product.priceRange.max);
+      return `${formatPrice(minCents)} - ${formatPrice(maxCents)}`;
     }
-    return `$${(basePrice / 100).toFixed(2)}`;
+    return formatPrice(baseCents);
   };
 
   return (
