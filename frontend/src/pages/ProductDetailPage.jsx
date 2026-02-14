@@ -5,6 +5,7 @@ import Button from '../components/ui/Button';
 import Tag from '../components/ui/Tag';
 import LoadingSpinner from '../components/ui/LoadingSpinner';
 import ProductCard from '../components/ui/ProductCard';
+import ProductCarousel from '../components/ui/ProductCarousel';
 import QuickViewModal from '../components/ui/QuickViewModal';
 import ImageLightboxModal from '../components/ui/ImageLightboxModal';
 import EditableWrapper from '../components/admin/EditableWrapper';
@@ -211,11 +212,10 @@ const ProductDetailPage = () => {
         if (response.data.family_id) {
           productService.getProducts({
             family_id: response.data.family_id,
-            limit: 5 // Fetch 5, filter self, keep 4
+            limit: 20
           })
             .then(res => {
-              // Filter out current product
-              const members = (res.data || []).filter(p => p.id !== response.data.id).slice(0, 4);
+              const members = (res.data || []).filter(p => p.id !== response.data.id).slice(0, 20);
               setFamilyProducts(members);
             })
             .catch(err => logger.error(CONTEXT, 'Failed to load family members', err));
@@ -1041,7 +1041,7 @@ const ProductDetailPage = () => {
                 )}
               </div>
             </div>
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+            <ProductCarousel>
               {familyProducts.map((familyProduct) => (
                 <ProductCard
                   key={familyProduct.id}
@@ -1049,7 +1049,7 @@ const ProductDetailPage = () => {
                   onQuickView={handleQuickView}
                 />
               ))}
-            </div>
+            </ProductCarousel>
           </div>
         </section>
       )}
@@ -1058,16 +1058,24 @@ const ProductDetailPage = () => {
       {relatedProducts.length > 0 && (
         <section className="bg-white border-t border-cream-200">
           <div className="container mx-auto px-4 py-12 max-w-7xl">
-            <h2 className="text-2xl sm:text-3xl font-bold text-slate-800 mb-6 sm:mb-8">Related Products</h2>
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-              {relatedProducts.map((relatedProduct) => (
+            <div className="flex flex-wrap items-center justify-between gap-4 mb-6 sm:mb-8">
+              <h2 className="text-2xl sm:text-3xl font-bold text-slate-800">Recommended Products</h2>
+              <Link
+                  to={`/products/${product.id}/related`}
+                  className="text-primary-600 hover:text-primary-700 font-medium flex items-center gap-1"
+                >
+                  See All <span aria-hidden="true">&rarr;</span>
+                </Link>
+            </div>
+            <ProductCarousel>
+              {relatedProducts.slice(0, 20).map((relatedProduct) => (
                 <ProductCard
                   key={relatedProduct.id}
                   product={relatedProduct}
                   onQuickView={handleQuickView}
                 />
               ))}
-            </div>
+            </ProductCarousel>
           </div>
         </section>
       )}

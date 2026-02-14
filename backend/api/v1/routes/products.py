@@ -442,7 +442,7 @@ async def get_product(
     if company:
         await _apply_pricing_tiers_to_products(db, company, [product])
 
-    related = await ProductService.get_related_products(db, product.id, limit=6)
+    related = await ProductService.get_related_products(db, product.id, limit=100)
     sa_attributes.set_committed_value(product, "related_products", related)
 
     return product
@@ -479,7 +479,7 @@ async def get_product_by_slug(
     if company:
         await _apply_pricing_tiers_to_products(db, company, [product])
 
-    related = await ProductService.get_related_products(db, product.id, limit=6)
+    related = await ProductService.get_related_products(db, product.id, limit=100)
     sa_attributes.set_committed_value(product, "related_products", related)
 
     return product
@@ -512,7 +512,7 @@ async def get_product_by_model(
 
     await _populate_customizations(db, [product])
 
-    related = await ProductService.get_related_products(db, product.id, limit=6)
+    related = await ProductService.get_related_products(db, product.id, limit=100)
     sa_attributes.set_committed_value(product, "related_products", related)
 
     return product
@@ -996,7 +996,7 @@ async def get_product_images(
 )
 async def get_related_products(
     product_id: int,
-    limit: int = Query(6, ge=1, le=20, description="Max number of related products"),
+    limit: int = Query(100, ge=1, le=100, description="Max number of related products"),
     company: Optional[Company] = Depends(get_optional_company),
     db: AsyncSession = Depends(get_db)
 ):
