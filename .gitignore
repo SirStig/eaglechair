@@ -144,6 +144,7 @@ yarn-error.log*
 media/
 uploads/
 static/uploads/
+frontend/public/assets/ECI-Cleaner/ECI-Cleaner-macOS.zip
 
 # ============================================================================
 # Temporary Files
