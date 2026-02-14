@@ -6,6 +6,7 @@ import { Helmet } from 'react-helmet-async';
 import Slider from 'react-slick';
 import Button from '../components/ui/Button';
 import ProductCard from '../components/ui/ProductCard';
+import QuickViewModal from '../components/ui/QuickViewModal';
 import { HeroSkeleton, CardGridSkeleton } from '../components/ui/Skeleton';
 import EditableWrapper from '../components/admin/EditableWrapper';
 import EditableList from '../components/admin/EditableList';
@@ -766,7 +767,12 @@ const HomePage = () => {
         </div>
       </section>
 
-      {/* Confirmation Modal */}
+      <QuickViewModal
+        product={selectedQuickView}
+        isOpen={!!selectedQuickView}
+        onClose={() => setSelectedQuickView(null)}
+      />
+
       <ConfirmModal
         isOpen={confirmModal.isOpen}
         onClose={() => setConfirmModal({ ...confirmModal, isOpen: false })}

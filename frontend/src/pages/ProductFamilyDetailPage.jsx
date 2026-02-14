@@ -74,8 +74,7 @@ const ProductFamilyDetailPage = () => {
       // Fetch products in this family
       const productsResponse = await productService.getProducts({
         family_id: familyResponse.id,
-        per_page: 100, // Get all products in family
-        exclude_variations: true,
+        per_page: 100,
       });
       
       setProducts(productsResponse.data || []);
@@ -305,12 +304,21 @@ const ProductFamilyDetailPage = () => {
                     )}
 
                     <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 sm:gap-4">
-                      {product.base_price ? (
-                        <span className="text-xl sm:text-2xl font-bold text-slate-900">
-                          ${(product.base_price / 100).toFixed(2)}
-                          <span className="text-sm font-normal text-slate-500 ml-1">Est. listing</span>
-                        </span>
-                      ) : null}
+                      <span className="text-xl sm:text-2xl font-bold text-slate-900">
+                        {product.base_price && product.base_price > 0
+                          ? (
+                              <>
+                                ${(product.base_price / 100).toFixed(2)}
+                                <span className="text-sm font-normal text-slate-500 ml-1">Est. listing</span>
+                              </>
+                            )
+                          : (
+                              <>
+                                No List Price
+                                <span className="text-sm font-normal text-slate-500 ml-1">· Contact for quote</span>
+                              </>
+                            )}
+                      </span>
 
                       <div className="flex flex-col sm:flex-row gap-2">
                         <Button

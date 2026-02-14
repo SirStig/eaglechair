@@ -121,7 +121,9 @@ class ProductFamilyResponse(ProductFamilyBase, TimestampSchema):
     """Schema for product family response"""
 
     id: int
-    product_count: Optional[int] = 0  # Computed field for product count
+    product_count: Optional[int] = 0
+    category_name: Optional[str] = None
+    subcategory_name: Optional[str] = None
 
     class Config:
         from_attributes = True

@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import Tag from './Tag';
 import Button from './Button';
-import { formatPrice, getProductHoverImages, buildProductUrl } from '../../utils/apiHelpers';
+import { formatPrice, getProductHoverImages, buildProductUrl, hasValidPrice } from '../../utils/apiHelpers';
 import SwatchImage from './SwatchImage';
 
 const ProductCard = ({ product, onQuickView, darkMode = false, compact = false }) => {
@@ -46,11 +46,12 @@ const ProductCard = ({ product, onQuickView, darkMode = false, compact = false }
   // Determine which image to display
   const displayImage = carouselImages[activeImageIndex];
 
-  // Format price using transformed product data (base_price in cents)
-  // priceRange is added by transformProduct helper with { min, max } in dollars
-  const priceDisplay = product.priceRange?.min && product.priceRange?.max && product.priceRange.min !== product.priceRange.max
+  const hasPrice = hasValidPrice(product);
+  const hasPriceRange = product.priceRange?.min != null && product.priceRange?.max != null && product.priceRange.min !== product.priceRange.max;
+  const priceRangeValid = hasPriceRange && product.priceRange.min > 0 && product.priceRange.max > 0;
+  const priceDisplay = priceRangeValid
     ? `$${product.priceRange.min.toFixed(2)} - $${product.priceRange.max.toFixed(2)}`
-    : (product.base_price ? formatPrice(product.base_price) : null);
+    : hasPrice ? formatPrice(product.base_price) : 'No List Price';
 
   const finishes = product.customizations?.finishes?.slice(0, 5) || [];
   const colors = product.customizations?.colors?.slice(0, 5) || [];
@@ -228,15 +229,19 @@ const ProductCard = ({ product, onQuickView, darkMode = false, compact = false }
         )}
 
         {/* Price */}
-        {priceDisplay && (
-          <div className="mb-3 sm:mb-4">
-            <span className={`text-lg sm:text-xl font-bold ${textPrice}`}>{priceDisplay}</span>
-            <span className={`text-[10px] sm:text-xs ${textPriceNote} ml-1`}>
-              {product.priceRange?.min && product.priceRange?.max && product.priceRange.min !== product.priceRange.max ? 'per unit · ' : ''}
-              Est. listing
-            </span>
-          </div>
-        )}
+        <div className="mb-3 sm:mb-4">
+          <span className={`text-lg sm:text-xl font-bold ${textPrice}`}>{priceDisplay}</span>
+          <span className={`text-[10px] sm:text-xs ${textPriceNote} ml-1`}>
+            {priceDisplay !== 'No List Price' ? (
+              <>
+                {priceRangeValid ? 'per unit · ' : ''}
+                Est. listing
+              </>
+            ) : (
+              '· Contact for quote'
+            )}
+          </span>
+        </div>
 
         {/* Action Buttons */}
         <div className="mt-auto flex gap-2">

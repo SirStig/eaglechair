@@ -66,8 +66,10 @@ async def get_all_products(
     # Convert ORM objects to dicts
     products_data = orm_list_to_dict_list(products)
 
-    # Manually serialize variations for each product
     for i, product in enumerate(products):
+        products_data[i]["category"] = orm_to_dict(product.category) if getattr(product, "category", None) else None
+        products_data[i]["subcategory"] = orm_to_dict(product.subcategory) if getattr(product, "subcategory", None) else None
+        products_data[i]["family"] = orm_to_dict(product.family) if getattr(product, "family", None) else None
         if hasattr(product, "variations") and product.variations:
             products_data[i]["variations"] = [
                 {
