@@ -536,6 +536,48 @@ const ProductDetailPage = () => {
               >
                 Customize Now
               </Button>
+
+              {variations.length > 0 && (
+                <div className="mt-6">
+                  <p className="text-sm font-medium text-slate-700 mb-3">Variations</p>
+                  <div className="max-h-64 overflow-y-auto space-y-2 pr-1 border border-cream-200 rounded-lg bg-cream-50/50 p-2">
+                    {variations.map((variation) => {
+                      const isSelected = selectedVariation?.id === variation.id;
+                      const thumbUrl = variation.primary_image_url
+                        ? resolveImageUrl(variation.primary_image_url)
+                        : (variation.images?.[0] ? (typeof variation.images[0] === 'string' ? resolveImageUrl(variation.images[0]) : resolveImageUrl(variation.images[0]?.url || variation.images[0])) : null) || resolveImageUrl(product?.primary_image_url || product?.image) || '/og-image.jpg';
+                      const details = [variation.finish?.name, variation.upholstery?.name, variation.color?.name].filter(Boolean);
+                      const specText = details.length > 0 ? ` · ${details.join(' / ')}` : '';
+                      return (
+                        <button
+                          key={variation.id}
+                          type="button"
+                          onClick={() => {
+                            setSelectedVariation(variation);
+                            setSelectedImage(0);
+                          }}
+                          className={`w-full flex items-center gap-3 p-2.5 rounded-lg text-left transition-colors border-2 ${isSelected ? 'border-primary-500 bg-primary-50/50' : 'border-transparent bg-white hover:bg-cream-100 hover:border-cream-300'}`}
+                        >
+                          <div className="w-14 h-14 flex-shrink-0 rounded-md overflow-hidden bg-cream-200">
+                            <img src={thumbUrl} alt="" className="w-full h-full object-cover" />
+                          </div>
+                          <div className="min-w-0 flex-1">
+                            <span className="font-medium text-slate-800 block truncate">{variation.sku || `#${variation.id}`}</span>
+                            {specText && <span className="text-xs text-slate-500 truncate block">{details.join(' / ')}</span>}
+                          </div>
+                          {isSelected && (
+                            <span className="flex-shrink-0 w-6 h-6 rounded-full bg-primary-500 flex items-center justify-center" aria-hidden>
+                              <svg className="w-3.5 h-3.5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                                <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                              </svg>
+                            </span>
+                          )}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
             </div>
           </div>
         </div>
@@ -567,27 +609,49 @@ const ProductDetailPage = () => {
               <div>
                 <h3 className="text-lg font-bold text-slate-800 mb-5">Weight & Dimensions</h3>
                 <div className="space-y-3.5 text-slate-700 text-[15px] leading-relaxed">
-                  {(product.width || product.depth || product.height) && (
-                    <p>
-                      Overall Dimensions : {[product.depth && `${product.depth}" D`, product.width && `${product.width}" W`, product.height && `${product.height}" H`].filter(Boolean).join(' x ')}
-                    </p>
-                  )}
-                  {product.seat_height && <p>Seat Height : {product.seat_height}"</p>}
-                  {(product.seat_width || product.seat_depth) && (
-                    <p>Seat : {[product.seat_width && `${product.seat_width}" W`, product.seat_depth && `${product.seat_depth}" D`].filter(Boolean).join(' x ')}</p>
-                  )}
-                  {(product.arm_height || product.back_height) && (
-                    <p>{[product.arm_height && `Arm Height : ${product.arm_height}"`, product.back_height && `Back Height : ${product.back_height}"`].filter(Boolean).join(' · ')}</p>
-                  )}
-                  {(product.shipping_weight != null || product.weight != null) && (
-                    <p>Shipping Weight : {product.shipping_weight ?? product.weight} lbs</p>
-                  )}
-                  {product.upholstery_amount != null && product.upholstery_amount > 0 && (
-                    <p>Upholstery : {Number(product.upholstery_amount) === parseInt(product.upholstery_amount, 10) ? product.upholstery_amount : Number(product.upholstery_amount).toFixed(1)} yd</p>
-                  )}
-                  {!product.width && !product.depth && !product.height && !product.seat_height && !product.seat_width && !product.seat_depth && !product.arm_height && !product.back_height && !product.weight && !product.shipping_weight && (product.upholstery_amount == null || product.upholstery_amount <= 0) && (
-                    <p className="text-slate-500">—</p>
-                  )}
+                  {(() => {
+                    const v = selectedVariation;
+                    const width = (v?.width != null ? v.width : product?.width);
+                    const depth = (v?.depth != null ? v.depth : product?.depth);
+                    const height = (v?.height != null ? v.height : product?.height);
+                    const seat_width = (v?.seat_width != null ? v.seat_width : product?.seat_width);
+                    const seat_depth = (v?.seat_depth != null ? v.seat_depth : product?.seat_depth);
+                    const seat_height = (v?.seat_height != null ? v.seat_height : product?.seat_height);
+                    const arm_height = (v?.arm_height != null ? v.arm_height : product?.arm_height);
+                    const back_height = (v?.back_height != null ? v.back_height : product?.back_height);
+                    const weight = (v?.weight != null ? v.weight : product?.weight);
+                    const shipping_weight = (v?.shipping_weight != null ? v.shipping_weight : product?.shipping_weight);
+                    const upholstery_amount = (v?.upholstery_amount != null ? v.upholstery_amount : product?.upholstery_amount);
+                    const hasOverall = width != null || depth != null || height != null;
+                    const hasSeat = seat_width != null || seat_depth != null;
+                    const hasHeights = arm_height != null || back_height != null;
+                    const hasWeight = shipping_weight != null || weight != null;
+                    const hasUph = upholstery_amount != null && upholstery_amount > 0;
+                    const hasAny = hasOverall || seat_height != null || hasSeat || hasHeights || hasWeight || hasUph;
+                    return (
+                      <>
+                        {hasOverall && (
+                          <p>
+                            Overall Dimensions : {[depth != null && `${depth}" D`, width != null && `${width}" W`, height != null && `${height}" H`].filter(Boolean).join(' x ')}
+                          </p>
+                        )}
+                        {seat_height != null && <p>Seat Height : {seat_height}"</p>}
+                        {hasSeat && (
+                          <p>Seat : {[seat_width != null && `${seat_width}" W`, seat_depth != null && `${seat_depth}" D`].filter(Boolean).join(' x ')}</p>
+                        )}
+                        {hasHeights && (
+                          <p>{[arm_height != null && `Arm Height : ${arm_height}"`, back_height != null && `Back Height : ${back_height}"`].filter(Boolean).join(' · ')}</p>
+                        )}
+                        {hasWeight && (
+                          <p>Shipping Weight : {shipping_weight ?? weight} lbs</p>
+                        )}
+                        {hasUph && (
+                          <p>Upholstery : {Number(upholstery_amount) === parseInt(upholstery_amount, 10) ? upholstery_amount : Number(upholstery_amount).toFixed(1)} yd</p>
+                        )}
+                        {!hasAny && <p className="text-slate-500">—</p>}
+                      </>
+                    );
+                  })()}
                 </div>
               </div>
 

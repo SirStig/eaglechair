@@ -1134,7 +1134,18 @@ const ProductEditor = ({ product, onBack }) => {
                   color_id: null,
                   price_adjustment: 0,
                   stock_status: 'Available',
-                  is_available: true
+                  is_available: true,
+                  width: null,
+                  depth: null,
+                  height: null,
+                  seat_width: null,
+                  seat_depth: null,
+                  seat_height: null,
+                  arm_height: null,
+                  back_height: null,
+                  weight: null,
+                  shipping_weight: null,
+                  upholstery_amount: null
                 }])}
                 variant="outline"
                 className="flex items-center gap-2"
@@ -1298,6 +1309,43 @@ const ProductEditor = ({ product, onBack }) => {
                               />
                               <span className="text-dark-200">Available for Sale</span>
                             </label>
+                          </div>
+                        </div>
+
+                        <div className="mt-4 pt-4 border-t border-dark-600">
+                          <p className="text-sm font-medium text-dark-200 mb-3">Weight & dimensions override (optional)</p>
+                          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
+                            {[
+                              { key: 'width', label: 'W (in)' },
+                              { key: 'depth', label: 'D (in)' },
+                              { key: 'height', label: 'H (in)' },
+                              { key: 'seat_width', label: 'Seat W' },
+                              { key: 'seat_depth', label: 'Seat D' },
+                              { key: 'seat_height', label: 'Seat H' },
+                              { key: 'arm_height', label: 'Arm H' },
+                              { key: 'back_height', label: 'Back H' },
+                              { key: 'weight', label: 'Weight (lbs)' },
+                              { key: 'shipping_weight', label: 'Ship weight (lbs)' },
+                              { key: 'upholstery_amount', label: 'Uph. (yd)' }
+                            ].map(({ key, label }) => (
+                              <div key={key}>
+                                <label className="block text-xs text-dark-400 mb-1">{label}</label>
+                                <input
+                                  type="number"
+                                  step={key.includes('upholstery') ? '0.1' : '0.01'}
+                                  min="0"
+                                  value={variation[key] ?? ''}
+                                  onChange={(e) => {
+                                    const newVariations = [...variations];
+                                    const val = e.target.value === '' ? null : parseFloat(e.target.value);
+                                    newVariations[index][key] = Number.isFinite(val) ? val : null;
+                                    setVariations(newVariations);
+                                  }}
+                                  className="w-full px-2 py-1.5 text-sm bg-dark-700 border border-dark-600 rounded text-dark-50"
+                                  placeholder="—"
+                                />
+                              </div>
+                            ))}
                           </div>
                         </div>
                       </div>

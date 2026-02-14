@@ -317,6 +317,14 @@ class AdminService:
                     variation_to_update.primary_image_url = var_data[
                         "primary_image_url"
                     ]
+                for attr in (
+                    "width", "depth", "height", "seat_width", "seat_depth",
+                    "seat_height", "arm_height", "back_height",
+                    "additional_dimensions", "weight", "shipping_weight",
+                    "upholstery_amount",
+                ):
+                    if attr in var_data:
+                        setattr(variation_to_update, attr, var_data[attr])
 
                 logger.debug(
                     f"Updated variation {variation_to_update.id} for product {product_id}"
@@ -351,6 +359,18 @@ class AdminService:
                 display_order=int(var_data.get("display_order", 0)),
                 images=var_data.get("images", []),
                 primary_image_url=var_data.get("primary_image_url"),
+                width=var_data.get("width"),
+                depth=var_data.get("depth"),
+                height=var_data.get("height"),
+                seat_width=var_data.get("seat_width"),
+                seat_depth=var_data.get("seat_depth"),
+                seat_height=var_data.get("seat_height"),
+                arm_height=var_data.get("arm_height"),
+                back_height=var_data.get("back_height"),
+                additional_dimensions=var_data.get("additional_dimensions"),
+                weight=var_data.get("weight"),
+                shipping_weight=var_data.get("shipping_weight"),
+                upholstery_amount=var_data.get("upholstery_amount"),
             )
             db.add(new_variation)
             logger.debug(
@@ -394,6 +414,18 @@ class AdminService:
                 display_order=int(var_data.get("display_order", 0)),
                 images=var_data.get("images", []),
                 primary_image_url=var_data.get("primary_image_url"),
+                width=var_data.get("width"),
+                depth=var_data.get("depth"),
+                height=var_data.get("height"),
+                seat_width=var_data.get("seat_width"),
+                seat_depth=var_data.get("seat_depth"),
+                seat_height=var_data.get("seat_height"),
+                arm_height=var_data.get("arm_height"),
+                back_height=var_data.get("back_height"),
+                additional_dimensions=var_data.get("additional_dimensions"),
+                weight=var_data.get("weight"),
+                shipping_weight=var_data.get("shipping_weight"),
+                upholstery_amount=var_data.get("upholstery_amount"),
             )
             db.add(new_variation)
             logger.debug(

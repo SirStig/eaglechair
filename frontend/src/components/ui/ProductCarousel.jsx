@@ -16,11 +16,23 @@ const ProductCarousel = ({ children, className = '' }) => {
 
   if (items.length === 0) return null;
 
+  const btnClass = 'flex-shrink-0 w-10 h-10 rounded-full bg-white border border-slate-200 shadow-md flex items-center justify-center text-slate-600 hover:bg-cream-50 hover:text-slate-800 transition z-10';
+
   return (
-    <div className={`relative ${className}`}>
+    <div className={`flex items-center gap-3 ${className}`}>
+      {items.length > 1 && (
+        <button
+          type="button"
+          onClick={() => scroll('prev')}
+          className={btnClass}
+          aria-label="Previous"
+        >
+          <ChevronLeft className="w-5 h-5" />
+        </button>
+      )}
       <div
         ref={scrollRef}
-        className="flex gap-6 overflow-x-auto overflow-y-hidden py-2 -mx-1 scroll-smooth snap-x snap-mandatory scrollbar-thin scrollbar-thumb-slate-300 scrollbar-track-transparent"
+        className="flex gap-6 overflow-x-auto overflow-y-hidden py-2 min-w-0 flex-1 scroll-smooth snap-x snap-mandatory scrollbar-thin scrollbar-thumb-slate-300 scrollbar-track-transparent"
         style={{ scrollSnapType: 'x mandatory', scrollbarWidth: 'thin' }}
       >
         {items.map((child, i) => (
@@ -34,24 +46,14 @@ const ProductCarousel = ({ children, className = '' }) => {
         ))}
       </div>
       {items.length > 1 && (
-        <>
-          <button
-            type="button"
-            onClick={() => scroll('prev')}
-            className="absolute left-0 top-1/2 -translate-y-1/2 -translate-x-2 w-10 h-10 rounded-full bg-white border border-slate-200 shadow-md flex items-center justify-center text-slate-600 hover:bg-cream-50 hover:text-slate-800 transition z-10"
-            aria-label="Previous"
-          >
-            <ChevronLeft className="w-5 h-5" />
-          </button>
-          <button
-            type="button"
-            onClick={() => scroll('next')}
-            className="absolute right-0 top-1/2 -translate-y-1/2 translate-x-2 w-10 h-10 rounded-full bg-white border border-slate-200 shadow-md flex items-center justify-center text-slate-600 hover:bg-cream-50 hover:text-slate-800 transition z-10"
-            aria-label="Next"
-          >
-            <ChevronRight className="w-5 h-5" />
-          </button>
-        </>
+        <button
+          type="button"
+          onClick={() => scroll('next')}
+          className={btnClass}
+          aria-label="Next"
+        >
+          <ChevronRight className="w-5 h-5" />
+        </button>
       )}
     </div>
   );
