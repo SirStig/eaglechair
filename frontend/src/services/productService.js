@@ -112,6 +112,11 @@ export const productService = {
     };
   },
 
+  getRelatedProducts: async (productId, limit = 100) => {
+    const response = await api.get(`/api/v1/products/${productId}/related`, { params: { limit } });
+    return transformProducts(response || []);
+  },
+
   /**
    * Get product categories (from static contentData.json when available, else API)
    * @returns {Promise<Array>} Categories with subcategories, snake_case for UI

@@ -18,6 +18,7 @@ const HomePage = lazy(() => import('./pages/HomePage'));
 const ProductCatalogPage = lazy(() => import('./pages/ProductCatalogPage'));
 const ProductDetailPage = lazy(() => import('./pages/ProductDetailPage'));
 const ProductFamilyDetailPage = lazy(() => import('./pages/ProductFamilyDetailPage'));
+const RelatedProductsPage = lazy(() => import('./pages/RelatedProductsPage'));
 const SearchPage = lazy(() => import('./pages/SearchPage'));
 const GalleryPage = lazy(() => import('./pages/GalleryPage'));
 const AboutPage = lazy(() => import('./pages/AboutPage'));
@@ -120,6 +121,7 @@ function App() {
             
             {/* Product detail with full category path */}
             <Route path="/products/:categorySlug/:subcategorySlug/:productSlug" element={<ProductDetailPage />} />
+            <Route path="/products/:productId/related" element={<RelatedProductsPage />} />
             {/* Fallback for direct ID/slug access */}
             <Route path="/products/:id" element={<ProductDetailPage />} />
             <Route path="/search" element={<SearchPage />} />
