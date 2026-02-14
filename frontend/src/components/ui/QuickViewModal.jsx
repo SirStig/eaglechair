@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom';
 import Button from './Button';
 import Tag from './Tag';
 import { useCartStore } from '../../store/cartStore';
-import { getProductImages, buildProductUrl, resolveImageUrl, formatPrice, ensurePriceCents } from '../../utils/apiHelpers';
+import { getProductImages, buildProductUrl, resolveImageUrl, formatPrice, formatPriceOrNoListPrice, ensurePriceCents } from '../../utils/apiHelpers';
 import SwatchImage from './SwatchImage';
 import productService from '../../services/productService';
 import logger from '../../utils/logger';
@@ -122,15 +122,20 @@ const QuickViewModal = ({ product, isOpen, onClose }) => {
     const baseCents = ensurePriceCents(product.base_price || product.priceRange?.min || 0);
     if (selectedVariation && selectedVariation.price_adjustment !== undefined) {
       const adjCents = ensurePriceCents(selectedVariation.price_adjustment);
-      return formatPrice(baseCents + adjCents);
+      return formatPriceOrNoListPrice(baseCents + adjCents);
     }
     if (product.priceRange?.min != null && product.priceRange?.max != null && product.priceRange.min !== product.priceRange.max) {
       const minCents = ensurePriceCents(product.priceRange.min);
       const maxCents = ensurePriceCents(product.priceRange.max);
+      if (minCents <= 0 && maxCents <= 0) return 'No List Price';
+      if (minCents <= 0 || maxCents <= 0) return 'No List Price';
       return `${formatPrice(minCents)} - ${formatPrice(maxCents)}`;
     }
-    return formatPrice(baseCents);
+    return formatPriceOrNoListPrice(baseCents);
   };
+
+  const displayPrice = getDisplayPrice();
+  const hasListPrice = displayPrice !== 'No List Price';
 
   return (
     <>
@@ -227,17 +232,19 @@ const QuickViewModal = ({ product, isOpen, onClose }) => {
                     )}
 
                     {/* Price */}
-                    {(product.price || product.priceRange || selectedVariation) && (
-                      <div className="mb-4">
-                        <span className="text-2xl font-bold text-slate-900">
-                          {getDisplayPrice()}
-                        </span>
-                        <span className="text-sm text-slate-500 ml-2">
-                          {(selectedVariation || (product.priceRange?.min && product.priceRange?.max && product.priceRange.min !== product.priceRange.max)) ? 'per unit · ' : ''}
-                          Est. listing
-                        </span>
-                      </div>
-                    )}
+                    <div className="mb-4">
+                      <span className="text-2xl font-bold text-slate-900">{displayPrice}</span>
+                      <span className="text-sm text-slate-500 ml-2">
+                        {hasListPrice ? (
+                          <>
+                            {(selectedVariation || (product.priceRange?.min && product.priceRange?.max && product.priceRange.min !== product.priceRange.max)) ? 'per unit · ' : ''}
+                            Est. listing
+                          </>
+                        ) : (
+                          '· Contact for quote'
+                        )}
+                      </span>
+                    </div>
 
                     {/* Description */}
                     <p className="text-slate-700 mb-6 leading-relaxed line-clamp-3 text-sm">

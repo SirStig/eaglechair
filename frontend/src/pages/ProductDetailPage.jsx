@@ -6,6 +6,7 @@ import Tag from '../components/ui/Tag';
 import LoadingSpinner from '../components/ui/LoadingSpinner';
 import ProductCard from '../components/ui/ProductCard';
 import QuickViewModal from '../components/ui/QuickViewModal';
+import ImageLightboxModal from '../components/ui/ImageLightboxModal';
 import EditableWrapper from '../components/admin/EditableWrapper';
 import SEOHead from '../components/SEOHead';
 import { useCartStore } from '../store/cartStore';
@@ -46,6 +47,9 @@ const ProductDetailPage = () => {
   const [quickViewProduct, setQuickViewProduct] = useState(null);
   const [customNotes, setCustomNotes] = useState('');
   const [notesExpanded, setNotesExpanded] = useState(false);
+  const [lightboxOpen, setLightboxOpen] = useState(false);
+  const [lightboxImages, setLightboxImages] = useState([]);
+  const [lightboxInitialIndex, setLightboxInitialIndex] = useState(0);
 
   useEffect(() => {
     loadProduct();
@@ -318,6 +322,13 @@ const ProductDetailPage = () => {
 
   const handleQuickView = (p) => setQuickViewProduct(p);
 
+  const openLightbox = (imageList, initialIdx = 0) => {
+    if (!imageList?.length) return;
+    setLightboxImages(imageList);
+    setLightboxInitialIndex(initialIdx);
+    setLightboxOpen(true);
+  };
+
   // Product update handler
   const handleUpdateProduct = async (updates) => {
     try {
@@ -412,7 +423,11 @@ const ProductDetailPage = () => {
             {/* Hero image (primary + hover only) */}
             <div className="flex items-center justify-center">
               <div className="relative inline-block w-full">
-                <div className="bg-white rounded-xl overflow-hidden border border-cream-200">
+                <button
+                  type="button"
+                  onClick={() => openLightbox(carouselImages, selectedImage)}
+                  className="bg-white rounded-xl overflow-hidden border border-cream-200 block w-full cursor-zoom-in hover:opacity-95 transition-opacity focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2"
+                >
                   <img
                     src={carouselImages[Math.min(selectedImage, carouselImages.length - 1)] || carouselImages[0] || images[0]}
                     alt={product.name}
@@ -422,7 +437,7 @@ const ProductDetailPage = () => {
                     fetchpriority={selectedImage === 0 ? "high" : "low"}
                     decoding="async"
                   />
-                </div>
+                </button>
 
                 {carouselImages.length > 1 && (
                   <>
@@ -627,21 +642,25 @@ const ProductDetailPage = () => {
           <div className="container mx-auto px-4 py-16 max-w-7xl">
             <h2 className="text-2xl sm:text-3xl font-bold text-slate-800 mb-6 sm:mb-8 text-center">Gallery</h2>
             <div className="flex flex-col lg:flex-row gap-4 lg:gap-6 max-w-6xl mx-auto">
-              <div className="flex-1 min-w-0 aspect-video overflow-hidden">
+              <button
+                type="button"
+                onClick={() => openLightbox(galleryOnlyImages, gallerySelectedIndex)}
+                className="flex-1 min-w-0 aspect-video overflow-hidden cursor-zoom-in rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2"
+              >
                 <img
                   src={galleryOnlyImages[gallerySelectedIndex]}
                   alt={`${product.name} gallery ${gallerySelectedIndex + 1}`}
                   className="w-full h-full object-cover block"
                   loading="lazy"
                 />
-              </div>
+              </button>
               <div className="flex lg:flex-col gap-2 overflow-x-auto lg:overflow-y-auto lg:overflow-x-visible max-h-none lg:max-h-[360px] pb-2 lg:pb-0 flex-shrink-0 lg:w-48 xl:w-56">
                 {galleryOnlyImages.map((url, idx) => (
                   <button
                     key={idx}
                     type="button"
                     onClick={() => setGallerySelectedIndex(idx)}
-                    className={`flex-shrink-0 aspect-video overflow-hidden block w-32 sm:w-40 lg:w-full text-left focus:outline-none ${idx === gallerySelectedIndex ? 'opacity-100' : 'opacity-70 hover:opacity-100'}`}
+                    className={`flex-shrink-0 aspect-video overflow-hidden block w-32 sm:w-40 lg:w-full text-left focus:outline-none rounded ${idx === gallerySelectedIndex ? 'opacity-100' : 'opacity-70 hover:opacity-100'}`}
                   >
                     <img
                       src={url}
@@ -666,7 +685,11 @@ const ProductDetailPage = () => {
             {/* 3D Model Placeholder / Product Image (primary + hover only) */}
             <div className="flex items-center justify-center">
               <div className="relative inline-block">
-                <div className="bg-white rounded-xl overflow-hidden border border-cream-200">
+                <button
+                  type="button"
+                  onClick={() => openLightbox(carouselImages, customizeImageIndex)}
+                  className="bg-white rounded-xl overflow-hidden border border-cream-200 block w-full cursor-zoom-in hover:opacity-95 transition-opacity focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2"
+                >
                   <img
                     src={carouselImages[customizeImageIndex] || carouselImages[0]}
                     alt={product.name}
@@ -678,11 +701,11 @@ const ProductDetailPage = () => {
                   />
 
                   {/* 3D Coming Soon Badge */}
-                  <div className="absolute bottom-12 left-4 right-4 bg-cream-50/90 backdrop-blur-sm border border-primary-500 rounded-lg p-3 text-center">
+                  <div className="absolute bottom-12 left-4 right-4 bg-cream-50/90 backdrop-blur-sm border border-primary-500 rounded-lg p-3 text-center pointer-events-none">
                     <p className="text-primary-400 font-semibold text-sm">3D Customization Coming Soon</p>
                     <p className="text-slate-600 text-xs mt-1">Interactive 3D model viewer in development</p>
                   </div>
-                </div>
+                </button>
 
                 {carouselImages.length > 1 && (
                   <>
@@ -1053,6 +1076,13 @@ const ProductDetailPage = () => {
         product={quickViewProduct}
         isOpen={!!quickViewProduct}
         onClose={() => setQuickViewProduct(null)}
+      />
+
+      <ImageLightboxModal
+        isOpen={lightboxOpen}
+        onClose={() => setLightboxOpen(false)}
+        images={lightboxImages}
+        initialIndex={lightboxInitialIndex}
       />
     </div>
   );

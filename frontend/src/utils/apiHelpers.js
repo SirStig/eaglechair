@@ -56,6 +56,12 @@ export const formatPriceRange = (minCents, maxCents) => {
   return `${formatPrice(minCents)} - ${formatPrice(maxCents)}`;
 };
 
+export const formatPriceOrNoListPrice = (cents) => {
+  const c = ensurePriceCents(cents ?? 0);
+  if (!c || c <= 0) return 'No List Price';
+  return formatPrice(c);
+};
+
 export const ensurePriceCents = (value) => {
   const n = Number(value);
   if (Number.isNaN(n)) return 0;
@@ -231,7 +237,16 @@ export const getProductHoverImages = (product) => {
  */
 export const getProductGalleryImages = (product) => {
   if (!product?.images || !Array.isArray(product.images)) return [];
-  return product.images.map(img => resolveImageUrl(img));
+  const primary = product.primary_image_url || product.primary_image || product.image_url || product.image;
+  const primaryUrl = primary ? resolveImageUrl(primary) : null;
+  const hoverUrls = new Set(
+    Array.isArray(product.hover_images)
+      ? product.hover_images.map(img => resolveImageUrl(img))
+      : []
+  );
+  if (primaryUrl) hoverUrls.add(primaryUrl);
+  const galleryUrls = product.images.map(img => resolveImageUrl(img));
+  return galleryUrls.filter(url => url && !hoverUrls.has(url));
 };
 
 // ============================================================================
@@ -493,6 +508,7 @@ export default {
   priceToCents,
   formatPrice,
   formatPriceRange,
+  formatPriceOrNoListPrice,
   ensurePriceCents,
 
   // Images

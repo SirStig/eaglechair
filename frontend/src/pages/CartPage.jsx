@@ -39,6 +39,11 @@ const CartPage = () => {
 
   const isLoading = useCartStore((state) => state.isLoading);
 
+  const hasUnpricedItems = items.some((item) => {
+    const raw = item.unit_price ?? item.product?.price ?? item.product?.base_price ?? 0;
+    return ensurePriceCents(raw) <= 0;
+  });
+
   if (items.length === 0) {
     return (
       <div className="min-h-screen bg-cream-50 py-16">
@@ -320,7 +325,10 @@ const CartPage = () => {
                                   </p>
                                 </>
                               ) : (
-                                <p className="text-sm text-slate-500 font-medium">Quote Required</p>
+                                <>
+                                  <p className="text-base font-semibold text-slate-700">No List Price</p>
+                                  <p className="text-sm text-slate-500">Pricing provided in quote</p>
+                                </>
                               )}
                             </div>
                           </div>
@@ -375,6 +383,14 @@ const CartPage = () => {
                       *Prices are estimated listing/base only. Final pricing subject to quote approval and may be higher.
                     </p>
                   </>
+                )}
+                {hasUnpricedItems && (
+                  <div className="mt-4 p-4 bg-amber-50 border border-amber-200 rounded-lg">
+                    <p className="text-sm font-medium text-amber-900">Items without list price</p>
+                    <p className="text-xs text-amber-800 mt-1">
+                      Some items in your cart have no list price. Final pricing for these items will be provided in your quote.
+                    </p>
+                  </div>
                 )}
               </div>
 

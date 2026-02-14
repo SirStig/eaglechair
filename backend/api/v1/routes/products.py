@@ -675,6 +675,8 @@ async def get_families(
         )
         count_result = await db.execute(count_stmt)
         family.product_count = count_result.scalar() or 0
+        family.category_name = family.category.name if family.category else None
+        family.subcategory_name = family.subcategory.name if family.subcategory else None
 
     return families
 
@@ -695,13 +697,21 @@ async def get_family_by_id(
     **Public endpoint** - No authentication required.
     """
     logger.info(f"Fetching family {family_id}")
-    
+
     from sqlalchemy import func, or_, select
+    from sqlalchemy.orm import selectinload
 
     from backend.core.exceptions import ResourceNotFoundError
     from backend.models.chair import Chair, ProductFamily, chair_secondary_families
 
-    stmt = select(ProductFamily).where(ProductFamily.id == family_id)
+    stmt = (
+        select(ProductFamily)
+        .where(ProductFamily.id == family_id)
+        .options(
+            selectinload(ProductFamily.category),
+            selectinload(ProductFamily.subcategory),
+        )
+    )
     result = await db.execute(stmt)
     family = result.scalar_one_or_none()
 
@@ -717,6 +727,8 @@ async def get_family_by_id(
     )
     count_result = await db.execute(count_stmt)
     family.product_count = count_result.scalar() or 0
+    family.category_name = family.category.name if family.category else None
+    family.subcategory_name = family.subcategory.name if family.subcategory else None
 
     return family
 
@@ -737,13 +749,21 @@ async def get_family_by_slug(
     **Public endpoint** - No authentication required.
     """
     logger.info(f"Fetching family with slug '{slug}'")
-    
+
     from sqlalchemy import func, or_, select
+    from sqlalchemy.orm import selectinload
 
     from backend.core.exceptions import ResourceNotFoundError
     from backend.models.chair import Chair, ProductFamily, chair_secondary_families
 
-    stmt = select(ProductFamily).where(ProductFamily.slug == slug)
+    stmt = (
+        select(ProductFamily)
+        .where(ProductFamily.slug == slug)
+        .options(
+            selectinload(ProductFamily.category),
+            selectinload(ProductFamily.subcategory),
+        )
+    )
     result = await db.execute(stmt)
     family = result.scalar_one_or_none()
 
@@ -759,6 +779,8 @@ async def get_family_by_slug(
     )
     count_result = await db.execute(count_stmt)
     family.product_count = count_result.scalar() or 0
+    family.category_name = family.category.name if family.category else None
+    family.subcategory_name = family.subcategory.name if family.subcategory else None
 
     return family
 

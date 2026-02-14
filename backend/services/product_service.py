@@ -1030,8 +1030,14 @@ class ProductService:
         featured_only: bool = False,
         include_inactive: bool = False,
     ) -> List[ProductFamily]:
-        """Get product families"""
-        query = select(ProductFamily)
+        """Get product families with category and subcategory loaded."""
+        query = (
+            select(ProductFamily)
+            .options(
+                selectinload(ProductFamily.category),
+                selectinload(ProductFamily.subcategory),
+            )
+        )
 
         if not include_inactive:
             query = query.where(ProductFamily.is_active == True)
