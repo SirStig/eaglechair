@@ -529,6 +529,20 @@ class ProductVariation(Base):
     is_available = Column(Boolean, default=True, nullable=False)
     lead_time_days = Column(Integer, nullable=True)
 
+    # Optional overrides (when set, override product values on detail/quick view)
+    width = Column(Float, nullable=True)
+    depth = Column(Float, nullable=True)
+    height = Column(Float, nullable=True)
+    seat_width = Column(Float, nullable=True)
+    seat_depth = Column(Float, nullable=True)
+    seat_height = Column(Float, nullable=True)
+    arm_height = Column(Float, nullable=True)
+    back_height = Column(Float, nullable=True)
+    additional_dimensions = Column(JSON, nullable=True)
+    weight = Column(Float, nullable=True)
+    shipping_weight = Column(Float, nullable=True)
+    upholstery_amount = Column(Float, nullable=True)
+
     # Display
     display_order = Column(Integer, default=0, nullable=False)
 

@@ -258,12 +258,28 @@ const QuickViewModal = ({ product, isOpen, onClose }) => {
                         <div>
                           <h4 className="font-semibold text-slate-800 mb-2">Dimensions</h4>
                           <div className="space-y-1 text-slate-600">
-                            {product.width && <p>W: {product.width}"</p>}
-                            {product.depth && <p>D: {product.depth}"</p>}
-                            {product.height && <p>H: {product.height}"</p>}
-                            {product.upholstery_amount != null && product.upholstery_amount > 0 && (
-                              <p>Upholstery: {Number(product.upholstery_amount) === parseInt(product.upholstery_amount, 10) ? product.upholstery_amount : Number(product.upholstery_amount).toFixed(1)} yd</p>
-                            )}
+                            {(() => {
+                              const v = selectedVariation;
+                              const width = (v?.width != null ? v.width : product?.width);
+                              const depth = (v?.depth != null ? v.depth : product?.depth);
+                              const height = (v?.height != null ? v.height : product?.height);
+                              const upholstery_amount = (v?.upholstery_amount != null ? v.upholstery_amount : product?.upholstery_amount);
+                              const weight = (v?.weight != null ? v.weight : product?.weight);
+                              const shipping_weight = (v?.shipping_weight != null ? v.shipping_weight : product?.shipping_weight);
+                              return (
+                                <>
+                                  {width != null && <p>W: {width}"</p>}
+                                  {depth != null && <p>D: {depth}"</p>}
+                                  {height != null && <p>H: {height}"</p>}
+                                  {(shipping_weight != null || weight != null) && (
+                                    <p>Weight: {shipping_weight ?? weight} lbs</p>
+                                  )}
+                                  {upholstery_amount != null && upholstery_amount > 0 && (
+                                    <p>Upholstery: {Number(upholstery_amount) === parseInt(upholstery_amount, 10) ? upholstery_amount : Number(upholstery_amount).toFixed(1)} yd</p>
+                                  )}
+                                </>
+                              );
+                            })()}
                           </div>
                         </div>
 
