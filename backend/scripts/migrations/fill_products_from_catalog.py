@@ -4,7 +4,7 @@ Run on one PDF or a few products first; then full dry run. Images and families a
 
 Usage:
   python -m backend.scripts.migrations.fill_products_from_catalog --pdf-dir "/path/to/catalog pages 4 email" --xls "woodchairs&barstools 2024.Jan.xls" [--dry-run]
-  Use --env-file frontend/.env.production to point at production DB.
+  Use --env-file or --env-file backend/.env.production to use production DB (backend env only).
   Use --default-category-slug chairs (or --default-category-id N) when creating new products.
 
 Requires: GEMINI_API_KEY in env for description/feature generation. Use --skip-llm to only fill dimensions/price.
@@ -24,10 +24,15 @@ sys.path.insert(0, str(project_root))
 
 if "--env-file" in sys.argv:
     idx = sys.argv.index("--env-file")
-    if idx + 1 < len(sys.argv):
+    if idx + 1 < len(sys.argv) and not sys.argv[idx + 1].startswith("-"):
         env_path = sys.argv[idx + 1]
-        env_path = os.path.join(project_root, env_path) if not os.path.isabs(env_path) else env_path
-        env_path = os.path.abspath(env_path)
+    else:
+        env_path = "backend/.env.production"
+    if "frontend" in env_path and "backend" not in env_path:
+        env_path = "backend/.env.production"
+    env_path = os.path.join(project_root, env_path) if not os.path.isabs(env_path) else env_path
+    env_path = os.path.abspath(env_path)
+    if os.path.isfile(env_path):
         os.environ["FILL_SCRIPT_ENV_FILE"] = env_path
         from dotenv import load_dotenv
         load_dotenv(env_path, override=True)
@@ -306,7 +311,7 @@ def main() -> None:
     ap.add_argument("--gemini-api-key", default=None, help="Gemini API key (or set GEMINI_API_KEY)")
     ap.add_argument("--pdf-prefix", default="cat", help="Only use PDFs whose filename starts with this (default: cat)")
     ap.add_argument("--verbose", action="store_true", help="In dry-run, print full payload (price, descriptions, features, etc.)")
-    ap.add_argument("--env-file", default=None, help="Load env from this path (e.g. frontend/.env.production) for DATABASE_URL")
+    ap.add_argument("--env-file", nargs="?", const="backend/.env.production", default=None, metavar="PATH", help="Load env from path (default: backend/.env.production when passed with no path); frontend paths are redirected to backend")
     ap.add_argument("--default-category-id", type=int, default=None, help="Default category ID when creating new products")
     ap.add_argument("--default-category-slug", default="chairs", help="Default category slug when creating (default: chairs)")
     ap.add_argument("--create-if-missing", action="store_true", help="Create a new product when model_number is not in DB")

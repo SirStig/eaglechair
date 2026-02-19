@@ -13,7 +13,7 @@ GEMINI_RETRY_DELAYS = (5, 15, 45)
 
 logger = logging.getLogger(__name__)
 
-DEFAULT_MODEL = "gemini-2.0-flash"
+DEFAULT_MODEL = "gemini-2.5-flash-lite"
 DESCRIPTION_SYSTEM = """You are writing product copy for furniture (chairs, barstools, etc.) for a B2B website.
 Given catalog text from a manufacturer PDF, produce:
 1. short_description: One or two short sentences only. No bullet points. Marketing tone.
