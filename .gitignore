@@ -188,3 +188,13 @@ eaglechair_com.sql
 seed_admin.py
 seed_legal_content.py
 backend/scripts/seed_admin.py
+
+*.env.production
+*.env.staging
+*.env.development
+
+*.env.production.local
+*.env.staging.local
+*.env.development.local
+
+frontend/.env.production

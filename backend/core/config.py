@@ -18,27 +18,26 @@ def load_environment_file():
     """
     Load environment-specific .env file based on ENVIRONMENT variable
 
-    Priority order:
+    If FILL_SCRIPT_ENV_FILE is set (by fill_products_from_catalog --env-file), only
+    that file is loaded so production values are not overridden by backend/.env.local.
+
+    Otherwise priority order:
     1. backend/.env.local (highest priority - for local overrides)
     2. backend/.env.{ENVIRONMENT} (e.g., .env.development, .env.production)
     3. backend/.env (fallback)
-
-    Environment files should be located in the backend/ directory
     """
-    # Get the backend directory path
+    fill_env = os.environ.get("FILL_SCRIPT_ENV_FILE")
+    if fill_env and os.path.isfile(fill_env):
+        load_dotenv(fill_env, override=True)
+        return
+
     backend_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-
-    # Get current environment, default to 'development'
     environment = os.getenv("ENVIRONMENT", "development")
-
-    # Define file paths in priority order (relative to backend directory)
     env_files = [
-        os.path.join(backend_dir, ".env.local"),  # Local overrides (highest priority)
-        os.path.join(backend_dir, f".env.{environment}"),  # Environment-specific file
-        os.path.join(backend_dir, ".env"),  # Fallback file
+        os.path.join(backend_dir, ".env.local"),
+        os.path.join(backend_dir, f".env.{environment}"),
+        os.path.join(backend_dir, ".env"),
     ]
-
-    # Load files in reverse order so higher priority files override lower ones
     for env_file in reversed(env_files):
         if os.path.exists(env_file):
             load_dotenv(env_file, override=True)

@@ -220,30 +220,29 @@ def extract_images_from_page(
 
 
 def extract_model_variations(text: str) -> List[Dict]:
-    """Extract model numbers with variations from text"""
+    """Extract model numbers with variations from text. Matches 6246WB.P, 6246-22WB.BX, 5242-22WB.BX style."""
     if not text:
         return []
     
-    # Pattern: 4 digits + suffix (letters, dashes, numbers)
-    pattern = re.compile(r'\b(\d{4})([A-Z][\w-]*)\b')
-    
+    pattern = re.compile(r'\b(\d{4})(-[A-Z0-9][\w.]*|[A-Z][\w.-]*)\b')
     models = []
     seen = set()
-    
+
     for match in pattern.finditer(text):
         full_model = match.group(0)
-        
-        if not is_false_positive(full_model) and full_model not in seen:
-            base_model = match.group(1)
-            suffix = match.group(2)
-            
-            models.append({
-                'base_model': base_model,
-                'suffix': suffix,
-                'full_model': full_model,
-            })
-            seen.add(full_model)
-    
+        base_model = match.group(1)
+        suffix = match.group(2)
+        if base_model.isdigit() and 2010 <= int(base_model) <= 2030:
+            continue
+        if is_false_positive(full_model) or full_model in seen:
+            continue
+        models.append({
+            'base_model': base_model,
+            'suffix': suffix,
+            'full_model': full_model,
+        })
+        seen.add(full_model)
+
     return models
 
 
@@ -298,37 +297,52 @@ def extract_family_info(text: str) -> Dict:
 
 
 def extract_dimensions(text: str) -> Dict:
-    """Extract product dimensions from text"""
+    """Extract product dimensions from text. Accepts both \" and 'inches'."""
     dims = {}
-    
-    # Dimensions pattern
-    dim_pattern = re.compile(r'(\d+\.?\d*)"')
-    dim_matches = dim_pattern.findall(text)
-    
-    # Weight
+    text_lower = text.lower()
+
+    inch_pattern = re.compile(r'(\d+\.?\d*)\s*(?:"|inches?)', re.IGNORECASE)
+    inch_matches = inch_pattern.findall(text)
+
     weight_pattern = re.compile(r'(\d+)#')
     weight_match = weight_pattern.search(text)
     if weight_match:
         dims['weight'] = float(weight_match.group(1))
-    
-    # Volume
+
     volume_pattern = re.compile(r'([\d.]+)\s*cu\.?\s*ft', re.IGNORECASE)
     volume_match = volume_pattern.search(text)
     if volume_match:
         dims['volume'] = float(volume_match.group(1))
-    
-    # Yardage
-    yardage_pattern = re.compile(r'([\d.]+)y\b')
+
+    yardage_pattern = re.compile(r'(\d+\.?\d*)\s*y(?:ards?|d)?\b', re.IGNORECASE)
     yardage_match = yardage_pattern.search(text)
     if yardage_match:
         dims['yardage'] = float(yardage_match.group(1))
-    
-    # Assign first 3 dimensions (height, width, depth)
-    if len(dim_matches) >= 3:
-        dims['height'] = float(dim_matches[0])
-        dims['width'] = float(dim_matches[1])
-        dims['depth'] = float(dim_matches[2])
-    
+    if 'yardage' not in dims:
+        yardage_simple = re.search(r'([\d.]+)y\b', text)
+        if yardage_simple:
+            dims['yardage'] = float(yardage_simple.group(1))
+
+    for label, key in [
+        (r'seat\s+height[:\s]*(\d+\.?\d*)', 'seat_height'),
+        (r'seat\s+depth[:\s]*(\d+\.?\d*)', 'seat_depth'),
+        (r'overall\s+height[:\s]*(\d+\.?\d*)', 'height'),
+        (r'overall\s+width[:\s]*(\d+\.?\d*)', 'width'),
+        (r'(?<!seat\s)height[:\s]*(\d+\.?\d*)', 'height'),
+        (r'width[:\s]*(\d+\.?\d*)', 'width'),
+        (r'(?<!seat\s)depth[:\s]*(\d+\.?\d*)', 'depth'),
+    ]:
+        m = re.search(label, text_lower, re.IGNORECASE)
+        if m and dims.get(key) is None:
+            dims[key] = float(m.group(1))
+
+    if len(inch_matches) >= 3 and dims.get('height') is None:
+        dims['height'] = float(inch_matches[0])
+    if len(inch_matches) >= 2 and dims.get('width') is None:
+        dims['width'] = float(inch_matches[1])
+    if len(inch_matches) >= 3 and dims.get('depth') is None:
+        dims['depth'] = float(inch_matches[2])
+
     return dims
 
 
