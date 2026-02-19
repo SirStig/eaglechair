@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo, useCallback } from 'react';
 import { Package, Edit2, Eye, EyeOff, Trash2, TrendingUp, MessageSquareQuote } from 'lucide-react';
 import Card from '../../ui/Card';
 import Button from '../../ui/Button';
@@ -6,6 +6,7 @@ import apiClient from '../../../config/apiClient';
 import { resolveImageUrl } from '../../../utils/apiHelpers';
 import { useToast } from '../../../contexts/ToastContext';
 import { useAdminRefresh } from '../../../contexts/AdminRefreshContext';
+import TableSortHead from '../TableSortHead';
 
 /**
  * Product Catalog Management
@@ -28,11 +29,19 @@ const ProductCatalog = ({ onEdit }) => {
   const [totalPages, setTotalPages] = useState(1);
   const [categories, setCategories] = useState([]);
   const [selectedProducts, setSelectedProducts] = useState([]);
+  const [sortBy, setSortBy] = useState('name');
+  const [sortDir, setSortDir] = useState('asc');
+
+  const handleSort = useCallback((key) => {
+    setSortBy(key);
+    setSortDir((d) => (key === sortBy ? (d === 'asc' ? 'desc' : 'asc') : 'asc'));
+    setPage(1);
+  }, [sortBy]);
 
   useEffect(() => {
     fetchProducts();
     fetchCategories();
-  }, [page, search, categoryFilter, statusFilter, refreshKeys.catalog]);
+  }, [page, search, categoryFilter, statusFilter, sortBy, sortDir, refreshKeys.catalog]);
 
   const fetchProducts = async () => {
     setLoading(true);
@@ -44,6 +53,8 @@ const ProductCatalog = ({ onEdit }) => {
           search: search || undefined,
           category_id: categoryFilter || undefined,
           is_active: statusFilter === 'active' ? true : statusFilter === 'inactive' ? false : undefined,
+          sort_by: sortBy || undefined,
+          sort_dir: sortDir,
         }
       });
       setProducts(response.items || []);
@@ -275,29 +286,19 @@ const ProductCatalog = ({ onEdit }) => {
                   <th className="px-3 sm:px-4 py-3 text-left">
                     <input
                       type="checkbox"
-                      checked={selectedProducts.length === products.length}
+                      checked={products.length > 0 && selectedProducts.length === products.length}
                       onChange={handleSelectAll}
                       className="rounded border-dark-600 bg-dark-700"
                     />
                   </th>
                   <th className="px-3 sm:px-4 py-3 text-left text-xs sm:text-sm font-medium text-dark-300">Image</th>
-                  <th className="px-3 sm:px-4 py-3 text-left text-xs sm:text-sm font-medium text-dark-300">Product</th>
-                  <th className="px-3 sm:px-4 py-3 text-left text-xs sm:text-sm font-medium text-dark-300">Model</th>
-                  <th className="px-3 sm:px-4 py-3 text-left text-xs sm:text-sm font-medium text-dark-300">Category</th>
-                  <th className="px-3 sm:px-4 py-3 text-left text-xs sm:text-sm font-medium text-dark-300">Price</th>
-                  <th className="px-3 sm:px-4 py-3 text-center text-xs sm:text-sm font-medium text-dark-300">
-                    <div className="flex items-center justify-center gap-1">
-                      <TrendingUp className="w-3 h-3 sm:w-4 sm:h-4" />
-                      Views
-                    </div>
-                  </th>
-                  <th className="px-3 sm:px-4 py-3 text-center text-xs sm:text-sm font-medium text-dark-300">
-                    <div className="flex items-center justify-center gap-1">
-                      <MessageSquareQuote className="w-3 h-3 sm:w-4 sm:h-4" />
-                      Quotes
-                    </div>
-                  </th>
-                  <th className="px-3 sm:px-4 py-3 text-left text-xs sm:text-sm font-medium text-dark-300">Status</th>
+                  <TableSortHead label="Product" sortKey="name" activeSortBy={sortBy} sortDir={sortDir} onSort={handleSort} className="px-3 sm:px-4 py-3 text-left text-xs sm:text-sm font-medium text-dark-300" />
+                  <TableSortHead label="Model" sortKey="model_number" activeSortBy={sortBy} sortDir={sortDir} onSort={handleSort} className="px-3 sm:px-4 py-3 text-left text-xs sm:text-sm font-medium text-dark-300" />
+                  <TableSortHead label="Category" sortKey="category" activeSortBy={sortBy} sortDir={sortDir} onSort={handleSort} className="px-3 sm:px-4 py-3 text-left text-xs sm:text-sm font-medium text-dark-300" />
+                  <TableSortHead label="Price" sortKey="base_price" activeSortBy={sortBy} sortDir={sortDir} onSort={handleSort} className="px-3 sm:px-4 py-3 text-left text-xs sm:text-sm font-medium text-dark-300" />
+                  <TableSortHead label="Views" sortKey="view_count" activeSortBy={sortBy} sortDir={sortDir} onSort={handleSort} className="px-3 sm:px-4 py-3 text-center text-xs sm:text-sm font-medium text-dark-300" />
+                  <TableSortHead label="Quotes" sortKey="quote_count" activeSortBy={sortBy} sortDir={sortDir} onSort={handleSort} className="px-3 sm:px-4 py-3 text-center text-xs sm:text-sm font-medium text-dark-300" />
+                  <TableSortHead label="Status" sortKey="is_active" activeSortBy={sortBy} sortDir={sortDir} onSort={handleSort} className="px-3 sm:px-4 py-3 text-left text-xs sm:text-sm font-medium text-dark-300" />
                   <th className="px-3 sm:px-4 py-3 text-right text-xs sm:text-sm font-medium text-dark-300">Actions</th>
                 </tr>
               </thead>

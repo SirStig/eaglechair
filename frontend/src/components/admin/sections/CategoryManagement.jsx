@@ -19,12 +19,37 @@ import Card from '../../ui/Card';
 import Button from '../../ui/Button';
 import apiClient from '../../../config/apiClient';
 import { resolveImageUrl } from '../../../utils/apiHelpers';
-import { Edit2, Trash2, FolderTree, GripVertical } from 'lucide-react';
+import { Edit2, Trash2, FolderTree, GripVertical, ChevronUp, ChevronDown } from 'lucide-react';
 import CategoryEditor from './CategoryEditor';
+
+function compareValues(a, b, dir) {
+  const va = a == null ? '' : a;
+  const vb = b == null ? '' : b;
+  const mult = dir === 'asc' ? 1 : -1;
+  if (typeof va === 'number' && typeof vb === 'number') return mult * (va - vb);
+  return mult * (String(va).localeCompare(String(vb), undefined, { numeric: true }) || 0);
+}
+
+function SortableTh({ label, sortKey, activeSortBy, sortDir, onSort, className = '' }) {
+  if (sortKey == null) return <th className={className}>{label}</th>;
+  const isActive = activeSortBy === sortKey;
+  return (
+    <th className={className}>
+      <button
+        type="button"
+        onClick={() => onSort(sortKey)}
+        className="inline-flex items-center gap-1 text-left font-semibold text-dark-200 hover:text-dark-100 transition-colors"
+      >
+        {label}
+        {isActive ? (sortDir === 'asc' ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />) : <ChevronUp className="w-4 h-4 opacity-40" />}
+      </button>
+    </th>
+  );
+}
 import { useToast } from '../../../contexts/ToastContext';
 import { useAdminRefresh } from '../../../contexts/AdminRefreshContext';
 
-function SortableCategoryRow({ category, index, isExpanded, hasSubcategories, onToggle, getSubcategoryCount, getCategoryName, handleEdit, handleDelete, handleCreateSubcategory, handleEditSubcategory, handleDeleteSubcategory, expandedCategories }) {
+function SortableCategoryRow({ category, index, isExpanded, hasSubcategories, onToggle, getSubcategoryCount, getCategoryName, handleEdit, handleDelete, handleCreateSubcategory, handleEditSubcategory, handleDeleteSubcategory, expandedCategories, dragDisabled }) {
   const {
     attributes,
     listeners,
@@ -32,7 +57,7 @@ function SortableCategoryRow({ category, index, isExpanded, hasSubcategories, on
     transform,
     transition,
     isDragging,
-  } = useSortable({ id: String(category.id) });
+  } = useSortable({ id: String(category.id), disabled: dragDisabled });
 
   const style = {
     transform: CSS.Transform.toString(transform),
@@ -49,15 +74,17 @@ function SortableCategoryRow({ category, index, isExpanded, hasSubcategories, on
         <td className="px-2 sm:px-3 py-3 align-top">
           <div className="flex items-center gap-1">
             <span className="text-dark-400 font-mono text-xs sm:text-sm tabular-nums w-6">{index}</span>
-            <button
-              type="button"
-              className="p-1 rounded cursor-grab active:cursor-grabbing touch-none text-dark-400 hover:text-dark-200 hover:bg-dark-700"
-              {...attributes}
-              {...listeners}
-              aria-label="Drag to reorder"
-            >
-              <GripVertical className="w-4 h-4" />
-            </button>
+            {!dragDisabled && (
+              <button
+                type="button"
+                className="p-1 rounded cursor-grab active:cursor-grabbing touch-none text-dark-400 hover:text-dark-200 hover:bg-dark-700"
+                {...attributes}
+                {...listeners}
+                aria-label="Drag to reorder"
+              >
+                <GripVertical className="w-4 h-4" />
+              </button>
+            )}
           </div>
         </td>
         <td className="px-3 sm:px-6 py-3 sm:py-4">
@@ -324,10 +351,25 @@ const CategoryManagement = () => {
     setEditingCategory({ parent_id: parentCategory.id });
   };
 
+  const [sortBy, setSortBy] = useState('display_order');
+  const [sortDir, setSortDir] = useState('asc');
+
   const topLevelCategories = useMemo(
     () => [...(categories || [])].filter(c => !c.parent_id).sort((a, b) => (a.display_order ?? 0) - (b.display_order ?? 0)),
     [categories]
   );
+
+  const sortedTopLevel = useMemo(() => {
+    if (sortBy === 'display_order') return topLevelCategories;
+    return [...topLevelCategories].sort((a, b) => compareValues(a[sortBy], b[sortBy], sortDir));
+  }, [topLevelCategories, sortBy, sortDir]);
+
+  const handleSort = useCallback((key) => {
+    setSortBy(key);
+    setSortDir((d) => (key === sortBy ? (d === 'asc' ? 'desc' : 'asc') : 'asc'));
+  }, [sortBy]);
+
+  const dragDisabled = sortBy !== 'display_order';
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
@@ -351,10 +393,11 @@ const CategoryManagement = () => {
 
   const onDragEnd = useCallback(
     (event) => {
+      if (sortBy !== 'display_order') return;
       const { active, over } = event;
       if (!over || active.id === over.id) return;
-      const oldIndex = topLevelCategories.findIndex(c => String(c.id) === active.id);
-      const newIndex = topLevelCategories.findIndex(c => String(c.id) === over.id);
+      const oldIndex = sortedTopLevel.findIndex(c => String(c.id) === active.id);
+      const newIndex = sortedTopLevel.findIndex(c => String(c.id) === over.id);
       if (oldIndex === -1 || newIndex === -1) return;
       const reordered = arrayMove(topLevelCategories, oldIndex, newIndex);
       setCategories(prev => {
@@ -364,7 +407,7 @@ const CategoryManagement = () => {
       });
       handleReorder(reordered).catch(() => fetchCategories());
     },
-    [topLevelCategories, handleReorder, fetchCategories]
+    [sortBy, topLevelCategories, sortedTopLevel, handleReorder, fetchCategories]
   );
 
   if (editingCategory !== null) {
@@ -423,19 +466,19 @@ const CategoryManagement = () => {
               <table className="w-full min-w-[800px]">
                 <thead>
                   <tr className="border-b border-dark-700">
-                    <th className="text-left px-2 sm:px-3 py-3 sm:py-4 text-xs sm:text-sm font-semibold text-dark-200 w-0">Order</th>
+                    <SortableTh label="Order" sortKey="display_order" activeSortBy={sortBy} sortDir={sortDir} onSort={handleSort} className="text-left px-2 sm:px-3 py-3 sm:py-4 text-xs sm:text-sm font-semibold text-dark-200 w-0" />
                     <th className="text-left px-3 sm:px-6 py-3 sm:py-4 text-xs sm:text-sm font-semibold text-dark-200">Icon</th>
-                    <th className="text-left px-3 sm:px-6 py-3 sm:py-4 text-xs sm:text-sm font-semibold text-dark-200">Name</th>
-                    <th className="text-left px-3 sm:px-6 py-3 sm:py-4 text-xs sm:text-sm font-semibold text-dark-200">Slug</th>
-                    <th className="text-left px-3 sm:px-6 py-3 sm:py-4 text-xs sm:text-sm font-semibold text-dark-200">Description</th>
+                    <SortableTh label="Name" sortKey="name" activeSortBy={sortBy} sortDir={sortDir} onSort={handleSort} className="text-left px-3 sm:px-6 py-3 sm:py-4 text-xs sm:text-sm font-semibold text-dark-200" />
+                    <SortableTh label="Slug" sortKey="slug" activeSortBy={sortBy} sortDir={sortDir} onSort={handleSort} className="text-left px-3 sm:px-6 py-3 sm:py-4 text-xs sm:text-sm font-semibold text-dark-200" />
+                    <SortableTh label="Description" sortKey="description" activeSortBy={sortBy} sortDir={sortDir} onSort={handleSort} className="text-left px-3 sm:px-6 py-3 sm:py-4 text-xs sm:text-sm font-semibold text-dark-200" />
                     <th className="text-left px-3 sm:px-6 py-3 sm:py-4 text-xs sm:text-sm font-semibold text-dark-200">Subcategories</th>
-                    <th className="text-left px-3 sm:px-6 py-3 sm:py-4 text-xs sm:text-sm font-semibold text-dark-200">Status</th>
+                    <SortableTh label="Status" sortKey="is_active" activeSortBy={sortBy} sortDir={sortDir} onSort={handleSort} className="text-left px-3 sm:px-6 py-3 sm:py-4 text-xs sm:text-sm font-semibold text-dark-200" />
                     <th className="text-right px-3 sm:px-6 py-3 sm:py-4 text-xs sm:text-sm font-semibold text-dark-200">Actions</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-dark-700">
-                  <SortableContext items={topLevelCategories.map(c => String(c.id))} strategy={verticalListSortingStrategy}>
-                    {topLevelCategories.map((category, index) => (
+                  <SortableContext items={sortedTopLevel.map(c => String(c.id))} strategy={verticalListSortingStrategy}>
+                    {sortedTopLevel.map((category, index) => (
                       <SortableCategoryRow
                         key={category.id}
                         category={category}
@@ -451,6 +494,7 @@ const CategoryManagement = () => {
                         handleEditSubcategory={handleEdit}
                         handleDeleteSubcategory={handleDeleteSubcategory}
                         expandedCategories={expandedCategories}
+                        dragDisabled={dragDisabled}
                       />
                     ))}
                   </SortableContext>

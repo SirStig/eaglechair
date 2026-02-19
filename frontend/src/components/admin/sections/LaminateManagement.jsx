@@ -190,16 +190,14 @@ const LaminateManagement = () => {
             getItemId={(item) => item.id}
             onReorder={handleReorder}
             minWidth="800px"
-            headerCells={
-              <>
-                <th className="px-3 sm:px-4 py-3 text-left text-xs sm:text-sm font-semibold text-dark-300 uppercase tracking-wider">Swatch</th>
-                <th className="px-3 sm:px-4 py-3 text-left text-xs sm:text-sm font-semibold text-dark-300 uppercase tracking-wider">Brand</th>
-                <th className="px-3 sm:px-4 py-3 text-left text-xs sm:text-sm font-semibold text-dark-300 uppercase tracking-wider">Pattern</th>
-                <th className="px-3 sm:px-4 py-3 text-left text-xs sm:text-sm font-semibold text-dark-300 uppercase tracking-wider">Code</th>
-                <th className="px-3 sm:px-4 py-3 text-left text-xs sm:text-sm font-semibold text-dark-300 uppercase tracking-wider">Status</th>
-                <th className="px-3 sm:px-4 py-3 text-right text-xs sm:text-sm font-semibold text-dark-300 uppercase tracking-wider">Actions</th>
-              </>
-            }
+            columns={[
+              { key: 'swatch', label: 'Swatch' },
+              { key: 'brand', label: 'Brand', sortKey: 'brand' },
+              { key: 'pattern', label: 'Pattern', sortKey: 'pattern_name' },
+              { key: 'code', label: 'Code', sortKey: 'pattern_code' },
+              { key: 'status', label: 'Status', sortKey: 'is_active' },
+              { key: 'actions', label: 'Actions' },
+            ]}
             renderRow={(laminate) => (
               <>
                 <td className="px-4 py-3">

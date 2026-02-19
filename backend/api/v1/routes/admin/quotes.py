@@ -44,6 +44,8 @@ async def get_all_quotes(
     page_size: int = Query(20, ge=1, le=100, description="Items per page"),
     status: Optional[QuoteStatus] = Query(None, description="Filter by status"),
     company_id: Optional[int] = Query(None, description="Filter by company"),
+    sort_by: Optional[str] = Query(None, description="Sort column: quote_number, status, created_at, company_name, contact_name, items_count"),
+    sort_dir: Optional[str] = Query("desc", description="Sort direction: asc, desc"),
     admin: AdminUser = Depends(get_current_admin),
     db: AsyncSession = Depends(get_db),
 ):
@@ -55,7 +57,13 @@ async def get_all_quotes(
     logger.info(f"Admin {admin.username} fetching quotes (page {page})")
 
     quotes, total_count = await AdminService.get_all_quotes(
-        db=db, page=page, page_size=page_size, status=status, company_id=company_id
+        db=db,
+        page=page,
+        page_size=page_size,
+        status=status,
+        company_id=company_id,
+        sort_by=sort_by,
+        sort_dir=sort_dir,
     )
 
     # Convert ORM objects to dicts and enrich with company info and items

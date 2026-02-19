@@ -198,17 +198,15 @@ const ColorManagement = () => {
             getItemId={(item) => item.id}
             onReorder={handleReorder}
             minWidth="900px"
-            headerCells={
-              <>
-                <th className="text-left px-3 sm:px-6 py-3 sm:py-4 text-xs sm:text-sm font-semibold text-dark-200">Swatch</th>
-                <th className="text-left px-3 sm:px-6 py-3 sm:py-4 text-xs sm:text-sm font-semibold text-dark-200">Name</th>
-                <th className="text-left px-3 sm:px-6 py-3 sm:py-4 text-xs sm:text-sm font-semibold text-dark-200">Code</th>
-                <th className="text-left px-3 sm:px-6 py-3 sm:py-4 text-xs sm:text-sm font-semibold text-dark-200">Hex Value</th>
-                <th className="text-left px-3 sm:px-6 py-3 sm:py-4 text-xs sm:text-sm font-semibold text-dark-200">Category</th>
-                <th className="text-left px-3 sm:px-6 py-3 sm:py-4 text-xs sm:text-sm font-semibold text-dark-200">Status</th>
-                <th className="text-right px-3 sm:px-6 py-3 sm:py-4 text-xs sm:text-sm font-semibold text-dark-200">Actions</th>
-              </>
-            }
+            columns={[
+              { key: 'swatch', label: 'Swatch' },
+              { key: 'name', label: 'Name', sortKey: 'name' },
+              { key: 'code', label: 'Code', sortKey: 'color_code' },
+              { key: 'hex', label: 'Hex Value', sortKey: 'hex_value' },
+              { key: 'category', label: 'Category', sortKey: 'category' },
+              { key: 'status', label: 'Status', sortKey: 'is_active' },
+              { key: 'actions', label: 'Actions' },
+            ]}
             renderRow={(color) => (
               <>
                 <td className="px-3 sm:px-6 py-3 sm:py-4">

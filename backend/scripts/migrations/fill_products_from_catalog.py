@@ -7,7 +7,7 @@ Usage:
   Use --env-file or --env-file backend/.env.production to use production DB (backend env only).
   Use --default-category-slug chairs (or --default-category-id N) when creating new products.
 
-Requires: GEMINI_API_KEY in env for description/feature generation. Use --skip-llm to only fill dimensions/price.
+Descriptions: use --ollama-url (e.g. http://192.168.1.202:11434) and --ollama-model (e.g. gemma3:12b), or GEMINI_API_KEY. Use --skip-llm to only fill dimensions/price.
 """
 
 import argparse
@@ -124,6 +124,8 @@ async def run(
     xls_skip_header: bool,
     xls_start_row: Optional[int],
     gemini_api_key: Optional[str],
+    ollama_url: Optional[str],
+    ollama_model: Optional[str],
     pdf_prefix: Optional[str],
     pdf_file: Optional[str],
     verbose: bool,
@@ -197,8 +199,11 @@ async def run(
             sys.exit(1)
         logger.info("Filtered to model_number %s", model_number_filter)
 
-    if not skip_llm and not os.environ.get("GEMINI_API_KEY") and not gemini_api_key:
-        logger.warning("GEMINI_API_KEY not set; use --skip-llm to fill only dimensions/price, or set the key for descriptions.")
+    use_gemini = bool(os.environ.get("GEMINI_API_KEY") or gemini_api_key)
+    ollama_base = ollama_url or os.environ.get("OLLAMA_BASE_URL") or ("http://192.168.1.202:11434" if not use_gemini else None)
+    use_ollama = bool(ollama_base)
+    if not skip_llm and not use_ollama and not use_gemini:
+        logger.warning("No LLM configured; use --ollama-url, OLLAMA_BASE_URL, or GEMINI_API_KEY for descriptions, or --skip-llm to fill only dimensions/price.")
 
     async with AsyncSessionLocal() as db:
         default_cat_id = await _resolve_default_category(db, default_category_id, default_category_slug)
@@ -212,8 +217,13 @@ async def run(
             base_model = rec["base_model"]
             family_name = rec.get("family_name") or ""
 
-            result = await db.execute(select(Chair).where(Chair.model_number == base_model))
-            chair = result.scalar_one_or_none()
+            result = await db.execute(
+                select(Chair).where(Chair.model_number == base_model).order_by(Chair.id).limit(2)
+            )
+            chairs = result.scalars().all()
+            chair = chairs[0] if chairs else None
+            if len(chairs) > 1:
+                logger.warning("  [duplicate model_number] %s has %s rows in DB; using id=%s", base_model, len(chairs), chair.id)
 
             update_data: dict = {}
             dims = _dims_to_update(rec.get("dimensions") or {})
@@ -226,7 +236,12 @@ async def run(
 
             if not skip_llm:
                 from backend.scripts.migrations.gemini_descriptions import generate_descriptions
-                gen = generate_descriptions(rec, api_key=gemini_api_key or os.environ.get("GEMINI_API_KEY"))
+                gen = generate_descriptions(
+                    rec,
+                    api_key=gemini_api_key or os.environ.get("GEMINI_API_KEY") if use_gemini else None,
+                    ollama_base_url=ollama_base,
+                    ollama_model=ollama_model or os.environ.get("OLLAMA_MODEL"),
+                )
                 if gen.get("short_description"):
                     update_data["short_description"] = gen["short_description"]
                 if gen.get("full_description"):
@@ -295,7 +310,7 @@ async def run(
 
 
 def main() -> None:
-    ap = argparse.ArgumentParser(description="Fill products from catalog PDFs + XLS (descriptions via Gemini)")
+    ap = argparse.ArgumentParser(description="Fill products from catalog PDFs + XLS (descriptions via Ollama or Gemini)")
     ap.add_argument("--pdf-dir", default=None, help="Directory containing family catalog PDFs (required unless --pdf)")
     ap.add_argument("--pdf", default=None, help="Single PDF file path (e.g. for one family catalog)")
     ap.add_argument("--xls", required=True, help="Path to .xls file with LIST prices")
@@ -309,6 +324,8 @@ def main() -> None:
     ap.add_argument("--no-xls-header", action="store_true", help="XLS has no header row")
     ap.add_argument("--xls-start-row", type=int, default=13, help="First data row in XLS (1-based; default 13 for woodchairs file)")
     ap.add_argument("--gemini-api-key", default=None, help="Gemini API key (or set GEMINI_API_KEY)")
+    ap.add_argument("--ollama-url", default=None, help="Ollama base URL (e.g. http://192.168.1.202:11434); or set OLLAMA_BASE_URL")
+    ap.add_argument("--ollama-model", default=None, help="Ollama model name (default: gemma3:12b or OLLAMA_MODEL)")
     ap.add_argument("--pdf-prefix", default="cat", help="Only use PDFs whose filename starts with this (default: cat)")
     ap.add_argument("--verbose", action="store_true", help="In dry-run, print full payload (price, descriptions, features, etc.)")
     ap.add_argument("--env-file", nargs="?", const="backend/.env.production", default=None, metavar="PATH", help="Load env from path (default: backend/.env.production when passed with no path); frontend paths are redirected to backend")
@@ -331,6 +348,8 @@ def main() -> None:
             xls_skip_header=not args.no_xls_header,
             xls_start_row=args.xls_start_row,
             gemini_api_key=args.gemini_api_key,
+            ollama_url=args.ollama_url,
+            ollama_model=args.ollama_model,
             pdf_prefix=args.pdf_prefix,
             pdf_file=args.pdf,
             verbose=args.verbose,

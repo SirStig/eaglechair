@@ -244,10 +244,6 @@ const ProductDetailPage = () => {
             .then((vars) => {
               logger.info(CONTEXT, `Loaded ${vars?.length || 0} variations`, vars);
               setVariations(vars || []);
-              if (vars && vars.length > 0) {
-                setSelectedVariation(vars[0]);
-                logger.info(CONTEXT, `Selected first variation: ${vars[0].sku || vars[0].id}`);
-              }
             })
             .catch((error) => {
               logger.error(CONTEXT, 'Failed to load variations', error);
@@ -421,18 +417,18 @@ const ProductDetailPage = () => {
 
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 sm:gap-8 lg:gap-12">
             {/* Hero image (primary + hover only) */}
-            <div className="flex items-center justify-center">
-              <div className="relative inline-block w-full">
+            <div className="flex items-center justify-center min-w-0">
+              <div className="relative w-full min-w-[200px] min-h-[480px]">
                 <button
                   type="button"
                   onClick={() => openLightbox(carouselImages, selectedImage)}
-                  className="bg-white rounded-xl overflow-hidden border border-cream-200 block w-full cursor-zoom-in hover:opacity-95 transition-opacity focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2"
+                  className="bg-white rounded-xl overflow-hidden border border-cream-200 w-full min-h-[480px] p-4 sm:p-6 flex items-center justify-center cursor-zoom-in hover:opacity-95 transition-opacity focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2"
                 >
                   <img
                     src={carouselImages[Math.min(selectedImage, carouselImages.length - 1)] || carouselImages[0] || images[0]}
                     alt={product.name}
-                    className="w-full h-auto object-contain"
-                    style={{ maxHeight: '500px', mixBlendMode: 'multiply' }}
+                    className="max-w-full max-h-[620px] w-auto h-auto object-contain"
+                    style={{ mixBlendMode: 'multiply' }}
                     loading={selectedImage === 0 ? "eager" : "lazy"}
                     fetchpriority={selectedImage === 0 ? "high" : "low"}
                     decoding="async"
@@ -522,7 +518,7 @@ const ProductDetailPage = () => {
                   onSave={handleUpdateProduct}
                   label="Product Description"
                 >
-                  <div className="text-slate-700 leading-relaxed space-y-4 mb-6">
+                  <div className="text-slate-700 leading-relaxed mb-6 max-h-[13rem] overflow-y-auto pr-1">
                     <p className="text-base">{product.full_description || product.description}</p>
                   </div>
                 </EditableWrapper>
@@ -541,13 +537,37 @@ const ProductDetailPage = () => {
                 <div className="mt-6">
                   <p className="text-sm font-medium text-slate-700 mb-3">Variations</p>
                   <div className="max-h-64 overflow-y-auto space-y-2 pr-1 border border-cream-200 rounded-lg bg-cream-50/50 p-2">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setSelectedVariation(null);
+                        setSelectedImage(0);
+                      }}
+                      className={`w-full flex items-center gap-3 p-2.5 rounded-lg text-left transition-colors border-2 ${selectedVariation === null ? 'border-primary-500 bg-primary-50/50' : 'border-transparent bg-white hover:bg-cream-100 hover:border-cream-300'}`}
+                    >
+                      <div className="w-10 h-14 flex-shrink-0 rounded-md overflow-hidden bg-cream-200">
+                        <img src={resolveImageUrl(product?.primary_image_url || product?.image) || '/og-image.jpg'} alt="" className="w-full h-full object-cover" />
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <span className="font-medium text-slate-800 block truncate">
+                          {[product?.model_number, product?.model_suffix].filter(Boolean).join(' ') || 'Base'}
+                        </span>
+                        <span className="text-xs text-slate-500 block">Base Model</span>
+                      </div>
+                      {selectedVariation === null && (
+                        <span className="flex-shrink-0 w-6 h-6 rounded-full bg-primary-500 flex items-center justify-center" aria-hidden>
+                          <svg className="w-3.5 h-3.5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                          </svg>
+                        </span>
+                      )}
+                    </button>
                     {variations.map((variation) => {
                       const isSelected = selectedVariation?.id === variation.id;
                       const thumbUrl = variation.primary_image_url
                         ? resolveImageUrl(variation.primary_image_url)
                         : (variation.images?.[0] ? (typeof variation.images[0] === 'string' ? resolveImageUrl(variation.images[0]) : resolveImageUrl(variation.images[0]?.url || variation.images[0])) : null) || resolveImageUrl(product?.primary_image_url || product?.image) || '/og-image.jpg';
                       const details = [variation.finish?.name, variation.upholstery?.name, variation.color?.name].filter(Boolean);
-                      const specText = details.length > 0 ? ` · ${details.join(' / ')}` : '';
                       return (
                         <button
                           key={variation.id}
@@ -558,12 +578,12 @@ const ProductDetailPage = () => {
                           }}
                           className={`w-full flex items-center gap-3 p-2.5 rounded-lg text-left transition-colors border-2 ${isSelected ? 'border-primary-500 bg-primary-50/50' : 'border-transparent bg-white hover:bg-cream-100 hover:border-cream-300'}`}
                         >
-                          <div className="w-14 h-14 flex-shrink-0 rounded-md overflow-hidden bg-cream-200">
+                          <div className="w-10 h-14 flex-shrink-0 rounded-md overflow-hidden bg-cream-200">
                             <img src={thumbUrl} alt="" className="w-full h-full object-cover" />
                           </div>
                           <div className="min-w-0 flex-1">
                             <span className="font-medium text-slate-800 block truncate">{variation.sku || `#${variation.id}`}</span>
-                            {specText && <span className="text-xs text-slate-500 truncate block">{details.join(' / ')}</span>}
+                            {details.length > 0 && <span className="text-xs text-slate-500 truncate block">{details.join(' / ')}</span>}
                           </div>
                           {isSelected && (
                             <span className="flex-shrink-0 w-6 h-6 rounded-full bg-primary-500 flex items-center justify-center" aria-hidden>
@@ -747,18 +767,18 @@ const ProductDetailPage = () => {
 
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 lg:gap-12">
             {/* 3D Model Placeholder / Product Image (primary + hover only) */}
-            <div className="flex items-center justify-center">
-              <div className="relative inline-block">
+            <div className="flex items-center justify-center min-w-0">
+              <div className="relative w-full min-w-[200px] min-h-[280px]">
                 <button
                   type="button"
                   onClick={() => openLightbox(carouselImages, customizeImageIndex)}
-                  className="bg-white rounded-xl overflow-hidden border border-cream-200 block w-full cursor-zoom-in hover:opacity-95 transition-opacity focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2"
+                  className="bg-white rounded-xl overflow-hidden border border-cream-200 w-full min-h-[280px] p-4 sm:p-6 flex items-center justify-center cursor-zoom-in hover:opacity-95 transition-opacity focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2"
                 >
                   <img
                     src={carouselImages[customizeImageIndex] || carouselImages[0]}
                     alt={product.name}
-                    className="w-full h-auto object-contain"
-                    style={{ maxHeight: '500px', mixBlendMode: 'multiply' }}
+                    className="max-w-full max-h-[420px] w-auto h-auto object-contain"
+                    style={{ mixBlendMode: 'multiply' }}
                     loading="eager"
                     decoding="async"
                     fetchpriority="high"
@@ -830,32 +850,30 @@ const ProductDetailPage = () => {
                     Product Variations {loadingVariations && <span className="text-xs text-slate-400">(Loading...)</span>}
                   </label>
                   <select
-                    value={selectedVariation?.id || ''}
+                    value={selectedVariation === null ? 'base' : (selectedVariation?.id ?? '')}
                     onChange={(e) => {
-                      const variation = variations.find(v => v.id === parseInt(e.target.value));
-                      setSelectedVariation(variation || null);
-                      setSelectedImage(0); // Reset image when variation changes
+                      const val = e.target.value;
+                      if (val === 'base' || val === '') {
+                        setSelectedVariation(null);
+                      } else {
+                        const variation = variations.find(v => v.id === parseInt(val, 10));
+                        setSelectedVariation(variation || null);
+                      }
+                      setSelectedImage(0);
                     }}
                     className="w-full px-4 py-3 text-base border-2 border-cream-300 bg-white text-slate-800 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
                     disabled={loadingVariations}
                   >
-                    <option value="">Select a variation...</option>
+                    <option value="base">
+                      {[product?.model_number, product?.model_suffix].filter(Boolean).join(' ') || 'Base Model'}
+                      {product?.model_number || product?.model_suffix ? ' — Base Model' : ''}
+                    </option>
                     {variations.map((variation) => {
-                      // Build variation display name with SKU and specifications
                       const parts = [];
-                      if (variation.sku) {
-                        parts.push(variation.sku);
-                      }
-                      const details = [
-                        variation.finish?.name,
-                        variation.upholstery?.name,
-                        variation.color?.name
-                      ].filter(Boolean);
-                      if (details.length > 0) {
-                        parts.push(`(${details.join(' / ')})`);
-                      }
+                      if (variation.sku) parts.push(variation.sku);
+                      const details = [variation.finish?.name, variation.upholstery?.name, variation.color?.name].filter(Boolean);
+                      if (details.length > 0) parts.push(`(${details.join(' / ')})`);
                       const variationName = parts.join(' ') || `Variation #${variation.id}`;
-
                       return (
                         <option key={variation.id} value={variation.id}>
                           {variationName}
@@ -863,52 +881,66 @@ const ProductDetailPage = () => {
                       );
                     })}
                   </select>
-                  {selectedVariation && (
+                  {(selectedVariation === null || selectedVariation) && (
                     <div className="mt-4 p-4 bg-cream-50 rounded-lg border border-cream-200 space-y-3">
-                      {/* Variation Details */}
                       <div className="text-sm text-slate-700 space-y-2">
-                        {selectedVariation.sku && (
-                          <div>
-                            <span className="font-semibold">Model/SKU:</span> {selectedVariation.sku}
-                          </div>
-                        )}
-                        {(selectedVariation.finish || selectedVariation.upholstery || selectedVariation.color) && (
-                          <div>
-                            <span className="font-semibold">Specifications:</span>
-                            <ul className="list-disc list-inside ml-2 mt-1 space-y-1">
-                              {selectedVariation.finish?.name && (
-                                <li>Finish: {selectedVariation.finish.name}</li>
-                              )}
-                              {selectedVariation.upholstery?.name && (
-                                <li>Upholstery: {selectedVariation.upholstery.name}</li>
-                              )}
-                              {selectedVariation.color?.name && (
-                                <li>Color: {selectedVariation.color.name}</li>
-                              )}
-                            </ul>
-                          </div>
-                        )}
-                      </div>
-                      {/* Stock Status & Lead Time */}
-                      <div className="flex items-center gap-2 flex-wrap pt-2 border-t border-cream-200">
-                        {selectedVariation.stock_status && (
-                          <span className={`inline-block px-3 py-1 rounded text-xs font-medium ${selectedVariation.stock_status === 'Available'
-                            ? 'bg-green-100 text-green-800'
-                            : 'bg-yellow-100 text-yellow-800'
-                            }`}>
-                            {selectedVariation.stock_status}
-                          </span>
-                        )}
-                        {selectedVariation.lead_time_days && (
-                          <span className="text-xs text-slate-600">Lead time: {selectedVariation.lead_time_days} days</span>
-                        )}
-                        {selectedVariation.price_adjustment !== undefined && selectedVariation.price_adjustment !== 0 && (
-                          <span className="text-xs font-medium text-slate-700">
-                            Price adjustment (est. listing): {selectedVariation.price_adjustment > 0 ? '+' : ''}
-                            ${(selectedVariation.price_adjustment / 100).toFixed(2)}
-                          </span>
+                        {selectedVariation === null ? (
+                          <>
+                            {(product?.model_number || product?.model_suffix) && (
+                              <div>
+                                <span className="font-semibold">Model:</span>{' '}
+                                {[product.model_number, product.model_suffix].filter(Boolean).join(' ')}
+                                <span className="text-slate-500 font-normal block mt-0.5">Base Model</span>
+                              </div>
+                            )}
+                          </>
+                        ) : (
+                          <>
+                            {selectedVariation.sku && (
+                              <div>
+                                <span className="font-semibold">Model/SKU:</span> {selectedVariation.sku}
+                              </div>
+                            )}
+                            {(selectedVariation.finish || selectedVariation.upholstery || selectedVariation.color) && (
+                              <div>
+                                <span className="font-semibold">Specifications:</span>
+                                <ul className="list-disc list-inside ml-2 mt-1 space-y-1">
+                                  {selectedVariation.finish?.name && (
+                                    <li>Finish: {selectedVariation.finish.name}</li>
+                                  )}
+                                  {selectedVariation.upholstery?.name && (
+                                    <li>Upholstery: {selectedVariation.upholstery.name}</li>
+                                  )}
+                                  {selectedVariation.color?.name && (
+                                    <li>Color: {selectedVariation.color.name}</li>
+                                  )}
+                                </ul>
+                              </div>
+                            )}
+                          </>
                         )}
                       </div>
+                      {selectedVariation != null && (
+                        <div className="flex items-center gap-2 flex-wrap pt-2 border-t border-cream-200">
+                          {selectedVariation.stock_status && (
+                            <span className={`inline-block px-3 py-1 rounded text-xs font-medium ${selectedVariation.stock_status === 'Available'
+                              ? 'bg-green-100 text-green-800'
+                              : 'bg-yellow-100 text-yellow-800'
+                              }`}>
+                              {selectedVariation.stock_status}
+                            </span>
+                          )}
+                          {selectedVariation.lead_time_days && (
+                            <span className="text-xs text-slate-600">Lead time: {selectedVariation.lead_time_days} days</span>
+                          )}
+                          {selectedVariation.price_adjustment !== undefined && selectedVariation.price_adjustment !== 0 && (
+                            <span className="text-xs font-medium text-slate-700">
+                              Price adjustment (est. listing): {selectedVariation.price_adjustment > 0 ? '+' : ''}
+                              ${(selectedVariation.price_adjustment / 100).toFixed(2)}
+                            </span>
+                          )}
+                        </div>
+                      )}
                     </div>
                   )}
                 </div>

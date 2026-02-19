@@ -235,19 +235,17 @@ const FinishManagement = () => {
             getItemId={(item) => item.id}
             onReorder={handleReorder}
             minWidth="1000px"
-            headerCells={
-              <>
-                <th className="px-3 sm:px-4 py-3 text-left text-xs sm:text-sm font-semibold text-dark-300 uppercase tracking-wider">Sample</th>
-                <th className="px-3 sm:px-4 py-3 text-left text-xs sm:text-sm font-semibold text-dark-300 uppercase tracking-wider">Name</th>
-                <th className="px-3 sm:px-4 py-3 text-left text-xs sm:text-sm font-semibold text-dark-300 uppercase tracking-wider">Code</th>
-                <th className="px-3 sm:px-4 py-3 text-left text-xs sm:text-sm font-semibold text-dark-300 uppercase tracking-wider">Type</th>
-                <th className="px-3 sm:px-4 py-3 text-left text-xs sm:text-sm font-semibold text-dark-300 uppercase tracking-wider">Grade</th>
-                <th className="px-3 sm:px-4 py-3 text-left text-xs sm:text-sm font-semibold text-dark-300 uppercase tracking-wider">Color</th>
-                <th className="px-3 sm:px-4 py-3 text-left text-xs sm:text-sm font-semibold text-dark-300 uppercase tracking-wider">Price</th>
-                <th className="px-3 sm:px-4 py-3 text-left text-xs sm:text-sm font-semibold text-dark-300 uppercase tracking-wider">Status</th>
-                <th className="px-3 sm:px-4 py-3 text-right text-xs sm:text-sm font-semibold text-dark-300 uppercase tracking-wider">Actions</th>
-              </>
-            }
+            columns={[
+              { key: 'sample', label: 'Sample' },
+              { key: 'name', label: 'Name', sortKey: 'name' },
+              { key: 'code', label: 'Code', sortKey: 'code' },
+              { key: 'type', label: 'Type', sortKey: 'finish_type' },
+              { key: 'grade', label: 'Grade', sortKey: 'grade' },
+              { key: 'color', label: 'Color', sortKey: 'color_id' },
+              { key: 'price', label: 'Price', sortKey: 'price' },
+              { key: 'status', label: 'Status', sortKey: 'is_active' },
+              { key: 'actions', label: 'Actions' },
+            ]}
             renderRow={(finish) => (
               <>
                 <td className="px-3 sm:px-4 py-3">

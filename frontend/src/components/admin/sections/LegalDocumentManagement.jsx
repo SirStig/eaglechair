@@ -1,8 +1,9 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo, useCallback } from 'react';
 import { FileText, Plus, Edit2, Trash2, Search, Filter, Eye, CheckCircle, XCircle } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import EditModal from '../EditModal';
 import apiClient from '../../../config/apiClient';
+import TableSortHead, { compareValues } from '../TableSortHead';
 
 /**
  * Legal Document Management Section
@@ -72,7 +73,9 @@ const LegalDocumentManagement = () => {
     fetchDocuments();
   }, []);
 
-  // Filter and search documents
+  const [sortBy, setSortBy] = useState('title');
+  const [sortDir, setSortDir] = useState('asc');
+
   const filteredDocuments = documents.filter(doc => {
     const matchesSearch = searchTerm === '' || 
       doc.title?.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -83,6 +86,19 @@ const LegalDocumentManagement = () => {
     
     return matchesSearch && matchesType;
   });
+
+  const sortedDocuments = useMemo(() => {
+    return [...filteredDocuments].sort((a, b) => {
+      const va = sortBy === 'document_type' ? (a.documentType || a.document_type || '') : sortBy === 'display_order' ? (a.displayOrder ?? a.display_order ?? 0) : sortBy === 'is_active' ? (a.isActive ?? a.is_active ?? false) : a[sortBy];
+      const vb = sortBy === 'document_type' ? (b.documentType || b.document_type || '') : sortBy === 'display_order' ? (b.displayOrder ?? b.display_order ?? 0) : sortBy === 'is_active' ? (b.isActive ?? b.is_active ?? false) : b[sortBy];
+      return compareValues(va, vb, sortDir);
+    });
+  }, [filteredDocuments, sortBy, sortDir]);
+
+  const handleSort = useCallback((key) => {
+    setSortBy(key);
+    setSortDir((d) => (key === sortBy ? (d === 'asc' ? 'desc' : 'asc') : 'asc'));
+  }, [sortBy]);
 
   // Create new document
   const handleCreate = () => {
@@ -250,39 +266,25 @@ const LegalDocumentManagement = () => {
             <table className="w-full">
               <thead className="bg-dark-900 border-b border-dark-700">
                 <tr>
-                  <th className="px-4 py-3 text-left text-xs font-semibold text-dark-300 uppercase tracking-wider">
-                    Title
-                  </th>
-                  <th className="px-4 py-3 text-left text-xs font-semibold text-dark-300 uppercase tracking-wider">
-                    Type
-                  </th>
-                  <th className="px-4 py-3 text-left text-xs font-semibold text-dark-300 uppercase tracking-wider">
-                    Slug
-                  </th>
-                  <th className="px-4 py-3 text-left text-xs font-semibold text-dark-300 uppercase tracking-wider">
-                    Version
-                  </th>
-                  <th className="px-4 py-3 text-left text-xs font-semibold text-dark-300 uppercase tracking-wider">
-                    Order
-                  </th>
-                  <th className="px-4 py-3 text-left text-xs font-semibold text-dark-300 uppercase tracking-wider">
-                    Status
-                  </th>
-                  <th className="px-4 py-3 text-right text-xs font-semibold text-dark-300 uppercase tracking-wider">
-                    Actions
-                  </th>
+                  <TableSortHead label="Title" sortKey="title" activeSortBy={sortBy} sortDir={sortDir} onSort={handleSort} className="px-4 py-3 text-left text-xs font-semibold text-dark-300 uppercase tracking-wider" />
+                  <TableSortHead label="Type" sortKey="document_type" activeSortBy={sortBy} sortDir={sortDir} onSort={handleSort} className="px-4 py-3 text-left text-xs font-semibold text-dark-300 uppercase tracking-wider" />
+                  <TableSortHead label="Slug" sortKey="slug" activeSortBy={sortBy} sortDir={sortDir} onSort={handleSort} className="px-4 py-3 text-left text-xs font-semibold text-dark-300 uppercase tracking-wider" />
+                  <TableSortHead label="Version" sortKey="version" activeSortBy={sortBy} sortDir={sortDir} onSort={handleSort} className="px-4 py-3 text-left text-xs font-semibold text-dark-300 uppercase tracking-wider" />
+                  <TableSortHead label="Order" sortKey="display_order" activeSortBy={sortBy} sortDir={sortDir} onSort={handleSort} className="px-4 py-3 text-left text-xs font-semibold text-dark-300 uppercase tracking-wider" />
+                  <TableSortHead label="Status" sortKey="is_active" activeSortBy={sortBy} sortDir={sortDir} onSort={handleSort} className="px-4 py-3 text-left text-xs font-semibold text-dark-300 uppercase tracking-wider" />
+                  <th className="px-4 py-3 text-right text-xs font-semibold text-dark-300 uppercase tracking-wider">Actions</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-dark-700">
                 <AnimatePresence>
-                  {filteredDocuments.length === 0 ? (
+                  {sortedDocuments.length === 0 ? (
                     <tr>
                       <td colSpan="7" className="px-4 py-8 text-center text-dark-400">
                         No documents found
                       </td>
                     </tr>
                   ) : (
-                    filteredDocuments.map((doc, index) => (
+                    sortedDocuments.map((doc, index) => (
                       <motion.tr
                         key={doc.id}
                         initial={{ opacity: 0, y: 10 }}

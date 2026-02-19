@@ -46,10 +46,6 @@ const QuickViewModal = ({ product, isOpen, onClose }) => {
           .then((vars) => {
             logger.info(CONTEXT, `Loaded ${vars?.length || 0} variations`, vars);
             setVariations(vars || []);
-            if (vars && vars.length > 0) {
-              setSelectedVariation(vars[0]);
-              logger.info(CONTEXT, `Selected first variation: ${vars[0].sku || vars[0].id}`);
-            }
           })
           .catch((error) => {
             logger.error(CONTEXT, 'Failed to load variations', error);
@@ -325,32 +321,30 @@ const QuickViewModal = ({ product, isOpen, onClose }) => {
                           Product Variations {loadingVariations && <span className="text-xs text-slate-400">(Loading...)</span>}
                         </label>
                         <select
-                          value={selectedVariation?.id || ''}
+                          value={selectedVariation === null ? 'base' : (selectedVariation?.id ?? '')}
                           onChange={(e) => {
-                            const variation = variations.find(v => v.id === parseInt(e.target.value));
-                            setSelectedVariation(variation || null);
-                            setSelectedImage(0); // Reset image when variation changes
+                            const val = e.target.value;
+                            if (val === 'base' || val === '') {
+                              setSelectedVariation(null);
+                            } else {
+                              const variation = variations.find(v => v.id === parseInt(val, 10));
+                              setSelectedVariation(variation || null);
+                            }
+                            setSelectedImage(0);
                           }}
                           className="w-full px-3 py-2 text-sm border border-cream-300 bg-white text-slate-800 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
                           disabled={loadingVariations}
                         >
-                          <option value="">Select a variation...</option>
+                          <option value="base">
+                            {[product?.model_number, product?.model_suffix].filter(Boolean).join(' ') || 'Base Model'}
+                            {product?.model_number || product?.model_suffix ? ' — Base Model' : ''}
+                          </option>
                           {variations.map((variation) => {
-                            // Build variation display name
                             const parts = [];
-                            if (variation.sku) {
-                              parts.push(variation.sku);
-                            }
-                            const details = [
-                              variation.finish?.name,
-                              variation.upholstery?.name,
-                              variation.color?.name
-                            ].filter(Boolean);
-                            if (details.length > 0) {
-                              parts.push(`(${details.join(' / ')})`);
-                            }
+                            if (variation.sku) parts.push(variation.sku);
+                            const details = [variation.finish?.name, variation.upholstery?.name, variation.color?.name].filter(Boolean);
+                            if (details.length > 0) parts.push(`(${details.join(' / ')})`);
                             const variationName = parts.join(' ') || `Variation #${variation.id}`;
-                            
                             return (
                               <option key={variation.id} value={variation.id}>
                                 {variationName}
@@ -358,33 +352,44 @@ const QuickViewModal = ({ product, isOpen, onClose }) => {
                             );
                           })}
                         </select>
-                        {selectedVariation && (
+                        {(selectedVariation === null || selectedVariation) && (
                           <div className="mt-3 space-y-2">
-                            {/* Variation Details */}
                             <div className="text-sm text-slate-700 space-y-1">
-                              {selectedVariation.sku && (
-                                <div>
-                                  <span className="font-medium">SKU:</span> {selectedVariation.sku}
-                                </div>
-                              )}
-                              {(selectedVariation.finish || selectedVariation.upholstery || selectedVariation.color) && (
-                                <div>
-                                  <span className="font-medium">Specifications:</span>
-                                  <ul className="list-disc list-inside ml-2 mt-1">
-                                    {selectedVariation.finish?.name && (
-                                      <li>Finish: {selectedVariation.finish.name}</li>
-                                    )}
-                                    {selectedVariation.upholstery?.name && (
-                                      <li>Upholstery: {selectedVariation.upholstery.name}</li>
-                                    )}
-                                    {selectedVariation.color?.name && (
-                                      <li>Color: {selectedVariation.color.name}</li>
-                                    )}
-                                  </ul>
-                                </div>
+                              {selectedVariation === null ? (
+                                (product?.model_number || product?.model_suffix) && (
+                                  <div>
+                                    <span className="font-medium">Model:</span>{' '}
+                                    {[product.model_number, product.model_suffix].filter(Boolean).join(' ')}
+                                    <span className="text-slate-500 font-normal block mt-0.5">Base Model</span>
+                                  </div>
+                                )
+                              ) : (
+                                <>
+                                  {selectedVariation.sku && (
+                                    <div>
+                                      <span className="font-medium">SKU:</span> {selectedVariation.sku}
+                                    </div>
+                                  )}
+                                  {(selectedVariation.finish || selectedVariation.upholstery || selectedVariation.color) && (
+                                    <div>
+                                      <span className="font-medium">Specifications:</span>
+                                      <ul className="list-disc list-inside ml-2 mt-1">
+                                        {selectedVariation.finish?.name && (
+                                          <li>Finish: {selectedVariation.finish.name}</li>
+                                        )}
+                                        {selectedVariation.upholstery?.name && (
+                                          <li>Upholstery: {selectedVariation.upholstery.name}</li>
+                                        )}
+                                        {selectedVariation.color?.name && (
+                                          <li>Color: {selectedVariation.color.name}</li>
+                                        )}
+                                      </ul>
+                                    </div>
+                                  )}
+                                </>
                               )}
                             </div>
-                            {/* Stock Status */}
+                            {selectedVariation != null && (
                             <div className="flex items-center gap-2 flex-wrap">
                               {selectedVariation.stock_status && (
                                 <span className={`inline-block px-2 py-1 rounded text-xs ${
@@ -399,6 +404,7 @@ const QuickViewModal = ({ product, isOpen, onClose }) => {
                                 <span className="text-xs text-slate-600">Lead time: {selectedVariation.lead_time_days} days</span>
                               )}
                             </div>
+                            )}
                           </div>
                         )}
                       </div>

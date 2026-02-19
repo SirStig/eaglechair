@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import Card from '../../ui/Card';
 import Button from '../../ui/Button';
 import Input from '../../ui/Input';
@@ -6,6 +6,7 @@ import Modal from '../../ui/Modal';
 import apiClient from '../../../config/apiClient';
 import AdminCompanyDetailView from './AdminCompanyDetailView';
 import { useAdminRefresh } from '../../../contexts/AdminRefreshContext';
+import TableSortHead from '../TableSortHead';
 
 const CompanyManagement = () => {
   const { refreshKeys } = useAdminRefresh();
@@ -24,13 +25,27 @@ const CompanyManagement = () => {
     if (!selectedCompanyId) {
       fetchCompanies();
     }
-  }, [page, selectedCompanyId, refreshKeys.companies]);
+  }, [page, selectedCompanyId, sortBy, sortDir, refreshKeys.companies]);
+
+  const [sortBy, setSortBy] = useState('company_name');
+  const [sortDir, setSortDir] = useState('asc');
+
+  const handleSort = useCallback((key) => {
+    setSortBy(key);
+    setSortDir((d) => (key === sortBy ? (d === 'asc' ? 'desc' : 'asc') : 'asc'));
+    setPage(1);
+  }, [sortBy]);
 
   const fetchCompanies = async () => {
     setLoading(true);
     try {
       const response = await apiClient.get('/api/v1/admin/companies', {
-        params: { page, page_size: 20 }
+        params: {
+          page,
+          page_size: 20,
+          sort_by: sortBy || undefined,
+          sort_dir: sortDir,
+        }
       });
       setCompanies(response.items || []);
       setTotalPages(response.pages || 1);
@@ -164,9 +179,9 @@ const CompanyManagement = () => {
             <table className="w-full min-w-[700px]">
               <thead>
                 <tr className="border-b border-dark-600">
-                  <th className="px-3 sm:px-4 py-3 text-left text-xs sm:text-sm font-medium text-dark-300">Company</th>
-                  <th className="px-3 sm:px-4 py-3 text-left text-xs sm:text-sm font-medium text-dark-300">Contact</th>
-                  <th className="px-3 sm:px-4 py-3 text-left text-xs sm:text-sm font-medium text-dark-300">Status</th>
+                  <TableSortHead label="Company" sortKey="company_name" activeSortBy={sortBy} sortDir={sortDir} onSort={handleSort} className="px-3 sm:px-4 py-3 text-left text-xs sm:text-sm font-medium text-dark-300" />
+                  <TableSortHead label="Contact" sortKey="contact" activeSortBy={sortBy} sortDir={sortDir} onSort={handleSort} className="px-3 sm:px-4 py-3 text-left text-xs sm:text-sm font-medium text-dark-300" />
+                  <TableSortHead label="Status" sortKey="status" activeSortBy={sortBy} sortDir={sortDir} onSort={handleSort} className="px-3 sm:px-4 py-3 text-left text-xs sm:text-sm font-medium text-dark-300" />
                   <th className="px-3 sm:px-4 py-3 text-right text-xs sm:text-sm font-medium text-dark-300">Actions</th>
                 </tr>
               </thead>

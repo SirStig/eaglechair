@@ -4,6 +4,7 @@ Product Schemas - Version 1
 Schemas for chairs, categories, finishes, and upholsteries
 """
 
+import json
 from datetime import datetime
 from typing import Any, List, Optional, Union
 
@@ -293,6 +294,7 @@ class ChairBase(BaseModel):
     """Base chair schema"""
 
     model_number: str = Field(..., max_length=100)
+    model_suffix: Optional[str] = Field(None, max_length=50)
     name: str = Field(..., max_length=255)
     slug: str = Field(..., max_length=255)
     short_description: Optional[str] = None
@@ -373,11 +375,25 @@ class ChairBase(BaseModel):
     @field_validator("images", mode="before")
     @classmethod
     def validate_images(cls, v):
-        """Ensure images is always a list, even if it's an empty string or None"""
         if v is None or v == "" or v == "[]":
             return []
         if isinstance(v, list):
             return v
+        return []
+
+    @field_validator("hover_images", mode="before")
+    @classmethod
+    def validate_hover_images(cls, v):
+        if v is None or v == "" or v == "[]":
+            return []
+        if isinstance(v, list):
+            return v
+        if isinstance(v, str):
+            try:
+                parsed = json.loads(v)
+                return parsed if isinstance(parsed, list) else []
+            except (ValueError, TypeError):
+                return []
         return []
 
     @model_validator(mode="after")

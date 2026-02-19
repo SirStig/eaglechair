@@ -49,20 +49,14 @@ class AdminService:
         search: Optional[str] = None,
         category_id: Optional[int] = None,
         is_active: Optional[bool] = None,
+        sort_by: Optional[str] = None,
+        sort_dir: Optional[str] = None,
     ) -> Tuple[List[Chair], int]:
         """
-        Get all products with pagination and filtering
+        Get all products with pagination, filtering and sorting.
 
-        Args:
-            db: Database session
-            page: Page number
-            page_size: Items per page
-            search: Search term
-            category_id: Filter by category
-            is_active: Filter by active status
-
-        Returns:
-            Tuple of (products, total_count)
+        sort_by: name, model_number, base_price, view_count, quote_count, is_active, created_at, category
+        sort_dir: asc, desc (default asc)
         """
         query = select(Chair).options(
             selectinload(Chair.category),
@@ -73,7 +67,6 @@ class AdminService:
             selectinload(Chair.variations).selectinload(ProductVariation.color),
         )
 
-        # Apply filters
         if search:
             query = query.where(
                 or_(
@@ -90,7 +83,6 @@ class AdminService:
         if is_active is not None:
             query = query.where(Chair.is_active == is_active)
 
-        # Get total count
         count_query = select(func.count(Chair.id))
         if search:
             count_query = count_query.where(
@@ -109,9 +101,19 @@ class AdminService:
         total_result = await db.execute(count_query)
         total_count = total_result.scalar()
 
-        # Apply pagination
+        order_col = None
+        if sort_by and sort_by != "category":
+            col = getattr(Chair, sort_by, None)
+            if col is not None:
+                order_col = desc(col) if (sort_dir or "asc").lower() == "desc" else asc(col)
+        if order_col is None and sort_by == "category":
+            query = query.join(Chair.category)
+            order_col = desc(Category.name) if (sort_dir or "asc").lower() == "desc" else asc(Category.name)
+        if order_col is None:
+            order_col = desc(Chair.created_at)
+
         offset = (page - 1) * page_size
-        query = query.offset(offset).limit(page_size).order_by(desc(Chair.created_at))
+        query = query.order_by(order_col).offset(offset).limit(page_size)
 
         result = await db.execute(query)
         products = result.scalars().all()
@@ -469,43 +471,38 @@ class AdminService:
         page_size: int = 20,
         search: Optional[str] = None,
         status: Optional[CompanyStatus] = None,
+        sort_by: Optional[str] = None,
+        sort_dir: Optional[str] = None,
     ) -> Tuple[List[Company], int]:
         """
-        Get all companies with pagination and filtering
+        Get all companies with pagination, filtering and sorting.
 
-        Args:
-            db: Database session
-            page: Page number
-            page_size: Items per page
-            search: Search term
-            status: Filter by status
-
-        Returns:
-            Tuple of (companies, total_count)
+        sort_by: company_name, status, contact, created_at
+        sort_dir: asc, desc
         """
         query = select(Company)
 
-        # Apply filters
         if search:
             query = query.where(
                 or_(
                     Company.company_name.ilike(f"%{search}%"),
-                    Company.contact_email.ilike(f"%{search}%"),
-                    Company.contact_name.ilike(f"%{search}%"),
+                    Company.rep_email.ilike(f"%{search}%"),
+                    Company.rep_first_name.ilike(f"%{search}%"),
+                    Company.rep_last_name.ilike(f"%{search}%"),
                 )
             )
 
         if status:
             query = query.where(Company.status == status)
 
-        # Get total count
         count_query = select(func.count(Company.id))
         if search:
             count_query = count_query.where(
                 or_(
                     Company.company_name.ilike(f"%{search}%"),
-                    Company.contact_email.ilike(f"%{search}%"),
-                    Company.contact_name.ilike(f"%{search}%"),
+                    Company.rep_email.ilike(f"%{search}%"),
+                    Company.rep_first_name.ilike(f"%{search}%"),
+                    Company.rep_last_name.ilike(f"%{search}%"),
                 )
             )
         if status:
@@ -514,9 +511,22 @@ class AdminService:
         total_result = await db.execute(count_query)
         total_count = total_result.scalar()
 
-        # Apply pagination
+        order_cols = None
+        if sort_by:
+            if sort_by == "contact":
+                if (sort_dir or "asc").lower() == "desc":
+                    order_cols = [desc(Company.rep_last_name), desc(Company.rep_first_name)]
+                else:
+                    order_cols = [asc(Company.rep_last_name), asc(Company.rep_first_name)]
+            else:
+                col = getattr(Company, sort_by, None)
+                if col is not None:
+                    order_cols = [desc(col) if (sort_dir or "asc").lower() == "desc" else asc(col)]
+        if order_cols is None:
+            order_cols = [desc(Company.created_at)]
+
         offset = (page - 1) * page_size
-        query = query.offset(offset).limit(page_size).order_by(desc(Company.created_at))
+        query = query.order_by(*order_cols).offset(offset).limit(page_size)
 
         result = await db.execute(query)
         companies = result.scalars().all()
@@ -574,33 +584,26 @@ class AdminService:
         page_size: int = 20,
         status: Optional[QuoteStatus] = None,
         company_id: Optional[int] = None,
+        sort_by: Optional[str] = None,
+        sort_dir: Optional[str] = None,
     ) -> Tuple[List[Quote], int]:
         """
-        Get all quotes with pagination and filtering
+        Get all quotes with pagination, filtering and sorting.
 
-        Args:
-            db: Database session
-            page: Page number
-            page_size: Items per page
-            status: Filter by status
-            company_id: Filter by company
-
-        Returns:
-            Tuple of (quotes, total_count)
+        sort_by: quote_number, status, created_at, company_name, contact_name, items_count
+        sort_dir: asc, desc
         """
         query = select(Quote).options(
             selectinload(Quote.company),
             selectinload(Quote.items).selectinload(QuoteItem.product),
         )
 
-        # Apply filters
         if status:
             query = query.where(Quote.status == status)
 
         if company_id:
             query = query.where(Quote.company_id == company_id)
 
-        # Get total count
         count_query = select(func.count(Quote.id))
         if status:
             count_query = count_query.where(Quote.status == status)
@@ -610,9 +613,32 @@ class AdminService:
         total_result = await db.execute(count_query)
         total_count = total_result.scalar()
 
-        # Apply pagination
+        order_col = None
+        if sort_by:
+            if sort_by == "company_name":
+                query = query.outerjoin(Quote.company)
+                order_col = (
+                    desc(Company.company_name) if (sort_dir or "asc").lower() == "desc" else asc(Company.company_name)
+                )
+            elif sort_by == "items_count":
+                items_subq = (
+                    select(QuoteItem.quote_id, func.count(QuoteItem.id).label("items_count"))
+                    .group_by(QuoteItem.quote_id)
+                    .subquery()
+                )
+                query = query.outerjoin(items_subq, Quote.id == items_subq.c.quote_id)
+                order_col = (
+                    desc(items_subq.c.items_count) if (sort_dir or "asc").lower() == "desc" else asc(items_subq.c.items_count)
+                )
+            else:
+                col = getattr(Quote, sort_by, None)
+                if col is not None:
+                    order_col = desc(col) if (sort_dir or "asc").lower() == "desc" else asc(col)
+        if order_col is None:
+            order_col = desc(Quote.created_at)
+
         offset = (page - 1) * page_size
-        query = query.offset(offset).limit(page_size).order_by(desc(Quote.created_at))
+        query = query.order_by(order_col).offset(offset).limit(page_size)
 
         result = await db.execute(query)
         quotes = result.scalars().all()

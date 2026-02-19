@@ -194,16 +194,14 @@ const CatalogManagement = () => {
             getItemId={(item) => item.id}
             onReorder={handleReorder}
             minWidth="800px"
-            headerCells={
-              <>
-                <th className="px-3 sm:px-4 py-3 text-left text-xs sm:text-sm font-semibold text-dark-300 uppercase tracking-wider">Title</th>
-                <th className="px-3 sm:px-4 py-3 text-left text-xs sm:text-sm font-semibold text-dark-300 uppercase tracking-wider">Type</th>
-                <th className="px-3 sm:px-4 py-3 text-left text-xs sm:text-sm font-semibold text-dark-300 uppercase tracking-wider">File Type</th>
-                <th className="px-3 sm:px-4 py-3 text-left text-xs sm:text-sm font-semibold text-dark-300 uppercase tracking-wider">Version</th>
-                <th className="px-3 sm:px-4 py-3 text-left text-xs sm:text-sm font-semibold text-dark-300 uppercase tracking-wider">Status</th>
-                <th className="px-3 sm:px-4 py-3 text-right text-xs sm:text-sm font-semibold text-dark-300 uppercase tracking-wider">Actions</th>
-              </>
-            }
+            columns={[
+              { key: 'title', label: 'Title', sortKey: 'title' },
+              { key: 'type', label: 'Type', sortKey: 'catalog_type' },
+              { key: 'fileType', label: 'File Type', sortKey: 'file_type' },
+              { key: 'version', label: 'Version', sortKey: 'version' },
+              { key: 'status', label: 'Status', sortKey: 'is_active' },
+              { key: 'actions', label: 'Actions' },
+            ]}
             renderRow={(catalog) => (
               <>
                 <td className="px-3 sm:px-4 py-3">

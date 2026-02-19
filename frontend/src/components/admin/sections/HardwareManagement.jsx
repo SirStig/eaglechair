@@ -190,16 +190,14 @@ const HardwareManagement = () => {
             getItemId={(item) => item.id}
             onReorder={handleReorder}
             minWidth="800px"
-            headerCells={
-              <>
-                <th className="px-3 sm:px-4 py-3 text-left text-xs sm:text-sm font-semibold text-dark-300 uppercase tracking-wider">Image</th>
-                <th className="px-3 sm:px-4 py-3 text-left text-xs sm:text-sm font-semibold text-dark-300 uppercase tracking-wider">Name</th>
-                <th className="px-3 sm:px-4 py-3 text-left text-xs sm:text-sm font-semibold text-dark-300 uppercase tracking-wider">Category</th>
-                <th className="px-3 sm:px-4 py-3 text-left text-xs sm:text-sm font-semibold text-dark-300 uppercase tracking-wider">Model</th>
-                <th className="px-3 sm:px-4 py-3 text-left text-xs sm:text-sm font-semibold text-dark-300 uppercase tracking-wider">Status</th>
-                <th className="px-3 sm:px-4 py-3 text-right text-xs sm:text-sm font-semibold text-dark-300 uppercase tracking-wider">Actions</th>
-              </>
-            }
+            columns={[
+              { key: 'image', label: 'Image' },
+              { key: 'name', label: 'Name', sortKey: 'name' },
+              { key: 'category', label: 'Category', sortKey: 'category' },
+              { key: 'model', label: 'Model', sortKey: 'model_number' },
+              { key: 'status', label: 'Status', sortKey: 'is_active' },
+              { key: 'actions', label: 'Actions' },
+            ]}
             renderRow={(item) => (
               <>
                 <td className="px-4 py-3">

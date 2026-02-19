@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo, useCallback } from 'react';
 import Card from '../../ui/Card';
 import Button from '../../ui/Button';
 import Badge from '../../ui/Badge';
@@ -7,6 +7,7 @@ import { Edit2, Trash2, DollarSign, Plus, Users } from 'lucide-react';
 import PricingTierEditor from './PricingTierEditor';
 import { useToast } from '../../../contexts/ToastContext';
 import { useAdminRefresh } from '../../../contexts/AdminRefreshContext';
+import TableSortHead, { compareValues } from '../TableSortHead';
 
 /**
  * Pricing Tier Management Component
@@ -20,6 +21,21 @@ const PricingTierManagement = () => {
   const [loading, setLoading] = useState(true);
   const [editingTier, setEditingTier] = useState(null);
   const [includeInactive, setIncludeInactive] = useState(false);
+  const [sortBy, setSortBy] = useState('pricing_tier_name');
+  const [sortDir, setSortDir] = useState('asc');
+
+  const sortedTiers = useMemo(() => {
+    return [...(tiers || [])].sort((a, b) => {
+      const va = sortBy === 'effective_from' ? (a.effective_from ? new Date(a.effective_from).getTime() : 0) : a[sortBy];
+      const vb = sortBy === 'effective_from' ? (b.effective_from ? new Date(b.effective_from).getTime() : 0) : b[sortBy];
+      return compareValues(va, vb, sortDir);
+    });
+  }, [tiers, sortBy, sortDir]);
+
+  const handleSort = useCallback((key) => {
+    setSortBy(key);
+    setSortDir((d) => (key === sortBy ? (d === 'asc' ? 'desc' : 'asc') : 'asc'));
+  }, [sortBy]);
 
   useEffect(() => {
     fetchTiers();
@@ -166,31 +182,17 @@ const PricingTierManagement = () => {
             <table className="w-full min-w-[1000px]">
               <thead className="bg-dark-700 border-b border-dark-600">
                 <tr>
-                  <th className="px-3 sm:px-6 py-3 text-left text-[10px] sm:text-xs font-medium text-dark-200 uppercase tracking-wider">
-                    Tier Name
-                  </th>
-                  <th className="px-3 sm:px-6 py-3 text-left text-[10px] sm:text-xs font-medium text-dark-200 uppercase tracking-wider">
-                    Adjustment
-                  </th>
-                  <th className="px-3 sm:px-6 py-3 text-left text-[10px] sm:text-xs font-medium text-dark-200 uppercase tracking-wider">
-                    Scope
-                  </th>
-                  <th className="px-3 sm:px-6 py-3 text-left text-[10px] sm:text-xs font-medium text-dark-200 uppercase tracking-wider">
-                    Date Range
-                  </th>
-                  <th className="px-3 sm:px-6 py-3 text-left text-[10px] sm:text-xs font-medium text-dark-200 uppercase tracking-wider">
-                    Assigned To
-                  </th>
-                  <th className="px-3 sm:px-6 py-3 text-left text-[10px] sm:text-xs font-medium text-dark-200 uppercase tracking-wider">
-                    Status
-                  </th>
-                  <th className="px-3 sm:px-6 py-3 text-right text-[10px] sm:text-xs font-medium text-dark-200 uppercase tracking-wider">
-                    Actions
-                  </th>
+                  <TableSortHead label="Tier Name" sortKey="pricing_tier_name" activeSortBy={sortBy} sortDir={sortDir} onSort={handleSort} className="px-3 sm:px-6 py-3 text-left text-[10px] sm:text-xs font-medium text-dark-200 uppercase tracking-wider" />
+                  <TableSortHead label="Adjustment" sortKey="percentage_adjustment" activeSortBy={sortBy} sortDir={sortDir} onSort={handleSort} className="px-3 sm:px-6 py-3 text-left text-[10px] sm:text-xs font-medium text-dark-200 uppercase tracking-wider" />
+                  <TableSortHead label="Scope" sortKey="applies_to_all_products" activeSortBy={sortBy} sortDir={sortDir} onSort={handleSort} className="px-3 sm:px-6 py-3 text-left text-[10px] sm:text-xs font-medium text-dark-200 uppercase tracking-wider" />
+                  <TableSortHead label="Date Range" sortKey="effective_from" activeSortBy={sortBy} sortDir={sortDir} onSort={handleSort} className="px-3 sm:px-6 py-3 text-left text-[10px] sm:text-xs font-medium text-dark-200 uppercase tracking-wider" />
+                  <th className="px-3 sm:px-6 py-3 text-left text-[10px] sm:text-xs font-medium text-dark-200 uppercase tracking-wider">Assigned To</th>
+                  <TableSortHead label="Status" sortKey="is_active" activeSortBy={sortBy} sortDir={sortDir} onSort={handleSort} className="px-3 sm:px-6 py-3 text-left text-[10px] sm:text-xs font-medium text-dark-200 uppercase tracking-wider" />
+                  <th className="px-3 sm:px-6 py-3 text-right text-[10px] sm:text-xs font-medium text-dark-200 uppercase tracking-wider">Actions</th>
                 </tr>
               </thead>
               <tbody className="bg-dark-800 divide-y divide-dark-700">
-                {tiers.map((tier) => (
+                {sortedTiers.map((tier) => (
                   <tr key={tier.id} className="hover:bg-dark-700 transition-colors">
                     <td className="px-6 py-4 whitespace-nowrap">
                       <div className="text-sm font-medium text-dark-50">

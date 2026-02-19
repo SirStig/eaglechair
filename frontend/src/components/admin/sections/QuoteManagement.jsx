@@ -4,6 +4,7 @@ import Button from '../../ui/Button';
 import apiClient from '../../../config/apiClient';
 import AdminQuoteDetailView from './AdminQuoteDetailView';
 import { useAdminRefresh } from '../../../contexts/AdminRefreshContext';
+import TableSortHead from '../TableSortHead';
 import { 
   FileText, 
   Search, 
@@ -30,9 +31,12 @@ const QuoteManagement = () => {
     pages: 0
   });
 
+  const [sortBy, setSortBy] = useState('created_at');
+  const [sortDir, setSortDir] = useState('desc');
+
   useEffect(() => {
     fetchQuotes();
-  }, [pagination.page, statusFilter, refreshKeys.quotes]);
+  }, [pagination.page, statusFilter, sortBy, sortDir, refreshKeys.quotes]);
 
   const fetchQuotes = useCallback(async () => {
     try {
@@ -40,8 +44,10 @@ const QuoteManagement = () => {
       const params = {
         page: pagination.page,
         page_size: pagination.page_size,
+        sort_by: sortBy || undefined,
+        sort_dir: sortDir,
       };
-      
+
       if (statusFilter !== 'all') {
         params.status = statusFilter;
       }
@@ -58,7 +64,7 @@ const QuoteManagement = () => {
     } finally {
       setLoading(false);
     }
-  }, [pagination.page, pagination.page_size, statusFilter]);
+  }, [pagination.page, pagination.page_size, statusFilter, sortBy, sortDir]);
 
   const getStatusBadge = (status) => {
     const badges = {
@@ -89,6 +95,12 @@ const QuoteManagement = () => {
       quote.contact_name?.toLowerCase().includes(searchLower)
     );
   });
+
+  const handleSort = useCallback((key) => {
+    setSortBy(key);
+    setSortDir((d) => (key === sortBy ? (d === 'asc' ? 'desc' : 'asc') : key === 'created_at' ? 'desc' : 'asc'));
+    setPagination(prev => ({ ...prev, page: 1 }));
+  }, [sortBy]);
 
   const handleStatusChange = async (quoteId, newStatus) => {
     try {
@@ -200,12 +212,12 @@ const QuoteManagement = () => {
             <table className="w-full min-w-[900px]">
               <thead>
                 <tr className="border-b border-dark-600">
-                  <th className="text-left px-3 sm:p-4 py-3 text-xs sm:text-sm text-dark-300 font-medium">Quote #</th>
-                  <th className="text-left px-3 sm:p-4 py-3 text-xs sm:text-sm text-dark-300 font-medium">Company</th>
-                  <th className="text-left px-3 sm:p-4 py-3 text-xs sm:text-sm text-dark-300 font-medium">Contact</th>
-                  <th className="text-left px-3 sm:p-4 py-3 text-xs sm:text-sm text-dark-300 font-medium">Items</th>
-                  <th className="text-left px-3 sm:p-4 py-3 text-xs sm:text-sm text-dark-300 font-medium">Status</th>
-                  <th className="text-left px-3 sm:p-4 py-3 text-xs sm:text-sm text-dark-300 font-medium">Created</th>
+                  <TableSortHead label="Quote #" sortKey="quote_number" activeSortBy={sortBy} sortDir={sortDir} onSort={handleSort} className="text-left px-3 sm:p-4 py-3 text-xs sm:text-sm text-dark-300 font-medium" />
+                  <TableSortHead label="Company" sortKey="company_name" activeSortBy={sortBy} sortDir={sortDir} onSort={handleSort} className="text-left px-3 sm:p-4 py-3 text-xs sm:text-sm text-dark-300 font-medium" />
+                  <TableSortHead label="Contact" sortKey="contact_name" activeSortBy={sortBy} sortDir={sortDir} onSort={handleSort} className="text-left px-3 sm:p-4 py-3 text-xs sm:text-sm text-dark-300 font-medium" />
+                  <TableSortHead label="Items" sortKey="items" activeSortBy={sortBy} sortDir={sortDir} onSort={handleSort} className="text-left px-3 sm:p-4 py-3 text-xs sm:text-sm text-dark-300 font-medium" />
+                  <TableSortHead label="Status" sortKey="status" activeSortBy={sortBy} sortDir={sortDir} onSort={handleSort} className="text-left px-3 sm:p-4 py-3 text-xs sm:text-sm text-dark-300 font-medium" />
+                  <TableSortHead label="Created" sortKey="created_at" activeSortBy={sortBy} sortDir={sortDir} onSort={handleSort} className="text-left px-3 sm:p-4 py-3 text-xs sm:text-sm text-dark-300 font-medium" />
                   <th className="text-right px-3 sm:p-4 py-3 text-xs sm:text-sm text-dark-300 font-medium">Actions</th>
                 </tr>
               </thead>

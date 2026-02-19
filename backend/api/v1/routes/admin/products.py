@@ -44,6 +44,8 @@ async def get_all_products(
     search: Optional[str] = Query(None, description="Search term"),
     category_id: Optional[int] = Query(None, description="Filter by category"),
     is_active: Optional[bool] = Query(None, description="Filter by active status"),
+    sort_by: Optional[str] = Query(None, description="Sort column: name, model_number, base_price, view_count, quote_count, is_active, created_at, category"),
+    sort_dir: Optional[str] = Query("asc", description="Sort direction: asc, desc"),
     admin: AdminUser = Depends(get_current_admin),
     db: AsyncSession = Depends(get_db),
 ):
@@ -61,6 +63,8 @@ async def get_all_products(
         search=search,
         category_id=category_id,
         is_active=is_active,
+        sort_by=sort_by,
+        sort_dir=sort_dir,
     )
 
     # Convert ORM objects to dicts

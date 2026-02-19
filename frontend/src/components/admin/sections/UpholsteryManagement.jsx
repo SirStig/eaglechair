@@ -241,18 +241,16 @@ const UpholsteryManagement = () => {
             getItemId={(item) => item.id}
             onReorder={handleReorder}
             minWidth="1000px"
-            headerCells={
-              <>
-                <th className="px-3 sm:px-4 py-3 text-left text-xs sm:text-sm font-semibold text-dark-300 uppercase tracking-wider">Swatch</th>
-                <th className="px-3 sm:px-4 py-3 text-left text-xs sm:text-sm font-semibold text-dark-300 uppercase tracking-wider">Name</th>
-                <th className="px-3 sm:px-4 py-3 text-left text-xs sm:text-sm font-semibold text-dark-300 uppercase tracking-wider">Code</th>
-                <th className="px-3 sm:px-4 py-3 text-left text-xs sm:text-sm font-semibold text-dark-300 uppercase tracking-wider">Type</th>
-                <th className="px-3 sm:px-4 py-3 text-left text-xs sm:text-sm font-semibold text-dark-300 uppercase tracking-wider">Grade</th>
-                <th className="px-3 sm:px-4 py-3 text-left text-xs sm:text-sm font-semibold text-dark-300 uppercase tracking-wider">Color</th>
-                <th className="px-3 sm:px-4 py-3 text-left text-xs sm:text-sm font-semibold text-dark-300 uppercase tracking-wider">Status</th>
-                <th className="px-3 sm:px-4 py-3 text-right text-xs sm:text-sm font-semibold text-dark-300 uppercase tracking-wider">Actions</th>
-              </>
-            }
+            columns={[
+              { key: 'swatch', label: 'Swatch' },
+              { key: 'name', label: 'Name', sortKey: 'name' },
+              { key: 'code', label: 'Code', sortKey: 'material_code' },
+              { key: 'type', label: 'Type', sortKey: 'material_type' },
+              { key: 'grade', label: 'Grade', sortKey: 'grade' },
+              { key: 'color', label: 'Color', sortKey: 'color_id' },
+              { key: 'status', label: 'Status', sortKey: 'is_active' },
+              { key: 'actions', label: 'Actions' },
+            ]}
             renderRow={(upholstery) => (
               <>
                 <td className="px-4 py-3">

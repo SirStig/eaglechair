@@ -1,15 +1,19 @@
 """
-Generate short description, full description, and feature list from catalog PDF content
-using Google Gemini (google-genai). Set GEMINI_API_KEY in env.
+Generate short description, full description, and feature list from catalog PDF content.
+Supports Google Gemini (google-genai, set GEMINI_API_KEY) or Ollama (set OLLAMA_BASE_URL / --ollama-url).
 """
 
 import json
 import logging
 import re
 import time
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, Optional
+from urllib.request import Request, urlopen
+from urllib.error import HTTPError, URLError
 
 GEMINI_RETRY_DELAYS = (5, 15, 45)
+DEFAULT_OLLAMA_BASE_URL = "http://192.168.1.202:11434"
+DEFAULT_OLLAMA_MODEL = "gemma3:12b"
 
 logger = logging.getLogger(__name__)
 
@@ -47,16 +51,70 @@ def build_catalog_context(product_record: Dict[str, Any]) -> str:
     return "\n".join(parts)
 
 
+def _parse_llm_json(raw: str, source: str = "LLM") -> Dict[str, Any]:
+    raw = re.sub(r"^```\w*\s*", "", raw)
+    raw = re.sub(r"\s*```\s*$", "", raw)
+    try:
+        out = json.loads(raw)
+    except json.JSONDecodeError as e:
+        logger.warning("%s response was not valid JSON: %s", source, e)
+        return {"short_description": None, "full_description": None, "features": []}
+    short = out.get("short_description")
+    full = out.get("full_description")
+    features = out.get("features")
+    if not isinstance(features, list):
+        features = [f.strip() for f in str(features or "").split(",") if f.strip()]
+    return {
+        "short_description": short if isinstance(short, str) else None,
+        "full_description": full if isinstance(full, str) else None,
+        "features": [str(x).strip() for x in features if x] if features else [],
+    }
+
+
+def _generate_descriptions_ollama(
+    product_record: Dict[str, Any],
+    base_url: str,
+    model: str = DEFAULT_OLLAMA_MODEL,
+) -> Dict[str, Any]:
+    context = build_catalog_context(product_record)
+    prompt = (
+        DESCRIPTION_SYSTEM
+        + "\n\n---\n\n"
+        + context
+        + "\n\n---\n\nOutput JSON only:"
+    )
+    url = base_url.rstrip("/") + "/api/generate"
+    body = json.dumps({"model": model, "prompt": prompt, "stream": False}).encode("utf-8")
+    req = Request(url, data=body, method="POST", headers={"Content-Type": "application/json"})
+    try:
+        with urlopen(req, timeout=300) as resp:
+            data = json.loads(resp.read().decode("utf-8"))
+    except (HTTPError, URLError, json.JSONDecodeError) as e:
+        logger.warning("Ollama request failed: %s", e)
+        return {"short_description": None, "full_description": None, "features": []}
+    raw = (data.get("response") or "").strip()
+    return _parse_llm_json(raw, "Ollama")
+
+
 def generate_descriptions(
     product_record: Dict[str, Any],
     api_key: Optional[str] = None,
     model: str = DEFAULT_MODEL,
+    ollama_base_url: Optional[str] = None,
+    ollama_model: Optional[str] = None,
 ) -> Dict[str, Any]:
     """
-    Call Gemini to produce short_description, full_description, and features (list of strings).
+    Produce short_description, full_description, and features (list of strings).
+    Uses Ollama if ollama_base_url is set, otherwise Gemini (requires api_key or GEMINI_API_KEY).
     product_record must have family_name, base_model, full_page_text, and optionally dimensions.
-    Returns dict with short_description, full_description, features (list).
     """
+    if ollama_base_url:
+        return _generate_descriptions_ollama(
+            product_record,
+            base_url=ollama_base_url,
+            model=ollama_model or DEFAULT_OLLAMA_MODEL,
+        )
+
     from google import genai
 
     context = build_catalog_context(product_record)
@@ -66,7 +124,6 @@ def generate_descriptions(
         + context
         + "\n\n---\n\nOutput JSON only:"
     )
-
     client = genai.Client(api_key=api_key) if api_key else genai.Client()
     raw = ""
     try:
@@ -91,27 +148,4 @@ def generate_descriptions(
             client.close()
         except Exception:
             pass
-
-    raw = re.sub(r"^```\w*\s*", "", raw)
-    raw = re.sub(r"\s*```\s*$", "", raw)
-    try:
-        out = json.loads(raw)
-    except json.JSONDecodeError as e:
-        logger.warning("Gemini response was not valid JSON: %s", e)
-        return {
-            "short_description": None,
-            "full_description": None,
-            "features": [],
-        }
-
-    short = out.get("short_description")
-    full = out.get("full_description")
-    features = out.get("features")
-    if not isinstance(features, list):
-        features = [f.strip() for f in str(features or "").split(",") if f.strip()]
-
-    return {
-        "short_description": short if isinstance(short, str) else None,
-        "full_description": full if isinstance(full, str) else None,
-        "features": [str(x).strip() for x in features if x] if features else [],
-    }
+    return _parse_llm_json(raw, "Gemini")

@@ -197,16 +197,14 @@ const FamilyManagement = () => {
             getItemId={(item) => item.id}
             onReorder={handleReorder}
             minWidth="900px"
-            headerCells={
-              <>
-                <th className="px-3 sm:px-4 py-3 text-left text-xs sm:text-sm font-medium text-dark-300">Image</th>
-                <th className="px-3 sm:px-4 py-3 text-left text-xs sm:text-sm font-medium text-dark-300">Family Name</th>
-                <th className="px-3 sm:px-4 py-3 text-left text-xs sm:text-sm font-medium text-dark-300">Slug</th>
-                <th className="px-3 sm:px-4 py-3 text-left text-xs sm:text-sm font-medium text-dark-300">Category</th>
-                <th className="px-3 sm:px-4 py-3 text-left text-xs sm:text-sm font-medium text-dark-300">Status</th>
-                <th className="px-3 sm:px-4 py-3 text-right text-xs sm:text-sm font-medium text-dark-300">Actions</th>
-              </>
-            }
+            columns={[
+              { key: 'image', label: 'Image' },
+              { key: 'name', label: 'Family Name', sortKey: 'name' },
+              { key: 'slug', label: 'Slug', sortKey: 'slug' },
+              { key: 'category', label: 'Category', sortKey: 'category_id' },
+              { key: 'status', label: 'Status', sortKey: 'is_active' },
+              { key: 'actions', label: 'Actions' },
+            ]}
             renderRow={(family) => (
               <>
                 <td className="px-3 sm:px-4 py-3 sm:py-4">

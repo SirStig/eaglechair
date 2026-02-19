@@ -20,7 +20,6 @@ import {
   ChevronRight,
   ExternalLink,
   User,
-  Upload,
   DollarSign,
   Mail,
   Menu,
@@ -46,8 +45,6 @@ import LegalDocumentManagement from '../../components/admin/sections/LegalDocume
 import PricingTierManagement from '../../components/admin/sections/PricingTierManagement';
 import SiteSettings from '../../components/admin/sections/SiteSettings';
 import Analytics from '../../components/admin/sections/Analytics';
-import VirtualCatalogUpload from '../../components/admin/sections/VirtualCatalogUpload';
-import EditTmpProduct from '../../components/admin/sections/EditTmpProduct';
 import EmailTemplateManagement from '../../components/admin/sections/EmailTemplateManagement';
 
 /**
@@ -72,8 +69,6 @@ const NewAdminDashboardInner = () => {
   const getActiveSectionFromPath = () => {
     const path = location.pathname;
     if (path.includes('/admin/analytics')) return 'analytics';
-    if (path.includes('/admin/catalog/virtual-upload/edit/')) return 'edit-tmp-product';
-    if (path.includes('/admin/catalog/virtual-upload')) return 'virtual-catalog';
     if (path.includes('/admin/catalog')) return 'catalog';
     if (path.includes('/admin/categories')) return 'categories';
     if (path.includes('/admin/families')) return 'families';
@@ -99,8 +94,6 @@ const NewAdminDashboardInner = () => {
     const path = location.pathname;
     let section = 'overview';
     if (path.includes('/admin/analytics')) section = 'analytics';
-    else if (path.includes('/admin/catalog/virtual-upload/edit/')) section = 'edit-tmp-product';
-    else if (path.includes('/admin/catalog/virtual-upload')) section = 'virtual-catalog';
     else if (path.includes('/admin/resources/catalogs')) section = 'catalogs';
     else if (path.includes('/admin/catalog')) section = 'catalog';
     else if (path.includes('/admin/categories')) section = 'categories';
@@ -145,7 +138,6 @@ const NewAdminDashboardInner = () => {
       title: 'Product Management',
       items: [
         { id: 'catalog', label: 'Product Catalog', icon: Package, path: '/admin/catalog' },
-        { id: 'virtual-catalog', label: 'Virtual Catalog Upload', icon: Upload, path: '/admin/catalog/virtual-upload' },
         { id: 'categories', label: 'Categories', icon: Tags, path: '/admin/categories' },
         { id: 'families', label: 'Product Families', icon: Users2, path: '/admin/families' },
         { id: 'colors', label: 'Colors', icon: Droplet, path: '/admin/colors' },
@@ -205,10 +197,6 @@ const NewAdminDashboardInner = () => {
         return <Analytics />;
       case 'catalog':
         return <ProductCatalog onEdit={setSelectedProduct} />;
-      case 'virtual-catalog':
-        return <VirtualCatalogUpload />;
-      case 'edit-tmp-product':
-        return <EditTmpProduct />;
       case 'categories':
         return <CategoryManagement />;
       case 'families':

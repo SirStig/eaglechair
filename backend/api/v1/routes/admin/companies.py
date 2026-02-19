@@ -61,6 +61,8 @@ async def get_all_companies(
     page_size: int = Query(20, ge=1, le=100, description="Items per page"),
     search: Optional[str] = Query(None, description="Search term"),
     status: Optional[CompanyStatus] = Query(None, description="Filter by status"),
+    sort_by: Optional[str] = Query(None, description="Sort column: company_name, status, contact, created_at"),
+    sort_dir: Optional[str] = Query("asc", description="Sort direction: asc, desc"),
     admin: AdminUser = Depends(get_current_admin),
     db: AsyncSession = Depends(get_db)
 ):
@@ -76,7 +78,9 @@ async def get_all_companies(
         page=page,
         page_size=page_size,
         search=search,
-        status=status
+        status=status,
+        sort_by=sort_by,
+        sort_dir=sort_dir,
     )
     
     # Convert ORM objects to dicts
