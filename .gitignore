@@ -197,4 +197,7 @@ backend/scripts/seed_admin.py
 *.env.staging.local
 *.env.development.local
 
-frontend/.env.production
+frontend/.env
+frontend/.env.*
+!frontend/.env.example
+frontend/demo.env
