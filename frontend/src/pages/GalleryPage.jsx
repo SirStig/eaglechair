@@ -186,10 +186,10 @@ const GalleryPage = () => {
                   <img
                     src={imageUrl}
                     alt={title}
-                    className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                    className="w-full h-full object-cover img-sharp group-hover:scale-105 transition-transform duration-500"
                     style={{ aspectRatio: '16/10', objectFit: 'cover' }}
                     loading={index < 6 ? "eager" : "lazy"}
-                    decoding="async"
+                    decoding={index < 3 ? "sync" : "async"}
                     fetchpriority={index < 3 ? "high" : index < 6 ? "auto" : "low"}
                   />
                   <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/30 to-transparent opacity-0 group-hover:opacity-100 transition-opacity">
@@ -218,7 +218,7 @@ const GalleryPage = () => {
               <img
                 src={selectedImage.url}
                 alt={selectedImage.title}
-                className="w-full h-auto max-h-[60vh] object-contain rounded-lg"
+                className="w-full h-auto max-h-[60vh] object-contain img-sharp rounded-lg"
               />
               <div className="mt-4 space-y-2">
                 <p className="text-dark-100 font-medium">{selectedImage.category}</p>

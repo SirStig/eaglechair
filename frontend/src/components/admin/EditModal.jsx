@@ -38,19 +38,15 @@ const EditModal = ({ isOpen, onClose, onSave, elementData, elementType }) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
+    setUploadingImage(true);
+    setError(null);
+    previewImage(file).then(preview => setImagePreview(prev => ({ ...prev, [fieldName]: preview }))).catch(() => {});
+
     try {
-      // Show preview
-      const preview = await previewImage(file);
-      setImagePreview({ [fieldName]: preview });
-      
-      // Upload image
-      setUploadingImage(true);
       const subfolder = elementType || 'general';
       const imageUrl = await uploadImage(file, subfolder);
-      
       setFormData(prev => ({ ...prev, [fieldName]: imageUrl }));
       logger.info(CONTEXT, `Image uploaded for ${fieldName}: ${imageUrl}`);
-      
     } catch (err) {
       logger.error(CONTEXT, 'Image upload failed', err);
       setError(err.message || 'Failed to upload image');

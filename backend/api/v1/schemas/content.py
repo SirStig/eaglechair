@@ -626,6 +626,11 @@ class PageContentItemResponse(BaseModel):
     pageSlug: str
     sectionKey: str
     title: str
+    subtitle: Optional[str] = None
     content: str
-    imageUrl: Optional[str]
+    imageUrl: Optional[str] = None
+    videoUrl: Optional[str] = None
+    ctaText: Optional[str] = None
+    ctaLink: Optional[str] = None
+    ctaStyle: Optional[str] = None
     displayOrder: int

@@ -131,10 +131,10 @@ const AboutPage = () => {
           <img
             src={heroImage}
             alt="Workshop"
-            className="w-full h-full object-cover"
+            className="w-full h-full object-cover img-sharp"
             loading="eager"
             fetchpriority="high"
-            decoding="async"
+            decoding="sync"
           />
         </div>
 

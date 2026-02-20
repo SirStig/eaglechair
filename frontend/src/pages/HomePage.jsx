@@ -264,15 +264,10 @@ const HomePage = () => {
                         key={`hero-${slide.id || index}-${slide.background_image_url || slide.image}`}
                         src={slide.background_image_url || slide.image}
                         alt={slide.title}
-                        className="w-full h-full object-cover"
+                        className="w-full h-full object-cover img-sharp"
                         loading={index === 0 ? "eager" : "lazy"}
-                        decoding="async"
+                        decoding={index === 0 ? "sync" : "async"}
                         fetchpriority={index === 0 ? "high" : "auto"}
-                        style={{
-                          WebkitTransform: 'translateZ(0)',
-                          transform: 'translateZ(0)',
-                          willChange: 'transform'
-                        }}
                       />
                       <div className="absolute inset-0 bg-gradient-to-r from-black/70 to-black/30" />
 

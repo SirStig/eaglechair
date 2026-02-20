@@ -383,11 +383,32 @@ export const getFeaturedProducts = async (limit = 4) => {
 
 // ==================== UPDATE OPERATIONS ====================
 
-// Update Page Content (Admin only)
+const pageContentPayloadToApi = (updates) => {
+  const map = {
+    imageUrl: 'image_url',
+    videoUrl: 'video_url',
+    ctaText: 'cta_text',
+    ctaLink: 'cta_link',
+    ctaStyle: 'cta_style',
+    displayOrder: 'display_order',
+    isActive: 'is_active',
+    pageSlug: 'page_slug',
+    sectionKey: 'section_key',
+    extraData: 'extra_data'
+  };
+  const out = {};
+  Object.keys(updates).forEach(k => {
+    const apiKey = map[k] || k;
+    if (apiKey !== 'page_slug' && apiKey !== 'section_key') out[apiKey] = updates[k];
+  });
+  return out;
+};
+
 export const updatePageContent = async (pageSlug, sectionKey, updates) => {
   try {
     logger.info(CONTEXT, `Updating page content (${pageSlug}/${sectionKey})`);
-    const response = await api.patch(`/api/v1/cms-admin/page-content/${pageSlug}/${sectionKey}`, updates);
+    const payload = pageContentPayloadToApi(updates);
+    const response = await api.patch(`/api/v1/cms-admin/page-content/${pageSlug}/${sectionKey}`, payload);
     return response;
   } catch (error) {
     logger.error(CONTEXT, 'Error updating page content', error);
@@ -433,11 +454,36 @@ export const updateTeamMember = async (id, updates) => {
   }
 };
 
-// Update Hero Slide
+const heroSlidePayloadToApi = (updates) => {
+  const out = { ...updates };
+  if (out.image !== undefined) {
+    out.background_image_url = out.image;
+    delete out.image;
+  }
+  const map = {
+    ctaText: 'cta_text',
+    ctaLink: 'cta_link',
+    ctaStyle: 'cta_style',
+    displayOrder: 'display_order',
+    isActive: 'is_active',
+    secondaryCtaText: 'secondary_cta_text',
+    secondaryCtaLink: 'secondary_cta_link',
+    secondaryCtaStyle: 'secondary_cta_style'
+  };
+  Object.keys(map).forEach(k => {
+    if (out[k] !== undefined) {
+      out[map[k]] = out[k];
+      delete out[k];
+    }
+  });
+  return out;
+};
+
 export const updateHeroSlide = async (id, updates) => {
   try {
     logger.info(CONTEXT, `Updating hero slide ${id}`);
-    const response = await api.patch(`/api/v1/cms-admin/hero-slides/${id}`, updates);
+    const payload = heroSlidePayloadToApi(updates);
+    const response = await api.patch(`/api/v1/cms-admin/hero-slides/${id}`, payload);
     return response;
   } catch (error) {
     logger.error(CONTEXT, 'Error updating hero slide', error);
@@ -547,7 +593,8 @@ export const createTeamMember = async (data) => {
 export const createHeroSlide = async (data) => {
   try {
     logger.info(CONTEXT, 'Creating hero slide');
-    const response = await api.post('/api/v1/cms-admin/hero-slides', data);
+    const payload = heroSlidePayloadToApi(data);
+    const response = await api.post('/api/v1/cms-admin/hero-slides', payload);
     return response;
   } catch (error) {
     logger.error(CONTEXT, 'Error creating hero slide', error);

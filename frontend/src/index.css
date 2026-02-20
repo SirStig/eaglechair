@@ -68,6 +68,12 @@
 }
 
 @layer utilities {
+  .img-sharp {
+    image-rendering: auto;
+    -webkit-backface-visibility: hidden;
+    backface-visibility: hidden;
+  }
+
   .text-balance {
     text-wrap: balance;
   }

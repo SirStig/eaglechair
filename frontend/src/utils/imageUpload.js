@@ -10,52 +10,61 @@ import logger from './logger';
 
 const CONTEXT = 'ImageUpload';
 
-// Upload directory on the server (relative to project root)
 const UPLOAD_DIR = '/uploads/images';
+const COMPRESS_THRESHOLD = 500 * 1024;
+const MAX_WIDTH = 2560;
+const MAX_HEIGHT = 1440;
+const COMPRESS_QUALITY_JPEG = 0.9;
+const PRESERVE_TRANSPARENCY_TYPES = ['image/png', 'image/webp', 'image/gif'];
 
-/**
- * Upload an image file directly to the server
- * @param {File} file - The image file to upload
- * @param {string} subfolder - Optional subfolder (e.g., 'products', 'team', 'hero')
- * @returns {Promise<string>} - The URL path to the uploaded image
- */
+const isCompressibleRaster = (file) => {
+  if (!file.type.startsWith('image/')) return false;
+  if (file.type === 'image/svg+xml') return false;
+  return ['image/jpeg', 'image/png', 'image/webp', 'image/gif'].includes(file.type);
+};
+
 export const uploadImage = async (file, subfolder = 'general') => {
   try {
     logger.info(CONTEXT, `Uploading image: ${file.name} to ${subfolder}`);
-    
-    // Validate file type
+
     if (!file.type.startsWith('image/')) {
       throw new Error('File must be an image');
     }
-    
+
     const maxSize = 50 * 1024 * 1024;
     if (file.size > maxSize) {
       throw new Error('Image size must be less than 50MB');
     }
-    
-    // Generate unique filename
+
+    const skipCompression = subfolder === 'hero' || subfolder === 'hero-slide' || String(subfolder).startsWith('hero');
+    let payload = file;
+    let extension = file.name.split('.').pop()?.toLowerCase() || 'jpg';
+    if (!skipCompression && isCompressibleRaster(file) && file.size > COMPRESS_THRESHOLD) {
+      const preserveTransparency = PRESERVE_TRANSPARENCY_TYPES.includes(file.type);
+      const blob = await compressImage(file, MAX_WIDTH, MAX_HEIGHT, preserveTransparency ? null : COMPRESS_QUALITY_JPEG, preserveTransparency ? 'image/png' : 'image/jpeg');
+      extension = preserveTransparency ? 'png' : 'jpg';
+      const mime = preserveTransparency ? 'image/png' : 'image/jpeg';
+      payload = new File([blob], file.name.replace(/\.[^.]+$/, `.${extension}`), { type: mime });
+      logger.debug(CONTEXT, `Compressed ${(file.size / 1024).toFixed(0)}KB → ${(blob.size / 1024).toFixed(0)}KB (${extension})`);
+    }
+
     const timestamp = Date.now();
     const randomStr = Math.random().toString(36).substring(2, 8);
-    const extension = file.name.split('.').pop();
     const filename = `${timestamp}-${randomStr}.${extension}`;
-    
-    // Create FormData
+
     const formData = new FormData();
-    formData.append('file', file);
+    formData.append('file', payload);
     formData.append('subfolder', subfolder);
     formData.append('filename', filename);
-    
+
     const response = await api.post('/api/v1/admin/upload/image', formData, {
       timeout: 120000,
       retry: 0
     });
-    
-    // apiClient interceptor already unwraps response.data, so response IS the data
+
     const imageUrl = response.url || `${UPLOAD_DIR}/${subfolder}/${filename}`;
-    
     logger.info(CONTEXT, `Image uploaded successfully: ${imageUrl}`);
     return imageUrl;
-    
   } catch (error) {
     logger.error(CONTEXT, 'Image upload failed', error);
     throw error;
@@ -105,14 +114,15 @@ export const previewImage = (file) => {
 };
 
 /**
- * Compress an image before upload
+ * Compress an image before upload. Preserves transparency when format is image/png.
  * @param {File} file - The image file
  * @param {number} maxWidth - Maximum width
  * @param {number} maxHeight - Maximum height
- * @param {number} quality - JPEG quality (0-1)
+ * @param {number|null} quality - JPEG quality (0-1); ignored for PNG
+ * @param {string} format - 'image/jpeg' or 'image/png'
  * @returns {Promise<Blob>} - Compressed image blob
  */
-export const compressImage = (file, maxWidth = 1920, maxHeight = 1080, quality = 0.9) => {
+export const compressImage = (file, maxWidth = 1920, maxHeight = 1080, quality = 0.9, format = 'image/jpeg') => {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
     reader.onload = (e) => {
@@ -120,8 +130,7 @@ export const compressImage = (file, maxWidth = 1920, maxHeight = 1080, quality =
       img.onload = () => {
         const canvas = document.createElement('canvas');
         let { width, height } = img;
-        
-        // Calculate new dimensions
+
         if (width > maxWidth) {
           height = (height * maxWidth) / width;
           width = maxWidth;
@@ -130,18 +139,21 @@ export const compressImage = (file, maxWidth = 1920, maxHeight = 1080, quality =
           width = (width * maxHeight) / height;
           height = maxHeight;
         }
-        
+
         canvas.width = width;
         canvas.height = height;
-        
+
         const ctx = canvas.getContext('2d');
+        if (format === 'image/png') {
+          ctx.clearRect(0, 0, width, height);
+        }
         ctx.drawImage(img, 0, 0, width, height);
-        
-        canvas.toBlob(
-          (blob) => resolve(blob),
-          'image/jpeg',
-          quality
-        );
+
+        if (format === 'image/png') {
+          canvas.toBlob((blob) => resolve(blob), 'image/png');
+        } else {
+          canvas.toBlob((blob) => resolve(blob), 'image/jpeg', quality ?? 0.9);
+        }
       };
       img.onerror = () => reject(new Error('Failed to load image'));
       img.src = e.target.result;

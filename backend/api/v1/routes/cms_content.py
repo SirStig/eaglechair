@@ -540,23 +540,33 @@ async def get_page_content(
             "pageSlug": content.page_slug,
             "sectionKey": content.section_key,
             "title": content.title or "",
+            "subtitle": content.subtitle or "",
             "content": content.content or "",
             "imageUrl": content.image_url,
+            "videoUrl": content.video_url,
+            "ctaText": content.cta_text,
+            "ctaLink": content.cta_link,
+            "ctaStyle": content.cta_style or "",
             "displayOrder": content.display_order
         }]
-    
+
     query = query.order_by(PageContent.display_order, PageContent.id)
     result = await db.execute(query)
     contents = result.scalars().all()
-    
+
     return [
         {
             "id": content.id,
             "pageSlug": content.page_slug,
             "sectionKey": content.section_key,
             "title": content.title or "",
+            "subtitle": content.subtitle or "",
             "content": content.content or "",
             "imageUrl": content.image_url,
+            "videoUrl": content.video_url,
+            "ctaText": content.cta_text,
+            "ctaLink": content.cta_link,
+            "ctaStyle": content.cta_style or "",
             "displayOrder": content.display_order
         }
         for content in contents

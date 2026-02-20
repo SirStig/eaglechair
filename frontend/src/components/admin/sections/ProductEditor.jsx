@@ -4,6 +4,7 @@ import Button from '../../ui/Button';
 import { useToast } from '../../../contexts/ToastContext';
 import apiClient from '../../../config/apiClient';
 import { resolveImageUrl } from '../../../utils/apiHelpers';
+import { uploadImage, deleteImage } from '../../../utils/imageUpload';
 import {
   FileText,
   DollarSign,
@@ -105,32 +106,14 @@ const ProductEditor = ({ product, onBack }) => {
 
   const [keywordInput, setKeywordInput] = useState('');
 
-  // Image upload helper function
-  const uploadImage = async (file, subfolder = 'products') => {
-    const formData = new FormData();
-    formData.append('file', file);
-    formData.append('subfolder', subfolder);
+  const uploadProductImage = (file) => uploadImage(file, 'products');
 
-    const response = await apiClient.post('/api/v1/admin/upload/image', formData, {
-      headers: {
-        'Content-Type': 'multipart/form-data',
-      },
-    });
-
-    return response.url;
-  };
-
-  // Image delete helper function
-  const deleteImage = async (url) => {
+  const deleteProductImage = async (url) => {
     if (!url) return;
-
     try {
-      await apiClient.delete('/api/v1/admin/upload/image', {
-        data: { url }
-      });
+      await deleteProductImage(url);
     } catch (error) {
       console.error('Failed to delete image:', error);
-      // Don't throw - we still want to remove from UI even if server delete fails
     }
   };
 
@@ -706,7 +689,7 @@ const ProductEditor = ({ product, onBack }) => {
                         <button
                           type="button"
                           onClick={async () => {
-                            await deleteImage(formData.primary_image_url);
+                            await deleteProductImage(formData.primary_image_url);
                             handleChange('primary_image_url', null);
                           }}
                           className="absolute top-2 right-2 p-2 bg-red-500 text-white rounded-lg opacity-0 group-hover:opacity-100 transition-opacity"
@@ -726,7 +709,7 @@ const ProductEditor = ({ product, onBack }) => {
                             if (file) {
                               setUploadingImage(true);
                               try {
-                                const url = await uploadImage(file);
+                                const url = await uploadProductImage(file);
                                 handleChange('primary_image_url', url);
                               } catch (error) {
                                 console.error('Upload failed:', error);
@@ -760,7 +743,7 @@ const ProductEditor = ({ product, onBack }) => {
                         <button
                           type="button"
                           onClick={async () => {
-                            await deleteImage(formData.hover_images[0]);
+                            await deleteProductImage(formData.hover_images[0]);
                             setFormData(prev => {
                               const next = [...(prev.hover_images || [])];
                               next[0] = '';
@@ -784,7 +767,7 @@ const ProductEditor = ({ product, onBack }) => {
                             if (file) {
                               setUploadingImage(true);
                               try {
-                                const url = await uploadImage(file);
+                                const url = await uploadProductImage(file);
                                 setFormData(prev => {
                                   const next = [...(prev.hover_images || [])];
                                   next[0] = url;
@@ -822,7 +805,7 @@ const ProductEditor = ({ product, onBack }) => {
                         <button
                           type="button"
                           onClick={async () => {
-                            await deleteImage(formData.hover_images[1]);
+                            await deleteProductImage(formData.hover_images[1]);
                             setFormData(prev => {
                               const next = [...(prev.hover_images || [])];
                               next[1] = '';
@@ -846,7 +829,7 @@ const ProductEditor = ({ product, onBack }) => {
                             if (file) {
                               setUploadingImage(true);
                               try {
-                                const url = await uploadImage(file);
+                                const url = await uploadProductImage(file);
                                 setFormData(prev => {
                                   const next = [...(prev.hover_images || [])];
                                   if (next.length < 2) next.length = 2;
@@ -885,7 +868,7 @@ const ProductEditor = ({ product, onBack }) => {
                         <button
                           type="button"
                           onClick={async () => {
-                            await deleteImage(formData.thumbnail);
+                            await deleteProductImage(formData.thumbnail);
                             handleChange('thumbnail', null);
                           }}
                           className="absolute top-2 right-2 p-2 bg-red-500 text-white rounded-lg opacity-0 group-hover:opacity-100 transition-opacity"
@@ -905,7 +888,7 @@ const ProductEditor = ({ product, onBack }) => {
                             if (file) {
                               setUploadingImage(true);
                               try {
-                                const url = await uploadImage(file);
+                                const url = await uploadProductImage(file);
                                 handleChange('thumbnail', url);
                               } catch (error) {
                                 console.error('Upload failed:', error);
@@ -941,7 +924,7 @@ const ProductEditor = ({ product, onBack }) => {
                       type="button"
                       onClick={async () => {
                         const imgUrl = typeof img === 'string' ? img : img.url;
-                        await deleteImage(imgUrl);
+                        await deleteProductImage(imgUrl);
                         setImages(images.filter((_, i) => i !== index));
                       }}
                       className="absolute top-2 right-2 p-2 bg-red-500 text-white rounded-lg opacity-0 group-hover:opacity-100 transition-opacity"
@@ -971,7 +954,7 @@ const ProductEditor = ({ product, onBack }) => {
 
                     setUploadingImage(true);
                     try {
-                      const uploadPromises = files.map(file => uploadImage(file));
+                      const uploadPromises = files.map(file => uploadProductImage(file));
                       const urls = await Promise.all(uploadPromises);
                       setImages([...images, ...urls]);
                     } catch (error) {
@@ -1016,7 +999,7 @@ const ProductEditor = ({ product, onBack }) => {
                               <button
                                 type="button"
                                 onClick={async () => {
-                                  await deleteImage(variation.primary_image_url);
+                                  await deleteProductImage(variation.primary_image_url);
                                   const newVariations = [...variations];
                                   newVariations[index].primary_image_url = null;
                                   setVariations(newVariations);
@@ -1037,7 +1020,7 @@ const ProductEditor = ({ product, onBack }) => {
                                   const file = e.target.files?.[0];
                                   if (file) {
                                     try {
-                                      const url = await uploadImage(file);
+                                      const url = await uploadProductImage(file);
                                       const newVariations = [...variations];
                                       newVariations[index].primary_image_url = url;
                                       setVariations(newVariations);
@@ -1073,7 +1056,7 @@ const ProductEditor = ({ product, onBack }) => {
                                     type="button"
                                     onClick={async () => {
                                       const imgUrl = typeof img === 'string' ? img : img.url;
-                                      await deleteImage(imgUrl);
+                                      await deleteProductImage(imgUrl);
                                       const newVariations = [...variations];
                                       newVariations[index].images = newVariations[index].images.filter((_, i) => i !== imgIndex);
                                       setVariations(newVariations);
@@ -1098,7 +1081,7 @@ const ProductEditor = ({ product, onBack }) => {
                                 if (files.length === 0) return;
 
                                 try {
-                                  const uploadPromises = files.map(file => uploadImage(file));
+                                  const uploadPromises = files.map(file => uploadProductImage(file));
                                   const urls = await Promise.all(uploadPromises);
                                   const newVariations = [...variations];
                                   newVariations[index].images = [...(newVariations[index].images || []), ...urls];
