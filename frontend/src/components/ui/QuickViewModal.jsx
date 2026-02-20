@@ -86,10 +86,22 @@ const QuickViewModal = ({ product, isOpen, onClose }) => {
 
   if (!product) return null;
 
-  // Get images - use variation images if variation is selected, otherwise product images
+  const variationHasOwnImage = (v) => {
+    if (!v) return false;
+    if (v.primary_image_url) return true;
+    let arr = v.images;
+    if (typeof arr === 'string') {
+      try {
+        arr = JSON.parse(arr);
+      } catch {
+        arr = [];
+      }
+    }
+    return Array.isArray(arr) && arr.length > 0;
+  };
+
   const getDisplayImages = () => {
     if (selectedVariation && selectedVariation.images) {
-      // Ensure images is an array
       let imagesArray = selectedVariation.images;
       if (typeof imagesArray === 'string') {
         try {
@@ -112,6 +124,7 @@ const QuickViewModal = ({ product, isOpen, onClose }) => {
   };
 
   const images = getDisplayImages();
+  const isShowingBaseImageForVariation = selectedVariation && !variationHasOwnImage(selectedVariation);
   const productUrl = buildProductUrl(product);
 
   const getDisplayPrice = () => {
@@ -165,7 +178,11 @@ const QuickViewModal = ({ product, isOpen, onClose }) => {
                   {/* Left: Image Gallery */}
                   <div className="flex items-center justify-center h-full">
                     <div className="relative inline-block w-full h-full flex items-center justify-center">
-                      {/* Main Image */}
+                      {isShowingBaseImageForVariation && (
+                        <p className="absolute top-2 left-2 right-2 z-10 text-xs text-slate-600 bg-white/90 backdrop-blur px-2 py-1.5 rounded-md border border-cream-300 text-center">
+                          Image shows base model; this variation has no photo.
+                        </p>
+                      )}
                       <div className="bg-cream-50 rounded-lg overflow-hidden border border-cream-300 flex items-center justify-center h-full">
                         <img
                           src={images[selectedImage]}
@@ -320,6 +337,9 @@ const QuickViewModal = ({ product, isOpen, onClose }) => {
                         <label className="block text-sm font-medium text-slate-700 mb-2">
                           Product Variations {loadingVariations && <span className="text-xs text-slate-400">(Loading...)</span>}
                         </label>
+                        {isShowingBaseImageForVariation && (
+                          <p className="text-xs text-slate-500 mb-2">Image does not represent the selected variation; base model shown.</p>
+                        )}
                         <select
                           value={selectedVariation === null ? 'base' : (selectedVariation?.id ?? '')}
                           onChange={(e) => {

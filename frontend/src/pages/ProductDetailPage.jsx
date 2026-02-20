@@ -70,10 +70,23 @@ const ProductDetailPage = () => {
 
   // Get images - use variation images if variation is selected, otherwise product images
   // Use useMemo to ensure stable reference and avoid hooks order issues
+  const variationHasOwnImage = (v) => {
+    if (!v) return false;
+    if (v.primary_image_url) return true;
+    let arr = v.images;
+    if (typeof arr === 'string') {
+      try {
+        arr = JSON.parse(arr);
+      } catch {
+        arr = [];
+      }
+    }
+    return Array.isArray(arr) && arr.length > 0;
+  };
+
   const images = useMemo(() => {
     if (!product) return [];
     if (selectedVariation && selectedVariation.images) {
-      // Ensure images is an array
       let imagesArray = selectedVariation.images;
       if (typeof imagesArray === 'string') {
         try {
@@ -94,6 +107,8 @@ const ProductDetailPage = () => {
     }
     return getProductImages(product);
   }, [product, selectedVariation]);
+
+  const isShowingBaseImageForVariation = selectedVariation && !variationHasOwnImage(selectedVariation);
 
   const heroImageCount = product ? 1 + (product.hover_images?.length || 0) : 0;
   const carouselImages = images.length > 0 ? images.slice(0, Math.max(1, Math.min(heroImageCount, images.length))) : [];
@@ -419,6 +434,11 @@ const ProductDetailPage = () => {
             {/* Hero image (primary + hover only) */}
             <div className="flex items-center justify-center min-w-0">
               <div className="relative w-full min-w-[200px] min-h-[480px]">
+                {isShowingBaseImageForVariation && (
+                  <p className="absolute top-2 left-2 right-2 z-10 text-xs text-slate-600 bg-white/90 backdrop-blur px-2 py-1.5 rounded-md border border-cream-300 text-center">
+                    Image shows base model; this variation has no photo.
+                  </p>
+                )}
                 <button
                   type="button"
                   onClick={() => openLightbox(carouselImages, selectedImage)}
@@ -536,6 +556,9 @@ const ProductDetailPage = () => {
               {variations.length > 0 && (
                 <div className="mt-6">
                   <p className="text-sm font-medium text-slate-700 mb-3">Variations</p>
+                  {isShowingBaseImageForVariation && (
+                    <p className="text-xs text-slate-500 mb-2">Image does not represent the selected variation; base model shown.</p>
+                  )}
                   <div className="max-h-64 overflow-y-auto space-y-2 pr-1 border border-cream-200 rounded-lg bg-cream-50/50 p-2">
                     <button
                       type="button"
@@ -881,6 +904,9 @@ const ProductDetailPage = () => {
                       );
                     })}
                   </select>
+                  {isShowingBaseImageForVariation && (
+                    <p className="mt-2 text-xs text-slate-500">Image does not represent the selected variation; base model shown.</p>
+                  )}
                   {(selectedVariation === null || selectedVariation) && (
                     <div className="mt-4 p-4 bg-cream-50 rounded-lg border border-cream-200 space-y-3">
                       <div className="text-sm text-slate-700 space-y-2">
