@@ -8,7 +8,7 @@ import logging
 from datetime import datetime, timedelta
 from typing import Any, Dict, List, Optional, Tuple
 
-from sqlalchemy import and_, asc, desc, func, or_, select
+from sqlalchemy import and_, asc, delete, desc, func, insert, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -18,7 +18,15 @@ from backend.core.exceptions import (
     ResourceNotFoundError,
     ValidationError,
 )
-from backend.models.chair import Category, Chair, Finish, ProductFamily, ProductVariation, Upholstery
+from backend.models.chair import (
+    Category,
+    Chair,
+    Finish,
+    ProductFamily,
+    ProductVariation,
+    Upholstery,
+    variation_families,
+)
 from backend.models.company import AdminUser, Company, CompanyStatus
 from backend.models.content import (
     FAQ,
@@ -252,7 +260,6 @@ class AdminService:
         if variations_data is None:
             variations_data = []
 
-        # Get existing variations for this product
         stmt = select(ProductVariation).where(ProductVariation.product_id == product_id)
         result = await db.execute(stmt)
         existing_variations_by_id = {v.id: v for v in result.scalars().all()}
@@ -331,10 +338,19 @@ class AdminService:
                     family_ids = var_data["family_ids"]
                     if not isinstance(family_ids, list):
                         family_ids = []
-                    fam_result = await db.execute(
-                        select(ProductFamily).where(ProductFamily.id.in_(family_ids))
+                    await db.execute(
+                        delete(variation_families).where(
+                            variation_families.c.variation_id == variation_to_update.id
+                        )
                     )
-                    variation_to_update.families = list(fam_result.scalars().all())
+                    if family_ids:
+                        await db.execute(
+                            insert(variation_families),
+                            [
+                                {"variation_id": variation_to_update.id, "family_id": fid}
+                                for fid in family_ids
+                            ],
+                        )
 
                 logger.debug(
                     f"Updated variation {variation_to_update.id} for product {product_id}"
@@ -387,10 +403,13 @@ class AdminService:
             if var_data.get("family_ids"):
                 family_ids = var_data["family_ids"]
                 if isinstance(family_ids, list) and family_ids:
-                    fam_result = await db.execute(
-                        select(ProductFamily).where(ProductFamily.id.in_(family_ids))
+                    await db.execute(
+                        insert(variation_families),
+                        [
+                            {"variation_id": new_variation.id, "family_id": fid}
+                            for fid in family_ids
+                        ],
                     )
-                    new_variation.families = list(fam_result.scalars().all())
             logger.debug(
                 f"Created new variation with SKU {sku} for product {product_id}"
             )
@@ -450,10 +469,13 @@ class AdminService:
             if var_data.get("family_ids") and isinstance(var_data["family_ids"], list):
                 family_ids = var_data["family_ids"]
                 if family_ids:
-                    fam_result = await db.execute(
-                        select(ProductFamily).where(ProductFamily.id.in_(family_ids))
+                    await db.execute(
+                        insert(variation_families),
+                        [
+                            {"variation_id": new_variation.id, "family_id": fid}
+                            for fid in family_ids
+                        ],
                     )
-                    new_variation.families = list(fam_result.scalars().all())
             logger.debug(
                 f"Created variation with SKU {var_data['sku']} for product {product_id}"
             )
