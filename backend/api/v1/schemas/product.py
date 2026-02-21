@@ -471,6 +471,7 @@ class ChairResponse(ChairBase, TimestampSchema):
 
     id: int
     family_id: Optional[int] = None
+    variation_id: Optional[int] = None
     view_count: int
     quote_count: int
     # Optional pricing information (only included if company is authenticated)

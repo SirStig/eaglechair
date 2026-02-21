@@ -4,6 +4,7 @@ Product Service
 Handles product catalog operations (chairs, categories, finishes, upholstery)
 """
 
+import copy
 import logging
 from typing import Any, Dict, List, Optional
 
@@ -25,6 +26,7 @@ from backend.models.chair import (
     ProductVariation,
     Upholstery,
     chair_secondary_families,
+    variation_families,
 )
 from backend.utils.pagination import PaginationParams, paginate
 from backend.utils.slug import slugify
@@ -200,13 +202,94 @@ class ProductService:
         Returns:
             Paginated response dictionary
         """
+        if family_id:
+            vf_query = (
+                select(Chair, ProductVariation)
+                .select_from(variation_families)
+                .join(
+                    ProductVariation,
+                    variation_families.c.variation_id == ProductVariation.id,
+                )
+                .join(Chair, ProductVariation.product_id == Chair.id)
+                .options(
+                    selectinload(Chair.category).selectinload(Category.parent),
+                    selectinload(Chair.family),
+                    selectinload(Chair.subcategory),
+                )
+                .where(variation_families.c.family_id == family_id)
+            )
+            if not include_inactive:
+                vf_query = vf_query.where(Chair.is_active)
+            if category_id:
+                vf_query = vf_query.where(Chair.category_id == category_id)
+            if subcategory_id:
+                vf_query = vf_query.where(Chair.subcategory_id == subcategory_id)
+            if is_featured is not None:
+                vf_query = vf_query.where(Chair.is_featured == is_featured)
+            if is_new is not None:
+                vf_query = vf_query.where(Chair.is_new == is_new)
+            if exclude_variations:
+                vf_query = vf_query.where(
+                    or_(
+                        Chair.model_suffix.is_(None),
+                        Chair.model_suffix == "",
+                    )
+                )
+            if search_query:
+                search_term = f"%{search_query}%"
+                keyword_match = cast(Chair.keywords, String).ilike(search_term)
+                vf_query = vf_query.where(
+                    or_(
+                        Chair.name.ilike(search_term),
+                        Chair.model_number.ilike(search_term),
+                        Chair.short_description.ilike(search_term),
+                        Chair.full_description.ilike(search_term),
+                        keyword_match,
+                    )
+                )
+            if smart_sort:
+                vf_query = vf_query.order_by(
+                    Chair.is_featured.desc(),
+                    Chair.is_new.desc(),
+                    Chair.view_count.desc(),
+                    Chair.display_order,
+                    Chair.name,
+                )
+            else:
+                vf_query = vf_query.order_by(Chair.display_order, Chair.name)
+            vf_result = await paginate(db, vf_query, pagination)
+            if vf_result["total"] > 0:
+                rows = vf_result["items"]
+                items_out = []
+                for chair, variation in rows:
+                    c = copy.copy(chair)
+                    setattr(c, "variation_id", variation.id)
+                    var_img = variation.primary_image_url
+                    if not var_img and variation.images:
+                        imgs = variation.images
+                        if isinstance(imgs, list) and imgs:
+                            first = imgs[0]
+                            var_img = first.get("url", first) if isinstance(first, dict) else first
+                    setattr(c, "primary_image_url", var_img or chair.primary_image_url)
+                    if var_img:
+                        setattr(c, "primary_image", var_img)
+                    items_out.append(c)
+                vf_result["items"] = items_out
+                for product in items_out:
+                    if product.category and product.category.parent:
+                        product.category.parent_slug = product.category.parent.slug
+                logger.info(
+                    f"Retrieved {len(items_out)} family variation products (page {pagination.page}, "
+                    f"total {vf_result['total']}, family_id={family_id})"
+                )
+                return vf_result
+
         query = select(Chair).options(
             selectinload(Chair.category).selectinload(Category.parent),
             selectinload(Chair.family),
             selectinload(Chair.subcategory),
         )
 
-        # Apply filters
         if not include_inactive:
             query = query.where(Chair.is_active)
 
@@ -350,6 +433,7 @@ class ProductService:
                     ProductVariation.upholstery
                 ),
                 selectinload(Chair.variations).selectinload(ProductVariation.color),
+                selectinload(Chair.variations).selectinload(ProductVariation.families),
             )
             .where(Chair.id == product_id)
         )

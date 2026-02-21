@@ -16,6 +16,13 @@ chair_secondary_families = Table(
     Column("family_id", Integer, ForeignKey("product_families.id", ondelete="CASCADE"), primary_key=True),
 )
 
+variation_families = Table(
+    "variation_families",
+    Base.metadata,
+    Column("variation_id", Integer, ForeignKey("product_variations.id", ondelete="CASCADE"), primary_key=True),
+    Column("family_id", Integer, ForeignKey("product_families.id", ondelete="CASCADE"), primary_key=True),
+)
+
 
 class Category(Base):
     """
@@ -545,6 +552,12 @@ class ProductVariation(Base):
 
     # Display
     display_order = Column(Integer, default=0, nullable=False)
+
+    families = relationship(
+        "ProductFamily",
+        secondary=variation_families,
+        backref="variation_products",
+    )
 
     def __repr__(self) -> str:
         try:

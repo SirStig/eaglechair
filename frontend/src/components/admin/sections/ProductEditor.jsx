@@ -1118,6 +1118,7 @@ const ProductEditor = ({ product, onBack }) => {
                   price_adjustment: 0,
                   stock_status: 'Available',
                   is_available: true,
+                  family_ids: [],
                   width: null,
                   depth: null,
                   height: null,
@@ -1191,6 +1192,39 @@ const ProductEditor = ({ product, onBack }) => {
                               <option value="Out of Stock">Out of Stock</option>
                               <option value="Discontinued">Discontinued</option>
                             </select>
+                          </div>
+                        </div>
+
+                        <div>
+                          <label className="block text-sm font-medium text-dark-200 mb-2">
+                            Show this variation in families
+                          </label>
+                          <p className="text-sm text-dark-400 mb-2">
+                            When this family is viewed, this variation&apos;s image and info are shown. Link opens product with this variation selected.
+                          </p>
+                          <div className="flex flex-wrap gap-3 max-h-32 overflow-y-auto p-3 bg-dark-700 border border-dark-600 rounded-lg">
+                            {families.map(f => (
+                              <label key={f.id} className="inline-flex items-center gap-2 cursor-pointer">
+                                <input
+                                  type="checkbox"
+                                  checked={(variation.family_ids || []).includes(f.id)}
+                                  onChange={(e) => {
+                                    const newVariations = [...variations];
+                                    const current = newVariations[index].family_ids || [];
+                                    const next = e.target.checked
+                                      ? [...current, f.id]
+                                      : current.filter(id => id !== f.id);
+                                    newVariations[index].family_ids = next;
+                                    setVariations(newVariations);
+                                  }}
+                                  className="rounded border-dark-500 bg-dark-600 text-primary-500 focus:ring-primary-500"
+                                />
+                                <span className="text-sm text-dark-100">{f.name}</span>
+                              </label>
+                            ))}
+                            {families.length === 0 && (
+                              <span className="text-sm text-dark-400">No families. Add families in Family Management.</span>
+                            )}
                           </div>
                         </div>
 

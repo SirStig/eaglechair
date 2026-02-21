@@ -73,8 +73,7 @@ const ProductCard = ({ product, onQuickView, darkMode = false, compact = false }
   const textPriceNote = darkMode ? 'text-dark-300' : 'text-slate-500';
   const spinnerBorder = darkMode ? 'border-dark-600' : 'border-cream-300';
 
-  // Build product URL with category path
-  const productUrl = buildProductUrl(product);
+  const productUrl = buildProductUrl(product, product.variation_id);
 
   return (
     <div

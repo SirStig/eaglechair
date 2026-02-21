@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useMemo } from 'react';
-import { useParams, useNavigate, Link } from 'react-router-dom';
+import { useParams, useNavigate, Link, useSearchParams } from 'react-router-dom';
 import { AnimatePresence, motion } from 'framer-motion';
 import Button from '../components/ui/Button';
 import Tag from '../components/ui/Tag';
@@ -22,6 +22,7 @@ const CONTEXT = 'ProductDetailPage';
 
 const ProductDetailPage = () => {
   const { id, categorySlug, subcategorySlug, productSlug } = useParams();
+  const [searchParams] = useSearchParams();
   const navigate = useNavigate();
   const { addItem } = useCartStore();
   const customizeRef = useRef(null);
@@ -258,7 +259,14 @@ const ProductDetailPage = () => {
           productService.getProductVariations(response.data.id)
             .then((vars) => {
               logger.info(CONTEXT, `Loaded ${vars?.length || 0} variations`, vars);
-              setVariations(vars || []);
+              const list = vars || [];
+              setVariations(list);
+              const variationIdParam = searchParams.get('variation');
+              if (variationIdParam && list.length > 0) {
+                const vid = parseInt(variationIdParam, 10);
+                const match = list.find((v) => v.id === vid);
+                if (match) setSelectedVariation(match);
+              }
             })
             .catch((error) => {
               logger.error(CONTEXT, 'Failed to load variations', error);

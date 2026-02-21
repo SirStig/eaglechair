@@ -196,6 +196,7 @@ async def get_product(
                     if isinstance(v.images, list)
                     else (json.loads(v.images) if isinstance(v.images, str) else []),
                     "primary_image_url": v.primary_image_url,
+                    "family_ids": [f.id for f in (getattr(v, "families", None) or [])],
                     "finish": orm_to_dict(v.finish) if v.finish else None,
                     "upholstery": orm_to_dict(v.upholstery) if v.upholstery else None,
                     "color": orm_to_dict(v.color) if v.color else None,

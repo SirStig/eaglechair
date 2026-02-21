@@ -440,32 +440,34 @@ export const transformPaginatedResponse = (response, itemTransformer = null) => 
 /**
  * Build product URL with category path
  * @param {object} product - Product object with category info
+ * @param {number} [variationId] - Optional variation ID to pre-select on product page
  * @returns {string} Product URL path
  */
-export const buildProductUrl = (product) => {
+export const buildProductUrl = (product, variationId) => {
   if (!product) return '/products';
 
-  // If we have category slug information, build hierarchical URL
+  let path;
   const categoryObj = typeof product.category === 'object' ? product.category : null;
 
   if (categoryObj) {
-    // Check if category has a parent (is subcategory)
     if (categoryObj.parent_id && categoryObj.parent_slug) {
-      // /products/parent-category/subcategory/product-slug
-      return `/products/${categoryObj.parent_slug}/${categoryObj.slug}/${product.slug || product.id}`;
+      path = `/products/${categoryObj.parent_slug}/${categoryObj.slug}/${product.slug || product.id}`;
     } else if (categoryObj.slug) {
-      // Top-level category: /products/category/product-slug
-      return `/products/${categoryObj.slug}/uncategorized/${product.slug || product.id}`;
+      path = `/products/${categoryObj.slug}/uncategorized/${product.slug || product.id}`;
+    } else {
+      path = `/products/${product.slug || product.id}`;
     }
+  } else if (product.parentCategorySlug && product.categorySlug) {
+    path = `/products/${product.parentCategorySlug}/${product.categorySlug}/${product.slug || product.id}`;
+  } else {
+    path = `/products/${product.slug || product.id}`;
   }
 
-  // Fallback to simple URL with slugs from transformed product
-  if (product.parentCategorySlug && product.categorySlug) {
-    return `/products/${product.parentCategorySlug}/${product.categorySlug}/${product.slug || product.id}`;
+  if (variationId) {
+    const sep = path.includes('?') ? '&' : '?';
+    path += `${sep}variation=${variationId}`;
   }
-
-  // Final fallback: direct product URL
-  return `/products/${product.slug || product.id}`;
+  return path;
 };
 
 /**

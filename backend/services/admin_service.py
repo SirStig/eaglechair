@@ -327,6 +327,14 @@ class AdminService:
                 ):
                     if attr in var_data:
                         setattr(variation_to_update, attr, var_data[attr])
+                if "family_ids" in var_data:
+                    family_ids = var_data["family_ids"]
+                    if not isinstance(family_ids, list):
+                        family_ids = []
+                    fam_result = await db.execute(
+                        select(ProductFamily).where(ProductFamily.id.in_(family_ids))
+                    )
+                    variation_to_update.families = list(fam_result.scalars().all())
 
                 logger.debug(
                     f"Updated variation {variation_to_update.id} for product {product_id}"
@@ -375,6 +383,14 @@ class AdminService:
                 upholstery_amount=var_data.get("upholstery_amount"),
             )
             db.add(new_variation)
+            await db.flush()
+            if var_data.get("family_ids"):
+                family_ids = var_data["family_ids"]
+                if isinstance(family_ids, list) and family_ids:
+                    fam_result = await db.execute(
+                        select(ProductFamily).where(ProductFamily.id.in_(family_ids))
+                    )
+                    new_variation.families = list(fam_result.scalars().all())
             logger.debug(
                 f"Created new variation with SKU {sku} for product {product_id}"
             )
@@ -430,6 +446,14 @@ class AdminService:
                 upholstery_amount=var_data.get("upholstery_amount"),
             )
             db.add(new_variation)
+            await db.flush()
+            if var_data.get("family_ids") and isinstance(var_data["family_ids"], list):
+                family_ids = var_data["family_ids"]
+                if family_ids:
+                    fam_result = await db.execute(
+                        select(ProductFamily).where(ProductFamily.id.in_(family_ids))
+                    )
+                    new_variation.families = list(fam_result.scalars().all())
             logger.debug(
                 f"Created variation with SKU {var_data['sku']} for product {product_id}"
             )
