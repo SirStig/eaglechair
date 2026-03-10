@@ -1112,6 +1112,7 @@ const ProductEditor = ({ product, onBack }) => {
               <Button
                 onClick={() => setVariations([...variations, {
                   sku: '',
+                  name: '',
                   finish_id: null,
                   upholstery_id: null,
                   color_id: null,
@@ -1157,6 +1158,22 @@ const ProductEditor = ({ product, onBack }) => {
                   <Card key={index} className="p-4">
                     <div className="flex items-start gap-4">
                       <div className="flex-1 space-y-4">
+                        <div>
+                          <label className="block text-sm font-medium text-dark-200 mb-2">
+                            Variation Name <span className="text-dark-400 font-normal">(Optional)</span>
+                          </label>
+                          <input
+                            type="text"
+                            value={variation.name || ''}
+                            onChange={(e) => {
+                              const newVariations = [...variations];
+                              newVariations[index].name = e.target.value;
+                              setVariations(newVariations);
+                            }}
+                            className="w-full px-3 py-2 bg-dark-700 border border-dark-600 rounded-lg text-dark-50"
+                            placeholder="e.g. Walnut Frame / Black Vinyl"
+                          />
+                        </div>
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                           <div>
                             <label className="block text-sm font-medium text-dark-200 mb-2">

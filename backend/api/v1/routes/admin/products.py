@@ -79,6 +79,8 @@ async def get_all_products(
                 {
                     "id": v.id,
                     "sku": v.sku,
+                    "name": getattr(v, "name", None),
+                    "family_ids": [f.id for f in v.families] if hasattr(v, "families") and v.families else [],
                     "finish_id": v.finish_id,
                     "upholstery_id": v.upholstery_id,
                     "color_id": v.color_id,
@@ -184,6 +186,7 @@ async def get_product(
                 {
                     "id": v.id,
                     "sku": v.sku,
+                    "name": getattr(v, "name", None),
                     "finish_id": v.finish_id,
                     "upholstery_id": v.upholstery_id,
                     "color_id": v.color_id,
@@ -246,25 +249,25 @@ async def update_product(
     "/{product_id}",
     response_model=MessageResponse,
     summary="Delete product (Admin)",
-    description="Delete a product (soft delete)",
+    description="Delete a product (soft delete by default; use hard=true to permanently delete)",
 )
 async def delete_product(
     product_id: int,
+    hard: bool = Query(False, description="Permanently delete (removes product and variations, frees SKUs)"),
     admin: AdminUser = Depends(require_role(AdminRole.ADMIN)),
     db: AsyncSession = Depends(get_db),
 ):
     """
-    Delete a product (soft delete by setting is_active=False).
-
-    **Admin only** - Requires admin role.
+    Delete a product. Default: soft delete (is_active=False).
+    Use ?hard=true to permanently delete the product and its variations.
     """
-    logger.info(f"Admin {admin.username} deleting product {product_id}")
+    logger.info(f"Admin {admin.username} deleting product {product_id} (hard={hard})")
 
     try:
-        await AdminService.delete_product(db=db, product_id=product_id)
+        await AdminService.delete_product(db=db, product_id=product_id, hard_delete=hard)
 
         return MessageResponse(
-            message=f"Product {product_id} has been deleted successfully"
+            message=f"Product {product_id} has been {'permanently deleted' if hard else 'deleted'} successfully"
         )
 
     except ResourceNotFoundError as e:

@@ -507,6 +507,9 @@ class ProductVariation(Base):
     # SKU (unique identifier for this variation)
     sku = Column(String(100), unique=True, nullable=False, index=True)
 
+    # Optional display name for this variation
+    name = Column(String(255), nullable=True)
+
     # Variation components
     finish_id = Column(
         Integer, ForeignKey("finishes.id", ondelete="SET NULL"), nullable=True

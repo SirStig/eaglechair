@@ -46,6 +46,7 @@ const ProductDetailPage = () => {
   const [selectedVariation, setSelectedVariation] = useState(null);
   const [loadingVariations, setLoadingVariations] = useState(false);
   const [familyProducts, setFamilyProducts] = useState([]);
+  const [currentFamily, setCurrentFamily] = useState(null);
   const [quickViewProduct, setQuickViewProduct] = useState(null);
   const [customNotes, setCustomNotes] = useState('');
   const [notesExpanded, setNotesExpanded] = useState(false);
@@ -64,6 +65,42 @@ const ProductDetailPage = () => {
       setSelectedImage(0);
     }
   }, [selectedVariation]);
+
+  // Dynamic "More from this Family": driven by selectedVariation's families, fallback to product.family_id
+  useEffect(() => {
+    if (!product) return;
+
+    // Determine which family to show
+    const varFamily = selectedVariation?.families?.[0] || variations[0]?.families?.[0] || null;
+    const familyToUse = varFamily || (product.family_id ? product.family : null);
+
+    if (!familyToUse) {
+      setFamilyProducts([]);
+      setCurrentFamily(null);
+      return;
+    }
+
+    setCurrentFamily(familyToUse);
+
+    if (varFamily) {
+      // Use new members endpoint for variation-level families
+      productService.getFamilyMembers(familyToUse.id)
+        .then(members => {
+          const filtered = (members || []).filter(m => m.product_id !== product.id).slice(0, 20);
+          setFamilyProducts(filtered);
+        })
+        .catch(err => logger.error(CONTEXT, 'Failed to load family members', err));
+    } else {
+      // Fallback: product-level family, use getProducts
+      productService.getProducts({ family_id: familyToUse.id, limit: 20 })
+        .then(res => {
+          const members = (res.data || []).filter(p => p.id !== product.id).slice(0, 20);
+          setFamilyProducts(members);
+        })
+        .catch(err => logger.error(CONTEXT, 'Failed to load family members', err));
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedVariation, variations, product]);
 
   useEffect(() => {
     setCustomizeImageIndex(0);
@@ -223,19 +260,6 @@ const ProductDetailPage = () => {
       if (response && response.data) {
         setProduct(response.data);
         setRelatedProducts(response.related || []);
-
-        // Fetch family members if family_id exists
-        if (response.data.family_id) {
-          productService.getProducts({
-            family_id: response.data.family_id,
-            limit: 20
-          })
-            .then(res => {
-              const members = (res.data || []).filter(p => p.id !== response.data.id).slice(0, 20);
-              setFamilyProducts(members);
-            })
-            .catch(err => logger.error(CONTEXT, 'Failed to load family members', err));
-        }
 
         logger.info(CONTEXT, `Successfully loaded product: ${response.data.name}`);
 
@@ -613,8 +637,8 @@ const ProductDetailPage = () => {
                             <img src={thumbUrl} alt="" className="w-full h-full object-cover" />
                           </div>
                           <div className="min-w-0 flex-1">
-                            <span className="font-medium text-slate-800 block truncate">{variation.sku || `#${variation.id}`}</span>
-                            {details.length > 0 && <span className="text-xs text-slate-500 truncate block">{details.join(' / ')}</span>}
+                            <span className="font-medium text-slate-800 block truncate">{variation.name || variation.sku || `#${variation.id}`}</span>
+                            <span className="text-xs text-slate-500 truncate block">{variation.sku}{details.length > 0 ? ` · ${details.join(' / ')}` : ''}</span>
                           </div>
                           {isSelected && (
                             <span className="flex-shrink-0 w-6 h-6 rounded-full bg-primary-500 flex items-center justify-center" aria-hidden>
@@ -900,14 +924,14 @@ const ProductDetailPage = () => {
                       {product?.model_number || product?.model_suffix ? ' — Base Model' : ''}
                     </option>
                     {variations.map((variation) => {
-                      const parts = [];
-                      if (variation.sku) parts.push(variation.sku);
                       const details = [variation.finish?.name, variation.upholstery?.name, variation.color?.name].filter(Boolean);
-                      if (details.length > 0) parts.push(`(${details.join(' / ')})`);
-                      const variationName = parts.join(' ') || `Variation #${variation.id}`;
+                      let label = variation.name
+                        ? `${variation.name} — ${variation.sku}`
+                        : variation.sku || `Variation #${variation.id}`;
+                      if (details.length > 0) label += ` (${details.join(' / ')})`;
                       return (
                         <option key={variation.id} value={variation.id}>
-                          {variationName}
+                          {label}
                         </option>
                       );
                     })}
@@ -1152,18 +1176,18 @@ const ProductDetailPage = () => {
             <div className="flex flex-wrap items-center justify-between gap-4 mb-8">
               <h2 className="text-2xl sm:text-3xl font-bold text-slate-800">More from this Family</h2>
               <div className="flex items-center gap-3">
-                {product.family?.catalog_pdf_url && (
+                {currentFamily?.catalog_pdf_url && (
                   <Button
                     variant="outline"
                     size="sm"
-                    onClick={() => window.open(resolveFileUrl(product.family.catalog_pdf_url), '_blank', 'noopener,noreferrer')}
+                    onClick={() => window.open(resolveFileUrl(currentFamily.catalog_pdf_url), '_blank', 'noopener,noreferrer')}
                   >
                     View Product Family Catalog
                   </Button>
                 )}
-                {product.family && (
+                {currentFamily && (
                   <Link
-                    to={`/families/${product.family.slug || product.family.id}`}
+                    to={`/families/${currentFamily.slug || currentFamily.id}`}
                     className="text-primary-600 hover:text-primary-700 font-medium flex items-center gap-1"
                   >
                     View Collection <span aria-hidden="true">&rarr;</span>
@@ -1172,13 +1196,33 @@ const ProductDetailPage = () => {
               </div>
             </div>
             <ProductCarousel>
-              {familyProducts.map((familyProduct) => (
-                <ProductCard
-                  key={familyProduct.id}
-                  product={familyProduct}
-                  onQuickView={handleQuickView}
-                />
-              ))}
+              {familyProducts.map((item) => {
+                // item may be a variation-type member or a regular product
+                if (item.type === 'variation' || item.variation_id) {
+                  const itemLink = `/products/${item.product_slug}?variation=${item.variation_id}`;
+                  const imgUrl = resolveImageUrl(item.primary_image_url) || '/placeholder-product.jpg';
+                  return (
+                    <Link key={`var-${item.id}`} to={itemLink} className="block group">
+                      <div className="bg-white rounded-xl shadow-md border border-cream-200 overflow-hidden hover:shadow-lg transition-shadow">
+                        <div className="aspect-square bg-cream-50 overflow-hidden">
+                          <img src={imgUrl} alt={item.name} className="w-full h-full object-contain group-hover:scale-105 transition-transform duration-300" style={{ mixBlendMode: 'multiply' }} />
+                        </div>
+                        <div className="p-3">
+                          <p className="font-semibold text-slate-800 text-sm line-clamp-2">{item.name}</p>
+                          {item.sku && <p className="text-xs text-slate-500 mt-1">SKU: {item.sku}</p>}
+                        </div>
+                      </div>
+                    </Link>
+                  );
+                }
+                return (
+                  <ProductCard
+                    key={item.id}
+                    product={item}
+                    onQuickView={handleQuickView}
+                  />
+                );
+              })}
             </ProductCarousel>
           </div>
         </section>

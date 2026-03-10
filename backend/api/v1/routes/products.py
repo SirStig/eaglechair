@@ -786,6 +786,119 @@ async def get_family_by_slug(
 
 
 @router.get(
+    "/families/{family_id}/members",
+    summary="Get family members",
+    description="Get unified list of products and variations belonging to a family"
+)
+async def get_family_members(
+    family_id: int,
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    Get all members of a product family — both product-level and variation-level.
+
+    **Public endpoint** - No authentication required.
+
+    Returns a unified list sorted by display_order then name. Each item has:
+    - `type`: "product" or "variation"
+    - `id`: the product or variation id
+    - `product_id`: parent product id
+    - `product_slug`: parent product slug
+    - `name`: variation.name if set, else product.name
+    - `sku`: variation sku or product model_number
+    - `primary_image_url`: variation image with fallback to product image
+    - `variation_id`: null for products, variation id for variations
+    """
+    logger.info(f"Fetching family members for family {family_id}")
+
+    from sqlalchemy import or_, select
+    from sqlalchemy.orm import selectinload
+
+    from backend.models.chair import (
+        Chair,
+        ProductFamily,
+        ProductVariation,
+        chair_secondary_families,
+        variation_families,
+    )
+
+    # Verify family exists
+    family_result = await db.execute(select(ProductFamily).where(ProductFamily.id == family_id))
+    family = family_result.scalar_one_or_none()
+    if not family:
+        from backend.core.exceptions import ResourceNotFoundError
+        raise ResourceNotFoundError(resource_type="ProductFamily", resource_id=family_id)
+
+    # 1. Fetch product-level members (primary + secondary family)
+    subq = select(chair_secondary_families.c.chair_id).where(
+        chair_secondary_families.c.family_id == family_id
+    )
+    products_stmt = select(Chair).where(
+        Chair.is_active == True,
+        or_(Chair.family_id == family_id, Chair.id.in_(subq))
+    )
+    products_result = await db.execute(products_stmt)
+    product_members = products_result.scalars().all()
+
+    # 2. Fetch variation-level members
+    variations_stmt = (
+        select(ProductVariation)
+        .join(variation_families, variation_families.c.variation_id == ProductVariation.id)
+        .join(Chair, Chair.id == ProductVariation.product_id)
+        .where(
+            variation_families.c.family_id == family_id,
+            ProductVariation.is_available == True,
+            Chair.is_active == True,
+        )
+        .options(selectinload(ProductVariation.product))
+    )
+    variations_result = await db.execute(variations_stmt)
+    variation_members = variations_result.scalars().all()
+
+    # Build unified list
+    # Track product IDs that appear as variation members to avoid double-listing
+    product_ids_via_variations = {v.product_id for v in variation_members}
+
+    items = []
+
+    for p in product_members:
+        items.append({
+            "type": "product",
+            "id": p.id,
+            "product_id": p.id,
+            "product_slug": p.slug,
+            "name": p.name,
+            "sku": p.model_number or "",
+            "primary_image_url": p.primary_image_url,
+            "variation_id": None,
+            "display_order": p.display_order,
+        })
+
+    for v in variation_members:
+        p = v.product
+        items.append({
+            "type": "variation",
+            "id": v.id,
+            "product_id": p.id,
+            "product_slug": p.slug,
+            "name": v.name if v.name else p.name,
+            "sku": v.sku,
+            "primary_image_url": v.primary_image_url or p.primary_image_url,
+            "variation_id": v.id,
+            "display_order": v.display_order,
+        })
+
+    # Sort by display_order then name
+    items.sort(key=lambda x: (x["display_order"] or 0, x["name"] or ""))
+
+    # Strip internal sort key
+    for item in items:
+        del item["display_order"]
+
+    return items
+
+
+@router.get(
     "/subcategories",
     response_model=list[ProductSubcategoryResponse],
     summary="Get product subcategories",
@@ -921,6 +1034,10 @@ async def get_product_variations(
                 "hex_code": variation.color.hex_value,  # Color model uses hex_value, not hex_code
                 "category": variation.color.category.value if variation.color.category else None
             }
+        if hasattr(variation, 'families') and variation.families:
+            var_dict["families"] = [{"id": f.id, "name": f.name, "slug": f.slug} for f in variation.families]
+        else:
+            var_dict["families"] = []
         serialized_variations.append(var_dict)
     
     return {

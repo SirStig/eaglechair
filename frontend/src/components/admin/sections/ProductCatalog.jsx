@@ -90,20 +90,24 @@ const ProductCatalog = ({ onEdit }) => {
 
   const handleDelete = async (productId) => {
     const product = products.find(p => p.id === productId);
-    const confirmMessage = `Are you sure you want to delete "${product?.name}"?\n\nThis action cannot be undone and will permanently remove:\n- Product information\n- All variations\n- All images\n- Associated analytics data\n\nType "DELETE" to confirm.`;
+    const confirmMessage = `Delete "${product?.name}"?\n\nType "DELETE" to deactivate (hide product, keep data).\nType "DELETE PERMANENTLY" to remove from database (frees SKUs for reuse).`;
     
     const userInput = prompt(confirmMessage);
-    if (userInput !== 'DELETE') {
+    if (userInput !== 'DELETE' && userInput !== 'DELETE PERMANENTLY') {
       if (userInput !== null) {
-        toast.warning('Deletion cancelled. You must type DELETE to confirm.');
+        toast.warning('Deletion cancelled.');
       }
       return;
     }
     
+    const hardDelete = userInput === 'DELETE PERMANENTLY';
     setLoading(true);
     try {
-      await apiClient.delete(`/api/v1/admin/products/${productId}`);
-      toast.success('Product deleted');
+      const url = hardDelete
+        ? `/api/v1/admin/products/${productId}?hard=true`
+        : `/api/v1/admin/products/${productId}`;
+      await apiClient.delete(url);
+      toast.success(hardDelete ? 'Product permanently deleted' : 'Product deactivated');
       await fetchProducts();
     } catch (error) {
       console.error('Failed to delete product:', error);

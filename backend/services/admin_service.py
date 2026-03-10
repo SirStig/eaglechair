@@ -73,6 +73,7 @@ class AdminService:
             selectinload(Chair.variations).selectinload(ProductVariation.finish),
             selectinload(Chair.variations).selectinload(ProductVariation.upholstery),
             selectinload(Chair.variations).selectinload(ProductVariation.color),
+            selectinload(Chair.variations).selectinload(ProductVariation.families),
         )
 
         if search:
@@ -297,6 +298,8 @@ class AdminService:
 
             if variation_to_update:
                 # Update existing variation
+                if "name" in var_data:
+                    variation_to_update.name = var_data["name"] or None
                 if "sku" in var_data and var_data["sku"] != variation_to_update.sku:
                     # SKU is changing - need to handle this carefully
                     variation_to_update.sku = var_data["sku"]
@@ -375,6 +378,7 @@ class AdminService:
             new_variation = ProductVariation(
                 product_id=product_id,
                 sku=sku,
+                name=var_data.get("name") or None,
                 finish_id=var_data.get("finish_id"),
                 upholstery_id=var_data.get("upholstery_id"),
                 color_id=var_data.get("color_id"),
@@ -441,6 +445,7 @@ class AdminService:
             new_variation = ProductVariation(
                 product_id=product_id,
                 sku=var_data["sku"],
+                name=var_data.get("name") or None,
                 finish_id=var_data.get("finish_id"),
                 upholstery_id=var_data.get("upholstery_id"),
                 color_id=var_data.get("color_id"),
@@ -481,13 +486,18 @@ class AdminService:
             )
 
     @staticmethod
-    async def delete_product(db: AsyncSession, product_id: int) -> bool:
+    async def delete_product(
+        db: AsyncSession, product_id: int, hard_delete: bool = False
+    ) -> bool:
         """
-        Delete product (soft delete by setting is_active=False)
+        Delete product. By default soft-deletes (is_active=False).
+        Use hard_delete=True to permanently remove the product and its variations
+        (frees up SKUs for reuse when consolidating products).
 
         Args:
             db: Database session
             product_id: Product ID
+            hard_delete: If True, permanently delete; otherwise soft delete
 
         Returns:
             True if successful
@@ -498,8 +508,13 @@ class AdminService:
         if not product:
             raise ResourceNotFoundError(resource_type="Product", resource_id=product_id)
 
-        # Soft delete
-        product.is_active = False
+        if hard_delete:
+            await db.execute(
+                delete(ProductVariation).where(ProductVariation.product_id == product_id)
+            )
+            await db.delete(product)
+        else:
+            product.is_active = False
         await db.commit()
 
         logger.info(f"Deleted product {product_id}")

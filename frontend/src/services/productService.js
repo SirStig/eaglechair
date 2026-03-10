@@ -279,6 +279,16 @@ export const productService = {
     const response = await api.get(`/api/v1/products/${productId}/variations`);
     return response.variations || [];
   },
+
+  /**
+   * Get unified family members (products + variations) for a family
+   * @param {number} familyId - Family ID
+   * @returns {Promise<Array>} List of family member items
+   */
+  getFamilyMembers: async (familyId) => {
+    const response = await api.get(`/api/v1/families/${familyId}/members`);
+    return Array.isArray(response) ? response : [];
+  },
 };
 
 export default productService;

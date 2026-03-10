@@ -1,7 +1,6 @@
 import { useState, useEffect, useMemo } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { ArrowLeft, FileText, Grid3x3, List } from 'lucide-react';
-import ProductCard from '../components/ui/ProductCard';
 import QuickViewModal from '../components/ui/QuickViewModal';
 import Button from '../components/ui/Button';
 import LoadingSpinner from '../components/ui/LoadingSpinner';
@@ -70,16 +69,12 @@ const ProductFamilyDetailPage = () => {
       // Fetch family details using slug
       const familyResponse = await productService.getFamilyById(familySlug);
       setFamily(familyResponse);
-      
-      // Fetch products in this family
-      const productsResponse = await productService.getProducts({
-        family_id: familyResponse.id,
-        per_page: 100,
-      });
-      
-      setProducts(productsResponse.data || []);
-      
-      logger.info(CONTEXT, `Loaded family ${familyResponse.name} with ${productsResponse.data?.length || 0} products`);
+
+      // Fetch unified members (products + variations) for this family
+      const members = await productService.getFamilyMembers(familyResponse.id);
+      setProducts(members || []);
+
+      logger.info(CONTEXT, `Loaded family ${familyResponse.name} with ${members?.length || 0} members`);
     } catch (error) {
       logger.error(CONTEXT, 'Error loading family details', error);
       // Family not found, redirect to catalog
@@ -174,7 +169,7 @@ const ProductFamilyDetailPage = () => {
                 <div className="flex flex-wrap items-center gap-3 mb-4">
                   <div className="bg-cream-100 px-4 py-2 rounded-lg">
                     <span className="text-sm font-semibold text-slate-800">
-                      {productCount} {productCount === 1 ? 'Product' : 'Products'}
+                      {productCount} {productCount === 1 ? 'Item' : 'Items'}
                     </span>
                   </div>
                   {family.catalog_pdf_url && (
@@ -238,7 +233,7 @@ const ProductFamilyDetailPage = () => {
                 </div>
               </div>
 
-              {/* Products Grid or List */}
+              {/* Members Grid or List */}
               {products.length === 0 ? (
                 <div className="bg-white rounded-xl shadow-md border border-cream-200 p-12 text-center">
                   <svg className="mx-auto h-24 w-24 text-slate-400 mb-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -256,90 +251,66 @@ const ProductFamilyDetailPage = () => {
                 </div>
               ) : viewMode === 'grid' ? (
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-6">
-              {products.map((product) => (
-                <ProductCard
-                  key={product.id}
-                  product={product}
-                  onQuickView={handleQuickView}
-                  compact
-                />
-              ))}
-            </div>
-          ) : (
-            <div className="space-y-4">
-              {products.map((product) => (
-                <div
-                  key={product.id}
-                  className="bg-white rounded-xl shadow-md border border-cream-200 p-4 sm:p-6 flex flex-col md:flex-row gap-4 sm:gap-6 hover:shadow-lg transition-shadow"
-                >
-                  {/* Product Image */}
-                  <div className="w-full md:w-40 h-40 flex-shrink-0 mx-auto md:mx-0">
-                    <Link to={`/products/${product.slug || product.id}`}>
-                      <img
-                        src={product.primary_image_url || product.images?.[0]?.url || '/placeholder-product.jpg'}
-                        alt={product.name}
-                        className="w-full h-full object-contain rounded-lg"
-                      />
-                    </Link>
-                  </div>
-
-                  {/* Product Info */}
-                  <div className="flex-1">
-                    <Link to={`/products/${product.slug || product.id}`}>
-                      <h3 className="text-xl font-semibold text-slate-800 mb-2 hover:text-primary-600 transition-colors">
-                        {product.name}
-                      </h3>
-                    </Link>
-                    
-                    {product.model_number && (
-                      <p className="text-sm text-slate-500 mb-2">
-                        Model: {product.model_number}
-                      </p>
-                    )}
-
-                    {(product.short_description || product.description) && (
-                      <p className="text-slate-600 mb-4 line-clamp-2">
-                        {product.short_description || product.description}
-                      </p>
-                    )}
-
-                    <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 sm:gap-4">
-                      <span className="text-xl sm:text-2xl font-bold text-slate-900">
-                        {product.base_price && product.base_price > 0
-                          ? (
-                              <>
-                                ${(product.base_price / 100).toFixed(2)}
-                                <span className="text-sm font-normal text-slate-500 ml-1">Est. listing</span>
-                              </>
-                            )
-                          : (
-                              <>
-                                No List Price
-                                <span className="text-sm font-normal text-slate-500 ml-1">· Contact for quote</span>
-                              </>
-                            )}
-                      </span>
-
-                      <div className="flex flex-col sm:flex-row gap-2">
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => handleQuickView(product)}
-                        >
-                          Quick View
-                        </Button>
-                        <Link to={`/products/${product.slug || product.id}`}>
-                          <Button variant="primary" size="sm">
-                            View Details
-                          </Button>
+                  {products.map((item) => {
+                    const itemLink = item.variation_id
+                      ? `/products/${item.product_slug}?variation=${item.variation_id}`
+                      : `/products/${item.product_slug}`;
+                    const imgUrl = resolveImageUrl(item.primary_image_url) || '/placeholder-product.jpg';
+                    return (
+                      <div key={`${item.type}-${item.id}`} className="bg-white rounded-xl shadow-md border border-cream-200 overflow-hidden hover:shadow-lg transition-shadow">
+                        <Link to={itemLink}>
+                          <div className="aspect-square bg-cream-50 overflow-hidden">
+                            <img src={imgUrl} alt={item.name} className="w-full h-full object-contain" style={{ mixBlendMode: 'multiply' }} />
+                          </div>
                         </Link>
+                        <div className="p-4">
+                          <Link to={itemLink}>
+                            <h3 className="font-semibold text-slate-800 hover:text-primary-600 transition-colors line-clamp-2">{item.name}</h3>
+                          </Link>
+                          {item.sku && <p className="text-sm text-slate-500 mt-1">SKU: {item.sku}</p>}
+                          <div className="mt-3">
+                            <Link to={itemLink}>
+                              <Button variant="primary" size="sm" className="w-full">View Details</Button>
+                            </Link>
+                          </div>
+                        </div>
                       </div>
-                    </div>
-                  </div>
+                    );
+                  })}
                 </div>
-              ))}
-            </div>
-          )}
+              ) : (
+                <div className="space-y-4">
+                  {products.map((item) => {
+                    const itemLink = item.variation_id
+                      ? `/products/${item.product_slug}?variation=${item.variation_id}`
+                      : `/products/${item.product_slug}`;
+                    const imgUrl = resolveImageUrl(item.primary_image_url) || '/placeholder-product.jpg';
+                    return (
+                      <div
+                        key={`${item.type}-${item.id}`}
+                        className="bg-white rounded-xl shadow-md border border-cream-200 p-4 sm:p-6 flex flex-col md:flex-row gap-4 sm:gap-6 hover:shadow-lg transition-shadow"
+                      >
+                        <div className="w-full md:w-40 h-40 flex-shrink-0 mx-auto md:mx-0">
+                          <Link to={itemLink}>
+                            <img src={imgUrl} alt={item.name} className="w-full h-full object-contain rounded-lg" />
+                          </Link>
+                        </div>
+                        <div className="flex-1">
+                          <Link to={itemLink}>
+                            <h3 className="text-xl font-semibold text-slate-800 mb-2 hover:text-primary-600 transition-colors">
+                              {item.name}
+                            </h3>
+                          </Link>
+                          {item.sku && <p className="text-sm text-slate-500 mb-3">SKU: {item.sku}</p>}
+                          <Link to={itemLink}>
+                            <Button variant="primary" size="sm">View Details</Button>
+                          </Link>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
             </div>
           </div>
         </div>
