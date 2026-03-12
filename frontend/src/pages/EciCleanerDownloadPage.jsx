@@ -4,8 +4,8 @@ import { motion } from 'framer-motion';
 const DOWNLOADS = [
   {
     label: 'macOS',
-    href: '/assets/ECI-Cleaner/ECI-Cleaner-macOS.zip',
-    filename: 'ECI-Cleaner-macOS.zip',
+    href: '/assets/ECI-Cleaner/ECI%20Cleaner.dmg',
+    filename: 'ECI Cleaner.dmg',
   },
 ];
 
