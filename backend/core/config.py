@@ -156,7 +156,7 @@ class Settings(BaseSettings):
 
     # AI Configuration (Google Gemini)
     GEMINI_API_KEY: Optional[str] = None
-    GEMINI_MODEL: str = "gemini-2.0-flash"
+    GEMINI_MODEL: str = "gemini-2.5-flash-lite"
 
     # AWS Configuration (for media storage)
     AWS_ACCESS_KEY_ID: Optional[str] = None

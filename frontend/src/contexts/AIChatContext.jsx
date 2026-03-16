@@ -323,8 +323,10 @@ export function AIChatProvider({ children }) {
   }, []);
 
   const connectWS = useCallback((sessionId) => {
-    if (wsRef.current?.readyState === WebSocket.OPEN && wsSessionIdRef.current === sessionId) {
-      return wsRef.current;
+    const ws = wsRef.current;
+    if (ws && wsSessionIdRef.current === sessionId) {
+      const state = ws.readyState;
+      if (state === WebSocket.OPEN || state === WebSocket.CONNECTING) return ws;
     }
     if (wsRef.current) {
       wsRef.current.close();
@@ -332,15 +334,15 @@ export function AIChatProvider({ children }) {
       wsSessionIdRef.current = null;
     }
 
-    const ws = createChatWebSocket(sessionId);
-    wsRef.current = ws;
+    const newWs = createChatWebSocket(sessionId);
+    wsRef.current = newWs;
     wsSessionIdRef.current = sessionId;
 
-    ws.onopen = () => {
+    newWs.onopen = () => {
       console.log('AI Chat WebSocket connected');
     };
 
-    ws.onmessage = (event) => {
+    newWs.onmessage = (event) => {
       try {
         const msg = JSON.parse(event.data);
         if (handleWSMessageRef.current) handleWSMessageRef.current(msg);
@@ -349,11 +351,11 @@ export function AIChatProvider({ children }) {
       }
     };
 
-    ws.onerror = (err) => {
+    newWs.onerror = (err) => {
       console.error('WebSocket error:', err);
     };
 
-    ws.onclose = (event) => {
+    newWs.onclose = (event) => {
       if (event.code !== 1000 && event.code !== 4001) {
         forceEndStreaming();
         reconnectTimer.current = setTimeout(() => {
@@ -364,7 +366,7 @@ export function AIChatProvider({ children }) {
       }
     };
 
-    return ws;
+    return newWs;
   }, [forceEndStreaming]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const interrupt = useCallback(() => {

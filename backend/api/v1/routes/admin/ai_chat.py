@@ -42,6 +42,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from backend.api.dependencies import get_current_admin, require_role
+from backend.core.config import settings
 from backend.models.company import AdminRole
 from backend.core.security import SecurityManager
 from backend.database.base import get_db, AsyncSessionLocal
@@ -982,7 +983,7 @@ async def websocket_chat(websocket: WebSocket, session_id: str):
                         role=MessageRole.ASSISTANT,
                         content=full_response,
                         tokens_used=tokens_used,
-                        model_used="gemini-2.0-flash",
+                        model_used=settings.GEMINI_MODEL,
                         web_sources=web_sources,
                         suggested_edits=suggested_edits,
                     )

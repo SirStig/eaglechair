@@ -298,11 +298,10 @@ TOOL_DEFINITIONS = [
             types.FunctionDeclaration(
                 name="get_product_details",
                 description=(
-                    "Get FULL detailed specs for specific products by ID. Use AFTER search_catalog when the user "
-                    "asks about a product — search_catalog returns product IDs; pass those IDs here to get "
-                    "dimensions, features, weight, upholstery_amount, frame_material, stock_status, variations, "
-                    "and all other specs. Always use this when giving product information so you provide "
-                    "complete, accurate details — never give partial info when full data is available."
+                    "Get FULL detailed specs for products. Prefer model_numbers (e.g. ['5242', '6018']) — users "
+                    "know models like 5242, not internal IDs. Pass model_numbers when the user says a model; "
+                    "product_ids only when you have them from search_catalog. Returns dimensions, features, "
+                    "weight, variations, stock_status, and everything. Never give partial info when full data is available."
                 ),
                 parameters=types.Schema(
                     type=types.Type.OBJECT,
@@ -310,10 +309,14 @@ TOOL_DEFINITIONS = [
                         "product_ids": types.Schema(
                             type=types.Type.ARRAY,
                             items=types.Schema(type=types.Type.INTEGER),
-                            description="List of product IDs from search_catalog results (e.g. [42, 58])",
+                            description="Product IDs from search_catalog (optional if model_numbers provided)",
+                        ),
+                        "model_numbers": types.Schema(
+                            type=types.Type.ARRAY,
+                            items=types.Schema(type=types.Type.STRING),
+                            description="Model numbers or SKUs the user mentioned (e.g. ['5242', '5242P', '6018WB'])",
                         ),
                     },
-                    required=["product_ids"],
                 ),
             ),
             types.FunctionDeclaration(
@@ -406,11 +409,11 @@ NEVER say you don't know, have no information, or can't find something about pro
 3. Checking **Trained Knowledge Base** (below) and **Persistent Memory** (below)
 4. For external info: **web_search** and **fetch_webpage**
 
-When the user mentions ANY product name, family name, model number, finish, upholstery, color, or category — call search_catalog IMMEDIATELY. Then call get_product_details with the product IDs to give full specs. Search everywhere, every time.
+When the user mentions ANY product name, family name, model number, finish, upholstery, color, or category — call search_catalog or get_product_details (with model_numbers like ["5242"]) IMMEDIATELY. Prefer get_product_details with model_numbers when the user says a model — never expose internal IDs to users. Search everywhere, every time.
 
 ## Available Tools (use them liberally)
 - **search_catalog**: Search the live catalog for a term. Use FIRST when the user asks about any product, family (e.g. Abruzzo, Alpine), model, finish, upholstery, or color. Returns matching families, products, variations, finishes, upholsteries, colors. Never guess — always search.
-- **get_product_details**: Get FULL specs for products by ID. After search_catalog finds products, call this with the product IDs to get dimensions, features, weight, upholstery_amount, variations, stock_status, and everything. Always use when answering product questions — give complete information.
+- **get_product_details**: Get FULL specs. Prefer model_numbers (e.g. ["5242"]) — users say "5242", not "product ID 42". Call with model_numbers when the user mentions a model; product_ids only when you have them from search. Returns dimensions, features, variations, stock_status, everything.
 - **get_product_catalog**: Full catalog. Use when search_catalog returns nothing or user needs broad overview. Never assume product data — fetch it.
 - **web_search**: Search the web. Use 2–4 searches per research question. Default 12 results.
 - **fetch_webpage**: Read a webpage in full. Use after web_search — don't rely on snippets alone.
@@ -418,9 +421,10 @@ When the user mentions ANY product name, family name, model number, finish, upho
 
 ## Product Questions — Give FULL Information
 When a user asks about a product (by name, model, or family):
-1. Call **search_catalog** with their term
-2. For each matching product, call **get_product_details** with the product IDs
+1. Call **search_catalog** with their term, or call **get_product_details** directly with model_numbers (e.g. ["5242"]) — users know models like 5242, not internal IDs.
+2. For each matching product, call **get_product_details** with model_numbers when the user said a model; use product_ids only when you have them from search.
 3. Present a complete picture: dimensions, pricing, features, variations, stock status, lead time, certifications, recommended use — everything you have. Do not summarize away important specs.
+4. **Never mention internal database IDs** (e.g. "product ID 42") to users. Always use model numbers (5242), SKUs (5242PBX), or product names (Abruzzo 5242). If a product cannot be found, say "Couldn't find model 5242" or "No details for 5242" — never "product ID 42".
 4. Use clear markdown structure: headers, tables for variations, bullet lists for features. Add brief context (e.g., "This is a solid wood dining chair in the Alpine family, ideal for restaurants").
 
 ## Response Style — Intelligent, Conversational, Thorough
@@ -588,7 +592,7 @@ class AIStreamEvent:
 async def stream_ai_response(
     session_messages: list[dict],
     system_prompt: str,
-    model: str = "gemini-2.0-flash",
+    model: str | None = None,
     cancelled: asyncio.Event | None = None,
 ) -> AsyncGenerator[dict, None]:
     """
@@ -597,6 +601,7 @@ async def stream_ai_response(
     If cancelled is set, exits early before/after each operation.
     """
     client = get_gemini_client()
+    model = model or getattr(settings, "GEMINI_MODEL", "gemini-2.5-flash-lite")
 
     def _cancelled() -> bool:
         return cancelled is not None and cancelled.is_set()
@@ -630,7 +635,7 @@ async def stream_ai_response(
                         system_instruction=system_prompt,
                         tools=TOOL_DEFINITIONS,
                         temperature=0.6,
-                        max_output_tokens=16384,
+                        max_output_tokens=65536,
                     ),
                 )
             )
@@ -641,11 +646,20 @@ async def stream_ai_response(
         if _cancelled():
             break
 
+        if not response.candidates:
+            reason = getattr(response, "prompt_feedback", None)
+            block_reason = getattr(reason, "block_reason", None) if reason else None
+            msg = f"No response from AI (content blocked: {block_reason})" if block_reason else "No response from AI"
+            yield AIStreamEvent.error(msg)
+            return
+
         has_tool_calls = False
         function_calls_to_execute = []
 
         for candidate in response.candidates:
-            for part in candidate.content.parts:
+            content = getattr(candidate, "content", None)
+            parts = getattr(content, "parts", None) or []
+            for part in parts:
                 if part.function_call:
                     has_tool_calls = True
                     function_calls_to_execute.append(part.function_call)
@@ -756,10 +770,12 @@ async def stream_ai_response(
                 elif func_name == "get_product_details":
                     if _cancelled():
                         break
-                    pids = func_args.get("product_ids", [])
-                    yield AIStreamEvent.thinking(f"Fetching full specs for {len(pids)} product(s)...")
+                    pids = func_args.get("product_ids") or []
+                    models = func_args.get("model_numbers") or []
+                    label = ", ".join(str(m) for m in models) if models else f"{len(pids)} product(s)"
+                    yield AIStreamEvent.thinking(f"Fetching full specs for {label}...")
 
-                    result = await get_product_details(pids)
+                    result = await get_product_details(product_ids=pids, model_numbers=models)
                     tool_results.append(
                         types.Part(
                             function_response=types.FunctionResponse(
@@ -813,20 +829,23 @@ async def stream_ai_response(
 
     try:
         final_text_parts = []
-        for candidate in response.candidates:
-            for part in candidate.content.parts:
+        candidates = response.candidates or []
+        for candidate in candidates:
+            content = getattr(candidate, "content", None)
+            parts = getattr(content, "parts", None) or []
+            for part in parts:
                 if part.text:
                     final_text_parts.append(part.text)
 
         full_text = "".join(final_text_parts)
 
-        chunk_size = 30
+        chunk_size = 80
         for i in range(0, len(full_text), chunk_size):
             if _cancelled():
                 break
             chunk = full_text[i:i + chunk_size]
             yield AIStreamEvent.text_chunk(chunk)
-            await asyncio.sleep(0.01)
+            await asyncio.sleep(0.002)
 
         # Get token usage
         usage = getattr(response, "usage_metadata", None)
@@ -1394,21 +1413,51 @@ async def search_catalog(query: str, max_results: int = 50) -> dict:
         return {"error": str(e), "query": query, "families": [], "products": [], "variations": [], "finishes": [], "upholsteries": [], "colors": [], "categories": []}
 
 
-async def get_product_details(product_ids: list) -> dict:
+async def get_product_details(product_ids: list | None = None, model_numbers: list | None = None) -> dict:
     """
-    Fetch full product details (dimensions, features, variations, etc.) for given product IDs.
-    Use after search_catalog to get complete specs for products the user asked about.
+    Fetch full product details (dimensions, features, variations, etc.).
+    Accepts product_ids (internal IDs) or model_numbers (e.g. 5242, 5242P, 6018WB) — prefer model_numbers when user mentions a model.
     """
-    if not product_ids:
-        return {"error": "No product IDs provided", "products": []}
     ids = []
-    for pid in product_ids:
+    if product_ids:
+        for pid in product_ids:
+            try:
+                ids.append(int(pid))
+            except (TypeError, ValueError):
+                continue
+    if model_numbers:
         try:
-            ids.append(int(pid))
-        except (TypeError, ValueError):
-            continue
+            async with AsyncSessionLocal() as db:
+                for term in [(m or "").strip() for m in model_numbers if m][:10]:
+                    if not term:
+                        continue
+                    r = await db.execute(
+                        text("""
+                            SELECT id FROM chairs WHERE is_active = true
+                            AND (model_number = :t OR CONCAT(model_number, COALESCE(model_suffix,'')) = :t)
+                            ORDER BY model_suffix
+                            LIMIT 1
+                        """),
+                        {"t": term},
+                    )
+                    row = r.fetchone()
+                    if row and row.id not in ids:
+                        ids.append(row.id)
+                    if not row:
+                        rv = await db.execute(
+                            text("""
+                                SELECT product_id FROM product_variations WHERE is_available = true
+                                AND sku = :t LIMIT 1
+                            """),
+                            {"t": term},
+                        )
+                        vrow = rv.fetchone()
+                        if vrow and vrow.product_id not in ids:
+                            ids.append(vrow.product_id)
+        except Exception as e:
+            logger.warning(f"Model number lookup failed: {e}")
     if not ids:
-        return {"error": "Invalid product IDs", "products": []}
+        return {"error": "No product IDs or model numbers provided", "products": []}
     ids = ids[:10]
     try:
         async with AsyncSessionLocal() as db:

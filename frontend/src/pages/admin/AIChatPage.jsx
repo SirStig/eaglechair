@@ -551,13 +551,16 @@ export default function AIChatPage() {
     openChat();
   }, [openChat]);
 
+  const prevChatIdRef = useRef(chatId);
   useEffect(() => {
+    const hadChatId = Boolean(prevChatIdRef.current);
+    prevChatIdRef.current = chatId;
     if (!chatId || chatId === '') {
-      newChat();
+      if (!currentSessionId || hadChatId) newChat();
     } else {
       switchSession(chatId);
     }
-  }, [chatId, newChat, switchSession]);
+  }, [chatId, currentSessionId, newChat, switchSession]);
 
   useEffect(() => {
     setOnSessionCreated((id) => {
