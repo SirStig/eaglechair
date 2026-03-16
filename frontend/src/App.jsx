@@ -1,4 +1,4 @@
-import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
+import { BrowserRouter as Router, Routes, Route, Outlet, Navigate } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { useEffect, lazy, Suspense } from 'react';
 import Layout from './components/layout/Layout';
@@ -93,37 +93,22 @@ function App() {
           <Route path="/forgot-password" element={<ForgotPasswordPage />} />
           <Route path="/reset-password" element={<ResetPasswordPage />} />
 
-          {/* Admin Routes (No Layout - Full Screen) */}
+          {/* Admin Routes - shared AIChatProvider for chat state persistence */}
           <Route
-            path="/admin/ai/:chatId"
+            path="/admin"
             element={
               <ProtectedRoute requireAdmin={true}>
                 <AIChatProvider>
-                  <AIChatPage />
+                  <Outlet />
                 </AIChatProvider>
               </ProtectedRoute>
             }
-          />
-          <Route
-            path="/admin/ai"
-            element={
-              <ProtectedRoute requireAdmin={true}>
-                <AIChatProvider>
-                  <AIChatPage />
-                </AIChatProvider>
-              </ProtectedRoute>
-            }
-          />
-          <Route
-            path="/admin/*"
-            element={
-              <ProtectedRoute requireAdmin={true}>
-                <AIChatProvider>
-                  <NewAdminDashboard />
-                </AIChatProvider>
-              </ProtectedRoute>
-            }
-          />
+          >
+            <Route index element={<Navigate to="/admin/dashboard" replace />} />
+            <Route path="dashboard" element={<NewAdminDashboard />} />
+            <Route path="ai/:chatId?" element={<AIChatPage />} />
+            <Route path="*" element={<NewAdminDashboard />} />
+          </Route>
 
           {/* Routes with Layout */}
           <Route element={<Layout />}>

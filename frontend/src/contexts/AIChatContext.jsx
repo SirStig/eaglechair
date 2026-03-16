@@ -45,6 +45,7 @@ export function AIChatProvider({ children }) {
   const currentStreamIdRef = useRef(null);
   const reconnectTimer = useRef(null);
   const handleWSMessageRef = useRef(null);
+  const onSessionCreatedRef = useRef(null);
 
   const loadSessions = useCallback(async () => {
     try {
@@ -59,27 +60,12 @@ export function AIChatProvider({ children }) {
 
   const openChat = useCallback(async () => {
     setIsOpen(true);
-    if (!currentSessionId) {
-      try {
-        const data = await loadSessions();
-        const emptySession = data.find(s => !s.is_archived && (s.message_count === 0 || s.message_count == null));
-        if (emptySession) {
-          setCurrentSessionId(emptySession.id);
-          setMessages([]);
-          setFiles([]);
-        } else {
-          const session = await createChat();
-          setCurrentSessionId(session.id);
-          setMessages([]);
-          setSessions(prev => [session, ...prev]);
-        }
-      } catch (err) {
-        console.error('Failed to open chat:', err);
-      }
-    } else {
-      loadSessions();
+    try {
+      await loadSessions();
+    } catch (err) {
+      console.error('Failed to load chats:', err);
     }
-  }, [currentSessionId, loadSessions]);
+  }, [loadSessions]);
 
   const closeChat = useCallback(() => {
     setIsOpen(false);
@@ -103,9 +89,15 @@ export function AIChatProvider({ children }) {
     setWebSources([]);
     setStreamingState(null);
     setPendingFiles([]);
+    setFiles([]);
     setHasMoreMessages(false);
-    setIsLoadingChat(true);
 
+    if (!sessionId) {
+      setIsLoadingChat(false);
+      return;
+    }
+
+    setIsLoadingChat(true);
     try {
       const { messages: msgs, files: sessionFiles, has_more } = await getChat(sessionId);
       setMessages(msgs.map(m => ({
@@ -148,25 +140,18 @@ export function AIChatProvider({ children }) {
     }
   }, [currentSessionId, hasMoreMessages, isLoadingOlder, messages.length]);
 
-  const newChat = useCallback(async () => {
+  const newChat = useCallback(() => {
     if (wsRef.current) {
       wsRef.current.close();
       wsRef.current = null;
     }
-    try {
-      const session = await createChat();
-      setCurrentSessionId(session.id);
-      setMessages([]);
-      setWebSources([]);
-      setStreamingState(null);
-      setPendingFiles([]);
-      setFiles([]);
-      setSessions(prev => [session, ...prev]);
-      return session;
-    } catch (err) {
-      console.error('Failed to create new chat:', err);
-      return null;
-    }
+    setCurrentSessionId(null);
+    setMessages([]);
+    setWebSources([]);
+    setStreamingState(null);
+    setPendingFiles([]);
+    setFiles([]);
+    return null;
   }, []);
 
   const handleWSMessage = useCallback((msg) => {
@@ -338,6 +323,7 @@ export function AIChatProvider({ children }) {
         sessionId = session.id;
         setCurrentSessionId(sessionId);
         setSessions(prev => [session, ...prev]);
+        onSessionCreatedRef.current?.(sessionId);
       } catch (err) {
         console.error('Failed to create chat:', err);
         setMessages(prev => [...prev, {
@@ -467,6 +453,7 @@ export function AIChatProvider({ children }) {
         sessionId = session.id;
         setCurrentSessionId(sessionId);
         setSessions(prev => [session, ...prev]);
+        onSessionCreatedRef.current?.(sessionId);
       } catch (err) {
         console.error('Failed to create chat:', err);
         throw err;
@@ -538,6 +525,7 @@ export function AIChatProvider({ children }) {
     setMessages,
     setSessions,
     loadOlderMessages,
+    setOnSessionCreated: (cb) => { onSessionCreatedRef.current = cb; },
   };
 
   return (

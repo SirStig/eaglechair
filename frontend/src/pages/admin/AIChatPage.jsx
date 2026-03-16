@@ -6,7 +6,7 @@
 
 import { useState, useRef, useEffect, useCallback } from 'react';
 import { useMediaQuery } from '../../hooks/useMediaQuery';
-import { useNavigate, useParams } from 'react-router-dom';
+import { useNavigate, useParams, useLocation } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   ArrowLeft,
@@ -524,6 +524,7 @@ export default function AIChatPage() {
   const {
     sessions,
     currentSessionId,
+    openChat,
     messages,
     isStreaming,
     streamingState,
@@ -538,26 +539,33 @@ export default function AIChatPage() {
     removePendingFile,
     switchSession,
     newChat,
-    openChat,
     setSessions,
     loadOlderMessages,
+    setOnSessionCreated,
   } = useAIChat();
+
+  const location = useLocation();
 
   useEffect(() => {
     openChat();
   }, [openChat]);
 
   useEffect(() => {
-    if (chatId && chatId !== currentSessionId) {
+    if (!chatId || chatId === '') {
+      newChat();
+    } else {
       switchSession(chatId);
     }
-  }, [chatId, currentSessionId, switchSession]);
+  }, [chatId, newChat, switchSession]);
 
   useEffect(() => {
-    if (!chatId && currentSessionId) {
-      navigate(`/admin/ai/${currentSessionId}`, { replace: true });
-    }
-  }, [chatId, currentSessionId, navigate]);
+    setOnSessionCreated((id) => {
+      if (location.pathname === '/admin/ai' || location.pathname === '/admin/ai/') {
+        navigate(`/admin/ai/${id}`, { replace: true });
+      }
+    });
+    return () => setOnSessionCreated(null);
+  }, [location.pathname, navigate, setOnSessionCreated]);
 
   useEffect(() => {
     if (messagesEndRef.current) {
@@ -565,10 +573,9 @@ export default function AIChatPage() {
     }
   }, [messages, streamingState]);
 
-  const handleNewChat = useCallback(async () => {
-    const session = await newChat();
-    if (session) navigate(`/admin/ai/${session.id}`);
-  }, [newChat, navigate]);
+  const handleNewChat = useCallback(() => {
+    navigate('/admin/ai');
+  }, [navigate]);
 
   const handleDeleteSession = useCallback((sessionId) => {
     setSessions(prev => prev.filter(s => s.id !== sessionId));
@@ -599,7 +606,7 @@ export default function AIChatPage() {
           >
             <AIChatSidebar
               sessions={sessions}
-              currentSessionId={currentSessionId}
+              currentSessionId={chatId || null}
               onSelect={(id) => navigate(`/admin/ai/${id}`)}
               onNew={handleNewChat}
               onDelete={handleDeleteSession}
@@ -615,7 +622,7 @@ export default function AIChatPage() {
         <div className="flex items-center justify-between px-3 sm:px-4 py-3 border-b border-dark-700 bg-dark-800 flex-shrink-0 gap-2 min-w-0">
           <div className="flex items-center gap-2 sm:gap-3 min-w-0">
             <button
-              onClick={() => navigate(-1)}
+              onClick={() => navigate('/admin/dashboard')}
               className="flex items-center gap-1.5 text-dark-400 hover:text-dark-100 transition-colors text-sm p-1 -m-1 touch-manipulation"
             >
               <ArrowLeft className="w-4 h-4 flex-shrink-0" />
@@ -665,7 +672,7 @@ export default function AIChatPage() {
               <span className="hidden sm:inline">Training</span>
             </button>
             <button
-              onClick={() => navigate(-1)}
+              onClick={() => { openChat(); navigate('/admin/dashboard'); }}
               className="flex items-center gap-1 sm:gap-1.5 px-2 sm:px-3 py-1.5 rounded-lg text-xs text-dark-400 hover:text-dark-100 hover:bg-dark-700 transition-colors touch-manipulation"
             >
               <Minimize2 className="w-3.5 h-3.5 flex-shrink-0" />
@@ -678,7 +685,7 @@ export default function AIChatPage() {
         <div className="flex flex-1 overflow-hidden">
           {/* Messages */}
           <div className="flex-1 flex flex-col overflow-hidden">
-            <div className="flex-1 min-h-0 overflow-hidden">
+            <div className="flex-1 min-h-0 flex flex-col overflow-hidden">
               {isLoadingChat ? (
                 <div className="flex flex-col items-center justify-center h-full min-h-[280px]">
                   <Loader2 className="w-10 h-10 animate-spin text-chat-accent" />

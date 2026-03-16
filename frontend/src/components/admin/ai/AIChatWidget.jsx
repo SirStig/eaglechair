@@ -177,7 +177,7 @@ export default function AIChatWidget() {
                 animate={{ width: isMobile ? '100%' : 208, opacity: 1 }}
                 exit={{ width: 0, opacity: 0 }}
                 transition={{ duration: 0.2 }}
-                className="absolute sm:relative inset-y-0 left-0 z-20 w-full sm:w-[208px] sm:max-w-none overflow-hidden flex-shrink-0 bg-dark-900 sm:bg-transparent"
+                className="absolute sm:relative inset-y-0 left-0 z-20 w-full sm:w-[224px] sm:max-w-none overflow-hidden flex-shrink-0 sm:bg-transparent"
               >
                 <AIChatSidebar
                   sessions={sessions}
@@ -194,7 +194,7 @@ export default function AIChatWidget() {
           {/* Chat area */}
           <div className="flex-1 flex flex-col overflow-hidden">
             {/* Messages */}
-            <div className="flex-1 min-h-0 overflow-hidden">
+            <div className="flex-1 min-h-0 flex flex-col overflow-hidden">
               {isLoadingChat ? (
                 <div className="flex flex-col items-center justify-center h-full min-h-[200px]">
                   <Loader2 className="w-8 h-8 animate-spin text-chat-accent" />

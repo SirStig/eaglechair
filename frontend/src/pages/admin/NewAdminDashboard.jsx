@@ -131,7 +131,7 @@ const NewAdminDashboardInner = () => {
       id: 'main',
       title: 'Main',
       items: [
-        { id: 'overview', label: 'Dashboard', icon: LayoutDashboard, path: '/admin' },
+        { id: 'overview', label: 'Dashboard', icon: LayoutDashboard, path: '/admin/dashboard' },
         { id: 'analytics', label: 'Analytics', icon: TrendingUp, path: '/admin/analytics' },
       ]
     },

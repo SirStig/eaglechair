@@ -133,7 +133,7 @@ const ProductCard = ({ product, onQuickView, darkMode = false, compact = false }
 
         {/* Overlay on hover */}
         <div
-          className={`absolute inset-0 bg-black/30 flex items-center justify-center gap-2 transition-opacity duration-300 ${isHovered ? 'opacity-100' : 'opacity-0 pointer-events-none'
+          className={`absolute inset-0 z-20 bg-black/30 flex items-center justify-center gap-2 transition-opacity duration-300 ${isHovered ? 'opacity-100' : 'opacity-0 pointer-events-none'
             }`}
         >
           <Button
