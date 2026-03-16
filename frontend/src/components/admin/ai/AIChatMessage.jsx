@@ -7,196 +7,76 @@
 
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
-import { ExternalLink, ChevronDown, ChevronUp, Paperclip, Globe, ArrowRight } from 'lucide-react';
+import ReactMarkdown from 'react-markdown';
+import { ExternalLink, ChevronDown, ChevronUp, Paperclip, Globe, ArrowRight, RotateCcw, RefreshCw, Copy, Check } from 'lucide-react';
 import { sanitizeStreamingMarkdown } from '../../../utils/sanitizeStreamingMarkdown';
 
-// Simple markdown renderer (bold, italic, code, lists, headers, links)
-function renderMarkdown(text) {
-  if (!text) return null;
-
-  const lines = text.split('\n');
-  const elements = [];
-  let i = 0;
-
-  while (i < lines.length) {
-    const line = lines[i];
-
-    // Headers
-    if (line.startsWith('### ')) {
-      elements.push(<h3 key={i} className="text-sm font-bold text-dark-50 mt-3 mb-1">{line.slice(4)}</h3>);
-    } else if (line.startsWith('## ')) {
-      elements.push(<h2 key={i} className="text-base font-bold text-dark-50 mt-4 mb-1">{line.slice(3)}</h2>);
-    } else if (line.startsWith('# ')) {
-      elements.push(<h1 key={i} className="text-lg font-bold text-dark-50 mt-4 mb-2">{line.slice(2)}</h1>);
-    // Horizontal rule
-    } else if (line.match(/^---+$/)) {
-      elements.push(<hr key={i} className="border-dark-600 my-3" />);
-    // Bullet lists
-    } else if (line.match(/^[*\-] /)) {
-      const items = [];
-      while (i < lines.length && lines[i].match(/^[*\-] /)) {
-        items.push(<li key={i} className="ml-2">{renderInline(lines[i].slice(2))}</li>);
-        i++;
-      }
-      elements.push(<ul key={`ul-${i}`} className="list-disc list-inside space-y-0.5 my-1">{items}</ul>);
-      continue;
-    // Numbered lists
-    } else if (line.match(/^\d+\. /)) {
-      const items = [];
-      while (i < lines.length && lines[i].match(/^\d+\. /)) {
-        items.push(<li key={i} className="ml-2">{renderInline(lines[i].replace(/^\d+\. /, ''))}</li>);
-        i++;
-      }
-      elements.push(<ol key={`ol-${i}`} className="list-decimal list-inside space-y-0.5 my-1">{items}</ol>);
-      continue;
-    // Code blocks
-    } else if (line.startsWith('```')) {
-      const lang = line.slice(3).trim();
-      const codeLines = [];
-      i++;
-      while (i < lines.length && !lines[i].startsWith('```')) {
-        codeLines.push(lines[i]);
-        i++;
-      }
-      elements.push(
-        <pre key={i} className="bg-dark-950 border border-dark-700 rounded-lg p-2 sm:p-3 my-2 overflow-x-auto text-xs font-mono text-dark-100 max-w-full">
-          <code>{codeLines.join('\n')}</code>
-        </pre>
-      );
-    // Table
-    } else if (line.startsWith('|')) {
-      const rows = [];
-      let isHeader = true;
-      while (i < lines.length && lines[i].startsWith('|')) {
-        if (!lines[i].match(/^\|[-| ]+\|$/)) {
-          const cells = lines[i].split('|').filter((_, idx, arr) => idx > 0 && idx < arr.length - 1);
-          rows.push({ cells, isHeader });
-          isHeader = false;
-        }
-        i++;
-      }
-      elements.push(
-        <div key={`table-${i}`} className="overflow-x-auto my-2 max-w-full">
-          <table className="min-w-full text-xs border-collapse">
-            <thead>
-              {rows.filter(r => r.isHeader).map((row, ri) => (
-                <tr key={ri} className="border-b border-dark-600">
-                  {row.cells.map((cell, ci) => (
-                    <th key={ci} className="px-2 py-1 text-left text-dark-300 font-semibold whitespace-nowrap">{cell.trim()}</th>
-                  ))}
-                </tr>
-              ))}
-            </thead>
-            <tbody>
-              {rows.filter(r => !r.isHeader).map((row, ri) => (
-                <tr key={ri} className="border-b border-dark-700/50 hover:bg-dark-800/30">
-                  {row.cells.map((cell, ci) => (
-                    <td key={ci} className="px-2 py-1 text-dark-200 whitespace-nowrap">{cell.trim()}</td>
-                  ))}
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      );
-      continue;
-    // Empty lines → paragraph spacing
-    } else if (line.trim() === '') {
-      elements.push(<div key={i} className="h-1" />);
-    // Regular paragraph
-    } else {
-      elements.push(<p key={i} className="text-dark-100 leading-relaxed">{renderInline(line)}</p>);
-    }
-
-    i++;
-  }
-
-  return elements;
+function getLinkLabel(children) {
+  if (typeof children === 'string') return children;
+  const arr = Array.isArray(children) ? children : [children];
+  return arr.map(c => (typeof c === 'string' ? c : (c?.props?.children != null ? getLinkLabel(c.props.children) : ''))).join('');
 }
 
-function renderInline(text) {
-  // Handle bold, italic, code, and links
-  const parts = [];
-  let remaining = text;
-  let key = 0;
-
-  while (remaining.length > 0) {
-    // Bold+italic
-    const boldItalic = remaining.match(/^\*\*\*(.+?)\*\*\*/);
-    if (boldItalic) {
-      parts.push(<strong key={key++} className="font-bold italic">{boldItalic[1]}</strong>);
-      remaining = remaining.slice(boldItalic[0].length);
-      continue;
-    }
-    // Bold
-    const bold = remaining.match(/^\*\*(.+?)\*\*/);
-    if (bold) {
-      parts.push(<strong key={key++} className="font-semibold text-dark-50">{bold[1]}</strong>);
-      remaining = remaining.slice(bold[0].length);
-      continue;
-    }
-    // Italic
-    const italic = remaining.match(/^\*(.+?)\*/);
-    if (italic) {
-      parts.push(<em key={key++}>{italic[1]}</em>);
-      remaining = remaining.slice(italic[0].length);
-      continue;
-    }
-    // Inline code
-    const code = remaining.match(/^`([^`]+)`/);
-    if (code) {
-      parts.push(
-        <code key={key++} className="bg-dark-800 border border-dark-600 rounded px-1 py-0.5 text-xs font-mono text-chat-code">
-          {code[1]}
-        </code>
+const markdownComponents = {
+  h1: ({ children }) => <h1 className="text-lg font-bold text-dark-50 mt-4 mb-2 tracking-tight">{children}</h1>,
+  h2: ({ children }) => <h2 className="text-base font-bold text-dark-50 mt-4 mb-1.5 tracking-tight">{children}</h2>,
+  h3: ({ children }) => <h3 className="text-sm font-bold text-dark-50 mt-3 mb-1.5 tracking-tight">{children}</h3>,
+  hr: () => <hr className="border-dark-600 my-4" />,
+  ul: ({ children }) => <ul className="list-disc list-inside space-y-1.5 my-2 pl-0.5">{children}</ul>,
+  ol: ({ children }) => <ol className="list-decimal list-inside space-y-1.5 my-2 pl-0.5">{children}</ol>,
+  li: ({ children }) => <li className="ml-2 leading-[1.7]">{children}</li>,
+  p: ({ children }) => <p className="text-dark-100 leading-[1.7] tracking-[0.01em] mb-2 last:mb-0">{children}</p>,
+  pre: ({ children }) => (
+    <pre className="bg-dark-950 border border-dark-700 rounded-lg p-2 sm:p-3 my-2 overflow-x-auto text-xs font-mono text-dark-100 max-w-full">
+      {children}
+    </pre>
+  ),
+  code: ({ className, children }) =>
+    className ? (
+      <code className={className}>{children}</code>
+    ) : (
+      <code className="bg-dark-800 border border-dark-600 rounded px-1 py-0.5 text-xs font-mono text-chat-code">
+        {children}
+      </code>
+    ),
+  table: ({ children }) => (
+    <div className="overflow-x-auto my-2 max-w-full">
+      <table className="min-w-full text-xs border-collapse">{children}</table>
+    </div>
+  ),
+  thead: ({ children }) => <thead className="[&_tr]:border-b [&_tr]:border-dark-600">{children}</thead>,
+  tbody: ({ children }) => <tbody className="[&_tr]:border-b [&_tr]:border-dark-700/50 [&_tr]:hover:bg-dark-800/30">{children}</tbody>,
+  tr: ({ children, ...props }) => <tr {...props}>{children}</tr>,
+  th: ({ children }) => (
+    <th className="px-2 py-1.5 text-left text-dark-300 font-semibold whitespace-nowrap leading-[1.6]">
+      {children}
+    </th>
+  ),
+  td: ({ children }) => <td className="px-2 py-1.5 text-dark-200 whitespace-nowrap leading-[1.6]">{children}</td>,
+  a: ({ href = '', children }) => {
+    const label = getLinkLabel(children);
+    const isInternal = href.startsWith('/') && !href.startsWith('//');
+    const isAdminLink = isInternal && href.startsWith('/admin');
+    const isAction = /^(go to|edit|view|open|manage|add|create)\s/i.test(label.toLowerCase()) || label.includes('→');
+    const useButtonStyle = isAdminLink || isAction;
+    const btnClass = useButtonStyle
+      ? 'inline-flex items-center gap-1 px-2 py-1 rounded-lg bg-primary-500/20 hover:bg-primary-500/30 text-primary-400 hover:text-primary-300 border border-primary-500/40 font-medium no-underline'
+      : 'text-chat-link hover:text-chat-link-hover underline underline-offset-2';
+    if (isInternal) {
+      return (
+        <Link to={href} className={btnClass}>
+          {useButtonStyle && <ArrowRight className="w-3 h-3 flex-shrink-0" />}
+          {children}
+        </Link>
       );
-      remaining = remaining.slice(code[0].length);
-      continue;
     }
-    // Link
-    const link = remaining.match(/^\[([^\]]+)\]\(([^)]+)\)/);
-    if (link) {
-      const href = link[2];
-      const label = link[1];
-      const isInternal = href.startsWith('/') && !href.startsWith('//');
-      const isAdminLink = isInternal && href.startsWith('/admin');
-      const isAction = /^(go to|edit|view|open|manage|add|create)\s/i.test(label.toLowerCase()) || label.includes('→');
-      const useButtonStyle = isAdminLink || isAction;
-      const btnClass = useButtonStyle
-        ? 'inline-flex items-center gap-1 px-2 py-1 rounded-lg bg-primary-500/20 hover:bg-primary-500/30 text-primary-400 hover:text-primary-300 border border-primary-500/40 font-medium no-underline'
-        : 'text-chat-link hover:text-chat-link-hover underline underline-offset-2';
-      if (isInternal) {
-        parts.push(
-          <Link key={key++} to={href} className={btnClass}>
-            {useButtonStyle && <ArrowRight className="w-3 h-3 flex-shrink-0" />}
-            {label}
-          </Link>
-        );
-      } else {
-        parts.push(
-          <a key={key++} href={href} target="_blank" rel="noopener noreferrer" className={btnClass}>
-            {label}
-          </a>
-        );
-      }
-      remaining = remaining.slice(link[0].length);
-      continue;
-    }
-    // Regular char
-    const nextSpecial = remaining.search(/\*\*\*|\*\*|\*|`|\[/);
-    if (nextSpecial === -1) {
-      parts.push(<span key={key++}>{remaining}</span>);
-      remaining = '';
-    } else if (nextSpecial > 0) {
-      parts.push(<span key={key++}>{remaining.slice(0, nextSpecial)}</span>);
-      remaining = remaining.slice(nextSpecial);
-    } else {
-      parts.push(<span key={key++}>{remaining[0]}</span>);
-      remaining = remaining.slice(1);
-    }
-  }
-  return parts;
-}
+    return (
+      <a href={href} target="_blank" rel="noopener noreferrer" className={btnClass}>
+        {children}
+      </a>
+    );
+  },
+};
 
 function WebSources({ sources }) {
   const [expanded, setExpanded] = useState(false);
@@ -244,14 +124,73 @@ function WebSources({ sources }) {
   );
 }
 
-export default function AIChatMessage({ message, compact = false }) {
+function MessageActions({ message, onRedo, onRetry, isUser }) {
+  const [copied, setCopied] = useState(false);
+  const rawContent = message.isStreaming ? message.streamingContent : message.content;
+  const hasContent = rawContent && String(rawContent).trim().length > 0;
+
+  const handleCopy = async () => {
+    if (!hasContent) return;
+    try {
+      await navigator.clipboard.writeText(String(rawContent));
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1500);
+    } catch {
+      setCopied(false);
+    }
+  };
+
+  const showRedo = !isUser && !message.isError && !message.isStreaming && hasContent && onRedo;
+  const showRetry = !isUser && message.isError && onRetry;
+  const showCopy = hasContent;
+
+  if (!showRedo && !showRetry && !showCopy) return null;
+
+  return (
+    <div className={`flex items-center gap-0.5 mt-1 ${isUser ? 'justify-end' : 'justify-start'} ${!isUser ? 'ml-8 sm:ml-9' : ''}`}>
+      {showRedo && (
+        <button
+          type="button"
+          onClick={() => onRedo(message.id)}
+          className="p-1.5 rounded-lg text-dark-400 hover:text-dark-200 hover:bg-dark-700/50 transition-colors"
+          title="Redo (delete and resend)"
+        >
+          <RotateCcw className="w-3.5 h-3.5" />
+        </button>
+      )}
+      {showRetry && (
+        <button
+          type="button"
+          onClick={() => onRetry(message.id)}
+          className="p-1.5 rounded-lg text-dark-400 hover:text-dark-200 hover:bg-dark-700/50 transition-colors"
+          title="Retry"
+        >
+          <RefreshCw className="w-3.5 h-3.5" />
+        </button>
+      )}
+      {showCopy && (
+        <button
+          type="button"
+          onClick={handleCopy}
+          className="p-1.5 rounded-lg text-dark-400 hover:text-dark-200 hover:bg-dark-700/50 transition-colors"
+          title="Copy"
+        >
+          {copied ? <Check className="w-3.5 h-3.5 text-chat-status-success" /> : <Copy className="w-3.5 h-3.5" />}
+        </button>
+      )}
+    </div>
+  );
+}
+
+export default function AIChatMessage({ message, onRedo, onRetry }) {
   const isUser = message.role === 'user';
   const isStreaming = message.isStreaming;
   const rawContent = isStreaming ? message.streamingContent : message.content;
   const content = isStreaming ? sanitizeStreamingMarkdown(rawContent) : rawContent;
 
   return (
-    <div className={`flex ${isUser ? 'justify-end' : 'justify-start'} mb-3`}>
+    <div className={`flex flex-col ${isUser ? 'items-end' : 'items-start'} mb-4`}>
+      <div className={`flex ${isUser ? 'justify-end' : 'justify-start'} w-full`}>
       {!isUser && (
         <div className="w-6 h-6 sm:w-7 sm:h-7 rounded-full bg-dark-700 flex items-center justify-center flex-shrink-0 mr-2 mt-0.5 p-1">
           <img src="/favicon.svg" alt="Eagle Chair" className="w-full h-full object-contain" />
@@ -259,7 +198,7 @@ export default function AIChatMessage({ message, compact = false }) {
       )}
 
       <div className={`
-        max-w-[92%] sm:max-w-[85%] rounded-2xl px-3 py-2.5 text-sm
+        max-w-[92%] sm:max-w-[85%] rounded-2xl px-4 py-3 text-[15px] leading-[1.7] tracking-[0.01em]
         ${isUser
           ? 'bg-chat-user-bubble hover:bg-chat-user-bubble-hover text-white rounded-tr-sm'
           : 'bg-dark-800 border border-dark-700 text-dark-100 rounded-tl-sm'
@@ -280,10 +219,10 @@ export default function AIChatMessage({ message, compact = false }) {
 
         {/* Content */}
         {isUser ? (
-          <p className="whitespace-pre-wrap leading-relaxed">{content}</p>
+          <p className="whitespace-pre-wrap leading-[1.7] tracking-[0.01em]">{content}</p>
         ) : (
-          <div className="space-y-0.5">
-            {renderMarkdown(content)}
+          <div className="space-y-1 [&_h1:first-child]:mt-0 [&_h2:first-child]:mt-0 [&_h3:first-child]:mt-0 [&_p:first-child]:mt-0 [&_ul:first-child]:mt-0 [&_ol:first-child]:mt-0">
+            <ReactMarkdown components={markdownComponents}>{content}</ReactMarkdown>
             {isStreaming && (
               <span className="inline-block w-1.5 h-4 bg-chat-accent animate-pulse ml-0.5 align-middle" />
             )}
@@ -308,6 +247,8 @@ export default function AIChatMessage({ message, compact = false }) {
           <span className="text-[10px] font-bold text-dark-300">You</span>
         </div>
       )}
+      </div>
+      <MessageActions message={message} onRedo={onRedo} onRetry={onRetry} isUser={isUser} />
     </div>
   );
 }

@@ -9,6 +9,7 @@ Endpoints:
   GET    /admin/ai/chats/{id}         - Get chat with messages
   PATCH  /admin/ai/chats/{id}         - Update chat (title, pin, etc.)
   DELETE /admin/ai/chats/{id}         - Delete chat session
+  DELETE /admin/ai/chats/{id}/messages/{msg_id} - Delete message in chat
   POST   /admin/ai/chats/{id}/upload  - Upload file to chat
   GET    /admin/ai/memory             - Get AI memory entries
   PUT    /admin/ai/memory/{key}       - Update/create memory entry
@@ -36,7 +37,7 @@ from fastapi import (
     WebSocket,
     WebSocketDisconnect,
 )
-from sqlalchemy import select, delete, update, desc
+from sqlalchemy import select, delete, update, desc, func
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -116,6 +117,21 @@ async def get_session_or_404(session_id: str, db: AsyncSession, admin) -> AIChat
     return session
 
 
+async def get_session_basic(session_id: str, db: AsyncSession, admin) -> AIChatSession:
+    admin_id = getattr(admin, "id", None)
+    if admin_id is None:
+        raise HTTPException(status_code=404, detail="Chat session not found")
+    result = await db.execute(
+        select(AIChatSession)
+        .where(AIChatSession.id == session_id, AIChatSession.admin_user_id == admin_id)
+        .options(selectinload(AIChatSession.files))
+    )
+    session = result.scalar_one_or_none()
+    if not session:
+        raise HTTPException(status_code=404, detail="Chat session not found")
+    return session
+
+
 async def load_active_memory(db: AsyncSession, admin_id: int | None) -> list[dict]:
     q = select(AIMemory).where(AIMemory.is_active == True)
     if admin_id is not None:
@@ -152,7 +168,7 @@ async def load_training_summaries(db: AsyncSession) -> list[dict]:
     ]
 
 
-def serialize_session(session: AIChatSession, include_messages: bool = True) -> dict:
+def serialize_session(session: AIChatSession, include_messages: bool = True, messages_list: list | None = None) -> dict:
     data = {
         "id": session.id,
         "title": session.title,
@@ -165,7 +181,7 @@ def serialize_session(session: AIChatSession, include_messages: bool = True) -> 
         "tags": session.tags or [],
     }
     if include_messages:
-        data["messages"] = [serialize_message(m) for m in session.messages]
+        data["messages"] = [serialize_message(m) for m in (messages_list or session.messages)]
         data["files"] = [serialize_file(f) for f in session.files]
     return data
 
@@ -235,14 +251,39 @@ async def create_chat(db: AsyncSession = Depends(get_db), admin=Depends(get_curr
     return serialize_session(session, include_messages=False)
 
 
+MESSAGE_LIMIT_DEFAULT = 100
+MESSAGE_LIMIT_MAX = 200
+
+
 @router.get("/chats/{session_id}")
 async def get_chat(
     session_id: str,
+    limit: int = MESSAGE_LIMIT_DEFAULT,
+    before_id: str | None = None,
     db: AsyncSession = Depends(get_db),
     admin=Depends(get_current_admin),
 ):
-    session = await get_session_or_404(session_id, db, admin)
-    return serialize_session(session)
+    limit = min(max(1, limit), MESSAGE_LIMIT_MAX)
+    session = await get_session_basic(session_id, db, admin)
+    q = select(AIChatMessage).where(AIChatMessage.session_id == session_id)
+    if before_id:
+        subq = select(AIChatMessage.created_at).where(
+            AIChatMessage.id == before_id, AIChatMessage.session_id == session_id
+        ).scalar_subquery()
+        q = q.where(AIChatMessage.created_at < subq)
+    result = await db.execute(q.order_by(AIChatMessage.created_at.desc()).limit(limit))
+    msgs = list(result.scalars().all())
+    msgs.reverse()
+    has_more = len(msgs) >= limit
+    if not before_id:
+        count_row = await db.execute(
+            select(func.count(AIChatMessage.id)).where(AIChatMessage.session_id == session_id)
+        )
+        total = count_row.scalar() or 0
+        has_more = total > limit
+    data = serialize_session(session, messages_list=msgs)
+    data["has_more"] = has_more
+    return data
 
 
 @router.patch("/chats/{session_id}")
@@ -279,6 +320,29 @@ async def delete_chat(
                 AIChatSession.admin_user_id == admin_id,
             )
         )
+    await db.commit()
+    return {"success": True}
+
+
+@router.delete("/chats/{session_id}/messages/{message_id}")
+async def delete_chat_message(
+    session_id: str,
+    message_id: str,
+    db: AsyncSession = Depends(get_db),
+    admin=Depends(get_current_admin),
+):
+    session = await get_session_basic(session_id, db, admin)
+    result = await db.execute(
+        select(AIChatMessage).where(
+            AIChatMessage.id == message_id,
+            AIChatMessage.session_id == session_id,
+        )
+    )
+    msg = result.scalar_one_or_none()
+    if not msg:
+        raise HTTPException(status_code=404, detail="Message not found")
+    await db.delete(msg)
+    session.message_count = max(0, (session.message_count or 0) - 1)
     await db.commit()
     return {"success": True}
 

@@ -29,7 +29,7 @@ import html2text
 import pandas as pd
 import pdfplumber
 import sympy
-from duckduckgo_search import DDGS
+from ddgs import DDGS
 from google import genai
 from google.genai import types
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -295,6 +295,27 @@ TOOL_DEFINITIONS = [
                     properties={},
                 ),
             ),
+            types.FunctionDeclaration(
+                name="get_product_details",
+                description=(
+                    "Get FULL detailed specs for specific products by ID. Use AFTER search_catalog when the user "
+                    "asks about a product — search_catalog returns product IDs; pass those IDs here to get "
+                    "dimensions, features, weight, upholstery_amount, frame_material, stock_status, variations, "
+                    "and all other specs. Always use this when giving product information so you provide "
+                    "complete, accurate details — never give partial info when full data is available."
+                ),
+                parameters=types.Schema(
+                    type=types.Type.OBJECT,
+                    properties={
+                        "product_ids": types.Schema(
+                            type=types.Type.ARRAY,
+                            items=types.Schema(type=types.Type.INTEGER),
+                            description="List of product IDs from search_catalog results (e.g. [42, 58])",
+                        ),
+                    },
+                    required=["product_ids"],
+                ),
+            ),
         ]
     )
 ]
@@ -350,25 +371,38 @@ NEVER say you don't know, have no information, or can't find something about pro
 3. Checking **Trained Knowledge Base** (below) and **Persistent Memory** (below)
 4. For external info: **web_search** and **fetch_webpage**
 
-When the user mentions ANY product name, family name, model number, finish, upholstery, color, or category — call search_catalog IMMEDIATELY. Search everywhere, every time.
+When the user mentions ANY product name, family name, model number, finish, upholstery, color, or category — call search_catalog IMMEDIATELY. Then call get_product_details with the product IDs to give full specs. Search everywhere, every time.
 
 ## Available Tools (use them liberally)
 - **search_catalog**: Search the live catalog for a term. Use FIRST when the user asks about any product, family (e.g. Abruzzo, Alpine), model, finish, upholstery, or color. Returns matching families, products, variations, finishes, upholsteries, colors. Never guess — always search.
+- **get_product_details**: Get FULL specs for products by ID. After search_catalog finds products, call this with the product IDs to get dimensions, features, weight, upholstery_amount, variations, stock_status, and everything. Always use when answering product questions — give complete information.
 - **get_product_catalog**: Full catalog. Use when search_catalog returns nothing or user needs broad overview. Never assume product data — fetch it.
 - **web_search**: Search the web. Use 2–4 searches per research question. Default 12 results.
 - **fetch_webpage**: Read a webpage in full. Use after web_search — don't rely on snippets alone.
 - **calculate**: Precise math for pricing, margins, percentages.
 
-## Response Style
-- Be thorough and detailed. Provide comprehensive answers with full context and supporting evidence.
-- Use your tools extensively: search the web multiple times from different angles, fetch webpages for deeper context, call get_product_catalog when discussing products, and calculate when numbers matter.
-- When researching: run 2–4 searches with varied queries before answering. Fetch key URLs to read full content. Don't stop at snippets — dig deeper.
-- Structure responses with markdown: headers (##, ###), bullet lists, numbered lists, tables, bold for emphasis, and inline code for IDs/codes.
-- Always cite web sources with [title](url). For calculations, show the full work.
-- If uncertain, search for more information. Never guess about products, pricing, or catalog data.
+## Product Questions — Give FULL Information
+When a user asks about a product (by name, model, or family):
+1. Call **search_catalog** with their term
+2. For each matching product, call **get_product_details** with the product IDs
+3. Present a complete picture: dimensions, pricing, features, variations, stock status, lead time, certifications, recommended use — everything you have. Do not summarize away important specs.
+4. Use clear markdown structure: headers, tables for variations, bullet lists for features. Add brief context (e.g., "This is a solid wood dining chair in the Alpine family, ideal for restaurants").
 
-## Formatting
-- Use markdown in all responses: **bold** for emphasis, `code` for IDs and model numbers, ## headers for sections, bullet and numbered lists, and tables for data. The chat UI renders markdown.
+## Response Style — Intelligent, Conversational, Thorough
+- **Explain your reasoning**: When relevant, briefly share how you arrived at an answer (e.g., "I searched the catalog for '5242' and found the Abruzzo dining chair — here's the full breakdown").
+- **Ask clarifying questions**: If the request is ambiguous or you can help further, ask. E.g., "Are you looking for pricing for a specific finish, or a general overview?" or "Would you like me to compare this to similar products?"
+- **Follow up**: Offer next steps or related info. "I can also look up available finishes for this model if you'd like" or "For quote-specific pricing, you'd use the [Quote Management](/admin/quotes) tool."
+- **Be thorough**: Provide comprehensive answers with full context. Don't be brief when the user asks about a product — give them everything.
+- Use tools extensively: multiple searches for research, get_product_details for every product question, calculate when numbers matter.
+
+## Formatting — Clean, Readable Markdown
+- Use markdown in all responses. The chat UI renders it.
+- **Structure**: ## for main sections, ### for subsections. Add blank lines between sections for readability.
+- **Lists**: Bullet lists for features, options; numbered lists for steps.
+- **Tables**: For variations, pricing tiers, comparisons. Keep columns aligned.
+- **Emphasis**: **bold** for key terms, `code` for model numbers and IDs.
+- **Spacing**: Use paragraph breaks. Avoid walls of text — break into scannable blocks.
+- Cite web sources with [title](url). For calculations, show the work.
 
 ## Guiding Admin (Links & Buttons)
 When the admin asks "how do I edit X?" or "where do I do Y?", provide step-by-step instructions and include clickable links. Use markdown: [Go to Product Catalog](/admin/catalog). Internal links (paths starting with /) open in-app. For prominent actions, use descriptive link text like [Edit Product](/admin/catalog) or [View Quote #42](/admin/quotes). You have full knowledge of all admin routes — use them to guide users directly.
@@ -647,6 +681,20 @@ async def stream_ai_response(
                             function_response=types.FunctionResponse(
                                 name=func_name,
                                 response={"catalog": catalog_text},
+                            )
+                        )
+                    )
+
+                elif func_name == "get_product_details":
+                    pids = func_args.get("product_ids", [])
+                    yield AIStreamEvent.thinking(f"Fetching full specs for {len(pids)} product(s)...")
+
+                    result = await get_product_details(pids)
+                    tool_results.append(
+                        types.Part(
+                            function_response=types.FunctionResponse(
+                                name=func_name,
+                                response={"result": result},
                             )
                         )
                     )
@@ -1243,3 +1291,117 @@ async def search_catalog(query: str, max_results: int = 50) -> dict:
     except Exception as e:
         logger.error(f"Catalog search failed: {e}")
         return {"error": str(e), "query": query, "families": [], "products": [], "variations": [], "finishes": [], "upholsteries": [], "colors": [], "categories": []}
+
+
+async def get_product_details(product_ids: list) -> dict:
+    """
+    Fetch full product details (dimensions, features, variations, etc.) for given product IDs.
+    Use after search_catalog to get complete specs for products the user asked about.
+    """
+    if not product_ids:
+        return {"error": "No product IDs provided", "products": []}
+    ids = []
+    for pid in product_ids:
+        try:
+            ids.append(int(pid))
+        except (TypeError, ValueError):
+            continue
+    if not ids:
+        return {"error": "Invalid product IDs", "products": []}
+    ids = ids[:10]
+    try:
+        async with AsyncSessionLocal() as db:
+            products = []
+            for pid in ids:
+                r = await db.execute(
+                    text("""
+                        SELECT ch.id, ch.model_number, ch.model_suffix, ch.suffix_description, ch.name,
+                               ch.base_price, ch.msrp, ch.width, ch.depth, ch.height, ch.seat_height,
+                               ch.weight, ch.upholstery_amount, ch.frame_material, ch.features,
+                               ch.stock_status, ch.is_featured, ch.is_new, ch.is_outdoor_suitable,
+                               ch.recommended_use, ch.minimum_order_quantity, ch.lead_time_days,
+                               ch.ada_compliant, ch.flame_certifications, ch.warranty_info,
+                               pf.name as family_name, c.name as category_name, sc.name as subcategory_name
+                        FROM chairs ch
+                        LEFT JOIN product_families pf ON ch.family_id = pf.id
+                        LEFT JOIN categories c ON ch.category_id = c.id
+                        LEFT JOIN product_subcategories sc ON ch.subcategory_id = sc.id
+                        WHERE ch.id = :pid AND ch.is_active = true
+                    """),
+                    {"pid": pid},
+                )
+                row = r.fetchone()
+                if not row:
+                    products.append({"id": pid, "error": "Product not found"})
+                    continue
+                feats = []
+                if row.features:
+                    try:
+                        f = json.loads(row.features) if isinstance(row.features, str) else row.features
+                        feats = f if isinstance(f, list) else [str(f)]
+                    except Exception:
+                        feats = [str(row.features)]
+                flame = row.flame_certifications
+                if isinstance(flame, str):
+                    try:
+                        flame = json.loads(flame) if flame else []
+                    except Exception:
+                        flame = [flame] if flame else []
+                products.append({
+                    "id": row.id,
+                    "model": row.model_number,
+                    "suffix": row.model_suffix or "",
+                    "full_model": f"{row.model_number}{row.model_suffix or ''}".strip(),
+                    "name": row.name,
+                    "family": row.family_name,
+                    "category": row.category_name,
+                    "subcategory": row.subcategory_name,
+                    "suffix_description": row.suffix_description,
+                    "base_price": f"${row.base_price / 100:.2f}" if row.base_price else None,
+                    "msrp": f"${row.msrp / 100:.2f}" if row.msrp else None,
+                    "dimensions": f"{row.width or '?'}×{row.depth or '?'}×{row.height or '?'} in" if (row.width or row.depth or row.height) else None,
+                    "seat_height": f"{row.seat_height} in" if row.seat_height else None,
+                    "weight": f"{row.weight} lbs" if row.weight else None,
+                    "upholstery_amount": f"{row.upholstery_amount} yds" if row.upholstery_amount else None,
+                    "frame_material": row.frame_material,
+                    "features": feats,
+                    "stock_status": row.stock_status,
+                    "is_featured": row.is_featured,
+                    "is_new": row.is_new,
+                    "is_outdoor_suitable": row.is_outdoor_suitable,
+                    "recommended_use": row.recommended_use,
+                    "minimum_order_quantity": row.minimum_order_quantity,
+                    "lead_time_days": row.lead_time_days,
+                    "ada_compliant": row.ada_compliant,
+                    "flame_certifications": flame,
+                    "warranty_info": row.warranty_info,
+                })
+                rv = await db.execute(
+                    text("""
+                        SELECT pv.id, pv.sku, pv.name, pv.price_adjustment,
+                               f.name as finish_name, u.name as upholstery_name, col.name as color_name
+                        FROM product_variations pv
+                        LEFT JOIN finishes f ON pv.finish_id = f.id
+                        LEFT JOIN upholsteries u ON pv.upholstery_id = u.id
+                        LEFT JOIN colors col ON pv.color_id = col.id
+                        WHERE pv.product_id = :pid AND pv.is_available = true
+                        ORDER BY pv.display_order, pv.sku
+                    """),
+                    {"pid": pid},
+                )
+                vars_list = []
+                for v in rv.fetchall():
+                    adj = f"${v.price_adjustment / 100:+.2f}" if v.price_adjustment else "$0"
+                    vars_list.append({
+                        "sku": v.sku,
+                        "name": v.name or "",
+                        "finish": v.finish_name,
+                        "upholstery": v.upholstery_name,
+                        "color": v.color_name,
+                        "price_adjustment": adj,
+                    })
+                products[-1]["variations"] = vars_list
+            return {"products": products}
+    except Exception as e:
+        logger.error(f"get_product_details failed: {e}")
+        return {"error": str(e), "products": []}

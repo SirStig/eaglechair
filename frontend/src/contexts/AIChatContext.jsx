@@ -12,6 +12,7 @@ import {
   listChats,
   createChatWebSocket,
   uploadFileToChat,
+  deleteChatMessage,
 } from '../services/aiChatService';
 
 const AIChatContext = createContext(null);
@@ -28,6 +29,8 @@ export function AIChatProvider({ children }) {
   const [files, setFiles] = useState([]); // Files attached to current session
 
   const [isLoadingChat, setIsLoadingChat] = useState(false);
+  const [hasMoreMessages, setHasMoreMessages] = useState(false);
+  const [isLoadingOlder, setIsLoadingOlder] = useState(false);
 
   // Streaming state
   const [isStreaming, setIsStreaming] = useState(false);
@@ -100,16 +103,18 @@ export function AIChatProvider({ children }) {
     setWebSources([]);
     setStreamingState(null);
     setPendingFiles([]);
+    setHasMoreMessages(false);
     setIsLoadingChat(true);
 
     try {
-      const { messages: msgs, files: sessionFiles } = await getChat(sessionId);
+      const { messages: msgs, files: sessionFiles, has_more } = await getChat(sessionId);
       setMessages(msgs.map(m => ({
         ...m,
         isStreaming: false,
         streamingContent: '',
       })));
       setFiles(sessionFiles || []);
+      setHasMoreMessages(has_more ?? false);
     } catch (err) {
       console.error('Failed to load chat messages:', err);
     } finally {
@@ -117,7 +122,32 @@ export function AIChatProvider({ children }) {
     }
   }, [currentSessionId]);
 
-  // Start a new chat
+  const loadOlderMessages = useCallback(async () => {
+    if (!currentSessionId || !hasMoreMessages || isLoadingOlder || messages.length === 0) return;
+    const oldestId = messages[0]?.id;
+    if (!oldestId) return;
+    setIsLoadingOlder(true);
+    try {
+      const { messages: olderMsgs, has_more } = await getChat(currentSessionId, {
+        limit: 50,
+        beforeId: oldestId,
+      });
+      if (olderMsgs?.length > 0) {
+        const normalized = olderMsgs.map(m => ({
+          ...m,
+          isStreaming: false,
+          streamingContent: '',
+        }));
+        setMessages(prev => [...normalized, ...prev]);
+      }
+      setHasMoreMessages(has_more ?? false);
+    } catch (err) {
+      console.error('Failed to load older messages:', err);
+    } finally {
+      setIsLoadingOlder(false);
+    }
+  }, [currentSessionId, hasMoreMessages, isLoadingOlder, messages.length]);
+
   const newChat = useCallback(async () => {
     if (wsRef.current) {
       wsRef.current.close();
@@ -132,8 +162,10 @@ export function AIChatProvider({ children }) {
       setPendingFiles([]);
       setFiles([]);
       setSessions(prev => [session, ...prev]);
+      return session;
     } catch (err) {
       console.error('Failed to create new chat:', err);
+      return null;
     }
   }, []);
 
@@ -293,9 +325,11 @@ export function AIChatProvider({ children }) {
     return ws;
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const sendMessage = useCallback(async (content, fileIds = []) => {
+  const sendMessage = useCallback(async (content, fileIds = [], opts = {}) => {
     if (isStreaming) return;
     if (!content.trim() && fileIds.length === 0) return;
+
+    const skipUserMessage = opts.skipUserMessage === true;
 
     let sessionId = currentSessionId;
     if (!sessionId) {
@@ -317,15 +351,17 @@ export function AIChatProvider({ children }) {
       }
     }
 
-    const userMsgId = `user-${Date.now()}`;
-    setMessages(prev => [...prev, {
-      id: userMsgId,
-      role: 'user',
-      content,
-      file_ids: fileIds,
-      created_at: new Date().toISOString(),
-      isStreaming: false,
-    }]);
+    if (!skipUserMessage) {
+      const userMsgId = `user-${Date.now()}`;
+      setMessages(prev => [...prev, {
+        id: userMsgId,
+        role: 'user',
+        content,
+        file_ids: fileIds,
+        created_at: new Date().toISOString(),
+        isStreaming: false,
+      }]);
+    }
 
     setIsStreaming(true);
     setStreamingState({ type: 'thinking', message: 'Thinking...' });
@@ -372,6 +408,56 @@ export function AIChatProvider({ children }) {
       }]);
     }
   }, [currentSessionId, isStreaming, connectWS]);
+
+  const redoMessage = useCallback(async (messageId) => {
+    let userMsgToResend = null;
+    setMessages(prev => {
+      const idx = prev.findIndex(m => m.id === messageId);
+      if (idx < 0) return prev;
+      const msg = prev[idx];
+      if (msg.role !== 'assistant' || msg.isStreaming) return prev;
+      const userIdx = prev.findLastIndex((m, i) => i < idx && m.role === 'user');
+      if (userIdx < 0) return prev;
+      userMsgToResend = prev[userIdx];
+      return prev.slice(0, idx).concat(prev.slice(idx + 1));
+    });
+    if (userMsgToResend && currentSessionId) {
+      try {
+        await deleteChatMessage(currentSessionId, messageId);
+      } catch (err) {
+        if (err?.message?.includes('404') || err?.message?.includes('not found')) {
+        } else {
+          console.error('Failed to delete message:', err);
+        }
+      }
+      sendMessage(userMsgToResend.content, userMsgToResend.file_ids || [], { skipUserMessage: true });
+    }
+  }, [currentSessionId, sendMessage]);
+
+  const retryMessage = useCallback(async (messageId) => {
+    let userMsgToResend = null;
+    setMessages(prev => {
+      const idx = prev.findIndex(m => m.id === messageId);
+      if (idx < 0) return prev;
+      const msg = prev[idx];
+      if (msg.role !== 'assistant' || !msg.isError) return prev;
+      const userIdx = prev.findLastIndex((m, i) => i < idx && m.role === 'user');
+      if (userIdx < 0) return prev;
+      userMsgToResend = prev[userIdx];
+      return prev.slice(0, idx).concat(prev.slice(idx + 1));
+    });
+    if (userMsgToResend && currentSessionId) {
+      try {
+        await deleteChatMessage(currentSessionId, messageId);
+      } catch (err) {
+        if (err?.message?.includes('404') || err?.message?.includes('not found')) {
+        } else {
+          console.error('Failed to delete message:', err);
+        }
+      }
+      sendMessage(userMsgToResend.content, userMsgToResend.file_ids || [], { skipUserMessage: true });
+    }
+  }, [currentSessionId, sendMessage]);
 
   const uploadFile = useCallback(async (file) => {
     let sessionId = currentSessionId;
@@ -434,6 +520,8 @@ export function AIChatProvider({ children }) {
     webSources,
     pendingFiles,
     isLoadingChat,
+    hasMoreMessages,
+    isLoadingOlder,
 
     // Actions
     openChat,
@@ -442,11 +530,14 @@ export function AIChatProvider({ children }) {
     switchSession,
     newChat,
     sendMessage,
+    redoMessage,
+    retryMessage,
     uploadFile,
     removePendingFile,
     loadSessions,
     setMessages,
     setSessions,
+    loadOlderMessages,
   };
 
   return (

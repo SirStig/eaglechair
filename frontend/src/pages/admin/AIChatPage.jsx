@@ -6,7 +6,7 @@
 
 import { useState, useRef, useEffect, useCallback } from 'react';
 import { useMediaQuery } from '../../hooks/useMediaQuery';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useParams } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   ArrowLeft,
@@ -31,6 +31,7 @@ import AIChatMessage from '../../components/admin/ai/AIChatMessage';
 import AIChatInput from '../../components/admin/ai/AIChatInput';
 import AIChatStreamStatus from '../../components/admin/ai/AIChatStreamStatus';
 import AIChatSidebar from '../../components/admin/ai/AIChatSidebar';
+import ChatMessageList from '../../components/admin/ai/ChatMessageList';
 import {
   getMemory,
   deleteMemory,
@@ -505,6 +506,7 @@ function TrainingPanel({ onClose, showClose }) {
 
 export default function AIChatPage() {
   const navigate = useNavigate();
+  const { chatId } = useParams();
   const isMobile = useMediaQuery('(max-width: 639px)');
   const [rightPanel, setRightPanel] = useState(isMobile ? null : 'memory');
   const messagesEndRef = useRef(null);
@@ -527,13 +529,18 @@ export default function AIChatPage() {
     streamingState,
     pendingFiles,
     isLoadingChat,
+    hasMoreMessages,
+    isLoadingOlder,
     sendMessage,
+    redoMessage,
+    retryMessage,
     uploadFile,
     removePendingFile,
     switchSession,
     newChat,
     openChat,
     setSessions,
+    loadOlderMessages,
   } = useAIChat();
 
   useEffect(() => {
@@ -541,15 +548,32 @@ export default function AIChatPage() {
   }, [openChat]);
 
   useEffect(() => {
+    if (chatId && chatId !== currentSessionId) {
+      switchSession(chatId);
+    }
+  }, [chatId, currentSessionId, switchSession]);
+
+  useEffect(() => {
+    if (!chatId && currentSessionId) {
+      navigate(`/admin/ai/${currentSessionId}`, { replace: true });
+    }
+  }, [chatId, currentSessionId, navigate]);
+
+  useEffect(() => {
     if (messagesEndRef.current) {
       messagesEndRef.current.scrollIntoView({ behavior: 'smooth' });
     }
   }, [messages, streamingState]);
 
+  const handleNewChat = useCallback(async () => {
+    const session = await newChat();
+    if (session) navigate(`/admin/ai/${session.id}`);
+  }, [newChat, navigate]);
+
   const handleDeleteSession = useCallback((sessionId) => {
     setSessions(prev => prev.filter(s => s.id !== sessionId));
-    if (sessionId === currentSessionId) newChat();
-  }, [currentSessionId, newChat, setSessions]);
+    if (sessionId === currentSessionId) handleNewChat();
+  }, [currentSessionId, handleNewChat, setSessions]);
 
   const handleUpdateSession = useCallback((sessionId, updates) => {
     setSessions(prev => prev.map(s => s.id === sessionId ? { ...s, ...updates } : s));
@@ -576,8 +600,8 @@ export default function AIChatPage() {
             <AIChatSidebar
               sessions={sessions}
               currentSessionId={currentSessionId}
-              onSelect={switchSession}
-              onNew={newChat}
+              onSelect={(id) => navigate(`/admin/ai/${id}`)}
+              onNew={handleNewChat}
               onDelete={handleDeleteSession}
               onUpdate={handleUpdateSession}
             />
@@ -654,7 +678,7 @@ export default function AIChatPage() {
         <div className="flex flex-1 overflow-hidden">
           {/* Messages */}
           <div className="flex-1 flex flex-col overflow-hidden">
-            <div className="flex-1 overflow-y-auto px-3 sm:px-6 pt-4 sm:pt-6 pb-2">
+            <div className="flex-1 min-h-0 overflow-hidden">
               {isLoadingChat ? (
                 <div className="flex flex-col items-center justify-center h-full min-h-[280px]">
                   <Loader2 className="w-10 h-10 animate-spin text-chat-accent" />
@@ -689,13 +713,16 @@ export default function AIChatPage() {
                   </div>
                 </div>
               ) : (
-                <>
-                  {messages.map(msg => (
-                    <AIChatMessage key={msg.id} message={msg} />
-                  ))}
-                  {streamingState && <AIChatStreamStatus state={streamingState} />}
-                  <div ref={messagesEndRef} />
-                </>
+                <ChatMessageList
+                  messages={messages}
+                  streamingState={streamingState}
+                  hasMoreMessages={hasMoreMessages}
+                  isLoadingOlder={isLoadingOlder}
+                  onLoadOlder={loadOlderMessages}
+                  messagesEndRef={messagesEndRef}
+                  onRedo={redoMessage}
+                  onRetry={retryMessage}
+                />
               )}
             </div>
 

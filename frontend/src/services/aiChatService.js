@@ -69,7 +69,13 @@ export const listChats = (archived = false) =>
 
 export const createChat = () => apiFetch('/chats', { method: 'POST' });
 
-export const getChat = (id) => apiFetch(`/chats/${id}`);
+export const getChat = (id, { limit = 100, beforeId } = {}) => {
+  const params = new URLSearchParams();
+  if (limit) params.set('limit', String(limit));
+  if (beforeId) params.set('before_id', beforeId);
+  const qs = params.toString();
+  return apiFetch(`/chats/${id}${qs ? `?${qs}` : ''}`);
+};
 
 export const updateChat = (id, data) =>
   apiFetch(`/chats/${id}`, {
@@ -79,6 +85,9 @@ export const updateChat = (id, data) =>
 
 export const deleteChat = (id) =>
   apiFetch(`/chats/${id}`, { method: 'DELETE' });
+
+export const deleteChatMessage = (sessionId, messageId) =>
+  apiFetch(`/chats/${sessionId}/messages/${messageId}`, { method: 'DELETE' });
 
 // ── File Upload ───────────────────────────────────────────────────────────
 

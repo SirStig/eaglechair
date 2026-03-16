@@ -10,10 +10,9 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { X, Maximize2, Minimize2, ChevronLeft, MessageSquare, Loader2 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useAIChat } from '../../../contexts/AIChatContext';
-import AIChatMessage from './AIChatMessage';
 import AIChatInput from './AIChatInput';
-import AIChatStreamStatus from './AIChatStreamStatus';
 import AIChatSidebar from './AIChatSidebar';
+import ChatMessageList from './ChatMessageList';
 
 function WelcomeScreen({ onSuggestionClick }) {
   const suggestions = [
@@ -60,12 +59,17 @@ export default function AIChatWidget() {
     streamingState,
     pendingFiles,
     isLoadingChat,
+    hasMoreMessages,
+    isLoadingOlder,
     sendMessage,
+    redoMessage,
+    retryMessage,
     uploadFile,
     removePendingFile,
     switchSession,
     newChat,
     setSessions,
+    loadOlderMessages,
   } = useAIChat();
 
   const messagesEndRef = useRef(null);
@@ -80,7 +84,7 @@ export default function AIChatWidget() {
   }, [messages, streamingState]);
 
   const handleOpenFullScreen = () => {
-    navigate('/admin/ai');
+    navigate(currentSessionId ? `/admin/ai/${currentSessionId}` : '/admin/ai');
   };
 
   const handleDeleteSession = useCallback((sessionId) => {
@@ -190,7 +194,7 @@ export default function AIChatWidget() {
           {/* Chat area */}
           <div className="flex-1 flex flex-col overflow-hidden">
             {/* Messages */}
-            <div className="flex-1 overflow-y-auto px-2 sm:px-3 pt-2 sm:pt-3 pb-1 scroll-smooth">
+            <div className="flex-1 min-h-0 overflow-hidden">
               {isLoadingChat ? (
                 <div className="flex flex-col items-center justify-center h-full min-h-[200px]">
                   <Loader2 className="w-8 h-8 animate-spin text-chat-accent" />
@@ -199,15 +203,17 @@ export default function AIChatWidget() {
               ) : messages.length === 0 ? (
                 <WelcomeScreen onSuggestionClick={sendMessage} />
               ) : (
-                <>
-                  {messages.map(msg => (
-                    <AIChatMessage key={msg.id} message={msg} />
-                  ))}
-                  {streamingState && (
-                    <AIChatStreamStatus state={streamingState} />
-                  )}
-                  <div ref={messagesEndRef} />
-                </>
+                <ChatMessageList
+                  messages={messages}
+                  streamingState={streamingState}
+                  hasMoreMessages={hasMoreMessages}
+                  isLoadingOlder={isLoadingOlder}
+                  onLoadOlder={loadOlderMessages}
+                  messagesEndRef={messagesEndRef}
+                  onRedo={redoMessage}
+                  onRetry={retryMessage}
+                  compact
+                />
               )}
             </div>
 

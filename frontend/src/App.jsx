@@ -95,6 +95,16 @@ function App() {
 
           {/* Admin Routes (No Layout - Full Screen) */}
           <Route
+            path="/admin/ai/:chatId"
+            element={
+              <ProtectedRoute requireAdmin={true}>
+                <AIChatProvider>
+                  <AIChatPage />
+                </AIChatProvider>
+              </ProtectedRoute>
+            }
+          />
+          <Route
             path="/admin/ai"
             element={
               <ProtectedRoute requireAdmin={true}>

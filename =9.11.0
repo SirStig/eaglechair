@@ -1,0 +1,8 @@
+Collecting ddgs
+  Downloading ddgs-9.11.4-py3-none-any.whl.metadata (14 kB)
+Requirement already satisfied: click>=8.1.8 in ./venv/lib64/python3.11/site-packages (from ddgs) (8.3.0)
+Requirement already satisfied: primp==1.1.3 in ./venv/lib64/python3.11/site-packages (from ddgs) (1.1.3)
+Requirement already satisfied: lxml>=4.9.4 in ./venv/lib64/python3.11/site-packages (from ddgs) (6.0.2)
+Downloading ddgs-9.11.4-py3-none-any.whl (43 kB)
+Installing collected packages: ddgs
+Successfully installed ddgs-9.11.4
