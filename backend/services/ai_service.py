@@ -589,14 +589,18 @@ async def stream_ai_response(
     session_messages: list[dict],
     system_prompt: str,
     model: str = "gemini-2.0-flash",
+    cancelled: asyncio.Event | None = None,
 ) -> AsyncGenerator[dict, None]:
     """
     Core streaming generator. Yields AIStreamEvent dicts.
     Handles tool calls in a loop until model returns final text.
+    If cancelled is set, exits early before/after each operation.
     """
     client = get_gemini_client()
 
-    # Build Gemini message history
+    def _cancelled() -> bool:
+        return cancelled is not None and cancelled.is_set()
+
     contents = []
     for msg in session_messages:
         role = "user" if msg["role"] == "user" else "model"
@@ -605,17 +609,19 @@ async def stream_ai_response(
     web_sources_accumulated = []
     search_count = 0
 
+    if _cancelled():
+        return
     yield AIStreamEvent.thinking()
 
-    # Tool execution loop
-    max_tool_rounds = 10  # Prevent infinite loops
+    max_tool_rounds = 10
     tool_round = 0
 
     while tool_round < max_tool_rounds:
         tool_round += 1
+        if _cancelled():
+            break
 
         try:
-            # Collect full response (non-streaming for tool call detection)
             response = await asyncio.to_thread(
                 lambda: client.models.generate_content(
                     model=model,
@@ -632,7 +638,9 @@ async def stream_ai_response(
             yield AIStreamEvent.error(f"AI error: {str(e)}")
             return
 
-        # Check for function calls in response
+        if _cancelled():
+            break
+
         has_tool_calls = False
         function_calls_to_execute = []
 
@@ -643,16 +651,18 @@ async def stream_ai_response(
                     function_calls_to_execute.append(part.function_call)
 
         if has_tool_calls:
-            # Add the model's tool call response to contents
             contents.append(response.candidates[0].content)
 
-            # Execute all tool calls and collect results
             tool_results = []
             for fc in function_calls_to_execute:
+                if _cancelled():
+                    break
                 func_name = fc.name
                 func_args = dict(fc.args) if fc.args else {}
 
                 if func_name == "web_search":
+                    if _cancelled():
+                        break
                     query = func_args.get("query", "")
                     max_r = min(int(func_args.get("max_results", 12)), 15)
                     search_count += 1
@@ -673,6 +683,8 @@ async def stream_ai_response(
                     )
 
                 elif func_name == "fetch_webpage":
+                    if _cancelled():
+                        break
                     url = func_args.get("url", "")
                     yield AIStreamEvent.fetching_url(url)
 
@@ -695,6 +707,8 @@ async def stream_ai_response(
                     )
 
                 elif func_name == "calculate":
+                    if _cancelled():
+                        break
                     expression = func_args.get("expression", "")
                     yield AIStreamEvent.calculating(expression)
 
@@ -709,6 +723,8 @@ async def stream_ai_response(
                     )
 
                 elif func_name == "search_catalog":
+                    if _cancelled():
+                        break
                     query = func_args.get("query", "").strip()
                     yield AIStreamEvent.thinking(f"Searching catalog for '{query}'...")
 
@@ -723,6 +739,8 @@ async def stream_ai_response(
                     )
 
                 elif func_name == "get_product_catalog":
+                    if _cancelled():
+                        break
                     yield AIStreamEvent.thinking("Loading product catalog from database...")
 
                     catalog_text = await fetch_product_catalog()
@@ -736,6 +754,8 @@ async def stream_ai_response(
                     )
 
                 elif func_name == "get_product_details":
+                    if _cancelled():
+                        break
                     pids = func_args.get("product_ids", [])
                     yield AIStreamEvent.thinking(f"Fetching full specs for {len(pids)} product(s)...")
 
@@ -783,15 +803,14 @@ async def stream_ai_response(
                         )
                     )
 
-            # Add tool results back
             contents.append(types.Content(role="user", parts=tool_results))
+            if _cancelled():
+                break
             yield AIStreamEvent.thinking("Processing results...")
             continue
 
-        # No tool calls — stream the final text response
         break
 
-    # Now stream the final response text
     try:
         final_text_parts = []
         for candidate in response.candidates:
@@ -801,9 +820,10 @@ async def stream_ai_response(
 
         full_text = "".join(final_text_parts)
 
-        # Stream in chunks for smooth UX
         chunk_size = 30
         for i in range(0, len(full_text), chunk_size):
+            if _cancelled():
+                break
             chunk = full_text[i:i + chunk_size]
             yield AIStreamEvent.text_chunk(chunk)
             await asyncio.sleep(0.01)

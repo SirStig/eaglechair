@@ -76,7 +76,7 @@ const markdownComponents = {
     const isAction = /^(go to|edit|view|open|manage|add|create)\s/i.test(label.toLowerCase()) || label.includes('→');
     const useButtonStyle = isAdminLink || isAction;
     const btnClass = useButtonStyle
-      ? 'inline-flex items-center gap-1 px-2 py-1 rounded-lg bg-primary-500/20 hover:bg-primary-500/30 text-primary-400 hover:text-primary-300 border border-primary-500/40 font-medium no-underline'
+      ? 'inline-flex items-center gap-1 text-chat-link hover:text-chat-link-hover underline underline-offset-2 hover:bg-chat-link/5 rounded px-0.5 -mx-0.5 transition-colors'
       : 'text-chat-link hover:text-chat-link-hover underline underline-offset-2';
     if (isInternal) {
       return (
@@ -214,12 +214,12 @@ export default function AIChatMessage({ message, onRedo, onRetry, onEditApplied 
       )}
 
       <div className={`
-        max-w-[92%] sm:max-w-[85%] rounded-2xl px-4 py-3 text-[15px] leading-[1.7] tracking-[0.01em]
+        w-full max-w-full text-[15px] leading-[1.7] tracking-[0.01em]
         ${isUser
-          ? 'bg-chat-user-bubble hover:bg-chat-user-bubble-hover text-white rounded-tr-sm'
-          : 'bg-dark-800 border border-dark-700 text-dark-100 rounded-tl-sm'
+          ? 'max-w-[92%] sm:max-w-[85%] rounded-2xl px-4 py-3 bg-chat-user-bubble hover:bg-chat-user-bubble-hover text-white rounded-tr-sm'
+          : 'px-0 py-2 text-dark-100'
         }
-        ${message.isError ? 'border-red-500/50 bg-red-900/20 text-red-300' : ''}
+        ${!isUser && message.isError ? 'text-red-300' : ''}
       `}>
         {/* File badges */}
         {message.file_ids && message.file_ids.length > 0 && (

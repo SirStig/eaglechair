@@ -532,6 +532,7 @@ export default function AIChatPage() {
     isLoadingChat,
     hasMoreMessages,
     isLoadingOlder,
+    interrupt,
     sendMessage,
     redoMessage,
     retryMessage,
@@ -566,12 +567,6 @@ export default function AIChatPage() {
     });
     return () => setOnSessionCreated(null);
   }, [location.pathname, navigate, setOnSessionCreated]);
-
-  useEffect(() => {
-    if (messagesEndRef.current) {
-      messagesEndRef.current.scrollIntoView({ behavior: 'smooth' });
-    }
-  }, [messages, streamingState]);
 
   const handleNewChat = useCallback(() => {
     navigate('/admin/ai');
@@ -736,6 +731,7 @@ export default function AIChatPage() {
             <AIChatInput
               onSend={sendMessage}
               onUpload={uploadFile}
+              onStop={interrupt}
               isStreaming={isStreaming}
               pendingFiles={pendingFiles}
               onRemoveFile={removePendingFile}

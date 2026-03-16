@@ -1,10 +1,11 @@
-import { useRef, useCallback, useEffect } from 'react';
+import { useRef, useCallback, useEffect, useState } from 'react';
 import { Virtuoso } from 'react-virtuoso';
 import { Loader2 } from 'lucide-react';
 import AIChatMessage from './AIChatMessage';
 import AIChatStreamStatus from './AIChatStreamStatus';
 
 const VIRTUALIZE_THRESHOLD = 25;
+const NEAR_BOTTOM_THRESHOLD = 150;
 
 export default function ChatMessageList({
   messages,
@@ -20,10 +21,29 @@ export default function ChatMessageList({
   const px = compact ? 'px-2 sm:px-3' : 'px-3 sm:px-6';
   const pt = compact ? 'pt-2 sm:pt-3' : 'pt-4 sm:pt-6';
   const loadOlderTriggered = useRef(false);
+  const scrollContainerRef = useRef(null);
+  const [isUserNearBottom, setIsUserNearBottom] = useState(true);
 
   useEffect(() => {
     if (!isLoadingOlder) loadOlderTriggered.current = false;
   }, [isLoadingOlder]);
+
+  const checkNearBottom = useCallback(() => {
+    const el = scrollContainerRef.current;
+    if (!el) return true;
+    const { scrollTop, scrollHeight, clientHeight } = el;
+    const distanceFromBottom = scrollHeight - scrollTop - clientHeight;
+    return distanceFromBottom <= NEAR_BOTTOM_THRESHOLD;
+  }, []);
+
+  const handleScroll = useCallback(() => {
+    setIsUserNearBottom(checkNearBottom());
+  }, [checkNearBottom]);
+
+  useEffect(() => {
+    if (!isUserNearBottom || !messagesEndRef?.current) return;
+    messagesEndRef.current.scrollIntoView({ behavior: 'smooth' });
+  }, [messages, streamingState, isUserNearBottom, messagesEndRef]);
 
   const handleStartReached = useCallback(() => {
     if (hasMoreMessages && !isLoadingOlder && messages.length > 0 && !loadOlderTriggered.current) {
@@ -38,7 +58,11 @@ export default function ChatMessageList({
 
   if (!useVirtualization) {
     return (
-      <div className={`flex-1 min-h-0 overflow-y-auto overscroll-contain scroll-smooth ${px} ${pt} pb-2`}>
+      <div
+        ref={scrollContainerRef}
+        onScroll={handleScroll}
+        className={`flex-1 min-h-0 overflow-y-auto overscroll-contain scroll-smooth ${px} ${pt} pb-2`}
+      >
         {hasMoreMessages && (
           <div className="flex justify-center py-3">
             {isLoadingOlder ? (
@@ -71,8 +95,9 @@ export default function ChatMessageList({
         data={messages}
         className="flex-1 min-h-0"
         style={{ minHeight: 0 }}
-        followOutput="smooth"
+        followOutput={(atBottom) => (atBottom ? 'smooth' : false)}
         alignToBottom
+        atBottomStateChange={setIsUserNearBottom}
         startReached={handleStartReached}
         itemContent={(index, msg) => (
           <div className={`${px} ${index === 0 ? pt : 'pt-1'}`}>

@@ -4,7 +4,7 @@
  */
 
 import { useState, useRef, useCallback } from 'react';
-import { Send, Paperclip, X, Loader2, Image, FileText, Table } from 'lucide-react';
+import { Send, Paperclip, X, Loader2, Image, FileText, Table, Square } from 'lucide-react';
 
 const FILE_TYPE_ICONS = {
   pdf: <FileText className="w-3 h-3" />,
@@ -24,6 +24,7 @@ function formatFileSize(bytes) {
 export default function AIChatInput({
   onSend,
   onUpload,
+  onStop,
   isStreaming,
   pendingFiles,
   onRemoveFile,
@@ -38,14 +39,14 @@ export default function AIChatInput({
 
   const handleSend = useCallback(() => {
     const text = input.trim();
-    if ((!text && pendingFiles.length === 0) || isStreaming || disabled) return;
+    if ((!text && pendingFiles.length === 0) || disabled) return;
     const fileIds = pendingFiles.map(f => f.file_id);
     onSend(text, fileIds);
     setInput('');
     if (textareaRef.current) {
       textareaRef.current.style.height = 'auto';
     }
-  }, [input, pendingFiles, isStreaming, disabled, onSend]);
+  }, [input, pendingFiles, disabled, onSend]);
 
   const handleKeyDown = useCallback((e) => {
     if (e.key === 'Enter' && !e.shiftKey) {
@@ -140,7 +141,7 @@ export default function AIChatInput({
         {/* File upload button */}
         <button
           onClick={() => fileInputRef.current?.click()}
-          disabled={isStreaming || disabled || isUploading}
+          disabled={disabled || isUploading}
           className="flex-shrink-0 w-9 h-9 sm:w-8 sm:h-8 rounded-lg flex items-center justify-center text-dark-400 hover:text-dark-100 hover:bg-dark-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed touch-manipulation"
           title="Attach file (PDF, CSV, image, etc.)"
         >
@@ -166,26 +167,33 @@ export default function AIChatInput({
             value={input}
             onChange={handleTextareaChange}
             onKeyDown={handleKeyDown}
-            disabled={isStreaming || disabled}
-            placeholder={isStreaming ? 'AI is responding...' : placeholder}
+            disabled={disabled}
+            placeholder={isStreaming ? 'AI is responding... (type to send new message)' : placeholder}
             rows={1}
             className="w-full bg-dark-700 border border-dark-600 rounded-xl px-3 py-2.5 sm:py-2 text-sm text-dark-50 placeholder-dark-400 resize-none focus:outline-none focus:border-chat-focus focus:ring-1 focus:ring-chat-focus/30 transition-colors disabled:opacity-50 disabled:cursor-not-allowed leading-relaxed min-h-[44px] sm:min-h-[36px]"
             style={{ maxHeight: '160px' }}
           />
         </div>
 
-        {/* Send button */}
-        <button
-          onClick={handleSend}
-          disabled={(!input.trim() && pendingFiles.length === 0) || isStreaming || disabled}
-          className="flex-shrink-0 w-9 h-9 sm:w-8 sm:h-8 rounded-lg flex items-center justify-center bg-chat-button hover:bg-chat-button-hover text-white transition-colors disabled:opacity-40 disabled:cursor-not-allowed touch-manipulation"
-          title="Send (Enter)"
-        >
-          {isStreaming
-            ? <Loader2 className="w-4 h-4 animate-spin" />
-            : <Send className="w-4 h-4" />
-          }
-        </button>
+        {isStreaming ? (
+          <button
+            onClick={onStop}
+            disabled={disabled}
+            className="flex-shrink-0 w-9 h-9 sm:w-8 sm:h-8 rounded-lg flex items-center justify-center bg-red-500/80 hover:bg-red-500 text-white transition-colors disabled:opacity-40 disabled:cursor-not-allowed touch-manipulation"
+            title="Stop generating"
+          >
+            <Square className="w-3.5 h-3.5 fill-current" />
+          </button>
+        ) : (
+          <button
+            onClick={handleSend}
+            disabled={(!input.trim() && pendingFiles.length === 0) || disabled}
+            className="flex-shrink-0 w-9 h-9 sm:w-8 sm:h-8 rounded-lg flex items-center justify-center bg-chat-button hover:bg-chat-button-hover text-white transition-colors disabled:opacity-40 disabled:cursor-not-allowed touch-manipulation"
+            title="Send (Enter)"
+          >
+            <Send className="w-4 h-4" />
+          </button>
+        )}
       </div>
 
       <p className="text-[10px] text-dark-500 mt-1.5 text-center hidden sm:block">

@@ -40,12 +40,21 @@ export function AIChatProvider({ children }) {
   // Pending files for next message
   const [pendingFiles, setPendingFiles] = useState([]); // [{file_id, filename, file_type}]
 
-  // WS ref
   const wsRef = useRef(null);
+  const wsSessionIdRef = useRef(null);
   const currentStreamIdRef = useRef(null);
   const reconnectTimer = useRef(null);
   const handleWSMessageRef = useRef(null);
   const onSessionCreatedRef = useRef(null);
+  const lastStreamingActivityRef = useRef(null);
+  const streamingStuckTimerRef = useRef(null);
+  const currentSessionIdRef = useRef(currentSessionId);
+
+  const STREAMING_STUCK_MS = 45000;
+
+  useEffect(() => {
+    currentSessionIdRef.current = currentSessionId;
+  }, [currentSessionId]);
 
   const loadSessions = useCallback(async () => {
     try {
@@ -82,6 +91,7 @@ export function AIChatProvider({ children }) {
     if (wsRef.current) {
       wsRef.current.close();
       wsRef.current = null;
+      wsSessionIdRef.current = null;
     }
 
     setCurrentSessionId(sessionId);
@@ -144,6 +154,7 @@ export function AIChatProvider({ children }) {
     if (wsRef.current) {
       wsRef.current.close();
       wsRef.current = null;
+      wsSessionIdRef.current = null;
     }
     setCurrentSessionId(null);
     setMessages([]);
@@ -156,6 +167,10 @@ export function AIChatProvider({ children }) {
 
   const handleWSMessage = useCallback((msg) => {
     const { type, data } = msg;
+
+    if (type !== 'pong' && type !== 'title_update') {
+      lastStreamingActivityRef.current = Date.now();
+    }
 
     switch (type) {
       case 'thinking':
@@ -290,13 +305,36 @@ export function AIChatProvider({ children }) {
     handleWSMessageRef.current = handleWSMessage;
   }, [handleWSMessage]);
 
+  const forceEndStreaming = useCallback(() => {
+    setStreamingState(null);
+    setIsStreaming(false);
+    setMessages(prev => {
+      const last = prev[prev.length - 1];
+      if (last?.isStreaming) {
+        return prev.slice(0, -1).concat({
+          ...last,
+          content: last.streamingContent || last.content || '',
+          streamingContent: '',
+          isStreaming: false,
+        });
+      }
+      return prev;
+    });
+  }, []);
+
   const connectWS = useCallback((sessionId) => {
+    if (wsRef.current?.readyState === WebSocket.OPEN && wsSessionIdRef.current === sessionId) {
+      return wsRef.current;
+    }
     if (wsRef.current) {
       wsRef.current.close();
+      wsRef.current = null;
+      wsSessionIdRef.current = null;
     }
 
     const ws = createChatWebSocket(sessionId);
     wsRef.current = ws;
+    wsSessionIdRef.current = sessionId;
 
     ws.onopen = () => {
       console.log('AI Chat WebSocket connected');
@@ -317,9 +355,9 @@ export function AIChatProvider({ children }) {
 
     ws.onclose = (event) => {
       if (event.code !== 1000 && event.code !== 4001) {
-        // Auto-reconnect after 3s (unless auth error)
+        forceEndStreaming();
         reconnectTimer.current = setTimeout(() => {
-          if (currentSessionId === sessionId) {
+          if (currentSessionIdRef.current === sessionId) {
             connectWS(sessionId);
           }
         }, 3000);
@@ -327,22 +365,28 @@ export function AIChatProvider({ children }) {
     };
 
     return ws;
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [forceEndStreaming]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const interrupt = useCallback(() => {
+    if (!wsRef.current || wsRef.current.readyState !== WebSocket.OPEN) return;
+    wsRef.current.send(JSON.stringify({ type: 'interrupt' }));
+  }, []);
 
   const sendMessage = useCallback(async (content, fileIds = [], opts = {}) => {
-    if (isStreaming) return;
     if (!content.trim() && fileIds.length === 0) return;
+    if (isStreaming) interrupt();
 
     const skipUserMessage = opts.skipUserMessage === true;
 
     let sessionId = currentSessionId;
+    let shouldNotifySessionCreated = false;
     if (!sessionId) {
       try {
         const session = await createChat();
         sessionId = session.id;
         setCurrentSessionId(sessionId);
         setSessions(prev => [session, ...prev]);
-        onSessionCreatedRef.current?.(sessionId);
+        shouldNotifySessionCreated = true;
       } catch (err) {
         console.error('Failed to create chat:', err);
         setMessages(prev => [...prev, {
@@ -371,6 +415,7 @@ export function AIChatProvider({ children }) {
     setIsStreaming(true);
     setStreamingState({ type: 'thinking', message: 'Thinking...' });
     setWebSources([]);
+    lastStreamingActivityRef.current = Date.now();
 
     let ws = wsRef.current;
     if (!ws || ws.readyState !== WebSocket.OPEN) {
@@ -401,6 +446,9 @@ export function AIChatProvider({ children }) {
         content,
         file_ids: fileIds,
       }));
+      if (shouldNotifySessionCreated) {
+        onSessionCreatedRef.current?.(sessionId);
+      }
     } else {
       setIsStreaming(false);
       setStreamingState(null);
@@ -502,16 +550,42 @@ export function AIChatProvider({ children }) {
   useEffect(() => {
     return () => {
       if (wsRef.current) wsRef.current.close();
+      wsSessionIdRef.current = null;
       if (reconnectTimer.current) clearTimeout(reconnectTimer.current);
+      if (streamingStuckTimerRef.current) clearInterval(streamingStuckTimerRef.current);
     };
   }, []);
 
-  // Load session messages when switching
   useEffect(() => {
     if (currentSessionId && isOpen) {
       connectWS(currentSessionId);
     }
   }, [currentSessionId, isOpen, connectWS]);
+
+  useEffect(() => {
+    if (!isStreaming) {
+      if (streamingStuckTimerRef.current) {
+        clearInterval(streamingStuckTimerRef.current);
+        streamingStuckTimerRef.current = null;
+      }
+      return;
+    }
+    streamingStuckTimerRef.current = setInterval(() => {
+      const last = lastStreamingActivityRef.current;
+      if (last && Date.now() - last > STREAMING_STUCK_MS) {
+        if (streamingStuckTimerRef.current) {
+          clearInterval(streamingStuckTimerRef.current);
+          streamingStuckTimerRef.current = null;
+        }
+        forceEndStreaming();
+      }
+    }, 5000);
+    return () => {
+      if (streamingStuckTimerRef.current) {
+        clearInterval(streamingStuckTimerRef.current);
+      }
+    };
+  }, [isStreaming, forceEndStreaming]);
 
   const value = {
     // State
@@ -535,6 +609,7 @@ export function AIChatProvider({ children }) {
     toggleFullScreen,
     switchSession,
     newChat,
+    interrupt,
     sendMessage,
     redoMessage,
     retryMessage,

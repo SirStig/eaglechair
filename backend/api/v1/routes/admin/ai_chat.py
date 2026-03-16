@@ -757,6 +757,7 @@ async def websocket_chat(websocket: WebSocket, session_id: str):
 
     Client sends:
       {"type": "message", "content": "...", "file_ids": [...]}
+      {"type": "interrupt"}  - stop current stream
       {"type": "ping"}
 
     Server streams:
@@ -814,35 +815,42 @@ async def websocket_chat(websocket: WebSocket, session_id: str):
 
         logger.info(f"WebSocket connected for session {session_id} admin={admin_id}")
 
+        pending_message = None
+
         while True:
-            try:
-                raw = await websocket.receive_text()
-                data = json.loads(raw)
-            except WebSocketDisconnect:
-                break
-            except json.JSONDecodeError:
-                await websocket.send_json(AIStreamEvent.error("Invalid JSON"))
-                continue
+            if pending_message is None:
+                try:
+                    raw = await websocket.receive_text()
+                    data = json.loads(raw)
+                except WebSocketDisconnect:
+                    break
+                except json.JSONDecodeError:
+                    await websocket.send_json(AIStreamEvent.error("Invalid JSON"))
+                    continue
 
-            msg_type = data.get("type", "message")
+                msg_type = data.get("type", "message")
 
-            if msg_type == "ping":
-                await websocket.send_json({"type": "pong"})
-                continue
+                if msg_type == "ping":
+                    await websocket.send_json({"type": "pong"})
+                    continue
 
-            if msg_type != "message":
-                continue
+                if msg_type == "interrupt":
+                    continue
 
-            user_content = data.get("content", "").strip()
-            file_ids = data.get("file_ids", [])
+                if msg_type != "message":
+                    continue
+
+                pending_message = data
+
+            user_content = (pending_message.get("content") or "").strip()
+            file_ids = pending_message.get("file_ids", [])
+            pending_message = None
 
             if not user_content and not file_ids:
                 await websocket.send_json(AIStreamEvent.error("Message cannot be empty"))
                 continue
 
-            # ── Process and save user message ───────────────────────────────
             async with AsyncSessionLocal() as db:
-                # Load session fresh
                 result = await db.execute(
                     select(AIChatSession)
                     .where(AIChatSession.id == session_id)
@@ -854,7 +862,6 @@ async def websocket_chat(websocket: WebSocket, session_id: str):
                     await websocket.send_json(AIStreamEvent.error("Session lost"))
                     break
 
-                # Build user message content (include file context)
                 full_user_content = user_content
                 attached_file_content = []
 
@@ -867,7 +874,6 @@ async def websocket_chat(websocket: WebSocket, session_id: str):
                         if f and f.processed_content:
                             attached_file_content.append(f.processed_content)
                         elif f and not f.processed_content:
-                            # Process now if not yet done
                             processed = await process_uploaded_file(
                                 f.file_path, f.file_type.value, f.original_filename
                             )
@@ -880,28 +886,23 @@ async def websocket_chat(websocket: WebSocket, session_id: str):
                         + "\n\n---\n\n".join(attached_file_content)
                     )
 
-                # Save user message
                 user_msg = AIChatMessage(
                     id=str(uuid.uuid4()),
                     session_id=session_id,
                     role=MessageRole.USER,
-                    content=user_content,  # Store clean version
+                    content=user_content,
                     file_ids=file_ids,
                 )
                 db.add(user_msg)
                 session.message_count = (session.message_count or 0) + 1
 
-                # Build conversation history for AI
                 history = []
                 for m in session.messages:
                     history.append({"role": m.role.value, "content": m.content})
-                # Add the new message with file content
                 history.append({"role": "user", "content": full_user_content})
 
                 memory = await load_active_memory(db, admin_id)
                 training = await load_training_summaries(db)
-
-                # Get live DB context
                 db_context = await get_eaglechair_context(db)
                 system_prompt = build_system_prompt(memory, training)
                 if db_context:
@@ -909,68 +910,100 @@ async def websocket_chat(websocket: WebSocket, session_id: str):
 
                 await db.commit()
 
-            # ── Stream AI response ───────────────────────────────────────────
-            full_response = ""
-            web_sources = []
-            suggested_edits = []
-            tokens_used = 0
-            is_first_message = (session.message_count or 0) <= 1
+            stream_state = {"full_response": "", "web_sources": [], "suggested_edits": [], "tokens_used": 0}
+            cancelled_event = asyncio.Event()
 
-            try:
-                async for event in stream_ai_response(history, system_prompt):
+            async def consume_stream():
+                async for event in stream_ai_response(history, system_prompt, cancelled=cancelled_event):
                     if event["type"] == "text_chunk":
-                        full_response += event["data"]["content"]
+                        stream_state["full_response"] += event["data"]["content"]
                         await websocket.send_json(event)
                     elif event["type"] == "message_done":
-                        web_sources = event["data"].get("web_sources", [])
-                        tokens_used = event["data"].get("tokens", 0)
+                        stream_state["web_sources"] = event["data"].get("web_sources", [])
+                        stream_state["tokens_used"] = event["data"].get("tokens", 0)
                     elif event["type"] == "suggested_edit":
                         edit = event["data"].get("edit", {})
                         if edit:
-                            suggested_edits.append(edit)
+                            stream_state["suggested_edits"].append(edit)
                         await websocket.send_json(event)
                     else:
                         await websocket.send_json(event)
 
-            except Exception as e:
-                logger.error(f"Streaming error: {e}")
-                await websocket.send_json(AIStreamEvent.error(f"AI error: {str(e)}"))
-                continue
+            async def receive_next():
+                raw = await websocket.receive_text()
+                return json.loads(raw)
 
-            # ── Save assistant message ───────────────────────────────────────
-            async with AsyncSessionLocal() as db:
-                asst_msg_id = str(uuid.uuid4())
-                asst_msg = AIChatMessage(
-                    id=asst_msg_id,
-                    session_id=session_id,
-                    role=MessageRole.ASSISTANT,
-                    content=full_response,
-                    tokens_used=tokens_used,
-                    model_used="gemini-2.0-flash",
-                    web_sources=web_sources,
-                    suggested_edits=suggested_edits,
-                )
-                db.add(asst_msg)
+            stream_task = asyncio.create_task(consume_stream())
+            receive_task = asyncio.create_task(receive_next())
 
-                # Update session
-                result = await db.execute(
-                    select(AIChatSession).where(AIChatSession.id == session_id)
-                )
-                session_obj = result.scalar_one_or_none()
-                if session_obj:
-                    session_obj.message_count = (session_obj.message_count or 0) + 1
-                    session_obj.total_tokens = (session_obj.total_tokens or 0) + tokens_used
-                    session_obj.updated_at = datetime.utcnow()
+            done, pending = await asyncio.wait(
+                [stream_task, receive_task],
+                return_when=asyncio.FIRST_COMPLETED,
+            )
 
-                await db.commit()
+            interrupted = False
+            if receive_task in done:
+                interrupted = True
+                cancelled_event.set()
+                stream_task.cancel()
+                try:
+                    await stream_task
+                except asyncio.CancelledError:
+                    pass
+                try:
+                    next_data = receive_task.result()
+                except Exception:
+                    next_data = {}
+                if next_data.get("type") == "ping":
+                    await websocket.send_json({"type": "pong"})
+                elif next_data.get("type") == "interrupt":
+                    pass
+                elif next_data.get("type") == "message":
+                    pending_message = next_data
+            else:
+                receive_task.cancel()
+                try:
+                    await receive_task
+                except asyncio.CancelledError:
+                    pass
 
-                # Send completion event
+            full_response = stream_state["full_response"]
+            web_sources = stream_state["web_sources"]
+            suggested_edits = stream_state["suggested_edits"]
+            tokens_used = stream_state["tokens_used"]
+            is_first_message = (session.message_count or 0) <= 1
+
+            try:
+                async with AsyncSessionLocal() as db:
+                    asst_msg_id = str(uuid.uuid4())
+                    asst_msg = AIChatMessage(
+                        id=asst_msg_id,
+                        session_id=session_id,
+                        role=MessageRole.ASSISTANT,
+                        content=full_response,
+                        tokens_used=tokens_used,
+                        model_used="gemini-2.0-flash",
+                        web_sources=web_sources,
+                        suggested_edits=suggested_edits,
+                    )
+                    db.add(asst_msg)
+
+                    result = await db.execute(
+                        select(AIChatSession).where(AIChatSession.id == session_id)
+                    )
+                    session_obj = result.scalar_one_or_none()
+                    if session_obj:
+                        session_obj.message_count = (session_obj.message_count or 0) + 1
+                        session_obj.total_tokens = (session_obj.total_tokens or 0) + tokens_used
+                        session_obj.updated_at = datetime.utcnow()
+
+                    await db.commit()
+
                 await websocket.send_json(
                     AIStreamEvent.message_done(asst_msg_id, tokens_used, web_sources)
                 )
 
-                # Generate title for new chats
-                if is_first_message and user_content:
+                if is_first_message and user_content and not interrupted:
                     title = await generate_chat_title(user_content)
                     async with AsyncSessionLocal() as title_db:
                         await title_db.execute(
@@ -981,9 +1014,12 @@ async def websocket_chat(websocket: WebSocket, session_id: str):
                         await title_db.commit()
                     await websocket.send_json(AIStreamEvent.title_update(title))
 
-                asyncio.create_task(
-                    _extract_and_save_memory(session_id, admin_id, history, full_response)
-                )
+                if full_response and not interrupted:
+                    asyncio.create_task(
+                        _extract_and_save_memory(session_id, admin_id, history, full_response)
+                    )
+            except Exception as e:
+                logger.error(f"Failed to save assistant message: {e}")
 
     except WebSocketDisconnect:
         logger.info(f"WebSocket disconnected for session {session_id}")

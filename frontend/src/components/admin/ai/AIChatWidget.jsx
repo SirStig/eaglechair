@@ -61,6 +61,7 @@ export default function AIChatWidget() {
     isLoadingChat,
     hasMoreMessages,
     isLoadingOlder,
+    interrupt,
     sendMessage,
     redoMessage,
     retryMessage,
@@ -75,13 +76,6 @@ export default function AIChatWidget() {
   const messagesEndRef = useRef(null);
   const [showSidebar, setShowSidebar] = useState(false);
   const isMobile = useMediaQuery('(max-width: 639px)');
-
-  // Auto-scroll to bottom
-  useEffect(() => {
-    if (messagesEndRef.current) {
-      messagesEndRef.current.scrollIntoView({ behavior: 'smooth' });
-    }
-  }, [messages, streamingState]);
 
   const handleOpenFullScreen = () => {
     navigate(currentSessionId ? `/admin/ai/${currentSessionId}` : '/admin/ai');
@@ -221,6 +215,7 @@ export default function AIChatWidget() {
             <AIChatInput
               onSend={sendMessage}
               onUpload={uploadFile}
+              onStop={interrupt}
               isStreaming={isStreaming}
               pendingFiles={pendingFiles}
               onRemoveFile={removePendingFile}
