@@ -200,11 +200,29 @@ export function AIChatProvider({ children }) {
             isStreaming: true,
             created_at: new Date().toISOString(),
             web_sources: [],
+            suggested_edits: [],
           };
           return [...prev, newMsg];
         });
         setStreamingState(null);
         break;
+
+      case 'suggested_edit': {
+        const edit = data?.edit;
+        if (edit) {
+          setMessages(prev => {
+            const last = prev[prev.length - 1];
+            if (last?.isStreaming) {
+              return prev.slice(0, -1).concat({
+                ...last,
+                suggested_edits: [...(last.suggested_edits || []), edit],
+              });
+            }
+            return prev;
+          });
+        }
+        break;
+      }
 
       case 'message_done': {
         const msgId = data?.message_id;
@@ -221,6 +239,7 @@ export function AIChatProvider({ children }) {
               isStreaming: false,
               tokens_used: tokens,
               web_sources: sources,
+              suggested_edits: last.suggested_edits || [],
             });
           }
           return prev;

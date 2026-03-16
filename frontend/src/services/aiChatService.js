@@ -209,6 +209,13 @@ export function getWebSocketToken() {
   return localStorage.getItem('auth_access_token');
 }
 
+export async function applyEdit(edit) {
+  return apiFetch('/apply-edit', {
+    method: 'POST',
+    body: JSON.stringify(edit),
+  });
+}
+
 export function createChatWebSocket(sessionId) {
   const token = getWebSocketToken();
   const base = API_BASE_URL

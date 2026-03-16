@@ -10,7 +10,8 @@ export function sanitizeStreamingMarkdown(text) {
   s = s.replace(/\*\*([^*]*)$/, '$1');
   s = s.replace(/\*([^*]*)$/, '$1');
   s = s.replace(/`([^`]*)$/, '$1');
-  s = s.replace(/\[([^\]]*)\]\(([^)]*)$/, '$1 ($2)');
+  s = s.replace(/(?<!!)\[([^\]]*)\]\(([^)]*)$/, '$1 ($2)');
+  s = s.replace(/!\[([^\]]*)\]\([^)]*$/, '$1');
   s = s.replace(/\[([^\]]*)$/, '$1');
   s = s.replace(/\n#+\s*([^\n]*)$/, '\n$1');
   s = s.replace(/```[a-z]*\n?([\s\S]*)$/, (m, content) =>

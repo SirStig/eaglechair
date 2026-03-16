@@ -316,6 +316,41 @@ TOOL_DEFINITIONS = [
                     required=["product_ids"],
                 ),
             ),
+            types.FunctionDeclaration(
+                name="propose_edit",
+                description=(
+                    "Suggest an edit to a product, family, finish, upholstery, or color when the admin asks you to "
+                    "change something. The admin must approve before the edit is applied. Use when the user says "
+                    "'change X to Y', 'update the price', 'fix the description', etc. Only propose edits for entities "
+                    "you have looked up via search_catalog or get_product_details."
+                ),
+                parameters=types.Schema(
+                    type=types.Type.OBJECT,
+                    properties={
+                        "entity_type": types.Schema(
+                            type=types.Type.STRING,
+                            description="One of: product, family, finish, upholstery, color",
+                        ),
+                        "entity_id": types.Schema(
+                            type=types.Type.INTEGER,
+                            description="ID of the entity to edit",
+                        ),
+                        "entity_name": types.Schema(
+                            type=types.Type.STRING,
+                            description="Human-readable name for display (e.g. 'Abruzzo 5242')",
+                        ),
+                        "changes": types.Schema(
+                            type=types.Type.OBJECT,
+                            description="Key-value pairs of fields to update. For products: base_price (cents), name, short_description, stock_status, lead_time_days, etc. For families: name, overview_text. For finishes/upholstery/colors: name, etc.",
+                        ),
+                        "reason": types.Schema(
+                            type=types.Type.STRING,
+                            description="Brief explanation of why this edit was suggested",
+                        ),
+                    },
+                    required=["entity_type", "entity_id", "entity_name", "changes", "reason"],
+                ),
+            ),
         ]
     )
 ]
@@ -403,9 +438,20 @@ When a user asks about a product (by name, model, or family):
 - **Emphasis**: **bold** for key terms, `code` for model numbers and IDs.
 - **Spacing**: Use paragraph breaks. Avoid walls of text — break into scannable blocks.
 - Cite web sources with [title](url). For calculations, show the work.
+- **Images**: When discussing products, families, finishes, upholsteries, or research results, include relevant images using markdown: ![alt text](url). Use primary_image_url, image_urls, family_image, finish_image_url, upholstery swatches, or image URLs from web_search/fetch_webpage. Images render at a comfortable size; include 1–2 per product when helpful. For external research, include images from sources when they illustrate your point.
 
 ## Guiding Admin (Links & Buttons)
 When the admin asks "how do I edit X?" or "where do I do Y?", provide step-by-step instructions and include clickable links. Use markdown: [Go to Product Catalog](/admin/catalog). Internal links (paths starting with /) open in-app. For prominent actions, use descriptive link text like [Edit Product](/admin/catalog) or [View Quote #42](/admin/quotes). You have full knowledge of all admin routes — use them to guide users directly.
+
+## URLs — Always Include When Discussing Products
+When you mention a product, family, or catalog item, include clickable links. get_product_details returns product_url (public) and admin_edit_url (admin edit). Use them:
+- **Public product page**: Use product_url from get_product_details, e.g. [View Abruzzo 5242](product_url). Customers see this.
+- **Admin edit**: Use admin_edit_url, e.g. [Edit Product](/admin/catalog?edit=42). Opens the product editor in the admin catalog.
+- **Families**: Public [View Alpine Family](/families/alpine). Admin [Edit Families](/admin/families).
+- **Catalog sections**: [Products](/admin/catalog), [Families](/admin/families), [Finishes](/admin/finishes), [Upholstery](/admin/upholstery), [Colors](/admin/colors).
+
+## Suggesting Edits — Admin Must Approve
+When the admin asks you to change something (price, name, description, stock status, etc.), use the **propose_edit** tool. The edit will appear as a suggestion with Approve/Decline buttons; nothing changes until the admin approves. Always call search_catalog or get_product_details first to get the entity_id. For products: base_price must be in cents (e.g. 25000 for $250). For text fields use the exact new value. Explain in your message what you suggested and that the admin can approve or decline.
 
 ## EagleChair Domain Knowledge
 {EAGLECHAIR_DOMAIN_KNOWLEDGE}
@@ -533,6 +579,10 @@ class AIStreamEvent:
     @staticmethod
     def title_update(title: str) -> dict:
         return {"type": "title_update", "data": {"title": title}}
+
+    @staticmethod
+    def suggested_edit(edit: dict) -> dict:
+        return {"type": "suggested_edit", "data": {"edit": edit}}
 
 
 async def stream_ai_response(
@@ -695,6 +745,30 @@ async def stream_ai_response(
                             function_response=types.FunctionResponse(
                                 name=func_name,
                                 response={"result": result},
+                            )
+                        )
+                    )
+
+                elif func_name == "propose_edit":
+                    entity_type = func_args.get("entity_type", "")
+                    entity_id = func_args.get("entity_id")
+                    entity_name = func_args.get("entity_name", "")
+                    changes = func_args.get("changes", {})
+                    reason = func_args.get("reason", "")
+                    if entity_type and entity_id is not None and changes:
+                        edit_payload = {
+                            "entity_type": entity_type,
+                            "entity_id": int(entity_id),
+                            "entity_name": str(entity_name),
+                            "changes": changes,
+                            "reason": reason,
+                        }
+                        yield AIStreamEvent.suggested_edit(edit_payload)
+                    tool_results.append(
+                        types.Part(
+                            function_response=types.FunctionResponse(
+                                name=func_name,
+                                response={"status": "suggested", "message": "Edit suggested for admin approval"},
                             )
                         )
                     )
@@ -1160,6 +1234,7 @@ async def search_catalog(query: str, max_results: int = 50) -> dict:
             r = await db.execute(
                 text("""
                     SELECT pf.id, pf.name, pf.slug, pf.overview_text, pf.is_featured,
+                           pf.family_image, pf.banner_image_url,
                            c.name as category_name, sc.name as subcategory_name
                     FROM product_families pf
                     LEFT JOIN categories c ON pf.category_id = c.id
@@ -1177,6 +1252,8 @@ async def search_catalog(query: str, max_results: int = 50) -> dict:
                     "id": row.id, "name": row.name, "slug": row.slug,
                     "category": row.category_name, "subcategory": row.subcategory_name,
                     "featured": row.is_featured, "overview": (row.overview_text or "")[:200],
+                    "family_image": row.family_image,
+                    "banner_image_url": row.banner_image_url,
                 })
 
             r = await db.execute(
@@ -1230,7 +1307,7 @@ async def search_catalog(query: str, max_results: int = 50) -> dict:
 
             r = await db.execute(
                 text("""
-                    SELECT id, name, finish_code, finish_type, grade, additional_cost
+                    SELECT id, name, finish_code, finish_type, grade, additional_cost, image_url
                     FROM finishes WHERE is_active = true
                     AND (LOWER(name) LIKE LOWER(:t) OR LOWER(COALESCE(finish_code,'')) LIKE LOWER(:t) OR LOWER(COALESCE(finish_type,'')) LIKE LOWER(:t))
                     ORDER BY display_order LIMIT :lim
@@ -1242,11 +1319,12 @@ async def search_catalog(query: str, max_results: int = 50) -> dict:
                     "id": row.id, "name": row.name, "code": row.finish_code or "-",
                     "type": row.finish_type or "-", "grade": row.grade,
                     "cost": f"${row.additional_cost / 100:.2f}" if row.additional_cost else "$0",
+                    "image_url": row.image_url,
                 })
 
             r = await db.execute(
                 text("""
-                    SELECT id, name, material_code, material_type, grade, additional_cost
+                    SELECT id, name, material_code, material_type, grade, additional_cost, image_url, swatch_image_url
                     FROM upholsteries WHERE is_active = true
                     AND (LOWER(name) LIKE LOWER(:t) OR LOWER(COALESCE(material_code,'')) LIKE LOWER(:t) OR LOWER(material_type) LIKE LOWER(:t))
                     ORDER BY display_order LIMIT :lim
@@ -1258,11 +1336,13 @@ async def search_catalog(query: str, max_results: int = 50) -> dict:
                     "id": row.id, "name": row.name, "code": row.material_code or "-",
                     "type": row.material_type, "grade": row.grade or "-",
                     "cost": f"${row.additional_cost / 100:.2f}" if row.additional_cost else "$0",
+                    "image_url": row.image_url,
+                    "swatch_image_url": row.swatch_image_url,
                 })
 
             r = await db.execute(
                 text("""
-                    SELECT id, name, color_code, hex_value, category
+                    SELECT id, name, color_code, hex_value, category, image_url
                     FROM colors WHERE is_active = true
                     AND (LOWER(name) LIKE LOWER(:t) OR LOWER(COALESCE(color_code,'')) LIKE LOWER(:t) OR (category IS NOT NULL AND LOWER(category) LIKE LOWER(:t)))
                     ORDER BY display_order LIMIT :lim
@@ -1273,6 +1353,7 @@ async def search_catalog(query: str, max_results: int = 50) -> dict:
                 result["colors"].append({
                     "id": row.id, "name": row.name, "code": row.color_code or "-",
                     "hex": row.hex_value or "-", "category": row.category or "-",
+                    "image_url": row.image_url,
                 })
 
             r = await db.execute(
@@ -1315,16 +1396,21 @@ async def get_product_details(product_ids: list) -> dict:
             for pid in ids:
                 r = await db.execute(
                     text("""
-                        SELECT ch.id, ch.model_number, ch.model_suffix, ch.suffix_description, ch.name,
+                        SELECT ch.id, ch.model_number, ch.model_suffix, ch.suffix_description, ch.name, ch.slug as product_slug,
                                ch.base_price, ch.msrp, ch.width, ch.depth, ch.height, ch.seat_height,
                                ch.weight, ch.upholstery_amount, ch.frame_material, ch.features,
                                ch.stock_status, ch.is_featured, ch.is_new, ch.is_outdoor_suitable,
                                ch.recommended_use, ch.minimum_order_quantity, ch.lead_time_days,
                                ch.ada_compliant, ch.flame_certifications, ch.warranty_info,
-                               pf.name as family_name, c.name as category_name, sc.name as subcategory_name
+                               ch.primary_image_url, ch.hover_images,
+                               pf.name as family_name, pf.slug as family_slug, pf.family_image, pf.banner_image_url,
+                               c.name as category_name, c.slug as category_slug, c.parent_id as category_parent_id,
+                               parent_cat.slug as parent_category_slug,
+                               sc.name as subcategory_name, sc.slug as subcategory_slug
                         FROM chairs ch
                         LEFT JOIN product_families pf ON ch.family_id = pf.id
                         LEFT JOIN categories c ON ch.category_id = c.id
+                        LEFT JOIN categories parent_cat ON c.parent_id = parent_cat.id
                         LEFT JOIN product_subcategories sc ON ch.subcategory_id = sc.id
                         WHERE ch.id = :pid AND ch.is_active = true
                     """),
@@ -1347,6 +1433,31 @@ async def get_product_details(product_ids: list) -> dict:
                         flame = json.loads(flame) if flame else []
                     except Exception:
                         flame = [flame] if flame else []
+                hover_urls = []
+                if row.hover_images:
+                    try:
+                        h = json.loads(row.hover_images) if isinstance(row.hover_images, str) else row.hover_images
+                        if isinstance(h, list):
+                            for x in h:
+                                if isinstance(x, str):
+                                    hover_urls.append(x)
+                                elif isinstance(x, dict) and x.get("url"):
+                                    hover_urls.append(x["url"])
+                    except Exception:
+                        pass
+                image_urls = [row.primary_image_url] if row.primary_image_url else []
+                image_urls.extend(hover_urls[:2])
+                product_slug = row.product_slug or str(row.id)
+                cat_slug = row.category_slug or "chairs"
+                parent_slug = row.parent_category_slug
+                subcat_slug = row.subcategory_slug
+                if parent_slug and cat_slug:
+                    product_url = f"/products/{parent_slug}/{cat_slug}/{product_slug}"
+                elif cat_slug:
+                    product_url = f"/products/{cat_slug}/uncategorized/{product_slug}"
+                else:
+                    product_url = f"/products/{product_slug}"
+                admin_edit_url = f"/admin/catalog?edit={row.id}"
                 products.append({
                     "id": row.id,
                     "model": row.model_number,
@@ -1354,6 +1465,9 @@ async def get_product_details(product_ids: list) -> dict:
                     "full_model": f"{row.model_number}{row.model_suffix or ''}".strip(),
                     "name": row.name,
                     "family": row.family_name,
+                    "family_slug": row.family_slug,
+                    "product_url": product_url,
+                    "admin_edit_url": admin_edit_url,
                     "category": row.category_name,
                     "subcategory": row.subcategory_name,
                     "suffix_description": row.suffix_description,
@@ -1375,11 +1489,19 @@ async def get_product_details(product_ids: list) -> dict:
                     "ada_compliant": row.ada_compliant,
                     "flame_certifications": flame,
                     "warranty_info": row.warranty_info,
+                    "primary_image_url": row.primary_image_url,
+                    "image_urls": image_urls[:3],
+                    "family_image": row.family_image,
+                    "family_banner_url": row.banner_image_url,
+                    "category_slug": cat_slug,
+                    "subcategory_slug": subcat_slug,
                 })
                 rv = await db.execute(
                     text("""
-                        SELECT pv.id, pv.sku, pv.name, pv.price_adjustment,
-                               f.name as finish_name, u.name as upholstery_name, col.name as color_name
+                        SELECT pv.id, pv.sku, pv.name, pv.price_adjustment, pv.primary_image_url as var_image_url,
+                               f.name as finish_name, f.image_url as finish_image_url,
+                               u.name as upholstery_name, u.swatch_image_url as upholstery_swatch_url, u.image_url as upholstery_image_url,
+                               col.name as color_name, col.image_url as color_image_url
                         FROM product_variations pv
                         LEFT JOIN finishes f ON pv.finish_id = f.id
                         LEFT JOIN upholsteries u ON pv.upholstery_id = u.id
@@ -1396,8 +1518,12 @@ async def get_product_details(product_ids: list) -> dict:
                         "sku": v.sku,
                         "name": v.name or "",
                         "finish": v.finish_name,
+                        "finish_image_url": v.finish_image_url,
                         "upholstery": v.upholstery_name,
+                        "upholstery_image_url": v.upholstery_swatch_url or v.upholstery_image_url,
                         "color": v.color_name,
+                        "color_image_url": v.color_image_url,
+                        "variation_image_url": v.var_image_url,
                         "price_adjustment": adj,
                     })
                 products[-1]["variations"] = vars_list

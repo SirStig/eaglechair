@@ -10,6 +10,7 @@ import { Link } from 'react-router-dom';
 import ReactMarkdown from 'react-markdown';
 import { ExternalLink, ChevronDown, ChevronUp, Paperclip, Globe, ArrowRight, RotateCcw, RefreshCw, Copy, Check } from 'lucide-react';
 import { sanitizeStreamingMarkdown } from '../../../utils/sanitizeStreamingMarkdown';
+import SuggestedEditCard from './SuggestedEditCard';
 
 function getLinkLabel(children) {
   if (typeof children === 'string') return children;
@@ -53,6 +54,21 @@ const markdownComponents = {
     </th>
   ),
   td: ({ children }) => <td className="px-2 py-1.5 text-dark-200 whitespace-nowrap leading-[1.6]">{children}</td>,
+  img: ({ src, alt }) => {
+    const safe = src && (src.startsWith('http') || src.startsWith('/'));
+    if (!safe) return null;
+    return (
+      <a href={src} target="_blank" rel="noopener noreferrer" className="inline-block my-2">
+        <img
+          src={src}
+          alt={alt || ''}
+          loading="lazy"
+          className="max-w-full max-h-[280px] sm:max-h-[320px] w-auto h-auto rounded-lg border border-dark-600 object-contain"
+          style={{ maxWidth: 'min(100%, 400px)' }}
+        />
+      </a>
+    );
+  },
   a: ({ href = '', children }) => {
     const label = getLinkLabel(children);
     const isInternal = href.startsWith('/') && !href.startsWith('//');
@@ -182,7 +198,7 @@ function MessageActions({ message, onRedo, onRetry, isUser }) {
   );
 }
 
-export default function AIChatMessage({ message, onRedo, onRetry }) {
+export default function AIChatMessage({ message, onRedo, onRetry, onEditApplied }) {
   const isUser = message.role === 'user';
   const isStreaming = message.isStreaming;
   const rawContent = isStreaming ? message.streamingContent : message.content;
@@ -226,6 +242,19 @@ export default function AIChatMessage({ message, onRedo, onRetry }) {
             {isStreaming && (
               <span className="inline-block w-1.5 h-4 bg-chat-accent animate-pulse ml-0.5 align-middle" />
             )}
+          </div>
+        )}
+
+        {/* Suggested edits */}
+        {!isUser && message.suggested_edits && message.suggested_edits.length > 0 && (
+          <div className="mt-2 pt-2 border-t border-dark-700/50 space-y-2">
+            {message.suggested_edits.map((edit, i) => (
+              <SuggestedEditCard
+                key={i}
+                edit={edit}
+                onApplied={onEditApplied}
+              />
+            ))}
           </div>
         )}
 

@@ -41,7 +41,8 @@ from sqlalchemy import select, delete, update, desc, func
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
-from backend.api.dependencies import get_current_admin
+from backend.api.dependencies import get_current_admin, require_role
+from backend.models.company import AdminRole
 from backend.core.security import SecurityManager
 from backend.database.base import get_db, AsyncSessionLocal
 from backend.models.ai_chat import (
@@ -197,6 +198,7 @@ def serialize_message(msg: AIChatMessage) -> dict:
         "web_sources": msg.web_sources or [],
         "tool_calls": msg.tool_calls or [],
         "file_ids": msg.file_ids or [],
+        "suggested_edits": getattr(msg, "suggested_edits", None) or [],
     }
 
 
@@ -465,6 +467,42 @@ async def upsert_memory(
         ))
     await db.commit()
     return {"success": True}
+
+
+@router.post("/apply-edit")
+async def apply_edit(
+    body: dict,
+    admin=Depends(require_role(AdminRole.ADMIN)),
+):
+    """
+    Apply an AI-suggested edit. Admin must approve first.
+    Body: {entity_type, entity_id, changes}
+    """
+    entity_type = body.get("entity_type")
+    entity_id = body.get("entity_id")
+    changes = body.get("changes", {})
+    if not entity_type or entity_id is None or not changes:
+        raise HTTPException(status_code=400, detail="entity_type, entity_id, and changes required")
+
+    if entity_type == "product":
+        from backend.services.admin_service import AdminService
+        from backend.core.exceptions import ResourceNotFoundError, ValidationError
+
+        async with AsyncSessionLocal() as db:
+            try:
+                product = await AdminService.update_product(
+                    db=db,
+                    product_id=int(entity_id),
+                    update_data=dict(changes),
+                )
+                from backend.utils.serializers import orm_to_dict
+                return {"success": True, "entity_type": "product", "entity_id": entity_id, "result": orm_to_dict(product)}
+            except ResourceNotFoundError:
+                raise HTTPException(status_code=404, detail="Product not found")
+            except ValidationError as e:
+                raise HTTPException(status_code=400, detail=str(e))
+
+    raise HTTPException(status_code=400, detail=f"Unsupported entity_type: {entity_type}")
 
 
 @router.delete("/memory/{key}")
@@ -874,20 +912,23 @@ async def websocket_chat(websocket: WebSocket, session_id: str):
             # ── Stream AI response ───────────────────────────────────────────
             full_response = ""
             web_sources = []
+            suggested_edits = []
             tokens_used = 0
             is_first_message = (session.message_count or 0) <= 1
 
             try:
                 async for event in stream_ai_response(history, system_prompt):
-                    # Accumulate but don't forward message_done from generator
-                    # We send our own message_done after saving to DB with the real message_id
                     if event["type"] == "text_chunk":
                         full_response += event["data"]["content"]
                         await websocket.send_json(event)
                     elif event["type"] == "message_done":
                         web_sources = event["data"].get("web_sources", [])
                         tokens_used = event["data"].get("tokens", 0)
-                        # Don't forward — we send our own after DB save
+                    elif event["type"] == "suggested_edit":
+                        edit = event["data"].get("edit", {})
+                        if edit:
+                            suggested_edits.append(edit)
+                        await websocket.send_json(event)
                     else:
                         await websocket.send_json(event)
 
@@ -907,6 +948,7 @@ async def websocket_chat(websocket: WebSocket, session_id: str):
                     tokens_used=tokens_used,
                     model_used="gemini-2.0-flash",
                     web_sources=web_sources,
+                    suggested_edits=suggested_edits,
                 )
                 db.add(asst_msg)
 

@@ -48,6 +48,7 @@ import PricingTierManagement from '../../components/admin/sections/PricingTierMa
 import SiteSettings from '../../components/admin/sections/SiteSettings';
 import Analytics from '../../components/admin/sections/Analytics';
 import EmailTemplateManagement from '../../components/admin/sections/EmailTemplateManagement';
+import apiClient from '../../config/apiClient';
 
 /**
  * Comprehensive Admin Dashboard
@@ -90,6 +91,22 @@ const NewAdminDashboardInner = () => {
   };
 
   const [activeSection, setActiveSection] = useState(getActiveSectionFromPath());
+
+  useEffect(() => {
+    const params = new URLSearchParams(location.search);
+    const editId = params.get('edit');
+    if (editId && (location.pathname.includes('/admin/catalog') || location.pathname.includes('/admin/dashboard'))) {
+      const pid = parseInt(editId, 10);
+      if (!isNaN(pid)) {
+        apiClient.get(`/api/v1/admin/products/${pid}`)
+          .then((product) => {
+            setSelectedProduct(product);
+            setActiveSection('catalog');
+          })
+          .catch(() => {});
+      }
+    }
+  }, [location.pathname, location.search]);
 
   // Sync active section with URL
   useEffect(() => {

@@ -104,6 +104,7 @@ class AIChatMessage(Base):
     # Research / tool call metadata stored as JSON
     tool_calls = Column(JSON, default=list)  # List of tool calls made
     web_sources = Column(JSON, default=list)  # Web sources referenced
+    suggested_edits = Column(JSON, default=list)  # Edits proposed by AI, pending admin approval
     thinking_summary = Column(Text, nullable=True)  # Summary of thinking process
 
     # File attachments
