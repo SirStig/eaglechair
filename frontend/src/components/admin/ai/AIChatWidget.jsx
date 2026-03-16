@@ -111,6 +111,9 @@ export default function AIChatWidget() {
         `}
         style={{ '--tw-bg-opacity': '1', backgroundColor: 'rgb(15 17 23 / var(--tw-bg-opacity))' }}
       >
+        {/* Safe-area top spacer — only affects standalone on notched devices in full-screen */}
+        {isFullScreen && <div className="pt-safe bg-dark-800 flex-shrink-0" />}
+
         {/* Header */}
         <div className="flex items-center justify-between px-3 sm:px-4 py-3 border-b border-dark-700 bg-dark-800/80 backdrop-blur-sm flex-shrink-0">
           <div className="flex items-center gap-2">
@@ -220,6 +223,8 @@ export default function AIChatWidget() {
               pendingFiles={pendingFiles}
               onRemoveFile={removePendingFile}
             />
+            {/* Safe-area bottom spacer in full-screen standalone */}
+            {isFullScreen && <div className="pb-safe flex-shrink-0" />}
           </div>
         </div>
       </motion.div>

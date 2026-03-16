@@ -10,9 +10,12 @@ import { AdminAuthProvider } from './contexts/AdminAuthContext';
 import { ToastProvider } from './contexts/ToastContext';
 import { AIChatProvider } from './contexts/AIChatContext';
 import EditModeToggle from './components/admin/EditModeToggle';
+import AdminBottomNav from './components/admin/AdminBottomNav';
 import { useAuthStore } from './store/authStore';
 import { useCartStore } from './store/cartStore';
 import LoadingSpinner from './components/ui/LoadingSpinner';
+import { useStandalone } from './hooks/useStandalone';
+import { useMediaQuery } from './hooks/useMediaQuery';
 
 // Lazy load all pages for route-based code splitting
 const HomePage = lazy(() => import('./pages/HomePage'));
@@ -60,6 +63,36 @@ const queryClient = new QueryClient({
   },
 });
 
+/**
+ * Wraps admin routes to:
+ * 1. Inject manifest-admin.json as the active manifest (browsers use the last link[rel=manifest])
+ * 2. Show AdminBottomNav in standalone PWA mode on mobile
+ */
+function AdminPWAWrapper() {
+  const isStandalone = useStandalone();
+  const isTabletOrSmaller = useMediaQuery('(max-width: 767px)');
+  const showBottomNav = isStandalone && isTabletOrSmaller;
+
+  useEffect(() => {
+    const link = document.createElement('link');
+    link.rel = 'manifest';
+    link.href = '/manifest-admin.json';
+    link.id = 'manifest-admin';
+    document.head.appendChild(link);
+    return () => {
+      const existing = document.getElementById('manifest-admin');
+      if (existing) document.head.removeChild(existing);
+    };
+  }, []);
+
+  return (
+    <>
+      <Outlet />
+      {showBottomNav && <AdminBottomNav />}
+    </>
+  );
+}
+
 function CartSync() {
   const authIsAuthenticated = useAuthStore((state) => state.isAuthenticated);
   const cartIsAuthenticated = useCartStore((state) => state.isAuthenticated);
@@ -99,7 +132,7 @@ function App() {
             element={
               <ProtectedRoute requireAdmin={true}>
                 <AIChatProvider>
-                  <Outlet />
+                  <AdminPWAWrapper />
                 </AIChatProvider>
               </ProtectedRoute>
             }

@@ -269,27 +269,29 @@ const HomePage = () => {
                         decoding={index === 0 ? "sync" : "async"}
                         fetchpriority={index === 0 ? "high" : "auto"}
                       />
-                      <div className="absolute inset-0 bg-gradient-to-r from-black/70 to-black/30" />
+                      <div className="absolute inset-0 bg-gradient-to-b from-black/30 via-black/55 to-black/85" />
 
-                      <div className="absolute inset-0 flex items-center">
-                        <div className="container">
+                      <div className="absolute inset-0 flex items-center justify-center">
+                        <div className="container flex justify-center">
                           <motion.div
                             initial={{ opacity: 0, y: 30 }}
                             animate={{ opacity: 1, y: 0 }}
                             transition={{ delay: 0.2, duration: 0.8 }}
-                            className="max-w-2xl text-white px-2 sm:px-0"
+                            className="max-w-3xl text-white px-2 sm:px-0 text-center"
                           >
-                            <h1 className="text-4xl sm:text-5xl md:text-6xl lg:text-7xl font-bold mb-4 sm:mb-6 leading-tight">
+                            <h1 className="text-4xl sm:text-5xl md:text-6xl lg:text-7xl xl:text-8xl font-bold mb-4 sm:mb-6 leading-tight">
                               {slide.title}
                             </h1>
-                            <p className="text-lg sm:text-xl md:text-2xl lg:text-3xl mb-6 sm:mb-8 text-gray-200 leading-relaxed">
+                            <p className="text-lg sm:text-xl md:text-2xl lg:text-3xl xl:text-4xl mb-6 sm:mb-8 text-gray-200 leading-relaxed">
                               {slide.subtitle}
                             </p>
-                            <Link to={slide.cta_link || slide.ctaLink}>
-                              <Button size="md" variant="primary" className="w-full sm:w-auto px-8 py-3">
-                                {slide.cta_text || slide.ctaText || slide.cta}
-                              </Button>
-                            </Link>
+                            <div className="flex justify-center">
+                              <Link to={slide.cta_link || slide.ctaLink}>
+                                <Button size="lg" variant="primary" className="w-full sm:w-auto px-12 sm:px-14 py-5 text-xl">
+                                  {slide.cta_text || slide.ctaText || slide.cta}
+                                </Button>
+                              </Link>
+                            </div>
                           </motion.div>
                         </div>
                       </div>

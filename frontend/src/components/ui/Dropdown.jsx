@@ -7,8 +7,10 @@ const Dropdown = ({
   children, 
   align = 'left',
   className,
-  contentClassName 
+  contentClassName,
+  isFullWidth
 }) => {
+  const fullWidth = isFullWidth ?? contentClassName?.includes('w-screen');
   const [isOpen, setIsOpen] = useState(false);
   const dropdownRef = useRef(null);
 
@@ -51,33 +53,28 @@ const Dropdown = ({
       <AnimatePresence>
         {isOpen && (
           <Motion.div
-            initial={{ opacity: 0, y: -10, scale: 0.95 }}
-            animate={{ opacity: 1, y: 0, scale: 1 }}
-            exit={{ opacity: 0, y: -10, scale: 0.95 }}
+            initial={fullWidth ? { opacity: 0 } : { opacity: 0, y: -10, scale: 0.95 }}
+            animate={fullWidth ? { opacity: 1 } : { opacity: 1, y: 0, scale: 1 }}
+            exit={fullWidth ? { opacity: 0 } : { opacity: 0, y: -10, scale: 0.95 }}
             transition={{ 
               duration: 0.3, 
               ease: [0.4, 0, 0.2, 1] 
             }}
             className={clsx(
               'z-50 rounded-lg bg-dark-600 border border-dark-500 shadow-xl backdrop-blur-sm overflow-hidden',
-              // Special handling for full-width dropdowns - use fixed positioning
-              contentClassName?.includes('w-screen') ? 'fixed left-0 right-0' : 'absolute',
-              contentClassName?.includes('w-screen') ? '' : alignmentClasses[align],
-              // Mobile: ensure dropdown doesn't overflow viewport
-              !contentClassName?.includes('w-screen') && 'max-w-[calc(100vw-2rem)]',
+              fullWidth ? 'fixed left-0 right-0 top-[var(--header-height,80px)]' : 'absolute',
+              fullWidth ? '' : alignmentClasses[align],
+              !fullWidth && 'max-w-[calc(100vw-2rem)]',
               contentClassName
             )}
             style={{
               WebkitBackdropFilter: 'blur(8px)',
               backdropFilter: 'blur(8px)',
-              // For full-screen dropdowns, position at header bottom using fixed positioning
-              ...(contentClassName?.includes('w-screen') && {
-                top: 'var(--header-height, 80px)',
+              ...(fullWidth && {
                 width: '100vw',
                 maxWidth: '100vw'
               }),
-              // Mobile positioning: ensure dropdown is visible
-              ...(!contentClassName?.includes('w-screen') && {
+              ...(!fullWidth && {
                 maxHeight: 'calc(100vh - 120px)',
                 overflowY: 'auto'
               })

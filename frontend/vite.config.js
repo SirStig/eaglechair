@@ -1,5 +1,6 @@
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react-swc'
+import { VitePWA } from 'vite-plugin-pwa'
 import { dirname, resolve } from 'path'
 import { fileURLToPath } from 'url'
 import fs from 'fs'
@@ -92,6 +93,26 @@ export default defineConfig(({ mode }) => {
   return {
     plugins: [
       react(),
+      VitePWA({
+        registerType: 'autoUpdate',
+        manifest: false, // We manage manifests (manifest.json + manifest-admin.json) ourselves
+        workbox: {
+          // Precache JS/CSS/HTML only; large images are served from network
+          globPatterns: ['**/*.{js,css,html,ico,svg}'],
+          navigateFallback: '/index.html',
+          maximumFileSizeToCacheInBytes: 4 * 1024 * 1024, // 4 MiB
+          runtimeCaching: [
+            {
+              urlPattern: /^\/api\/v1\/admin\//,
+              handler: 'NetworkFirst',
+              options: {
+                cacheName: 'admin-api-cache',
+                networkTimeoutSeconds: 10,
+              },
+            },
+          ],
+        },
+      }),
       serveTmpDirectory(), // Serve tmp directory for catalog images
       // Only serve uploads directory directly in dev mode
       // In production, files are served from frontend/dist/uploads

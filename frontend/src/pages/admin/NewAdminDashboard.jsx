@@ -1,5 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Navigate, useNavigate, useLocation } from 'react-router-dom';
+import { useStandalone } from '../../hooks/useStandalone';
+import { useMediaQuery } from '../../hooks/useMediaQuery';
 import FloatingAIButton from '../../components/admin/ai/FloatingAIButton';
 import AIChatWidget from '../../components/admin/ai/AIChatWidget';
 import { useAuthStore } from '../../store/authStore';
@@ -16,7 +18,6 @@ import {
   Layers,
   FileText,
   Wrench, 
-  Building2, 
   Settings,
   ChevronLeft,
   ChevronRight,
@@ -64,6 +65,9 @@ const NewAdminDashboardInner = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const { invalidate } = useAdminRefresh();
+  const isStandalone = useStandalone();
+  const isTabletOrSmaller = useMediaQuery('(max-width: 767px)');
+  const showBottomNav = isStandalone && isTabletOrSmaller;
   const [selectedProduct, setSelectedProduct] = useState(null);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
@@ -171,7 +175,6 @@ const NewAdminDashboardInner = () => {
       id: 'business',
       title: 'Business',
       items: [
-        { id: 'companies', label: 'Companies', icon: Building2, path: '/admin/companies' },
         { id: 'quotes', label: 'Quotes', icon: FileText, path: '/admin/quotes' },
         { id: 'pricing-tiers', label: 'Pricing Tiers', icon: DollarSign, path: '/admin/pricing-tiers' },
         { id: 'legal-documents', label: 'Legal Documents', icon: FileText, path: '/admin/legal-documents' },
@@ -348,6 +351,8 @@ const NewAdminDashboardInner = () => {
 
       {/* Main Content */}
       <main className="flex-1 flex flex-col min-h-screen lg:ml-0">
+        {/* iOS safe-area top spacer for standalone PWA */}
+        {isStandalone && <div className="pt-safe bg-dark-800 flex-shrink-0" />}
         {/* Top Bar */}
         <header className="bg-dark-800 border-b border-dark-600 px-4 sm:px-6 lg:px-8 py-3 sm:py-4 sticky top-0 z-30">
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 sm:gap-4">
@@ -402,6 +407,8 @@ const NewAdminDashboardInner = () => {
           <div key={selectedProduct ? 'editor' : activeSection}>
             {renderSection()}
           </div>
+          {/* Spacer so content doesn't hide behind AdminBottomNav in standalone */}
+          {showBottomNav && <div className="h-14" />}
         </div>
       </main>
     </div>

@@ -101,7 +101,9 @@ const CartPage = () => {
               {items.map((item, index) => {
                 const product = item.product || {};
                 const productImage = getProductImage(product);
-                const productUrl = buildProductUrl(product);
+                const productUrl = product.id
+                  ? `/products/${product.id}`
+                  : buildProductUrl(product);
                 const itemKey = item.id ?? `guest-${index}`;
                 const imageBroken = brokenImageKeys.has(itemKey);
                 const productName = product.name || 'Product';

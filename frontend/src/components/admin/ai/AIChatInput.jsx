@@ -101,7 +101,7 @@ export default function AIChatInput({
 
   return (
     <div
-      className="p-2 sm:p-3 border-t border-dark-700 bg-dark-800/50"
+      className="px-2 sm:px-3 pt-2 sm:pt-3 pb-2 sm:pb-3 border-t border-dark-700 bg-dark-800/50"
       onDrop={handleDrop}
       onDragOver={handleDragOver}
     >
@@ -142,7 +142,7 @@ export default function AIChatInput({
         <button
           onClick={() => fileInputRef.current?.click()}
           disabled={disabled || isUploading}
-          className="flex-shrink-0 w-9 h-9 sm:w-8 sm:h-8 rounded-lg flex items-center justify-center text-dark-400 hover:text-dark-100 hover:bg-dark-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed touch-manipulation"
+          className="flex-shrink-0 min-w-[44px] min-h-[44px] sm:w-8 sm:h-8 sm:min-w-0 sm:min-h-0 rounded-lg flex items-center justify-center text-dark-400 hover:text-dark-100 hover:bg-dark-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed touch-manipulation"
           title="Attach file (PDF, CSV, image, etc.)"
         >
           {isUploading
@@ -179,7 +179,7 @@ export default function AIChatInput({
           <button
             onClick={onStop}
             disabled={disabled}
-            className="flex-shrink-0 w-9 h-9 sm:w-8 sm:h-8 rounded-lg flex items-center justify-center bg-red-500/80 hover:bg-red-500 text-white transition-colors disabled:opacity-40 disabled:cursor-not-allowed touch-manipulation"
+            className="flex-shrink-0 min-w-[44px] min-h-[44px] sm:w-8 sm:h-8 sm:min-w-0 sm:min-h-0 rounded-lg flex items-center justify-center bg-red-500/80 hover:bg-red-500 text-white transition-colors disabled:opacity-40 disabled:cursor-not-allowed touch-manipulation"
             title="Stop generating"
           >
             <Square className="w-3.5 h-3.5 fill-current" />
@@ -188,7 +188,7 @@ export default function AIChatInput({
           <button
             onClick={handleSend}
             disabled={(!input.trim() && pendingFiles.length === 0) || disabled}
-            className="flex-shrink-0 w-9 h-9 sm:w-8 sm:h-8 rounded-lg flex items-center justify-center bg-chat-button hover:bg-chat-button-hover text-white transition-colors disabled:opacity-40 disabled:cursor-not-allowed touch-manipulation"
+            className="flex-shrink-0 min-w-[44px] min-h-[44px] sm:w-8 sm:h-8 sm:min-w-0 sm:min-h-0 rounded-lg flex items-center justify-center bg-chat-button hover:bg-chat-button-hover text-white transition-colors disabled:opacity-40 disabled:cursor-not-allowed touch-manipulation"
             title="Send (Enter)"
           >
             <Send className="w-4 h-4" />

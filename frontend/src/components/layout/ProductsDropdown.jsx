@@ -92,7 +92,7 @@ const ProductsDropdown = () => {
                 {/* Background Image - Full Height - Clickable */}
                 <Link
                   to={`/products/category/${category.slug}`}
-                  className="absolute inset-0"
+                  className="absolute inset-0 block"
                 >
                   <img
                     src={bannerImage}
@@ -104,10 +104,16 @@ const ProductsDropdown = () => {
                     loading="eager"
                     fetchpriority="high"
                   />
+                  <div
+                    className="absolute top-0 left-0 right-0 bottom-0 w-full h-full pointer-events-none"
+                    style={{
+                      minWidth: '100%',
+                      minHeight: '100%',
+                      background: 'linear-gradient(to top, rgba(0,0,0,0.95) 0%, rgba(0,0,0,0.85) 25%, rgba(0,0,0,0.7) 50%, rgba(0,0,0,0.4) 75%, transparent 100%)'
+                    }}
+                    aria-hidden
+                  />
                 </Link>
-
-                {/* Dark overlay - stronger for better button visibility */}
-                <div className="absolute inset-0 bg-gradient-to-b from-black/60 via-black/70 to-black/80 group-hover:from-black/50 group-hover:via-black/60 group-hover:to-black/75 transition-all duration-300 pointer-events-none"></div>
 
                 {/* Content Container - Full Height with Flex */}
                 <div className="absolute inset-0 flex flex-col justify-between p-6 sm:p-8 pointer-events-none">
@@ -119,25 +125,26 @@ const ProductsDropdown = () => {
                     <div className="w-16 h-1 bg-primary-500 rounded-full"></div>
                   </div>
 
-                  {/* Subcategory Navigation Links - Overlaid on Image at Bottom */}
-                  <div className="space-y-1 pointer-events-auto">
-                    {subcategories.slice(0, 5).map((subcat) => (
-                      <Link
-                        key={subcat.id}
-                        to={`/products/category/${category.slug}/${subcat.slug}`}
-                        className="block w-full text-left px-2 py-2 text-white/90 hover:text-white hover:translate-x-2 transition-all duration-200 text-sm font-medium"
-                      >
-                        {subcat.name}
-                      </Link>
-                    ))}
+                  {/* Subcategory Navigation Links - at bottom, larger and better spaced */}
+                  <div className="relative pl-2 sm:pl-4 pointer-events-auto py-6">
+                    <div className="space-y-2">
+                      {subcategories.slice(0, 5).map((subcat) => (
+                        <Link
+                          key={subcat.id}
+                          to={`/products/category/${category.slug}/${subcat.slug}`}
+                          className="block w-full text-left py-3 px-2 text-white/95 hover:text-white hover:translate-x-2 transition-all duration-200 text-base font-medium"
+                        >
+                          {subcat.name}
+                        </Link>
+                      ))}
 
-                    {/* View All link with distinct styling */}
-                    <Link
-                      to={`/products/category/${category.slug}`}
-                      className="block w-full text-left px-2 py-2 text-primary-400 hover:text-primary-300 hover:translate-x-2 transition-all duration-200 text-sm font-bold mt-3"
-                    >
-                      View All {category.name} →
-                    </Link>
+                      <Link
+                        to={`/products/category/${category.slug}`}
+                        className="block w-full text-left py-3 px-2 text-primary-400 hover:text-primary-300 hover:translate-x-2 transition-all duration-200 text-base font-bold mt-4"
+                      >
+                        View All {category.name} →
+                      </Link>
+                    </div>
                   </div>
                 </div>
               </div>
@@ -152,7 +159,7 @@ const ProductsDropdown = () => {
               {/* Background Image */}
               <Link
                 to="/products"
-                className="absolute inset-0"
+                className="absolute inset-0 block"
               >
                 <img
                   src={DEFAULT_BANNER}
@@ -161,10 +168,16 @@ const ProductsDropdown = () => {
                   loading="eager"
                   fetchpriority="high"
                 />
+                <div
+                  className="absolute top-0 left-0 right-0 bottom-0 w-full h-full pointer-events-none"
+                  style={{
+                    minWidth: '100%',
+                    minHeight: '100%',
+                    background: 'linear-gradient(to top, rgba(0,0,0,0.95) 0%, rgba(0,0,0,0.85) 25%, rgba(0,0,0,0.7) 50%, rgba(0,0,0,0.4) 75%, transparent 100%)'
+                  }}
+                  aria-hidden
+                />
               </Link>
-
-              {/* Dark overlay */}
-              <div className="absolute inset-0 bg-gradient-to-b from-black/60 via-black/70 to-black/80 group-hover:from-black/50 group-hover:via-black/60 group-hover:to-black/75 transition-all duration-300 pointer-events-none"></div>
 
               {/* Content */}
               <div className="absolute inset-0 flex flex-col justify-between p-6 sm:p-8 pointer-events-none">
@@ -175,25 +188,26 @@ const ProductsDropdown = () => {
                   <div className="w-16 h-1 bg-primary-500 rounded-full"></div>
                 </div>
 
-                {/* Additional categories list */}
-                <div className="space-y-1 pointer-events-auto">
-                  {categories.slice(MAX_COLUMNS - 1).map((category) => (
-                    <Link
-                      key={category.id}
-                      to={`/products/category/${category.slug}`}
-                      className="block w-full text-left px-2 py-2 text-white/90 hover:text-white hover:translate-x-2 transition-all duration-200 text-sm font-medium"
-                    >
-                      {category.name}
-                    </Link>
-                  ))}
+                {/* Additional categories list - larger and better spaced */}
+                <div className="relative pl-2 sm:pl-4 pointer-events-auto py-6">
+                  <div className="space-y-2">
+                    {categories.slice(MAX_COLUMNS - 1).map((category) => (
+                      <Link
+                        key={category.id}
+                        to={`/products/category/${category.slug}`}
+                        className="block w-full text-left py-3 px-2 text-white/95 hover:text-white hover:translate-x-2 transition-all duration-200 text-base font-medium"
+                      >
+                        {category.name}
+                      </Link>
+                    ))}
 
-                  {/* View All Products link */}
-                  <Link
-                    to="/products"
-                    className="block w-full text-left px-2 py-2 text-primary-400 hover:text-primary-300 hover:translate-x-2 transition-all duration-200 text-sm font-bold mt-3"
-                  >
-                    View All Products →
-                  </Link>
+                    <Link
+                      to="/products"
+                      className="block w-full text-left py-3 px-2 text-primary-400 hover:text-primary-300 hover:translate-x-2 transition-all duration-200 text-base font-bold mt-4"
+                    >
+                      View All Products →
+                    </Link>
+                  </div>
                 </div>
               </div>
             </div>

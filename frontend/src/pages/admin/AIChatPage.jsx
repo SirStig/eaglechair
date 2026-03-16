@@ -6,6 +6,7 @@
 
 import { useState, useRef, useEffect, useCallback } from 'react';
 import { useMediaQuery } from '../../hooks/useMediaQuery';
+import { useStandalone } from '../../hooks/useStandalone';
 import { useNavigate, useParams, useLocation } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
@@ -508,6 +509,9 @@ export default function AIChatPage() {
   const navigate = useNavigate();
   const { chatId } = useParams();
   const isMobile = useMediaQuery('(max-width: 639px)');
+  const isTabletOrSmaller = useMediaQuery('(max-width: 767px)');
+  const isStandalone = useStandalone();
+  const showBottomNav = isStandalone && isTabletOrSmaller;
   const [rightPanel, setRightPanel] = useState(isMobile ? null : 'memory');
   const messagesEndRef = useRef(null);
   const [showSidebar, setShowSidebar] = useState(!isMobile);
@@ -585,7 +589,10 @@ export default function AIChatPage() {
   }, [setSessions]);
 
   return (
-    <div className="flex h-screen bg-dark-900 overflow-hidden">
+    <div className="flex flex-col h-screen bg-dark-900 overflow-hidden">
+      {/* iOS safe-area top spacer — only occupies space in standalone on notched devices */}
+      <div className="pt-safe bg-dark-800 flex-shrink-0" />
+      <div className="flex flex-1 overflow-hidden">
       {showSidebar && isMobile && (
         <div
           className="fixed inset-0 z-20 bg-black/50 sm:hidden"
@@ -740,6 +747,8 @@ export default function AIChatPage() {
               onRemoveFile={removePendingFile}
               placeholder="Ask anything about your business..."
             />
+            {/* Spacer so content doesn't hide behind AdminBottomNav in standalone */}
+            {showBottomNav && <div className="h-14 flex-shrink-0" />}
           </div>
 
           {rightPanel && isMobile && (
@@ -763,6 +772,7 @@ export default function AIChatPage() {
             )}
           </AnimatePresence>
         </div>
+      </div>
       </div>
     </div>
   );
