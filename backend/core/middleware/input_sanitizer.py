@@ -96,6 +96,11 @@ class InputSanitizerMiddleware(BaseHTTPMiddleware):
         "x-forwarded-proto",
         "x-forwarded-host",
         "x-real-ip",
+        "cdn-loop",
+        "cf-connecting-ip",
+        "cf-ray",
+        "cf-request-id",
+        "cf-visitor",
     }
     
     # Fields that commonly contain special characters legitimately

@@ -808,6 +808,9 @@ async def get_family_members(
     - `sku`: variation sku or product model_number
     - `primary_image_url`: variation image with fallback to product image
     - `variation_id`: null for products, variation id for variations
+    - `short_description`, `base_price`, `category` (name): for ProductCard display
+    - `hover_images`: product images; for variations, parsed from variation.images when present
+    - `lead_time_days`: product or variation override
     """
     logger.info(f"Fetching family members for family {family_id}")
 
@@ -833,9 +836,13 @@ async def get_family_members(
     subq = select(chair_secondary_families.c.chair_id).where(
         chair_secondary_families.c.family_id == family_id
     )
-    products_stmt = select(Chair).where(
-        Chair.is_active == True,
-        or_(Chair.family_id == family_id, Chair.id.in_(subq))
+    products_stmt = (
+        select(Chair)
+        .where(
+            Chair.is_active == True,
+            or_(Chair.family_id == family_id, Chair.id.in_(subq)),
+        )
+        .options(selectinload(Chair.category))
     )
     products_result = await db.execute(products_stmt)
     product_members = products_result.scalars().all()
@@ -850,18 +857,20 @@ async def get_family_members(
             ProductVariation.is_available == True,
             Chair.is_active == True,
         )
-        .options(selectinload(ProductVariation.product))
+        .options(selectinload(ProductVariation.product).selectinload(Chair.category))
     )
     variations_result = await db.execute(variations_stmt)
     variation_members = variations_result.scalars().all()
 
     # Build unified list
-    # Track product IDs that appear as variation members to avoid double-listing
+    # Products that appear as variation members: show only the variation(s), not the base product
     product_ids_via_variations = {v.product_id for v in variation_members}
 
     items = []
 
     for p in product_members:
+        if p.id in product_ids_via_variations:
+            continue
         items.append({
             "type": "product",
             "id": p.id,
@@ -872,10 +881,32 @@ async def get_family_members(
             "primary_image_url": p.primary_image_url,
             "variation_id": None,
             "display_order": p.display_order,
+            "short_description": p.short_description,
+            "base_price": p.base_price,
+            "category": p.category.name if p.category else None,
+            "hover_images": p.hover_images,
+            "lead_time_days": p.lead_time_days,
         })
+
+    def _variation_images(v):
+        if not v.images:
+            return None
+        if isinstance(v.images, list):
+            urls = []
+            for img in v.images:
+                if isinstance(img, str):
+                    urls.append(img)
+                elif isinstance(img, dict) and img.get("url"):
+                    urls.append(img["url"])
+            return urls if urls else None
+        return None
 
     for v in variation_members:
         p = v.product
+        base_price = (p.base_price or 0) + (v.price_adjustment or 0)
+        primary_image = v.primary_image_url or p.primary_image_url
+        var_images = _variation_images(v)
+        hover_images = var_images if var_images else ([primary_image] if primary_image else None)
         items.append({
             "type": "variation",
             "id": v.id,
@@ -883,9 +914,15 @@ async def get_family_members(
             "product_slug": p.slug,
             "name": v.name if v.name else p.name,
             "sku": v.sku,
-            "primary_image_url": v.primary_image_url or p.primary_image_url,
+            "primary_image_url": primary_image,
             "variation_id": v.id,
+            "variation_has_own_image": bool(v.primary_image_url or var_images),
             "display_order": v.display_order,
+            "short_description": p.short_description,
+            "base_price": base_price,
+            "category": p.category.name if p.category else None,
+            "hover_images": hover_images,
+            "lead_time_days": v.lead_time_days if v.lead_time_days is not None else p.lead_time_days,
         })
 
     # Sort by display_order then name

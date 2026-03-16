@@ -8,12 +8,13 @@ import ProductCard from '../components/ui/ProductCard';
 import ProductCarousel from '../components/ui/ProductCarousel';
 import QuickViewModal from '../components/ui/QuickViewModal';
 import ImageLightboxModal from '../components/ui/ImageLightboxModal';
+import VariationImageDisclaimer from '../components/ui/VariationImageDisclaimer';
 import EditableWrapper from '../components/admin/EditableWrapper';
 import SEOHead from '../components/SEOHead';
 import { useCartStore } from '../store/cartStore';
 import { updateProduct } from '../services/contentService';
 import productService from '../services/productService';
-import { getProductImages, getProductGalleryImages, resolveImageUrl, resolveFileUrl } from '../utils/apiHelpers';
+import { getProductImages, getProductGalleryImages, resolveImageUrl, resolveFileUrl, variationHasOwnImage } from '../utils/apiHelpers';
 import SwatchImage from '../components/ui/SwatchImage';
 import { useToast } from '../contexts/ToastContext';
 import logger from '../utils/logger';
@@ -82,45 +83,18 @@ const ProductDetailPage = () => {
 
     setCurrentFamily(familyToUse);
 
-    if (varFamily) {
-      // Use new members endpoint for variation-level families
-      productService.getFamilyMembers(familyToUse.id)
-        .then(members => {
-          const filtered = (members || []).filter(m => m.product_id !== product.id).slice(0, 20);
-          setFamilyProducts(filtered);
-        })
-        .catch(err => logger.error(CONTEXT, 'Failed to load family members', err));
-    } else {
-      // Fallback: product-level family, use getProducts
-      productService.getProducts({ family_id: familyToUse.id, limit: 20 })
-        .then(res => {
-          const members = (res.data || []).filter(p => p.id !== product.id).slice(0, 20);
-          setFamilyProducts(members);
-        })
-        .catch(err => logger.error(CONTEXT, 'Failed to load family members', err));
-    }
+    productService.getFamilyMembers(familyToUse.id)
+      .then(members => {
+        const filtered = (members || []).filter(m => m.product_id !== product.id).slice(0, 20);
+        setFamilyProducts(filtered);
+      })
+      .catch(err => logger.error(CONTEXT, 'Failed to load family members', err));
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedVariation, variations, product]);
 
   useEffect(() => {
     setCustomizeImageIndex(0);
   }, [productId]);
-
-  // Get images - use variation images if variation is selected, otherwise product images
-  // Use useMemo to ensure stable reference and avoid hooks order issues
-  const variationHasOwnImage = (v) => {
-    if (!v) return false;
-    if (v.primary_image_url) return true;
-    let arr = v.images;
-    if (typeof arr === 'string') {
-      try {
-        arr = JSON.parse(arr);
-      } catch {
-        arr = [];
-      }
-    }
-    return Array.isArray(arr) && arr.length > 0;
-  };
 
   const images = useMemo(() => {
     if (!product) return [];
@@ -466,11 +440,7 @@ const ProductDetailPage = () => {
             {/* Hero image (primary + hover only) */}
             <div className="flex items-center justify-center min-w-0">
               <div className="relative w-full min-w-[200px] min-h-[480px]">
-                {isShowingBaseImageForVariation && (
-                  <p className="absolute top-2 left-2 right-2 z-10 text-xs text-slate-600 bg-white/90 backdrop-blur px-2 py-1.5 rounded-md border border-cream-300 text-center">
-                    Image shows base model; this variation has no photo.
-                  </p>
-                )}
+                {isShowingBaseImageForVariation && <VariationImageDisclaimer />}
                 <button
                   type="button"
                   onClick={() => openLightbox(carouselImages, selectedImage)}
@@ -633,8 +603,9 @@ const ProductDetailPage = () => {
                           }}
                           className={`w-full flex items-center gap-3 p-2.5 rounded-lg text-left transition-colors border-2 ${isSelected ? 'border-primary-500 bg-primary-50/50' : 'border-transparent bg-white hover:bg-cream-100 hover:border-cream-300'}`}
                         >
-                          <div className="w-10 h-14 flex-shrink-0 rounded-md overflow-hidden bg-cream-200">
+                          <div className="w-10 h-14 flex-shrink-0 rounded-md overflow-hidden bg-cream-200 relative">
                             <img src={thumbUrl} alt="" className="w-full h-full object-cover" />
+                            {!variationHasOwnImage(variation) && <VariationImageDisclaimer compact />}
                           </div>
                           <div className="min-w-0 flex-1">
                             <span className="font-medium text-slate-800 block truncate">{variation.name || variation.sku || `#${variation.id}`}</span>
@@ -781,18 +752,21 @@ const ProductDetailPage = () => {
           <div className="container mx-auto px-4 py-16 max-w-7xl">
             <h2 className="text-2xl sm:text-3xl font-bold text-slate-800 mb-6 sm:mb-8 text-center">Gallery</h2>
             <div className="flex flex-col lg:flex-row gap-4 lg:gap-6 max-w-6xl mx-auto">
-              <button
-                type="button"
-                onClick={() => openLightbox(galleryOnlyImages, gallerySelectedIndex)}
-                className="flex-1 min-w-0 aspect-video overflow-hidden cursor-zoom-in rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2"
-              >
-                <img
-                  src={galleryOnlyImages[gallerySelectedIndex]}
-                  alt={`${product.name} gallery ${gallerySelectedIndex + 1}`}
-                  className="w-full h-full object-cover block"
-                  loading="lazy"
-                />
-              </button>
+              <div className="flex-1 min-w-0 relative aspect-video overflow-hidden rounded-lg">
+                {isShowingBaseImageForVariation && <VariationImageDisclaimer />}
+                <button
+                  type="button"
+                  onClick={() => openLightbox(galleryOnlyImages, gallerySelectedIndex)}
+                  className="absolute inset-0 w-full h-full cursor-zoom-in focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2"
+                >
+                  <img
+                    src={galleryOnlyImages[gallerySelectedIndex]}
+                    alt={`${product.name} gallery ${gallerySelectedIndex + 1}`}
+                    className="w-full h-full object-cover block"
+                    loading="lazy"
+                  />
+                </button>
+              </div>
               <div className="flex lg:flex-col gap-2 overflow-x-auto lg:overflow-y-auto lg:overflow-x-visible max-h-none lg:max-h-[360px] pb-2 lg:pb-0 flex-shrink-0 lg:w-48 xl:w-56">
                 {galleryOnlyImages.map((url, idx) => (
                   <button
@@ -824,6 +798,7 @@ const ProductDetailPage = () => {
             {/* 3D Model Placeholder / Product Image (primary + hover only) */}
             <div className="flex items-center justify-center min-w-0">
               <div className="relative w-full min-w-[200px] min-h-[280px]">
+                {isShowingBaseImageForVariation && <VariationImageDisclaimer />}
                 <button
                   type="button"
                   onClick={() => openLightbox(carouselImages, customizeImageIndex)}
@@ -1197,28 +1172,24 @@ const ProductDetailPage = () => {
             </div>
             <ProductCarousel>
               {familyProducts.map((item) => {
-                // item may be a variation-type member or a regular product
-                if (item.type === 'variation' || item.variation_id) {
-                  const itemLink = `/products/${item.product_slug}?variation=${item.variation_id}`;
-                  const imgUrl = resolveImageUrl(item.primary_image_url) || '/placeholder-product.jpg';
-                  return (
-                    <Link key={`var-${item.id}`} to={itemLink} className="block group">
-                      <div className="bg-white rounded-xl shadow-md border border-cream-200 overflow-hidden hover:shadow-lg transition-shadow">
-                        <div className="aspect-square bg-cream-50 overflow-hidden">
-                          <img src={imgUrl} alt={item.name} className="w-full h-full object-contain group-hover:scale-105 transition-transform duration-300" style={{ mixBlendMode: 'multiply' }} />
-                        </div>
-                        <div className="p-3">
-                          <p className="font-semibold text-slate-800 text-sm line-clamp-2">{item.name}</p>
-                          {item.sku && <p className="text-xs text-slate-500 mt-1">SKU: {item.sku}</p>}
-                        </div>
-                      </div>
-                    </Link>
-                  );
-                }
+                const categoryName = typeof item.category === 'string' ? item.category : item.category?.name;
+                const normalized = {
+                  id: item.product_id ?? item.id,
+                  slug: item.product_slug ?? item.slug,
+                  name: item.name,
+                  primary_image_url: item.primary_image_url,
+                  variation_id: item.variation_id ?? undefined,
+                  base_price: item.base_price ?? 0,
+                  short_description: item.short_description,
+                  category: categoryName,
+                  hover_images: item.hover_images,
+                  lead_time_days: item.lead_time_days,
+                };
+                const key = item.variation_id ? `var-${item.variation_id}` : `product-${item.product_id ?? item.id}`;
                 return (
                   <ProductCard
-                    key={item.id}
-                    product={item}
+                    key={key}
+                    product={normalized}
                     onQuickView={handleQuickView}
                   />
                 );
@@ -1265,6 +1236,7 @@ const ProductDetailPage = () => {
         onClose={() => setLightboxOpen(false)}
         images={lightboxImages}
         initialIndex={lightboxInitialIndex}
+        showDisclaimer={isShowingBaseImageForVariation}
       />
     </div>
   );

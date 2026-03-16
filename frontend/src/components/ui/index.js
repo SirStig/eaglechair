@@ -8,5 +8,6 @@ export { default as LoadingSpinner } from './LoadingSpinner';
 export { default as ProductCard } from './ProductCard';
 export { default as QuickViewModal } from './QuickViewModal';
 export { default as ImageLightboxModal } from './ImageLightboxModal';
+export { default as VariationImageDisclaimer } from './VariationImageDisclaimer';
 
 

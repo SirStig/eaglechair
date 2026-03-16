@@ -154,6 +154,10 @@ class Settings(BaseSettings):
     SMTP_TLS: bool = True  # Use STARTTLS (True, default for port 587) or SSL/TLS (False, for port 465)
     ADMIN_EMAIL: str = "admin@eaglechair.com"  # For admin notifications
 
+    # AI Configuration (Google Gemini)
+    GEMINI_API_KEY: Optional[str] = None
+    GEMINI_MODEL: str = "gemini-2.0-flash"
+
     # AWS Configuration (for media storage)
     AWS_ACCESS_KEY_ID: Optional[str] = None
     AWS_SECRET_ACCESS_KEY: Optional[str] = None

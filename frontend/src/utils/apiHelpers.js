@@ -249,6 +249,20 @@ export const getProductGalleryImages = (product) => {
   return galleryUrls.filter(url => url && !hoverUrls.has(url));
 };
 
+export const variationHasOwnImage = (v) => {
+  if (!v) return false;
+  if (v.primary_image_url) return true;
+  let arr = v.images;
+  if (typeof arr === 'string') {
+    try {
+      arr = JSON.parse(arr);
+    } catch {
+      arr = [];
+    }
+  }
+  return Array.isArray(arr) && arr.length > 0;
+};
+
 // ============================================================================
 // File Utilities
 // ============================================================================

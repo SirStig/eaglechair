@@ -54,6 +54,28 @@ export default {
           yellow: '#f4a52d',
           blue: '#3b82f6',
         },
+        chat: {
+          link: '#60a5fa',
+          'link-hover': '#93c5fd',
+          code: '#94a3b8',
+          accent: '#38bdf8',
+          'accent-muted': '#64748b',
+          'user-bubble': '#2563eb',
+          'user-bubble-hover': '#3b82f6',
+          selected: '#1e3a5f',
+          'selected-border': '#3b82f6',
+          'selected-text': '#93c5fd',
+          button: '#2563eb',
+          'button-hover': '#3b82f6',
+          focus: '#3b82f6',
+          'status-thinking': '#94a3b8',
+          'status-searching': '#38bdf8',
+          'status-success': '#34d399',
+          'status-fetching': '#60a5fa',
+          'status-calculating': '#a78bfa',
+          memory: '#38bdf8',
+          training: '#a78bfa',
+        },
         // Cream colors for light theme
         cream: {
           50: '#faf8f5',   // Lightest cream

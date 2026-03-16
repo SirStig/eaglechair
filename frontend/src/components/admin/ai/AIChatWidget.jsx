@@ -1,0 +1,228 @@
+/**
+ * AI Chat Widget
+ * Floating chat panel that hovers over admin pages.
+ * Shows as a compact panel or full-screen mode.
+ */
+
+import { useRef, useEffect, useCallback, useState } from 'react';
+import { useMediaQuery } from '../../../hooks/useMediaQuery';
+import { motion, AnimatePresence } from 'framer-motion';
+import { X, Maximize2, Minimize2, ChevronLeft, MessageSquare, Loader2 } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
+import { useAIChat } from '../../../contexts/AIChatContext';
+import AIChatMessage from './AIChatMessage';
+import AIChatInput from './AIChatInput';
+import AIChatStreamStatus from './AIChatStreamStatus';
+import AIChatSidebar from './AIChatSidebar';
+
+function WelcomeScreen({ onSuggestionClick }) {
+  const suggestions = [
+    'Analyze recent quote trends',
+    'Research competitor pricing',
+    'Help me calculate margins',
+    'Summarize this pricing sheet',
+  ];
+  return (
+    <div className="flex flex-col items-center justify-center h-full text-center px-6">
+      <div className="w-14 h-14 rounded-2xl bg-dark-800 flex items-center justify-center mb-4 shadow-lg p-2">
+        <img src="/favicon.svg" alt="Eagle Chair" className="w-full h-full object-contain" />
+      </div>
+      <h3 className="text-base font-bold text-dark-50 mb-2">EagleChair AI Assistant</h3>
+      <p className="text-xs text-dark-400 leading-relaxed max-w-xs">
+        Ask me anything about your business — quotes, pricing, products, market research, document analysis, and more.
+      </p>
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 mt-5 w-full max-w-xs">
+        {suggestions.map((suggestion, i) => (
+          <button
+            key={i}
+            onClick={() => onSuggestionClick?.(suggestion)}
+            className="text-left text-xs bg-dark-800 hover:bg-dark-700 border border-dark-700 hover:border-dark-600 rounded-xl p-2.5 text-dark-300 hover:text-dark-100 transition-colors leading-tight"
+          >
+            {suggestion}
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+export default function AIChatWidget() {
+  const navigate = useNavigate();
+  const {
+    isOpen,
+    isFullScreen,
+    closeChat,
+    toggleFullScreen,
+    sessions,
+    currentSessionId,
+    messages,
+    isStreaming,
+    streamingState,
+    pendingFiles,
+    isLoadingChat,
+    sendMessage,
+    uploadFile,
+    removePendingFile,
+    switchSession,
+    newChat,
+    setSessions,
+  } = useAIChat();
+
+  const messagesEndRef = useRef(null);
+  const [showSidebar, setShowSidebar] = useState(false);
+  const isMobile = useMediaQuery('(max-width: 639px)');
+
+  // Auto-scroll to bottom
+  useEffect(() => {
+    if (messagesEndRef.current) {
+      messagesEndRef.current.scrollIntoView({ behavior: 'smooth' });
+    }
+  }, [messages, streamingState]);
+
+  const handleOpenFullScreen = () => {
+    navigate('/admin/ai');
+  };
+
+  const handleDeleteSession = useCallback((sessionId) => {
+    setSessions(prev => prev.filter(s => s.id !== sessionId));
+    if (sessionId === currentSessionId) {
+      newChat();
+    }
+  }, [currentSessionId, newChat, setSessions]);
+
+  const handleUpdateSession = useCallback((sessionId, updates) => {
+    setSessions(prev => prev.map(s => s.id === sessionId ? { ...s, ...updates } : s));
+  }, [setSessions]);
+
+  if (!isOpen) return null;
+
+  return (
+    <AnimatePresence>
+      <motion.div
+        key="chat-widget"
+        initial={{ opacity: 0, scale: 0.95, y: 10 }}
+        animate={{ opacity: 1, scale: 1, y: 0 }}
+        exit={{ opacity: 0, scale: 0.95, y: 10 }}
+        transition={{ duration: 0.2, ease: 'easeOut' }}
+        className={`
+          fixed z-[999] bg-dark-850 border border-dark-700 shadow-2xl flex flex-col overflow-hidden
+          ${isFullScreen
+            ? 'inset-0 rounded-none'
+            : 'left-4 right-4 top-4 bottom-4 sm:left-auto sm:right-6 sm:top-auto sm:bottom-20 sm:w-[420px] sm:h-[600px] rounded-2xl h-[calc(100dvh-2rem)] sm:h-[600px]'
+          }
+        `}
+        style={{ '--tw-bg-opacity': '1', backgroundColor: 'rgb(15 17 23 / var(--tw-bg-opacity))' }}
+      >
+        {/* Header */}
+        <div className="flex items-center justify-between px-3 sm:px-4 py-3 border-b border-dark-700 bg-dark-800/80 backdrop-blur-sm flex-shrink-0">
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => setShowSidebar(!showSidebar)}
+              className="w-7 h-7 rounded-lg flex items-center justify-center text-dark-400 hover:text-dark-100 hover:bg-dark-700 transition-colors"
+              title="Chat history"
+            >
+              <ChevronLeft className={`w-4 h-4 transition-transform ${showSidebar ? '' : 'rotate-180'}`} />
+            </button>
+            <div className="w-7 h-7 rounded-lg bg-dark-700 flex items-center justify-center p-1">
+              <img src="/favicon.svg" alt="Eagle Chair" className="w-full h-full object-contain" />
+            </div>
+            <div>
+              <p className="text-sm font-semibold text-dark-50 leading-none">Eagle AI</p>
+              <p className="text-[10px] text-dark-400 mt-0.5">
+                {isStreaming ? (
+                  <span className="text-chat-accent flex items-center gap-1">
+                    <span className="w-1.5 h-1.5 rounded-full bg-chat-accent animate-pulse inline-block" />
+                    Responding...
+                  </span>
+                ) : 'Ready'}
+              </p>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-1">
+            <button
+              onClick={handleOpenFullScreen}
+              className="w-7 h-7 rounded-lg flex items-center justify-center text-dark-400 hover:text-dark-100 hover:bg-dark-700 transition-colors"
+              title="Open full screen"
+            >
+              <Maximize2 className="w-3.5 h-3.5" />
+            </button>
+            <button
+              onClick={closeChat}
+              className="w-7 h-7 rounded-lg flex items-center justify-center text-dark-400 hover:text-dark-100 hover:bg-dark-700 transition-colors"
+              title="Close"
+            >
+              <X className="w-4 h-4" />
+            </button>
+          </div>
+        </div>
+
+        {/* Body */}
+        <div className="flex flex-1 overflow-hidden relative">
+          {showSidebar && isMobile && (
+            <div
+              className="absolute inset-0 z-10 bg-black/50 sm:hidden"
+              onClick={() => setShowSidebar(false)}
+              aria-hidden
+            />
+          )}
+          <AnimatePresence>
+            {showSidebar && (
+              <motion.div
+                initial={{ width: 0, opacity: 0 }}
+                animate={{ width: isMobile ? '100%' : 208, opacity: 1 }}
+                exit={{ width: 0, opacity: 0 }}
+                transition={{ duration: 0.2 }}
+                className="absolute sm:relative inset-y-0 left-0 z-20 w-full sm:w-[208px] sm:max-w-none overflow-hidden flex-shrink-0 bg-dark-900 sm:bg-transparent"
+              >
+                <AIChatSidebar
+                  sessions={sessions}
+                  currentSessionId={currentSessionId}
+                  onSelect={(id) => { switchSession(id); setShowSidebar(false); }}
+                  onNew={() => { newChat(); setShowSidebar(false); }}
+                  onDelete={handleDeleteSession}
+                  onUpdate={handleUpdateSession}
+                />
+              </motion.div>
+            )}
+          </AnimatePresence>
+
+          {/* Chat area */}
+          <div className="flex-1 flex flex-col overflow-hidden">
+            {/* Messages */}
+            <div className="flex-1 overflow-y-auto px-2 sm:px-3 pt-2 sm:pt-3 pb-1 scroll-smooth">
+              {isLoadingChat ? (
+                <div className="flex flex-col items-center justify-center h-full min-h-[200px]">
+                  <Loader2 className="w-8 h-8 animate-spin text-chat-accent" />
+                  <p className="text-xs text-dark-400 mt-3">Loading chat...</p>
+                </div>
+              ) : messages.length === 0 ? (
+                <WelcomeScreen onSuggestionClick={sendMessage} />
+              ) : (
+                <>
+                  {messages.map(msg => (
+                    <AIChatMessage key={msg.id} message={msg} />
+                  ))}
+                  {streamingState && (
+                    <AIChatStreamStatus state={streamingState} />
+                  )}
+                  <div ref={messagesEndRef} />
+                </>
+              )}
+            </div>
+
+            {/* Input */}
+            <AIChatInput
+              onSend={sendMessage}
+              onUpload={uploadFile}
+              isStreaming={isStreaming}
+              pendingFiles={pendingFiles}
+              onRemoveFile={removePendingFile}
+            />
+          </div>
+        </div>
+      </motion.div>
+    </AnimatePresence>
+  );
+}
+

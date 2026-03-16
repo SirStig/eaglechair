@@ -3,8 +3,9 @@ import { Link } from 'react-router-dom';
 import Button from './Button';
 import Tag from './Tag';
 import { useCartStore } from '../../store/cartStore';
-import { getProductImages, buildProductUrl, resolveImageUrl, formatPrice, formatPriceOrNoListPrice, ensurePriceCents } from '../../utils/apiHelpers';
+import { getProductImages, buildProductUrl, resolveImageUrl, formatPrice, formatPriceOrNoListPrice, ensurePriceCents, variationHasOwnImage } from '../../utils/apiHelpers';
 import SwatchImage from './SwatchImage';
+import VariationImageDisclaimer from './VariationImageDisclaimer';
 import productService from '../../services/productService';
 import logger from '../../utils/logger';
 
@@ -45,7 +46,12 @@ const QuickViewModal = ({ product, isOpen, onClose }) => {
         productService.getProductVariations(product.id)
           .then((vars) => {
             logger.info(CONTEXT, `Loaded ${vars?.length || 0} variations`, vars);
-            setVariations(vars || []);
+            const loaded = vars || [];
+            setVariations(loaded);
+            if (product.variation_id && loaded.length > 0) {
+              const match = loaded.find((v) => v.id === product.variation_id);
+              if (match) setSelectedVariation(match);
+            }
           })
           .catch((error) => {
             logger.error(CONTEXT, 'Failed to load variations', error);
@@ -86,20 +92,6 @@ const QuickViewModal = ({ product, isOpen, onClose }) => {
 
   if (!product) return null;
 
-  const variationHasOwnImage = (v) => {
-    if (!v) return false;
-    if (v.primary_image_url) return true;
-    let arr = v.images;
-    if (typeof arr === 'string') {
-      try {
-        arr = JSON.parse(arr);
-      } catch {
-        arr = [];
-      }
-    }
-    return Array.isArray(arr) && arr.length > 0;
-  };
-
   const getDisplayImages = () => {
     if (selectedVariation && selectedVariation.images) {
       let imagesArray = selectedVariation.images;
@@ -124,7 +116,9 @@ const QuickViewModal = ({ product, isOpen, onClose }) => {
   };
 
   const images = getDisplayImages();
-  const isShowingBaseImageForVariation = selectedVariation && !variationHasOwnImage(selectedVariation);
+  const isShowingBaseImageForVariation = selectedVariation
+    ? !variationHasOwnImage(selectedVariation)
+    : Boolean(product.variation_id && !product.variation_has_own_image);
   const productUrl = buildProductUrl(product);
 
   const getDisplayPrice = () => {
@@ -178,11 +172,7 @@ const QuickViewModal = ({ product, isOpen, onClose }) => {
                   {/* Left: Image Gallery */}
                   <div className="flex items-center justify-center h-full">
                     <div className="relative inline-block w-full h-full flex items-center justify-center">
-                      {isShowingBaseImageForVariation && (
-                        <p className="absolute top-2 left-2 right-2 z-10 text-xs text-slate-600 bg-white/90 backdrop-blur px-2 py-1.5 rounded-md border border-cream-300 text-center">
-                          Image shows base model; this variation has no photo.
-                        </p>
-                      )}
+                      {isShowingBaseImageForVariation && <VariationImageDisclaimer />}
                       <div className="bg-cream-50 rounded-lg overflow-hidden border border-cream-300 flex items-center justify-center h-full">
                         <img
                           src={images[selectedImage]}

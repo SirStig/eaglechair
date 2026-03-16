@@ -4,6 +4,15 @@ EagleChair Models Package
 Import all models here for Alembic autogenerate support
 """
 
+# AI Chat models
+from backend.models.ai_chat import (
+    AIChatSession,
+    AIChatMessage,
+    AIMemory,
+    AITrainingDocument,
+    AIUploadedFile,
+)
+
 # Legal models
 from backend.models.legal import (
     LegalDocument,

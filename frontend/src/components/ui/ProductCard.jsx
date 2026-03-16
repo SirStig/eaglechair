@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import Tag from './Tag';
+import VariationImageDisclaimer from './VariationImageDisclaimer';
 import Button from './Button';
 import { formatPrice, getProductHoverImages, buildProductUrl, hasValidPrice } from '../../utils/apiHelpers';
 import SwatchImage from './SwatchImage';
@@ -100,10 +101,7 @@ const ProductCard = ({ product, onQuickView, darkMode = false, compact = false }
         {/* Main product image */}
         {!imageError && (
           <div className="w-full h-full relative">
-            {/* We use a key based on the image URL to force re-render/fade if needed, 
-                but for smooth transition we might want to keep the same img tag and just change src 
-                OR use multiple images and fade between them. 
-                For now, simple src swap with transition class on parent or img. */}
+            {product.variation_id && !product.variation_has_own_image && <VariationImageDisclaimer compact />}
             <img
               key={displayImage} // Force transition when image changes
               src={displayImage || '/placeholder-product.jpg'}

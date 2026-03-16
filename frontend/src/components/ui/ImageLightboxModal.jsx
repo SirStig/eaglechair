@@ -1,8 +1,9 @@
 import { useEffect, useRef, useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { TransformWrapper, TransformComponent } from 'react-zoom-pan-pinch';
+import VariationImageDisclaimer from './VariationImageDisclaimer';
 
-const ImageLightboxModal = ({ isOpen, onClose, images = [], initialIndex = 0 }) => {
+const ImageLightboxModal = ({ isOpen, onClose, images = [], initialIndex = 0, showDisclaimer = false }) => {
   const transformRef = useRef(null);
   const [index, setIndex] = useState(initialIndex);
 
@@ -142,6 +143,7 @@ const ImageLightboxModal = ({ isOpen, onClose, images = [], initialIndex = 0 }) 
             className="relative w-full h-full flex items-center justify-center touch-none"
             onClick={(e) => e.stopPropagation()}
           >
+            {showDisclaimer && <VariationImageDisclaimer />}
             <TransformWrapper
               ref={transformRef}
               key={currentIndex}

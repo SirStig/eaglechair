@@ -7,6 +7,7 @@ Aggregates all admin route modules
 from fastapi import APIRouter
 
 from backend.api.v1.routes.admin import (
+    ai_chat,
     catalog,
     categories,
     colors,
@@ -42,3 +43,4 @@ router.include_router(pricing_tiers.router, prefix="/pricing-tiers", tags=["Admi
 router.include_router(upload.router, prefix="/upload", tags=["Admin - Upload"])
 router.include_router(virtual_catalog.router, prefix="/virtual-catalog", tags=["Admin - Virtual Catalog"])
 router.include_router(emails.router, prefix="/emails", tags=["Admin - Email Templates"])
+router.include_router(ai_chat.router, prefix="/ai", tags=["Admin - AI Chat"])

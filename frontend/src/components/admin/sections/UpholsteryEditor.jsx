@@ -317,7 +317,7 @@ const UpholsteryEditor = ({ upholstery, onBack, onSave }) => {
                       {uploadingImage ? (
                         <>
                           <div className="w-8 h-8 border-2 border-dark-600 border-t-primary-500 rounded-full animate-spin mb-2" />
-                          <span className="text-sm text-primary-400 font-medium">Uploading...</span>
+                          <span className="text-sm text-accent-400 font-medium">Uploading...</span>
                         </>
                       ) : (
                         <>

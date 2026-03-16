@@ -1,5 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Navigate, useNavigate, useLocation } from 'react-router-dom';
+import FloatingAIButton from '../../components/admin/ai/FloatingAIButton';
+import AIChatWidget from '../../components/admin/ai/AIChatWidget';
 import { useAuthStore } from '../../store/authStore';
 import { AdminRefreshProvider, useAdminRefresh } from '../../contexts/AdminRefreshContext';
 import { 
@@ -231,7 +233,7 @@ const NewAdminDashboardInner = () => {
   };
 
   return (
-    <div className="flex min-h-screen bg-dark-900">
+    <div className="flex min-h-screen bg-dark-900 relative">
       {/* Mobile Menu Overlay */}
       <AnimatePresence>
         {isMobileMenuOpen && (
@@ -322,6 +324,10 @@ const NewAdminDashboardInner = () => {
           </button>
         </div>
       </aside>
+
+      {/* Floating AI Chat */}
+      <FloatingAIButton />
+      <AIChatWidget />
 
       {/* Main Content */}
       <main className="flex-1 flex flex-col min-h-screen lg:ml-0">

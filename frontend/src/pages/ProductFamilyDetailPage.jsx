@@ -4,6 +4,7 @@ import { ArrowLeft, FileText, Grid3x3, List } from 'lucide-react';
 import QuickViewModal from '../components/ui/QuickViewModal';
 import Button from '../components/ui/Button';
 import LoadingSpinner from '../components/ui/LoadingSpinner';
+import ProductCard from '../components/ui/ProductCard';
 import SEOHead from '../components/SEOHead';
 import productService from '../services/productService';
 import { resolveFileUrl, resolveImageUrl } from '../utils/apiHelpers';
@@ -252,61 +253,55 @@ const ProductFamilyDetailPage = () => {
               ) : viewMode === 'grid' ? (
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-6">
                   {products.map((item) => {
-                    const itemLink = item.variation_id
-                      ? `/products/${item.product_slug}?variation=${item.variation_id}`
-                      : `/products/${item.product_slug}`;
-                    const imgUrl = resolveImageUrl(item.primary_image_url) || '/placeholder-product.jpg';
+                    const categoryName = typeof item.category === 'string' ? item.category : item.category?.name;
+                    const normalized = {
+                      id: item.product_id ?? item.id,
+                      slug: item.product_slug ?? item.slug,
+                      name: item.name,
+                      primary_image_url: item.primary_image_url,
+                      variation_id: item.variation_id ?? undefined,
+                      variation_has_own_image: item.variation_has_own_image,
+                      base_price: item.base_price ?? 0,
+                      short_description: item.short_description,
+                      category: categoryName,
+                      hover_images: item.hover_images,
+                      lead_time_days: item.lead_time_days,
+                    };
+                    const key = item.variation_id ? `var-${item.variation_id}` : `product-${item.product_id ?? item.id}`;
                     return (
-                      <div key={`${item.type}-${item.id}`} className="bg-white rounded-xl shadow-md border border-cream-200 overflow-hidden hover:shadow-lg transition-shadow">
-                        <Link to={itemLink}>
-                          <div className="aspect-square bg-cream-50 overflow-hidden">
-                            <img src={imgUrl} alt={item.name} className="w-full h-full object-contain" style={{ mixBlendMode: 'multiply' }} />
-                          </div>
-                        </Link>
-                        <div className="p-4">
-                          <Link to={itemLink}>
-                            <h3 className="font-semibold text-slate-800 hover:text-primary-600 transition-colors line-clamp-2">{item.name}</h3>
-                          </Link>
-                          {item.sku && <p className="text-sm text-slate-500 mt-1">SKU: {item.sku}</p>}
-                          <div className="mt-3">
-                            <Link to={itemLink}>
-                              <Button variant="primary" size="sm" className="w-full">View Details</Button>
-                            </Link>
-                          </div>
-                        </div>
-                      </div>
+                      <ProductCard
+                        key={key}
+                        product={normalized}
+                        onQuickView={handleQuickView}
+                      />
                     );
                   })}
                 </div>
               ) : (
-                <div className="space-y-4">
+                <div className="grid grid-cols-1 gap-4 sm:gap-6">
                   {products.map((item) => {
-                    const itemLink = item.variation_id
-                      ? `/products/${item.product_slug}?variation=${item.variation_id}`
-                      : `/products/${item.product_slug}`;
-                    const imgUrl = resolveImageUrl(item.primary_image_url) || '/placeholder-product.jpg';
+                    const categoryName = typeof item.category === 'string' ? item.category : item.category?.name;
+                    const normalized = {
+                      id: item.product_id ?? item.id,
+                      slug: item.product_slug ?? item.slug,
+                      name: item.name,
+                      primary_image_url: item.primary_image_url,
+                      variation_id: item.variation_id ?? undefined,
+                      variation_has_own_image: item.variation_has_own_image,
+                      base_price: item.base_price ?? 0,
+                      short_description: item.short_description,
+                      category: categoryName,
+                      hover_images: item.hover_images,
+                      lead_time_days: item.lead_time_days,
+                    };
+                    const key = item.variation_id ? `var-${item.variation_id}` : `product-${item.product_id ?? item.id}`;
                     return (
-                      <div
-                        key={`${item.type}-${item.id}`}
-                        className="bg-white rounded-xl shadow-md border border-cream-200 p-4 sm:p-6 flex flex-col md:flex-row gap-4 sm:gap-6 hover:shadow-lg transition-shadow"
-                      >
-                        <div className="w-full md:w-40 h-40 flex-shrink-0 mx-auto md:mx-0">
-                          <Link to={itemLink}>
-                            <img src={imgUrl} alt={item.name} className="w-full h-full object-contain rounded-lg" />
-                          </Link>
-                        </div>
-                        <div className="flex-1">
-                          <Link to={itemLink}>
-                            <h3 className="text-xl font-semibold text-slate-800 mb-2 hover:text-primary-600 transition-colors">
-                              {item.name}
-                            </h3>
-                          </Link>
-                          {item.sku && <p className="text-sm text-slate-500 mb-3">SKU: {item.sku}</p>}
-                          <Link to={itemLink}>
-                            <Button variant="primary" size="sm">View Details</Button>
-                          </Link>
-                        </div>
-                      </div>
+                      <ProductCard
+                        key={key}
+                        product={normalized}
+                        onQuickView={handleQuickView}
+                        compact
+                      />
                     );
                   })}
                 </div>

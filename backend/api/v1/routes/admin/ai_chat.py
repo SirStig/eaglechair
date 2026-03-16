@@ -1,0 +1,934 @@
+"""
+Admin AI Chat Routes
+
+REST + WebSocket endpoints for the EagleChair AI assistant.
+
+Endpoints:
+  GET    /admin/ai/chats              - List chat sessions
+  POST   /admin/ai/chats              - Create new chat session
+  GET    /admin/ai/chats/{id}         - Get chat with messages
+  PATCH  /admin/ai/chats/{id}         - Update chat (title, pin, etc.)
+  DELETE /admin/ai/chats/{id}         - Delete chat session
+  POST   /admin/ai/chats/{id}/upload  - Upload file to chat
+  GET    /admin/ai/memory             - Get AI memory entries
+  PUT    /admin/ai/memory/{key}       - Update/create memory entry
+  DELETE /admin/ai/memory/{key}       - Delete memory entry
+  GET    /admin/ai/training           - List training documents
+  POST   /admin/ai/training           - Upload training document
+  DELETE /admin/ai/training/{id}      - Delete training document
+  WS     /admin/ai/ws/{chat_id}       - WebSocket for streaming chat
+"""
+
+import asyncio
+import json
+import logging
+import uuid
+from datetime import datetime
+from pathlib import Path
+
+from fastapi import (
+    APIRouter,
+    Depends,
+    File,
+    Form,
+    HTTPException,
+    UploadFile,
+    WebSocket,
+    WebSocketDisconnect,
+)
+from sqlalchemy import select, delete, update, desc
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
+
+from backend.api.dependencies import get_current_admin
+from backend.core.security import SecurityManager
+from backend.database.base import get_db, AsyncSessionLocal
+from backend.models.ai_chat import (
+    AIChatSession,
+    AIChatMessage,
+    AIMemory,
+    AITrainingDocument,
+    AIUploadedFile,
+    AIFileType,
+    MessageRole,
+    TrainingStatus,
+)
+from backend.services.ai_service import (
+    AIStreamEvent,
+    build_system_prompt,
+    extract_memory_from_conversation,
+    generate_chat_title,
+    get_eaglechair_context,
+    process_training_document,
+    process_uploaded_file,
+    stream_ai_response,
+)
+
+logger = logging.getLogger(__name__)
+
+router = APIRouter()
+
+# Upload directory for AI files
+AI_UPLOADS_DIR = Path("uploads/ai")
+AI_UPLOADS_DIR.mkdir(parents=True, exist_ok=True)
+
+TRAINING_UPLOADS_DIR = Path("uploads/ai_training")
+TRAINING_UPLOADS_DIR.mkdir(parents=True, exist_ok=True)
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Helpers
+# ─────────────────────────────────────────────────────────────────────────────
+
+def detect_file_type(filename: str, content_type: str = "") -> AIFileType:
+    ext = Path(filename).suffix.lower()
+    if ext == ".pdf":
+        return AIFileType.PDF
+    elif ext == ".csv":
+        return AIFileType.CSV
+    elif ext in (".xlsx", ".xls", ".xlsm"):
+        return AIFileType.EXCEL
+    elif ext in (".jpg", ".jpeg", ".png", ".gif", ".webp", ".bmp"):
+        return AIFileType.IMAGE
+    elif ext in (".txt", ".md", ".json", ".xml", ".html", ".py", ".js"):
+        return AIFileType.TEXT
+    elif "image" in content_type:
+        return AIFileType.IMAGE
+    elif "pdf" in content_type:
+        return AIFileType.PDF
+    else:
+        return AIFileType.OTHER
+
+
+async def get_session_or_404(session_id: str, db: AsyncSession, admin) -> AIChatSession:
+    admin_id = getattr(admin, "id", None)
+    if admin_id is None:
+        raise HTTPException(status_code=404, detail="Chat session not found")
+    result = await db.execute(
+        select(AIChatSession)
+        .where(AIChatSession.id == session_id, AIChatSession.admin_user_id == admin_id)
+        .options(selectinload(AIChatSession.messages))
+        .options(selectinload(AIChatSession.files))
+    )
+    session = result.scalar_one_or_none()
+    if not session:
+        raise HTTPException(status_code=404, detail="Chat session not found")
+    return session
+
+
+async def load_active_memory(db: AsyncSession, admin_id: int | None) -> list[dict]:
+    q = select(AIMemory).where(AIMemory.is_active == True)
+    if admin_id is not None:
+        q = q.where(AIMemory.admin_user_id == admin_id)
+    else:
+        q = q.where(AIMemory.admin_user_id.is_(None))
+    result = await db.execute(
+        q.order_by(desc(AIMemory.importance), desc(AIMemory.updated_at)).limit(50)
+    )
+    return [
+        {"key": m.key, "value": m.value, "category": m.category, "importance": m.importance}
+        for m in result.scalars().all()
+    ]
+
+
+async def load_training_summaries(db: AsyncSession) -> list[dict]:
+    result = await db.execute(
+        select(AITrainingDocument)
+        .where(
+            AITrainingDocument.is_active == True,
+            AITrainingDocument.status == TrainingStatus.COMPLETED,
+        )
+        .order_by(desc(AITrainingDocument.created_at))
+        .limit(20)
+    )
+    return [
+        {
+            "name": d.name,
+            "summary": d.summary or "",
+            "key_facts": d.key_facts or [],
+            "structured_data": d.structured_data or "",
+        }
+        for d in result.scalars().all()
+    ]
+
+
+def serialize_session(session: AIChatSession, include_messages: bool = True) -> dict:
+    data = {
+        "id": session.id,
+        "title": session.title,
+        "created_at": session.created_at.isoformat() if session.created_at else None,
+        "updated_at": session.updated_at.isoformat() if session.updated_at else None,
+        "message_count": session.message_count,
+        "total_tokens": session.total_tokens,
+        "pinned": session.pinned,
+        "is_archived": session.is_archived,
+        "tags": session.tags or [],
+    }
+    if include_messages:
+        data["messages"] = [serialize_message(m) for m in session.messages]
+        data["files"] = [serialize_file(f) for f in session.files]
+    return data
+
+
+def serialize_message(msg: AIChatMessage) -> dict:
+    return {
+        "id": msg.id,
+        "session_id": msg.session_id,
+        "role": msg.role.value if msg.role else msg.role,
+        "content": msg.content,
+        "created_at": msg.created_at.isoformat() if msg.created_at else None,
+        "tokens_used": msg.tokens_used,
+        "web_sources": msg.web_sources or [],
+        "tool_calls": msg.tool_calls or [],
+        "file_ids": msg.file_ids or [],
+    }
+
+
+def serialize_file(f: AIUploadedFile) -> dict:
+    return {
+        "id": f.id,
+        "original_filename": f.original_filename,
+        "file_type": f.file_type.value if f.file_type else f.file_type,
+        "file_size": f.file_size,
+        "is_processed": f.is_processed,
+        "created_at": f.created_at.isoformat() if f.created_at else None,
+    }
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Chat Session Endpoints
+# ─────────────────────────────────────────────────────────────────────────────
+
+@router.get("/chats")
+async def list_chats(
+    archived: bool = False,
+    limit: int = 50,
+    offset: int = 0,
+    db: AsyncSession = Depends(get_db),
+    admin=Depends(get_current_admin),
+):
+    admin_id = getattr(admin, "id", None)
+    if admin_id is None:
+        return []
+    result = await db.execute(
+        select(AIChatSession)
+        .where(AIChatSession.admin_user_id == admin_id, AIChatSession.is_archived == archived)
+        .order_by(desc(AIChatSession.pinned), desc(AIChatSession.updated_at))
+        .offset(offset)
+        .limit(limit)
+    )
+    sessions = result.scalars().all()
+    return [serialize_session(s, include_messages=False) for s in sessions]
+
+
+@router.post("/chats")
+async def create_chat(db: AsyncSession = Depends(get_db), admin=Depends(get_current_admin)):
+    admin_id = getattr(admin, "id", None)
+    session = AIChatSession(
+        id=str(uuid.uuid4()),
+        title="New Chat",
+        admin_user_id=admin_id,
+    )
+    db.add(session)
+    await db.commit()
+    await db.refresh(session)
+    return serialize_session(session, include_messages=False)
+
+
+@router.get("/chats/{session_id}")
+async def get_chat(
+    session_id: str,
+    db: AsyncSession = Depends(get_db),
+    admin=Depends(get_current_admin),
+):
+    session = await get_session_or_404(session_id, db, admin)
+    return serialize_session(session)
+
+
+@router.patch("/chats/{session_id}")
+async def update_chat(
+    session_id: str,
+    body: dict,
+    db: AsyncSession = Depends(get_db),
+    admin=Depends(get_current_admin),
+):
+    session = await get_session_or_404(session_id, db, admin)
+    if "title" in body:
+        session.title = body["title"][:255]
+    if "pinned" in body:
+        session.pinned = bool(body["pinned"])
+    if "is_archived" in body:
+        session.is_archived = bool(body["is_archived"])
+    if "tags" in body:
+        session.tags = body["tags"]
+    await db.commit()
+    return {"success": True}
+
+
+@router.delete("/chats/{session_id}")
+async def delete_chat(
+    session_id: str,
+    db: AsyncSession = Depends(get_db),
+    admin=Depends(get_current_admin),
+):
+    admin_id = getattr(admin, "id", None)
+    if admin_id is not None:
+        await db.execute(
+            delete(AIChatSession).where(
+                AIChatSession.id == session_id,
+                AIChatSession.admin_user_id == admin_id,
+            )
+        )
+    await db.commit()
+    return {"success": True}
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# File Upload
+# ─────────────────────────────────────────────────────────────────────────────
+
+@router.post("/chats/{session_id}/upload")
+async def upload_file_to_chat(
+    session_id: str,
+    file: UploadFile = File(...),
+    db: AsyncSession = Depends(get_db),
+    admin=Depends(get_current_admin),
+):
+    session = await get_session_or_404(session_id, db, admin)
+    file_type = detect_file_type(file.filename or "", file.content_type or "")
+    file_id = str(uuid.uuid4())
+    ext = Path(file.filename or "file").suffix
+    save_path = AI_UPLOADS_DIR / f"{file_id}{ext}"
+
+    content = await file.read()
+    save_path.write_bytes(content)
+
+    db_file = AIUploadedFile(
+        id=file_id,
+        session_id=session_id,
+        original_filename=file.filename or "upload",
+        file_path=str(save_path),
+        file_type=file_type,
+        file_size=len(content),
+        mime_type=file.content_type,
+    )
+    db.add(db_file)
+
+    # Process immediately in background
+    async def process_bg():
+        try:
+            async with AsyncSessionLocal() as bg_db:
+                processed = await process_uploaded_file(
+                    str(save_path), file_type.value, file.filename or "upload"
+                )
+                await bg_db.execute(
+                    update(AIUploadedFile)
+                    .where(AIUploadedFile.id == file_id)
+                    .values(processed_content=processed, is_processed=True)
+                )
+                await bg_db.commit()
+        except Exception as e:
+            logger.error(f"Background file processing failed: {e}")
+
+    asyncio.create_task(process_bg())
+
+    await db.commit()
+    return {
+        "file_id": file_id,
+        "filename": file.filename,
+        "file_type": file_type.value,
+        "file_size": len(content),
+    }
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# AI Memory Endpoints
+# ─────────────────────────────────────────────────────────────────────────────
+
+@router.get("/memory")
+async def get_memory(
+    db: AsyncSession = Depends(get_db),
+    admin=Depends(get_current_admin),
+):
+    admin_id = getattr(admin, "id", None)
+    q = select(AIMemory).where(AIMemory.is_active == True)
+    if admin_id is not None:
+        q = q.where(AIMemory.admin_user_id == admin_id)
+    else:
+        q = q.where(AIMemory.admin_user_id.is_(None))
+    result = await db.execute(q.order_by(desc(AIMemory.importance), desc(AIMemory.updated_at)))
+    memories = result.scalars().all()
+    return [
+        {
+            "id": m.id,
+            "key": m.key,
+            "value": m.value,
+            "category": m.category,
+            "importance": m.importance,
+            "created_at": m.created_at.isoformat() if m.created_at else None,
+            "updated_at": m.updated_at.isoformat() if m.updated_at else None,
+        }
+        for m in memories
+    ]
+
+
+@router.put("/memory/{key}")
+async def upsert_memory(
+    key: str,
+    body: dict,
+    db: AsyncSession = Depends(get_db),
+    admin=Depends(get_current_admin),
+):
+    admin_id = getattr(admin, "id", None)
+    if admin_id is None:
+        raise HTTPException(status_code=400, detail="Admin user required")
+    q = select(AIMemory).where(AIMemory.key == key, AIMemory.admin_user_id == admin_id)
+    result = await db.execute(q)
+    existing = result.scalar_one_or_none()
+    if existing:
+        existing.value = body.get("value", existing.value)
+        existing.category = body.get("category", existing.category)
+        existing.importance = body.get("importance", existing.importance)
+        existing.is_active = True
+    else:
+        db.add(AIMemory(
+            id=str(uuid.uuid4()),
+            admin_user_id=admin_id,
+            key=key,
+            value=body.get("value", ""),
+            category=body.get("category", "general"),
+            importance=body.get("importance", 0.5),
+        ))
+    await db.commit()
+    return {"success": True}
+
+
+@router.delete("/memory/{key}")
+async def delete_memory(
+    key: str,
+    db: AsyncSession = Depends(get_db),
+    admin=Depends(get_current_admin),
+):
+    admin_id = getattr(admin, "id", None)
+    if admin_id is not None:
+        await db.execute(
+            update(AIMemory).where(
+                AIMemory.key == key,
+                AIMemory.admin_user_id == admin_id,
+            ).values(is_active=False)
+        )
+    await db.commit()
+    return {"success": True}
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Training Documents
+# ─────────────────────────────────────────────────────────────────────────────
+
+@router.get("/training")
+async def list_training_docs(
+    db: AsyncSession = Depends(get_db),
+    admin=Depends(get_current_admin),
+):
+    result = await db.execute(
+        select(AITrainingDocument)
+        .where(AITrainingDocument.is_active == True)
+        .order_by(desc(AITrainingDocument.created_at))
+    )
+    docs = result.scalars().all()
+    return [
+        {
+            "id": d.id,
+            "name": d.name,
+            "description": d.description,
+            "file_type": d.file_type.value if d.file_type else None,
+            "original_filename": d.original_filename,
+            "file_size": d.file_size,
+            "status": d.status.value if d.status else None,
+            "summary": d.summary,
+            "key_facts": d.key_facts or [],
+            "structured_data": getattr(d, "structured_data", None) or "",
+            "tags": d.tags or [],
+            "created_at": d.created_at.isoformat() if d.created_at else None,
+            "processed_at": d.processed_at.isoformat() if d.processed_at else None,
+            "error_message": d.error_message,
+        }
+        for d in docs
+    ]
+
+
+@router.post("/training")
+async def upload_training_document(
+    file: UploadFile = File(...),
+    name: str = Form(...),
+    description: str = Form(""),
+    tags: str = Form(""),
+    db: AsyncSession = Depends(get_db),
+    admin=Depends(get_current_admin),
+):
+    file_type = detect_file_type(file.filename or "", file.content_type or "")
+    doc_id = str(uuid.uuid4())
+    ext = Path(file.filename or "file").suffix
+    save_path = TRAINING_UPLOADS_DIR / f"{doc_id}{ext}"
+
+    content = await file.read()
+    save_path.write_bytes(content)
+
+    tags_list = [t.strip() for t in tags.split(",") if t.strip()] if tags else []
+
+    doc = AITrainingDocument(
+        id=doc_id,
+        name=name[:255],
+        description=description,
+        file_type=file_type,
+        original_filename=file.filename or "upload",
+        file_path=str(save_path),
+        file_size=len(content),
+        status=TrainingStatus.PENDING,
+        tags=tags_list,
+    )
+    db.add(doc)
+    await db.commit()
+
+    # Start processing in background
+    async def process_training_bg():
+        try:
+            async with AsyncSessionLocal() as bg_db:
+                await bg_db.execute(
+                    update(AITrainingDocument)
+                    .where(AITrainingDocument.id == doc_id)
+                    .values(status=TrainingStatus.PROCESSING)
+                )
+                await bg_db.commit()
+
+                result = await process_training_document(
+                    str(save_path), file_type.value, file.filename or "upload", name
+                )
+
+                if result["success"]:
+                    await bg_db.execute(
+                        update(AITrainingDocument)
+                        .where(AITrainingDocument.id == doc_id)
+                        .values(
+                            status=TrainingStatus.COMPLETED,
+                            processed_content=result["processed_content"],
+                            summary=result["summary"],
+                            key_facts=result["key_facts"],
+                            structured_data=result.get("structured_data") or "",
+                            processed_at=datetime.utcnow(),
+                        )
+                    )
+                else:
+                    await bg_db.execute(
+                        update(AITrainingDocument)
+                        .where(AITrainingDocument.id == doc_id)
+                        .values(
+                            status=TrainingStatus.FAILED,
+                            error_message=result.get("error", "Unknown error"),
+                        )
+                    )
+                await bg_db.commit()
+        except Exception as e:
+            logger.error(f"Training document processing failed: {e}")
+            try:
+                async with AsyncSessionLocal() as bg_db:
+                    await bg_db.execute(
+                        update(AITrainingDocument)
+                        .where(AITrainingDocument.id == doc_id)
+                        .values(status=TrainingStatus.FAILED, error_message=str(e))
+                    )
+                    await bg_db.commit()
+            except Exception:
+                pass
+
+    asyncio.create_task(process_training_bg())
+
+    return {"document_id": doc_id, "status": "pending", "name": name}
+
+
+@router.post("/training/batch")
+async def upload_training_batch(
+    files: list[UploadFile] = File(..., description="Multiple files; names will be derived from filenames"),
+    db: AsyncSession = Depends(get_db),
+    admin=Depends(get_current_admin),
+):
+    if not files or len(files) > 200:
+        raise HTTPException(status_code=400, detail="Provide 1–200 files")
+    created = []
+    for file in files:
+        filename = file.filename or "file"
+        file_type = detect_file_type(filename, file.content_type or "")
+        ext = Path(filename).suffix
+        if ext.lower() not in (".pdf", ".csv", ".xlsx", ".xls", ".xlsm", ".txt", ".md"):
+            continue
+        doc_id = str(uuid.uuid4())
+        save_path = TRAINING_UPLOADS_DIR / f"{doc_id}{ext}"
+        content = await file.read()
+        save_path.write_bytes(content)
+        name = Path(filename).stem[:255] or filename[:255]
+        doc = AITrainingDocument(
+            id=doc_id,
+            name=name,
+            description="",
+            file_type=file_type,
+            original_filename=filename,
+            file_path=str(save_path),
+            file_size=len(content),
+            status=TrainingStatus.PENDING,
+            tags=[],
+        )
+        db.add(doc)
+        created.append({"id": doc_id, "name": name, "path": str(save_path), "file_type": file_type, "filename": filename})
+    await db.commit()
+
+    async def process_batch_sequential():
+        for item in created:
+            doc_id, name, path, file_type, filename = item["id"], item["name"], item["path"], item["file_type"], item["filename"]
+            try:
+                async with AsyncSessionLocal() as bg_db:
+                    await bg_db.execute(
+                        update(AITrainingDocument).where(AITrainingDocument.id == doc_id).values(status=TrainingStatus.PROCESSING)
+                    )
+                    await bg_db.commit()
+                result = await process_training_document(path, file_type.value, filename, name)
+                async with AsyncSessionLocal() as bg_db:
+                    if result["success"]:
+                        await bg_db.execute(
+                            update(AITrainingDocument)
+                            .where(AITrainingDocument.id == doc_id)
+                            .values(
+                                status=TrainingStatus.COMPLETED,
+                                processed_content=result["processed_content"],
+                                summary=result["summary"],
+                                key_facts=result["key_facts"],
+                                structured_data=result.get("structured_data") or "",
+                                processed_at=datetime.utcnow(),
+                            )
+                        )
+                    else:
+                        await bg_db.execute(
+                            update(AITrainingDocument)
+                            .where(AITrainingDocument.id == doc_id)
+                            .values(status=TrainingStatus.FAILED, error_message=result.get("error", "Unknown error"))
+                        )
+                    await bg_db.commit()
+            except Exception as e:
+                logger.error(f"Batch training doc {doc_id} failed: {e}")
+                try:
+                    async with AsyncSessionLocal() as bg_db:
+                        await bg_db.execute(
+                            update(AITrainingDocument)
+                            .where(AITrainingDocument.id == doc_id)
+                            .values(status=TrainingStatus.FAILED, error_message=str(e))
+                        )
+                        await bg_db.commit()
+                except Exception:
+                    pass
+
+    asyncio.create_task(process_batch_sequential())
+    return {"uploaded": len(created), "documents": [{"id": c["id"], "name": c["name"]} for c in created], "status": "pending"}
+
+
+@router.delete("/training/{doc_id}")
+async def delete_training_doc(
+    doc_id: str,
+    db: AsyncSession = Depends(get_db),
+    admin=Depends(get_current_admin),
+):
+    await db.execute(
+        update(AITrainingDocument)
+        .where(AITrainingDocument.id == doc_id)
+        .values(is_active=False)
+    )
+    await db.commit()
+    return {"success": True}
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# WebSocket Chat Endpoint
+# ─────────────────────────────────────────────────────────────────────────────
+
+@router.websocket("/ws/{session_id}")
+async def websocket_chat(websocket: WebSocket, session_id: str):
+    """
+    WebSocket endpoint for streaming AI chat.
+
+    Client sends:
+      {"type": "message", "content": "...", "file_ids": [...]}
+      {"type": "ping"}
+
+    Server streams:
+      {"type": "thinking", "data": {...}}
+      {"type": "searching", "data": {"query": "...", "search_count": N}}
+      {"type": "search_results", "data": {"sources": [...]}}
+      {"type": "fetching_url", "data": {"url": "..."}}
+      {"type": "calculating", "data": {"expression": "..."}}
+      {"type": "text_chunk", "data": {"content": "..."}}
+      {"type": "message_done", "data": {"message_id": "...", "tokens": N, "web_sources": [...]}}
+      {"type": "error", "data": {"message": "..."}}
+      {"type": "title_update", "data": {"title": "..."}}
+    """
+    await websocket.accept()
+
+    # Validate session and admin token via header or query param
+    token = websocket.query_params.get("token", "")
+    if not token:
+        await websocket.send_json(AIStreamEvent.error("Authentication required"))
+        await websocket.close(code=4001)
+        return
+
+    try:
+        payload = SecurityManager.decode_token(token)
+        if payload.get("type") != "admin":
+            raise ValueError("Not an admin token")
+    except Exception:
+        await websocket.send_json(AIStreamEvent.error("Invalid or expired token"))
+        await websocket.close(code=4001)
+        return
+
+    admin_id = None
+    try:
+        admin_id = int(payload.get("sub", 0))
+    except (TypeError, ValueError):
+        pass
+    if not admin_id:
+        await websocket.send_json(AIStreamEvent.error("Invalid token"))
+        await websocket.close(code=4001)
+        return
+
+    try:
+        async with AsyncSessionLocal() as db:
+            result = await db.execute(
+                select(AIChatSession)
+                .where(AIChatSession.id == session_id, AIChatSession.admin_user_id == admin_id)
+                .options(selectinload(AIChatSession.messages))
+                .options(selectinload(AIChatSession.files))
+            )
+            session = result.scalar_one_or_none()
+            if not session:
+                await websocket.send_json(AIStreamEvent.error("Chat session not found"))
+                await websocket.close(code=4004)
+                return
+
+        logger.info(f"WebSocket connected for session {session_id} admin={admin_id}")
+
+        while True:
+            try:
+                raw = await websocket.receive_text()
+                data = json.loads(raw)
+            except WebSocketDisconnect:
+                break
+            except json.JSONDecodeError:
+                await websocket.send_json(AIStreamEvent.error("Invalid JSON"))
+                continue
+
+            msg_type = data.get("type", "message")
+
+            if msg_type == "ping":
+                await websocket.send_json({"type": "pong"})
+                continue
+
+            if msg_type != "message":
+                continue
+
+            user_content = data.get("content", "").strip()
+            file_ids = data.get("file_ids", [])
+
+            if not user_content and not file_ids:
+                await websocket.send_json(AIStreamEvent.error("Message cannot be empty"))
+                continue
+
+            # ── Process and save user message ───────────────────────────────
+            async with AsyncSessionLocal() as db:
+                # Load session fresh
+                result = await db.execute(
+                    select(AIChatSession)
+                    .where(AIChatSession.id == session_id)
+                    .options(selectinload(AIChatSession.messages))
+                    .options(selectinload(AIChatSession.files))
+                )
+                session = result.scalar_one_or_none()
+                if not session:
+                    await websocket.send_json(AIStreamEvent.error("Session lost"))
+                    break
+
+                # Build user message content (include file context)
+                full_user_content = user_content
+                attached_file_content = []
+
+                if file_ids:
+                    for fid in file_ids:
+                        fr = await db.execute(
+                            select(AIUploadedFile).where(AIUploadedFile.id == fid)
+                        )
+                        f = fr.scalar_one_or_none()
+                        if f and f.processed_content:
+                            attached_file_content.append(f.processed_content)
+                        elif f and not f.processed_content:
+                            # Process now if not yet done
+                            processed = await process_uploaded_file(
+                                f.file_path, f.file_type.value, f.original_filename
+                            )
+                            attached_file_content.append(processed)
+
+                if attached_file_content:
+                    full_user_content = (
+                        user_content
+                        + "\n\n--- ATTACHED FILES ---\n\n"
+                        + "\n\n---\n\n".join(attached_file_content)
+                    )
+
+                # Save user message
+                user_msg = AIChatMessage(
+                    id=str(uuid.uuid4()),
+                    session_id=session_id,
+                    role=MessageRole.USER,
+                    content=user_content,  # Store clean version
+                    file_ids=file_ids,
+                )
+                db.add(user_msg)
+                session.message_count = (session.message_count or 0) + 1
+
+                # Build conversation history for AI
+                history = []
+                for m in session.messages:
+                    history.append({"role": m.role.value, "content": m.content})
+                # Add the new message with file content
+                history.append({"role": "user", "content": full_user_content})
+
+                memory = await load_active_memory(db, admin_id)
+                training = await load_training_summaries(db)
+
+                # Get live DB context
+                db_context = await get_eaglechair_context(db)
+                system_prompt = build_system_prompt(memory, training)
+                if db_context:
+                    system_prompt += f"\n\n## Live Data\n{db_context}"
+
+                await db.commit()
+
+            # ── Stream AI response ───────────────────────────────────────────
+            full_response = ""
+            web_sources = []
+            tokens_used = 0
+            is_first_message = (session.message_count or 0) <= 1
+
+            try:
+                async for event in stream_ai_response(history, system_prompt):
+                    # Accumulate but don't forward message_done from generator
+                    # We send our own message_done after saving to DB with the real message_id
+                    if event["type"] == "text_chunk":
+                        full_response += event["data"]["content"]
+                        await websocket.send_json(event)
+                    elif event["type"] == "message_done":
+                        web_sources = event["data"].get("web_sources", [])
+                        tokens_used = event["data"].get("tokens", 0)
+                        # Don't forward — we send our own after DB save
+                    else:
+                        await websocket.send_json(event)
+
+            except Exception as e:
+                logger.error(f"Streaming error: {e}")
+                await websocket.send_json(AIStreamEvent.error(f"AI error: {str(e)}"))
+                continue
+
+            # ── Save assistant message ───────────────────────────────────────
+            async with AsyncSessionLocal() as db:
+                asst_msg_id = str(uuid.uuid4())
+                asst_msg = AIChatMessage(
+                    id=asst_msg_id,
+                    session_id=session_id,
+                    role=MessageRole.ASSISTANT,
+                    content=full_response,
+                    tokens_used=tokens_used,
+                    model_used="gemini-2.0-flash",
+                    web_sources=web_sources,
+                )
+                db.add(asst_msg)
+
+                # Update session
+                result = await db.execute(
+                    select(AIChatSession).where(AIChatSession.id == session_id)
+                )
+                session_obj = result.scalar_one_or_none()
+                if session_obj:
+                    session_obj.message_count = (session_obj.message_count or 0) + 1
+                    session_obj.total_tokens = (session_obj.total_tokens or 0) + tokens_used
+                    session_obj.updated_at = datetime.utcnow()
+
+                await db.commit()
+
+                # Send completion event
+                await websocket.send_json(
+                    AIStreamEvent.message_done(asst_msg_id, tokens_used, web_sources)
+                )
+
+                # Generate title for new chats
+                if is_first_message and user_content:
+                    title = await generate_chat_title(user_content)
+                    async with AsyncSessionLocal() as title_db:
+                        await title_db.execute(
+                            update(AIChatSession)
+                            .where(AIChatSession.id == session_id)
+                            .values(title=title)
+                        )
+                        await title_db.commit()
+                    await websocket.send_json(AIStreamEvent.title_update(title))
+
+                asyncio.create_task(
+                    _extract_and_save_memory(session_id, admin_id, history, full_response)
+                )
+
+    except WebSocketDisconnect:
+        logger.info(f"WebSocket disconnected for session {session_id}")
+    except Exception as e:
+        logger.error(f"WebSocket error: {e}")
+        try:
+            await websocket.send_json(AIStreamEvent.error(str(e)))
+        except Exception:
+            pass
+
+
+async def _extract_and_save_memory(
+    session_id: str,
+    admin_id: int,
+    history: list[dict],
+    assistant_response: str,
+):
+    """Background task to extract and save memory from conversations. Scoped per admin."""
+    try:
+        await asyncio.sleep(2)
+        async with AsyncSessionLocal() as db:
+            existing_memory = await load_active_memory(db, admin_id)
+            full_history = history + [{"role": "assistant", "content": assistant_response}]
+            new_memories = await extract_memory_from_conversation(full_history, existing_memory)
+
+            for mem in new_memories:
+                key = mem.get("key", "").strip()
+                value = mem.get("value", "").strip()
+                if not key or not value:
+                    continue
+                result = await db.execute(
+                    select(AIMemory).where(
+                        AIMemory.key == key,
+                        AIMemory.admin_user_id == admin_id,
+                    )
+                )
+                existing = result.scalar_one_or_none()
+                if existing:
+                    existing.value = value
+                    existing.importance = mem.get("importance", 0.5)
+                    existing.source_session_id = session_id
+                else:
+                    db.add(AIMemory(
+                        id=str(uuid.uuid4()),
+                        admin_user_id=admin_id,
+                        key=key,
+                        value=value,
+                        category=mem.get("category", "general"),
+                        importance=mem.get("importance", 0.5),
+                        source_session_id=session_id,
+                    ))
+            await db.commit()
+    except Exception as e:
+        logger.debug(f"Memory extraction background task failed: {e}")

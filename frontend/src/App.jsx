@@ -8,6 +8,7 @@ import ErrorBoundary from './components/ErrorBoundary';
 import { EditModeProvider } from './contexts/EditModeContext';
 import { AdminAuthProvider } from './contexts/AdminAuthContext';
 import { ToastProvider } from './contexts/ToastContext';
+import { AIChatProvider } from './contexts/AIChatContext';
 import EditModeToggle from './components/admin/EditModeToggle';
 import { useAuthStore } from './store/authStore';
 import { useCartStore } from './store/cartStore';
@@ -34,6 +35,7 @@ const TermsOfServicePage = lazy(() => import('./pages/TermsOfServicePage'));
 const PrivacyPolicyPage = lazy(() => import('./pages/PrivacyPolicyPage'));
 const GeneralInformationPage = lazy(() => import('./pages/GeneralInformationPage'));
 const NewAdminDashboard = lazy(() => import('./pages/admin/NewAdminDashboard'));
+const AIChatPage = lazy(() => import('./pages/admin/AIChatPage'));
 
 // Resource Pages
 const VirtualCatalogsPage = lazy(() => import('./pages/VirtualCatalogsPage'));
@@ -93,10 +95,22 @@ function App() {
 
           {/* Admin Routes (No Layout - Full Screen) */}
           <Route
+            path="/admin/ai"
+            element={
+              <ProtectedRoute requireAdmin={true}>
+                <AIChatProvider>
+                  <AIChatPage />
+                </AIChatProvider>
+              </ProtectedRoute>
+            }
+          />
+          <Route
             path="/admin/*"
             element={
               <ProtectedRoute requireAdmin={true}>
-                <NewAdminDashboard />
+                <AIChatProvider>
+                  <NewAdminDashboard />
+                </AIChatProvider>
               </ProtectedRoute>
             }
           />
