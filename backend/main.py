@@ -419,38 +419,71 @@ if frontend_dist_path.exists() and (frontend_dist_path / "index.html").exists():
         )
         logger.info("[OK] Data directory mounted at /data")
 
-    # Override root to serve frontend
+    _no_cache_headers = {
+        "Cache-Control": "no-store, no-cache, must-revalidate, max-age=0",
+        "Pragma": "no-cache",
+        "Expires": "0",
+    }
+
     @app.get("/", response_class=HTMLResponse, include_in_schema=False)
     async def root():
         """Serve React SPA frontend"""
         try:
             with open(frontend_dist_path / "index.html", "r", encoding="utf-8") as f:
-                return f.read()
+                return HTMLResponse(content=f.read(), headers=_no_cache_headers)
         except Exception as e:
             logger.error(f"Error reading index.html: {e}")
-            return "<h1>Frontend not available</h1>"
+            return HTMLResponse(
+                content="<h1>Frontend not available</h1>",
+                status_code=500,
+                headers=_no_cache_headers,
+            )
 
     @app.get("/{full_path:path}", response_class=HTMLResponse, include_in_schema=False)
     async def serve_spa(full_path: str):
         """Serve SPA for all non-API routes (enables client-side routing)"""
-        # Don't intercept API routes
         if full_path.startswith("api/"):
             return {"detail": "Not found"}, 404
-        # Only block docs routes in production (when they're disabled)
         if not settings.DEBUG and full_path in ["docs", "redoc", "openapi.json"]:
             return {"detail": "Not found"}, 404
 
-        # Serve index.html for SPA routing
         try:
             with open(frontend_dist_path / "index.html", "r", encoding="utf-8") as f:
-                return f.read()
+                return HTMLResponse(content=f.read(), headers=_no_cache_headers)
         except Exception as e:
             logger.error(f"Error serving index.html: {e}")
-            return "<h1>Frontend not available</h1>"
+            return HTMLResponse(
+                content="<h1>Frontend not available</h1>",
+                status_code=500,
+                headers=_no_cache_headers,
+            )
 
 else:
     logger.warning(f"Frontend dist NOT found at {frontend_dist_path}")
     logger.warning("Build frontend with: cd frontend && npm run build")
+
+
+@app.middleware("http")
+async def no_cache_frontend(request: Request, call_next):
+    response = await call_next(request)
+    path = request.url.path
+    if path == "/" or path.startswith("/assets/"):
+        response.headers["Cache-Control"] = "no-store, no-cache, must-revalidate, max-age=0"
+        response.headers["Pragma"] = "no-cache"
+        response.headers["Expires"] = "0"
+    elif not (
+        path.startswith("/api")
+        or path.startswith("/uploads")
+        or path.startswith("/docs")
+        or path.startswith("/redoc")
+        or path.startswith("/openapi")
+        or path == "/api-docs"
+        or path.startswith("/data/")
+    ):
+        response.headers["Cache-Control"] = "no-store, no-cache, must-revalidate, max-age=0"
+        response.headers["Pragma"] = "no-cache"
+        response.headers["Expires"] = "0"
+    return response
 
 
 @app.get("/api-docs", response_class=HTMLResponse, include_in_schema=False)

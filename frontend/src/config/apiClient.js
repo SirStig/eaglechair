@@ -26,7 +26,7 @@ if (import.meta.env.PROD && !API_BASE_URL) {
 const apiClient = axios.create({
   baseURL: API_BASE_URL,
   timeout: API_TIMEOUT,
-  // Don't set default Content-Type - let axios auto-detect based on request data
+  withCredentials: true,
 });
 
 // Retry configuration for network errors
@@ -168,24 +168,17 @@ apiClient.interceptors.response.use(
       originalRequest._retry = true;
       isRefreshing = true;
 
-      // Create refresh promise
       refreshPromise = (async () => {
         try {
-          // Get refresh token from localStorage
-          const refreshToken = typeof window !== 'undefined' 
-            ? localStorage.getItem('auth_refresh_token') 
+          const refreshToken = typeof window !== 'undefined'
+            ? localStorage.getItem('auth_refresh_token')
             : null;
-          
-          if (!refreshToken) {
-            throw new Error('No refresh token available');
-          }
 
-          // Refresh token - send refresh_token via Authorization header
-          const refreshResponse = await apiClient.post('/api/v1/auth/refresh', {}, {
-            headers: {
-              Authorization: `Bearer ${refreshToken}`
-            }
-          });
+          const refreshConfig = refreshToken
+            ? { headers: { Authorization: `Bearer ${refreshToken}` } }
+            : {};
+
+          const refreshResponse = await apiClient.post('/api/v1/auth/refresh', {}, refreshConfig);
           
           // Update tokens in localStorage
           if (refreshResponse.access_token) {

@@ -17,14 +17,25 @@ import { getProductImage } from '../../utils/apiHelpers';
 
 const CONTEXT = 'Header';
 
+const SCROLL_THRESHOLD = 12;
+
 const Header = ({ isMobileMenuOpen, setIsMobileMenuOpen }) => {
   const [searchQuery, setSearchQuery] = useState('');
   const [isSearchFocused, setIsSearchFocused] = useState(false);
   const [searchResults, setSearchResults] = useState([]);
   const [showSearchResults, setShowSearchResults] = useState(false);
+  const [isScrolled, setIsScrolled] = useState(false);
+  const [isProductsDropdownOpen, setIsProductsDropdownOpen] = useState(false);
   const searchRef = useRef(null);
   const navigate = useNavigate();
   const { user, logout } = useAuthStore();
+
+  useEffect(() => {
+    const handleScroll = () => setIsScrolled(window.scrollY > SCROLL_THRESHOLD);
+    handleScroll();
+    window.addEventListener('scroll', handleScroll, { passive: true });
+    return () => window.removeEventListener('scroll', handleScroll);
+  }, []);
 
   // Subscribe to cart state properly - this will trigger re-renders on cart changes
   const cartItemCount = useCartStore((state) => {
@@ -102,11 +113,7 @@ const Header = ({ isMobileMenuOpen, setIsMobileMenuOpen }) => {
       }
     };
 
-    // Defer slightly to not block critical initial rendering resources
-    // but still happen before user typically interacts
-    const timer = setTimeout(() => {
-      preloadCategoryImages();
-    }, 1000);
+    const timer = setTimeout(preloadCategoryImages, 300);
 
     return () => clearTimeout(timer);
   }, []);
@@ -129,16 +136,16 @@ const Header = ({ isMobileMenuOpen, setIsMobileMenuOpen }) => {
     navigate(`/products/${productSlug}`);
   };
 
+  const showHeaderBackground = isScrolled || isProductsDropdownOpen;
+
   return (
-    <header className="fixed top-0 left-0 w-full bg-dark-800/95 backdrop-blur-md shadow-lg border-b border-dark-500 z-50" style={{ '--header-height': '72px' }}>
-      <style>{`
-        @media (min-width: 640px) {
-          header { --header-height: 88px; }
-        }
-        @media (min-width: 768px) {
-          header { --header-height: 80px; }
-        }
-      `}</style>
+    <header
+      className={`fixed top-0 left-0 w-full z-50 pt-safe transition-all duration-300 ${
+        showHeaderBackground
+          ? 'bg-dark-800/95 backdrop-blur-md shadow-lg border-b border-dark-500'
+          : 'bg-transparent border-b border-transparent shadow-none'
+      } ${!showHeaderBackground ? '[&_a]:text-white [&_button]:text-white [&_input::placeholder]:text-white/70 [&_input]:text-white [&_input]:border-white/30 [&_input]:bg-white/10 [&_svg]:text-white' : ''}`}
+    >
       <div className="container mx-auto px-4 sm:px-6 lg:px-8">
         {/* Main Navigation */}
         <div className="flex items-center justify-between py-3 sm:py-4 gap-2">
@@ -147,14 +154,13 @@ const Header = ({ isMobileMenuOpen, setIsMobileMenuOpen }) => {
             <Motion.div
               whileHover={{ scale: 1.05 }}
               transition={{ type: 'spring', stiffness: 400, damping: 10 }}
-              className="flex items-center gap-2 sm:gap-3"
+              className={`flex items-center gap-2 sm:gap-3 ${!showHeaderBackground ? 'drop-shadow-[0_2px_8px_rgba(0,0,0,0.6)]' : ''}`}
             >
-              {/* Eagle Chair Logo Image */}
               {siteSettings?.logoUrl ? (
                 <img
                   src={siteSettings.logoUrl}
                   alt={siteSettings.companyName || 'Eagle Chair'}
-                  className="h-12 sm:h-14 md:h-16 lg:h-16 w-auto object-contain"
+                  className={`h-12 sm:h-14 md:h-16 lg:h-16 w-auto object-contain ${!showHeaderBackground ? 'drop-shadow-[0_2px_8px_rgba(0,0,0,0.8)]' : ''}`}
                   onError={(e) => {
                     e.target.onerror = null; // Prevent infinite loop
                     e.target.src = '/assets/eagle-chair-logo.png';
@@ -164,7 +170,7 @@ const Header = ({ isMobileMenuOpen, setIsMobileMenuOpen }) => {
                 <img
                   src="/assets/eagle-chair-logo.png"
                   alt="Eagle Chair"
-                  className="h-12 sm:h-14 md:h-16 lg:h-16 w-auto object-contain"
+                  className={`h-12 sm:h-14 md:h-16 lg:h-16 w-auto object-contain ${!showHeaderBackground ? 'drop-shadow-[0_2px_8px_rgba(0,0,0,0.8)]' : ''}`}
                 />
               )}
             </Motion.div>
@@ -191,6 +197,7 @@ const Header = ({ isMobileMenuOpen, setIsMobileMenuOpen }) => {
               )}
               contentClassName="w-screen max-w-none !rounded-none shadow-2xl !border-t-0 !border-l-0 !border-r-0"
               align="left"
+              onOpenChange={setIsProductsDropdownOpen}
             >
               <ProductsDropdown />
             </Dropdown>
@@ -285,9 +292,9 @@ const Header = ({ isMobileMenuOpen, setIsMobileMenuOpen }) => {
                   }}
                   className={`
                     h-10 pl-10 pr-4 border rounded-lg 
-                    bg-dark-700 text-dark-50 placeholder-dark-200
                     transition-all duration-300 ease-in-out
                     focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent
+                    ${showHeaderBackground ? 'bg-dark-700 text-dark-50 placeholder-dark-200' : 'header-search-blur text-white placeholder-white/70 border-white/30'}
                     ${isSearchFocused ? 'w-64 xl:w-72' : 'w-40 xl:w-48'}
                   `}
                   style={{

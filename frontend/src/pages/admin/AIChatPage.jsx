@@ -6,13 +6,13 @@
 
 import { useState, useRef, useEffect, useCallback } from 'react';
 import { useMediaQuery } from '../../hooks/useMediaQuery';
-import { useStandalone } from '../../hooks/useStandalone';
 import { useNavigate, useParams, useLocation } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   ArrowLeft,
   Brain,
   BookOpen,
+  Menu,
   Plus,
   Trash2,
   Upload,
@@ -509,9 +509,6 @@ export default function AIChatPage() {
   const navigate = useNavigate();
   const { chatId } = useParams();
   const isMobile = useMediaQuery('(max-width: 639px)');
-  const isTabletOrSmaller = useMediaQuery('(max-width: 767px)');
-  const isStandalone = useStandalone();
-  const showBottomNav = isStandalone && isTabletOrSmaller;
   const [rightPanel, setRightPanel] = useState(isMobile ? null : 'memory');
   const messagesEndRef = useRef(null);
   const [showSidebar, setShowSidebar] = useState(!isMobile);
@@ -529,6 +526,7 @@ export default function AIChatPage() {
     sessions,
     currentSessionId,
     openChat,
+    closeChat,
     messages,
     isStreaming,
     streamingState,
@@ -589,7 +587,7 @@ export default function AIChatPage() {
   }, [setSessions]);
 
   return (
-    <div className="flex flex-col h-screen bg-dark-900 overflow-hidden">
+    <div className="flex flex-col h-[100dvh] bg-dark-900 overflow-hidden">
       {/* iOS safe-area top spacer — only occupies space in standalone on notched devices */}
       <div className="pt-safe bg-dark-800 flex-shrink-0" />
       <div className="flex flex-1 overflow-hidden">
@@ -607,15 +605,23 @@ export default function AIChatPage() {
             animate={{ width: isMobile ? '100%' : 224 }}
             exit={{ width: 0 }}
             transition={{ duration: 0.2 }}
-            className="fixed sm:relative inset-y-0 left-0 z-30 sm:z-auto flex-shrink-0 overflow-hidden bg-dark-900 sm:bg-transparent"
+            className="fixed sm:relative inset-y-0 left-0 z-30 sm:z-auto flex-shrink-0 overflow-hidden bg-dark-900 sm:bg-transparent pt-safe sm:pt-0"
           >
             <AIChatSidebar
               sessions={sessions}
               currentSessionId={chatId || null}
-              onSelect={(id) => navigate(`/admin/ai/${id}`)}
-              onNew={handleNewChat}
+              onSelect={(id) => {
+                navigate(`/admin/ai/${id}`);
+                if (isMobile) setShowSidebar(false);
+              }}
+              onNew={() => {
+                handleNewChat();
+                if (isMobile) setShowSidebar(false);
+              }}
               onDelete={handleDeleteSession}
               onUpdate={handleUpdateSession}
+              onClose={isMobile ? () => setShowSidebar(false) : undefined}
+              showCloseButton={isMobile}
             />
           </motion.div>
         )}
@@ -625,21 +631,21 @@ export default function AIChatPage() {
       <div className="flex-1 flex flex-col overflow-hidden">
         {/* Header */}
         <div className="flex items-center justify-between px-3 sm:px-4 py-3 border-b border-dark-700 bg-dark-800 flex-shrink-0 gap-2 min-w-0">
-          <div className="flex items-center gap-2 sm:gap-3 min-w-0">
+          <div className="flex items-center gap-1 sm:gap-3 min-w-0">
             <button
               onClick={() => navigate('/admin/dashboard')}
-              className="flex items-center gap-1.5 text-dark-400 hover:text-dark-100 transition-colors text-sm p-1 -m-1 touch-manipulation"
+              className="hidden sm:flex items-center gap-1.5 text-dark-400 hover:text-dark-100 transition-colors p-2 -m-2 rounded-lg hover:bg-dark-700 touch-manipulation"
             >
               <ArrowLeft className="w-4 h-4 flex-shrink-0" />
             </button>
             <button
               onClick={() => setShowSidebar(!showSidebar)}
-              className="text-dark-400 hover:text-dark-100 transition-colors p-1.5 -m-1 rounded-lg hover:bg-dark-700 touch-manipulation"
+              className="flex items-center justify-center p-2 rounded-lg text-dark-400 hover:text-dark-100 hover:bg-dark-700 transition-colors touch-manipulation"
             >
-              <span className="text-sm">☰</span>
+              <Menu className="w-4 h-4" />
             </button>
-            <div className="flex items-center gap-2 min-w-0">
-              <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-xl bg-dark-700 flex items-center justify-center p-1.5 flex-shrink-0">
+            <div className="hidden sm:flex items-center gap-2 min-w-0">
+              <div className="w-8 h-8 rounded-xl bg-dark-700 flex items-center justify-center p-1.5 flex-shrink-0">
                 <img src="/favicon.svg" alt="Eagle Chair" className="w-full h-full object-contain" />
               </div>
               <div className="min-w-0">
@@ -656,32 +662,32 @@ export default function AIChatPage() {
           <div className="flex items-center gap-1 sm:gap-1.5 flex-shrink-0">
             <button
               onClick={() => setRightPanel(rightPanel === 'memory' ? null : 'memory')}
-              className={`flex items-center gap-1 sm:gap-1.5 px-2 sm:px-3 py-1.5 rounded-lg text-xs font-medium transition-colors touch-manipulation ${
+              className={`flex items-center justify-center sm:gap-1.5 p-2 sm:px-3 sm:py-1.5 rounded-lg text-xs font-medium transition-colors touch-manipulation ${
                 rightPanel === 'memory'
                   ? 'bg-chat-selected border border-chat-selected-border text-chat-selected-text'
                   : 'text-dark-400 hover:text-dark-100 hover:bg-dark-700'
               }`}
             >
-              <Brain className="w-3.5 h-3.5 flex-shrink-0" />
+              <Brain className="w-4 h-4 sm:w-3.5 sm:h-3.5 flex-shrink-0" />
               <span className="hidden sm:inline">Memory</span>
             </button>
             <button
               onClick={() => setRightPanel(rightPanel === 'training' ? null : 'training')}
-              className={`flex items-center gap-1 sm:gap-1.5 px-2 sm:px-3 py-1.5 rounded-lg text-xs font-medium transition-colors touch-manipulation ${
+              className={`flex items-center justify-center sm:gap-1.5 p-2 sm:px-3 sm:py-1.5 rounded-lg text-xs font-medium transition-colors touch-manipulation ${
                 rightPanel === 'training'
                   ? 'bg-chat-training/20 border border-chat-training/50 text-chat-training'
                   : 'text-dark-400 hover:text-dark-100 hover:bg-dark-700'
               }`}
             >
-              <BookOpen className="w-3.5 h-3.5 flex-shrink-0" />
+              <BookOpen className="w-4 h-4 sm:w-3.5 sm:h-3.5 flex-shrink-0" />
               <span className="hidden sm:inline">Training</span>
             </button>
             <button
-              onClick={() => { openChat(); navigate('/admin/dashboard'); }}
-              className="flex items-center gap-1 sm:gap-1.5 px-2 sm:px-3 py-1.5 rounded-lg text-xs text-dark-400 hover:text-dark-100 hover:bg-dark-700 transition-colors touch-manipulation"
+              onClick={() => { closeChat(); navigate('/admin/dashboard'); }}
+              className="flex items-center justify-center sm:gap-1.5 p-2 sm:px-3 sm:py-1.5 rounded-lg text-xs text-dark-400 hover:text-dark-100 hover:bg-dark-700 transition-colors touch-manipulation"
             >
-              <Minimize2 className="w-3.5 h-3.5 flex-shrink-0" />
-              <span className="hidden sm:inline">Minimize</span>
+              <Minimize2 className="w-4 h-4 sm:w-3.5 sm:h-3.5 flex-shrink-0" />
+              <span className="hidden sm:inline">Back to Dashboard</span>
             </button>
           </div>
         </div>
@@ -697,27 +703,27 @@ export default function AIChatPage() {
                   <p className="text-sm text-dark-400 mt-4">Loading chat...</p>
                 </div>
               ) : messages.length === 0 ? (
-                <div className="flex flex-col items-center justify-center h-full text-center max-w-lg mx-auto">
+                <div className="flex flex-col items-center justify-center h-full text-center max-w-lg mx-auto px-3 sm:px-6">
                   <div className="w-14 h-14 sm:w-16 sm:h-16 rounded-2xl bg-dark-800 flex items-center justify-center mb-4 sm:mb-5 shadow-xl p-3">
                     <img src="/favicon.svg" alt="Eagle Chair" className="w-full h-full object-contain" />
                   </div>
-                  <h2 className="text-lg sm:text-xl font-bold text-dark-50 mb-2 sm:mb-3">EagleChair AI Assistant</h2>
-                  <p className="text-xs sm:text-sm text-dark-400 leading-relaxed mb-4 sm:mb-6">
-                    Your intelligent business partner. Ask about quotes, pricing, products, competitors, or upload documents for analysis.
+                  <h2 className="text-sm sm:text-base md:text-xl font-bold text-dark-50 mb-1.5 sm:mb-3">EagleChair AI Assistant</h2>
+                  <p className="text-[11px] sm:text-xs text-dark-400 leading-relaxed mb-3 sm:mb-6">
+                    Ask about quotes, pricing, products, competitors, or upload documents for analysis.
                   </p>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 w-full">
+                  <div className="grid grid-cols-2 sm:grid-cols-2 gap-2 w-full">
                     {[
-                      'Analyze my top-selling products this month',
-                      'Research office chair market trends in 2025',
-                      'Help me calculate pricing with 15% margin',
-                      'Compare our finishes with competitor options',
-                      'Summarize the attached pricing sheet',
-                      'Which companies have the most outstanding quotes?',
+                      'Top-selling products this month',
+                      'Office chair market trends 2025',
+                      'Calculate pricing with 15% margin',
+                      'Compare finishes with competitors',
+                      'Summarize attached pricing sheet',
+                      'Companies with outstanding quotes',
                     ].map((s, i) => (
                       <button
                         key={i}
                         onClick={() => sendMessage(s)}
-                        className="text-left text-xs sm:text-sm bg-dark-800 hover:bg-dark-700 border border-dark-700 hover:border-dark-600 rounded-xl p-2.5 sm:p-3 text-dark-300 hover:text-dark-100 transition-colors leading-snug touch-manipulation"
+                        className="text-left text-[11px] sm:text-xs bg-dark-800 hover:bg-dark-700 border border-dark-700 hover:border-dark-600 rounded-xl p-2 sm:p-3 text-dark-300 hover:text-dark-100 transition-colors leading-snug touch-manipulation"
                       >
                         {s}
                       </button>
@@ -745,10 +751,8 @@ export default function AIChatPage() {
               isStreaming={isStreaming}
               pendingFiles={pendingFiles}
               onRemoveFile={removePendingFile}
-              placeholder="Ask anything about your business..."
+              placeholder="Ask anything..."
             />
-            {/* Spacer so content doesn't hide behind AdminBottomNav in standalone */}
-            {showBottomNav && <div className="h-14 flex-shrink-0" />}
           </div>
 
           {rightPanel && isMobile && (
@@ -765,7 +769,7 @@ export default function AIChatPage() {
                 animate={{ width: isMobile ? '100%' : 320, opacity: 1 }}
                 exit={{ width: 0, opacity: 0 }}
                 transition={{ duration: 0.2 }}
-                className="fixed sm:relative inset-y-0 right-0 z-30 sm:z-auto flex-shrink-0 border-l border-dark-700 overflow-hidden bg-dark-900 sm:bg-transparent"
+                className="fixed sm:relative inset-y-0 right-0 z-30 sm:z-auto flex-shrink-0 border-l border-dark-700 overflow-hidden bg-dark-900 sm:bg-transparent pt-safe sm:pt-0"
               >
                 {rightPanel === 'memory' ? <MemoryPanel onClose={() => setRightPanel(null)} showClose={isMobile} /> : <TrainingPanel onClose={() => setRightPanel(null)} showClose={isMobile} />}
               </motion.div>

@@ -29,7 +29,7 @@ export default function AIChatInput({
   pendingFiles,
   onRemoveFile,
   disabled,
-  placeholder = 'Message EagleChair AI...',
+  placeholder = 'Message AI...',
 }) {
   const [input, setInput] = useState('');
   const [isUploading, setIsUploading] = useState(false);
@@ -101,7 +101,12 @@ export default function AIChatInput({
 
   return (
     <div
-      className="px-2 sm:px-3 pt-2 sm:pt-3 pb-2 sm:pb-3 border-t border-dark-700 bg-dark-800/50"
+      className="ai-chat-input pt-2 sm:pt-3 border-t border-dark-700 bg-dark-800/50"
+      style={{
+        paddingLeft: 'calc(0.5rem + env(safe-area-inset-left, 0px))',
+        paddingRight: 'calc(0.5rem + env(safe-area-inset-right, 0px))',
+        paddingBottom: 'calc(0.75rem + env(safe-area-inset-bottom, 0px))',
+      }}
       onDrop={handleDrop}
       onDragOver={handleDragOver}
     >
@@ -136,19 +141,14 @@ export default function AIChatInput({
         <p className="text-xs text-red-400 mb-2">{uploadError}</p>
       )}
 
-      {/* Input area */}
-      <div className="flex items-end gap-2">
-        {/* File upload button */}
+      <div className="flex items-center gap-2">
         <button
           onClick={() => fileInputRef.current?.click()}
           disabled={disabled || isUploading}
-          className="flex-shrink-0 min-w-[44px] min-h-[44px] sm:w-8 sm:h-8 sm:min-w-0 sm:min-h-0 rounded-lg flex items-center justify-center text-dark-400 hover:text-dark-100 hover:bg-dark-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed touch-manipulation"
+          className="flex-shrink-0 w-10 h-10 rounded-xl flex items-center justify-center text-dark-400 hover:text-dark-100 hover:bg-dark-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed touch-manipulation"
           title="Attach file (PDF, CSV, image, etc.)"
         >
-          {isUploading
-            ? <Loader2 className="w-4 h-4 animate-spin" />
-            : <Paperclip className="w-4 h-4" />
-          }
+          {isUploading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Paperclip className="w-4 h-4" />}
         </button>
 
         <input
@@ -160,18 +160,17 @@ export default function AIChatInput({
           onChange={handleFileSelect}
         />
 
-        {/* Text input */}
-        <div className="flex-1 relative">
+        <div className="flex-1 min-w-0">
           <textarea
             ref={textareaRef}
             value={input}
             onChange={handleTextareaChange}
             onKeyDown={handleKeyDown}
             disabled={disabled}
-            placeholder={isStreaming ? 'AI is responding... (type to send new message)' : placeholder}
+            placeholder={isStreaming ? 'AI is responding...' : placeholder}
             rows={1}
-            className="w-full bg-dark-700 border border-dark-600 rounded-xl px-3 py-2.5 sm:py-2 text-sm text-dark-50 placeholder-dark-400 resize-none focus:outline-none focus:border-chat-focus focus:ring-1 focus:ring-chat-focus/30 transition-colors disabled:opacity-50 disabled:cursor-not-allowed leading-relaxed min-h-[44px] sm:min-h-[36px]"
-            style={{ maxHeight: '160px' }}
+            className="w-full bg-dark-700 border border-dark-600 rounded-xl px-3 py-2.5 text-dark-50 placeholder-dark-400 resize-none focus:outline-none focus:border-chat-focus focus:ring-1 focus:ring-chat-focus/30 transition-colors disabled:opacity-50 disabled:cursor-not-allowed leading-snug min-h-[44px]"
+            style={{ maxHeight: '160px', fontSize: '16px' }}
           />
         </div>
 
@@ -179,7 +178,7 @@ export default function AIChatInput({
           <button
             onClick={onStop}
             disabled={disabled}
-            className="flex-shrink-0 min-w-[44px] min-h-[44px] sm:w-8 sm:h-8 sm:min-w-0 sm:min-h-0 rounded-lg flex items-center justify-center bg-red-500/80 hover:bg-red-500 text-white transition-colors disabled:opacity-40 disabled:cursor-not-allowed touch-manipulation"
+            className="flex-shrink-0 w-10 h-10 rounded-xl flex items-center justify-center bg-red-500/80 hover:bg-red-500 text-white transition-colors disabled:opacity-40 disabled:cursor-not-allowed touch-manipulation"
             title="Stop generating"
           >
             <Square className="w-3.5 h-3.5 fill-current" />
@@ -188,7 +187,7 @@ export default function AIChatInput({
           <button
             onClick={handleSend}
             disabled={(!input.trim() && pendingFiles.length === 0) || disabled}
-            className="flex-shrink-0 min-w-[44px] min-h-[44px] sm:w-8 sm:h-8 sm:min-w-0 sm:min-h-0 rounded-lg flex items-center justify-center bg-chat-button hover:bg-chat-button-hover text-white transition-colors disabled:opacity-40 disabled:cursor-not-allowed touch-manipulation"
+            className="flex-shrink-0 w-10 h-10 rounded-xl flex items-center justify-center bg-chat-button hover:bg-chat-button-hover text-white transition-colors disabled:opacity-40 disabled:cursor-not-allowed touch-manipulation"
             title="Send (Enter)"
           >
             <Send className="w-4 h-4" />

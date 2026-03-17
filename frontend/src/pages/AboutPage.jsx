@@ -125,13 +125,13 @@ const AboutPage = () => {
 
   return (
     <div className="min-h-screen bg-dark-800">
-      {/* Hero Section */}
-      <section className="relative h-[400px] sm:h-[500px] pt-16 bg-dark-900 text-white">
+      {/* Hero Section - extends to top, header floats above */}
+      <section className="relative min-h-[500px] sm:min-h-[600px] lg:min-h-[700px] -mt-[var(--header-height)] pt-[var(--header-height)] bg-dark-900 text-white">
         <div className="absolute inset-0 opacity-30">
           <img
             src={heroImage}
             alt="Workshop"
-            className="w-full h-full object-cover img-sharp"
+            className="absolute inset-0 w-full h-full object-cover img-sharp"
             loading="eager"
             fetchpriority="high"
             decoding="sync"

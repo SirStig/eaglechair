@@ -1,4 +1,4 @@
-import { BrowserRouter as Router, Routes, Route, Outlet, Navigate } from 'react-router-dom';
+import { BrowserRouter as Router, Routes, Route, Outlet, Navigate, useLocation } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { useEffect, lazy, Suspense } from 'react';
 import Layout from './components/layout/Layout';
@@ -8,7 +8,7 @@ import ErrorBoundary from './components/ErrorBoundary';
 import { EditModeProvider } from './contexts/EditModeContext';
 import { AdminAuthProvider } from './contexts/AdminAuthContext';
 import { ToastProvider } from './contexts/ToastContext';
-import { AIChatProvider } from './contexts/AIChatContext';
+import { AIChatProvider, useAIChat } from './contexts/AIChatContext';
 import EditModeToggle from './components/admin/EditModeToggle';
 import AdminBottomNav from './components/admin/AdminBottomNav';
 import { useAuthStore } from './store/authStore';
@@ -63,32 +63,49 @@ const queryClient = new QueryClient({
   },
 });
 
-/**
- * Wraps admin routes to:
- * 1. Inject manifest-admin.json as the active manifest (browsers use the last link[rel=manifest])
- * 2. Show AdminBottomNav in standalone PWA mode on mobile
- */
+function ManifestInjector() {
+  const location = useLocation();
+  useEffect(() => {
+    const isAdmin = location.pathname.startsWith('/admin');
+    const manifestId = 'pwa-manifest';
+    const href = isAdmin ? '/manifest-admin.json' : '/manifest.json';
+    let link = document.getElementById(manifestId);
+    if (link) {
+      if (link.getAttribute('href') !== href) {
+        link.setAttribute('href', href);
+      }
+    } else {
+      link = document.createElement('link');
+      link.rel = 'manifest';
+      link.href = href;
+      link.id = manifestId;
+      document.head.appendChild(link);
+    }
+  }, [location.pathname]);
+  return null;
+}
+
 function AdminPWAWrapper() {
+  const location = useLocation();
   const isStandalone = useStandalone();
   const isTabletOrSmaller = useMediaQuery('(max-width: 767px)');
-  const showBottomNav = isStandalone && isTabletOrSmaller;
+  const isAIChatPage = location.pathname.startsWith('/admin/ai');
+  const showBottomNav = isStandalone && isTabletOrSmaller && !isAIChatPage;
+  const { closeChat } = useAIChat();
 
   useEffect(() => {
-    const link = document.createElement('link');
-    link.rel = 'manifest';
-    link.href = '/manifest-admin.json';
-    link.id = 'manifest-admin';
-    document.head.appendChild(link);
-    return () => {
-      const existing = document.getElementById('manifest-admin');
-      if (existing) document.head.removeChild(existing);
-    };
-  }, []);
+    if (!isStandalone) return;
+    const meta = document.querySelector('meta[name="viewport"]');
+    if (!meta) return;
+    const original = meta.getAttribute('content');
+    meta.setAttribute('content', 'width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover');
+    return () => { meta.setAttribute('content', original); };
+  }, [isStandalone]);
 
   return (
     <>
       <Outlet />
-      {showBottomNav && <AdminBottomNav />}
+      {showBottomNav && <AdminBottomNav onNavigate={closeChat} />}
     </>
   );
 }
@@ -112,6 +129,7 @@ function App() {
     <ErrorBoundary>
       <QueryClientProvider client={queryClient}>
           <Router>
+            <ManifestInjector />
             <CartSync />
             <AdminAuthProvider>
             <EditModeProvider>

@@ -1,17 +1,24 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { Link } from 'react-router-dom';
 import productService from '../../services/productService';
 import logger from '../../utils/logger';
 
 const CONTEXT = 'ProductsDropdown';
 
-// Fallback image for categories without banner_image_url
 const DEFAULT_BANNER = '/assets/default-banner-categories.png';
 
 const ProductsDropdown = () => {
   const [categories, setCategories] = useState([]);
   const [subcategoriesByCategory, setSubcategoriesByCategory] = useState({});
   const [loading, setLoading] = useState(true);
+  const [loadedImages, setLoadedImages] = useState(() => new Set());
+  const onImageLoad = useCallback((key) => {
+    setLoadedImages((prev) => {
+      const next = new Set(prev);
+      next.add(key);
+      return next;
+    });
+  }, []);
 
   useEffect(() => {
     loadCategoriesAndSubcategories();
@@ -84,22 +91,24 @@ const ProductsDropdown = () => {
         {displayCategories.map((category) => {
           const subcategories = subcategoriesByCategory[category.id] || [];
           const bannerImage = category.banner_image_url || DEFAULT_BANNER;
+          const imgKey = `cat-${category.id}-${bannerImage}`;
+          const isLoaded = loadedImages.has(imgKey);
 
           return (
             <div key={category.id} className="relative group">
-              {/* Full height container with minimum height */}
-              <div className="relative h-[500px] sm:h-[600px] overflow-hidden">
-                {/* Background Image - Full Height - Clickable */}
+              <div className="relative h-[550px] sm:h-[650px] lg:h-[700px] overflow-hidden">
                 <Link
                   to={`/products/category/${category.slug}`}
-                  className="absolute inset-0 block"
+                  className="absolute inset-0 block bg-dark-900"
                 >
                   <img
                     src={bannerImage}
                     alt={category.name}
-                    className="absolute inset-0 w-full h-full object-cover transition-transform duration-500 group-hover:scale-110"
+                    className={`absolute inset-0 w-full h-full object-cover transition-all duration-500 group-hover:scale-110 ${isLoaded ? 'opacity-100' : 'opacity-0'}`}
+                    onLoad={() => onImageLoad(imgKey)}
                     onError={(e) => {
                       e.target.src = DEFAULT_BANNER;
+                      onImageLoad(imgKey);
                     }}
                     loading="eager"
                     fetchpriority="high"
@@ -155,8 +164,7 @@ const ProductsDropdown = () => {
         {/* "More Categories" Column if there are more than MAX_COLUMNS - 1 categories */}
         {hasMoreCategories && (
           <div className="relative group">
-            <div className="relative h-[500px] sm:h-[600px] overflow-hidden">
-              {/* Background Image */}
+            <div className="relative h-[550px] sm:h-[650px] lg:h-[700px] overflow-hidden">
               <Link
                 to="/products"
                 className="absolute inset-0 block"
@@ -164,7 +172,8 @@ const ProductsDropdown = () => {
                 <img
                   src={DEFAULT_BANNER}
                   alt="More Categories"
-                  className="absolute inset-0 w-full h-full object-cover transition-transform duration-500 group-hover:scale-110"
+                  className={`absolute inset-0 w-full h-full object-cover transition-all duration-500 group-hover:scale-110 ${loadedImages.has('more-categories') ? 'opacity-100' : 'opacity-0'}`}
+                  onLoad={() => onImageLoad('more-categories')}
                   loading="eager"
                   fetchpriority="high"
                 />

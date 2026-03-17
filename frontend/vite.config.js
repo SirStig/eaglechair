@@ -97,8 +97,8 @@ export default defineConfig(({ mode }) => {
         registerType: 'autoUpdate',
         manifest: false, // We manage manifests (manifest.json + manifest-admin.json) ourselves
         workbox: {
-          // Precache JS/CSS/HTML only; large images are served from network
-          globPatterns: ['**/*.{js,css,html,ico,svg}'],
+          globPatterns: ['**/*.{js,css,ico,svg}'],
+          globIgnores: ['**/index.html'],
           navigateFallback: '/index.html',
           maximumFileSizeToCacheInBytes: 4 * 1024 * 1024, // 4 MiB
           runtimeCaching: [

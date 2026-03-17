@@ -26,7 +26,8 @@ import {
   DollarSign,
   Mail,
   Menu,
-  X
+  X,
+  MessageSquare
 } from 'lucide-react';
 import { AnimatePresence, motion } from 'framer-motion';
 
@@ -253,7 +254,7 @@ const NewAdminDashboardInner = () => {
   };
 
   return (
-    <div className="flex min-h-screen bg-dark-900 relative">
+    <div className="flex min-h-[100dvh] bg-dark-900 relative overflow-x-hidden">
       {/* Mobile Menu Overlay */}
       <AnimatePresence>
         {isMobileMenuOpen && (
@@ -272,9 +273,11 @@ const NewAdminDashboardInner = () => {
       {/* Sidebar */}
       <aside
         className={`
-          bg-dark-800 border-r border-dark-600 flex flex-col 
-          fixed lg:sticky top-0 h-screen z-50 lg:z-auto
+          bg-dark-800 border-r border-dark-600 flex flex-col
+          fixed lg:sticky top-0 h-[100dvh] z-50 lg:z-auto
           transition-all duration-300 ease-in-out
+          pt-safe lg:pt-0
+          ${showBottomNav ? 'pb-nav-spacer' : ''}
           ${sidebarCollapsed ? 'lg:w-20' : 'w-64 lg:w-64'}
           ${isMobileMenuOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'}
         `}
@@ -345,33 +348,31 @@ const NewAdminDashboardInner = () => {
         </div>
       </aside>
 
-      {/* Floating AI Chat */}
-      <FloatingAIButton />
+      {!showBottomNav && <FloatingAIButton />}
       <AIChatWidget />
 
       {/* Main Content */}
-      <main className="flex-1 flex flex-col min-h-screen lg:ml-0">
-        {/* iOS safe-area top spacer for standalone PWA */}
-        {isStandalone && <div className="pt-safe bg-dark-800 flex-shrink-0" />}
+      <main className="flex-1 flex flex-col min-h-[100dvh] lg:ml-0 overflow-x-hidden">
+        {/* Safe-area top spacer — env() is 0px in browser, non-zero on notched standalone */}
+        <div className="pt-safe bg-dark-800 flex-shrink-0" />
         {/* Top Bar */}
-        <header className="bg-dark-800 border-b border-dark-600 px-4 sm:px-6 lg:px-8 py-3 sm:py-4 sticky top-0 z-30">
-          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 sm:gap-4">
-            <div className="flex items-center gap-3">
-              {/* Mobile Menu Button */}
+        <header className="bg-dark-800 border-b border-dark-600 px-4 sm:px-6 lg:px-8 py-3 sm:py-4 sticky top-safe z-30">
+          <div className="flex items-center justify-between gap-2 sm:gap-4 min-w-0">
+            <div className="flex items-center gap-2 sm:gap-3 min-w-0 flex-1">
               <button
                 onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
-                className="lg:hidden text-dark-50 hover:text-primary-500 transition-colors min-w-[44px] min-h-[44px] flex items-center justify-center"
+                className="lg:hidden text-dark-50 hover:text-primary-500 transition-colors min-w-[44px] min-h-[44px] flex items-center justify-center flex-shrink-0"
                 aria-label={isMobileMenuOpen ? 'Close menu' : 'Open menu'}
               >
                 {isMobileMenuOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
               </button>
-              <div className="flex-1 min-w-0">
-                <h2 className="text-xl sm:text-2xl font-bold text-dark-50 truncate">
+              <div className="min-w-0 flex-1 overflow-hidden">
+                <h2 className="text-base sm:text-lg md:text-2xl font-bold text-dark-50 truncate">
                   {selectedProduct ? 'Product Editor' : navSections
                     .flatMap(s => s.items)
                     .find(i => i.id === activeSection)?.label || 'Dashboard'}
                 </h2>
-                <p className="text-xs sm:text-sm text-dark-300 mt-1 truncate">
+                <p className={`text-[11px] sm:text-xs text-dark-300 mt-0.5 truncate ${showBottomNav ? 'hidden sm:block' : ''}`}>
                   {selectedProduct 
                     ? `Editing: ${selectedProduct.name}`
                     : 'Manage your store content and settings'
@@ -379,16 +380,27 @@ const NewAdminDashboardInner = () => {
                 </p>
               </div>
             </div>
-            <div className="flex items-center gap-2 sm:gap-4 flex-shrink-0">
-              <a
-                href="/"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="px-3 sm:px-4 py-2 text-xs sm:text-sm font-medium text-dark-200 hover:text-dark-50 border border-dark-600 rounded-lg hover:border-dark-500 transition-all flex items-center gap-2 min-h-[44px]"
-              >
-                <ExternalLink className="w-4 h-4 flex-shrink-0" />
-                <span className="hidden sm:inline">View Site</span>
-              </a>
+            <div className="flex items-center gap-2 sm:gap-4 flex-shrink-0 flex-nowrap">
+              {showBottomNav ? (
+                <button
+                  onClick={() => navigate('/admin/ai')}
+                  className="flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl bg-chat-button hover:bg-chat-button-hover text-white transition-colors touch-manipulation"
+                  title="AI Chat"
+                >
+                  <MessageSquare className="w-5 h-5" />
+                  <span className="text-xs font-medium">AI</span>
+                </button>
+              ) : (
+                <a
+                  href="/"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="px-3 sm:px-4 py-2 text-xs sm:text-sm font-medium text-dark-200 hover:text-dark-50 border border-dark-600 rounded-lg hover:border-dark-500 transition-all flex items-center gap-2 min-h-[44px]"
+                >
+                  <ExternalLink className="w-4 h-4 flex-shrink-0" />
+                  <span className="hidden sm:inline">View Site</span>
+                </a>
+              )}
               <div className="flex items-center gap-2 sm:gap-3 pl-2 sm:pl-4 border-l border-dark-600">
                 <div className="text-right hidden sm:block">
                   <p className="text-sm font-medium text-dark-50 truncate max-w-[120px]">{user?.username || 'Admin'}</p>
@@ -403,12 +415,11 @@ const NewAdminDashboardInner = () => {
         </header>
 
         {/* Content Area */}
-        <div className="flex-1 bg-dark-900 overflow-x-hidden">
+        <div className="flex-1 bg-dark-900 overflow-x-hidden overflow-y-auto">
           <div key={selectedProduct ? 'editor' : activeSection}>
             {renderSection()}
           </div>
-          {/* Spacer so content doesn't hide behind AdminBottomNav in standalone */}
-          {showBottomNav && <div className="h-14" />}
+          {showBottomNav && <div className="h-nav-spacer flex-shrink-0" />}
         </div>
       </main>
     </div>

@@ -5,8 +5,10 @@ import Footer from './Footer';
 import { useAuthStore } from '../../store/authStore';
 import { useCartStore } from '../../store/cartStore';
 import { initDesktopViewMode } from '../../utils/viewMode';
+import { useImagePreload } from '../../hooks/useImagePreload';
 
 const Layout = () => {
+  useImagePreload();
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const navigate = useNavigate();
@@ -71,7 +73,7 @@ const Layout = () => {
         logout={logout}
         cartItemCount={cartItemCount}
       />
-      <main className="flex-grow pt-[72px] sm:pt-[88px] md:pt-20 lg:pt-20">
+      <main className="flex-grow pt-[var(--header-height)]">
         <Outlet />
       </main>
       <Footer />

@@ -137,11 +137,10 @@ const HomePage = () => {
   };
   /* eslint-enable no-unused-vars */
 
-  // Hero Slider Settings - Safari compatible
   const heroSettings = {
     dots: false,
     infinite: true,
-    speed: 1000,
+    speed: 1200,
     slidesToShow: 1,
     slidesToScroll: 1,
     autoplay: true,
@@ -152,12 +151,10 @@ const HomePage = () => {
     pauseOnFocus: false,
     swipe: true,
     touchMove: true,
-    // Safari-specific fixes
-    cssEase: 'ease-in-out',
+    cssEase: 'cubic-bezier(0.4, 0, 0.2, 1)',
     useCSS: true,
     useTransform: true,
     adaptiveHeight: false,
-    // Enable on-demand loading
     lazyLoad: 'ondemand',
   };
 
@@ -240,13 +237,12 @@ const HomePage = () => {
           ))}
         </Helmet>
       )}
-      {/* Hero Slider */}
-      <section className="relative">
+      {/* Hero Slider - extends to top, header floats above */}
+      <section className="relative -mt-[var(--header-height)] hero-slider">
         {heroLoading ? (
           <HeroSkeleton />
         ) : (
           <div>
-            {/* Wrapper to contain the entire slider with editable capabilities */}
             <Slider {...heroSettings}>
               {slides.map((slide, index) => (
                 <div key={slide.id || index} className="relative">
@@ -259,12 +255,12 @@ const HomePage = () => {
                     cacheKey="hero-slides"
                     label={`Slide ${index + 1}`}
                   >
-                    <div className="relative h-[calc(100vh-72px)] sm:h-[calc(100vh-88px)] md:h-[calc(100vh-96px)] lg:h-[calc(100vh-80px)] min-h-[400px] sm:min-h-[500px]">
+                    <div className="relative min-h-screen pt-[var(--header-height)]">
                       <img
                         key={`hero-${slide.id || index}-${slide.background_image_url || slide.image}`}
                         src={slide.background_image_url || slide.image}
                         alt={slide.title}
-                        className="w-full h-full object-cover img-sharp"
+                        className="absolute inset-0 w-full h-full object-cover img-sharp"
                         loading={index === 0 ? "eager" : "lazy"}
                         decoding={index === 0 ? "sync" : "async"}
                         fetchpriority={index === 0 ? "high" : "auto"}
@@ -580,7 +576,7 @@ const HomePage = () => {
       )}
 
       {/* Featured Products */}
-      <section className="py-12 sm:py-16 md:py-20 bg-cream-50">
+      <section className="-mt-px py-12 sm:py-16 md:py-20 bg-cream-50">
         <div className="container">
           <motion.div
             initial={{ opacity: 0, y: 20 }}

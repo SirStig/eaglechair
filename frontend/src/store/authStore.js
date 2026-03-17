@@ -250,24 +250,63 @@ export const useAuthStore = create(
       // Initialize auth state on app load
       initAuth: async () => {
         try {
-          // Set initializing flag to prevent premature redirects
           set({ isInitializing: true });
-          
-          // Check localStorage for stored tokens and user data
+
           const accessToken = localStorage.getItem(ACCESS_TOKEN_KEY);
           const refreshToken = localStorage.getItem(REFRESH_TOKEN_KEY);
           const sessionToken = localStorage.getItem(SESSION_TOKEN_KEY);
           const adminToken = localStorage.getItem(ADMIN_TOKEN_KEY);
           const storedUser = localStorage.getItem(USER_KEY);
-          
-          // Check if this is an admin session (has admin tokens)
           const isAdminSession = sessionToken && adminToken;
-          
-          // If we have tokens, try to restore the session
+
+          const validateAndRestoreSession = async () => {
+            const responseData = await apiClient.get('/api/v1/auth/me');
+            let validatedUser = responseData;
+            if (responseData && responseData.type === 'admin' && responseData.username) {
+              validatedUser = {
+                id: responseData.id,
+                username: responseData.username,
+                email: responseData.email,
+                firstName: responseData.firstName,
+                lastName: responseData.lastName,
+                role: responseData.role,
+                type: 'admin'
+              };
+            } else if (responseData && (responseData.company_name || (!responseData.type && !responseData.username))) {
+              validatedUser = {
+                id: responseData.id,
+                companyName: responseData.company_name,
+                email: responseData.rep_email,
+                firstName: responseData.rep_first_name,
+                lastName: responseData.rep_last_name,
+                role: 'company',
+                type: 'company',
+                status: responseData.status?.value || responseData.status
+              };
+            } else if (responseData && responseData.type) {
+              validatedUser = responseData;
+            }
+            if (validatedUser && isValidUser(validatedUser)) {
+              localStorage.setItem(USER_KEY, JSON.stringify(validatedUser));
+              set({ user: validatedUser, isAuthenticated: true, isInitializing: false });
+              return validatedUser;
+            }
+            return null;
+          };
+
+          const tryCookieRefresh = async () => {
+            try {
+              const refreshData = await apiClient.post('/api/v1/auth/refresh', {});
+              if (refreshData.access_token) localStorage.setItem(ACCESS_TOKEN_KEY, refreshData.access_token);
+              if (refreshData.refresh_token) localStorage.setItem(REFRESH_TOKEN_KEY, refreshData.refresh_token);
+              return refreshData.access_token;
+            } catch {
+              return null;
+            }
+          };
+
           if (accessToken || refreshToken) {
             let userData = null;
-            
-            // Parse stored user data if available
             if (storedUser) {
               try {
                 userData = JSON.parse(storedUser);
@@ -275,140 +314,61 @@ export const useAuthStore = create(
                 logger.warn(AUTH_CONTEXT, 'Failed to parse stored user data', e);
               }
             }
-            
-            // If we have user data, restore it immediately for faster UX
-            // But prioritize admin data if we have admin tokens
-            if (userData && isValidUser(userData)) {
-              // If we have admin tokens but stored user is not admin, don't restore yet
-              // Wait for backend validation to get correct user type
-              if (isAdminSession && userData.type !== 'admin') {
-                logger.debug(AUTH_CONTEXT, 'Admin tokens found but stored user is not admin, waiting for backend validation');
-              } else {
-                set({ 
-                  user: userData, 
-                  isAuthenticated: true,
-                  isInitializing: true // Still initializing, will be set to false after backend validation
-                });
-                logger.info(AUTH_CONTEXT, 'Restored user from localStorage');
-              }
+            if (userData && isValidUser(userData) && (!isAdminSession || userData.type === 'admin')) {
+              set({ user: userData, isAuthenticated: true, isInitializing: true });
+              logger.info(AUTH_CONTEXT, 'Restored user from localStorage');
             }
-            
-            // Validate session with backend (tokens may have expired)
             try {
-              const responseData = await apiClient.get('/api/v1/auth/me');
-              
-              // The backend now returns the correct format based on token type
-              // Admin tokens return: {id, username, email, firstName, lastName, role, type: 'admin'}
-              // Company tokens return: Company object with company_name, rep_email, etc.
-              
-              let validatedUser = responseData;
-              
-              // Check if response is admin format (has username and type='admin')
-              if (responseData && responseData.type === 'admin' && responseData.username) {
-                // This is already in the correct admin format from backend
-                validatedUser = {
-                  id: responseData.id,
-                  username: responseData.username,
-                  email: responseData.email,
-                  firstName: responseData.firstName,
-                  lastName: responseData.lastName,
-                  role: responseData.role,
-                  type: 'admin'
-                };
-              } 
-              // Check if response is company format (has company_name, no type or type='company')
-              else if (responseData && (responseData.company_name || (!responseData.type && !responseData.username))) {
-                // This is a company response - transform to user format
-                validatedUser = {
-                  id: responseData.id,
-                  companyName: responseData.company_name,
-                  email: responseData.rep_email,
-                  firstName: responseData.rep_first_name,
-                  lastName: responseData.rep_last_name,
-                  role: 'company',
-                  type: 'company',
-                  status: responseData.status?.value || responseData.status
-                };
-              }
-              // If response already has type, use it as-is
-              else if (responseData && responseData.type) {
-                validatedUser = responseData;
-              }
-              
-              // If validation successful, update stored user data
-              if (validatedUser && isValidUser(validatedUser)) {
-                localStorage.setItem(USER_KEY, JSON.stringify(validatedUser));
-                set({ 
-                  user: validatedUser, 
-                  isAuthenticated: true,
-                  isInitializing: false
-                });
-                logger.info(AUTH_CONTEXT, `Session validated with backend - user type: ${validatedUser.type}`);
+              const restored = await validateAndRestoreSession();
+              if (restored) {
+                logger.info(AUTH_CONTEXT, `Session validated - user type: ${restored.type}`);
                 return;
               }
             } catch (error) {
-              // Token validation failed - tokens are expired or invalid
               if (error.response?.status === 401) {
-                logger.debug(AUTH_CONTEXT, 'Tokens expired or invalid, clearing session');
-                // Try to refresh token
-                const refreshTokenValue = localStorage.getItem(REFRESH_TOKEN_KEY);
-                if (refreshTokenValue) {
-                  try {
-                    // Attempt token refresh using Authorization header
-                    const refreshData = await apiClient.post('/api/v1/auth/refresh', {}, {
-                      headers: {
-                        Authorization: `Bearer ${refreshTokenValue}`
+                const newToken = refreshToken
+                  ? (await (async () => {
+                      try {
+                        const d = await apiClient.post('/api/v1/auth/refresh', {}, {
+                          headers: { Authorization: `Bearer ${refreshToken}` }
+                        });
+                        if (d.access_token) localStorage.setItem(ACCESS_TOKEN_KEY, d.access_token);
+                        if (d.refresh_token) localStorage.setItem(REFRESH_TOKEN_KEY, d.refresh_token);
+                        return d.access_token;
+                      } catch {
+                        return null;
                       }
-                    });
-                    
-                    // Update tokens in localStorage
-                    if (refreshData.access_token) {
-                      localStorage.setItem(ACCESS_TOKEN_KEY, refreshData.access_token);
-                    }
-                    if (refreshData.refresh_token) {
-                      localStorage.setItem(REFRESH_TOKEN_KEY, refreshData.refresh_token);
-                    }
-                    // Note: Admin tokens (session_token, admin_token) are NOT refreshed
-                    // They persist from login until logout - keep existing ones in localStorage
-                    
-                    // Retry /auth/me with new token
-                    const retryData = await apiClient.get('/api/v1/auth/me');
-                    let retryUser = retryData;
-                    
-                    if (retryData && !retryData.type && retryData.company_name) {
-                      retryUser = {
-                        id: retryData.id,
-                        companyName: retryData.company_name,
-                        email: retryData.rep_email,
-                        firstName: retryData.rep_first_name,
-                        lastName: retryData.rep_last_name,
-                        role: 'company',
-                        type: 'company',
-                        status: retryData.status?.value || retryData.status
-                      };
-                    }
-                    
-                    if (retryUser && isValidUser(retryUser)) {
-                      localStorage.setItem(USER_KEY, JSON.stringify(retryUser));
-                      set({ 
-                        user: retryUser, 
-                        isAuthenticated: true,
-                        isInitializing: false
-                      });
-                      logger.info(AUTH_CONTEXT, 'Session restored after token refresh');
-                      return;
-                    }
-                  } catch (refreshError) {
-                    logger.debug(AUTH_CONTEXT, 'Token refresh failed', refreshError);
+                    })())
+                  : await tryCookieRefresh();
+                if (newToken) {
+                  const retried = await validateAndRestoreSession();
+                  if (retried) {
+                    logger.info(AUTH_CONTEXT, 'Session restored after token refresh');
+                    return;
                   }
                 }
-              } else {
-                logger.debug(AUTH_CONTEXT, 'Auth validation error', error);
+              }
+            }
+          } else {
+            try {
+              const restored = await validateAndRestoreSession();
+              if (restored) {
+                logger.info(AUTH_CONTEXT, 'Session restored from cookies (localStorage was empty)');
+                return;
+              }
+            } catch (error) {
+              if (error.response?.status === 401) {
+                const newToken = await tryCookieRefresh();
+                if (newToken) {
+                  const retried = await validateAndRestoreSession();
+                  if (retried) {
+                    logger.info(AUTH_CONTEXT, 'Session restored from cookie refresh');
+                    return;
+                  }
+                }
               }
             }
           }
-          
-          // If we get here, no valid session was found
           // Clear any stale state but don't call logout() to avoid redirect loops
           // Just clear the state silently - logout() will be called by ProtectedRoute if needed
           set({ 

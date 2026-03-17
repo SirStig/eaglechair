@@ -2,7 +2,7 @@
   "name": "EagleChair Admin",
   "short_name": "EagleChair Admin",
   "description": "EagleChair admin panel for managing AI chat, quotes, products, and company data",
-  "start_url": "/admin/ai",
+  "start_url": "/admin/dashboard",
   "scope": "/admin",
   "display": "standalone",
   "background_color": "#121212",

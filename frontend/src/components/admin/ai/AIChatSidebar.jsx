@@ -5,7 +5,7 @@
 
 import { useState, useCallback, useRef, useEffect } from 'react';
 import { createPortal } from 'react-dom';
-import { Plus, Search, Pin, Archive, Trash2, MoreHorizontal, MessageSquare } from 'lucide-react';
+import { Plus, Search, Pin, Archive, Trash2, MoreHorizontal, MessageSquare, X } from 'lucide-react';
 import { updateChat, deleteChat } from '../../../services/aiChatService';
 
 function formatTime(dateStr) {
@@ -20,7 +20,7 @@ function formatTime(dateStr) {
   return d.toLocaleDateString();
 }
 
-export default function AIChatSidebar({ sessions, currentSessionId, onSelect, onNew, onDelete, onUpdate }) {
+export default function AIChatSidebar({ sessions, currentSessionId, onSelect, onNew, onDelete, onUpdate, onClose, showCloseButton }) {
   const [search, setSearch] = useState('');
   const [menuOpenId, setMenuOpenId] = useState(null);
   const [menuRect, setMenuRect] = useState(null);
@@ -176,7 +176,18 @@ export default function AIChatSidebar({ sessions, currentSessionId, onSelect, on
       <div className="absolute left-0 top-0 bottom-0 w-0.5 bg-gradient-to-b from-chat-accent/50 via-chat-accent/20 to-transparent pointer-events-none" aria-hidden />
       <div className="flex flex-col flex-1 min-h-0">
         <div className="p-3 pb-2 flex-shrink-0">
-          <p className="text-[10px] uppercase tracking-widest text-dark-500 mb-3 px-0.5">Chats</p>
+          <div className="flex items-center justify-between mb-3">
+            <p className="text-[10px] uppercase tracking-widest text-dark-500 px-0.5">Chats</p>
+            {showCloseButton && onClose && (
+              <button
+                onClick={onClose}
+                className="p-2 -m-2 text-dark-400 hover:text-dark-100 hover:bg-dark-700 rounded-lg transition-colors touch-manipulation"
+                aria-label="Close"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            )}
+          </div>
           <button
             onClick={onNew}
             className="w-full flex items-center justify-center gap-2 px-3 py-2.5 bg-chat-button hover:bg-chat-button-hover text-white rounded-xl text-xs font-medium transition-colors shadow-sm"

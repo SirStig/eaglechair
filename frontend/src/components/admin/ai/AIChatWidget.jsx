@@ -16,26 +16,26 @@ import ChatMessageList from './ChatMessageList';
 
 function WelcomeScreen({ onSuggestionClick }) {
   const suggestions = [
-    'Analyze recent quote trends',
+    'Analyze quote trends',
     'Research competitor pricing',
-    'Help me calculate margins',
-    'Summarize this pricing sheet',
+    'Calculate margins',
+    'Summarize pricing sheet',
   ];
   return (
-    <div className="flex flex-col items-center justify-center h-full text-center px-6">
-      <div className="w-14 h-14 rounded-2xl bg-dark-800 flex items-center justify-center mb-4 shadow-lg p-2">
+    <div className="flex flex-col items-center justify-center h-full text-center px-4">
+      <div className="w-10 h-10 sm:w-14 sm:h-14 rounded-2xl bg-dark-800 flex items-center justify-center mb-3 shadow-lg p-2">
         <img src="/favicon.svg" alt="Eagle Chair" className="w-full h-full object-contain" />
       </div>
-      <h3 className="text-base font-bold text-dark-50 mb-2">EagleChair AI Assistant</h3>
-      <p className="text-xs text-dark-400 leading-relaxed max-w-xs">
-        Ask me anything about your business — quotes, pricing, products, market research, document analysis, and more.
+      <h3 className="text-xs sm:text-sm font-bold text-dark-50 mb-1.5">EagleChair AI Assistant</h3>
+      <p className="text-[11px] sm:text-xs text-dark-400 leading-relaxed max-w-xs">
+        Ask about quotes, pricing, products, and more.
       </p>
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 mt-5 w-full max-w-xs">
+      <div className="grid grid-cols-2 gap-2 mt-4 w-full max-w-xs">
         {suggestions.map((suggestion, i) => (
           <button
             key={i}
             onClick={() => onSuggestionClick?.(suggestion)}
-            className="text-left text-xs bg-dark-800 hover:bg-dark-700 border border-dark-700 hover:border-dark-600 rounded-xl p-2.5 text-dark-300 hover:text-dark-100 transition-colors leading-tight"
+            className="text-left text-[11px] sm:text-xs bg-dark-800 hover:bg-dark-700 border border-dark-700 hover:border-dark-600 rounded-xl p-2 text-dark-300 hover:text-dark-100 transition-colors leading-tight"
           >
             {suggestion}
           </button>
@@ -106,7 +106,7 @@ export default function AIChatWidget() {
           fixed z-[999] bg-dark-850 border border-dark-700 shadow-2xl flex flex-col overflow-hidden
           ${isFullScreen
             ? 'inset-0 rounded-none'
-            : 'left-4 right-4 top-4 bottom-4 sm:left-auto sm:right-6 sm:top-auto sm:bottom-20 sm:w-[420px] sm:h-[600px] rounded-2xl h-[calc(100dvh-2rem)] sm:h-[600px]'
+            : 'left-2 right-2 top-2 bottom-2 sm:left-auto sm:right-6 sm:top-auto sm:bottom-20 sm:w-[420px] rounded-2xl h-[calc(100dvh-1rem)] sm:h-[600px]'
           }
         `}
         style={{ '--tw-bg-opacity': '1', backgroundColor: 'rgb(15 17 23 / var(--tw-bg-opacity))' }}
@@ -183,6 +183,8 @@ export default function AIChatWidget() {
                   onNew={() => { newChat(); setShowSidebar(false); }}
                   onDelete={handleDeleteSession}
                   onUpdate={handleUpdateSession}
+                  onClose={isMobile ? () => setShowSidebar(false) : undefined}
+                  showCloseButton={isMobile}
                 />
               </motion.div>
             )}
