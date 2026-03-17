@@ -27,7 +27,8 @@ import {
   Mail,
   Menu,
   X,
-  MessageSquare
+  MessageSquare,
+  Download
 } from 'lucide-react';
 import { AnimatePresence, motion } from 'framer-motion';
 
@@ -50,6 +51,7 @@ import PricingTierManagement from '../../components/admin/sections/PricingTierMa
 import SiteSettings from '../../components/admin/sections/SiteSettings';
 import Analytics from '../../components/admin/sections/Analytics';
 import EmailTemplateManagement from '../../components/admin/sections/EmailTemplateManagement';
+import AdminDownloads from '../../components/admin/sections/AdminDownloads';
 import apiClient from '../../config/apiClient';
 
 /**
@@ -92,6 +94,7 @@ const NewAdminDashboardInner = () => {
     if (path.includes('/admin/legal-documents')) return 'legal-documents';
     if (path.includes('/admin/settings')) return 'settings';
     if (path.includes('/admin/emails')) return 'emails';
+    if (path.includes('/admin/downloads')) return 'downloads';
     return 'overview';
   };
 
@@ -133,6 +136,7 @@ const NewAdminDashboardInner = () => {
     else if (path.includes('/admin/legal-documents')) section = 'legal-documents';
     else if (path.includes('/admin/settings')) section = 'settings';
     else if (path.includes('/admin/emails')) section = 'emails';
+    else if (path.includes('/admin/downloads')) section = 'downloads';
     
     setActiveSection(section);
   }, [location.pathname]);
@@ -185,6 +189,7 @@ const NewAdminDashboardInner = () => {
       id: 'system',
       title: 'System',
       items: [
+        { id: 'downloads', label: 'Downloads', icon: Download, path: '/admin/downloads' },
         { id: 'emails', label: 'Email Templates', icon: Mail, path: '/admin/emails' },
         { id: 'settings', label: 'Site Settings', icon: Settings, path: '/admin/settings' },
       ]
@@ -248,6 +253,8 @@ const NewAdminDashboardInner = () => {
         return <SiteSettings />;
       case 'emails':
         return <EmailTemplateManagement />;
+      case 'downloads':
+        return <AdminDownloads />;
       default:
         return <DashboardOverview onNavigate={setActiveSection} />;
     }

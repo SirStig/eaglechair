@@ -48,8 +48,6 @@ const LaminatesPage = lazy(() => import('./pages/LaminatesPage'));
 const UpholsteryPage = lazy(() => import('./pages/UpholsteryPage'));
 const GuidesPage = lazy(() => import('./pages/GuidesPage'));
 const SeatBackTermsPage = lazy(() => import('./pages/SeatBackTermsPage'));
-const EciCleanerDownloadPage = lazy(() => import('./pages/EciCleanerDownloadPage'));
-
 // Create a client with industry-standard retry configuration
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -200,8 +198,6 @@ function App() {
           <Route path="/resources/laminates" element={<LaminatesPage />} />
           <Route path="/resources/upholstery" element={<UpholsteryPage />} />
           <Route path="/resources/seat-back-terms" element={<SeatBackTermsPage />} />
-
-          <Route path="/download/eci-cleaner" element={<EciCleanerDownloadPage />} />
 
           {/* Shopping & Quotes */}
             <Route path="/cart" element={<CartPage />} />
