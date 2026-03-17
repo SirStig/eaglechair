@@ -51,9 +51,30 @@
   @media (min-width: 768px) {
     :root { --header-height: calc(96px + env(safe-area-inset-top, 0px)); }
   }
+  @media (min-width: 2560px) and (min-height: 1440px) {
+    :root { --header-height: calc(128px + env(safe-area-inset-top, 0px)); }
+  }
+  @media (min-width: 3840px) and (min-height: 2160px) {
+    :root { --header-height: calc(160px + env(safe-area-inset-top, 0px)); }
+  }
 }
 
 @layer components {
+  @media (min-width: 2560px) and (min-height: 1440px) {
+    .header-inner { padding-top: 1.5rem !important; padding-bottom: 1.5rem !important; }
+    .header-logo { height: 5rem !important; }
+    .header-nav-btn { font-size: 1.125rem !important; }
+    .header-nav { gap: 0.5rem !important; }
+    .header-logo-wrap { gap: 1rem !important; }
+  }
+  @media (min-width: 3840px) and (min-height: 2160px) {
+    .header-inner { padding-top: 2rem !important; padding-bottom: 2rem !important; }
+    .header-logo { height: 6rem !important; }
+    .header-nav-btn { font-size: 1.25rem !important; }
+    .header-nav { gap: 0.75rem !important; }
+    .header-logo-wrap { gap: 1.25rem !important; }
+  }
+
   .container {
     @apply mx-auto px-4 sm:px-6 lg:px-8 max-w-7xl;
   }

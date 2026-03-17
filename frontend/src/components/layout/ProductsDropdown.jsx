@@ -119,30 +119,27 @@ const ProductsDropdown = () => {
                     style={{
                       minWidth: '100%',
                       minHeight: '100%',
-                      background: 'linear-gradient(to top, rgba(0,0,0,0.95) 0%, rgba(0,0,0,0.85) 25%, rgba(0,0,0,0.7) 50%, rgba(0,0,0,0.4) 75%, transparent 100%)'
+                      background: 'linear-gradient(to top, rgba(0,0,0,0.95) 0%, rgba(0,0,0,0.9) 20%, rgba(0,0,0,0.75) 45%, rgba(0,0,0,0.5) 70%, rgba(0,0,0,0.35) 85%, rgba(0,0,0,0.2) 100%)'
                     }}
                     aria-hidden
                   />
                 </Link>
 
-                {/* Content Container - Full Height with Flex */}
                 <div className="absolute inset-0 flex flex-col justify-between p-6 sm:p-8 pointer-events-none">
-                  {/* Category Title at Top */}
                   <div>
-                    <h3 className="text-white font-bold mb-2 drop-shadow-lg text-[clamp(0.875rem,1.25vw+0.75rem,1.875rem)]">
+                    <h3 className="text-white font-bold mb-2 text-[clamp(0.875rem,1.25vw+0.75rem,1.875rem)] [text-shadow:0_0_20px_rgba(0,0,0,0.9),0_0_8px_rgba(0,0,0,0.8),0_2px_4px_rgba(0,0,0,0.9)]">
                       {category.name}
                     </h3>
                     <div className="w-16 h-1 bg-primary-500 rounded-full"></div>
                   </div>
 
-                  {/* Subcategory Navigation Links - at bottom, larger and better spaced */}
                   <div className="relative pl-2 sm:pl-4 pointer-events-auto py-6">
                     <div className="space-y-2">
                       {subcategories.slice(0, 5).map((subcat) => (
                         <Link
                           key={subcat.id}
                           to={`/products/category/${category.slug}/${subcat.slug}`}
-                          className="block w-full text-left py-3 px-2 text-white/95 hover:text-white hover:translate-x-2 transition-all duration-200 text-base font-medium"
+                          className="block w-full text-left py-3 px-2 text-white hover:text-white hover:translate-x-2 transition-all duration-200 text-base font-medium [text-shadow:0_0_12px_rgba(0,0,0,0.9),0_0_4px_rgba(0,0,0,0.8),0_1px_3px_rgba(0,0,0,0.9)]"
                         >
                           {subcat.name}
                         </Link>
@@ -150,7 +147,7 @@ const ProductsDropdown = () => {
 
                       <Link
                         to={`/products/category/${category.slug}`}
-                        className="block w-full text-left py-3 px-2 text-primary-400 hover:text-primary-300 hover:translate-x-2 transition-all duration-200 text-base font-bold mt-4"
+                        className="block w-full text-left py-3 px-2 text-white hover:text-primary-300 hover:translate-x-2 transition-all duration-200 text-base font-bold mt-4 [text-shadow:0_0_12px_rgba(0,0,0,0.9),0_0_4px_rgba(0,0,0,0.8),0_1px_3px_rgba(0,0,0,0.9)]"
                       >
                         View All {category.name} →
                       </Link>
@@ -183,29 +180,27 @@ const ProductsDropdown = () => {
                   style={{
                     minWidth: '100%',
                     minHeight: '100%',
-                    background: 'linear-gradient(to top, rgba(0,0,0,0.95) 0%, rgba(0,0,0,0.85) 25%, rgba(0,0,0,0.7) 50%, rgba(0,0,0,0.4) 75%, transparent 100%)'
+                    background: 'linear-gradient(to top, rgba(0,0,0,0.95) 0%, rgba(0,0,0,0.9) 20%, rgba(0,0,0,0.75) 45%, rgba(0,0,0,0.5) 70%, rgba(0,0,0,0.35) 85%, rgba(0,0,0,0.2) 100%)'
                   }}
                   aria-hidden
                 />
               </Link>
 
-              {/* Content */}
               <div className="absolute inset-0 flex flex-col justify-between p-6 sm:p-8 pointer-events-none">
                 <div>
-                  <h3 className="text-white font-bold mb-2 drop-shadow-lg text-[clamp(0.875rem,1.25vw+0.75rem,1.875rem)]">
+                  <h3 className="text-white font-bold mb-2 text-[clamp(0.875rem,1.25vw+0.75rem,1.875rem)] [text-shadow:0_0_20px_rgba(0,0,0,0.9),0_0_8px_rgba(0,0,0,0.8),0_2px_4px_rgba(0,0,0,0.9)]">
                     More Categories
                   </h3>
                   <div className="w-16 h-1 bg-primary-500 rounded-full"></div>
                 </div>
 
-                {/* Additional categories list - larger and better spaced */}
                 <div className="relative pl-2 sm:pl-4 pointer-events-auto py-6">
                   <div className="space-y-2">
                     {categories.slice(MAX_COLUMNS - 1).map((category) => (
                       <Link
                         key={category.id}
                         to={`/products/category/${category.slug}`}
-                        className="block w-full text-left py-3 px-2 text-white/95 hover:text-white hover:translate-x-2 transition-all duration-200 text-base font-medium"
+                        className="block w-full text-left py-3 px-2 text-white hover:text-white hover:translate-x-2 transition-all duration-200 text-base font-medium [text-shadow:0_0_12px_rgba(0,0,0,0.9),0_0_4px_rgba(0,0,0,0.8),0_1px_3px_rgba(0,0,0,0.9)]"
                       >
                         {category.name}
                       </Link>
@@ -213,7 +208,7 @@ const ProductsDropdown = () => {
 
                     <Link
                       to="/products"
-                      className="block w-full text-left py-3 px-2 text-primary-400 hover:text-primary-300 hover:translate-x-2 transition-all duration-200 text-base font-bold mt-4"
+                      className="block w-full text-left py-3 px-2 text-white hover:text-primary-300 hover:translate-x-2 transition-all duration-200 text-base font-bold mt-4 [text-shadow:0_0_12px_rgba(0,0,0,0.9),0_0_4px_rgba(0,0,0,0.8),0_1px_3px_rgba(0,0,0,0.9)]"
                     >
                       View All Products →
                     </Link>

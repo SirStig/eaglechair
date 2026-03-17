@@ -147,22 +147,20 @@ const Header = ({ isMobileMenuOpen, setIsMobileMenuOpen }) => {
       } ${!showHeaderBackground ? '[&_a]:text-white [&_button]:text-white [&_input::placeholder]:text-white/70 [&_input]:text-white [&_input]:border-white/30 [&_input]:bg-white/10 [&_svg]:text-white' : ''}`}
     >
       <div className="container mx-auto px-4 sm:px-6 lg:px-8">
-        {/* Main Navigation */}
-        <div className="flex items-center justify-between py-3 sm:py-4 gap-2">
-          {/* Logo */}
+        <div className="header-inner flex items-center justify-between py-3 sm:py-4 gap-2">
           <Link to="/" className="flex-shrink-0">
             <Motion.div
               whileHover={{ scale: 1.05 }}
               transition={{ type: 'spring', stiffness: 400, damping: 10 }}
-              className={`flex items-center gap-2 sm:gap-3 ${!showHeaderBackground ? 'drop-shadow-[0_2px_8px_rgba(0,0,0,0.6)]' : ''}`}
+              className={`header-logo-wrap flex items-center gap-2 sm:gap-3 ${!showHeaderBackground ? 'drop-shadow-[0_2px_8px_rgba(0,0,0,0.6)]' : ''}`}
             >
               {siteSettings?.logoUrl ? (
                 <img
                   src={siteSettings.logoUrl}
                   alt={siteSettings.companyName || 'Eagle Chair'}
-                  className={`h-12 sm:h-14 md:h-16 lg:h-16 w-auto object-contain ${!showHeaderBackground ? 'drop-shadow-[0_2px_8px_rgba(0,0,0,0.8)]' : ''}`}
+                  className={`header-logo h-12 sm:h-14 md:h-16 lg:h-16 w-auto object-contain ${!showHeaderBackground ? 'drop-shadow-[0_2px_8px_rgba(0,0,0,0.8)]' : ''}`}
                   onError={(e) => {
-                    e.target.onerror = null; // Prevent infinite loop
+                    e.target.onerror = null;
                     e.target.src = '/assets/eagle-chair-logo.png';
                   }}
                 />
@@ -170,18 +168,17 @@ const Header = ({ isMobileMenuOpen, setIsMobileMenuOpen }) => {
                 <img
                   src="/assets/eagle-chair-logo.png"
                   alt="Eagle Chair"
-                  className={`h-12 sm:h-14 md:h-16 lg:h-16 w-auto object-contain ${!showHeaderBackground ? 'drop-shadow-[0_2px_8px_rgba(0,0,0,0.8)]' : ''}`}
+                  className={`header-logo h-12 sm:h-14 md:h-16 lg:h-16 w-auto object-contain ${!showHeaderBackground ? 'drop-shadow-[0_2px_8px_rgba(0,0,0,0.8)]' : ''}`}
                 />
               )}
             </Motion.div>
           </Link>
 
-          {/* Center Navigation */}
-          <nav className="hidden lg:flex items-center gap-1">
+          <nav className="header-nav hidden lg:flex items-center gap-1">
             {/* Products Dropdown */}
             <Dropdown
               trigger={(isOpen) => (
-                <Button variant="transparent" className="font-medium hover-lift" onMouseEnter={() => {
+                <Button variant="transparent" className="header-nav-btn font-medium hover-lift" onMouseEnter={() => {
                 productService.getCategories().then((cats) => {
                   if (Array.isArray(cats) && cats.length > 0) {
                     cats.slice(0, 5).forEach((c) => productService.getSubcategories({ category_id: c.id }));
@@ -210,15 +207,14 @@ const Header = ({ isMobileMenuOpen, setIsMobileMenuOpen }) => {
 
             {/* Gallery */}
             <Link to="/gallery">
-              <Button variant="transparent" className="font-medium hover-lift">
+              <Button variant="transparent" className="header-nav-btn font-medium hover-lift">
                 Gallery
               </Button>
             </Link>
 
-            {/* Resources Dropdown */}
             <Dropdown
               trigger={(isOpen) => (
-                <Button variant="transparent" className="font-medium hover-lift">
+                <Button variant="transparent" className="header-nav-btn font-medium hover-lift">
                   Resources
                   <Motion.svg
                     className="ml-1 h-4 w-4"
@@ -237,17 +233,15 @@ const Header = ({ isMobileMenuOpen, setIsMobileMenuOpen }) => {
               <ResourcesDropdown />
             </Dropdown>
 
-            {/* About Us */}
             <Link to="/about">
-              <Button variant="transparent" className="font-medium hover-lift">
+              <Button variant="transparent" className="header-nav-btn font-medium hover-lift">
                 About Us
               </Button>
             </Link>
 
-            {/* Connect Dropdown */}
             <Dropdown
               trigger={(isOpen) => (
-                <Button variant="transparent" className="font-medium hover-lift">
+                <Button variant="transparent" className="header-nav-btn font-medium hover-lift">
                   Connect
                   <Motion.svg
                     className="ml-1 h-4 w-4"
