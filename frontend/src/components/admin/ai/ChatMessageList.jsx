@@ -75,7 +75,7 @@ export default function ChatMessageList({
       <div
         ref={scrollContainerRef}
         onScroll={handleScroll}
-        className={`flex-1 min-h-0 overflow-y-auto overscroll-contain scroll-smooth ${px} ${pt} pb-2`}
+        className={`flex-1 min-h-0 min-w-0 overflow-y-auto overflow-x-hidden overscroll-contain scroll-smooth ${px} ${pt} pb-2`}
       >
         {hasMoreMessages && (
           <div className="flex justify-center py-3">
@@ -110,7 +110,7 @@ export default function ChatMessageList({
   }
 
   return (
-    <div className="flex-1 min-h-0 flex flex-col">
+    <div className="flex-1 min-h-0 min-w-0 flex flex-col overflow-hidden">
       <Virtuoso
         data={messages}
         className="flex-1 min-h-0"

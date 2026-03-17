@@ -206,8 +206,8 @@ function AIChatMessage({ message, onRedo, onRetry, onEditApplied, onEditDeclined
   const content = isStreaming ? sanitizeStreamingMarkdown(rawContent) : rawContent;
 
   return (
-    <div className={`flex flex-col ${isUser ? 'items-end' : 'items-start'} mb-4`}>
-      <div className={`flex ${isUser ? 'justify-end' : 'justify-start'} w-full`}>
+    <div className={`flex flex-col ${isUser ? 'items-end' : 'items-start'} mb-4 min-w-0`}>
+      <div className={`flex ${isUser ? 'justify-end' : 'justify-start'} w-full min-w-0`}>
       {!isUser && (
         <div className="w-6 h-6 sm:w-7 sm:h-7 rounded-full bg-dark-700 flex items-center justify-center flex-shrink-0 mr-2 mt-0.5 p-1">
           <img src="/favicon.svg" alt="Eagle Chair" className="w-full h-full object-contain" />
@@ -215,10 +215,10 @@ function AIChatMessage({ message, onRedo, onRetry, onEditApplied, onEditDeclined
       )}
 
       <div className={`
-        w-full max-w-full text-[15px] leading-[1.7] tracking-[0.01em]
+        w-full max-w-full min-w-0 text-[15px] leading-[1.7] tracking-[0.01em]
         ${isUser
           ? 'max-w-[92%] sm:max-w-[85%] rounded-2xl px-4 py-3 bg-chat-user-bubble hover:bg-chat-user-bubble-hover text-white rounded-tr-sm'
-          : 'px-0 py-2 text-dark-100'
+          : 'px-0 py-2 text-dark-100 overflow-hidden'
         }
         ${!isUser && message.isError ? 'text-red-300' : ''}
       `}>
