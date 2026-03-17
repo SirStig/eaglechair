@@ -100,10 +100,6 @@ const SearchPage = () => {
         productsData.sort((a, b) => a.name.localeCompare(b.name));
       } else if (filters.sortBy === 'name-desc') {
         productsData.sort((a, b) => b.name.localeCompare(a.name));
-      } else if (filters.sortBy === 'price-asc') {
-        productsData.sort((a, b) => (a.base_price || 0) - (b.base_price || 0));
-      } else if (filters.sortBy === 'price-desc') {
-        productsData.sort((a, b) => (b.base_price || 0) - (a.base_price || 0));
       } else if (filters.sortBy === 'featured') {
         productsData.sort((a, b) => (b.is_featured ? 1 : 0) - (a.is_featured ? 1 : 0));
       }
@@ -334,8 +330,6 @@ const SearchPage = () => {
                       <option value="featured">Featured First</option>
                       <option value="name-asc">Name (A-Z)</option>
                       <option value="name-desc">Name (Z-A)</option>
-                      <option value="price-asc">Price (Low to High)</option>
-                      <option value="price-desc">Price (High to Low)</option>
                     </select>
                   )}
                 </div>

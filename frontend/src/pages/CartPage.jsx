@@ -4,7 +4,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import Button from '../components/ui/Button';
 import Card from '../components/ui/Card';
 import { useCartStore } from '../store/cartStore';
-import { getProductImage, buildProductUrl, ensurePriceCents, formatPrice } from '../utils/apiHelpers';
+import { getProductImage, buildProductUrl } from '../utils/apiHelpers';
 
 const CartPage = () => {
   const [brokenImageKeys, setBrokenImageKeys] = useState(() => new Set());
@@ -26,23 +26,7 @@ const CartPage = () => {
 
   const markImageBroken = (key) => setBrokenImageKeys((prev) => new Set(prev).add(key));
 
-  const subtotal = useCartStore((state) => {
-    const cartItems = state.isAuthenticated && state.backendCart
-      ? (state.backendCart.items || [])
-      : state.guestItems;
-    return cartItems.reduce((sum, item) => {
-      const raw = item.unit_price ?? item.product?.price ?? item.product?.base_price ?? 0;
-      const priceCents = ensurePriceCents(raw);
-      return sum + (priceCents * item.quantity);
-    }, 0);
-  });
-
   const isLoading = useCartStore((state) => state.isLoading);
-
-  const hasUnpricedItems = items.some((item) => {
-    const raw = item.unit_price ?? item.product?.price ?? item.product?.base_price ?? 0;
-    return ensurePriceCents(raw) <= 0;
-  });
 
   if (items.length === 0) {
     return (
@@ -111,7 +95,6 @@ const CartPage = () => {
                 const productSubcategory = typeof product.subcategory === 'object' && product.subcategory
                   ? (product.subcategory.name || product.subcategory.slug || '')
                   : (product.subcategory || '');
-                const priceCents = ensurePriceCents(item.unit_price ?? product.price ?? product.base_price ?? 0);
 
                 return (
                   <motion.div
@@ -277,7 +260,7 @@ const CartPage = () => {
                             </div>
                           )}
 
-                          {/* Quantity and Actions */}
+                            {/* Quantity and Actions */}
                           <div className="mt-auto flex flex-wrap items-center justify-between gap-4 pt-4 border-t border-cream-200">
                             <div className="flex items-center gap-4">
                               {/* Quantity Controls */}
@@ -311,25 +294,6 @@ const CartPage = () => {
                                 </svg>
                                 Remove
                               </button>
-                            </div>
-
-                            {/* Price */}
-                            <div className="text-right">
-                              {priceCents > 0 ? (
-                                <>
-                                  <p className="text-2xl font-bold text-slate-800">
-                                    {formatPrice(priceCents * item.quantity)}
-                                  </p>
-                                  <p className="text-sm text-slate-500">
-                                    Estimated listing: {formatPrice(priceCents)} × {item.quantity}
-                                  </p>
-                                </>
-                              ) : (
-                                <>
-                                  <p className="text-base font-semibold text-slate-700">No List Price</p>
-                                  <p className="text-sm text-slate-500">Pricing provided in quote</p>
-                                </>
-                              )}
                             </div>
                           </div>
                         </div>
@@ -369,29 +333,6 @@ const CartPage = () => {
                     {items.reduce((sum, item) => sum + item.quantity, 0)}
                   </span>
                 </div>
-
-                {subtotal > 0 && (
-                  <>
-                    <div className="border-t border-cream-200 my-4"></div>
-                    <div className="flex justify-between items-baseline py-2 bg-primary-50 -mx-6 px-6 py-4 rounded-lg">
-                      <span className="font-bold text-slate-800 text-lg">Estimated Subtotal (listing/base prices)</span>
-                      <span className="font-bold text-primary-600 text-2xl">
-                        {formatPrice(subtotal)}
-                      </span>
-                    </div>
-                    <p className="text-xs text-slate-500 text-center italic mt-2">
-                      *Prices are estimated listing/base only. Final pricing subject to quote approval and may be higher.
-                    </p>
-                  </>
-                )}
-                {hasUnpricedItems && (
-                  <div className="mt-4 p-4 bg-amber-50 border border-amber-200 rounded-lg">
-                    <p className="text-sm font-medium text-amber-900">Items without list price</p>
-                    <p className="text-xs text-amber-800 mt-1">
-                      Some items in your cart have no list price. Final pricing for these items will be provided in your quote.
-                    </p>
-                  </div>
-                )}
               </div>
 
               <div className="bg-gradient-to-br from-blue-50 to-indigo-50 border border-blue-200 rounded-xl p-5 mb-6">
@@ -402,7 +343,7 @@ const CartPage = () => {
                   <div>
                     <p className="text-sm font-semibold text-blue-900 mb-1">Quote Request Cart</p>
                     <p className="text-xs text-blue-700 leading-relaxed">
-                      Submit your selections for a detailed quote. Our team will review and provide final pricing, availability, and delivery estimates.
+                      Submit your selections for a detailed quote. Our team will review and provide availability and delivery estimates.
                     </p>
                   </div>
                 </div>

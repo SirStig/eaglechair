@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { Link } from 'react-router-dom';
 import productService from '../../services/productService';
+import { resolveImageUrl } from '../../utils/apiHelpers';
 import logger from '../../utils/logger';
 
 const CONTEXT = 'ProductsDropdown';
@@ -90,7 +91,7 @@ const ProductsDropdown = () => {
       <div className={`grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-${Math.min(displayCategories.length + (hasMoreCategories ? 1 : 0), MAX_COLUMNS)} gap-0`}>
         {displayCategories.map((category) => {
           const subcategories = subcategoriesByCategory[category.id] || [];
-          const bannerImage = category.banner_image_url || DEFAULT_BANNER;
+          const bannerImage = resolveImageUrl(category.banner_image_url || DEFAULT_BANNER);
           const imgKey = `cat-${category.id}-${bannerImage}`;
           const isLoaded = loadedImages.has(imgKey);
 
@@ -104,7 +105,7 @@ const ProductsDropdown = () => {
                   <img
                     src={bannerImage}
                     alt={category.name}
-                    className={`absolute inset-0 w-full h-full object-cover transition-all duration-500 group-hover:scale-110 ${isLoaded ? 'opacity-100' : 'opacity-0'}`}
+                    className={`absolute inset-0 w-full h-full object-cover transition-all duration-150 group-hover:scale-110 ${isLoaded ? 'opacity-100' : 'opacity-0'}`}
                     onLoad={() => onImageLoad(imgKey)}
                     onError={(e) => {
                       e.target.src = DEFAULT_BANNER;
@@ -172,7 +173,7 @@ const ProductsDropdown = () => {
                 <img
                   src={DEFAULT_BANNER}
                   alt="More Categories"
-                  className={`absolute inset-0 w-full h-full object-cover transition-all duration-500 group-hover:scale-110 ${loadedImages.has('more-categories') ? 'opacity-100' : 'opacity-0'}`}
+                  className={`absolute inset-0 w-full h-full object-cover transition-all duration-150 group-hover:scale-110 ${loadedImages.has('more-categories') ? 'opacity-100' : 'opacity-0'}`}
                   onLoad={() => onImageLoad('more-categories')}
                   loading="eager"
                   fetchpriority="high"

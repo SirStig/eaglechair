@@ -5,7 +5,6 @@ import Button from '../ui/Button';
 import {
   FileText,
   Clock,
-  DollarSign,
   CheckCircle,
   XCircle,
   Package,
@@ -20,7 +19,6 @@ import {
   ArrowLeft,
 } from 'lucide-react';
 import { quoteService } from '../../services/quoteService';
-import { formatPrice } from '../../utils/apiHelpers';
 
 const QuoteDetailsView = ({ quoteId, onBack }) => {
   const [quote, setQuote] = useState(null);
@@ -67,11 +65,6 @@ const QuoteDetailsView = ({ quoteId, onBack }) => {
         {config.label}
       </Badge>
     );
-  };
-
-  const formatCurrency = (amount) => {
-    if (!amount && amount !== 0) return 'N/A';
-    return formatPrice(amount);
   };
 
   const formatDateShort = (dateString) => {
@@ -322,10 +315,6 @@ const QuoteDetailsView = ({ quoteId, onBack }) => {
                     </p>
                     <div className="flex flex-wrap gap-4 text-sm text-dark-300">
                       <span>Quantity: {item.quantity}</span>
-                      <span>Unit Price: {formatCurrency(item.unit_price)}</span>
-                      {item.customization_cost > 0 && (
-                        <span>Customization: {formatCurrency(item.customization_cost)}</span>
-                      )}
                     </div>
                     {item.allocations && item.allocations.length > 0 && quote.shipping_destinations?.length > 0 && (
                       <p className="text-sm text-dark-400 mt-1">
@@ -351,59 +340,12 @@ const QuoteDetailsView = ({ quoteId, onBack }) => {
                       </div>
                     )}
                   </div>
-                  <div className="text-right">
-                    <p className="text-lg font-bold text-dark-50">
-                      {formatCurrency(item.line_total)}
-                    </p>
-                  </div>
                 </div>
               </div>
             ))}
           </div>
         </Card>
       )}
-
-      {/* Quote Totals */}
-      <Card className="p-4 bg-dark-700 border-dark-600">
-        <h3 className="text-lg font-semibold text-dark-50 mb-4 flex items-center gap-2">
-          <DollarSign className="w-5 h-5" />
-          Pricing Summary
-        </h3>
-        <div className="space-y-2">
-          <div className="flex justify-between text-dark-200">
-            <span>Subtotal:</span>
-            <span>{formatCurrency(quote.subtotal)}</span>
-          </div>
-          {quote.tax_amount > 0 && (
-            <div className="flex justify-between text-dark-200">
-              <span>Tax:</span>
-              <span>{formatCurrency(quote.tax_amount)}</span>
-            </div>
-          )}
-          {quote.shipping_cost > 0 && (
-            <div className="flex justify-between text-dark-200">
-              <span>Shipping:</span>
-              <span>{formatCurrency(quote.shipping_cost)}</span>
-            </div>
-          )}
-          {quote.discount_amount > 0 && (
-            <div className="flex justify-between text-dark-200">
-              <span>Discount:</span>
-              <span className="text-green-400">-{formatCurrency(quote.discount_amount)}</span>
-            </div>
-          )}
-          <div className="flex justify-between text-lg font-bold text-dark-50 pt-2 border-t border-dark-600">
-            <span>Total:</span>
-            <span>{formatCurrency(quote.total_amount)}</span>
-          </div>
-          {quote.quoted_price && quote.quoted_price !== quote.total_amount && (
-            <div className="flex justify-between text-primary-400 pt-2">
-              <span>Quoted Price:</span>
-              <span className="font-bold">{formatCurrency(quote.quoted_price)}</span>
-            </div>
-          )}
-        </div>
-      </Card>
 
       {/* Admin Notes */}
       {quote.quote_notes && (

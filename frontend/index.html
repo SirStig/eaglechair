@@ -54,6 +54,9 @@
     <!-- Google Fonts - Preconnect for Performance -->
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <script>
+      (function(){fetch('/data/contentData.json').then(function(r){return r.json()}).then(function(d){if(!d||!d.heroSlides||!d.heroSlides.length)return;d.heroSlides.slice(0,3).forEach(function(s,i){var u=s.background_image_url||s.backgroundImageUrl||s.image;if(!u)return;var href=u.startsWith('http')?u:u.startsWith('/')?u:('/'+u);var link=document.createElement('link');link.rel='preload';link.as='image';link.href=href;if(i<2)link.setAttribute('fetchpriority','high');document.head.appendChild(link)})}).catch(function(){})})();
+    </script>
   </head>
   <body>
     <div id="root"></div>

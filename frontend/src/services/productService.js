@@ -55,12 +55,6 @@ export const productService = {
         case 'name-desc':
           products.sort((a, b) => b.name.localeCompare(a.name));
           break;
-        case 'price-asc':
-          products.sort((a, b) => (a.base_price || 0) - (b.base_price || 0));
-          break;
-        case 'price-desc':
-          products.sort((a, b) => (b.base_price || 0) - (a.base_price || 0));
-          break;
         case 'featured':
           products.sort((a, b) => (b.is_featured ? 1 : 0) - (a.is_featured ? 1 : 0));
           break;

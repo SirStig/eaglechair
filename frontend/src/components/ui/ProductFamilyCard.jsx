@@ -59,7 +59,7 @@ const ProductFamilyCard = ({ family, onQuickView, darkMode = false }) => {
           src={familyImage}
           alt={family.name}
           onLoad={handleImageLoad}
-          className={`w-full h-full object-contain transition-all duration-500 ${
+          className={`w-full h-full object-contain transition-all duration-150 ${
             imageLoaded ? 'opacity-100' : 'opacity-0'
           } group-hover:scale-105`}
           style={{ mixBlendMode: 'multiply' }}

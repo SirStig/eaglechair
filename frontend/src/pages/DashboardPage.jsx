@@ -103,14 +103,6 @@ const DashboardPage = () => {
     );
   };
 
-  const formatCurrency = (amount) => {
-    return new Intl.NumberFormat('en-US', {
-      style: 'currency',
-      currency: 'USD',
-      minimumFractionDigits: 0
-    }).format(amount / 100);
-  };
-
   const formatDate = (dateString) => {
     if (!dateString) return 'N/A';
     return new Date(dateString).toLocaleDateString('en-US', {
@@ -336,9 +328,6 @@ const DashboardPage = () => {
                           <th className="px-3 sm:px-6 py-3 text-left text-xs font-medium text-dark-200 uppercase tracking-wider">
                             Items
                           </th>
-                          <th className="px-3 sm:px-6 py-3 text-right text-xs font-medium text-dark-200 uppercase tracking-wider">
-                            Total
-                          </th>
                         </tr>
                       </thead>
                       <tbody className="bg-dark-700 divide-y divide-dark-600">
@@ -358,9 +347,6 @@ const DashboardPage = () => {
                             </td>
                             <td className="px-3 sm:px-6 py-4 whitespace-nowrap text-sm text-dark-100">
                               {quote.itemCount} items
-                            </td>
-                            <td className="px-3 sm:px-6 py-4 whitespace-nowrap text-sm font-medium text-dark-50 text-right">
-                              {quote.totalAmount ? formatCurrency(quote.totalAmount) : 'TBD'}
                             </td>
                           </tr>
                         ))}
@@ -438,11 +424,6 @@ const DashboardPage = () => {
                             </div>
                             
                             <div className="flex flex-col items-end gap-3">
-                              {quote.totalAmount > 0 && (
-                                <p className="text-2xl font-bold text-dark-50">
-                                  {formatCurrency(quote.totalAmount)}
-                                </p>
-                              )}
                               <Button 
                                 variant="outline" 
                                 size="sm"

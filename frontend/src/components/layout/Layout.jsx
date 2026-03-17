@@ -6,9 +6,14 @@ import { useAuthStore } from '../../store/authStore';
 import { useCartStore } from '../../store/cartStore';
 import { initDesktopViewMode } from '../../utils/viewMode';
 import { useImagePreload } from '../../hooks/useImagePreload';
+import { loadContentData } from '../../utils/contentDataLoader';
 
 const Layout = () => {
   useImagePreload();
+
+  useEffect(() => {
+    loadContentData();
+  }, []);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const navigate = useNavigate();

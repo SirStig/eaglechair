@@ -57,7 +57,6 @@ const serveUploadsDirectory = () => ({
         }
         
         if (fs.existsSync(filePath) && fs.statSync(filePath).isFile()) {
-          // Determine content type
           const ext = filePath.split('.').pop().toLowerCase();
           const contentTypes = {
             'png': 'image/png',
@@ -71,6 +70,10 @@ const serveUploadsDirectory = () => ({
             'docx': 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
           };
           res.setHeader('Content-Type', contentTypes[ext] || 'application/octet-stream');
+          const isImage = ['png', 'jpg', 'jpeg', 'gif', 'webp', 'svg'].includes(ext);
+          if (isImage) {
+            res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
+          }
           fs.createReadStream(filePath).pipe(res);
         } else {
           next();

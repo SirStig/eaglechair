@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom';
 import Tag from './Tag';
 import VariationImageDisclaimer from './VariationImageDisclaimer';
 import Button from './Button';
-import { formatPrice, getProductHoverImages, buildProductUrl, hasValidPrice } from '../../utils/apiHelpers';
+import { getProductHoverImages, buildProductUrl } from '../../utils/apiHelpers';
 import SwatchImage from './SwatchImage';
 
 const ProductCard = ({ product, onQuickView, darkMode = false, compact = false }) => {
@@ -47,13 +47,6 @@ const ProductCard = ({ product, onQuickView, darkMode = false, compact = false }
   // Determine which image to display
   const displayImage = carouselImages[activeImageIndex];
 
-  const hasPrice = hasValidPrice(product);
-  const hasPriceRange = product.priceRange?.min != null && product.priceRange?.max != null && product.priceRange.min !== product.priceRange.max;
-  const priceRangeValid = hasPriceRange && product.priceRange.min > 0 && product.priceRange.max > 0;
-  const priceDisplay = priceRangeValid
-    ? `$${product.priceRange.min.toFixed(2)} - $${product.priceRange.max.toFixed(2)}`
-    : hasPrice ? formatPrice(product.base_price) : 'No List Price';
-
   const finishes = product.customizations?.finishes?.slice(0, 5) || [];
   const colors = product.customizations?.colors?.slice(0, 5) || [];
   const swatches = finishes.length > 0 ? finishes : colors;
@@ -70,8 +63,6 @@ const ProductCard = ({ product, onQuickView, darkMode = false, compact = false }
   const borderSwatch = darkMode ? 'border-dark-500' : 'border-slate-300';
   const borderSwatchDashed = darkMode ? 'border-dark-500' : 'border-slate-300';
   const textSwatchMore = darkMode ? 'text-dark-400' : 'text-slate-500';
-  const textPrice = darkMode ? 'text-dark-50' : 'text-slate-900';
-  const textPriceNote = darkMode ? 'text-dark-300' : 'text-slate-500';
   const spinnerBorder = darkMode ? 'border-dark-600' : 'border-cream-300';
 
   const productUrl = buildProductUrl(product, product.variation_id);
@@ -108,7 +99,7 @@ const ProductCard = ({ product, onQuickView, darkMode = false, compact = false }
               alt={product.name}
               onLoad={handleImageLoad}
               onError={handleImageError}
-              className={`w-full h-full object-contain transition-all duration-500 ${imageLoaded ? 'opacity-100' : 'opacity-0'
+              className={`w-full h-full object-contain transition-all duration-150 ${imageLoaded ? 'opacity-100' : 'opacity-0'
                 } ${isHovered && !hasCarousel ? 'group-hover:scale-105' : ''}`}
               style={{ mixBlendMode: 'multiply' }}
               loading="lazy"
@@ -224,21 +215,6 @@ const ProductCard = ({ product, onQuickView, darkMode = false, compact = false }
             </div>
           </div>
         )}
-
-        {/* Price */}
-        <div className="mb-3 sm:mb-4">
-          <span className={`text-lg sm:text-xl font-bold ${textPrice}`}>{priceDisplay}</span>
-          <span className={`text-[10px] sm:text-xs ${textPriceNote} ml-1`}>
-            {priceDisplay !== 'No List Price' ? (
-              <>
-                {priceRangeValid ? 'per unit · ' : ''}
-                Est. listing
-              </>
-            ) : (
-              '· Contact for quote'
-            )}
-          </span>
-        </div>
 
         {/* Action Buttons */}
         <div className="mt-auto flex gap-2">

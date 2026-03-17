@@ -206,13 +206,6 @@ const ProductDetailPage = () => {
         "@type": "Brand",
         "name": "Eagle Chair"
       },
-      "offers": {
-        "@type": "Offer",
-        "price": product.base_price || 0,
-        "priceCurrency": "USD",
-        "availability": product.stock_status === 'In Stock' ? "https://schema.org/InStock" : "https://schema.org/OutOfStock",
-        "url": `https://www.eaglechair.com${productUrl}`
-      },
       "breadcrumb": {
         "@type": "BreadcrumbList",
         "itemListElement": breadcrumbItems
@@ -965,12 +958,6 @@ const ProductDetailPage = () => {
                           )}
                           {selectedVariation.lead_time_days && (
                             <span className="text-xs text-slate-600">Lead time: {selectedVariation.lead_time_days} days</span>
-                          )}
-                          {selectedVariation.price_adjustment !== undefined && selectedVariation.price_adjustment !== 0 && (
-                            <span className="text-xs font-medium text-slate-700">
-                              Price adjustment (est. listing): {selectedVariation.price_adjustment > 0 ? '+' : ''}
-                              ${(selectedVariation.price_adjustment / 100).toFixed(2)}
-                            </span>
                           )}
                         </div>
                       )}

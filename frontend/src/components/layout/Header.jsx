@@ -181,7 +181,13 @@ const Header = ({ isMobileMenuOpen, setIsMobileMenuOpen }) => {
             {/* Products Dropdown */}
             <Dropdown
               trigger={(isOpen) => (
-                <Button variant="transparent" className="font-medium hover-lift">
+                <Button variant="transparent" className="font-medium hover-lift" onMouseEnter={() => {
+                productService.getCategories().then((cats) => {
+                  if (Array.isArray(cats) && cats.length > 0) {
+                    cats.slice(0, 5).forEach((c) => productService.getSubcategories({ category_id: c.id }));
+                  }
+                });
+              }}>
                   Products
                   <Motion.svg
                     className="ml-1 h-4 w-4"
@@ -329,7 +335,7 @@ const Header = ({ isMobileMenuOpen, setIsMobileMenuOpen }) => {
                     className="absolute top-full mt-2 w-full bg-dark-600 border border-dark-500 rounded-lg shadow-xl max-h-96 overflow-y-auto z-50"
                   >
                     <div className="py-2">
-                      {searchResults.map((product) => (
+                      {searchResults.map((product, idx) => (
                         <button
                           key={product.id}
                           type="button"
@@ -341,7 +347,8 @@ const Header = ({ isMobileMenuOpen, setIsMobileMenuOpen }) => {
                               src={getProductImage(product)}
                               alt={product.name}
                               className="w-full h-full object-cover"
-                              loading="lazy"
+                              loading={idx < 3 ? "eager" : "lazy"}
+                              fetchpriority={idx < 3 ? "high" : "auto"}
                               onError={(e) => {
                                 e.target.onerror = null;
                                 e.target.src = '/placeholder-product.png';
