@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { Package, Edit2, Eye, EyeOff, Trash2, TrendingUp, MessageSquareQuote } from 'lucide-react';
 import Card from '../../ui/Card';
 import Button from '../../ui/Button';
@@ -26,11 +26,17 @@ const ProductCatalog = ({ onEdit }) => {
   const [categoryFilter, setCategoryFilter] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
   const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(25);
   const [totalPages, setTotalPages] = useState(1);
+  const [total, setTotal] = useState(0);
   const [categories, setCategories] = useState([]);
+  const [subcategories, setSubcategories] = useState([]);
+  const [bulkCategoryId, setBulkCategoryId] = useState('');
+  const [bulkSubcategoryId, setBulkSubcategoryId] = useState('');
   const [selectedProducts, setSelectedProducts] = useState([]);
   const [sortBy, setSortBy] = useState('name');
   const [sortDir, setSortDir] = useState('asc');
+  const lastSelectedIndexRef = useRef(null);
 
   const handleSort = useCallback((key) => {
     setSortBy(key);
@@ -41,7 +47,13 @@ const ProductCatalog = ({ onEdit }) => {
   useEffect(() => {
     fetchProducts();
     fetchCategories();
-  }, [page, search, categoryFilter, statusFilter, sortBy, sortDir, refreshKeys.catalog]);
+    fetchSubcategories();
+  }, [page, pageSize, search, categoryFilter, statusFilter, sortBy, sortDir, refreshKeys.catalog]);
+
+  useEffect(() => {
+    lastSelectedIndexRef.current = null;
+    setSelectedProducts([]);
+  }, [page]);
 
   const fetchProducts = async () => {
     setLoading(true);
@@ -49,7 +61,7 @@ const ProductCatalog = ({ onEdit }) => {
       const response = await apiClient.get('/api/v1/admin/products', {
         params: {
           page,
-          page_size: 20,
+          page_size: pageSize,
           search: search || undefined,
           category_id: categoryFilter || undefined,
           is_active: statusFilter === 'active' ? true : statusFilter === 'inactive' ? false : undefined,
@@ -59,6 +71,7 @@ const ProductCatalog = ({ onEdit }) => {
       });
       setProducts(response.items || []);
       setTotalPages(response.pages || 1);
+      setTotal(response.total ?? 0);
     } catch (error) {
       console.error('Failed to fetch products:', error);
     } finally {
@@ -72,6 +85,15 @@ const ProductCatalog = ({ onEdit }) => {
       setCategories(response || []);
     } catch (error) {
       console.error('Failed to fetch categories:', error);
+    }
+  };
+
+  const fetchSubcategories = async () => {
+    try {
+      const response = await apiClient.get('/api/v1/admin/subcategories');
+      setSubcategories(response?.items || []);
+    } catch (error) {
+      console.error('Failed to fetch subcategories:', error);
     }
   };
 
@@ -117,41 +139,233 @@ const ProductCatalog = ({ onEdit }) => {
     }
   };
 
-  const handleSelectProduct = (productId) => {
-    setSelectedProducts(prev =>
-      prev.includes(productId)
-        ? prev.filter(id => id !== productId)
-        : [...prev, productId]
-    );
-  };
+  const handleSelectProduct = useCallback((productId, index, event) => {
+    if (event?.shiftKey && lastSelectedIndexRef.current !== null) {
+      const start = Math.min(lastSelectedIndexRef.current, index);
+      const end = Math.max(lastSelectedIndexRef.current, index);
+      const rangeIds = products.slice(start, end + 1).map(p => p.id);
+      setSelectedProducts(rangeIds);
+      lastSelectedIndexRef.current = index;
+    } else {
+      lastSelectedIndexRef.current = index;
+      setSelectedProducts(prev =>
+        prev.includes(productId)
+          ? prev.filter(id => id !== productId)
+          : [...prev, productId]
+      );
+    }
+  }, [products]);
 
   const handleSelectAll = () => {
     if (selectedProducts.length === products.length) {
       setSelectedProducts([]);
+      lastSelectedIndexRef.current = null;
     } else {
       setSelectedProducts(products.map(p => p.id));
+      lastSelectedIndexRef.current = 0;
+    }
+  };
+
+  const paginationBar = (position) => (totalPages > 1 || total > 0) && (
+    <div className={`flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 px-4 py-4 ${position === 'top' ? 'border-b' : 'border-t'} border-dark-700`}>
+      <div className="flex items-center gap-4 flex-wrap">
+        <p className="text-sm text-dark-300">
+          {total > 0
+            ? `Showing ${((page - 1) * pageSize) + 1} to ${Math.min(page * pageSize, total)} of ${total}`
+            : `Page ${page} of ${totalPages}`}
+        </p>
+        <div className="flex items-center gap-2">
+          <label htmlFor={`page-size-${position}`} className="text-sm text-dark-300">Per page:</label>
+          <select
+            id={`page-size-${position}`}
+            value={pageSize}
+            onChange={(e) => {
+              setPageSize(Number(e.target.value));
+              setPage(1);
+            }}
+            className="px-3 py-1.5 bg-dark-700 border border-dark-600 rounded-lg text-dark-50 text-sm focus:border-primary-500 focus:ring-1 focus:ring-primary-500 outline-none"
+          >
+            <option value={25}>25</option>
+            <option value={50}>50</option>
+            <option value={100}>100</option>
+          </select>
+        </div>
+      </div>
+      <div className="flex gap-2">
+        <Button size="sm" variant="outline" onClick={() => setPage(1)} disabled={page === 1}>
+          First
+        </Button>
+        <Button size="sm" variant="outline" onClick={() => setPage(p => Math.max(1, p - 1))} disabled={page === 1}>
+          Previous
+        </Button>
+        <Button size="sm" variant="outline" onClick={() => setPage(p => Math.min(totalPages, p + 1))} disabled={page === totalPages}>
+          Next
+        </Button>
+        <Button size="sm" variant="outline" onClick={() => setPage(totalPages)} disabled={page === totalPages}>
+          Last
+        </Button>
+      </div>
+    </div>
+  );
+
+  const handleBulkChangeCategory = async () => {
+    if (selectedProducts.length === 0) {
+      toast.warning('Please select products first');
+      return;
+    }
+    if (!bulkCategoryId) {
+      toast.warning('Please select a category');
+      return;
+    }
+    setLoading(true);
+    const ids = [...selectedProducts];
+    setSelectedProducts([]);
+    try {
+      let successCount = 0;
+      let failCount = 0;
+      for (const id of ids) {
+        try {
+          await apiClient.patch(`/api/v1/admin/products/${id}`, {
+            category_id: Number(bulkCategoryId),
+            subcategory_id: null
+          });
+          successCount++;
+        } catch {
+          failCount++;
+        }
+      }
+      if (successCount > 0) toast.success(`${successCount} product${successCount !== 1 ? 's' : ''} category updated`);
+      if (failCount > 0) toast.error(`Failed to update ${failCount} product${failCount !== 1 ? 's' : ''}`);
+      setBulkCategoryId('');
+      await fetchProducts();
+    } catch {
+      toast.error('Bulk category update failed');
+      setSelectedProducts(ids);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleBulkChangeSubcategory = async () => {
+    if (selectedProducts.length === 0) {
+      toast.warning('Please select products first');
+      return;
+    }
+    if (!bulkSubcategoryId) {
+      toast.warning('Please select a subcategory');
+      return;
+    }
+    const subcat = subcategories.find(s => s.id === Number(bulkSubcategoryId));
+    if (!subcat?.category_id) {
+      toast.error('Invalid subcategory');
+      return;
+    }
+    setLoading(true);
+    const ids = [...selectedProducts];
+    setSelectedProducts([]);
+    try {
+      let successCount = 0;
+      let failCount = 0;
+      for (const id of ids) {
+        try {
+          await apiClient.patch(`/api/v1/admin/products/${id}`, {
+            category_id: subcat.category_id,
+            subcategory_id: subcat.id
+          });
+          successCount++;
+        } catch {
+          failCount++;
+        }
+      }
+      if (successCount > 0) toast.success(`${successCount} product${successCount !== 1 ? 's' : ''} subcategory updated`);
+      if (failCount > 0) toast.error(`Failed to update ${failCount} product${failCount !== 1 ? 's' : ''}`);
+      setBulkSubcategoryId('');
+      await fetchProducts();
+    } catch {
+      toast.error('Bulk subcategory update failed');
+      setSelectedProducts(ids);
+    } finally {
+      setLoading(false);
     }
   };
 
   const handleBulkAction = async (action) => {
     if (selectedProducts.length === 0) {
-      alert('Please select products first');
+      toast.warning('Please select products first');
       return;
     }
 
-    switch (action) {
-      case 'activate':
-        // Implement bulk activate
-        break;
-      case 'deactivate':
-        // Implement bulk deactivate
-        break;
-      case 'delete':
-        if (!confirm(`Delete ${selectedProducts.length} products?`)) return;
-        // Implement bulk delete
-        break;
-      default:
-        break;
+    if (action === 'delete' && !confirm(`Deactivate (soft delete) ${selectedProducts.length} products? They will be hidden but data kept.`)) {
+      return;
+    }
+
+    if (action === 'delete_permanent' && !confirm(`Permanently delete ${selectedProducts.length} products? This removes them from the database and frees SKUs. This cannot be undone.`)) {
+      return;
+    }
+
+    setLoading(true);
+    const ids = [...selectedProducts];
+    setSelectedProducts([]);
+
+    try {
+      let successCount = 0;
+      let failCount = 0;
+
+      if (action === 'activate' || action === 'deactivate') {
+        const isActive = action === 'activate';
+        for (const id of ids) {
+          try {
+            await apiClient.patch(`/api/v1/admin/products/${id}`, { is_active: isActive });
+            successCount++;
+          } catch {
+            failCount++;
+          }
+        }
+        if (successCount > 0) {
+          toast.success(`${successCount} product${successCount !== 1 ? 's' : ''} ${action === 'activate' ? 'activated' : 'deactivated'}`);
+        }
+        if (failCount > 0) {
+          toast.error(`Failed to update ${failCount} product${failCount !== 1 ? 's' : ''}`);
+        }
+      } else if (action === 'delete') {
+        for (const id of ids) {
+          try {
+            await apiClient.delete(`/api/v1/admin/products/${id}`);
+            successCount++;
+          } catch {
+            failCount++;
+          }
+        }
+        if (successCount > 0) {
+          toast.success(`${successCount} product${successCount !== 1 ? 's' : ''} deactivated`);
+        }
+        if (failCount > 0) {
+          toast.error(`Failed to deactivate ${failCount} product${failCount !== 1 ? 's' : ''}`);
+        }
+      } else if (action === 'delete_permanent') {
+        for (const id of ids) {
+          try {
+            await apiClient.delete(`/api/v1/admin/products/${id}?hard=true`);
+            successCount++;
+          } catch {
+            failCount++;
+          }
+        }
+        if (successCount > 0) {
+          toast.success(`${successCount} product${successCount !== 1 ? 's' : ''} permanently deleted`);
+        }
+        if (failCount > 0) {
+          toast.error(`Failed to permanently delete ${failCount} product${failCount !== 1 ? 's' : ''}`);
+        }
+      }
+
+      await fetchProducts();
+    } catch (error) {
+      console.error('Bulk action failed:', error);
+      toast.error('Bulk action failed. Please try again.');
+      setSelectedProducts(ids);
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -250,20 +464,63 @@ const ProductCatalog = ({ onEdit }) => {
       {/* Bulk Actions */}
       {selectedProducts.length > 0 && (
         <Card className="bg-primary-900/20 border-primary-500">
-          <div className="flex items-center justify-between">
-            <p className="text-dark-50 font-medium">
-              {selectedProducts.length} product{selectedProducts.length !== 1 ? 's' : ''} selected
-            </p>
-            <div className="flex gap-2">
-              <Button size="sm" variant="outline" onClick={() => handleBulkAction('activate')}>
-                Activate
-              </Button>
-              <Button size="sm" variant="outline" onClick={() => handleBulkAction('deactivate')}>
-                Deactivate
-              </Button>
-              <Button size="sm" variant="outline" onClick={() => handleBulkAction('delete')}>
-                Delete
-              </Button>
+          <div className="flex flex-col gap-4">
+            <div className="flex flex-wrap items-center justify-between gap-4">
+              <p className="text-dark-50 font-medium">
+                {selectedProducts.length} product{selectedProducts.length !== 1 ? 's' : ''} selected
+              </p>
+              <div className="flex flex-wrap gap-2">
+                <div className="flex items-center gap-2">
+                  <select
+                    value={bulkCategoryId}
+                    onChange={(e) => setBulkCategoryId(e.target.value)}
+                    className="px-3 py-1.5 bg-dark-700 border border-dark-600 rounded-lg text-dark-50 text-sm focus:border-primary-500 focus:ring-1 focus:ring-primary-500 outline-none min-w-[140px]"
+                  >
+                    <option value="">Change category...</option>
+                    {categories.map(cat => (
+                      <option key={cat.id} value={cat.id}>{cat.name}</option>
+                    ))}
+                  </select>
+                  <Button size="sm" variant="outline" onClick={handleBulkChangeCategory} disabled={!bulkCategoryId}>
+                    Apply
+                  </Button>
+                </div>
+                <div className="flex items-center gap-2">
+                  <select
+                    value={bulkSubcategoryId}
+                    onChange={(e) => setBulkSubcategoryId(e.target.value)}
+                    className="px-3 py-1.5 bg-dark-700 border border-dark-600 rounded-lg text-dark-50 text-sm focus:border-primary-500 focus:ring-1 focus:ring-primary-500 outline-none min-w-[140px]"
+                  >
+                    <option value="">Change subcategory...</option>
+                    {subcategories.map(sc => (
+                      <option key={sc.id} value={sc.id}>
+                        {categories.find(c => c.id === sc.category_id)?.name ? `${categories.find(c => c.id === sc.category_id).name} › ` : ''}{sc.name}
+                      </option>
+                    ))}
+                  </select>
+                  <Button size="sm" variant="outline" onClick={handleBulkChangeSubcategory} disabled={!bulkSubcategoryId}>
+                    Apply
+                  </Button>
+                </div>
+                <div className="w-px h-6 bg-dark-600 self-center" />
+                <Button size="sm" variant="outline" onClick={() => handleBulkAction('activate')}>
+                  Activate
+                </Button>
+                <Button size="sm" variant="outline" onClick={() => handleBulkAction('deactivate')}>
+                  Deactivate
+                </Button>
+                <Button size="sm" variant="outline" onClick={() => handleBulkAction('delete')}>
+                  Delete
+                </Button>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => handleBulkAction('delete_permanent')}
+                  className="text-red-500 border-red-500/50 hover:bg-red-900/20"
+                >
+                  Delete Permanently
+                </Button>
+              </div>
             </div>
           </div>
         </Card>
@@ -283,7 +540,9 @@ const ProductCatalog = ({ onEdit }) => {
             </Button>
           </div>
         ) : (
-          <div className="overflow-x-auto -mx-4 sm:mx-0">
+          <>
+            {paginationBar('top')}
+            <div className="overflow-x-auto -mx-4 sm:mx-0">
             <table className="w-full min-w-[1000px]">
               <thead>
                 <tr className="border-b border-dark-600">
@@ -307,17 +566,34 @@ const ProductCatalog = ({ onEdit }) => {
                 </tr>
               </thead>
               <tbody>
-                {products.map((product) => (
+                {products.map((product, index) => (
                   <tr
                     key={product.id}
-                    className="border-b border-dark-700 hover:bg-dark-700/50 transition-colors"
+                    className={`border-b border-dark-700 hover:bg-dark-700/50 transition-colors cursor-pointer select-none ${selectedProducts.includes(product.id) ? 'bg-primary-900/10' : ''}`}
+                    onClick={(e) => {
+                      if (!e.target.closest('button') && !e.target.closest('[data-no-select]')) {
+                        handleSelectProduct(product.id, index, e);
+                      }
+                    }}
                   >
                     <td className="px-4 py-4">
                       <input
                         type="checkbox"
                         checked={selectedProducts.includes(product.id)}
-                        onChange={() => handleSelectProduct(product.id)}
-                        className="rounded border-dark-600 bg-dark-700"
+                        readOnly
+                        tabIndex={0}
+                        onKeyDown={(e) => {
+                          if (e.key === ' ' || e.key === 'Enter') {
+                            e.preventDefault();
+                            handleSelectProduct(product.id, index, e);
+                          }
+                        }}
+                        onClick={(e) => {
+                          e.preventDefault();
+                          e.stopPropagation();
+                          handleSelectProduct(product.id, index, e);
+                        }}
+                        className="rounded border-dark-600 bg-dark-700 cursor-pointer"
                       />
                     </td>
                     <td className="px-4 py-4">
@@ -361,7 +637,7 @@ const ProductCatalog = ({ onEdit }) => {
                         {product.is_active ? 'Active' : 'Inactive'}
                       </span>
                     </td>
-                    <td className="px-4 py-4">
+                    <td className="px-4 py-4" data-no-select onClick={(e) => e.stopPropagation()}>
                       <div className="flex items-center justify-end gap-2">
                         <button
                           onClick={() => onEdit(product)}
@@ -391,33 +667,8 @@ const ProductCatalog = ({ onEdit }) => {
               </tbody>
             </table>
           </div>
-        )}
-
-        {/* Pagination */}
-        {totalPages > 1 && (
-          <div className="flex items-center justify-between px-4 py-4 border-t border-dark-700">
-            <p className="text-sm text-dark-300">
-              Page {page} of {totalPages}
-            </p>
-            <div className="flex gap-2">
-              <Button
-                size="sm"
-                variant="outline"
-                onClick={() => setPage(p => Math.max(1, p - 1))}
-                disabled={page === 1}
-              >
-                Previous
-              </Button>
-              <Button
-                size="sm"
-                variant="outline"
-                onClick={() => setPage(p => Math.min(totalPages, p + 1))}
-                disabled={page === totalPages}
-              >
-                Next
-              </Button>
-            </div>
-          </div>
+          {paginationBar('bottom')}
+          </>
         )}
       </Card>
     </div>

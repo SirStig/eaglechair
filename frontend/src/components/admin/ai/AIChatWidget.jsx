@@ -62,7 +62,7 @@ export default function AIChatWidget() {
     hasMoreMessages,
     isLoadingOlder,
     interrupt,
-    sendMessage,
+    sendMessage: sendMessageRaw,
     redoMessage,
     retryMessage,
     uploadFile,
@@ -72,6 +72,10 @@ export default function AIChatWidget() {
     setSessions,
     loadOlderMessages,
   } = useAIChat();
+
+  const sendMessage = useCallback((content, fileIds = [], opts = {}) => {
+    sendMessageRaw(content, fileIds, { ...opts, mode: 'ask' });
+  }, [sendMessageRaw]);
 
   const messagesEndRef = useRef(null);
   const [showSidebar, setShowSidebar] = useState(false);
@@ -224,6 +228,7 @@ export default function AIChatWidget() {
               isStreaming={isStreaming}
               pendingFiles={pendingFiles}
               onRemoveFile={removePendingFile}
+              showModeSelectors={false}
             />
             {/* Safe-area bottom spacer in full-screen standalone */}
             {isFullScreen && <div className="pb-safe flex-shrink-0" />}

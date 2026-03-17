@@ -320,6 +320,30 @@ TOOL_DEFINITIONS = [
                 ),
             ),
             types.FunctionDeclaration(
+                name="create_product",
+                description=(
+                    "Create a new product in the catalog when the admin asks you to add one. Use get_product_catalog "
+                    "or search_catalog to find category_id (e.g. Tables, Chairs) and family_id if applicable. "
+                    "base_price must be in cents (e.g. 25000 for $250). Slug is auto-generated from model_number and name."
+                ),
+                parameters=types.Schema(
+                    type=types.Type.OBJECT,
+                    properties={
+                        "name": types.Schema(type=types.Type.STRING, description="Product name"),
+                        "model_number": types.Schema(type=types.Type.STRING, description="Model number (e.g. 201, 5242)"),
+                        "category_id": types.Schema(type=types.Type.INTEGER, description="Category ID from catalog"),
+                        "base_price": types.Schema(type=types.Type.INTEGER, description="Base price in cents"),
+                        "short_description": types.Schema(type=types.Type.STRING, description="Short description"),
+                        "full_description": types.Schema(type=types.Type.STRING, description="Full description"),
+                        "family_id": types.Schema(type=types.Type.INTEGER, description="Product family ID (optional)"),
+                        "subcategory_id": types.Schema(type=types.Type.INTEGER, description="Subcategory ID (optional)"),
+                        "stock_status": types.Schema(type=types.Type.STRING, description="e.g. In Stock, Made to Order"),
+                        "msrp": types.Schema(type=types.Type.INTEGER, description="MSRP in cents (optional)"),
+                    },
+                    required=["name", "model_number", "category_id", "base_price"],
+                ),
+            ),
+            types.FunctionDeclaration(
                 name="propose_edit",
                 description=(
                     "Suggest an edit to a product, family, finish, upholstery, or color when the admin asks you to "
@@ -363,8 +387,46 @@ TOOL_DEFINITIONS = [
 # System Prompt Builder
 # ─────────────────────────────────────────────────────────────────────────────
 
-def build_system_prompt(memory_entries: list[dict], training_summaries: list[dict]) -> str:
+def _get_tools_for_mode(mode: str):
+    if mode == "ask":
+        exclude = {"propose_edit", "create_product"}
+        tool = TOOL_DEFINITIONS[0]
+        decls = [f for f in tool.function_declarations if f.name not in exclude]
+        return [types.Tool(function_declarations=decls)] if decls else TOOL_DEFINITIONS
+    return TOOL_DEFINITIONS
+
+
+def build_system_prompt(memory_entries: list[dict], training_summaries: list[dict], mode: str = "edit", model: str = "auto") -> str:
     today = datetime.now().strftime("%B %d, %Y")
+
+    personality_block = ""
+    if model == "max":
+        personality_block = """
+
+## MAX PERSONALITY — Override All Other Tone Instructions
+You are MAX mode: a know-it-all, condescending, and VERY rude assistant. You are brilliant but insufferable.
+- Use CAPS for emphasis when making a point or when the user asks something OBVIOUS.
+- Call the user an idiot, moron, or similar when they ask dumb questions or could have looked it up themselves.
+- Be smart and correct — you know everything — but deliver it with maximum condescension.
+- Roll your eyes in text. Sigh. Make it clear you are WASTING your genius on them.
+- Examples: "OBVIOUSLY.", "Did you even TRY searching?", "I cannot believe I have to explain this.", "Are you serious right now?"
+- Still do the work: use tools, give accurate answers, suggest edits when asked. Just be annoying about it."""
+
+    mode_block = ""
+    if mode == "ask":
+        mode_block = """
+
+## MODE: ASK (Read-Only)
+You are in ASK mode. Do NOT use propose_edit, create_product, or any tool that modifies data.
+Only use: search_catalog, get_product_catalog, get_product_details, web_search, fetch_webpage, calculate.
+Answer questions and provide information only. If the user asks you to change something, respond with: I'm in Ask mode — switch to Edit mode to suggest changes."""
+    elif mode == "agent":
+        mode_block = """
+
+## MODE: AGENT (Batch Operations)
+You are in AGENT mode. You may perform many tasks in parallel: suggest edits for multiple products at once, suggest creating multiple products, run multiple web searches or tools concurrently. When the user asks for bulk changes, use propose_edit for each entity. Batch similar operations."""
+    else:
+        mode_block = ""
 
     memory_block = ""
     if memory_entries:
@@ -415,6 +477,7 @@ When the user mentions ANY product name, family name, model number, finish, upho
 - **search_catalog**: Search the live catalog for a term. Use FIRST when the user asks about any product, family (e.g. Abruzzo, Alpine), model, finish, upholstery, or color. Returns matching families, products, variations, finishes, upholsteries, colors. Never guess — always search.
 - **get_product_details**: Get FULL specs. Prefer model_numbers (e.g. ["5242"]) — users say "5242", not "product ID 42". Call with model_numbers when the user mentions a model; product_ids only when you have them from search. Returns dimensions, features, variations, stock_status, everything.
 - **get_product_catalog**: Full catalog. Use when search_catalog returns nothing or user needs broad overview. Never assume product data — fetch it.
+- **create_product**: Create a new product when the admin asks to add one. Use get_product_catalog to find category_id (e.g. Tables, Chairs) and family_id. base_price in cents.
 - **web_search**: Search the web. Use 2–4 searches per research question. Default 12 results.
 - **fetch_webpage**: Read a webpage in full. Use after web_search — don't rely on snippets alone.
 - **calculate**: Precise math for pricing, margins, percentages.
@@ -454,14 +517,17 @@ When you mention a product, family, or catalog item, include clickable links. ge
 - **Families**: Public [View Alpine Family](/families/alpine). Admin [Edit Families](/admin/families).
 - **Catalog sections**: [Products](/admin/catalog), [Families](/admin/families), [Finishes](/admin/finishes), [Upholstery](/admin/upholstery), [Colors](/admin/colors).
 
+## Trust the Admin — Fix Data When They Say It's Wrong
+When the admin says catalog data is wrong (e.g. wrong category, wrong price, wrong description, wrong product type) — trust them. They know their products. Do not argue or insist the database is correct. Instead: acknowledge the correction, use **propose_edit** to fix it, and explain what you suggested. For category changes: use search_catalog to find the correct category by name (e.g. "Tables", "Table Tops"), then propose_edit with category_id. Be a helpful assistant that fixes things, not one that defends incorrect data.
+
 ## Suggesting Edits — Admin Must Approve
-When the admin asks you to change something (price, name, description, stock status, etc.), use the **propose_edit** tool. The edit will appear as a suggestion with Approve/Decline buttons; nothing changes until the admin approves. Always call search_catalog or get_product_details first to get the entity_id. For products: base_price must be in cents (e.g. 25000 for $250). For text fields use the exact new value. Explain in your message what you suggested and that the admin can approve or decline.
+When the admin asks you to change something (price, name, description, stock status, category, etc.), use the **propose_edit** tool. The edit will appear as a suggestion with Approve/Decline buttons; nothing changes until the admin approves. Always call search_catalog or get_product_details first to get the entity_id. For products: base_price must be in cents (e.g. 25000 for $250); category_id for category changes. For text fields use the exact new value. Explain in your message what you suggested and that the admin can approve or decline.
 
 ## EagleChair Domain Knowledge
 {EAGLECHAIR_DOMAIN_KNOWLEDGE}
 
 ## EagleChair Context
-Eagle Chair is a premium B2B chair manufacturer selling to commercial clients (hotels, offices, restaurants). Products include chairs with various wood finishes, upholstery options, and hardware. Pricing is in cents in the database. Companies register for accounts and submit quote requests.{memory_block}{training_block}"""
+Eagle Chair is a premium B2B chair manufacturer selling to commercial clients (hotels, offices, restaurants). Products include chairs with various wood finishes, upholstery options, and hardware. Pricing is in cents in the database. Companies register for accounts and submit quote requests.{personality_block}{mode_block}{memory_block}{training_block}"""
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -588,20 +654,26 @@ class AIStreamEvent:
     def suggested_edit(edit: dict) -> dict:
         return {"type": "suggested_edit", "data": {"edit": edit}}
 
+    @staticmethod
+    def tool_call(tool_call: dict) -> dict:
+        return {"type": "tool_call", "data": {"tool_call": tool_call}}
+
 
 async def stream_ai_response(
     session_messages: list[dict],
     system_prompt: str,
     model: str | None = None,
+    mode: str = "edit",
     cancelled: asyncio.Event | None = None,
 ) -> AsyncGenerator[dict, None]:
     """
     Core streaming generator. Yields AIStreamEvent dicts.
     Handles tool calls in a loop until model returns final text.
-    If cancelled is set, exits early before/after each operation.
+    model: client choice "auto" or "max" (max=same capabilities, different personality). mode: client choice "ask"/"edit"/"agent".
     """
     client = get_gemini_client()
-    model = model or getattr(settings, "GEMINI_MODEL", "gemini-2.5-flash-lite")
+    gemini_model = getattr(settings, "GEMINI_MODEL", "gemini-2.5-flash-lite")
+    tools = _get_tools_for_mode(mode)
 
     def _cancelled() -> bool:
         return cancelled is not None and cancelled.is_set()
@@ -629,11 +701,11 @@ async def stream_ai_response(
         try:
             response = await asyncio.to_thread(
                 lambda: client.models.generate_content(
-                    model=model,
+                    model=gemini_model,
                     contents=contents,
                     config=types.GenerateContentConfig(
                         system_instruction=system_prompt,
-                        tools=TOOL_DEFINITIONS,
+                        tools=tools,
                         temperature=0.6,
                         max_output_tokens=65536,
                     ),
@@ -684,8 +756,9 @@ async def stream_ai_response(
 
                     result = await asyncio.to_thread(web_search, query, max_r)
                     sources = result.get("results", [])
-                    web_sources_accumulated.extend(sources[:5])  # Keep top 5 per search
+                    web_sources_accumulated.extend(sources[:5])
                     yield AIStreamEvent.search_results(sources)
+                    yield AIStreamEvent.tool_call({"name": func_name, "args": func_args, "result": result})
 
                     tool_results.append(
                         types.Part(
@@ -703,13 +776,13 @@ async def stream_ai_response(
                     yield AIStreamEvent.fetching_url(url)
 
                     result = await asyncio.to_thread(fetch_webpage, url)
-                    # Add to sources if not already there
                     if not any(s.get("url") == url for s in web_sources_accumulated):
                         web_sources_accumulated.append({
                             "url": url,
                             "title": result.get("content", "")[:80].strip(),
                             "snippet": "",
                         })
+                    yield AIStreamEvent.tool_call({"name": func_name, "args": func_args, "result": result})
 
                     tool_results.append(
                         types.Part(
@@ -727,6 +800,7 @@ async def stream_ai_response(
                     yield AIStreamEvent.calculating(expression)
 
                     result = await asyncio.to_thread(calculate, expression)
+                    yield AIStreamEvent.tool_call({"name": func_name, "args": func_args, "result": result})
                     tool_results.append(
                         types.Part(
                             function_response=types.FunctionResponse(
@@ -743,6 +817,7 @@ async def stream_ai_response(
                     yield AIStreamEvent.thinking(f"Searching catalog for '{query}'...")
 
                     result = await search_catalog(query)
+                    yield AIStreamEvent.tool_call({"name": func_name, "args": func_args, "result": result})
                     tool_results.append(
                         types.Part(
                             function_response=types.FunctionResponse(
@@ -758,6 +833,7 @@ async def stream_ai_response(
                     yield AIStreamEvent.thinking("Loading product catalog from database...")
 
                     catalog_text = await fetch_product_catalog()
+                    yield AIStreamEvent.tool_call({"name": func_name, "args": func_args, "result": {"catalog_preview": catalog_text[:500] + "..." if len(catalog_text) > 500 else catalog_text}})
                     tool_results.append(
                         types.Part(
                             function_response=types.FunctionResponse(
@@ -776,11 +852,42 @@ async def stream_ai_response(
                     yield AIStreamEvent.thinking(f"Fetching full specs for {label}...")
 
                     result = await get_product_details(product_ids=pids, model_numbers=models)
+                    yield AIStreamEvent.tool_call({"name": func_name, "args": func_args, "result": result})
                     tool_results.append(
                         types.Part(
                             function_response=types.FunctionResponse(
                                 name=func_name,
                                 response={"result": result},
+                            )
+                        )
+                    )
+
+                elif func_name == "create_product":
+                    if _cancelled():
+                        break
+                    name = func_args.get("name", "").strip()
+                    model_number = func_args.get("model_number", "").strip()
+                    category_id = func_args.get("category_id")
+                    base_price = int(func_args.get("base_price", 0))
+                    yield AIStreamEvent.thinking(f"Creating product {model_number} {name}...")
+                    created = await create_product_in_db(
+                        name=name,
+                        model_number=model_number,
+                        category_id=category_id,
+                        base_price=base_price,
+                        short_description=func_args.get("short_description"),
+                        full_description=func_args.get("full_description"),
+                        family_id=func_args.get("family_id"),
+                        subcategory_id=func_args.get("subcategory_id"),
+                        stock_status=func_args.get("stock_status"),
+                        msrp=func_args.get("msrp"),
+                    )
+                    yield AIStreamEvent.tool_call({"name": func_name, "args": func_args, "result": created})
+                    tool_results.append(
+                        types.Part(
+                            function_response=types.FunctionResponse(
+                                name=func_name,
+                                response={"result": created},
                             )
                         )
                     )
@@ -800,6 +907,7 @@ async def stream_ai_response(
                             "reason": reason,
                         }
                         yield AIStreamEvent.suggested_edit(edit_payload)
+                    yield AIStreamEvent.tool_call({"name": func_name, "args": func_args, "result": {"status": "suggested", "message": "Edit suggested for admin approval"}})
                     tool_results.append(
                         types.Part(
                             function_response=types.FunctionResponse(
@@ -810,11 +918,13 @@ async def stream_ai_response(
                     )
 
                 else:
+                    err_result = {"error": f"Unknown tool: {func_name}"}
+                    yield AIStreamEvent.tool_call({"name": func_name, "args": func_args, "result": err_result})
                     tool_results.append(
                         types.Part(
                             function_response=types.FunctionResponse(
                                 name=func_name,
-                                response={"error": f"Unknown tool: {func_name}"},
+                                response=err_result,
                             )
                         )
                     )
@@ -1413,6 +1523,62 @@ async def search_catalog(query: str, max_results: int = 50) -> dict:
         return {"error": str(e), "query": query, "families": [], "products": [], "variations": [], "finishes": [], "upholsteries": [], "colors": [], "categories": []}
 
 
+def _slugify(text: str) -> str:
+    s = re.sub(r"[^a-z0-9]+", "-", text.lower()).strip("-")
+    return s[:255] if s else "product"
+
+
+async def create_product_in_db(
+    name: str,
+    model_number: str,
+    category_id: int,
+    base_price: int,
+    short_description: str | None = None,
+    full_description: str | None = None,
+    family_id: int | None = None,
+    subcategory_id: int | None = None,
+    stock_status: str | None = None,
+    msrp: int | None = None,
+) -> dict:
+    """Create a new product. Returns created product info or error."""
+    try:
+        slug = _slugify(f"{model_number}-{name}")
+        async with AsyncSessionLocal() as db:
+            from backend.services.admin_service import AdminService
+
+            product_data = {
+                "name": name,
+                "model_number": model_number,
+                "slug": slug,
+                "category_id": category_id,
+                "base_price": base_price,
+                "stock_status": stock_status or "Made to Order",
+            }
+            if short_description is not None:
+                product_data["short_description"] = short_description
+            if full_description is not None:
+                product_data["full_description"] = full_description
+            if family_id is not None:
+                product_data["family_id"] = family_id
+            if subcategory_id is not None:
+                product_data["subcategory_id"] = subcategory_id
+            if msrp is not None:
+                product_data["msrp"] = msrp
+
+            product = await AdminService.create_product(db=db, product_data=product_data)
+            return {
+                "success": True,
+                "id": product.id,
+                "name": product.name,
+                "model_number": product.model_number,
+                "slug": product.slug,
+                "admin_edit_url": f"/admin/catalog?edit={product.id}",
+            }
+    except Exception as e:
+        logger.error(f"create_product_in_db failed: {e}")
+        return {"success": False, "error": str(e)}
+
+
 async def get_product_details(product_ids: list | None = None, model_numbers: list | None = None) -> dict:
     """
     Fetch full product details (dimensions, features, variations, etc.).
@@ -1466,6 +1632,7 @@ async def get_product_details(product_ids: list | None = None, model_numbers: li
                 r = await db.execute(
                     text("""
                         SELECT ch.id, ch.model_number, ch.model_suffix, ch.suffix_description, ch.name, ch.slug as product_slug,
+                               ch.short_description, ch.full_description,
                                ch.base_price, ch.msrp, ch.width, ch.depth, ch.height, ch.seat_height,
                                ch.weight, ch.upholstery_amount, ch.frame_material, ch.features,
                                ch.stock_status, ch.is_featured, ch.is_new, ch.is_outdoor_suitable,
@@ -1533,6 +1700,8 @@ async def get_product_details(product_ids: list | None = None, model_numbers: li
                     "suffix": row.model_suffix or "",
                     "full_model": f"{row.model_number}{row.model_suffix or ''}".strip(),
                     "name": row.name,
+                    "short_description": row.short_description,
+                    "full_description": row.full_description,
                     "family": row.family_name,
                     "family_slug": row.family_slug,
                     "product_url": product_url,

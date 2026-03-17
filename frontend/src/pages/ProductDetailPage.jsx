@@ -51,6 +51,7 @@ const ProductDetailPage = () => {
   const [quickViewProduct, setQuickViewProduct] = useState(null);
   const [customNotes, setCustomNotes] = useState('');
   const [notesExpanded, setNotesExpanded] = useState(false);
+  const [featuresExpanded, setFeaturesExpanded] = useState(false);
   const [lightboxOpen, setLightboxOpen] = useState(false);
   const [lightboxImages, setLightboxImages] = useState([]);
   const [lightboxInitialIndex, setLightboxInitialIndex] = useState(0);
@@ -94,6 +95,7 @@ const ProductDetailPage = () => {
 
   useEffect(() => {
     setCustomizeImageIndex(0);
+    setFeaturesExpanded(false);
   }, [productId]);
 
   const images = useMemo(() => {
@@ -631,14 +633,25 @@ const ProductDetailPage = () => {
               <div>
                 <h3 className="text-lg font-bold text-slate-800 mb-5">Features</h3>
                 {product.features && product.features.length > 0 ? (
-                  <ul className="space-y-3.5 text-slate-700 text-[15px] leading-relaxed">
-                    {product.features.map((feature, idx) => (
-                      <li key={idx} className="flex items-start gap-2">
-                        <span className="text-slate-400 mt-0.5">–</span>
-                        <span>{feature}</span>
-                      </li>
-                    ))}
-                  </ul>
+                  <>
+                    <ul className="space-y-3.5 text-slate-700 text-[15px] leading-relaxed">
+                      {(featuresExpanded ? product.features : product.features.slice(0, 5)).map((feature, idx) => (
+                        <li key={idx} className="flex items-start gap-2">
+                          <span className="text-slate-400 mt-0.5">–</span>
+                          <span>{feature}</span>
+                        </li>
+                      ))}
+                    </ul>
+                    {product.features.length > 5 && (
+                      <button
+                        type="button"
+                        onClick={() => setFeaturesExpanded((v) => !v)}
+                        className="mt-3 text-sm font-medium text-primary-600 hover:text-primary-700"
+                      >
+                        {featuresExpanded ? 'Show less' : `Show ${product.features.length - 5} more`}
+                      </button>
+                    )}
+                  </>
                 ) : (
                   <p className="text-slate-500 text-[15px]">—</p>
                 )}

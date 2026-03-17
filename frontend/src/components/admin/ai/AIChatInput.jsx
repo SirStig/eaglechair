@@ -1,10 +1,170 @@
 /**
  * AI Chat Input
- * Message input with file attachment, send button, keyboard shortcuts
+ * Message input with file attachment, send button, mode/model dropdowns
  */
 
-import { useState, useRef, useCallback } from 'react';
-import { Send, Paperclip, X, Loader2, Image, FileText, Table, Square } from 'lucide-react';
+import { useState, useRef, useCallback, useEffect } from 'react';
+import { createPortal } from 'react-dom';
+import { motion, AnimatePresence } from 'framer-motion';
+import { Send, Paperclip, X, Loader2, Image, FileText, Table, Square, ChevronDown } from 'lucide-react';
+
+const TOOLTIP_PADDING = 8;
+const TOOLTIP_MIN_WIDTH = 200;
+const TOOLTIP_MAX_WIDTH = 320;
+
+const MODE_OPTIONS = [
+  { value: 'ask', label: 'Ask', tooltip: 'Read-only. Ask questions and get information. No edits or creates.' },
+  { value: 'edit', label: 'Edit', tooltip: 'Can suggest edits and create things. Acts like normal.' },
+  { value: 'agent', label: 'Agent', tooltip: 'Performs many tasks at once. Batch edits, creates, parallel research.' },
+];
+
+const MODEL_OPTIONS = [
+  { value: 'auto', label: 'Auto', tooltip: 'Default model for all tasks.' },
+  { value: 'max', label: 'Max', tooltip: 'Tries to imitate Max — different personality but can do all tasks.' },
+];
+
+function Tooltip({ children, text, placement = 'top', fullWidth }) {
+  const [visible, setVisible] = useState(false);
+  const [pos, setPos] = useState({ top: 0, left: 0 });
+  const triggerRef = useRef(null);
+  const tooltipRef = useRef(null);
+
+  const updatePosition = useCallback(() => {
+    if (!triggerRef.current || typeof document === 'undefined') return;
+
+    const trigger = triggerRef.current.getBoundingClientRect();
+    const vw = window.innerWidth;
+    const vh = window.innerHeight;
+    const gap = 6;
+
+    const tooltipEl = tooltipRef.current;
+    const tw = tooltipEl ? Math.min(Math.max(tooltipEl.offsetWidth, TOOLTIP_MIN_WIDTH), TOOLTIP_MAX_WIDTH) : TOOLTIP_MAX_WIDTH;
+    const th = tooltipEl ? tooltipEl.offsetHeight : 80;
+
+    let top;
+    let left;
+
+    if (placement === 'top') {
+      top = trigger.top - th - gap;
+      left = trigger.left + trigger.width / 2 - tw / 2;
+    } else if (placement === 'bottom') {
+      top = trigger.bottom + gap;
+      left = trigger.left + trigger.width / 2 - tw / 2;
+    } else if (placement === 'right') {
+      top = trigger.top + trigger.height / 2 - th / 2;
+      left = trigger.right + gap;
+    } else {
+      top = trigger.top + trigger.height / 2 - th / 2;
+      left = trigger.left - tw - gap;
+    }
+
+    left = Math.max(TOOLTIP_PADDING, Math.min(vw - tw - TOOLTIP_PADDING, left));
+    top = Math.max(TOOLTIP_PADDING, Math.min(vh - th - TOOLTIP_PADDING, top));
+
+    setPos({ top, left });
+  }, [placement]);
+
+  useEffect(() => {
+    if (!visible || !text) return;
+    const timer = requestAnimationFrame(() => {
+      requestAnimationFrame(updatePosition);
+    });
+    return () => cancelAnimationFrame(timer);
+  }, [visible, text, updatePosition]);
+
+  return (
+    <div
+      ref={triggerRef}
+      className={`relative ${fullWidth ? 'flex w-full' : 'inline-flex'}`}
+      onMouseEnter={() => setVisible(true)}
+      onMouseLeave={() => setVisible(false)}
+    >
+      {children}
+      {visible && text && typeof document !== 'undefined' && createPortal(
+        <AnimatePresence>
+          <motion.div
+            ref={tooltipRef}
+            initial={{ opacity: 0, scale: 0.96 }}
+            animate={{ opacity: 1, scale: 1 }}
+            exit={{ opacity: 0, scale: 0.96 }}
+            transition={{ duration: 0.08 }}
+            className="fixed z-[9999] px-3 py-2 text-[11px] leading-relaxed text-dark-100 bg-dark-700 border border-dark-600 rounded-lg shadow-xl whitespace-normal"
+            style={{
+              top: pos.top,
+              left: pos.left,
+              minWidth: TOOLTIP_MIN_WIDTH,
+              maxWidth: TOOLTIP_MAX_WIDTH,
+              width: 'max-content',
+              pointerEvents: 'none',
+            }}
+          >
+            {text}
+          </motion.div>
+        </AnimatePresence>,
+        document.body
+      )}
+    </div>
+  );
+}
+
+function SelectDropdown({ options, value, onChange, disabled }) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef(null);
+
+  useEffect(() => {
+    const handler = (e) => {
+      if (ref.current && !ref.current.contains(e.target)) setOpen(false);
+    };
+    document.addEventListener('click', handler);
+    return () => document.removeEventListener('click', handler);
+  }, []);
+
+  const selected = options.find((o) => o.value === value) || options[0];
+
+  return (
+    <div ref={ref} className="relative">
+      <Tooltip text={selected.tooltip} placement="top">
+        <button
+          type="button"
+          onClick={() => !disabled && setOpen((o) => !o)}
+          disabled={disabled}
+          className="flex items-center gap-1 bg-transparent border-none text-dark-400 hover:text-dark-200 focus:outline-none focus:ring-0 cursor-pointer py-1 pr-1 min-h-0 disabled:opacity-50 disabled:cursor-not-allowed"
+        >
+          <span className="text-[11px]">{selected.label}</span>
+          <ChevronDown className={`w-3 h-3 transition-transform ${open ? 'rotate-180' : ''}`} />
+        </button>
+      </Tooltip>
+      <AnimatePresence>
+        {open && (
+          <motion.div
+            initial={{ opacity: 0, y: -4 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -4 }}
+            transition={{ duration: 0.15 }}
+            className="absolute bottom-full left-0 mb-1 z-50 min-w-[140px] py-1 rounded-lg bg-dark-800 border border-dark-600 shadow-xl"
+          >
+            {options.map((o) => (
+              <Tooltip key={o.value} text={o.tooltip} placement="right" fullWidth>
+                <button
+                  type="button"
+                  onClick={() => {
+                    onChange?.(o.value);
+                    setOpen(false);
+                  }}
+                  className={`w-full text-left px-3 py-1.5 text-[11px] transition-colors ${
+                    o.value === value ? 'text-chat-accent bg-dark-700/50' : 'text-dark-300 hover:text-dark-100 hover:bg-dark-700/50'
+                  }`}
+                >
+                  {o.label}
+                </button>
+              </Tooltip>
+            ))}
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </div>
+  );
+}
 
 const FILE_TYPE_ICONS = {
   pdf: <FileText className="w-3 h-3" />,
@@ -30,6 +190,11 @@ export default function AIChatInput({
   onRemoveFile,
   disabled,
   placeholder = 'Message AI...',
+  mode = 'edit',
+  onModeChange,
+  model = 'auto',
+  onModelChange,
+  showModeSelectors = true,
 }) {
   const [input, setInput] = useState('');
   const [isUploading, setIsUploading] = useState(false);
@@ -141,57 +306,76 @@ export default function AIChatInput({
         <p className="text-xs text-red-400 mb-2">{uploadError}</p>
       )}
 
-      <div className="flex items-center gap-2">
-        <button
-          onClick={() => fileInputRef.current?.click()}
-          disabled={disabled || isUploading}
-          className="flex-shrink-0 w-10 h-10 rounded-xl flex items-center justify-center text-dark-400 hover:text-dark-100 hover:bg-dark-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed touch-manipulation"
-          title="Attach file (PDF, CSV, image, etc.)"
-        >
-          {isUploading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Paperclip className="w-4 h-4" />}
-        </button>
+      <div className="flex flex-col gap-2">
+        <div className="flex items-center gap-2 flex-1 min-w-0">
+          <button
+            onClick={() => fileInputRef.current?.click()}
+            disabled={disabled || isUploading}
+            className="flex-shrink-0 w-10 h-10 rounded-xl flex items-center justify-center text-dark-400 hover:text-dark-100 hover:bg-dark-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed touch-manipulation"
+            title="Attach file (PDF, CSV, image, etc.)"
+          >
+            {isUploading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Paperclip className="w-4 h-4" />}
+          </button>
 
-        <input
-          ref={fileInputRef}
-          type="file"
-          multiple
-          accept=".pdf,.csv,.xlsx,.xls,.txt,.md,.json,.jpg,.jpeg,.png,.gif,.webp"
-          className="hidden"
-          onChange={handleFileSelect}
-        />
-
-        <div className="flex-1 min-w-0">
-          <textarea
-            ref={textareaRef}
-            value={input}
-            onChange={handleTextareaChange}
-            onKeyDown={handleKeyDown}
-            disabled={disabled}
-            placeholder={isStreaming ? 'AI is responding...' : placeholder}
-            rows={1}
-            className="w-full bg-dark-700 border border-dark-600 rounded-xl px-3 py-2.5 text-dark-50 placeholder-dark-400 resize-none focus:outline-none focus:border-chat-focus focus:ring-1 focus:ring-chat-focus/30 transition-colors disabled:opacity-50 disabled:cursor-not-allowed leading-snug min-h-[44px]"
-            style={{ maxHeight: '160px', fontSize: '16px' }}
+          <input
+            ref={fileInputRef}
+            type="file"
+            multiple
+            accept=".pdf,.csv,.xlsx,.xls,.txt,.md,.json,.jpg,.jpeg,.png,.gif,.webp"
+            className="hidden"
+            onChange={handleFileSelect}
           />
+
+          <div className="flex-1 min-w-0">
+            <textarea
+              ref={textareaRef}
+              value={input}
+              onChange={handleTextareaChange}
+              onKeyDown={handleKeyDown}
+              disabled={disabled}
+              placeholder={isStreaming ? 'AI is responding...' : placeholder}
+              rows={1}
+              className="w-full bg-dark-700 border border-dark-600 rounded-xl px-3 py-2.5 text-dark-50 placeholder-dark-400 resize-none focus:outline-none focus:border-chat-focus focus:ring-1 focus:ring-chat-focus/30 transition-colors disabled:opacity-50 disabled:cursor-not-allowed leading-snug min-h-[44px]"
+              style={{ maxHeight: '160px', fontSize: '16px' }}
+            />
+          </div>
+
+          {isStreaming ? (
+            <button
+              onClick={onStop}
+              disabled={disabled}
+              className="flex-shrink-0 w-10 h-10 rounded-xl flex items-center justify-center bg-red-500/80 hover:bg-red-500 text-white transition-colors disabled:opacity-40 disabled:cursor-not-allowed touch-manipulation"
+              title="Stop generating"
+            >
+              <Square className="w-3.5 h-3.5 fill-current" />
+            </button>
+          ) : (
+            <button
+              onClick={handleSend}
+              disabled={(!input.trim() && pendingFiles.length === 0) || disabled}
+              className="flex-shrink-0 w-10 h-10 rounded-xl flex items-center justify-center bg-chat-button hover:bg-chat-button-hover text-white transition-colors disabled:opacity-40 disabled:cursor-not-allowed touch-manipulation"
+              title="Send (Enter)"
+            >
+              <Send className="w-4 h-4" />
+            </button>
+          )}
         </div>
 
-        {isStreaming ? (
-          <button
-            onClick={onStop}
-            disabled={disabled}
-            className="flex-shrink-0 w-10 h-10 rounded-xl flex items-center justify-center bg-red-500/80 hover:bg-red-500 text-white transition-colors disabled:opacity-40 disabled:cursor-not-allowed touch-manipulation"
-            title="Stop generating"
-          >
-            <Square className="w-3.5 h-3.5 fill-current" />
-          </button>
-        ) : (
-          <button
-            onClick={handleSend}
-            disabled={(!input.trim() && pendingFiles.length === 0) || disabled}
-            className="flex-shrink-0 w-10 h-10 rounded-xl flex items-center justify-center bg-chat-button hover:bg-chat-button-hover text-white transition-colors disabled:opacity-40 disabled:cursor-not-allowed touch-manipulation"
-            title="Send (Enter)"
-          >
-            <Send className="w-4 h-4" />
-          </button>
+        {showModeSelectors && (
+          <div className="flex items-center gap-4 text-[11px] text-dark-400">
+            <SelectDropdown
+              options={MODE_OPTIONS}
+              value={mode}
+              onChange={onModeChange}
+              disabled={disabled}
+            />
+            <SelectDropdown
+              options={MODEL_OPTIONS}
+              value={model}
+              onChange={onModelChange}
+              disabled={disabled}
+            />
+          </div>
         )}
       </div>
 

@@ -8,9 +8,10 @@
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import ReactMarkdown from 'react-markdown';
-import { ExternalLink, ChevronDown, ChevronUp, Paperclip, Globe, ArrowRight, RotateCcw, RefreshCw, Copy, Check } from 'lucide-react';
+import { ExternalLink, ChevronDown, ChevronUp, Paperclip, Globe, ArrowRight, RotateCcw, RefreshCw, Copy, Check, Wrench } from 'lucide-react';
 import { sanitizeStreamingMarkdown } from '../../../utils/sanitizeStreamingMarkdown';
 import SuggestedEditCard from './SuggestedEditCard';
+import ToolCallCard from './ToolCallCard';
 
 function getLinkLabel(children) {
   if (typeof children === 'string') return children;
@@ -242,6 +243,25 @@ export default function AIChatMessage({ message, onRedo, onRetry, onEditApplied 
             {isStreaming && (
               <span className="inline-block w-1.5 h-4 bg-chat-accent animate-pulse ml-0.5 align-middle" />
             )}
+          </div>
+        )}
+
+        {/* Tool calls */}
+        {!isUser && message.tool_calls && message.tool_calls.length > 0 && (
+          <div className="mt-2 pt-2 border-t border-dark-700/50 space-y-2">
+            <div className="flex items-center gap-1.5 mb-1.5">
+              <Wrench className="w-3 h-3 text-dark-400" />
+              <span className="text-[10px] font-medium text-dark-400 uppercase tracking-wide">Tools used</span>
+            </div>
+            {message.tool_calls.map((tc, i) => (
+              <ToolCallCard
+                key={i}
+                name={tc.name}
+                args={tc.args}
+                result={tc.result}
+                status={tc.status}
+              />
+            ))}
           </div>
         )}
 

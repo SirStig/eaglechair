@@ -545,6 +545,10 @@ export default function AIChatPage() {
     setSessions,
     loadOlderMessages,
     setOnSessionCreated,
+    mode,
+    model,
+    setMode,
+    setModel,
   } = useAIChat();
 
   const location = useLocation();
@@ -752,6 +756,10 @@ export default function AIChatPage() {
               pendingFiles={pendingFiles}
               onRemoveFile={removePendingFile}
               placeholder="Ask anything..."
+              mode={mode}
+              onModeChange={setMode}
+              model={model}
+              onModelChange={setModel}
             />
           </div>
 

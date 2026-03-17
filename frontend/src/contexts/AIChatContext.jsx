@@ -40,6 +40,9 @@ export function AIChatProvider({ children }) {
   // Pending files for next message
   const [pendingFiles, setPendingFiles] = useState([]); // [{file_id, filename, file_type}]
 
+  const [mode, setMode] = useState('edit');
+  const [model, setModel] = useState('auto');
+
   const wsRef = useRef(null);
   const wsSessionIdRef = useRef(null);
   const currentStreamIdRef = useRef(null);
@@ -216,6 +219,7 @@ export function AIChatProvider({ children }) {
             created_at: new Date().toISOString(),
             web_sources: [],
             suggested_edits: [],
+            tool_calls: [],
           };
           return [...prev, newMsg];
         });
@@ -239,6 +243,37 @@ export function AIChatProvider({ children }) {
         break;
       }
 
+      case 'tool_call': {
+        const toolCall = data?.tool_call;
+        if (toolCall) {
+          setMessages(prev => {
+            const last = prev[prev.length - 1];
+            if (last?.isStreaming) {
+              return prev.slice(0, -1).concat({
+                ...last,
+                tool_calls: [...(last.tool_calls || []), toolCall],
+              });
+            }
+            if (last?.role === 'user') {
+              const newMsg = {
+                id: currentStreamIdRef.current || `stream-${Date.now()}`,
+                role: 'assistant',
+                content: '',
+                streamingContent: '',
+                isStreaming: true,
+                created_at: new Date().toISOString(),
+                web_sources: [],
+                suggested_edits: [],
+                tool_calls: [toolCall],
+              };
+              return [...prev, newMsg];
+            }
+            return prev;
+          });
+        }
+        break;
+      }
+
       case 'message_done': {
         const msgId = data?.message_id;
         const tokens = data?.tokens || 0;
@@ -255,6 +290,7 @@ export function AIChatProvider({ children }) {
               tokens_used: tokens,
               web_sources: sources,
               suggested_edits: last.suggested_edits || [],
+              tool_calls: last.tool_calls || [],
             });
           }
           return prev;
@@ -275,7 +311,8 @@ export function AIChatProvider({ children }) {
         ));
         break;
 
-      case 'error':
+      case 'error': {
+        const errMsg = data?.message || 'Something went wrong. Please try again.';
         setStreamingState(null);
         setIsStreaming(false);
         setMessages(prev => {
@@ -283,15 +320,25 @@ export function AIChatProvider({ children }) {
           if (last?.isStreaming) {
             return prev.slice(0, -1).concat({
               ...last,
-              content: `Error: ${data?.message || 'Unknown error'}`,
+              content: `Error: ${errMsg}`,
               streamingContent: '',
               isStreaming: false,
               isError: true,
             });
           }
+          if (last?.role === 'user') {
+            return [...prev, {
+              id: `error-${Date.now()}`,
+              role: 'assistant',
+              content: `Error: ${errMsg}`,
+              isError: true,
+              created_at: new Date().toISOString(),
+            }];
+          }
           return prev;
         });
         break;
+      }
 
       case 'pong':
         break;
@@ -305,18 +352,30 @@ export function AIChatProvider({ children }) {
     handleWSMessageRef.current = handleWSMessage;
   }, [handleWSMessage]);
 
-  const forceEndStreaming = useCallback(() => {
+  const forceEndStreaming = useCallback((errorMessage = null) => {
     setStreamingState(null);
     setIsStreaming(false);
     setMessages(prev => {
       const last = prev[prev.length - 1];
+      const fallbackError = errorMessage || 'The response was interrupted or timed out. You can retry or send a new message.';
       if (last?.isStreaming) {
+        const content = last.streamingContent || last.content || '';
         return prev.slice(0, -1).concat({
           ...last,
-          content: last.streamingContent || last.content || '',
+          content: content || fallbackError,
           streamingContent: '',
           isStreaming: false,
+          isError: !content,
         });
+      }
+      if (last?.role === 'user') {
+        return [...prev, {
+          id: `error-${Date.now()}`,
+          role: 'assistant',
+          content: fallbackError,
+          isError: true,
+          created_at: new Date().toISOString(),
+        }];
       }
       return prev;
     });
@@ -357,7 +416,7 @@ export function AIChatProvider({ children }) {
 
     newWs.onclose = (event) => {
       if (event.code !== 1000 && event.code !== 4001) {
-        forceEndStreaming();
+        forceEndStreaming('Connection lost. Reconnecting in a few seconds...');
         reconnectTimer.current = setTimeout(() => {
           if (currentSessionIdRef.current === sessionId) {
             connectWS(sessionId);
@@ -443,10 +502,14 @@ export function AIChatProvider({ children }) {
     }
 
     if (wsRef.current?.readyState === WebSocket.OPEN) {
+      const msgMode = opts.mode ?? mode;
+      const msgModel = opts.model ?? model;
       wsRef.current.send(JSON.stringify({
         type: 'message',
         content,
         file_ids: fileIds,
+        mode: msgMode || 'edit',
+        model: msgModel || 'auto',
       }));
       if (shouldNotifySessionCreated) {
         onSessionCreatedRef.current?.(sessionId);
@@ -462,7 +525,7 @@ export function AIChatProvider({ children }) {
         created_at: new Date().toISOString(),
       }]);
     }
-  }, [currentSessionId, isStreaming, connectWS]);
+  }, [currentSessionId, isStreaming, connectWS, mode, model]);
 
   const redoMessage = useCallback(async (messageId) => {
     let userMsgToResend = null;
@@ -579,7 +642,7 @@ export function AIChatProvider({ children }) {
           clearInterval(streamingStuckTimerRef.current);
           streamingStuckTimerRef.current = null;
         }
-        forceEndStreaming();
+        forceEndStreaming('Response took too long. You can retry or try a shorter message.');
       }
     }, 5000);
     return () => {
@@ -604,6 +667,8 @@ export function AIChatProvider({ children }) {
     isLoadingChat,
     hasMoreMessages,
     isLoadingOlder,
+    mode,
+    model,
 
     // Actions
     openChat,
@@ -622,6 +687,8 @@ export function AIChatProvider({ children }) {
     setSessions,
     loadOlderMessages,
     setOnSessionCreated: (cb) => { onSessionCreatedRef.current = cb; },
+    setMode,
+    setModel,
   };
 
   return (
