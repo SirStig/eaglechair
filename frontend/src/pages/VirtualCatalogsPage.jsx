@@ -5,7 +5,8 @@ import { useCatalogs } from '../hooks/useContent';
 import { Book, Palette, Scissors, BookOpen, Eye, Download } from 'lucide-react';
 import LoadingSpinner from '../components/ui/LoadingSpinner';
 import PDFViewerModal from '../components/ui/PDFViewerModal';
-import { formatFileSize, resolveFileUrl, resolveImageUrl } from '../utils/apiHelpers';
+import CatalogCoverImage from '../components/ui/CatalogCoverImage';
+import { formatFileSize, resolveFileUrl } from '../utils/apiHelpers';
 
 const VirtualCatalogsPage = () => {
   const [searchTerm, setSearchTerm] = useState('');
@@ -103,24 +104,14 @@ const VirtualCatalogsPage = () => {
             {filteredCatalogs.map((catalog, index) => (
               <motion.div
                 key={catalog.id}
+                layout={false}
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: index * 0.1 }}
-                className="bg-white rounded-lg border border-cream-200 overflow-hidden hover:border-primary-500 transition-all duration-300 group"
+                transition={{ delay: index * 0.1, duration: 0.35, ease: 'easeOut' }}
+                style={{ backfaceVisibility: 'hidden' }}
+                className="bg-white rounded-lg border border-cream-200 overflow-hidden hover:border-primary-500 transition-colors duration-300 group"
               >
-                {catalog.coverImageUrl || catalog.thumbnailUrl || catalog.thumbnail_url ? (
-                  <div className="aspect-[3/4] overflow-hidden bg-slate-100">
-                    <img
-                      src={resolveImageUrl(catalog.coverImageUrl || catalog.thumbnailUrl || catalog.thumbnail_url)}
-                      alt={catalog.title}
-                      className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
-                    />
-                  </div>
-                ) : (
-                  <div className="aspect-[3/4] bg-slate-100 flex items-center justify-center">
-                    <Book className="w-16 h-16 text-slate-400" />
-                  </div>
-                )}
+                <CatalogCoverImage catalog={catalog} imgClassName="group-hover:scale-105" />
 
                 <div className="p-6">
                   {(catalog.catalogType || catalog.category) && (

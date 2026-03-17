@@ -100,10 +100,12 @@ const HardwarePage = () => {
             {filteredHardware.map((item, index) => (
               <motion.div
                 key={item.id}
+                layout={false}
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: index * 0.05 }}
-                className="bg-white rounded-lg border border-cream-200 overflow-hidden hover:border-primary-500 transition-all duration-300"
+                transition={{ delay: index * 0.05, duration: 0.35, ease: 'easeOut' }}
+                style={{ backfaceVisibility: 'hidden' }}
+                className="bg-white rounded-lg border border-cream-200 overflow-hidden hover:border-primary-500 transition-colors duration-300"
               >
                 {item.image_url ? (
                   <div className="aspect-video overflow-hidden bg-slate-100">

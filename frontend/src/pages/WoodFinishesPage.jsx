@@ -121,10 +121,12 @@ const WoodFinishesPage = () => {
             {filteredFinishes.map((finish, index) => (
               <motion.div
                 key={finish.id}
-                initial={{ opacity: 0, scale: 0.9 }}
-                animate={{ opacity: 1, scale: 1 }}
-                transition={{ delay: index * 0.05 }}
-                className="bg-white rounded-lg border border-cream-200 overflow-hidden hover:border-primary-500 transition-all duration-300 hover:shadow-xl hover:shadow-primary-500/10"
+                layout={false}
+                initial={{ opacity: 0, y: 16 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: index * 0.05, duration: 0.35, ease: 'easeOut' }}
+                style={{ backfaceVisibility: 'hidden' }}
+                className="bg-white rounded-lg border border-cream-200 overflow-hidden hover:border-primary-500 transition-[border-color,box-shadow] duration-300 hover:shadow-xl hover:shadow-primary-500/10"
               >
                 {finish.swatchImageUrl ? (
                   <div className="aspect-square overflow-hidden rounded-full bg-slate-100">

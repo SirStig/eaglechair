@@ -17,10 +17,15 @@ links to company account if authenticated.
 """
 
 import logging
+from pathlib import Path
 from typing import Optional
 
-from fastapi import APIRouter, Depends, Query
+import fitz
+from fastapi import APIRouter, Depends, Header, HTTPException, Query
+from fastapi.responses import Response
 from sqlalchemy.ext.asyncio import AsyncSession
+
+from backend.api.v1.routes.admin.upload import UPLOAD_BASE_DIR
 
 from backend.api.dependencies import get_optional_company
 from backend.api.v1.schemas.common import MessageResponse
@@ -322,6 +327,52 @@ async def get_catalog(
     )
     
     return catalog
+
+
+@router.get(
+    "/catalogs/{catalog_id}/pdf-thumbnail",
+    summary="Get PDF first page as thumbnail",
+    description="Renders the first page of a catalog PDF as an image when no cover image exists"
+)
+async def get_catalog_pdf_thumbnail(
+    catalog_id: int,
+    if_none_match: str | None = Header(None, alias="If-None-Match"),
+    db: AsyncSession = Depends(get_db)
+):
+    catalog = await ContentService.get_catalog_by_id(db=db, catalog_id=catalog_id)
+    file_url = catalog.file_url or ""
+    if not file_url.lower().endswith(".pdf"):
+        raise HTTPException(status_code=404, detail="Catalog is not a PDF")
+    if file_url.startswith("http"):
+        raise HTTPException(status_code=404, detail="External PDF URLs not supported for thumbnail")
+    filename = Path(file_url).name
+    file_path = UPLOAD_BASE_DIR / "documents" / "catalogs" / filename
+    if not file_path.exists():
+        raise HTTPException(status_code=404, detail="PDF file not found")
+    mtime = file_path.stat().st_mtime
+    etag = f'"{filename}-{int(mtime)}"'
+    if if_none_match and etag in if_none_match:
+        return Response(status_code=304, headers={"Cache-Control": "public, max-age=31536000"})
+    try:
+        doc = fitz.open(str(file_path))
+        if len(doc) == 0:
+            raise HTTPException(status_code=404, detail="PDF has no pages")
+        page = doc[0]
+        mat = fitz.Matrix(1.5, 1.5)
+        pix = page.get_pixmap(matrix=mat, alpha=False)
+        png_bytes = pix.pil_tobytes("PNG")
+        doc.close()
+        return Response(
+            content=png_bytes,
+            media_type="image/png",
+            headers={
+                "Cache-Control": "public, max-age=31536000",
+                "ETag": etag,
+            }
+        )
+    except Exception as e:
+        logger.exception("Failed to render PDF thumbnail: %s", e)
+        raise HTTPException(status_code=500, detail="Failed to render PDF thumbnail")
 
 
 @router.get(

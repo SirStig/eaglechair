@@ -1,26 +1,19 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { Link } from 'react-router-dom';
-import { loadContentData } from '../utils/contentDataLoader';
+import { useCatalogs } from '../hooks/useContent';
+import { Eye, Download } from 'lucide-react';
+import LoadingSpinner from '../components/ui/LoadingSpinner';
+import PDFViewerModal from '../components/ui/PDFViewerModal';
+import CatalogCoverImage from '../components/ui/CatalogCoverImage';
+import { resolveFileUrl } from '../utils/apiHelpers';
 
 const GuidesPage = () => {
-  const [catalogs, setCatalogs] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const { data: catalogs = [], loading } = useCatalogs();
+  const [viewingPdf, setViewingPdf] = useState(null);
 
-  useEffect(() => {
-    const loadData = async () => {
-      const content = await loadContentData();
-      if (content?.catalogs) {
-        setCatalogs(content.catalogs);
-      }
-      setLoading(false);
-    };
-    loadData();
-  }, []);
-
-  // Get guides from catalogs with category = "Guide" or similar
-  const guidesData = catalogs.filter(c => 
-    c.category?.toLowerCase().includes('guide') || 
-    c.category?.toLowerCase().includes('instruction') ||
+  const guidesData = catalogs.filter(c =>
+    (c.catalogType || c.category)?.toLowerCase().includes('guide') ||
+    (c.catalogType || c.category)?.toLowerCase().includes('instruction') ||
     c.title?.toLowerCase().includes('guide')
   );
 
@@ -54,6 +47,14 @@ const GuidesPage = () => {
       guides: guidesData.filter(g => g.title?.toLowerCase().includes('cad') || g.title?.toLowerCase().includes('technical') || g.title?.toLowerCase().includes('spec'))
     }
   ];
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-cream-50 to-cream-100 flex items-center justify-center">
+        <LoadingSpinner />
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-cream-50 to-cream-100">
@@ -90,21 +91,40 @@ const GuidesPage = () => {
                   {category.guides.map(guide => (
                     <div
                       key={guide.id}
-                      className="bg-cream-50/50 border border-cream-200 rounded-lg p-4 hover:border-primary-500 transition-colors"
+                      className="bg-cream-50/50 border border-cream-200 rounded-lg overflow-hidden hover:border-primary-500 transition-colors group"
                     >
-                      <h3 className="font-semibold text-slate-800 mb-2">{guide.title}</h3>
-                      {guide.description && (
-                        <p className="text-sm text-slate-600 mb-3 line-clamp-2">{guide.description}</p>
-                      )}
-                      {guide.file_url && (
-                        <a
-                          href={guide.file_url}
-                          download
-                          className="text-sm text-primary-600 hover:text-primary-700 font-medium"
-                        >
-                          Download PDF →
-                        </a>
-                      )}
+                      <CatalogCoverImage catalog={guide} imgClassName="group-hover:scale-105" />
+                      <div className="p-4">
+                        <h3 className="font-semibold text-slate-800 mb-2">{guide.title}</h3>
+                        {guide.description && (
+                          <p className="text-sm text-slate-600 mb-3 line-clamp-2">{guide.description}</p>
+                        )}
+                        {(guide.fileUrl || guide.file_url) && (
+                          <div className="flex gap-2">
+                            {(guide.fileUrl || guide.file_url)?.toLowerCase().endsWith('.pdf') && (
+                              <button
+                                onClick={() => setViewingPdf({
+                                  url: guide.fileUrl || guide.file_url,
+                                  name: guide.title,
+                                  type: 'PDF'
+                                })}
+                                className="flex-1 flex items-center justify-center gap-2 px-3 py-2 bg-primary-600 hover:bg-primary-500 text-white text-sm font-medium rounded-lg transition-colors"
+                              >
+                                <Eye className="w-4 h-4" />
+                                View PDF
+                              </button>
+                            )}
+                            <a
+                              href={resolveFileUrl(guide.fileUrl || guide.file_url)}
+                              download
+                              className="flex-1 flex items-center justify-center gap-2 px-3 py-2 bg-slate-200 hover:bg-slate-300 text-slate-800 text-sm font-medium rounded-lg transition-colors"
+                            >
+                              <Download className="w-4 h-4" />
+                              Download
+                            </a>
+                          </div>
+                        )}
+                      </div>
                     </div>
                   ))}
                 </div>
@@ -203,6 +223,16 @@ const GuidesPage = () => {
           </div>
         </div>
       </div>
+
+      {viewingPdf && (
+        <PDFViewerModal
+          isOpen={!!viewingPdf}
+          onClose={() => setViewingPdf(null)}
+          fileUrl={viewingPdf.url}
+          fileName={viewingPdf.name}
+          fileType={viewingPdf.type}
+        />
+      )}
     </div>
   );
 };

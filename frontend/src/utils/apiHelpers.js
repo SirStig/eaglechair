@@ -286,6 +286,18 @@ export const formatFileSize = (bytes, decimals = 2) => {
 };
 
 /**
+ * Resolve API URL for use in img src, fetch, etc.
+ * Uses VITE_API_BASE_URL when frontend and API are on different origins.
+ * @param {string} path - API path (e.g. /api/v1/content/catalogs/1/pdf-thumbnail)
+ * @returns {string} Full URL when API base is set, else relative path
+ */
+export const resolveApiUrl = (path) => {
+  const base = (import.meta.env.VITE_API_BASE_URL || '').replace(/\/+$/, '');
+  const cleanPath = path.startsWith('/') ? path : `/${path}`;
+  return base ? `${base}${cleanPath}` : cleanPath;
+};
+
+/**
  * Resolve file URL from various formats (similar to resolveImageUrl)
  * Handles PDF and document files
  * @param {string} fileUrl - File URL string
