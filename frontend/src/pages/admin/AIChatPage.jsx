@@ -33,6 +33,7 @@ import AIChatInput from '../../components/admin/ai/AIChatInput';
 import AIChatStreamStatus from '../../components/admin/ai/AIChatStreamStatus';
 import AIChatSidebar from '../../components/admin/ai/AIChatSidebar';
 import ChatMessageList from '../../components/admin/ai/ChatMessageList';
+import SuggestedEditsBar from '../../components/admin/ai/SuggestedEditsBar';
 import {
   getMemory,
   deleteMemory,
@@ -538,6 +539,8 @@ export default function AIChatPage() {
     sendMessage,
     redoMessage,
     retryMessage,
+    markEditApplied,
+    markEditDeclined,
     uploadFile,
     removePendingFile,
     switchSession,
@@ -744,9 +747,17 @@ export default function AIChatPage() {
                   messagesEndRef={messagesEndRef}
                   onRedo={redoMessage}
                   onRetry={retryMessage}
+                  onEditApplied={markEditApplied}
+                  onEditDeclined={markEditDeclined}
                 />
               )}
             </div>
+
+            <SuggestedEditsBar
+              messages={messages}
+              onEditApplied={markEditApplied}
+              onEditDeclined={markEditDeclined}
+            />
 
             <AIChatInput
               onSend={sendMessage}

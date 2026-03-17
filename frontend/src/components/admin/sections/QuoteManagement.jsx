@@ -1,10 +1,12 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import Card from '../../ui/Card';
 import Button from '../../ui/Button';
 import apiClient from '../../../config/apiClient';
 import AdminQuoteDetailView from './AdminQuoteDetailView';
 import { useAdminRefresh } from '../../../contexts/AdminRefreshContext';
+import { useToast } from '../../../contexts/ToastContext';
 import TableSortHead from '../TableSortHead';
+import PaginationBar from '../PaginationBar';
 import { 
   FileText, 
   Search, 
@@ -19,31 +21,47 @@ import {
 
 const QuoteManagement = () => {
   const { refreshKeys } = useAdminRefresh();
+  const toast = useToast();
   const [quotes, setQuotes] = useState([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
   const [selectedQuoteId, setSelectedQuoteId] = useState(null);
-  const [pagination, setPagination] = useState({
-    page: 1,
-    page_size: 20,
-    total: 0,
-    pages: 0
-  });
+  const [selectedQuotes, setSelectedQuotes] = useState([]);
+  const lastSelectedIndexRef = useRef(null);
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(25);
+  const [total, setTotal] = useState(0);
+  const [totalPages, setTotalPages] = useState(0);
 
   const [sortBy, setSortBy] = useState('created_at');
   const [sortDir, setSortDir] = useState('desc');
 
   useEffect(() => {
     fetchQuotes();
-  }, [pagination.page, statusFilter, sortBy, sortDir, refreshKeys.quotes]);
+  }, [page, pageSize, statusFilter, sortBy, sortDir, refreshKeys.quotes]);
+
+  const filteredQuotes = quotes.filter(quote => {
+    if (!searchTerm) return true;
+    const searchLower = searchTerm.toLowerCase();
+    return (
+      quote.quote_number?.toLowerCase().includes(searchLower) ||
+      quote.company_name?.toLowerCase().includes(searchLower) ||
+      quote.contact_name?.toLowerCase().includes(searchLower)
+    );
+  });
+
+  useEffect(() => {
+    lastSelectedIndexRef.current = null;
+    setSelectedQuotes([]);
+  }, [page]);
 
   const fetchQuotes = useCallback(async () => {
     try {
       setLoading(true);
       const params = {
-        page: pagination.page,
-        page_size: pagination.page_size,
+        page,
+        page_size: pageSize,
         sort_by: sortBy || undefined,
         sort_dir: sortDir,
       };
@@ -53,18 +71,70 @@ const QuoteManagement = () => {
       }
 
       const response = await apiClient.get('/api/v1/admin/quotes', { params });
-      setQuotes(response.items);
-      setPagination(prev => ({
-        ...prev,
-        total: response.total,
-        pages: response.pages
-      }));
+      setQuotes(response.items || []);
+      setTotal(response.total ?? 0);
+      setTotalPages(response.pages || 1);
     } catch (error) {
       console.error('Failed to fetch quotes:', error);
     } finally {
       setLoading(false);
     }
-  }, [pagination.page, pagination.page_size, statusFilter, sortBy, sortDir]);
+  }, [page, pageSize, statusFilter, sortBy, sortDir]);
+
+  const handleSelectQuote = useCallback((quoteId, index, event) => {
+    if (event?.shiftKey && lastSelectedIndexRef.current !== null) {
+      const start = Math.min(lastSelectedIndexRef.current, index);
+      const end = Math.max(lastSelectedIndexRef.current, index);
+      const rangeIds = filteredQuotes.slice(start, end + 1).map(q => q.id);
+      setSelectedQuotes(rangeIds);
+      lastSelectedIndexRef.current = index;
+    } else {
+      lastSelectedIndexRef.current = index;
+      setSelectedQuotes(prev =>
+        prev.includes(quoteId)
+          ? prev.filter(id => id !== quoteId)
+          : [...prev, quoteId]
+      );
+    }
+  }, [filteredQuotes]);
+
+  const handleSelectAll = () => {
+    if (selectedQuotes.length === filteredQuotes.length) {
+      setSelectedQuotes([]);
+      lastSelectedIndexRef.current = null;
+    } else {
+      setSelectedQuotes(filteredQuotes.map(q => q.id));
+      lastSelectedIndexRef.current = 0;
+    }
+  };
+
+  const handleBulkStatus = async (newStatus) => {
+    if (selectedQuotes.length === 0) {
+      toast.warning('Please select quotes first');
+      return;
+    }
+    setLoading(true);
+    const ids = [...selectedQuotes];
+    setSelectedQuotes([]);
+    try {
+      let successCount = 0;
+      let failCount = 0;
+      for (const id of ids) {
+        try {
+          await apiClient.patch(`/api/v1/admin/quotes/${id}/status`, { status: newStatus });
+          successCount++;
+        } catch { failCount++; }
+      }
+      if (successCount > 0) toast.success(`${successCount} quote(s) status updated`);
+      if (failCount > 0) toast.error(`Failed to update ${failCount}`);
+      await fetchQuotes();
+    } catch (error) {
+      toast.error('Bulk action failed');
+      setSelectedQuotes(ids);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const getStatusBadge = (status) => {
     const badges = {
@@ -86,20 +156,10 @@ const QuoteManagement = () => {
     );
   };
 
-  const filteredQuotes = quotes.filter(quote => {
-    if (!searchTerm) return true;
-    const searchLower = searchTerm.toLowerCase();
-    return (
-      quote.quote_number?.toLowerCase().includes(searchLower) ||
-      quote.company_name?.toLowerCase().includes(searchLower) ||
-      quote.contact_name?.toLowerCase().includes(searchLower)
-    );
-  });
-
   const handleSort = useCallback((key) => {
     setSortBy(key);
     setSortDir((d) => (key === sortBy ? (d === 'asc' ? 'desc' : 'asc') : key === 'created_at' ? 'desc' : 'asc'));
-    setPagination(prev => ({ ...prev, page: 1 }));
+    setPage(1);
   }, [sortBy]);
 
   const handleStatusChange = async (quoteId, newStatus) => {
@@ -178,7 +238,7 @@ const QuoteManagement = () => {
               value={statusFilter}
               onChange={(e) => {
                 setStatusFilter(e.target.value);
-                setPagination(prev => ({ ...prev, page: 1 }));
+                setPage(1);
               }}
               className="w-full pl-10 pr-4 py-2.5 bg-dark-700 border border-dark-600 rounded-lg text-dark-50 focus:outline-none focus:ring-2 focus:ring-accent-500 appearance-none cursor-pointer"
             >
@@ -192,6 +252,24 @@ const QuoteManagement = () => {
           </div>
         </div>
       </Card>
+
+      {selectedQuotes.length > 0 && (
+        <Card className="bg-primary-900/20 border-primary-500">
+          <div className="flex flex-wrap items-center justify-between gap-4">
+            <p className="text-dark-50 font-medium">
+              {selectedQuotes.length} quote(s) selected
+            </p>
+            <div className="flex flex-wrap gap-2">
+              <Button size="sm" variant="outline" onClick={() => handleBulkStatus('quoted')}>
+                Set to Quoted
+              </Button>
+              <Button size="sm" variant="outline" onClick={() => handleBulkStatus('declined')}>
+                Decline
+              </Button>
+            </div>
+          </div>
+        </Card>
+      )}
 
       {/* Quotes List */}
       <Card>
@@ -208,10 +286,23 @@ const QuoteManagement = () => {
             </p>
           </div>
         ) : (
-          <div className="overflow-x-auto -mx-4 sm:mx-0">
+          <>
+            <PaginationBar
+              page={page}
+              totalPages={totalPages}
+              total={total}
+              pageSize={pageSize}
+              onPageChange={setPage}
+              onPageSizeChange={(v) => { setPageSize(v); setPage(1); }}
+              position="top"
+            />
+            <div className="overflow-x-auto -mx-4 sm:mx-0">
             <table className="w-full min-w-[900px]">
               <thead>
                 <tr className="border-b border-dark-600">
+                  <th className="px-3 sm:p-4 py-3 text-left">
+                    <input type="checkbox" checked={filteredQuotes.length > 0 && selectedQuotes.length === filteredQuotes.length} onChange={handleSelectAll} className="rounded border-dark-600 bg-dark-700" />
+                  </th>
                   <TableSortHead label="Quote #" sortKey="quote_number" activeSortBy={sortBy} sortDir={sortDir} onSort={handleSort} className="text-left px-3 sm:p-4 py-3 text-xs sm:text-sm text-dark-300 font-medium" />
                   <TableSortHead label="Company" sortKey="company_name" activeSortBy={sortBy} sortDir={sortDir} onSort={handleSort} className="text-left px-3 sm:p-4 py-3 text-xs sm:text-sm text-dark-300 font-medium" />
                   <TableSortHead label="Contact" sortKey="contact_name" activeSortBy={sortBy} sortDir={sortDir} onSort={handleSort} className="text-left px-3 sm:p-4 py-3 text-xs sm:text-sm text-dark-300 font-medium" />
@@ -222,11 +313,25 @@ const QuoteManagement = () => {
                 </tr>
               </thead>
               <tbody>
-                {filteredQuotes.map((quote) => (
+                {filteredQuotes.map((quote, index) => (
                   <tr
                     key={quote.id}
-                    className="border-b border-dark-700 hover:bg-dark-700/50 transition-colors"
+                    className={`border-b border-dark-700 hover:bg-dark-700/50 transition-colors cursor-pointer select-none ${selectedQuotes.includes(quote.id) ? 'bg-primary-900/10' : ''}`}
+                    onClick={(e) => {
+                      if (!e.target.closest('button') && !e.target.closest('[data-no-select]')) {
+                        handleSelectQuote(quote.id, index, e);
+                      }
+                    }}
                   >
+                    <td className="px-3 sm:p-4 py-3">
+                      <input
+                        type="checkbox"
+                        checked={selectedQuotes.includes(quote.id)}
+                        readOnly
+                        onClick={(e) => { e.stopPropagation(); handleSelectQuote(quote.id, index, e); }}
+                        className="rounded border-dark-600 bg-dark-700 cursor-pointer"
+                      />
+                    </td>
                     <td className="px-3 sm:p-4 py-3">
                       <span className="font-medium text-xs sm:text-sm text-accent-500">
                         #{quote.quote_number}
@@ -250,7 +355,7 @@ const QuoteManagement = () => {
                     <td className="px-3 sm:p-4 py-3 text-xs sm:text-sm text-dark-300">
                       {new Date(quote.created_at).toLocaleDateString()}
                     </td>
-                    <td className="px-3 sm:p-4 py-3">
+                    <td className="px-3 sm:p-4 py-3" data-no-select onClick={(e) => e.stopPropagation()}>
                       <div className="flex items-center justify-end gap-2">
                         <button
                           onClick={() => handleViewQuote(quote.id)}
@@ -286,48 +391,16 @@ const QuoteManagement = () => {
           </div>
         )}
 
-        {/* Pagination */}
-        {pagination.pages > 1 && (
-          <div className="flex items-center justify-between mt-6 pt-6 border-t border-dark-600">
-            <p className="text-sm text-dark-400">
-              Showing {((pagination.page - 1) * pagination.page_size) + 1} to{' '}
-              {Math.min(pagination.page * pagination.page_size, pagination.total)} of{' '}
-              {pagination.total} quotes
-            </p>
-            <div className="flex items-center gap-2">
-              <Button
-                variant="outline"
-                size="sm"
-                disabled={pagination.page === 1}
-                onClick={() => setPagination(prev => ({ ...prev, page: prev.page - 1 }))}
-              >
-                Previous
-              </Button>
-              <div className="flex items-center gap-1">
-                {[...Array(pagination.pages)].map((_, i) => (
-                  <button
-                    key={i + 1}
-                    onClick={() => setPagination(prev => ({ ...prev, page: i + 1 }))}
-                    className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-all ${
-                      pagination.page === i + 1
-                        ? 'bg-accent-500 text-dark-900'
-                        : 'text-dark-300 hover:bg-dark-600'
-                    }`}
-                  >
-                    {i + 1}
-                  </button>
-                ))}
-              </div>
-              <Button
-                variant="outline"
-                size="sm"
-                disabled={pagination.page === pagination.pages}
-                onClick={() => setPagination(prev => ({ ...prev, page: prev.page + 1 }))}
-              >
-                Next
-              </Button>
-            </div>
-          </div>
+            <PaginationBar
+              page={page}
+              totalPages={totalPages}
+              total={total}
+              pageSize={pageSize}
+              onPageChange={setPage}
+              onPageSizeChange={(v) => { setPageSize(v); setPage(1); }}
+              position="bottom"
+            />
+          </>
         )}
       </Card>
     </div>

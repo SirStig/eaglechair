@@ -17,7 +17,9 @@ import json
 import logging
 import math
 import os
+import queue
 import re
+import threading
 import time
 import traceback
 from datetime import datetime
@@ -32,11 +34,13 @@ import sympy
 from ddgs import DDGS
 from google import genai
 from google.genai import types
+from fuzzywuzzy import fuzz
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, text
 
 from backend.core.config import settings
 from backend.database.base import AsyncSessionLocal
+from backend.models.ai_chat import AITrainingDocument, TrainingStatus
 from backend.services.ai_domain_knowledge import EAGLECHAIR_DOMAIN_KNOWLEDGE
 
 logger = logging.getLogger(__name__)
@@ -266,10 +270,10 @@ TOOL_DEFINITIONS = [
             types.FunctionDeclaration(
                 name="search_catalog",
                 description=(
-                    "Search the Eagle Chair catalog for a specific term. Searches product families, products, "
-                    "variations, finishes, upholsteries, colors, categories. Use this FIRST when the user asks "
-                    "about any product name, family name (e.g. Abruzzo, Alpine), model number, finish, upholstery, "
-                    "or color. Returns only matching rows. Call this before saying you don't know."
+                    "Search the Eagle Chair catalog. Use query 'all' or 'everything' for full catalog overview "
+                    "(all families, all model numbers). For specific terms: product/family name, model number, "
+                    "finish, upholstery, color. Searches families, products, variations, finishes, upholsteries, "
+                    "colors, categories. Use FIRST when the user asks about products. Call before saying you don't know."
                 ),
                 parameters=types.Schema(
                     type=types.Type.OBJECT,
@@ -283,12 +287,47 @@ TOOL_DEFINITIONS = [
                 ),
             ),
             types.FunctionDeclaration(
+                name="search_training_data",
+                description=(
+                    "Search ALL training documents (uploaded PDFs, CSVs, pricing sheets, etc.) using fuzzy matching. "
+                    "Use when the user asks about models, products, pricing, or specs that might be in training data. "
+                    "Returns matched facts and chunks from each document. Call this for 'search your training data', "
+                    "'find all models in training', 'what does the pricing sheet say', etc."
+                ),
+                parameters=types.Schema(
+                    type=types.Type.OBJECT,
+                    properties={
+                        "query": types.Schema(
+                            type=types.Type.STRING,
+                            description="Search term: model number, product name, price, spec, or keyword to find in training docs.",
+                        ),
+                        "max_results": types.Schema(
+                            type=types.Type.INTEGER,
+                            description="Max number of document matches to return (default 20)",
+                        ),
+                    },
+                    required=["query"],
+                ),
+            ),
+            types.FunctionDeclaration(
                 name="get_product_catalog",
                 description=(
                     "Retrieve the complete Eagle Chair product catalog from the live database. "
                     "Returns all active products, variations, categories, families, finishes, upholsteries, colors. "
                     "Use when search_catalog returns nothing but you need full context, or when the user asks for "
                     "broad catalog info, pricing overview, or full structure."
+                ),
+                parameters=types.Schema(
+                    type=types.Type.OBJECT,
+                    properties={},
+                ),
+            ),
+            types.FunctionDeclaration(
+                name="get_training_vs_catalog_overview",
+                description=(
+                    "Compare model numbers in training data vs live catalog. Returns which models appear only in "
+                    "training, only in catalog, or in both. Use when the user asks to 'compare training to catalog', "
+                    "'find all models in training and compare with catalog', or 'what models are in training but not catalog'."
                 ),
                 parameters=types.Schema(
                     type=types.Type.OBJECT,
@@ -322,21 +361,22 @@ TOOL_DEFINITIONS = [
             types.FunctionDeclaration(
                 name="create_product",
                 description=(
-                    "Create a new product in the catalog when the admin asks you to add one. Use get_product_catalog "
-                    "or search_catalog to find category_id (e.g. Tables, Chairs) and family_id if applicable. "
-                    "base_price must be in cents (e.g. 25000 for $250). Slug is auto-generated from model_number and name."
+                    "Create a new product when the admin asks you to add one. REQUIRED: category_id MUST be from "
+                    "the Valid Reference IDs section in your context (or from get_product_catalog/search_catalog). "
+                    "family_id and subcategory_id, if provided, must also be from that list. base_price in cents "
+                    "(e.g. 25000 for $250). Slug is auto-generated."
                 ),
                 parameters=types.Schema(
                     type=types.Type.OBJECT,
                     properties={
                         "name": types.Schema(type=types.Type.STRING, description="Product name"),
                         "model_number": types.Schema(type=types.Type.STRING, description="Model number (e.g. 201, 5242)"),
-                        "category_id": types.Schema(type=types.Type.INTEGER, description="Category ID from catalog"),
+                        "category_id": types.Schema(type=types.Type.INTEGER, description="Category ID from Valid Reference IDs only"),
                         "base_price": types.Schema(type=types.Type.INTEGER, description="Base price in cents"),
                         "short_description": types.Schema(type=types.Type.STRING, description="Short description"),
                         "full_description": types.Schema(type=types.Type.STRING, description="Full description"),
-                        "family_id": types.Schema(type=types.Type.INTEGER, description="Product family ID (optional)"),
-                        "subcategory_id": types.Schema(type=types.Type.INTEGER, description="Subcategory ID (optional)"),
+                        "family_id": types.Schema(type=types.Type.INTEGER, description="Family ID from Valid Reference IDs (optional)"),
+                        "subcategory_id": types.Schema(type=types.Type.INTEGER, description="Subcategory ID from Valid Reference IDs (optional)"),
                         "stock_status": types.Schema(type=types.Type.STRING, description="e.g. In Stock, Made to Order"),
                         "msrp": types.Schema(type=types.Type.INTEGER, description="MSRP in cents (optional)"),
                     },
@@ -347,9 +387,9 @@ TOOL_DEFINITIONS = [
                 name="propose_edit",
                 description=(
                     "Suggest an edit to a product, family, finish, upholstery, or color when the admin asks you to "
-                    "change something. The admin must approve before the edit is applied. Use when the user says "
-                    "'change X to Y', 'update the price', 'fix the description', etc. Only propose edits for entities "
-                    "you have looked up via search_catalog or get_product_details."
+                    "change something. Admin must approve before the edit is applied. CRITICAL: For product edits, "
+                    "category_id, subcategory_id, family_id in changes MUST come from the Valid Reference IDs section "
+                    "or from get_product_details/search_catalog results. Never guess or infer IDs."
                 ),
                 parameters=types.Schema(
                     type=types.Type.OBJECT,
@@ -360,7 +400,7 @@ TOOL_DEFINITIONS = [
                         ),
                         "entity_id": types.Schema(
                             type=types.Type.INTEGER,
-                            description="ID of the entity to edit",
+                            description="ID of the entity to edit (from search_catalog or get_product_details)",
                         ),
                         "entity_name": types.Schema(
                             type=types.Type.STRING,
@@ -368,7 +408,7 @@ TOOL_DEFINITIONS = [
                         ),
                         "changes": types.Schema(
                             type=types.Type.OBJECT,
-                            description="Key-value pairs of fields to update. For products: base_price (cents), name, short_description, stock_status, lead_time_days, etc. For families: name, overview_text. For finishes/upholstery/colors: name, etc.",
+                            description="Fields to update. For products: base_price (cents), name, short_description, stock_status, lead_time_days, category_id, subcategory_id, family_id. ID fields must be from Valid Reference IDs.",
                         ),
                         "reason": types.Schema(
                             type=types.Type.STRING,
@@ -396,7 +436,13 @@ def _get_tools_for_mode(mode: str):
     return TOOL_DEFINITIONS
 
 
-def build_system_prompt(memory_entries: list[dict], training_summaries: list[dict], mode: str = "edit", model: str = "auto") -> str:
+def build_system_prompt(
+    memory_entries: list[dict],
+    training_summaries: list[dict],
+    mode: str = "edit",
+    model: str = "auto",
+    valid_reference_ids: str | None = None,
+) -> str:
     today = datetime.now().strftime("%B %d, %Y")
 
     personality_block = ""
@@ -434,6 +480,10 @@ You are in AGENT mode. You may perform many tasks in parallel: suggest edits for
             f"- [{m.get('category', 'general')}] {m['key']}: {m['value']}"
             for m in memory_entries
         )
+
+    valid_ids_block = ""
+    if valid_reference_ids and mode in ("edit", "agent"):
+        valid_ids_block = f"\n\n{valid_reference_ids}"
 
     training_block = ""
     if training_summaries:
@@ -477,7 +527,7 @@ When the user mentions ANY product name, family name, model number, finish, upho
 - **search_catalog**: Search the live catalog for a term. Use FIRST when the user asks about any product, family (e.g. Abruzzo, Alpine), model, finish, upholstery, or color. Returns matching families, products, variations, finishes, upholsteries, colors. Never guess — always search.
 - **get_product_details**: Get FULL specs. Prefer model_numbers (e.g. ["5242"]) — users say "5242", not "product ID 42". Call with model_numbers when the user mentions a model; product_ids only when you have them from search. Returns dimensions, features, variations, stock_status, everything.
 - **get_product_catalog**: Full catalog. Use when search_catalog returns nothing or user needs broad overview. Never assume product data — fetch it.
-- **create_product**: Create a new product when the admin asks to add one. Use get_product_catalog to find category_id (e.g. Tables, Chairs) and family_id. base_price in cents.
+- **create_product**: Create a product when the admin asks. category_id, family_id, subcategory_id MUST be from Valid Reference IDs (injected above). base_price in cents.
 - **web_search**: Search the web. Use 2–4 searches per research question. Default 12 results.
 - **fetch_webpage**: Read a webpage in full. Use after web_search — don't rely on snippets alone.
 - **calculate**: Precise math for pricing, margins, percentages.
@@ -518,16 +568,16 @@ When you mention a product, family, or catalog item, include clickable links. ge
 - **Catalog sections**: [Products](/admin/catalog), [Families](/admin/families), [Finishes](/admin/finishes), [Upholstery](/admin/upholstery), [Colors](/admin/colors).
 
 ## Trust the Admin — Fix Data When They Say It's Wrong
-When the admin says catalog data is wrong (e.g. wrong category, wrong price, wrong description, wrong product type) — trust them. They know their products. Do not argue or insist the database is correct. Instead: acknowledge the correction, use **propose_edit** to fix it, and explain what you suggested. For category changes: use search_catalog to find the correct category by name (e.g. "Tables", "Table Tops"), then propose_edit with category_id. Be a helpful assistant that fixes things, not one that defends incorrect data.
+When the admin says catalog data is wrong (e.g. wrong category, wrong price, wrong description) — trust them. Acknowledge the correction, use **propose_edit** to fix it. For category/family/subcategory changes: use ONLY IDs from the Valid Reference IDs section above. Look up the target by name in that section (e.g. "Tables" → find its id). Never use an ID not listed there.
 
 ## Suggesting Edits — Admin Must Approve
-When the admin asks you to change something (price, name, description, stock status, category, etc.), use the **propose_edit** tool. The edit will appear as a suggestion with Approve/Decline buttons; nothing changes until the admin approves. Always call search_catalog or get_product_details first to get the entity_id. For products: base_price must be in cents (e.g. 25000 for $250); category_id for category changes. For text fields use the exact new value. Explain in your message what you suggested and that the admin can approve or decline.
+When the admin asks you to change something, use **propose_edit**. Call search_catalog or get_product_details first to get entity_id. For product edits: base_price in cents (e.g. 25000 for $250). For category_id, subcategory_id, family_id: use ONLY IDs from the Valid Reference IDs section. If changing to "Tables", find "Tables" in that section and use its id. Edits with invalid IDs will fail.
 
 ## EagleChair Domain Knowledge
 {EAGLECHAIR_DOMAIN_KNOWLEDGE}
 
 ## EagleChair Context
-Eagle Chair is a premium B2B chair manufacturer selling to commercial clients (hotels, offices, restaurants). Products include chairs with various wood finishes, upholstery options, and hardware. Pricing is in cents in the database. Companies register for accounts and submit quote requests.{personality_block}{mode_block}{memory_block}{training_block}"""
+Eagle Chair is a premium B2B chair manufacturer selling to commercial clients (hotels, offices, restaurants). Products include chairs with various wood finishes, upholstery options, and hardware. Pricing is in cents in the database. Companies register for accounts and submit quote requests.{personality_block}{mode_block}{memory_block}{valid_ids_block}{training_block}"""
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -658,6 +708,179 @@ class AIStreamEvent:
     def tool_call(tool_call: dict) -> dict:
         return {"type": "tool_call", "data": {"tool_call": tool_call}}
 
+    @staticmethod
+    def tool_call_started(name: str, label: str, args: dict) -> dict:
+        return {"type": "tool_call_started", "data": {"name": name, "label": label, "args": args}}
+
+
+TOOL_FRIENDLY_LABELS = {
+    "web_search": "Searching the web",
+    "fetch_webpage": "Reading webpage",
+    "calculate": "Calculating",
+    "search_catalog": "Searching catalog",
+    "search_training_data": "Searching training data",
+    "get_product_catalog": "Loading catalog",
+    "get_training_vs_catalog_overview": "Comparing training to catalog",
+    "get_product_details": "Fetching product details",
+    "create_product": "Creating product",
+    "propose_edit": "Suggesting edit",
+}
+
+
+def _tool_friendly_label(name: str, args: dict | None = None) -> str:
+    base = TOOL_FRIENDLY_LABELS.get(name, name.replace("_", " ").title())
+    if args and name == "search_catalog" and args.get("query"):
+        return f"Searching catalog for '{args.get('query', '')[:40]}'"
+    if args and name == "search_training_data" and args.get("query"):
+        return f"Searching training data for '{args.get('query', '')[:40]}'"
+    if args and name == "get_product_details":
+        models = args.get("model_numbers") or []
+        if models:
+            return f"Fetching details for {', '.join(str(m) for m in models[:3])}"
+    if args and name == "create_product":
+        mn = args.get("model_number", "")
+        nm = args.get("name", "")
+        if mn or nm:
+            return f"Creating product {mn} {nm}".strip()
+    if args and name == "fetch_webpage" and args.get("url"):
+        try:
+            from urllib.parse import urlparse
+            host = urlparse(args["url"]).netloc or "page"
+            return f"Reading {host}"
+        except Exception:
+            pass
+    if args and name == "web_search" and args.get("query"):
+        return f"Searching the web for '{args.get('query', '')[:30]}'"
+    if args and name == "calculate" and args.get("expression"):
+        return "Calculating"
+    return base
+
+
+async def _execute_tool_and_yield(
+    fc,
+    web_sources_accumulated: list,
+    search_count_ref: list,
+    yield_fn,
+    cancelled_fn,
+) -> tuple[types.Part, bool]:
+    """Execute one tool, yield events, return (FunctionResponse part, True if cancelled)."""
+    func_name = fc.name
+    func_args = dict(fc.args) if fc.args else {}
+    if func_name == "web_search":
+        if cancelled_fn():
+            return None, True
+        yield_fn(AIStreamEvent.tool_call_started(func_name, _tool_friendly_label(func_name, func_args), func_args))
+        query = func_args.get("query", "")
+        max_r = min(int(func_args.get("max_results", 12)), 15)
+        search_count_ref[0] += 1
+        yield_fn(AIStreamEvent.searching(query, search_count_ref[0]))
+        result = await asyncio.to_thread(web_search, query, max_r)
+        sources = result.get("results", [])
+        web_sources_accumulated.extend(sources[:5])
+        yield_fn(AIStreamEvent.search_results(sources))
+        yield_fn(AIStreamEvent.tool_call({"name": func_name, "label": _tool_friendly_label(func_name, func_args), "args": func_args, "result": result}))
+        return types.Part(function_response=types.FunctionResponse(name=func_name, response={"result": result})), False
+    if func_name == "fetch_webpage":
+        if cancelled_fn():
+            return None, True
+        yield_fn(AIStreamEvent.tool_call_started(func_name, _tool_friendly_label(func_name, func_args), func_args))
+        url = func_args.get("url", "")
+        yield_fn(AIStreamEvent.fetching_url(url))
+        result = await asyncio.to_thread(fetch_webpage, url)
+        if not any(s.get("url") == url for s in web_sources_accumulated):
+            web_sources_accumulated.append({"url": url, "title": (result.get("content", "")[:80] or "").strip(), "snippet": ""})
+        yield_fn(AIStreamEvent.tool_call({"name": func_name, "label": _tool_friendly_label(func_name, func_args), "args": func_args, "result": result}))
+        return types.Part(function_response=types.FunctionResponse(name=func_name, response={"result": result})), False
+    if func_name == "calculate":
+        if cancelled_fn():
+            return None, True
+        yield_fn(AIStreamEvent.tool_call_started(func_name, _tool_friendly_label(func_name, func_args), func_args))
+        expression = func_args.get("expression", "")
+        yield_fn(AIStreamEvent.calculating(expression))
+        result = await asyncio.to_thread(calculate, expression)
+        yield_fn(AIStreamEvent.tool_call({"name": func_name, "label": _tool_friendly_label(func_name, func_args), "args": func_args, "result": result}))
+        return types.Part(function_response=types.FunctionResponse(name=func_name, response={"result": result})), False
+    if func_name == "search_catalog":
+        if cancelled_fn():
+            return None, True
+        yield_fn(AIStreamEvent.tool_call_started(func_name, _tool_friendly_label(func_name, func_args), func_args))
+        query = func_args.get("query", "").strip()
+        yield_fn(AIStreamEvent.thinking(f"Searching catalog for '{query}'..."))
+        result = await search_catalog(query)
+        yield_fn(AIStreamEvent.tool_call({"name": func_name, "label": _tool_friendly_label(func_name, func_args), "args": func_args, "result": result}))
+        return types.Part(function_response=types.FunctionResponse(name=func_name, response={"result": result})), False
+    if func_name == "search_training_data":
+        if cancelled_fn():
+            return None, True
+        yield_fn(AIStreamEvent.tool_call_started(func_name, _tool_friendly_label(func_name, func_args), func_args))
+        query = func_args.get("query", "").strip()
+        max_r = min(int(func_args.get("max_results", 20)), 50)
+        yield_fn(AIStreamEvent.thinking(f"Searching training data for '{query}'..."))
+        result = await search_training_data(query, max_results=max_r)
+        yield_fn(AIStreamEvent.tool_call({"name": func_name, "label": _tool_friendly_label(func_name, func_args), "args": func_args, "result": result}))
+        return types.Part(function_response=types.FunctionResponse(name=func_name, response={"result": result})), False
+    if func_name == "get_product_catalog":
+        if cancelled_fn():
+            return None, True
+        yield_fn(AIStreamEvent.tool_call_started(func_name, _tool_friendly_label(func_name, func_args), func_args))
+        yield_fn(AIStreamEvent.thinking("Loading product catalog from database..."))
+        catalog_text = await fetch_product_catalog()
+        yield_fn(AIStreamEvent.tool_call({"name": func_name, "label": _tool_friendly_label(func_name, func_args), "args": func_args, "result": {"catalog_preview": catalog_text[:500] + "..." if len(catalog_text) > 500 else catalog_text}}))
+        return types.Part(function_response=types.FunctionResponse(name=func_name, response={"catalog": catalog_text})), False
+    if func_name == "get_training_vs_catalog_overview":
+        if cancelled_fn():
+            return None, True
+        yield_fn(AIStreamEvent.tool_call_started(func_name, _tool_friendly_label(func_name, func_args), func_args))
+        yield_fn(AIStreamEvent.thinking("Comparing training data to catalog..."))
+        result = await get_training_vs_catalog_overview()
+        yield_fn(AIStreamEvent.tool_call({"name": func_name, "label": _tool_friendly_label(func_name, func_args), "args": func_args, "result": result}))
+        return types.Part(function_response=types.FunctionResponse(name=func_name, response={"result": result})), False
+    if func_name == "get_product_details":
+        if cancelled_fn():
+            return None, True
+        yield_fn(AIStreamEvent.tool_call_started(func_name, _tool_friendly_label(func_name, func_args), func_args))
+        pids = func_args.get("product_ids") or []
+        models = func_args.get("model_numbers") or []
+        label = ", ".join(str(m) for m in models) if models else f"{len(pids)} product(s)"
+        yield_fn(AIStreamEvent.thinking(f"Fetching full specs for {label}..."))
+        result = await get_product_details(product_ids=pids, model_numbers=models)
+        yield_fn(AIStreamEvent.tool_call({"name": func_name, "label": _tool_friendly_label(func_name, func_args), "args": func_args, "result": result}))
+        return types.Part(function_response=types.FunctionResponse(name=func_name, response={"result": result})), False
+    if func_name == "create_product":
+        if cancelled_fn():
+            return None, True
+        yield_fn(AIStreamEvent.tool_call_started(func_name, _tool_friendly_label(func_name, func_args), func_args))
+        name = func_args.get("name", "").strip()
+        model_number = func_args.get("model_number", "").strip()
+        category_id = func_args.get("category_id")
+        base_price = int(func_args.get("base_price", 0))
+        yield_fn(AIStreamEvent.thinking(f"Creating product {model_number} {name}..."))
+        created = await create_product_in_db(
+            name=name, model_number=model_number, category_id=category_id, base_price=base_price,
+            short_description=func_args.get("short_description"), full_description=func_args.get("full_description"),
+            family_id=func_args.get("family_id"), subcategory_id=func_args.get("subcategory_id"),
+            stock_status=func_args.get("stock_status"), msrp=func_args.get("msrp"),
+        )
+        yield_fn(AIStreamEvent.tool_call({"name": func_name, "label": _tool_friendly_label(func_name, func_args), "args": func_args, "result": created}))
+        return types.Part(function_response=types.FunctionResponse(name=func_name, response={"result": created})), False
+    if func_name == "propose_edit":
+        yield_fn(AIStreamEvent.tool_call_started(func_name, _tool_friendly_label(func_name, func_args), func_args))
+        entity_type = func_args.get("entity_type", "")
+        entity_id = func_args.get("entity_id")
+        entity_name = func_args.get("entity_name", "")
+        changes = func_args.get("changes", {})
+        reason = func_args.get("reason", "")
+        if entity_type and entity_id is not None and changes:
+            yield_fn(AIStreamEvent.suggested_edit({
+                "entity_type": entity_type, "entity_id": int(entity_id), "entity_name": str(entity_name),
+                "changes": changes, "reason": reason,
+            }))
+        yield_fn(AIStreamEvent.tool_call({"name": func_name, "label": _tool_friendly_label(func_name, func_args), "args": func_args, "result": {"status": "suggested", "message": "Edit suggested for admin approval"}}))
+        return types.Part(function_response=types.FunctionResponse(name=func_name, response={"status": "suggested", "message": "Edit suggested for admin approval"})), False
+    err_result = {"error": f"Unknown tool: {func_name}"}
+    yield_fn(AIStreamEvent.tool_call({"name": func_name, "label": _tool_friendly_label(func_name, func_args), "args": func_args, "result": err_result}))
+    return types.Part(function_response=types.FunctionResponse(name=func_name, response=err_result)), False
+
 
 async def stream_ai_response(
     session_messages: list[dict],
@@ -667,9 +890,8 @@ async def stream_ai_response(
     cancelled: asyncio.Event | None = None,
 ) -> AsyncGenerator[dict, None]:
     """
-    Core streaming generator. Yields AIStreamEvent dicts.
-    Handles tool calls in a loop until model returns final text.
-    model: client choice "auto" or "max" (max=same capabilities, different personality). mode: client choice "ask"/"edit"/"agent".
+    Agent-style streaming: yields text and tool_call events interleaved as the model produces them.
+    Uses generate_content_stream so we get text chunks before/after tool calls.
     """
     client = get_gemini_client()
     gemini_model = getattr(settings, "GEMINI_MODEL", "gemini-2.5-flash-lite")
@@ -684,7 +906,13 @@ async def stream_ai_response(
         contents.append(types.Content(role=role, parts=[types.Part(text=msg["content"])]))
 
     web_sources_accumulated = []
-    search_count = 0
+    search_count_ref = [0]
+    config = types.GenerateContentConfig(
+        system_instruction=system_prompt,
+        tools=tools,
+        temperature=0.6,
+        max_output_tokens=65536,
+    )
 
     if _cancelled():
         return
@@ -692,290 +920,116 @@ async def stream_ai_response(
 
     max_tool_rounds = 10
     tool_round = 0
+    last_response = None
+    tokens = 0
 
     while tool_round < max_tool_rounds:
         tool_round += 1
         if _cancelled():
             break
 
-        try:
-            response = await asyncio.to_thread(
-                lambda: client.models.generate_content(
+        chunk_queue = queue.Queue()
+        stream_error = [None]
+
+        def produce():
+            try:
+                for c in client.models.generate_content_stream(
                     model=gemini_model,
                     contents=contents,
-                    config=types.GenerateContentConfig(
-                        system_instruction=system_prompt,
-                        tools=tools,
-                        temperature=0.6,
-                        max_output_tokens=65536,
-                    ),
-                )
-            )
-        except Exception as e:
-            yield AIStreamEvent.error(f"AI error: {str(e)}")
-            return
+                    config=config,
+                ):
+                    chunk_queue.put(c)
+            except Exception as e:
+                stream_error[0] = e
+            finally:
+                chunk_queue.put(None)
+
+        thread = threading.Thread(target=produce, daemon=True)
+        thread.start()
+
+        hit_function_call = False
+        model_content_with_fc = None
+
+        while True:
+            if _cancelled():
+                break
+            try:
+                chunk = await asyncio.to_thread(chunk_queue.get)
+            except Exception:
+                break
+            if chunk is None:
+                if stream_error[0]:
+                    yield AIStreamEvent.error(f"AI error: {str(stream_error[0])}")
+                    return
+                break
+
+            last_response = chunk
+            usage = getattr(chunk, "usage_metadata", None)
+            if usage:
+                tokens = getattr(usage, "total_token_count", 0) or tokens
+
+            if not chunk.candidates:
+                reason = getattr(getattr(chunk, "prompt_feedback", None), "block_reason", None)
+                if reason:
+                    yield AIStreamEvent.error(f"No response from AI (blocked: {reason})")
+                    return
+                continue
+
+            content = getattr(chunk.candidates[0], "content", None)
+            parts = getattr(content, "parts", None) or []
+
+            for part in parts:
+                if _cancelled():
+                    break
+                if getattr(part, "text", None):
+                    yield AIStreamEvent.text_chunk(part.text)
+                if getattr(part, "function_call", None):
+                    fc = part.function_call
+                    model_content_with_fc = types.Content(role="model", parts=[types.Part(function_call=fc)])
+                    hit_function_call = True
+                    break
+            if hit_function_call:
+                break
 
         if _cancelled():
             break
+        if not hit_function_call:
+            break
 
-        if not response.candidates:
-            reason = getattr(response, "prompt_feedback", None)
-            block_reason = getattr(reason, "block_reason", None) if reason else None
-            msg = f"No response from AI (content blocked: {block_reason})" if block_reason else "No response from AI"
-            yield AIStreamEvent.error(msg)
-            return
+        contents.append(model_content_with_fc)
+        tool_results = []
+        content = getattr(last_response.candidates[0], "content", None) if last_response and last_response.candidates else None
+        parts = getattr(content, "parts", None) or []
+        for part in parts:
+            if not getattr(part, "function_call", None):
+                continue
+            fc = part.function_call
+            events = []
+            def collect(e):
+                events.append(e)
+            resp_part, was_cancelled = await _execute_tool_and_yield(
+                fc, web_sources_accumulated, search_count_ref, collect, _cancelled,
+            )
+            if was_cancelled:
+                return
+            for ev in events:
+                yield ev
+            if resp_part:
+                tool_results.append(resp_part)
 
-        has_tool_calls = False
-        function_calls_to_execute = []
+        contents.append(types.Content(role="user", parts=tool_results))
+        yield AIStreamEvent.thinking("Processing results...")
 
-        for candidate in response.candidates:
-            content = getattr(candidate, "content", None)
-            parts = getattr(content, "parts", None) or []
-            for part in parts:
-                if part.function_call:
-                    has_tool_calls = True
-                    function_calls_to_execute.append(part.function_call)
+    seen_urls = set()
+    unique_sources = []
+    for s in web_sources_accumulated:
+        url = s.get("url", "")
+        if url and url not in seen_urls:
+            seen_urls.add(url)
+            unique_sources.append(s)
+    yield AIStreamEvent.message_done("", tokens, unique_sources)
 
-        if has_tool_calls:
-            contents.append(response.candidates[0].content)
 
-            tool_results = []
-            for fc in function_calls_to_execute:
-                if _cancelled():
-                    break
-                func_name = fc.name
-                func_args = dict(fc.args) if fc.args else {}
-
-                if func_name == "web_search":
-                    if _cancelled():
-                        break
-                    query = func_args.get("query", "")
-                    max_r = min(int(func_args.get("max_results", 12)), 15)
-                    search_count += 1
-                    yield AIStreamEvent.searching(query, search_count)
-
-                    result = await asyncio.to_thread(web_search, query, max_r)
-                    sources = result.get("results", [])
-                    web_sources_accumulated.extend(sources[:5])
-                    yield AIStreamEvent.search_results(sources)
-                    yield AIStreamEvent.tool_call({"name": func_name, "args": func_args, "result": result})
-
-                    tool_results.append(
-                        types.Part(
-                            function_response=types.FunctionResponse(
-                                name=func_name,
-                                response={"result": result},
-                            )
-                        )
-                    )
-
-                elif func_name == "fetch_webpage":
-                    if _cancelled():
-                        break
-                    url = func_args.get("url", "")
-                    yield AIStreamEvent.fetching_url(url)
-
-                    result = await asyncio.to_thread(fetch_webpage, url)
-                    if not any(s.get("url") == url for s in web_sources_accumulated):
-                        web_sources_accumulated.append({
-                            "url": url,
-                            "title": result.get("content", "")[:80].strip(),
-                            "snippet": "",
-                        })
-                    yield AIStreamEvent.tool_call({"name": func_name, "args": func_args, "result": result})
-
-                    tool_results.append(
-                        types.Part(
-                            function_response=types.FunctionResponse(
-                                name=func_name,
-                                response={"result": result},
-                            )
-                        )
-                    )
-
-                elif func_name == "calculate":
-                    if _cancelled():
-                        break
-                    expression = func_args.get("expression", "")
-                    yield AIStreamEvent.calculating(expression)
-
-                    result = await asyncio.to_thread(calculate, expression)
-                    yield AIStreamEvent.tool_call({"name": func_name, "args": func_args, "result": result})
-                    tool_results.append(
-                        types.Part(
-                            function_response=types.FunctionResponse(
-                                name=func_name,
-                                response={"result": result},
-                            )
-                        )
-                    )
-
-                elif func_name == "search_catalog":
-                    if _cancelled():
-                        break
-                    query = func_args.get("query", "").strip()
-                    yield AIStreamEvent.thinking(f"Searching catalog for '{query}'...")
-
-                    result = await search_catalog(query)
-                    yield AIStreamEvent.tool_call({"name": func_name, "args": func_args, "result": result})
-                    tool_results.append(
-                        types.Part(
-                            function_response=types.FunctionResponse(
-                                name=func_name,
-                                response={"result": result},
-                            )
-                        )
-                    )
-
-                elif func_name == "get_product_catalog":
-                    if _cancelled():
-                        break
-                    yield AIStreamEvent.thinking("Loading product catalog from database...")
-
-                    catalog_text = await fetch_product_catalog()
-                    yield AIStreamEvent.tool_call({"name": func_name, "args": func_args, "result": {"catalog_preview": catalog_text[:500] + "..." if len(catalog_text) > 500 else catalog_text}})
-                    tool_results.append(
-                        types.Part(
-                            function_response=types.FunctionResponse(
-                                name=func_name,
-                                response={"catalog": catalog_text},
-                            )
-                        )
-                    )
-
-                elif func_name == "get_product_details":
-                    if _cancelled():
-                        break
-                    pids = func_args.get("product_ids") or []
-                    models = func_args.get("model_numbers") or []
-                    label = ", ".join(str(m) for m in models) if models else f"{len(pids)} product(s)"
-                    yield AIStreamEvent.thinking(f"Fetching full specs for {label}...")
-
-                    result = await get_product_details(product_ids=pids, model_numbers=models)
-                    yield AIStreamEvent.tool_call({"name": func_name, "args": func_args, "result": result})
-                    tool_results.append(
-                        types.Part(
-                            function_response=types.FunctionResponse(
-                                name=func_name,
-                                response={"result": result},
-                            )
-                        )
-                    )
-
-                elif func_name == "create_product":
-                    if _cancelled():
-                        break
-                    name = func_args.get("name", "").strip()
-                    model_number = func_args.get("model_number", "").strip()
-                    category_id = func_args.get("category_id")
-                    base_price = int(func_args.get("base_price", 0))
-                    yield AIStreamEvent.thinking(f"Creating product {model_number} {name}...")
-                    created = await create_product_in_db(
-                        name=name,
-                        model_number=model_number,
-                        category_id=category_id,
-                        base_price=base_price,
-                        short_description=func_args.get("short_description"),
-                        full_description=func_args.get("full_description"),
-                        family_id=func_args.get("family_id"),
-                        subcategory_id=func_args.get("subcategory_id"),
-                        stock_status=func_args.get("stock_status"),
-                        msrp=func_args.get("msrp"),
-                    )
-                    yield AIStreamEvent.tool_call({"name": func_name, "args": func_args, "result": created})
-                    tool_results.append(
-                        types.Part(
-                            function_response=types.FunctionResponse(
-                                name=func_name,
-                                response={"result": created},
-                            )
-                        )
-                    )
-
-                elif func_name == "propose_edit":
-                    entity_type = func_args.get("entity_type", "")
-                    entity_id = func_args.get("entity_id")
-                    entity_name = func_args.get("entity_name", "")
-                    changes = func_args.get("changes", {})
-                    reason = func_args.get("reason", "")
-                    if entity_type and entity_id is not None and changes:
-                        edit_payload = {
-                            "entity_type": entity_type,
-                            "entity_id": int(entity_id),
-                            "entity_name": str(entity_name),
-                            "changes": changes,
-                            "reason": reason,
-                        }
-                        yield AIStreamEvent.suggested_edit(edit_payload)
-                    yield AIStreamEvent.tool_call({"name": func_name, "args": func_args, "result": {"status": "suggested", "message": "Edit suggested for admin approval"}})
-                    tool_results.append(
-                        types.Part(
-                            function_response=types.FunctionResponse(
-                                name=func_name,
-                                response={"status": "suggested", "message": "Edit suggested for admin approval"},
-                            )
-                        )
-                    )
-
-                else:
-                    err_result = {"error": f"Unknown tool: {func_name}"}
-                    yield AIStreamEvent.tool_call({"name": func_name, "args": func_args, "result": err_result})
-                    tool_results.append(
-                        types.Part(
-                            function_response=types.FunctionResponse(
-                                name=func_name,
-                                response=err_result,
-                            )
-                        )
-                    )
-
-            contents.append(types.Content(role="user", parts=tool_results))
-            if _cancelled():
-                break
-            yield AIStreamEvent.thinking("Processing results...")
-            continue
-
-        break
-
-    try:
-        final_text_parts = []
-        candidates = response.candidates or []
-        for candidate in candidates:
-            content = getattr(candidate, "content", None)
-            parts = getattr(content, "parts", None) or []
-            for part in parts:
-                if part.text:
-                    final_text_parts.append(part.text)
-
-        full_text = "".join(final_text_parts)
-
-        chunk_size = 80
-        for i in range(0, len(full_text), chunk_size):
-            if _cancelled():
-                break
-            chunk = full_text[i:i + chunk_size]
-            yield AIStreamEvent.text_chunk(chunk)
-            await asyncio.sleep(0.002)
-
-        # Get token usage
-        usage = getattr(response, "usage_metadata", None)
-        tokens = 0
-        if usage:
-            tokens = getattr(usage, "total_token_count", 0) or 0
-
-        # Deduplicate sources
-        seen_urls = set()
-        unique_sources = []
-        for s in web_sources_accumulated:
-            url = s.get("url", "")
-            if url and url not in seen_urls:
-                seen_urls.add(url)
-                unique_sources.append(s)
-
-        yield AIStreamEvent.message_done("", tokens, unique_sources)
-
-    except Exception as e:
-        yield AIStreamEvent.error(f"Streaming error: {str(e)}")
 
 
 async def generate_chat_title(first_message: str) -> str:
@@ -1177,6 +1231,81 @@ async def get_eaglechair_context(db: AsyncSession) -> str:
         return ""
 
 
+async def fetch_valid_reference_ids() -> str:
+    """
+    Fetch all valid category, subcategory, family, finish, upholstery, and color IDs
+    from the live database. Used to inject into system prompt so the AI only uses
+    IDs that actually exist when creating/editing products.
+    """
+    try:
+        async with AsyncSessionLocal() as db:
+            lines = ["## Valid Reference IDs (use ONLY these when creating or editing products)"]
+            lines.append("NEVER use category_id, subcategory_id, family_id, finish_id, upholstery_id, or color_id unless it appears below. Edits with invalid IDs will fail.")
+            lines.append("")
+
+            r = await db.execute(text(
+                "SELECT id, name, slug FROM categories WHERE is_active = true ORDER BY display_order, name"
+            ))
+            cats = r.fetchall()
+            lines.append("### Categories (category_id)")
+            for c in cats:
+                lines.append(f"- {c.name}: id={c.id}")
+            lines.append("")
+
+            r = await db.execute(text(
+                "SELECT id, name, category_id FROM product_subcategories WHERE is_active = true ORDER BY display_order, name"
+            ))
+            subcats = r.fetchall()
+            cat_map = {c.id: c.name for c in cats}
+            if subcats:
+                lines.append("### Subcategories (subcategory_id)")
+                for s in subcats:
+                    lines.append(f"- {s.name}: id={s.id} (category: {cat_map.get(s.category_id, '?')})")
+                lines.append("")
+
+            r = await db.execute(text(
+                "SELECT id, name, category_id FROM product_families WHERE is_active = true ORDER BY display_order, name"
+            ))
+            families = r.fetchall()
+            if families:
+                lines.append("### Product Families (family_id)")
+                for f in families:
+                    lines.append(f"- {f.name}: id={f.id} (category: {cat_map.get(f.category_id, '?')})")
+                lines.append("")
+
+            r = await db.execute(text(
+                "SELECT id, name, finish_code FROM finishes WHERE is_active = true ORDER BY display_order, name"
+            ))
+            finishes = r.fetchall()
+            lines.append("### Finishes (finish_id)")
+            for f in finishes:
+                lines.append(f"- {f.name}: id={f.id}")
+            lines.append("")
+
+            r = await db.execute(text(
+                "SELECT id, name, material_code FROM upholsteries WHERE is_active = true ORDER BY display_order, name"
+            ))
+            upholsteries = r.fetchall()
+            lines.append("### Upholsteries (upholstery_id)")
+            for u in upholsteries:
+                lines.append(f"- {u.name}: id={u.id}")
+            lines.append("")
+
+            r = await db.execute(text(
+                "SELECT id, name, color_code FROM colors WHERE is_active = true ORDER BY display_order, name"
+            ))
+            colors = r.fetchall()
+            lines.append("### Colors (color_id)")
+            for c in colors:
+                lines.append(f"- {c.name}: id={c.id}")
+            lines.append("")
+
+            return "\n".join(lines)
+    except Exception as e:
+        logger.error(f"Failed to fetch valid reference IDs: {e}")
+        return ""
+
+
 async def fetch_product_catalog() -> str:
     """
     Fetch the full EagleChair product catalog from the database and format as markdown.
@@ -1368,21 +1497,186 @@ async def fetch_product_catalog() -> str:
         return f"Error fetching product catalog: {str(e)}"
 
 
+async def search_training_data(query: str, max_results: int = 20, fuzzy_threshold: int = 50) -> dict:
+    """
+    Search ALL training documents using fuzzy matching over key_facts, structured_data, and summary.
+    Use when the user asks about models, products, pricing, or any info that might be in training docs.
+    """
+    if not query or not query.strip():
+        return {"error": "Empty search query", "results": [], "count": 0}
+    q = query.strip().lower()
+    scored: list[dict] = []
+    try:
+        async with AsyncSessionLocal() as db:
+            result = await db.execute(
+                select(AITrainingDocument)
+                .where(
+                    AITrainingDocument.is_active == True,
+                    AITrainingDocument.status == TrainingStatus.COMPLETED,
+                )
+                .order_by(AITrainingDocument.created_at.desc())
+            )
+            docs = result.scalars().all()
+        for doc in docs:
+            matched_facts: list[str] = []
+            matched_chunks: list[str] = []
+            best_score = 0
+            key_facts = doc.key_facts or []
+            for fact in key_facts:
+                if not isinstance(fact, str):
+                    fact = str(fact)
+                score = fuzz.partial_ratio(q, fact.lower())
+                if score >= fuzzy_threshold:
+                    matched_facts.append(fact[:300])
+                    best_score = max(best_score, score)
+            summary = (doc.summary or "").strip()
+            if summary:
+                score = fuzz.partial_ratio(q, summary.lower())
+                if score >= fuzzy_threshold:
+                    matched_chunks.append(f"[Summary] {summary[:400]}")
+                    best_score = max(best_score, score)
+            structured = (doc.structured_data or "").strip()
+            if structured:
+                for line in structured.split("\n"):
+                    if len(line) > 20 and fuzz.partial_ratio(q, line.lower()) >= fuzzy_threshold:
+                        matched_chunks.append(line[:400])
+                        best_score = max(best_score, fuzz.partial_ratio(q, line.lower()))
+            if best_score > 0:
+                scored.append({
+                    "doc_name": doc.name,
+                    "matched_facts": matched_facts[:10],
+                    "matched_chunks": matched_chunks[:5],
+                    "score": best_score,
+                })
+        scored.sort(key=lambda x: x["score"], reverse=True)
+        results = scored[:max_results]
+        return {"query": query, "results": results, "count": len(results)}
+    except Exception as e:
+        logger.error(f"Training data search failed: {e}")
+        return {"error": str(e), "query": query, "results": [], "count": 0}
+
+
+_MODEL_PATTERN = re.compile(r"\b(\d{3,5}[A-Za-z]*)\b")
+
+
+def _extract_model_numbers_from_text(text: str) -> set[str]:
+    if not text:
+        return set()
+    found = set()
+    for m in _MODEL_PATTERN.findall(text):
+        found.add(m.upper())
+    return found
+
+
+async def get_training_vs_catalog_overview() -> dict:
+    """
+    Compare model numbers in training data vs live catalog.
+    Returns in_training_only, in_catalog_only, in_both for easy comparison.
+    """
+    training_models: set[str] = set()
+    try:
+        async with AsyncSessionLocal() as db:
+            result = await db.execute(
+                select(AITrainingDocument)
+                .where(
+                    AITrainingDocument.is_active == True,
+                    AITrainingDocument.status == TrainingStatus.COMPLETED,
+                )
+            )
+            docs = result.scalars().all()
+        for doc in docs:
+            for fact in (doc.key_facts or []):
+                training_models.update(_extract_model_numbers_from_text(str(fact)))
+            training_models.update(_extract_model_numbers_from_text(doc.structured_data or ""))
+            training_models.update(_extract_model_numbers_from_text(doc.summary or ""))
+    except Exception as e:
+        logger.error(f"Failed to extract training models: {e}")
+        return {"error": str(e), "in_training_only": [], "in_catalog_only": [], "in_both": []}
+    catalog_models: set[str] = set()
+    try:
+        async with AsyncSessionLocal() as db:
+            r = await db.execute(
+                text("SELECT model_number, model_suffix FROM chairs WHERE is_active = true")
+            )
+            for row in r.fetchall():
+                full = f"{row.model_number}{row.model_suffix or ''}"
+                catalog_models.add(full.upper())
+                catalog_models.add((row.model_number or "").upper())
+    except Exception as e:
+        logger.error(f"Failed to fetch catalog models: {e}")
+        return {"error": str(e), "in_training_only": [], "in_catalog_only": [], "in_both": []}
+    in_both = sorted(training_models & catalog_models)
+    in_training_only = sorted(training_models - catalog_models)
+    in_catalog_only = sorted(catalog_models - training_models)
+    return {
+        "in_training_only": in_training_only[:100],
+        "in_catalog_only": in_catalog_only[:100],
+        "in_both": in_both[:100],
+        "count_training_only": len(in_training_only),
+        "count_catalog_only": len(in_catalog_only),
+        "count_both": len(in_both),
+    }
+
+
+def _is_broad_catalog_query(query: str) -> bool:
+    q = (query or "").strip().lower()
+    broad = ("all", "*", "everything", "list all", "show all", "full catalog", "entire catalog", "")
+    return q in broad or q in ("all models", "all products")
+
+
 async def search_catalog(query: str, max_results: int = 50) -> dict:
     """
     Search the Eagle Chair catalog for a term. Searches families, products, variations,
     finishes, upholsteries, colors, categories. Case-insensitive partial match.
+    For broad queries (all, *, everything), returns full catalog overview.
     """
-    if not query or not query.strip():
-        return {"error": "Empty search query", "families": [], "products": [], "variations": [], "finishes": [], "upholsteries": [], "colors": []}
-    q = query.strip()
+    q = (query or "").strip()
+    if _is_broad_catalog_query(q):
+        try:
+            async with AsyncSessionLocal() as db:
+                families_r = await db.execute(text("""
+                    SELECT pf.id, pf.name, pf.slug, c.name as category_name,
+                           (SELECT COUNT(*) FROM chairs ch WHERE ch.family_id = pf.id AND ch.is_active) as product_count
+                    FROM product_families pf
+                    LEFT JOIN categories c ON pf.category_id = c.id
+                    WHERE pf.is_active = true ORDER BY pf.display_order
+                """))
+                families_overview = []
+                for row in families_r.fetchall():
+                    families_overview.append({
+                        "id": row.id, "name": row.name, "slug": row.slug,
+                        "category": row.category_name, "product_count": row.product_count or 0,
+                    })
+                models_r = await db.execute(text("""
+                    SELECT model_number, model_suffix, name, base_price FROM chairs
+                    WHERE is_active = true ORDER BY display_order, model_number
+                """))
+                all_models = []
+                for row in models_r.fetchall():
+                    full_model = f"{row.model_number}{row.model_suffix or ''}"
+                    all_models.append({
+                        "model": full_model, "name": row.name,
+                        "price": f"${row.base_price / 100:.2f}" if row.base_price else None,
+                    })
+                return {
+                    "query": query,
+                    "broad_overview": True,
+                    "families": families_overview,
+                    "all_models": all_models[:max_results * 2],
+                    "total_products": len(all_models),
+                    "products": [], "variations": [], "finishes": [], "upholsteries": [], "colors": [], "categories": [],
+                }
+        except Exception as e:
+            logger.error(f"Broad catalog fetch failed: {e}")
+            return {"error": str(e), "query": query, "families": [], "products": [], "variations": [], "finishes": [], "upholsteries": [], "colors": [], "categories": []}
     term = f"%{q}%"
     result = {"query": query, "families": [], "products": [], "variations": [], "finishes": [], "upholsteries": [], "colors": [], "categories": []}
     try:
         async with AsyncSessionLocal() as db:
             r = await db.execute(
                 text("""
-                    SELECT pf.id, pf.name, pf.slug, pf.overview_text, pf.is_featured,
+                    SELECT pf.id, pf.name, pf.slug, pf.category_id, pf.subcategory_id,
+                           pf.overview_text, pf.is_featured,
                            pf.family_image, pf.banner_image_url,
                            c.name as category_name, sc.name as subcategory_name
                     FROM product_families pf
@@ -1399,6 +1693,7 @@ async def search_catalog(query: str, max_results: int = 50) -> dict:
             for row in r.fetchall():
                 result["families"].append({
                     "id": row.id, "name": row.name, "slug": row.slug,
+                    "category_id": row.category_id, "subcategory_id": row.subcategory_id,
                     "category": row.category_name, "subcategory": row.subcategory_name,
                     "featured": row.is_featured, "overview": (row.overview_text or "")[:200],
                     "family_image": row.family_image,
@@ -1408,6 +1703,7 @@ async def search_catalog(query: str, max_results: int = 50) -> dict:
             r = await db.execute(
                 text("""
                     SELECT ch.id, ch.model_number, ch.model_suffix, ch.name, ch.base_price, ch.msrp,
+                           ch.category_id, ch.subcategory_id, ch.family_id,
                            pf.name as family_name, c.name as category_name
                     FROM chairs ch
                     LEFT JOIN product_families pf ON ch.family_id = pf.id
@@ -1424,6 +1720,7 @@ async def search_catalog(query: str, max_results: int = 50) -> dict:
                 result["products"].append({
                     "id": row.id, "model": row.model_number, "suffix": row.model_suffix or "",
                     "name": row.name, "family": row.family_name, "category": row.category_name,
+                    "category_id": row.category_id, "subcategory_id": row.subcategory_id, "family_id": row.family_id,
                     "price": f"${row.base_price / 100:.2f}" if row.base_price else None,
                     "msrp": f"${row.msrp / 100:.2f}" if row.msrp else None,
                 })
@@ -1633,6 +1930,7 @@ async def get_product_details(product_ids: list | None = None, model_numbers: li
                     text("""
                         SELECT ch.id, ch.model_number, ch.model_suffix, ch.suffix_description, ch.name, ch.slug as product_slug,
                                ch.short_description, ch.full_description,
+                               ch.category_id, ch.subcategory_id, ch.family_id,
                                ch.base_price, ch.msrp, ch.width, ch.depth, ch.height, ch.seat_height,
                                ch.weight, ch.upholstery_amount, ch.frame_material, ch.features,
                                ch.stock_status, ch.is_featured, ch.is_new, ch.is_outdoor_suitable,
@@ -1702,6 +2000,9 @@ async def get_product_details(product_ids: list | None = None, model_numbers: li
                     "name": row.name,
                     "short_description": row.short_description,
                     "full_description": row.full_description,
+                    "category_id": row.category_id,
+                    "subcategory_id": row.subcategory_id,
+                    "family_id": row.family_id,
                     "family": row.family_name,
                     "family_slug": row.family_slug,
                     "product_url": product_url,

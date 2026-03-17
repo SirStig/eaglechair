@@ -60,6 +60,7 @@ from backend.services.ai_service import (
     AIStreamEvent,
     build_system_prompt,
     extract_memory_from_conversation,
+    fetch_valid_reference_ids,
     generate_chat_title,
     get_eaglechair_context,
     process_training_document,
@@ -200,6 +201,7 @@ def serialize_message(msg: AIChatMessage) -> dict:
         "tool_calls": msg.tool_calls or [],
         "file_ids": msg.file_ids or [],
         "suggested_edits": getattr(msg, "suggested_edits", None) or [],
+        "content_blocks": getattr(msg, "content_blocks", None),
     }
 
 
@@ -486,6 +488,8 @@ async def apply_edit(
         raise HTTPException(status_code=400, detail="entity_type, entity_id, and changes required")
 
     if entity_type == "product":
+        from sqlalchemy.exc import IntegrityError
+
         from backend.services.admin_service import AdminService
         from backend.core.exceptions import ResourceNotFoundError, ValidationError
 
@@ -502,6 +506,11 @@ async def apply_edit(
                 raise HTTPException(status_code=404, detail="Product not found")
             except ValidationError as e:
                 raise HTTPException(status_code=400, detail=str(e))
+            except IntegrityError as e:
+                raise HTTPException(
+                    status_code=400,
+                    detail="Invalid reference: one or more IDs (category, family, subcategory, etc.) do not exist. Please verify the suggested edit.",
+                )
 
     raise HTTPException(status_code=400, detail=f"Unsupported entity_type: {entity_type}")
 
@@ -907,13 +916,24 @@ async def websocket_chat(websocket: WebSocket, session_id: str):
                 memory = await load_active_memory(db, admin_id)
                 training = await load_training_summaries(db)
                 db_context = await get_eaglechair_context(db)
-                system_prompt = build_system_prompt(memory, training, mode=mode, model=model)
+                valid_ids = await fetch_valid_reference_ids() if mode in ("edit", "agent") else None
+                system_prompt = build_system_prompt(
+                    memory, training, mode=mode, model=model, valid_reference_ids=valid_ids
+                )
                 if db_context:
                     system_prompt += f"\n\n## Live Data\n{db_context}"
 
                 await db.commit()
 
-            stream_state = {"full_response": "", "web_sources": [], "suggested_edits": [], "tool_calls": [], "tokens_used": 0, "error_sent": False}
+            stream_state = {
+                "full_response": "",
+                "web_sources": [],
+                "suggested_edits": [],
+                "tool_calls": [],
+                "content_blocks": [],
+                "tokens_used": 0,
+                "error_sent": False,
+            }
             cancelled_event = asyncio.Event()
 
             async def consume_stream():
@@ -921,6 +941,11 @@ async def websocket_chat(websocket: WebSocket, session_id: str):
                     async for event in stream_ai_response(history, system_prompt, mode=mode, model=model, cancelled=cancelled_event):
                         if event["type"] == "text_chunk":
                             stream_state["full_response"] += event["data"]["content"]
+                            blocks = stream_state["content_blocks"]
+                            if blocks and blocks[-1].get("type") == "text":
+                                blocks[-1]["content"] += event["data"]["content"]
+                            else:
+                                blocks.append({"type": "text", "content": event["data"]["content"]})
                             await websocket.send_json(event)
                         elif event["type"] == "message_done":
                             stream_state["web_sources"] = event["data"].get("web_sources", [])
@@ -929,11 +954,24 @@ async def websocket_chat(websocket: WebSocket, session_id: str):
                             edit = event["data"].get("edit", {})
                             if edit:
                                 stream_state["suggested_edits"].append(edit)
+                                stream_state["content_blocks"].append({"type": "suggested_edit", "data": edit})
+                            await websocket.send_json(event)
+                        elif event["type"] == "tool_call_started":
+                            d = event["data"] or {}
+                            stream_state["content_blocks"].append({
+                                "type": "tool_call_in_progress",
+                                "data": {"name": d.get("name"), "label": d.get("label"), "args": d.get("args")},
+                            })
                             await websocket.send_json(event)
                         elif event["type"] == "tool_call":
                             tool_call = event["data"].get("tool_call", {})
                             if tool_call:
                                 stream_state["tool_calls"].append(tool_call)
+                                blocks = stream_state["content_blocks"]
+                                if blocks and blocks[-1].get("type") == "tool_call_in_progress":
+                                    blocks[-1] = {"type": "tool_call", "data": tool_call}
+                                else:
+                                    blocks.append({"type": "tool_call", "data": tool_call})
                             await websocket.send_json(event)
                         elif event["type"] == "error":
                             stream_state["error_sent"] = True
@@ -990,6 +1028,7 @@ async def websocket_chat(websocket: WebSocket, session_id: str):
             web_sources = stream_state["web_sources"]
             suggested_edits = stream_state["suggested_edits"]
             tool_calls = stream_state["tool_calls"]
+            content_blocks = stream_state.get("content_blocks") or []
             tokens_used = stream_state["tokens_used"]
             error_sent = stream_state.get("error_sent", False)
             is_first_message = (session.message_count or 0) <= 1
@@ -1008,6 +1047,7 @@ async def websocket_chat(websocket: WebSocket, session_id: str):
                             web_sources=web_sources,
                             suggested_edits=suggested_edits,
                             tool_calls=tool_calls,
+                            content_blocks=content_blocks if content_blocks else None,
                         )
                         db.add(asst_msg)
 

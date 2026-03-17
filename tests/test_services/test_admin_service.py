@@ -7,6 +7,7 @@ Tests all admin service functionality
 import pytest
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from backend.core.exceptions import ValidationError
 from backend.services.admin_service import AdminService
 from backend.models.company import Company, CompanyStatus, AdminUser, AdminRole
 from backend.models.quote import Quote, QuoteStatus
@@ -258,6 +259,25 @@ class TestAdminService:
         assert updated_quote.quoted_price == 9500
         assert updated_quote.quoted_lead_time == "4-6 weeks"
     
+    async def test_update_product_rejects_invalid_category_id(self, db_session: AsyncSession):
+        category = await create_category(db_session, name="Test Category", slug="test-category")
+        product = await create_chair(
+            db_session,
+            category_id=category.id,
+            name="Test Chair",
+            model_number="TC-001",
+            base_price=10000,
+        )
+        await db_session.commit()
+        await db_session.refresh(product)
+
+        with pytest.raises(ValidationError, match="Category ID 99999 not found"):
+            await AdminService.update_product(
+                db_session,
+                product_id=product.id,
+                update_data={"category_id": 99999},
+            )
+
     async def test_create_admin_user(self, db_session: AsyncSession):
         """Test creating a new admin user."""
         # Note: AdminService doesn't have create_admin_user method

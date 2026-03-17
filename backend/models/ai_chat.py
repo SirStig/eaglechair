@@ -110,6 +110,8 @@ class AIChatMessage(Base):
     # File attachments
     file_ids = Column(JSON, default=list)  # List of AIUploadedFile IDs
 
+    content_blocks = Column(JSON, nullable=True)  # [{type, content/data}] for inline tool/edit placement
+
     # Relationships
     session = relationship("AIChatSession", back_populates="messages")
 

@@ -4,6 +4,7 @@ import Button from '../../ui/Button';
 import { useToast } from '../../../contexts/ToastContext';
 import virtualCatalogService from '../../../services/virtualCatalogService';
 import { resolveImageUrl } from '../../../utils/apiHelpers';
+import { slugify } from '../../../utils/slugify';
 import { 
   FileText, 
   DollarSign, 
@@ -141,10 +142,11 @@ const VirtualCatalogProductEditor = ({ productId, onBack, onSave }) => {
   };
 
   const handleInputChange = (field, value) => {
-    setFormData(prev => ({
-      ...prev,
-      [field]: value
-    }));
+    setFormData(prev => {
+      const next = { ...prev, [field]: value };
+      if (field === 'name') next.slug = slugify(value);
+      return next;
+    });
   };
 
   const handleArrayAdd = (field, newItem) => {

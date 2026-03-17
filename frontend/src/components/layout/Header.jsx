@@ -332,7 +332,7 @@ const Header = ({ isMobileMenuOpen, setIsMobileMenuOpen }) => {
                     animate={{ opacity: 1, y: 0 }}
                     exit={{ opacity: 0, y: -10 }}
                     transition={{ duration: 0.2 }}
-                    className="absolute top-full mt-2 w-full bg-dark-600 border border-dark-500 rounded-lg shadow-xl max-h-96 overflow-y-auto z-50"
+                    className="absolute top-full mt-2 w-full bg-white border border-cream-200 rounded-lg shadow-xl max-h-96 overflow-y-auto z-50 [&_button]:!text-slate-800"
                   >
                     <div className="py-2">
                       {searchResults.map((product, idx) => (
@@ -340,9 +340,9 @@ const Header = ({ isMobileMenuOpen, setIsMobileMenuOpen }) => {
                           key={product.id}
                           type="button"
                           onClick={() => handleResultClick(product.slug)}
-                          className="w-full px-4 py-3 flex items-center gap-3 hover:bg-dark-700 transition-colors text-left"
+                          className="w-full px-4 py-3 flex items-center gap-3 hover:bg-cream-100 transition-colors text-left"
                         >
-                          <span className="w-10 shrink-0 aspect-[4/5] overflow-hidden rounded bg-dark-700">
+                            <span className="w-10 shrink-0 aspect-[4/5] overflow-hidden rounded bg-cream-100">
                             <img
                               src={getProductImage(product)}
                               alt={product.name}
@@ -356,10 +356,10 @@ const Header = ({ isMobileMenuOpen, setIsMobileMenuOpen }) => {
                             />
                           </span>
                           <div className="flex-1 min-w-0">
-                            <p className="text-sm font-medium text-dark-50 truncate">
+                            <p className="text-sm font-medium text-slate-800 truncate">
                               {product.name}
                             </p>
-                            <p className="text-xs text-dark-200">
+                            <p className="text-xs text-slate-600">
                               {product.category || 'Product'}
                             </p>
                           </div>
@@ -368,7 +368,7 @@ const Header = ({ isMobileMenuOpen, setIsMobileMenuOpen }) => {
                       <button
                         type="button"
                         onClick={(event) => handleSearch(event)}
-                        className="w-full px-4 py-2 text-sm text-primary-500 hover:bg-dark-700 transition-colors text-center border-t border-dark-500"
+                        className="w-full px-4 py-2 text-sm !text-primary-700 hover:bg-cream-100 hover:!text-primary-800 transition-colors text-center border-t border-cream-200 font-medium"
                       >
                         View all results →
                       </button>

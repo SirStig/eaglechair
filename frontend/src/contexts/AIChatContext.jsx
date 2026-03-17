@@ -201,30 +201,41 @@ export function AIChatProvider({ children }) {
         setStreamingState({ type: 'calculating', expression: data?.expression });
         break;
 
-      case 'text_chunk':
+      case 'text_chunk': {
+        const chunk = data?.content || '';
         setMessages(prev => {
           const last = prev[prev.length - 1];
           if (last?.isStreaming) {
+            const blocks = last.content_blocks || [];
+            const newBlocks = [...blocks];
+            if (newBlocks.length > 0 && newBlocks[newBlocks.length - 1].type === 'text') {
+              newBlocks[newBlocks.length - 1] = { ...newBlocks[newBlocks.length - 1], content: (newBlocks[newBlocks.length - 1].content || '') + chunk };
+            } else {
+              newBlocks.push({ type: 'text', content: chunk });
+            }
             return prev.slice(0, -1).concat({
               ...last,
-              streamingContent: (last.streamingContent || '') + (data?.content || ''),
+              streamingContent: (last.streamingContent || '') + chunk,
+              content_blocks: newBlocks,
             });
           }
           const newMsg = {
             id: currentStreamIdRef.current || `stream-${Date.now()}`,
             role: 'assistant',
             content: '',
-            streamingContent: data?.content || '',
+            streamingContent: chunk,
             isStreaming: true,
             created_at: new Date().toISOString(),
             web_sources: [],
             suggested_edits: [],
             tool_calls: [],
+            content_blocks: [{ type: 'text', content: chunk }],
           };
           return [...prev, newMsg];
         });
         setStreamingState(null);
         break;
+      }
 
       case 'suggested_edit': {
         const edit = data?.edit;
@@ -232,14 +243,54 @@ export function AIChatProvider({ children }) {
           setMessages(prev => {
             const last = prev[prev.length - 1];
             if (last?.isStreaming) {
+              const blocks = last.content_blocks || [];
               return prev.slice(0, -1).concat({
                 ...last,
                 suggested_edits: [...(last.suggested_edits || []), edit],
+                content_blocks: [...blocks, { type: 'suggested_edit', data: edit }],
               });
             }
             return prev;
           });
         }
+        break;
+      }
+
+      case 'tool_call_started': {
+        const d = data || {};
+        setStreamingState({ type: 'thinking', message: d.label || 'Working...' });
+        setMessages(prev => {
+          const last = prev[prev.length - 1];
+          if (last?.isStreaming) {
+            const blocks = last.content_blocks || [];
+            return prev.slice(0, -1).concat({
+              ...last,
+              content_blocks: [...blocks, {
+                type: 'tool_call_in_progress',
+                data: { name: d.name, label: d.label, args: d.args },
+              }],
+            });
+          }
+          if (last?.role === 'user') {
+            const newMsg = {
+              id: currentStreamIdRef.current || `stream-${Date.now()}`,
+              role: 'assistant',
+              content: '',
+              streamingContent: '',
+              isStreaming: true,
+              created_at: new Date().toISOString(),
+              web_sources: [],
+              suggested_edits: [],
+              tool_calls: [],
+              content_blocks: [{
+                type: 'tool_call_in_progress',
+                data: { name: d.name, label: d.label, args: d.args },
+              }],
+            };
+            return [...prev, newMsg];
+          }
+          return prev;
+        });
         break;
       }
 
@@ -249,9 +300,18 @@ export function AIChatProvider({ children }) {
           setMessages(prev => {
             const last = prev[prev.length - 1];
             if (last?.isStreaming) {
+              const blocks = last.content_blocks || [];
+              const newBlocks = [...blocks];
+              const lastIdx = newBlocks.length - 1;
+              if (lastIdx >= 0 && newBlocks[lastIdx]?.type === 'tool_call_in_progress') {
+                newBlocks[lastIdx] = { type: 'tool_call', data: toolCall };
+              } else {
+                newBlocks.push({ type: 'tool_call', data: toolCall });
+              }
               return prev.slice(0, -1).concat({
                 ...last,
                 tool_calls: [...(last.tool_calls || []), toolCall],
+                content_blocks: newBlocks,
               });
             }
             if (last?.role === 'user') {
@@ -265,6 +325,7 @@ export function AIChatProvider({ children }) {
                 web_sources: [],
                 suggested_edits: [],
                 tool_calls: [toolCall],
+                content_blocks: [{ type: 'tool_call', data: toolCall }],
               };
               return [...prev, newMsg];
             }
@@ -283,7 +344,6 @@ export function AIChatProvider({ children }) {
           if (last?.isStreaming) {
             return prev.slice(0, -1).concat({
               ...last,
-              id: msgId || last.id,
               content: last.streamingContent || '',
               streamingContent: '',
               isStreaming: false,
@@ -291,6 +351,8 @@ export function AIChatProvider({ children }) {
               web_sources: sources,
               suggested_edits: last.suggested_edits || [],
               tool_calls: last.tool_calls || [],
+              content_blocks: last.content_blocks || [],
+              ...(msgId && { serverId: msgId }),
             });
           }
           return prev;
@@ -529,11 +591,13 @@ export function AIChatProvider({ children }) {
 
   const redoMessage = useCallback(async (messageId) => {
     let userMsgToResend = null;
+    let idToDelete = messageId;
     setMessages(prev => {
-      const idx = prev.findIndex(m => m.id === messageId);
+      const idx = prev.findIndex(m => m.id === messageId || m.serverId === messageId);
       if (idx < 0) return prev;
       const msg = prev[idx];
       if (msg.role !== 'assistant' || msg.isStreaming) return prev;
+      idToDelete = msg.serverId || msg.id;
       const userIdx = prev.findLastIndex((m, i) => i < idx && m.role === 'user');
       if (userIdx < 0) return prev;
       userMsgToResend = prev[userIdx];
@@ -541,7 +605,7 @@ export function AIChatProvider({ children }) {
     });
     if (userMsgToResend && currentSessionId) {
       try {
-        await deleteChatMessage(currentSessionId, messageId);
+        await deleteChatMessage(currentSessionId, idToDelete);
       } catch (err) {
         if (err?.message?.includes('404') || err?.message?.includes('not found')) {
         } else {
@@ -554,11 +618,13 @@ export function AIChatProvider({ children }) {
 
   const retryMessage = useCallback(async (messageId) => {
     let userMsgToResend = null;
+    let idToDelete = messageId;
     setMessages(prev => {
-      const idx = prev.findIndex(m => m.id === messageId);
+      const idx = prev.findIndex(m => m.id === messageId || m.serverId === messageId);
       if (idx < 0) return prev;
       const msg = prev[idx];
       if (msg.role !== 'assistant' || !msg.isError) return prev;
+      idToDelete = msg.serverId || msg.id;
       const userIdx = prev.findLastIndex((m, i) => i < idx && m.role === 'user');
       if (userIdx < 0) return prev;
       userMsgToResend = prev[userIdx];
@@ -566,7 +632,7 @@ export function AIChatProvider({ children }) {
     });
     if (userMsgToResend && currentSessionId) {
       try {
-        await deleteChatMessage(currentSessionId, messageId);
+        await deleteChatMessage(currentSessionId, idToDelete);
       } catch (err) {
         if (err?.message?.includes('404') || err?.message?.includes('not found')) {
         } else {
@@ -610,6 +676,34 @@ export function AIChatProvider({ children }) {
   const removePendingFile = useCallback((fileId) => {
     setPendingFiles(prev => prev.filter(f => f.file_id !== fileId));
   }, []);
+
+  const updateEditInMessage = useCallback((message, edit, status) => {
+    const match = (e) =>
+      e.entity_id === edit.entity_id && e.entity_type === edit.entity_type;
+    const apply = (e) => (match(e) ? { ...e, status } : e);
+    setMessages(prev =>
+      prev.map(m => {
+        if (m.id !== message.id) return m;
+        return {
+          ...m,
+          suggested_edits: (m.suggested_edits || []).map(apply),
+          content_blocks: (m.content_blocks || []).map(b =>
+            b.type === 'suggested_edit' && b.data
+              ? { ...b, data: apply(b.data) }
+              : b
+          ),
+        };
+      })
+    );
+  }, []);
+
+  const markEditApplied = useCallback((message, edit) => {
+    updateEditInMessage(message, edit, 'applied');
+  }, [updateEditInMessage]);
+
+  const markEditDeclined = useCallback((message, edit) => {
+    updateEditInMessage(message, edit, 'declined');
+  }, [updateEditInMessage]);
 
   // Cleanup on unmount
   useEffect(() => {
@@ -682,6 +776,8 @@ export function AIChatProvider({ children }) {
     retryMessage,
     uploadFile,
     removePendingFile,
+    markEditApplied,
+    markEditDeclined,
     loadSessions,
     setMessages,
     setSessions,

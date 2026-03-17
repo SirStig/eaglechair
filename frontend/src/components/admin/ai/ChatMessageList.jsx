@@ -17,11 +17,14 @@ export default function ChatMessageList({
   compact = false,
   onRedo,
   onRetry,
+  onEditApplied,
+  onEditDeclined,
 }) {
   const px = compact ? 'px-2 sm:px-3' : 'px-3 sm:px-6';
   const pt = compact ? 'pt-2 sm:pt-3' : 'pt-4 sm:pt-6';
   const loadOlderTriggered = useRef(false);
   const scrollContainerRef = useRef(null);
+  const scrollRafRef = useRef(null);
   const [isUserNearBottom, setIsUserNearBottom] = useState(true);
 
   useEffect(() => {
@@ -40,9 +43,20 @@ export default function ChatMessageList({
     setIsUserNearBottom(checkNearBottom());
   }, [checkNearBottom]);
 
+  const lastMsgStreaming = messages[messages.length - 1]?.isStreaming;
   useEffect(() => {
     if (!isUserNearBottom || !messagesEndRef?.current) return;
-    messagesEndRef.current.scrollIntoView({ behavior: 'smooth' });
+    if (scrollRafRef.current) cancelAnimationFrame(scrollRafRef.current);
+    scrollRafRef.current = requestAnimationFrame(() => {
+      scrollRafRef.current = null;
+      messagesEndRef.current?.scrollIntoView({
+        behavior: lastMsgStreaming ? 'auto' : 'smooth',
+        block: 'end',
+      });
+    });
+    return () => {
+      if (scrollRafRef.current) cancelAnimationFrame(scrollRafRef.current);
+    };
   }, [messages, streamingState, isUserNearBottom, messagesEndRef]);
 
   const handleStartReached = useCallback(() => {
@@ -80,7 +94,13 @@ export default function ChatMessageList({
         )}
         {messages.map((msg) => (
           <div key={msg.id} className="[content-visibility:auto]">
-            <AIChatMessage message={msg} onRedo={onRedo} onRetry={onRetry} />
+            <AIChatMessage
+              message={msg}
+              onRedo={onRedo}
+              onRetry={onRetry}
+              onEditApplied={onEditApplied}
+              onEditDeclined={onEditDeclined}
+            />
           </div>
         ))}
         {streamingState && <AIChatStreamStatus state={streamingState} />}
@@ -101,7 +121,13 @@ export default function ChatMessageList({
         startReached={handleStartReached}
         itemContent={(index, msg) => (
           <div className={`${px} ${index === 0 ? pt : 'pt-1'}`}>
-            <AIChatMessage message={msg} onRedo={onRedo} onRetry={onRetry} />
+            <AIChatMessage
+              message={msg}
+              onRedo={onRedo}
+              onRetry={onRetry}
+              onEditApplied={onEditApplied}
+              onEditDeclined={onEditDeclined}
+            />
           </div>
         )}
         components={{

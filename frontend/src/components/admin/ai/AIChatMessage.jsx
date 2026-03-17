@@ -5,7 +5,7 @@
  * Action-style links (Go to, Edit, View) render as buttons.
  */
 
-import { useState } from 'react';
+import { useState, memo } from 'react';
 import { Link } from 'react-router-dom';
 import ReactMarkdown from 'react-markdown';
 import { ExternalLink, ChevronDown, ChevronUp, Paperclip, Globe, ArrowRight, RotateCcw, RefreshCw, Copy, Check, Wrench } from 'lucide-react';
@@ -199,7 +199,7 @@ function MessageActions({ message, onRedo, onRetry, isUser }) {
   );
 }
 
-export default function AIChatMessage({ message, onRedo, onRetry, onEditApplied }) {
+function AIChatMessage({ message, onRedo, onRetry, onEditApplied, onEditDeclined }) {
   const isUser = message.role === 'user';
   const isStreaming = message.isStreaming;
   const rawContent = isStreaming ? message.streamingContent : message.content;
@@ -234,47 +234,100 @@ export default function AIChatMessage({ message, onRedo, onRetry, onEditApplied 
           </div>
         )}
 
-        {/* Content */}
+        {/* Content - block-based (inline tools/edits) or legacy */}
         {isUser ? (
           <p className="whitespace-pre-wrap leading-[1.7] tracking-[0.01em]">{content}</p>
+        ) : message.content_blocks && message.content_blocks.length > 0 ? (
+          <div className="space-y-2">
+            {message.content_blocks.map((block, i) => {
+              if (block.type === 'text') {
+                const text = isStreaming && i === message.content_blocks.length - 1
+                  ? sanitizeStreamingMarkdown(block.content || '')
+                  : (block.content || '');
+                return (
+                  <div key={i} className="[&_h1:first-child]:mt-0 [&_h2:first-child]:mt-0 [&_h3:first-child]:mt-0 [&_p:first-child]:mt-0 [&_ul:first-child]:mt-0 [&_ol:first-child]:mt-0">
+                    <ReactMarkdown components={markdownComponents}>{text}</ReactMarkdown>
+                    {isStreaming && i === message.content_blocks.length - 1 && (
+                      <span className="inline-block w-1.5 h-4 bg-chat-accent animate-pulse ml-0.5 align-middle" />
+                    )}
+                  </div>
+                );
+              }
+              if (block.type === 'tool_call' && block.data) {
+                return (
+                  <div key={i} className="py-1">
+                    <ToolCallCard
+                      name={block.data.name}
+                      label={block.data.label}
+                      args={block.data.args}
+                      result={block.data.result}
+                      status={block.data.status || 'done'}
+                    />
+                  </div>
+                );
+              }
+              if (block.type === 'tool_call_in_progress' && block.data) {
+                return (
+                  <div key={i} className="py-1">
+                    <ToolCallCard
+                      name={block.data.name}
+                      label={block.data.label}
+                      args={block.data.args}
+                      status="in_progress"
+                    />
+                  </div>
+                );
+              }
+              if (block.type === 'suggested_edit' && block.data) {
+                return (
+                  <div key={i} className="py-1">
+                    <SuggestedEditCard
+                      edit={block.data}
+                      onApplied={(e) => onEditApplied?.(message, e)}
+                      onDeclined={(e) => onEditDeclined?.(message, e)}
+                    />
+                  </div>
+                );
+              }
+              return null;
+            })}
+          </div>
         ) : (
           <div className="space-y-1 [&_h1:first-child]:mt-0 [&_h2:first-child]:mt-0 [&_h3:first-child]:mt-0 [&_p:first-child]:mt-0 [&_ul:first-child]:mt-0 [&_ol:first-child]:mt-0">
             <ReactMarkdown components={markdownComponents}>{content}</ReactMarkdown>
             {isStreaming && (
               <span className="inline-block w-1.5 h-4 bg-chat-accent animate-pulse ml-0.5 align-middle" />
             )}
-          </div>
-        )}
-
-        {/* Tool calls */}
-        {!isUser && message.tool_calls && message.tool_calls.length > 0 && (
-          <div className="mt-2 pt-2 border-t border-dark-700/50 space-y-2">
-            <div className="flex items-center gap-1.5 mb-1.5">
-              <Wrench className="w-3 h-3 text-dark-400" />
-              <span className="text-[10px] font-medium text-dark-400 uppercase tracking-wide">Tools used</span>
-            </div>
-            {message.tool_calls.map((tc, i) => (
-              <ToolCallCard
-                key={i}
-                name={tc.name}
-                args={tc.args}
-                result={tc.result}
-                status={tc.status}
-              />
-            ))}
-          </div>
-        )}
-
-        {/* Suggested edits */}
-        {!isUser && message.suggested_edits && message.suggested_edits.length > 0 && (
-          <div className="mt-2 pt-2 border-t border-dark-700/50 space-y-2">
-            {message.suggested_edits.map((edit, i) => (
-              <SuggestedEditCard
-                key={i}
-                edit={edit}
-                onApplied={onEditApplied}
-              />
-            ))}
+            {!isUser && message.tool_calls && message.tool_calls.length > 0 && (
+              <div className="mt-2 pt-2 border-t border-dark-700/50 space-y-2">
+                <div className="flex items-center gap-1.5 mb-1.5">
+                  <Wrench className="w-3 h-3 text-dark-400" />
+                  <span className="text-[10px] font-medium text-dark-400 uppercase tracking-wide">Tools used</span>
+                </div>
+                {message.tool_calls.map((tc, i) => (
+                  <ToolCallCard
+                    key={i}
+                    name={tc.name}
+                    label={tc.label}
+                    args={tc.args}
+                    result={tc.result}
+                    status={tc.status || 'done'}
+                  />
+                ))}
+              </div>
+            )}
+            {!isUser && message.suggested_edits && message.suggested_edits.length > 0 && (
+              <div className="mt-2 pt-2 border-t border-dark-700/50 space-y-2">
+                {message.suggested_edits.map((edit, i) => (
+                  <SuggestedEditCard
+                    key={i}
+                    edit={edit}
+                    onApplied={(e) => onEditApplied?.(message, e)}
+                    onDeclined={(e) => onEditDeclined?.(message, e)}
+                  />
+                ))}
+              </div>
+            )}
           </div>
         )}
 
@@ -301,3 +354,5 @@ export default function AIChatMessage({ message, onRedo, onRetry, onEditApplied 
     </div>
   );
 }
+
+export default memo(AIChatMessage);

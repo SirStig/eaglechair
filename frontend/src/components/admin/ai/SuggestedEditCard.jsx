@@ -12,11 +12,12 @@ function formatChange(key, value) {
 }
 
 export default function SuggestedEditCard({ edit, onApplied, onDeclined }) {
-  const [status, setStatus] = useState('pending');
+  const [localStatus, setLocalStatus] = useState(null);
   const [error, setError] = useState(null);
+  const status = edit.status || localStatus || 'pending';
 
   const handleApprove = async () => {
-    setStatus('applying');
+    setLocalStatus('applying');
     setError(null);
     try {
       await applyEdit({
@@ -24,16 +25,16 @@ export default function SuggestedEditCard({ edit, onApplied, onDeclined }) {
         entity_id: edit.entity_id,
         changes: edit.changes,
       });
-      setStatus('applied');
+      setLocalStatus('applied');
       onApplied?.(edit);
     } catch (err) {
       setError(err?.message || 'Failed to apply');
-      setStatus('pending');
+      setLocalStatus(null);
     }
   };
 
   const handleDecline = () => {
-    setStatus('declined');
+    setLocalStatus('declined');
     onDeclined?.(edit);
   };
 

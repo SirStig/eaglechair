@@ -110,15 +110,27 @@ const ProductCatalogPage = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [debouncedSearch, filters.category_id, filters.subcategory_id, filters.family_id, filters.finish_ids, filters.upholstery_ids, filters.color_ids, filters.is_stackable, filters.is_outdoor_suitable, filters.ada_compliant, filters.min_seat_height, filters.max_seat_height, filters.min_width, filters.max_width, filters.max_lead_time, filters.stock_status, filters.featured, filters.new, filters.sortBy, pagination.page]);
 
-  // Update category filter when URL params change
   useEffect(() => {
-    if (categoryParam) {
-      const category = categories.find(c => c.slug === categoryParam);
-      if (category) {
-        setFilters(prev => ({ ...prev, category_id: category.id }));
-      }
+    if (!categoryParam) return;
+    if (categories.length === 0) return;
+    const category = categories.find(c => c.slug === categoryParam);
+    if (category) {
+      setFilters(prev => ({ ...prev, category_id: category.id, subcategory_id: '' }));
+      setExpandedSections(prev => (prev.category ? prev : { ...prev, category: true }));
     }
   }, [categoryParam, categories]);
+
+  useEffect(() => {
+    if (subcategoryParam && subcategories.length > 0) {
+      const subcat = subcategories.find(s => (s.slug || '').toLowerCase() === subcategoryParam.toLowerCase());
+      if (subcat) {
+        setFilters(prev => ({ ...prev, subcategory_id: subcat.id }));
+        setExpandedSections(prev => (prev.subcategory ? prev : { ...prev, subcategory: true }));
+      }
+    } else if (categoryParam && !subcategoryParam) {
+      setFilters(prev => (prev.subcategory_id ? { ...prev, subcategory_id: '' } : prev));
+    }
+  }, [subcategoryParam, categoryParam, subcategories]);
 
   // Load subcategories when category changes
   useEffect(() => {

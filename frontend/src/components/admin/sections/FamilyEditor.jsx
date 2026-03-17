@@ -3,6 +3,7 @@ import Card from '../../ui/Card';
 import Button from '../../ui/Button';
 import apiClient from '../../../config/apiClient';
 import { resolveImageUrl, resolveFileUrl } from '../../../utils/apiHelpers';
+import { slugify } from '../../../utils/slugify';
 import { ArrowLeft, FileText, Upload, X } from 'lucide-react';
 
 /**
@@ -29,7 +30,11 @@ const FamilyEditor = ({ family, categories, onBack, onSave }) => {
   const [uploadingPdf, setUploadingPdf] = useState(false);
 
   const handleChange = (field, value) => {
-    setFormData(prev => ({ ...prev, [field]: value }));
+    setFormData(prev => {
+      const next = { ...prev, [field]: value };
+      if (field === 'name') next.slug = slugify(value);
+      return next;
+    });
   };
 
   const handleImageUpload = async (event, field) => {

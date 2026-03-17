@@ -13,6 +13,7 @@ import { useAIChat } from '../../../contexts/AIChatContext';
 import AIChatInput from './AIChatInput';
 import AIChatSidebar from './AIChatSidebar';
 import ChatMessageList from './ChatMessageList';
+import SuggestedEditsBar from './SuggestedEditsBar';
 
 function WelcomeScreen({ onSuggestionClick }) {
   const suggestions = [
@@ -65,6 +66,8 @@ export default function AIChatWidget() {
     sendMessage: sendMessageRaw,
     redoMessage,
     retryMessage,
+    markEditApplied,
+    markEditDeclined,
     uploadFile,
     removePendingFile,
     switchSession,
@@ -215,10 +218,18 @@ export default function AIChatWidget() {
                   messagesEndRef={messagesEndRef}
                   onRedo={redoMessage}
                   onRetry={retryMessage}
+                  onEditApplied={markEditApplied}
+                  onEditDeclined={markEditDeclined}
                   compact
                 />
               )}
             </div>
+
+            <SuggestedEditsBar
+              messages={messages}
+              onEditApplied={markEditApplied}
+              onEditDeclined={markEditDeclined}
+            />
 
             {/* Input */}
             <AIChatInput

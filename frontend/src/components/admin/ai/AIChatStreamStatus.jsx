@@ -37,10 +37,10 @@ export default function AIChatStreamStatus({ state }) {
     <AnimatePresence mode="wait">
       <motion.div
         key={state.type + (state.query || state.url || '')}
-        initial={{ opacity: 0, y: 4 }}
-        animate={{ opacity: 1, y: 0 }}
-        exit={{ opacity: 0, y: -4 }}
-        transition={{ duration: 0.15 }}
+        initial={false}
+        animate={{ opacity: 1 }}
+        exit={{ opacity: 0 }}
+        transition={{ duration: 0.1 }}
         className="flex items-center gap-2 px-3 py-2 mb-2"
       >
         <div className="flex items-center gap-1.5 bg-dark-800 border border-dark-700 rounded-full px-3 py-1.5">

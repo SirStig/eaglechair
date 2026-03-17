@@ -3,6 +3,7 @@ import Card from '../../ui/Card';
 import Button from '../../ui/Button';
 import apiClient from '../../../config/apiClient';
 import { resolveImageUrl } from '../../../utils/apiHelpers';
+import { slugify } from '../../../utils/slugify';
 import { ArrowLeft, Upload, X } from 'lucide-react';
 
 /**
@@ -40,7 +41,11 @@ const CategoryEditor = ({ category, categories, parentCategory, isSubcategory, o
   const [uploadingImage, setUploadingImage] = useState(null);
 
   const handleChange = (field, value) => {
-    setFormData(prev => ({ ...prev, [field]: value }));
+    setFormData(prev => {
+      const next = { ...prev, [field]: value };
+      if (field === 'name') next.slug = slugify(value);
+      return next;
+    });
   };
 
   const handleImageUpload = async (event, field) => {

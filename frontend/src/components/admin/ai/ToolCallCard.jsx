@@ -1,6 +1,24 @@
 import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { ChevronDown, ChevronRight, Wrench } from 'lucide-react';
+import { ChevronDown, ChevronRight, Wrench, Loader2 } from 'lucide-react';
+
+const TOOL_LABELS = {
+  web_search: 'Searching the web',
+  fetch_webpage: 'Reading webpage',
+  calculate: 'Calculating',
+  search_catalog: 'Searching catalog',
+  search_training_data: 'Searching training data',
+  get_product_catalog: 'Loading catalog',
+  get_training_vs_catalog_overview: 'Comparing training to catalog',
+  get_product_details: 'Fetching product details',
+  create_product: 'Creating product',
+  propose_edit: 'Suggesting edit',
+};
+
+function friendlyLabel(name, label) {
+  if (label) return label;
+  return TOOL_LABELS[name] || name.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+}
 
 function truncate(obj, maxLen = 120) {
   const str = typeof obj === 'string' ? obj : JSON.stringify(obj);
@@ -8,34 +26,40 @@ function truncate(obj, maxLen = 120) {
   return str.slice(0, maxLen) + '…';
 }
 
-export default function ToolCallCard({ name, args, result, status = 'done' }) {
+export default function ToolCallCard({ name, label, args, result, status = 'done' }) {
   const [expanded, setExpanded] = useState(false);
+  const displayLabel = friendlyLabel(name, label);
   const argsStr = args && Object.keys(args).length > 0 ? truncate(args, 80) : null;
-  const resultStr = result ? truncate(result, 100) : null;
+  const isInProgress = status === 'in_progress';
 
   return (
     <motion.div
-      initial={{ opacity: 0, y: 4 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.15 }}
+      initial={false}
+      animate={{ opacity: 1 }}
       className="mt-2 p-2.5 rounded-lg bg-dark-800 border border-dark-700"
     >
       <button
         type="button"
-        onClick={() => setExpanded((e) => !e)}
+        onClick={() => !isInProgress && setExpanded((e) => !e)}
         className="w-full flex items-center gap-2 text-left"
       >
         <span className="text-dark-500">
-          {expanded ? <ChevronDown className="w-3 h-3" /> : <ChevronRight className="w-3 h-3" />}
+          {!isInProgress && (expanded ? <ChevronDown className="w-3 h-3" /> : <ChevronRight className="w-3 h-3" />)}
         </span>
-        <Wrench className="w-3 h-3 text-chat-status-fetching flex-shrink-0" />
-        <span className="text-[10px] font-medium text-dark-400 uppercase tracking-wide">{name}</span>
-        {argsStr && !expanded && (
+        {isInProgress ? (
+          <Loader2 className="w-3.5 h-3.5 text-chat-status-fetching animate-spin flex-shrink-0" />
+        ) : (
+          <Wrench className="w-3 h-3 text-chat-status-fetching flex-shrink-0" />
+        )}
+        <span className={`text-[11px] ${isInProgress ? 'text-chat-status-fetching' : 'text-dark-400'}`}>
+          {displayLabel}{isInProgress ? '…' : ''}
+        </span>
+        {argsStr && !expanded && !isInProgress && (
           <span className="text-[11px] text-dark-500 truncate flex-1 min-w-0">{argsStr}</span>
         )}
       </button>
       <AnimatePresence>
-        {expanded && (
+        {expanded && !isInProgress && (
           <motion.div
             initial={{ height: 0, opacity: 0 }}
             animate={{ height: 'auto', opacity: 1 }}

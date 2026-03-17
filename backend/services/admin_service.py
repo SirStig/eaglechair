@@ -23,6 +23,7 @@ from backend.models.chair import (
     Chair,
     Finish,
     ProductFamily,
+    ProductSubcategory,
     ProductVariation,
     Upholstery,
     variation_families,
@@ -155,6 +156,18 @@ class AdminService:
             category = result.scalar_one_or_none()
             if not category:
                 raise ValidationError("Invalid category ID")
+        if product_data.get("subcategory_id"):
+            result = await db.execute(
+                select(ProductSubcategory).where(ProductSubcategory.id == product_data["subcategory_id"])
+            )
+            if not result.scalar_one_or_none():
+                raise ValidationError(f"Subcategory ID {product_data['subcategory_id']} not found")
+        if product_data.get("family_id"):
+            result = await db.execute(
+                select(ProductFamily).where(ProductFamily.id == product_data["family_id"])
+            )
+            if not result.scalar_one_or_none():
+                raise ValidationError(f"Family ID {product_data['family_id']} not found")
 
         product = Chair(**product_data)
         db.add(product)
@@ -225,6 +238,29 @@ class AdminService:
                 select(ProductFamily).where(ProductFamily.id.in_(secondary_family_ids))
             )
             product.secondary_families = list(fam_result.scalars().all())
+
+        if "category_id" in update_data:
+            cat_id = update_data["category_id"]
+            if cat_id is not None:
+                cat_result = await db.execute(select(Category).where(Category.id == cat_id))
+                if not cat_result.scalar_one_or_none():
+                    raise ValidationError(f"Category ID {cat_id} not found")
+        if "subcategory_id" in update_data:
+            subcat_id = update_data["subcategory_id"]
+            if subcat_id is not None:
+                subcat_result = await db.execute(
+                    select(ProductSubcategory).where(ProductSubcategory.id == subcat_id)
+                )
+                if not subcat_result.scalar_one_or_none():
+                    raise ValidationError(f"Subcategory ID {subcat_id} not found")
+        if "family_id" in update_data:
+            fam_id = update_data["family_id"]
+            if fam_id is not None:
+                fam_result = await db.execute(
+                    select(ProductFamily).where(ProductFamily.id == fam_id)
+                )
+                if not fam_result.scalar_one_or_none():
+                    raise ValidationError(f"Family ID {fam_id} not found")
 
         if "variations" in update_data:
             variations_data = update_data.pop("variations")
