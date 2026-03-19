@@ -86,7 +86,7 @@ export const ProductCardSkeleton = () => (
  * Hero Skeleton
  */
 export const HeroSkeleton = () => (
-  <div className="relative min-h-screen pt-[var(--header-height)] bg-dark-900">
+  <div className="relative h-screen h-[100dvh] pt-[var(--header-height)] bg-dark-900">
     <Skeleton variant="image" height="100%" className="absolute inset-0" />
     <div className="absolute inset-0 flex items-center">
       <div className="container">

@@ -240,7 +240,7 @@ const HomePage = () => {
         </Helmet>
       )}
       {/* Hero Carousel - extends to top, header floats above */}
-      <section className="relative -mt-[var(--header-height)] min-h-screen">
+      <section className="relative -mt-[var(--header-height)] h-screen h-[100dvh]">
         <HeroCarousel
           slides={slides}
           onUpdateSlide={handleUpdateHeroSlide}
@@ -596,7 +596,7 @@ const HomePage = () => {
                 const bannerImage = resolveImageUrl(category.banner_image_url || category.bannerImage || DEFAULT_BANNER);
                 return (
                   <div key={category.id} className="relative group">
-                    <div className="relative h-[400px] sm:h-[500px] md:h-[550px] lg:h-[600px] overflow-hidden">
+                    <div className="relative h-[520px] sm:h-[500px] md:h-[550px] lg:h-[600px] overflow-hidden">
                       <Link to={`/products/category/${category.slug}`} className="absolute inset-0 block bg-slate-100">
                         <img
                           src={bannerImage}
@@ -643,7 +643,7 @@ const HomePage = () => {
               })}
               {categories.length > 4 && (
                 <div className="relative group">
-                  <div className="relative h-[400px] sm:h-[500px] md:h-[550px] lg:h-[600px] overflow-hidden">
+                  <div className="relative h-[520px] sm:h-[500px] md:h-[550px] lg:h-[600px] overflow-hidden">
                     <Link to="/products" className="absolute inset-0 block">
                       <img
                         src={DEFAULT_BANNER}

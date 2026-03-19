@@ -109,10 +109,12 @@ const MobileProductsMenu = ({ isOpen, onNavigate }) => {
                     className="relative h-56 bg-cover bg-center overflow-hidden rounded-lg"
                     style={{ backgroundImage: `url(${bannerImage})` }}
                   >
-                    {/* Dark Overlay */}
-                    <div className="absolute inset-0 bg-black/60"></div>
-                    
-                    {/* Content Overlay */}
+                    <div className="absolute inset-0 bg-black/60" />
+                    <div 
+                      className="absolute inset-0 pointer-events-none z-[5]"
+                      style={{ background: 'linear-gradient(to right, rgba(0,0,0,0.85) 0%, rgba(0,0,0,0.5) 35%, transparent 70%)' }}
+                      aria-hidden
+                    />
                     <div className="relative z-10 p-4 h-full flex flex-col">
                       {/* Category Title */}
                       <Link 

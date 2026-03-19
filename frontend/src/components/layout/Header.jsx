@@ -136,7 +136,7 @@ const Header = ({ isMobileMenuOpen, setIsMobileMenuOpen }) => {
     navigate(`/products/${productSlug}`);
   };
 
-  const showHeaderBackground = isScrolled || isProductsDropdownOpen;
+  const showHeaderBackground = isScrolled || isProductsDropdownOpen || isMobileMenuOpen;
 
   return (
     <header

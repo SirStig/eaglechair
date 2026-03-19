@@ -12,11 +12,10 @@ const Footer = () => {
   const footerLinks = {
     products: [
       { name: 'All Products', path: '/products' },
-      { name: 'Product Families', path: '/families' },
-      { name: 'Wood Finishes', path: '/wood-finishes' },
-      { name: 'Upholstery', path: '/upholstery' },
-      { name: 'Laminates', path: '/laminates' },
-      { name: 'Hardware', path: '/hardware' }
+      { name: 'Wood Finishes', path: '/resources/woodfinishes' },
+      { name: 'Upholstery', path: '/resources/upholstery' },
+      { name: 'Laminates', path: '/resources/laminates' },
+      { name: 'Hardware', path: '/resources/hardware' }
     ],
     company: [
       { name: 'About Us', path: '/about' },
@@ -26,7 +25,7 @@ const Footer = () => {
     ],
     resources: [
       { name: 'Virtual Catalogs', path: '/virtual-catalogs' },
-      { name: 'Guides', path: '/guides' },
+      { name: 'Guides', path: '/resources/guides' },
       { name: 'Request a Quote', path: '/quote-request' }
     ],
     legal: [

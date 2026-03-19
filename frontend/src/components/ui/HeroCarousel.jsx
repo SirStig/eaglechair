@@ -24,7 +24,7 @@ const HeroCarousel = ({ slides, onUpdateSlide, refetch, loading, renderSkeleton 
   if (!slides?.length) return null;
 
   return (
-    <div className="relative w-full min-h-screen overflow-hidden">
+    <div className="relative w-full h-screen h-[100dvh] overflow-hidden">
       {slides.map((slide, index) => (
         <div
           key={slide.id ?? index}
@@ -45,11 +45,11 @@ const HeroCarousel = ({ slides, onUpdateSlide, refetch, loading, renderSkeleton 
             cacheKey="hero-slides"
             label={`Slide ${index + 1}`}
           >
-            <div className="relative min-h-screen pt-[var(--header-height)]">
+            <div className="relative w-full h-full min-h-full pt-[var(--header-height)]">
               <img
                 src={slide.background_image_url || slide.image}
                 alt={slide.title}
-                className="absolute inset-0 w-full h-full object-cover img-sharp"
+                className="absolute inset-0 w-full h-full min-w-full min-h-full object-cover object-center img-sharp"
                 loading={index === 0 ? 'eager' : 'lazy'}
                 decoding={index === 0 ? 'sync' : 'async'}
                 fetchpriority={index === 0 ? 'high' : 'auto'}
