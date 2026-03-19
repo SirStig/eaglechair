@@ -134,7 +134,8 @@ apiClient.interceptors.response.use(
       // Skip refresh for login/refresh endpoints
       if (originalRequest.url?.includes('/auth/login') || 
           originalRequest.url?.includes('/auth/refresh') ||
-          originalRequest.url?.includes('/auth/admin/login')) {
+          originalRequest.url?.includes('/auth/admin/login') ||
+          originalRequest.url?.includes('/auth/admin/passkey/')) {
         return Promise.reject(handleAuthError(error));
       }
 

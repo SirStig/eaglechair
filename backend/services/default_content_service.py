@@ -240,6 +240,7 @@ class DefaultContentService:
         content = {
             "home": {
                 "about": {
+                    "id": 1,
                     "pageSlug": "home",
                     "sectionKey": "about",
                     "title": "About Eagle Chair",
@@ -247,6 +248,15 @@ class DefaultContentService:
                     "content": "Eagle Chair is a family-owned and operated commercial furniture manufacturer based in Houston, Texas. Since 1984, we've been dedicated to crafting high-quality, durable furniture solutions for restaurants, hotels, and hospitality businesses across the nation. We understand the unique demands of commercial environments and design our products to withstand the test of time, combining timeless aesthetics with robust construction.",
                     "imageUrl": "https://images.unsplash.com/photo-1506439773649-6e0eb8cfb237?w=800",
                     "displayOrder": 1
+                },
+                "installation_gallery": {
+                    "id": 2,
+                    "pageSlug": "home",
+                    "sectionKey": "installation_gallery",
+                    "title": "Installation Gallery",
+                    "subtitle": "See Eagle Chair in stunning real-world settings",
+                    "content": "See Eagle Chair in stunning real-world settings",
+                    "displayOrder": 3
                 }
             }
         }

@@ -60,6 +60,7 @@ class RouteProtectionMiddleware(BaseHTTPMiddleware):
                     extra={"path": path, "method": method, "ip": request.client.host if request.client else "unknown"}
                 )
                 return self._create_error_response(
+                    request,
                     status_code=status.HTTP_403_FORBIDDEN,
                     error="ADMIN_ACCESS_REQUIRED",
                     message="This endpoint requires administrator authentication."
@@ -80,6 +81,7 @@ class RouteProtectionMiddleware(BaseHTTPMiddleware):
                         extra={"path": path, "method": method, "ip": request.client.host if request.client else "unknown"}
                     )
                 return self._create_error_response(
+                    request,
                     status_code=status.HTTP_401_UNAUTHORIZED,
                     error="AUTHENTICATION_REQUIRED",
                     message="Authentication required. Please log in to access this endpoint."
@@ -134,22 +136,12 @@ class RouteProtectionMiddleware(BaseHTTPMiddleware):
     
     def _create_error_response(
         self,
+        request: Request,
         status_code: int,
         error: str,
         message: str
     ) -> JSONResponse:
-        """
-        Create a standardized error response
-        
-        Args:
-            status_code: HTTP status code
-            error: Error code
-            message: Human-readable error message
-            
-        Returns:
-            JSONResponse: Formatted error response
-        """
-        return JSONResponse(
+        response = JSONResponse(
             status_code=status_code,
             content={
                 "error": error,
@@ -157,6 +149,16 @@ class RouteProtectionMiddleware(BaseHTTPMiddleware):
                 "status_code": status_code
             }
         )
+        origin = request.headers.get("Origin")
+        if origin and origin in settings.CORS_ORIGINS:
+            response.headers["Access-Control-Allow-Origin"] = origin
+        elif settings.CORS_ORIGINS:
+            response.headers["Access-Control-Allow-Origin"] = settings.CORS_ORIGINS[0]
+        if settings.CORS_ALLOW_CREDENTIALS:
+            response.headers["Access-Control-Allow-Credentials"] = "true"
+        response.headers["Access-Control-Allow-Methods"] = ", ".join(settings.CORS_ALLOW_METHODS)
+        response.headers["Access-Control-Allow-Headers"] = ", ".join(settings.CORS_ALLOW_HEADERS)
+        return response
 
 
 class RoleBasedAccessControl:

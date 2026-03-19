@@ -226,6 +226,13 @@ class AdminUser(Base):
     # Audit Trail
     last_activity = Column(String(50), nullable=True)
     
+    passkey_credentials = relationship(
+        "AdminPasskeyCredential",
+        backref="admin_user",
+        cascade="all, delete-orphan",
+        foreign_keys="AdminPasskeyCredential.admin_user_id",
+    )
+
     def __repr__(self) -> str:
         return f"<AdminUser(id={self.id}, username={self.username}, role={self.role})>"
 

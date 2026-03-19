@@ -146,7 +146,14 @@ const Header = ({ isMobileMenuOpen, setIsMobileMenuOpen }) => {
           : 'bg-transparent border-b border-transparent shadow-none'
       } ${!showHeaderBackground ? '[&_a]:text-white [&_button]:text-white [&_input::placeholder]:text-white/70 [&_input]:text-white [&_input]:border-white/30 [&_input]:bg-white/10 [&_svg]:text-white' : ''}`}
     >
-      <div className="container mx-auto px-4 sm:px-6 lg:px-8">
+      {!showHeaderBackground && (
+        <div
+          className="absolute inset-x-0 top-0 h-[var(--header-height)] pointer-events-none"
+          style={{ background: 'linear-gradient(to bottom, rgba(0,0,0,0.6) 0%, rgba(0,0,0,0.2) 50%, transparent 100%)' }}
+          aria-hidden
+        />
+      )}
+      <div className="container relative z-10 mx-auto px-4 sm:px-6 lg:px-8">
         <div className="header-inner flex items-center justify-between py-3 sm:py-4 gap-2">
           <Link to="/" className="flex-shrink-0">
             <Motion.div

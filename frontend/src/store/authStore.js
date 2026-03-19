@@ -46,7 +46,7 @@ export const useAuthStore = create(
           set({ user, isAuthenticated: true });
 
           logger.info(AUTH_CONTEXT, 'Login successful, tokens stored in localStorage');
-          return { success: true, user };
+          return { success: true, user, requiresSetup: data.requiresSetup };
         } catch (error) {
           console.error('Login error:', error);
           
@@ -75,11 +75,41 @@ export const useAuthStore = create(
             });
           }
           
-          return { 
+          const requiresTwoFactor = errorMessage.toLowerCase().includes('two-factor') ||
+            errorMessage.toLowerCase().includes('2fa') ||
+            (errorCode === 'INVALID_INPUT' && errorData?.field === 'two_factor_code');
+          return {
             success: false,
             requiresVerification: isVerificationError,
+            requiresTwoFactor,
             error: errorMessage
           };
+        }
+      },
+
+      loginWithPasskey: async () => {
+        try {
+          const { getPasskey } = await import('../utils/passkey');
+          const { getPasskeyAuthOptions, authenticateWithPasskey } = await import('../services/adminAuthService');
+          const options = await getPasskeyAuthOptions();
+          const credential = await getPasskey(options);
+          if (!credential) return { success: false, error: 'Passkey sign-in was cancelled' };
+          const data = await authenticateWithPasskey({
+            options,
+            credential
+          });
+          const { access_token, refresh_token, session_token, admin_token, user } = data;
+          if (!isValidUser(user)) throw new Error('Invalid user data');
+          if (access_token) localStorage.setItem(ACCESS_TOKEN_KEY, access_token);
+          if (refresh_token) localStorage.setItem(REFRESH_TOKEN_KEY, refresh_token);
+          if (session_token) localStorage.setItem(SESSION_TOKEN_KEY, session_token);
+          if (admin_token) localStorage.setItem(ADMIN_TOKEN_KEY, admin_token);
+          if (user) localStorage.setItem(USER_KEY, JSON.stringify(user));
+          set({ user, isAuthenticated: true });
+          return { success: true, user, requiresSetup: data.requiresSetup };
+        } catch (error) {
+          const msg = error.response?.data?.detail || error.message || 'Passkey sign-in failed';
+          return { success: false, error: typeof msg === 'string' ? msg : JSON.stringify(msg) };
         }
       },
 

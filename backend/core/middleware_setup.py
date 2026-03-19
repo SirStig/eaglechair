@@ -175,25 +175,24 @@ class RequestLoggingMiddleware(BaseHTTPMiddleware):
                 status_code=response.status_code,
                 duration=process_time,
                 ip_address=client_ip,
-                request_id=response.headers.get("X-Request-ID")
+                request_id=request.headers.get("X-Request-ID") or response.headers.get("X-Request-ID"),
+                user_agent=request.headers.get("User-Agent")
             )
             
             return response
             
         except Exception as exc:
-            # Only log if error hasn't been logged yet (to prevent duplicates)
             if not hasattr(request.state, "error_logged"):
                 process_time = time.time() - start_time
-                logger.error(
-                    f"Request failed: {request.method} {request.url.path}",
-                    exc_info=True,
-                    extra={
-                        "method": request.method,
-                        "path": request.url.path,
-                        "duration": process_time,
-                        "ip": client_ip
-                    }
-                )
+                extra = {
+                    "method": request.method,
+                    "path": request.url.path,
+                    "duration_ms": round(process_time * 1000, 2),
+                    "ip_address": client_ip,
+                    "request_id": request.headers.get("X-Request-ID"),
+                    "user_agent": request.headers.get("User-Agent"),
+                }
+                logger.error(f"Request failed: {request.method} {request.url.path}", exc_info=True, extra=extra)
                 request.state.error_logged = True
             raise
 
@@ -208,18 +207,19 @@ class ErrorHandlingMiddleware(BaseHTTPMiddleware):
         try:
             return await call_next(request)
         except Exception as exc:
-            # Only log if not already logged by another handler
             if not hasattr(request.state, "error_logged"):
-                logger.exception(
-                    f"Unhandled exception: {str(exc)}",
-                    extra={
-                        "path": request.url.path,
-                        "method": request.method,
-                    }
-                )
+                client_ip = request.client.host if request.client else "unknown"
+                forwarded = request.headers.get("X-Forwarded-For")
+                ip_address = forwarded.split(",")[0].strip() if forwarded else client_ip
+                extra = {
+                    "path": request.url.path,
+                    "method": request.method,
+                    "ip_address": ip_address,
+                    "request_id": request.headers.get("X-Request-ID"),
+                    "user_agent": request.headers.get("User-Agent"),
+                }
+                logger.exception(f"Unhandled exception in middleware: {exc}", extra=extra)
                 request.state.error_logged = True
-            
-            # Let FastAPI exception handlers deal with it
             raise
 
 

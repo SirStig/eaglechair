@@ -51,6 +51,8 @@ class RouteConfig:
         "/api/v1/auth/register",
         "/api/v1/auth/login",
         "/api/v1/auth/admin/login",
+        "/api/v1/auth/admin/passkey/options",
+        "/api/v1/auth/admin/passkey/authenticate",
         "/api/v1/auth/refresh",
         "/api/v1/auth/verify-email",
         "/api/v1/auth/resend-verification",

@@ -7,16 +7,19 @@ import Input from '../components/ui/Input';
 import Card from '../components/ui/Card';
 import { useAuthStore } from '../store/authStore';
 import { useSiteSettings } from '../hooks/useContent';
+import { isPasskeySupported } from '../utils/passkey';
 
 const LoginPage = () => {
   const navigate = useNavigate();
   const location = useLocation();
-  const { login, isAuthenticated, user, isInitializing } = useAuthStore();
+  const { login, loginWithPasskey, isAuthenticated, user, isInitializing } = useAuthStore();
   const { data: siteSettings } = useSiteSettings();
   const [error, setError] = useState(null);
   const [successMessage, setSuccessMessage] = useState(location.state?.message || null);
+  const [needsTwoFactor, setNeedsTwoFactor] = useState(false);
+  const [passkeyLoading, setPasskeyLoading] = useState(false);
   const hasRedirectedRef = useRef(false);
-  
+
   const { register, handleSubmit, formState: { errors } } = useForm();
 
   const from = location.state?.from?.pathname || '/admin/dashboard';
@@ -39,12 +42,18 @@ const LoginPage = () => {
   const onSubmit = async (data) => {
     setError(null);
     setSuccessMessage(null);
-    const result = await login({ email: data.email, password: data.password });
+    const result = await login({
+      email: data.email,
+      password: data.password,
+      two_factor_code: data.two_factor_code || undefined,
+    });
 
     if (result.success) {
       const currentUser = useAuthStore.getState().user;
       const isAdmin = currentUser?.type === 'admin' || currentUser?.role === 'super_admin' || currentUser?.role === 'admin' || currentUser?.role === 'editor';
-      if (from && from !== '/login' && from !== '/') {
+      if (isAdmin && result.requiresSetup) {
+        navigate('/admin/setup-security', { replace: true });
+      } else if (from && from !== '/login' && from !== '/') {
         navigate(from, { replace: true });
       } else if (isAdmin) {
         navigate('/admin/dashboard', { replace: true });
@@ -52,9 +61,7 @@ const LoginPage = () => {
         navigate('/', { replace: true });
       }
     } else {
-      // Check if error is about email verification - prioritize requiresVerification flag
       if (result.requiresVerification) {
-        // Redirect to verification page with user's email
         navigate('/verify-email', {
           state: {
             email: data.email,
@@ -62,11 +69,35 @@ const LoginPage = () => {
             from: from
           }
         });
+      } else if (result.requiresTwoFactor) {
+        setNeedsTwoFactor(true);
+        setError(result.error);
       } else {
-        // Show error message for other login failures
-        const errorMsg = result.error || 'Login failed';
-        setError(errorMsg);
+        setError(result.error || 'Login failed');
       }
+    }
+  };
+
+  const handlePasskeyLogin = async () => {
+    setError(null);
+    setPasskeyLoading(true);
+    try {
+      const result = await loginWithPasskey();
+      if (result.success) {
+        const currentUser = useAuthStore.getState().user;
+        const isAdmin = currentUser?.type === 'admin';
+        if (isAdmin && result.requiresSetup) {
+          navigate('/admin/setup-security', { replace: true });
+        } else if (isAdmin) {
+          navigate('/admin/dashboard', { replace: true });
+        } else {
+          navigate(from || '/', { replace: true });
+        }
+      } else {
+        setError(result.error || 'Passkey sign-in failed');
+      }
+    } finally {
+      setPasskeyLoading(false);
     }
   };
 
@@ -113,6 +144,29 @@ const LoginPage = () => {
           )}
 
 
+          {isPasskeySupported() && (
+            <div className="mb-6">
+              <Button
+                type="button"
+                variant="secondary"
+                size="lg"
+                className="w-full"
+                onClick={handlePasskeyLogin}
+                disabled={passkeyLoading}
+              >
+                {passkeyLoading ? 'Signing in...' : 'Sign in with Passkey'}
+              </Button>
+              <div className="relative my-4">
+                <div className="absolute inset-0 flex items-center">
+                  <div className="w-full border-t border-dark-600" />
+                </div>
+                <div className="relative flex justify-center text-sm">
+                  <span className="px-2 bg-dark-800 text-dark-300">or</span>
+                </div>
+              </div>
+            </div>
+          )}
+
           <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
             <Input
               label="Email Address"
@@ -139,6 +193,21 @@ const LoginPage = () => {
               })}
               error={errors.password?.message}
             />
+
+            {needsTwoFactor && (
+              <Input
+                label="Authenticator code"
+                type="text"
+                inputMode="numeric"
+                maxLength={6}
+                placeholder="000000"
+                {...register('two_factor_code', {
+                  required: 'Two-factor code is required',
+                  minLength: { value: 6, message: 'Enter 6 digits' },
+                })}
+                error={errors.two_factor_code?.message}
+              />
+            )}
 
             <Button type="submit" variant="primary" size="lg" className="w-full">
               Sign In

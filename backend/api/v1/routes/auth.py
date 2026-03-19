@@ -134,10 +134,10 @@ async def unified_login(
         logger.info(f"Detected admin user: {admin_user.username}")
         admin, tokens = await AuthService.authenticate_admin(
             db=db,
-            username=admin_user.username,  # Use actual username
+            username=admin_user.username,
             password=login_data.password,
             ip_address=client_ip,
-            two_factor_code=None
+            two_factor_code=login_data.two_factor_code
         )
         
         # Set cookies
@@ -150,9 +150,17 @@ async def unified_login(
             is_production=settings.is_production
         )
         
-        # Include admin user data in response (also include tokens for backward compatibility)
+        from backend.models.passkey import AdminPasskeyCredential
+        result = await db.execute(
+            select(AdminPasskeyCredential).where(
+                AdminPasskeyCredential.admin_user_id == admin.id
+            )
+        )
+        has_passkey = result.scalars().first() is not None
+        requires_setup = not (has_passkey and admin.is_2fa_enabled)
         return {
             **tokens,
+            "requiresSetup": requires_setup,
             "user": {
                 "id": admin.id,
                 "username": admin.username,
@@ -265,7 +273,6 @@ async def refresh_token(
 
 @router.post(
     "/auth/admin/login",
-    response_model=AdminTokenResponse,
     summary="Admin login",
     description="Authenticate admin with enhanced security (dual tokens + optional 2FA)."
 )
@@ -310,8 +317,27 @@ async def login_admin(
         is_production=settings.is_production
     )
     
-    # Also return in response body for backward compatibility
-    return tokens
+    result = await db.execute(
+        select(AdminPasskeyCredential).where(
+            AdminPasskeyCredential.admin_user_id == admin.id
+        )
+    )
+    has_passkey = result.scalars().first() is not None
+    requires_setup = not (has_passkey and admin.is_2fa_enabled)
+
+    return {
+        **tokens,
+        "requiresSetup": requires_setup,
+        "user": {
+            "id": admin.id,
+            "username": admin.username,
+            "email": admin.email,
+            "firstName": admin.first_name,
+            "lastName": admin.last_name,
+            "role": admin.role.value,
+            "type": "admin",
+        },
+    }
 
 
 # ============================================================================

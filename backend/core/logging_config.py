@@ -86,16 +86,15 @@ class ColoredFormatter(logging.Formatter):
 
 
 class DeduplicateFilter(logging.Filter):
-    """
-    Suppress duplicate log records within a short window.
-    Keys by (logger name, level, message). Keeps last-seen timestamp.
-    """
-    def __init__(self, window_seconds: float = 2.0):
+    def __init__(self, window_seconds: float = 2.0, exclude_levels: tuple = (logging.ERROR, logging.CRITICAL)):
         super().__init__()
         self.window_seconds = window_seconds
+        self.exclude_levels = exclude_levels
         self._last_seen: dict[tuple[str, int, str], float] = {}
 
     def filter(self, record: logging.LogRecord) -> bool:  # type: ignore[override]
+        if record.levelno in self.exclude_levels:
+            return True
         try:
             key = (record.name, record.levelno, record.getMessage())
             ts = record.created
@@ -140,8 +139,7 @@ class JSONFormatter(logging.Formatter):
                 "type": record.exc_info[0].__name__ if record.exc_info[0] else None,
                 "message": str(record.exc_info[1]) if record.exc_info[1] else None,
             }
-            # Only include full traceback in debug/testing
-            if settings.DEBUG or settings.TESTING:
+            if getattr(settings, "LOG_ERROR_TRACEBACK_ALWAYS", True) or settings.DEBUG or settings.TESTING:
                 exc_payload["traceback"] = self.formatException(record.exc_info)
             log_data["exception"] = exc_payload
         
@@ -159,6 +157,8 @@ class JSONFormatter(logging.Formatter):
             request_context["method"] = record.method
         if hasattr(record, "path"):
             request_context["path"] = record.path
+        if hasattr(record, "query"):
+            request_context["query"] = record.query
         if hasattr(record, "status_code"):
             request_context["status_code"] = record.status_code
         if hasattr(record, "duration_ms"):
@@ -193,18 +193,21 @@ class JSONFormatter(logging.Formatter):
         if security_context:
             log_data["security_context"] = security_context
         
-        # Add extra fields if present
-        if hasattr(record, "extra"):
-            log_data.update(record.extra)
-        
-        # Add custom fields from record attributes
-        custom_fields = {}
-        for key, value in record.__dict__.items():
-            if key.startswith('custom_'):
-                custom_fields[key[7:]] = value  # Remove 'custom_' prefix
-        
-        if custom_fields:
-            log_data["custom_fields"] = custom_fields
+        standard_attrs = {
+            "name", "msg", "args", "created", "filename", "funcName", "levelname",
+            "levelno", "lineno", "module", "pathname", "process", "processName",
+            "thread", "threadName", "exc_info", "exc_text", "stack_info", "message",
+            "taskName", "request_id", "user_id", "ip_address", "user_agent",
+            "method", "path", "query", "status_code", "duration_ms", "event",
+            "risk_level", "threat_type", "cpu_usage", "memory_usage", "db_query_time",
+            "cache_hit_rate", "no_file_log"
+        }
+        extra_fields = {
+            k: v for k, v in record.__dict__.items()
+            if k not in standard_attrs and not k.startswith("custom_")
+        }
+        if extra_fields:
+            log_data["extra"] = extra_fields
         
         return json.dumps(log_data, ensure_ascii=False, separators=(',', ':'))
 
@@ -274,12 +277,13 @@ class LoggingConfig:
         # Create logs directory if it doesn't exist
         log_dir.mkdir(parents=True, exist_ok=True)
         
-        # General application log
-        app_log = log_dir / "eaglechair.log"
+        max_bytes = getattr(settings, "LOG_MAX_BYTES", 10 * 1024 * 1024)
+        backup_count = getattr(settings, "LOG_BACKUP_COUNT", 5)
+
         file_handler = logging.handlers.RotatingFileHandler(
-            app_log,
-            maxBytes=10 * 1024 * 1024,  # 10MB
-            backupCount=5,
+            log_dir / "app.log",
+            maxBytes=max_bytes,
+            backupCount=backup_count,
             encoding='utf-8'
         )
         file_handler.setLevel(logging.DEBUG)  # Capture all levels to file
@@ -298,25 +302,45 @@ class LoggingConfig:
         )
         error_handler.setLevel(logging.ERROR)
         error_handler.setFormatter(JSONFormatter())
-        error_handler.addFilter(DeduplicateFilter())
         logger.addHandler(error_handler)
         
-        # Access log (for requests)
-        access_log = log_dir / "access.log"
+        access_logger = logging.getLogger("access")
+        access_logger.setLevel(logging.INFO)
+        access_logger.propagate = False
         access_handler = logging.handlers.RotatingFileHandler(
-            access_log,
-            maxBytes=10 * 1024 * 1024,  # 10MB
-            backupCount=10,  # More backups for access logs
+            log_dir / "access.log",
+            maxBytes=max_bytes,
+            backupCount=10,
             encoding='utf-8'
         )
         access_handler.setLevel(logging.INFO)
         access_handler.setFormatter(JSONFormatter())
         access_handler.addFilter(DeduplicateFilter())
-        
-        # Create access logger
-        access_logger = logging.getLogger("access")
         access_logger.addHandler(access_handler)
-        access_logger.setLevel(logging.INFO)
+
+        security_log = logging.getLogger("security")
+        security_log.setLevel(logging.INFO)
+        sec_handler = logging.handlers.RotatingFileHandler(
+            log_dir / "security.log",
+            maxBytes=max_bytes,
+            backupCount=backup_count,
+            encoding='utf-8'
+        )
+        sec_handler.setLevel(logging.INFO)
+        sec_handler.setFormatter(JSONFormatter())
+        security_log.addHandler(sec_handler)
+
+        perf_log = logging.getLogger("performance")
+        perf_log.setLevel(logging.INFO)
+        perf_handler = logging.handlers.RotatingFileHandler(
+            log_dir / "performance.log",
+            maxBytes=max_bytes,
+            backupCount=backup_count,
+            encoding='utf-8'
+        )
+        perf_handler.setLevel(logging.INFO)
+        perf_handler.setFormatter(JSONFormatter())
+        perf_log.addHandler(perf_handler)
     
     @staticmethod
     def setup_console_handler(logger: logging.Logger):
@@ -335,9 +359,8 @@ class LoggingConfig:
         Args:
             log_dir: Directory for log files (default: ./logs)
         """
-        # Determine log directory
         if log_dir is None:
-            log_dir = Path("logs")
+            log_dir = Path(getattr(settings, "LOG_DIR", "logs"))
         
         # Get root logger
         logger = logging.getLogger()

@@ -24,6 +24,7 @@ from backend.core.security import security_manager
 from backend.core.config import settings
 from backend.models.company import AdminUser, Company, CompanyShippingAddress
 from backend.services.email_service import EmailService
+from backend.services.mfa_service import MFAService
 
 logger = logging.getLogger(__name__)
 
@@ -264,17 +265,22 @@ class AuthService:
             logger.warning(f"Login attempt for inactive admin account: {username}")
             raise AccountSuspendedError()
         
-        # Check 2FA if enabled
         if admin.is_2fa_enabled:
             if not two_factor_code:
                 raise InvalidInputError(
                     field="two_factor_code",
                     reason="Two-factor authentication code is required"
                 )
-            # TODO: Implement actual 2FA verification
-            # For now, we'll skip this check
-        
-        # Reset failed login attempts on successful login
+            if not MFAService.verify_totp(admin.two_factor_secret, two_factor_code):
+                admin.failed_login_attempts += 1
+                if admin.failed_login_attempts >= 5:
+                    admin.locked_until = (datetime.utcnow() + timedelta(minutes=30)).isoformat()
+                await db.commit()
+                raise InvalidCredentialsError("Invalid two-factor authentication code")
+
+        strong_session = admin.is_2fa_enabled and two_factor_code
+
+        admin.failed_login_attempts = 0
         admin.failed_login_attempts = 0
         admin.last_login = datetime.utcnow().isoformat()
         admin.last_login_ip = ip_address
@@ -289,22 +295,24 @@ class AuthService:
             "type": "admin"
         }
         
+        from backend.core.config import settings
+        refresh_days = (
+            settings.ADMIN_REFRESH_TOKEN_EXPIRE_DAYS_STRONG
+            if strong_session
+            else settings.ADMIN_REFRESH_TOKEN_EXPIRE_DAYS
+        )
         access_token = security_manager.create_access_token(token_data)
-        refresh_token = security_manager.create_refresh_token(token_data)
-        
-        # Generate session and admin tokens (for dual token security)
+        refresh_token = security_manager.create_refresh_token(
+            token_data,
+            expires_delta=timedelta(days=refresh_days),
+        )
+
         import secrets
         session_token = secrets.token_urlsafe(32)
         admin_token = secrets.token_urlsafe(32)
-        
-        # Hash tokens before storing (like passwords) for security
-        # Store hashed tokens - original tokens only returned in response
         hashed_session_token = security_manager.hash_password(session_token)
         hashed_admin_token = security_manager.hash_password(admin_token)
-        
-        # Store tokens in database (including refresh token)
-        from backend.core.config import settings
-        refresh_expires = datetime.utcnow() + timedelta(days=settings.ADMIN_REFRESH_TOKEN_EXPIRE_DAYS)
+        refresh_expires = datetime.utcnow() + timedelta(days=refresh_days)
         admin.session_token = hashed_session_token
         admin.admin_token = hashed_admin_token
         admin.refresh_token = refresh_token
@@ -326,7 +334,58 @@ class AuthService:
             "admin_token": admin_token,
             "token_type": "bearer"
         }
-    
+
+    @staticmethod
+    async def create_admin_tokens(
+        db: AsyncSession,
+        admin: AdminUser,
+        ip_address: Optional[str] = None,
+        strong_session: bool = True,
+    ) -> dict:
+        import secrets
+        from backend.core.config import settings
+        refresh_days = (
+            settings.ADMIN_REFRESH_TOKEN_EXPIRE_DAYS_STRONG
+            if strong_session
+            else settings.ADMIN_REFRESH_TOKEN_EXPIRE_DAYS
+        )
+        token_data = {
+            "sub": str(admin.id),
+            "username": admin.username,
+            "email": admin.email,
+            "role": admin.role.value,
+            "type": "admin"
+        }
+        access_token = security_manager.create_access_token(token_data)
+        refresh_token = security_manager.create_refresh_token(
+            token_data,
+            expires_delta=timedelta(days=refresh_days),
+        )
+        session_token = secrets.token_urlsafe(32)
+        admin_token = secrets.token_urlsafe(32)
+        hashed_session_token = security_manager.hash_password(session_token)
+        hashed_admin_token = security_manager.hash_password(admin_token)
+        admin.session_token = hashed_session_token
+        admin.admin_token = hashed_admin_token
+        admin.refresh_token = refresh_token
+        admin.refresh_token_expires = (datetime.utcnow() + timedelta(days=refresh_days)).isoformat()
+        admin.last_login = datetime.utcnow().isoformat()
+        admin.last_login_ip = ip_address
+        await db.commit()
+        security_logger.log_admin_action(
+            admin_id=admin.id,
+            action="LOGIN",
+            resource="auth",
+            ip_address=ip_address or "unknown"
+        )
+        return {
+            "access_token": access_token,
+            "refresh_token": refresh_token,
+            "session_token": session_token,
+            "admin_token": admin_token,
+            "token_type": "bearer"
+        }
+
     @staticmethod
     async def refresh_access_token(
         db: AsyncSession,
@@ -404,16 +463,25 @@ class AuthService:
                 "company_name": user.company_name
             }
         
-        access_token = security_manager.create_access_token(token_data)
-        refresh_token = security_manager.create_refresh_token(token_data)
-        
-        # Update stored refresh token
         from backend.core.config import settings
         if user_type == "admin":
-            refresh_expires = datetime.utcnow() + timedelta(days=settings.ADMIN_REFRESH_TOKEN_EXPIRE_DAYS)
+            if user.refresh_token_expires:
+                token_exp = datetime.fromisoformat(user.refresh_token_expires)
+                remaining_days = max(1, (token_exp - datetime.utcnow()).days)
+                refresh_expires = datetime.utcnow() + timedelta(days=remaining_days)
+                refresh_token = security_manager.create_refresh_token(
+                    token_data,
+                    expires_delta=timedelta(days=remaining_days),
+                )
+            else:
+                refresh_expires = datetime.utcnow() + timedelta(days=settings.ADMIN_REFRESH_TOKEN_EXPIRE_DAYS)
+                refresh_token = security_manager.create_refresh_token(token_data)
         else:
             refresh_expires = datetime.utcnow() + timedelta(days=settings.COMPANY_REFRESH_TOKEN_EXPIRE_DAYS)
-        
+            refresh_token = security_manager.create_refresh_token(token_data)
+
+        access_token = security_manager.create_access_token(token_data)
+
         user.refresh_token = refresh_token
         user.refresh_token_expires = refresh_expires.isoformat()
         await db.commit()

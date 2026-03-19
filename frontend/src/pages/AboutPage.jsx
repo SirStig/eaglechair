@@ -3,6 +3,7 @@ import { motion } from 'framer-motion';
 import Card from '../components/ui/Card';
 import EditableWrapper from '../components/admin/EditableWrapper';
 import EditableList from '../components/admin/EditableList';
+import { useEditMode } from '../contexts/useEditMode';
 import { useCompanyValues, useCompanyMilestones, useTeamMembers, usePageContent } from '../hooks/useContent';
 import {
   updatePageContent,
@@ -23,6 +24,7 @@ import { invalidateCache } from '../utils/cache';
 const CONTEXT = 'AboutPage';
 
 const AboutPage = () => {
+  const { isEditMode } = useEditMode();
   const { data: values, loading: valuesLoading, refetch: refetchValues } = useCompanyValues();
   const { data: milestones, loading: milestonesLoading, refetch: refetchMilestones } = useCompanyMilestones();
   const { data: team, loading: teamLoading, refetch: refetchTeam } = useTeamMembers();
@@ -126,7 +128,7 @@ const AboutPage = () => {
   return (
     <div className="min-h-screen bg-dark-800">
       {/* Hero Section - extends to top, header floats above */}
-      <section className="relative min-h-[500px] sm:min-h-[600px] lg:min-h-[700px] -mt-[var(--header-height)] pt-[var(--header-height)] bg-dark-900 text-white">
+      <section className="relative min-h-[500px] sm:min-h-[600px] lg:min-h-[700px] -mt-[var(--header-height)] pt-[var(--header-height)] bg-dark-900 text-white flex">
         <div className="absolute inset-0 opacity-30">
           <img
             src={heroImage}
@@ -138,7 +140,7 @@ const AboutPage = () => {
           />
         </div>
 
-        <div className="relative container h-full flex items-center">
+        <div className="relative container flex-1 flex items-center">
           <motion.div
             initial={{ opacity: 0, y: 30 }}
             animate={{ opacity: 1, y: 0 }}
@@ -176,9 +178,11 @@ const AboutPage = () => {
               onSave={(newData) => handleSaveContent('about', 'hero', { ...heroSection, ...newData }, refetchHero)}
               label="Hero Background Image"
             >
-              <button className="mt-4 px-4 py-2 bg-accent-600/90 hover:bg-accent-700 text-white rounded-lg text-sm font-semibold backdrop-blur-sm border border-accent-400 transition-all">
-                📷 Change Background Image
-              </button>
+              {isEditMode && (
+                <button className="mt-4 px-4 py-2 bg-accent-600/90 hover:bg-accent-700 text-white rounded-lg text-sm font-semibold backdrop-blur-sm border border-accent-400 transition-all">
+                  📷 Change Background Image
+                </button>
+              )}
             </EditableWrapper>
           </motion.div>
         </div>

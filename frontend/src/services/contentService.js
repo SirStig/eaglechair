@@ -349,6 +349,7 @@ export const getPageContent = async (pageSlug, sectionKey = null) => {
       ? `/api/v1/content/page-content/${pageSlug}?section_key=${sectionKey}`
       : `/api/v1/content/page-content/${pageSlug}`;
     const response = await api.get(url);
+    if (sectionKey && Array.isArray(response) && response.length === 1) return response[0];
     return response;
   } catch (error) {
     logger.error(CONTEXT, 'Error fetching page content', error);

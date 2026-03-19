@@ -1,50 +1,55 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect, useRef } from 'react';
 import { Link } from 'react-router-dom';
 // eslint-disable-next-line no-unused-vars
 import { motion } from 'framer-motion';
 import { Helmet } from 'react-helmet-async';
-import Slider from 'react-slick';
 import Button from '../components/ui/Button';
+import HeroCarousel from '../components/ui/HeroCarousel';
 import ProductCard from '../components/ui/ProductCard';
 import QuickViewModal from '../components/ui/QuickViewModal';
 import { HeroSkeleton, CardGridSkeleton } from '../components/ui/Skeleton';
 import EditableWrapper from '../components/admin/EditableWrapper';
-import EditableList from '../components/admin/EditableList';
 import EditModal from '../components/admin/EditModal';
 import ConfirmModal from '../components/ui/ConfirmModal';
 import SEOHead from '../components/SEOHead';
 import { useEditMode } from '../contexts/useEditMode';
 import { useToast } from '../contexts/ToastContext';
-import { useHeroSlides, useFeatures, useClientLogos, useFeaturedProducts, usePageContent, useSiteSettings } from '../hooks/useContent';
+import { useHeroSlides, useClientLogos, useFeaturedProducts, usePageContent, useSiteSettings, useInstallations } from '../hooks/useContent';
 import {
   updatePageContent,
   updateHeroSlide,
-  updateFeature,
   updateClientLogo,
   createHeroSlide,
-  createFeature,
   createClientLogo,
   deleteHeroSlide,
-  deleteFeature,
   deleteClientLogo
 } from '../services/contentService';
+import productService from '../services/productService';
+import { resolveImageUrl } from '../utils/apiHelpers';
 import logger from '../utils/logger';
 import { invalidateCache } from '../utils/cache';
 
 const CONTEXT = 'HomePage';
 
+const DEFAULT_BANNER = '/assets/default-banner-categories.png';
+
 const HomePage = () => {
   const [selectedQuickView, setSelectedQuickView] = useState(null);
   const [isCreatingLogo, setIsCreatingLogo] = useState(false);
+  const [categories, setCategories] = useState([]);
+  const [subcategoriesByCategory, setSubcategoriesByCategory] = useState({});
+  const [categoriesLoading, setCategoriesLoading] = useState(true);
+  const galleryScrollRef = useRef(null);
   const [confirmModal, setConfirmModal] = useState({ isOpen: false, onConfirm: null, message: '', title: '' });
   const { isEditMode } = useEditMode();
   const toast = useToast();
 
   const { data: heroSlides, loading: heroLoading, refetch: refetchHero } = useHeroSlides();
-  const { data: whyChooseUs, refetch: refetchFeatures } = useFeatures('home_page');
   const { data: clientLogos, refetch: refetchLogos } = useClientLogos();
   const { data: featuredProducts, loading: productsLoading } = useFeaturedProducts(4);
   const { data: ctaSection, refetch: refetchCta } = usePageContent('home', 'cta');
+  const { data: installationGallerySection, refetch: refetchInstallationGallery } = usePageContent('home', 'installation_gallery');
+  const { data: installations, loading: installationsLoading } = useInstallations();
 
   // Handler for saving content updates
   const handleSaveContent = async (pageSlug, sectionKey, newData) => {
@@ -58,9 +63,8 @@ const HomePage = () => {
       logger.debug(CONTEXT, `Invalidated ${invalidated} cache entries for ${cacheKey}`);
 
       // Refetch the data to show updated content
-      if (pageSlug === 'home' && sectionKey === 'cta') {
-        refetchCta();
-      }
+      if (pageSlug === 'home' && sectionKey === 'cta') refetchCta();
+      if (pageSlug === 'home' && sectionKey === 'installation_gallery') refetchInstallationGallery();
       logger.info(CONTEXT, 'Content saved successfully');
     } catch (error) {
       logger.error(CONTEXT, 'Failed to save content', error);
@@ -89,24 +93,33 @@ const HomePage = () => {
   };
   /* eslint-enable no-unused-vars */
 
-  // Features Handlers
-  const handleUpdateFeature = async (id, updates) => {
-    await updateFeature(id, updates);
-    invalidateCache('features-*');
-    refetchFeatures();
-  };
-
-  const handleCreateFeature = async (newData) => {
-    await createFeature({ ...newData, feature_type: 'home_page' });
-    invalidateCache('features-*');
-    refetchFeatures();
-  };
-
-  const handleDeleteFeature = async (id) => {
-    await deleteFeature(id);
-    invalidateCache('features-*');
-    refetchFeatures();
-  };
+  useEffect(() => {
+    const loadCategories = async () => {
+      try {
+        setCategoriesLoading(true);
+        const cats = await productService.getCategories();
+        const active = (Array.isArray(cats) ? cats : []).filter(c => c.is_active !== false).sort((a, b) => (a.display_order || 0) - (b.display_order || 0));
+        setCategories(active);
+        const subcatPromises = active.map(async (cat) => {
+          try {
+            const subcats = await productService.getSubcategories({ category_id: cat.id });
+            return { categoryId: cat.id, subcategories: (Array.isArray(subcats) ? subcats : []).filter(s => s.is_active !== false).sort((a, b) => (a.display_order || 0) - (b.display_order || 0)) };
+          } catch {
+            return { categoryId: cat.id, subcategories: [] };
+          }
+        });
+        const results = await Promise.all(subcatPromises);
+        const map = {};
+        results.forEach(r => { map[r.categoryId] = r.subcategories; });
+        setSubcategoriesByCategory(map);
+      } catch (err) {
+        logger.error(CONTEXT, 'Error loading categories', err);
+      } finally {
+        setCategoriesLoading(false);
+      }
+    };
+    loadCategories();
+  }, []);
 
   // Client Logos Handlers
   const handleUpdateClientLogo = async (id, updates) => {
@@ -137,33 +150,22 @@ const HomePage = () => {
   };
   /* eslint-enable no-unused-vars */
 
-  const heroSettings = {
-    dots: false,
-    infinite: true,
-    speed: 1200,
-    slidesToShow: 1,
-    slidesToScroll: 1,
-    autoplay: true,
-    autoplaySpeed: 5000,
-    fade: true,
-    arrows: false,
-    pauseOnHover: false,
-    pauseOnFocus: false,
-    swipe: true,
-    touchMove: true,
-    cssEase: 'cubic-bezier(0.4, 0, 0.2, 1)',
-    useCSS: true,
-    useTransform: true,
-    adaptiveHeight: false,
-    lazyLoad: 'ondemand',
-  };
-
-
-
-  // Use API data, fallback to empty array
   const slides = useMemo(() => heroSlides || [], [heroSlides]);
-  const features = useMemo(() => whyChooseUs || [], [whyChooseUs]);
   const clients = clientLogos || [];
+  const galleryImages = useMemo(() => {
+    const inst = installations || [];
+    return inst.flatMap((item) => {
+      const imgs = item.images || [];
+      const parsed = typeof imgs === 'string' ? (() => { try { return JSON.parse(imgs); } catch { return []; } })() : imgs;
+      const urls = parsed.map(i => (typeof i === 'string' ? i : i?.url || i)).filter(Boolean);
+      const primary = item.primary_image || item.primaryImage || item.url;
+      if (urls.length > 0) return urls;
+      if (primary) return [primary];
+      return [];
+    });
+  }, [installations]);
+  const installationGalleryTitle = installationGallerySection?.title || 'Installation Gallery';
+  const installationGallerySubtitle = installationGallerySection?.subtitle || installationGallerySection?.content || 'See Eagle Chair in stunning real-world settings';
 
   // Extract products array from response object
   const products = (featuredProducts?.data || featuredProducts) || [];
@@ -237,67 +239,15 @@ const HomePage = () => {
           ))}
         </Helmet>
       )}
-      {/* Hero Slider - extends to top, header floats above */}
-      <section className="relative -mt-[var(--header-height)] hero-slider">
-        {heroLoading ? (
-          <HeroSkeleton />
-        ) : (
-          <div>
-            <Slider {...heroSettings}>
-              {slides.map((slide, index) => (
-                <div key={slide.id || index} className="relative">
-                  <EditableWrapper
-                    id={`hero-slide-${slide.id || index}`}
-                    type="hero-slide"
-                    data={slide}
-                    onSave={(newData) => handleUpdateHeroSlide(slide.id, newData)}
-                    refetch={refetchHero}
-                    cacheKey="hero-slides"
-                    label={`Slide ${index + 1}`}
-                  >
-                    <div className="relative min-h-screen pt-[var(--header-height)]">
-                      <img
-                        key={`hero-${slide.id || index}-${slide.background_image_url || slide.image}`}
-                        src={slide.background_image_url || slide.image}
-                        alt={slide.title}
-                        className="absolute inset-0 w-full h-full object-cover img-sharp"
-                        loading={index === 0 ? "eager" : "lazy"}
-                        decoding={index === 0 ? "sync" : "async"}
-                        fetchpriority={index === 0 ? "high" : "auto"}
-                      />
-                      <div className="absolute inset-0 bg-black/50" />
-
-                      <div className="absolute inset-0 flex items-center justify-center">
-                        <div className="container flex justify-center">
-                          <motion.div
-                            initial={{ opacity: 0, y: 30 }}
-                            animate={{ opacity: 1, y: 0 }}
-                            transition={{ delay: 0.2, duration: 0.8 }}
-                            className="max-w-3xl text-white px-2 sm:px-0 text-center"
-                          >
-                            <h1 className="text-4xl sm:text-5xl md:text-6xl lg:text-7xl xl:text-8xl font-bold mb-4 sm:mb-6 leading-tight">
-                              {slide.title}
-                            </h1>
-                            <p className="text-lg sm:text-xl md:text-2xl lg:text-3xl xl:text-4xl mb-6 sm:mb-8 text-gray-200 leading-relaxed">
-                              {slide.subtitle}
-                            </p>
-                            <div className="flex justify-center">
-                              <Link to={slide.cta_link || slide.ctaLink}>
-                                <Button size="lg" variant="primary" className="w-full sm:w-auto px-12 sm:px-14 py-5 text-xl">
-                                  {slide.cta_text || slide.ctaText || slide.cta}
-                                </Button>
-                              </Link>
-                            </div>
-                          </motion.div>
-                        </div>
-                      </div>
-                    </div>
-                  </EditableWrapper>
-                </div>
-              ))}
-            </Slider>
-          </div>
-        )}
+      {/* Hero Carousel - extends to top, header floats above */}
+      <section className="relative -mt-[var(--header-height)] min-h-screen">
+        <HeroCarousel
+          slides={slides}
+          onUpdateSlide={handleUpdateHeroSlide}
+          refetch={refetchHero}
+          loading={heroLoading}
+          renderSkeleton={() => <HeroSkeleton />}
+        />
       </section>
 
 
@@ -622,83 +572,218 @@ const HomePage = () => {
         </div>
       </section>
 
-      {/* Why Choose Us */}
-      <section className="py-12 sm:py-16 md:py-20 bg-dark-800">
-        <div className="container">
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true }}
-            className="text-center mb-8 sm:mb-12 px-4"
-          >
-            <h2 className="text-2xl sm:text-3xl md:text-4xl font-bold mb-3 sm:mb-4 text-dark-50">Why Choose Eagle Chair?</h2>
-          </motion.div>
+      {/* Our Products - same layout as Products dropdown (productService categories) */}
+      <section className="pt-12 sm:pt-16 md:pt-20 pb-0 bg-cream-50">
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          whileInView={{ opacity: 1, y: 0 }}
+          viewport={{ once: true }}
+          className="text-center mb-8 sm:mb-12 px-4"
+        >
+          <h2 className="text-2xl sm:text-3xl md:text-4xl font-bold mb-3 sm:mb-4 text-slate-800">Our Products</h2>
+          <p className="text-lg sm:text-xl text-slate-600 max-w-2xl mx-auto">Explore our commercial seating categories</p>
+        </motion.div>
 
-          <EditableList
-            id="features-list"
-            items={features}
-            onUpdate={handleUpdateFeature}
-            onCreate={handleCreateFeature}
-            onDelete={handleDeleteFeature}
-            refetch={refetchFeatures}
-            cacheKey="features-home_page"
-            itemType="feature"
-            label="Features"
-            addButtonText="Add Feature"
-            defaultNewItem={{
-              title: 'New Feature',
-              description: 'Feature description',
-              feature_type: 'home_page',
-              icon: '',
-              display_order: features.length
-            }}
-            renderItem={(feature, index) => (
-              <motion.div
-                key={feature.id || index}
-                initial={{ opacity: 0, y: 20 }}
-                whileInView={{ opacity: 1, y: 0 }}
-                viewport={{ once: true }}
-                transition={{ delay: index * 0.1 }}
-                className="h-full flex flex-col bg-dark-600 border border-dark-500 rounded-xl shadow-md hover:shadow-xl transition-shadow overflow-hidden"
-              >
-                {/* Feature Image or Icon */}
-                {feature.image_url || feature.imageUrl ? (
-                  <div className="w-full h-48 overflow-hidden flex-shrink-0">
-                    <img
-                      src={feature.image_url || feature.imageUrl}
-                      alt={feature.title}
-                      className="w-full h-full object-cover"
-                      loading="lazy"
-                      decoding="async"
-                      fetchpriority="low"
-                    />
-                  </div>
-                ) : (
-                  <div className="w-full h-12 flex justify-center items-center mt-6 flex-shrink-0">
-                    <div className="w-12 h-12 bg-primary-900 border-2 border-primary-500 rounded-lg flex items-center justify-center">
-                      {feature.icon ? (
-                        <span className="text-2xl">{feature.icon}</span>
-                      ) : (
-                        <div className="w-6 h-6 bg-primary-500 rounded"></div>
-                      )}
+        {categoriesLoading ? (
+          <div className="w-full flex justify-center py-16">
+            <div className="w-12 h-12 border-4 border-cream-300 border-t-primary-500 rounded-full animate-spin" />
+          </div>
+        ) : (
+          <div className="w-full bg-cream-50">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-0">
+              {categories.slice(0, 4).map((category) => {
+                const subcategories = subcategoriesByCategory[category.id] || [];
+                const bannerImage = resolveImageUrl(category.banner_image_url || category.bannerImage || DEFAULT_BANNER);
+                return (
+                  <div key={category.id} className="relative group">
+                    <div className="relative h-[400px] sm:h-[500px] md:h-[550px] lg:h-[600px] overflow-hidden">
+                      <Link to={`/products/category/${category.slug}`} className="absolute inset-0 block bg-slate-100">
+                        <img
+                          src={bannerImage}
+                          alt={category.name}
+                          className="absolute inset-0 w-full h-full object-cover transition-all duration-150 group-hover:scale-110"
+                          loading="eager"
+                        />
+                        <div
+                          className="absolute top-0 left-0 right-0 bottom-0 w-full h-full pointer-events-none"
+                          style={{ background: 'linear-gradient(to top, rgba(0,0,0,0.95) 0%, rgba(0,0,0,0.9) 20%, rgba(0,0,0,0.75) 45%, rgba(0,0,0,0.5) 70%, rgba(0,0,0,0.35) 85%, rgba(0,0,0,0.2) 100%)' }}
+                          aria-hidden
+                        />
+                      </Link>
+                      <div className="absolute inset-0 flex flex-col justify-between p-6 sm:p-8 pointer-events-none">
+                        <div>
+                          <h3 className="text-white font-bold mb-2 text-[clamp(0.875rem,1.25vw+0.75rem,1.875rem)] [text-shadow:0_0_20px_rgba(0,0,0,0.9),0_0_8px_rgba(0,0,0,0.8),0_2px_4px_rgba(0,0,0,0.9)]">
+                            {category.name}
+                          </h3>
+                          <div className="w-16 h-1 bg-primary-500 rounded-full" />
+                        </div>
+                        <div className="relative pl-2 sm:pl-4 pointer-events-auto py-6">
+                          <div className="space-y-2">
+                            {subcategories.slice(0, 5).map((subcat) => (
+                              <Link
+                                key={subcat.id}
+                                to={`/products/category/${category.slug}/${subcat.slug}`}
+                                className="block w-full text-left py-3 px-2 text-white hover:text-white hover:translate-x-2 transition-all duration-200 text-base font-medium [text-shadow:0_0_12px_rgba(0,0,0,0.9),0_0_4px_rgba(0,0,0,0.8),0_1px_3px_rgba(0,0,0,0.9)]"
+                              >
+                                {subcat.name}
+                              </Link>
+                            ))}
+                            <Link
+                              to={`/products/category/${category.slug}`}
+                              className="block w-full text-left py-3 px-2 text-white hover:text-primary-300 hover:translate-x-2 transition-all duration-200 text-base font-bold mt-4 [text-shadow:0_0_12px_rgba(0,0,0,0.9),0_0_4px_rgba(0,0,0,0.8),0_1px_3px_rgba(0,0,0,0.9)]"
+                            >
+                              View All {category.name} →
+                            </Link>
+                          </div>
+                        </div>
+                      </div>
                     </div>
                   </div>
-                )}
-
-                {/* Feature Content */}
-                <div className="p-6 flex-1 flex flex-col">
-                  <h3 className="text-xl font-semibold mb-2 text-dark-50">{feature.title}</h3>
-                  <p className="text-dark-100 flex-1">{feature.description}</p>
+                );
+              })}
+              {categories.length > 4 && (
+                <div className="relative group">
+                  <div className="relative h-[400px] sm:h-[500px] md:h-[550px] lg:h-[600px] overflow-hidden">
+                    <Link to="/products" className="absolute inset-0 block">
+                      <img
+                        src={DEFAULT_BANNER}
+                        alt="More Categories"
+                        className="absolute inset-0 w-full h-full object-cover transition-all duration-150 group-hover:scale-110"
+                      />
+                      <div
+                        className="absolute top-0 left-0 right-0 bottom-0 w-full h-full pointer-events-none"
+                        style={{ background: 'linear-gradient(to top, rgba(0,0,0,0.95) 0%, rgba(0,0,0,0.9) 20%, rgba(0,0,0,0.75) 45%, rgba(0,0,0,0.5) 70%, rgba(0,0,0,0.35) 85%, rgba(0,0,0,0.2) 100%)' }}
+                        aria-hidden
+                      />
+                    </Link>
+                    <div className="absolute inset-0 flex flex-col justify-between p-6 sm:p-8 pointer-events-none">
+                      <div>
+                        <h3 className="text-white font-bold mb-2 text-[clamp(0.875rem,1.25vw+0.75rem,1.875rem)] [text-shadow:0_0_20px_rgba(0,0,0,0.9),0_0_8px_rgba(0,0,0,0.8),0_2px_4px_rgba(0,0,0,0.9)]">
+                          More Categories
+                        </h3>
+                        <div className="w-16 h-1 bg-primary-500 rounded-full" />
+                      </div>
+                      <div className="relative pl-2 sm:pl-4 pointer-events-auto py-6">
+                        <div className="space-y-2">
+                          {categories.slice(4).map((cat) => (
+                            <Link
+                              key={cat.id}
+                              to={`/products/category/${cat.slug}`}
+                              className="block w-full text-left py-3 px-2 text-white hover:text-white hover:translate-x-2 transition-all duration-200 text-base font-medium [text-shadow:0_0_12px_rgba(0,0,0,0.9),0_0_4px_rgba(0,0,0,0.8),0_1px_3px_rgba(0,0,0,0.9)]"
+                            >
+                              {cat.name}
+                            </Link>
+                          ))}
+                          <Link
+                            to="/products"
+                            className="block w-full text-left py-3 px-2 text-white hover:text-primary-300 hover:translate-x-2 transition-all duration-200 text-base font-bold mt-4 [text-shadow:0_0_12px_rgba(0,0,0,0.9),0_0_4px_rgba(0,0,0,0.8),0_1px_3px_rgba(0,0,0,0.9)]"
+                          >
+                            View All Products →
+                          </Link>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
                 </div>
-              </motion.div>
-            )}
-            className="grid grid-cols-2 md:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6 md:gap-8 px-4 sm:px-0"
-          />
+              )}
+            </div>
+          </div>
+        )}
+      </section>
+
+      {/* Installation Gallery */}
+      <section className="py-12 sm:py-16 md:py-20 bg-cream-50 overflow-hidden">
+        <div className="mb-8 sm:mb-12 px-4 sm:px-6 lg:px-8 text-center">
+          <EditableWrapper
+            id="home-installation-gallery-title"
+            type="text"
+            data={{ title: installationGalleryTitle }}
+            onSave={(newData) => handleSaveContent('home', 'installation_gallery', { ...installationGallerySection, ...newData })}
+            refetch={refetchInstallationGallery}
+            cacheKey="page-content-home-installation_gallery"
+            label="Installation Gallery Title"
+          >
+            <h2 className="text-2xl sm:text-3xl md:text-4xl font-bold mb-3 sm:mb-4 text-slate-800">{installationGalleryTitle}</h2>
+          </EditableWrapper>
+          <EditableWrapper
+            id="home-installation-gallery-subtitle"
+            type="textarea"
+            data={{ content: installationGallerySubtitle }}
+            onSave={(newData) => handleSaveContent('home', 'installation_gallery', { ...installationGallerySection, ...newData })}
+            refetch={refetchInstallationGallery}
+            cacheKey="page-content-home-installation_gallery"
+            label="Installation Gallery Subtitle"
+          >
+            <p className="text-lg sm:text-xl text-slate-600 max-w-2xl mx-auto">{installationGallerySubtitle}</p>
+          </EditableWrapper>
+        </div>
+
+        {installationsLoading ? (
+          <div className="h-[50vh] sm:h-[60vh] md:h-[70vh] flex items-center justify-center">
+            <div className="w-12 h-12 border-4 border-cream-300 border-t-primary-500 rounded-full animate-spin" />
+          </div>
+        ) : galleryImages.length > 0 ? (
+          <div className="relative w-full">
+            <div
+              ref={galleryScrollRef}
+              className="flex overflow-x-auto overflow-y-hidden snap-x snap-mandatory scroll-smooth scrollbar-hide w-full"
+              style={{ scrollBehavior: 'smooth', WebkitOverflowScrolling: 'touch' }}
+            >
+              {galleryImages.map((imgUrl, idx) => (
+                <div
+                  key={`${imgUrl}-${idx}`}
+                  className="flex-shrink-0 w-full min-w-full sm:min-w-full md:min-w-[85vw] lg:min-w-[75vw] xl:min-w-[70vw] 2xl:min-w-[60vw] snap-center"
+                >
+                  <div className="relative w-full h-[50vh] sm:h-[60vh] md:h-[70vh] lg:h-[75vh] xl:h-[80vh] px-2 sm:px-4">
+                    <img
+                      src={resolveImageUrl(imgUrl)}
+                      alt={`Installation ${idx + 1}`}
+                      className="w-full h-full object-cover rounded-lg md:rounded-xl shadow-2xl img-sharp"
+                      loading={idx < 3 ? 'eager' : 'lazy'}
+                      fetchpriority={idx < 2 ? 'high' : 'auto'}
+                    />
+                  </div>
+                </div>
+              ))}
+            </div>
+            <button
+              type="button"
+              onClick={() => galleryScrollRef.current?.scrollBy({ left: -Math.min(galleryScrollRef.current.clientWidth, window.innerWidth * 0.85), behavior: 'smooth' })}
+              className="absolute left-2 sm:left-4 md:left-6 top-1/2 -translate-y-1/2 z-10 w-12 h-12 sm:w-14 sm:h-14 md:w-16 md:h-16 rounded-full bg-white/95 hover:bg-cream-100 border border-cream-300 flex items-center justify-center text-slate-800 shadow-xl transition-all hover:scale-105"
+              aria-label="Previous image"
+            >
+              <svg className="w-6 h-6 sm:w-7 sm:h-7" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+              </svg>
+            </button>
+            <button
+              type="button"
+              onClick={() => galleryScrollRef.current?.scrollBy({ left: Math.min(galleryScrollRef.current.clientWidth, window.innerWidth * 0.85), behavior: 'smooth' })}
+              className="absolute right-2 sm:right-4 md:right-6 top-1/2 -translate-y-1/2 z-10 w-12 h-12 sm:w-14 sm:h-14 md:w-16 md:h-16 rounded-full bg-white/95 hover:bg-cream-100 border border-cream-300 flex items-center justify-center text-slate-800 shadow-xl transition-all hover:scale-105"
+              aria-label="Next image"
+            >
+              <svg className="w-6 h-6 sm:w-7 sm:h-7" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+              </svg>
+            </button>
+          </div>
+        ) : (
+          <div className="h-64 flex items-center justify-center text-slate-500 px-4">
+            <p className="text-center">Add installation images in the Gallery to display them here.</p>
+          </div>
+        )}
+
+        <div className="text-center mt-8 sm:mt-12 px-4">
+          <Link to="/gallery">
+            <Button variant="outline" size="lg" className="border-primary-500 text-primary-500 hover:bg-primary-500/10">
+              View Full Gallery
+            </Button>
+          </Link>
         </div>
       </section>
 
       {/* CTA Section */}
-      <section className="py-12 sm:py-16 md:py-20 bg-dark-900 border-t-2 border-primary-500/30">
+      <section className="py-12 sm:py-16 md:py-20 bg-cream-50 border-t-2 border-primary-500/30">
         <div className="container">
           <div className="max-w-3xl mx-auto text-center px-4">
             <EditableWrapper
@@ -710,7 +795,7 @@ const HomePage = () => {
               cacheKey="page-content-home-cta"
               label="CTA Title"
             >
-              <h2 className="text-2xl sm:text-3xl md:text-4xl font-bold mb-4 sm:mb-6 text-dark-50">
+              <h2 className="text-2xl sm:text-3xl md:text-4xl font-bold mb-4 sm:mb-6 text-slate-800">
                 {ctaTitle}
               </h2>
             </EditableWrapper>
@@ -724,7 +809,7 @@ const HomePage = () => {
               cacheKey="page-content-home-cta"
               label="CTA Content"
             >
-              <p className="text-lg sm:text-xl mb-6 sm:mb-8 text-dark-100 leading-relaxed">
+              <p className="text-lg sm:text-xl mb-6 sm:mb-8 text-slate-600 leading-relaxed">
                 {ctaContent}
               </p>
             </EditableWrapper>
@@ -750,7 +835,7 @@ const HomePage = () => {
                   </button>
                 </Link>
                 <Link to={ctaSecondaryLink} className="w-full sm:w-auto">
-                  <button className="w-full sm:w-auto px-6 sm:px-8 py-3 sm:py-3 border-2 border-primary-500 text-primary-500 rounded-lg font-semibold hover:bg-primary-500/10 transition-colors min-h-[48px] text-center">
+                  <button className="w-full sm:w-auto px-6 sm:px-8 py-3 sm:py-3 border-2 border-primary-500 text-primary-600 rounded-lg font-semibold hover:bg-primary-500/10 transition-colors min-h-[48px] text-center">
                     {ctaSecondaryText}
                   </button>
                 </Link>

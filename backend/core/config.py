@@ -123,9 +123,10 @@ class Settings(BaseSettings):
     COMPANY_ACCESS_TOKEN_EXPIRE_MINUTES: int = 60  # 1 hour
     COMPANY_REFRESH_TOKEN_EXPIRE_DAYS: int = 30  # 30 days
 
-    # Token Expiration - Admin Users (shorter sessions for security)
-    ADMIN_ACCESS_TOKEN_EXPIRE_MINUTES: int = 30  # 30 minutes
-    ADMIN_REFRESH_TOKEN_EXPIRE_DAYS: int = 1  # 1 day
+    # Token Expiration - Admin Users
+    ADMIN_ACCESS_TOKEN_EXPIRE_MINUTES: int = 30
+    ADMIN_REFRESH_TOKEN_EXPIRE_DAYS: int = 1
+    ADMIN_REFRESH_TOKEN_EXPIRE_DAYS_STRONG: int = 30
 
     # Password Reset
     PASSWORD_RESET_TOKEN_EXPIRE_HOURS: int = 1  # 1 hour
@@ -187,6 +188,10 @@ class Settings(BaseSettings):
     # Logging Configuration
     LOG_LEVEL: str = "INFO"
     LOG_FORMAT: str = "json"
+    LOG_DIR: str = "logs"
+    LOG_MAX_BYTES: int = 10 * 1024 * 1024
+    LOG_BACKUP_COUNT: int = 5
+    LOG_ERROR_TRACEBACK_ALWAYS: bool = True
 
     # Fuzzy Search Configuration
     FUZZY_SEARCH_THRESHOLD: int = 80  # Match threshold (0-100)

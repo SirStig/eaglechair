@@ -39,6 +39,7 @@ const PrivacyPolicyPage = lazy(() => import('./pages/PrivacyPolicyPage'));
 const GeneralInformationPage = lazy(() => import('./pages/GeneralInformationPage'));
 const NewAdminDashboard = lazy(() => import('./pages/admin/NewAdminDashboard'));
 const AIChatPage = lazy(() => import('./pages/admin/AIChatPage'));
+const AdminSecuritySetupPage = lazy(() => import('./pages/admin/AdminSecuritySetupPage'));
 
 // Resource Pages
 const VirtualCatalogsPage = lazy(() => import('./pages/VirtualCatalogsPage'));
@@ -154,6 +155,7 @@ function App() {
             }
           >
             <Route index element={<Navigate to="/admin/dashboard" replace />} />
+            <Route path="setup-security" element={<AdminSecuritySetupPage />} />
             <Route path="dashboard" element={<NewAdminDashboard />} />
             <Route path="ai/:chatId?" element={<AIChatPage />} />
             <Route path="*" element={<NewAdminDashboard />} />

@@ -18,22 +18,29 @@ from backend.core.exceptions import EagleChairException
 logger = logging.getLogger(__name__)
 
 
+def _request_context(request: Request) -> dict:
+    client_ip = request.client.host if request.client else None
+    forwarded = request.headers.get("X-Forwarded-For")
+    ip_address = forwarded.split(",")[0].strip() if forwarded else client_ip or "unknown"
+    return {
+        "path": request.url.path,
+        "method": request.method,
+        "query": str(request.query_params) if request.query_params else None,
+        "request_id": request.headers.get("X-Request-ID"),
+        "ip_address": ip_address,
+        "user_agent": request.headers.get("User-Agent"),
+    }
+
+
 async def eaglechair_exception_handler(request: Request, exc: EagleChairException) -> JSONResponse:
     """
     Handle all EagleChair custom exceptions
     
     Returns standardized, human-readable error responses
     """
-    logger.warning(
-        f"Application error: {exc.error_code}",
-        extra={
-            "error_code": exc.error_code,
-            "error_message": exc.message,  # Changed from 'message' to avoid LogRecord conflict
-            "path": request.url.path,
-            "method": request.method,
-            "status_code": exc.status_code
-        }
-    )
+    extra = {"error_code": exc.error_code, "error_message": exc.message, "status_code": exc.status_code}
+    extra.update(_request_context(request))
+    logger.warning(f"Application error: {exc.error_code} - {exc.message}", extra=extra)
     
     return JSONResponse(
         status_code=exc.status_code,
@@ -74,10 +81,9 @@ async def validation_exception_handler(request: Request, exc: RequestValidationE
             "type": error_type
         })
     
-    logger.warning(
-        f"Validation error on {request.url.path}",
-        extra={"errors": errors, "path": request.url.path}
-    )
+    extra = {"errors": errors}
+    extra.update(_request_context(request))
+    logger.warning(f"Validation error on {request.url.path}: {len(errors)} field(s)", extra=extra)
     
     return JSONResponse(
         status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
@@ -107,10 +113,9 @@ async def http_exception_handler(request: Request, exc: HTTPException) -> JSONRe
     
     message = messages.get(exc.status_code, exc.detail)
     
-    logger.warning(
-        f"HTTP {exc.status_code}: {message}",
-        extra={"status_code": exc.status_code, "path": request.url.path, "detail": exc.detail}
-    )
+    extra = {"status_code": exc.status_code, "detail": exc.detail}
+    extra.update(_request_context(request))
+    logger.warning(f"HTTP {exc.status_code}: {message}", extra=extra)
     
     return JSONResponse(
         status_code=exc.status_code,
@@ -135,12 +140,9 @@ async def database_exception_handler(request: Request, exc: SQLAlchemyError) -> 
     
     Prevents leaking database details to users
     """
-    # Log full error for debugging
-    logger.error(
-        f"Database error: {str(exc)}",
-        exc_info=True,
-        extra={"path": request.url.path, "method": request.method}
-    )
+    extra = _request_context(request)
+    extra["error_type"] = type(exc).__name__
+    logger.error(f"Database error: {type(exc).__name__}: {exc}", exc_info=True, extra=extra)
     
     # Check if it's an integrity error (duplicate, foreign key, etc.)
     if isinstance(exc, IntegrityError):
@@ -183,27 +185,13 @@ async def generic_exception_handler(request: Request, exc: Exception) -> JSONRes
     except:
         exc_msg = f"<{type(exc).__name__} - str() failed>"
     
-    # Only log full traceback if not already logged (to prevent duplicates)
+    extra = _request_context(request)
+    extra["exception_type"] = type(exc).__name__
     if not hasattr(request.state, "error_logged"):
-        logger.error(
-            f"Unexpected error: {type(exc).__name__}: {exc_msg}",
-            exc_info=True,
-            extra={
-                "path": request.url.path,
-                "method": request.method,
-                "exception_type": type(exc).__name__
-            }
-        )
+        logger.error(f"Unexpected error: {type(exc).__name__}: {exc_msg}", exc_info=True, extra=extra)
         request.state.error_logged = True
     else:
-        # Just log a summary if already logged
-        logger.warning(
-            f"Error handled: {type(exc).__name__}: {exc_msg}",
-            extra={
-                "path": request.url.path,
-                "method": request.method,
-            }
-        )
+        logger.warning(f"Error re-handled: {type(exc).__name__}: {exc_msg}", extra=extra)
     
     # In development, return more details
     if settings.DEBUG:
