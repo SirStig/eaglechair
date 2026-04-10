@@ -464,10 +464,21 @@ else:
 
 
 @app.middleware("http")
-async def no_cache_frontend(request: Request, call_next):
+async def cache_control_frontend(request: Request, call_next):
     response = await call_next(request)
     path = request.url.path
-    if path == "/" or path.startswith("/assets/"):
+    if path.startswith("/assets/"):
+        # Vite-hashed assets are content-addressed and never change — cache for 1 year
+        response.headers["Cache-Control"] = "public, max-age=31536000, immutable"
+        response.headers.pop("Pragma", None)
+        response.headers.pop("Expires", None)
+    elif path.startswith("/uploads/"):
+        # Uploaded files use timestamp-based filenames so the same URL always
+        # points to the same content — safe to cache aggressively
+        response.headers["Cache-Control"] = "public, max-age=31536000, immutable"
+        response.headers.pop("Pragma", None)
+        response.headers.pop("Expires", None)
+    elif path == "/":
         response.headers["Cache-Control"] = "no-store, no-cache, must-revalidate, max-age=0"
         response.headers["Pragma"] = "no-cache"
         response.headers["Expires"] = "0"

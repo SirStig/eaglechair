@@ -1,6 +1,7 @@
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react-swc'
 import { VitePWA } from 'vite-plugin-pwa'
+import { ViteImageOptimizer } from 'vite-plugin-image-optimizer'
 import { dirname, resolve } from 'path'
 import { fileURLToPath } from 'url'
 import fs from 'fs'
@@ -100,8 +101,8 @@ export default defineConfig(({ mode }) => {
         registerType: 'autoUpdate',
         manifest: false, // We manage manifests (manifest.json + manifest-admin.json) ourselves
         workbox: {
-          globPatterns: ['**/*.{js,css,ico,svg}'],
-          globIgnores: ['**/index.html'],
+          globPatterns: ['**/*.{js,css,ico,png,jpg,jpeg,webp,avif,woff2}'],
+          globIgnores: ['**/index.html', '**/favicon.svg'],
           navigateFallback: '/index.html',
           maximumFileSizeToCacheInBytes: 4 * 1024 * 1024, // 4 MiB
           runtimeCaching: [
@@ -113,7 +114,33 @@ export default defineConfig(({ mode }) => {
                 networkTimeoutSeconds: 10,
               },
             },
+            {
+              // Cache uploaded product images with stale-while-revalidate
+              urlPattern: /^\/uploads\/.+\.(png|jpg|jpeg|webp|avif)$/i,
+              handler: 'StaleWhileRevalidate',
+              options: {
+                cacheName: 'uploads-image-cache',
+                expiration: {
+                  maxEntries: 200,
+                  maxAgeSeconds: 7 * 24 * 60 * 60, // 7 days
+                },
+              },
+            },
           ],
+        },
+      }),
+      ViteImageOptimizer({
+        // PNG settings: lossless compression
+        png: { quality: 85 },
+        // JPEG settings
+        jpeg: { quality: 85 },
+        jpg: { quality: 85 },
+        // WebP conversion for better compression
+        webp: { lossless: false, quality: 85 },
+        // SVG optimization via svgo — use preset-default with safe overrides
+        svg: {
+          multipass: true,
+          plugins: ['preset-default'],
         },
       }),
       serveTmpDirectory(), // Serve tmp directory for catalog images

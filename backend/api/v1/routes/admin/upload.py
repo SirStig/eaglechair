@@ -4,6 +4,7 @@ Upload Routes - API v1
 Handles file uploads (images, documents, etc.)
 """
 
+import io
 import logging
 import mimetypes
 import time
@@ -11,6 +12,7 @@ from pathlib import Path
 from urllib.parse import urlparse
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
+from PIL import Image
 from pydantic import BaseModel
 
 from backend.api.dependencies import get_current_admin
@@ -153,6 +155,61 @@ def validate_mime_type(content: bytes, expected_mimes: set, filename: str) -> bo
     return detected_mime in expected_mimes if detected_mime else False
 
 
+MAX_IMAGE_DIMENSION = 2000  # Max width or height in pixels
+
+
+def process_image_to_webp(content: bytes, mime_type: str) -> tuple[bytes, str]:
+    """
+    Compress and convert an uploaded image to WebP format.
+
+    - SVG and GIF are returned unchanged (SVG is vector; GIF may be animated).
+    - All other formats (JPEG, PNG, WEBP, etc.) are:
+        1. Resized so the longest side is ≤ MAX_IMAGE_DIMENSION
+        2. Converted to WebP at quality=85
+
+    Returns (processed_bytes, new_extension).
+    """
+    if mime_type in ("image/svg+xml", "image/gif"):
+        ext = ".svg" if mime_type == "image/svg+xml" else ".gif"
+        return content, ext
+
+    try:
+        img = Image.open(io.BytesIO(content))
+
+        # Preserve EXIF orientation then strip metadata
+        try:
+            import PIL.ExifTags
+            exif = img.getexif()
+            orientation_key = next(
+                (k for k, v in PIL.ExifTags.TAGS.items() if v == "Orientation"), None
+            )
+            if orientation_key and orientation_key in exif:
+                orientation = exif[orientation_key]
+                rotation_map = {3: 180, 6: 270, 8: 90}
+                if orientation in rotation_map:
+                    img = img.rotate(rotation_map[orientation], expand=True)
+        except Exception:
+            pass  # Non-fatal — skip EXIF handling
+
+        # Convert to RGB/RGBA so WebP encoder is happy
+        if img.mode not in ("RGB", "RGBA"):
+            img = img.convert("RGBA" if img.mode in ("P", "LA") else "RGB")
+
+        # Resize if either dimension exceeds the limit
+        w, h = img.size
+        if w > MAX_IMAGE_DIMENSION or h > MAX_IMAGE_DIMENSION:
+            img.thumbnail((MAX_IMAGE_DIMENSION, MAX_IMAGE_DIMENSION), Image.LANCZOS)
+
+        buf = io.BytesIO()
+        img.save(buf, format="WEBP", quality=85, method=6)
+        return buf.getvalue(), ".webp"
+
+    except Exception as exc:
+        logger.warning(f"Image processing failed, storing original: {exc}")
+        ext = MIME_TO_IMAGE_EXT.get(mime_type, ".jpg")
+        return content, ext
+
+
 class DeleteImageRequest(BaseModel):
     """Request to delete an image"""
     url: str
@@ -210,36 +267,45 @@ async def upload_image(
         base_name = Path(sanitize_filename(file.filename or "image")).stem
         base_name = "".join(c for c in base_name if c.isalnum() or c in "-_") or "image"
 
+        # Compress + convert to WebP (SVG/GIF are kept as-is)
+        processed_content, file_ext = process_image_to_webp(content, detected_mime)
+
         # Create upload directory
         upload_dir = UPLOAD_BASE_DIR / "images" / subfolder
         upload_dir.mkdir(parents=True, exist_ok=True)
-        
+
         # Ensure upload directory path is within UPLOAD_BASE_DIR (security check)
         upload_dir_resolved = upload_dir.resolve()
         base_resolved = UPLOAD_BASE_DIR.resolve()
         if not str(upload_dir_resolved).startswith(str(base_resolved)):
             raise HTTPException(status_code=400, detail="Invalid upload path")
-        
+
         timestamp = int(time.time())
         filename = f"{base_name}_{timestamp}{file_ext}"
-        
+
         # Full file path
         file_path = upload_dir / filename
-        
-        # Write file
+
+        # Write processed file
         with open(file_path, "wb") as f:
-            f.write(content)
-        
+            f.write(processed_content)
+
+        original_kb = len(content) // 1024
+        processed_kb = len(processed_content) // 1024
+        logger.info(
+            f"Image uploaded: /uploads/images/{subfolder}/{filename} "
+            f"({original_kb}KB → {processed_kb}KB) by admin {current_admin.id}"
+        )
+
         # Generate URL path
         url_path = f"/uploads/images/{subfolder}/{filename}"
-        
-        logger.info(f"Image uploaded: {url_path} by admin {current_admin.id}")
-        
+
         return {
             "success": True,
             "url": url_path,
             "filename": filename,
-            "size": len(content),
+            "size": len(processed_content),
+            "original_size": len(content),
             "message": "Image uploaded successfully"
         }
         

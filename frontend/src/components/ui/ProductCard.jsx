@@ -83,7 +83,7 @@ const ProductCard = ({ product, onQuickView, darkMode = false, compact = false }
         {/* Show placeholder image on error */}
         {imageError && (
           <img
-            src="/placeholder-product.jpg"
+            src="/placeholder.svg"
             alt={product.name}
             className="w-full h-full object-contain opacity-100"
             style={{ mixBlendMode: 'multiply' }}
@@ -95,7 +95,7 @@ const ProductCard = ({ product, onQuickView, darkMode = false, compact = false }
             {product.variation_id && !product.variation_has_own_image && <VariationImageDisclaimer compact />}
             <img
               key={displayImage} // Force transition when image changes
-              src={displayImage || '/placeholder-product.jpg'}
+              src={displayImage || '/placeholder.svg'}
               alt={product.name}
               onLoad={handleImageLoad}
               onError={handleImageError}

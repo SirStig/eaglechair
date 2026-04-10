@@ -90,7 +90,7 @@ export const ensurePriceCents = (value) => {
  */
 export const resolveImageUrl = (imageData) => {
   // Handle null/undefined
-  if (!imageData) return '/placeholder.png';
+  if (!imageData) return '/placeholder.svg';
 
   // Helper function to process URL string
   const processUrl = (url) => {
@@ -158,7 +158,7 @@ export const resolveImageUrl = (imageData) => {
     return processUrl(imageData);
   }
 
-  return '/placeholder.png';
+  return '/placeholder.svg';
 };
 
 /**
@@ -182,7 +182,7 @@ export const getProductImage = (product, index = 0) => {
   }
   if (product.image)
     return resolveImageUrl(product.image);
-  return '/placeholder.png';
+  return '/placeholder.svg';
 };
 
 /**
@@ -204,7 +204,7 @@ export const getProductImages = (product) => {
   });
   if (deduped.length > 0) return deduped;
   if (product.thumbnail) return [resolveImageUrl(product.thumbnail)];
-  return ['/placeholder.png'];
+  return ['/placeholder.svg'];
 };
 
 /**

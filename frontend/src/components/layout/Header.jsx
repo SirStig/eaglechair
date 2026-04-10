@@ -166,6 +166,9 @@ const Header = ({ isMobileMenuOpen, setIsMobileMenuOpen }) => {
                   src={siteSettings.logoUrl}
                   alt={siteSettings.companyName || 'Eagle Chair'}
                   className={`header-logo h-12 sm:h-14 md:h-16 lg:h-16 w-auto object-contain ${!showHeaderBackground ? 'drop-shadow-[0_2px_8px_rgba(0,0,0,0.8)]' : ''}`}
+                  loading="eager"
+                  decoding="async"
+                  fetchpriority="high"
                   onError={(e) => {
                     e.target.onerror = null;
                     e.target.src = '/assets/eagle-chair-logo.png';
@@ -176,6 +179,9 @@ const Header = ({ isMobileMenuOpen, setIsMobileMenuOpen }) => {
                   src="/assets/eagle-chair-logo.png"
                   alt="Eagle Chair"
                   className={`header-logo h-12 sm:h-14 md:h-16 lg:h-16 w-auto object-contain ${!showHeaderBackground ? 'drop-shadow-[0_2px_8px_rgba(0,0,0,0.8)]' : ''}`}
+                  loading="eager"
+                  decoding="async"
+                  fetchpriority="high"
                 />
               )}
             </Motion.div>
@@ -352,7 +358,7 @@ const Header = ({ isMobileMenuOpen, setIsMobileMenuOpen }) => {
                               fetchpriority={idx < 3 ? "high" : "auto"}
                               onError={(e) => {
                                 e.target.onerror = null;
-                                e.target.src = '/placeholder-product.png';
+                                e.target.src = '/placeholder.svg';
                               }}
                             />
                           </span>

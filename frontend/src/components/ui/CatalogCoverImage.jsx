@@ -24,6 +24,8 @@ const CatalogCoverImage = ({ catalog, className = 'aspect-[3/4]', imgClassName =
         src={coverUrl ? resolveImageUrl(coverUrl) : resolveApiUrl(`/api/v1/content/catalogs/${catalog.id}/pdf-thumbnail`)}
         alt={catalog.title}
         className={`relative z-10 w-full h-full object-cover group-hover:scale-105 transition-transform duration-300 ${imgClassName}`}
+        loading="lazy"
+        decoding="async"
         onError={(e) => { e.target.style.visibility = 'hidden'; }}
       />
     </div>

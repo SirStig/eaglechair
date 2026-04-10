@@ -65,7 +65,7 @@ const Footer = () => {
                   }}
                 />
               ) : (
-                <img src="/assets/eagle-chair-logo.png" alt={companyName} className="h-14 sm:h-16 w-auto mb-3 sm:mb-4 opacity-80" />
+                <img src="/assets/eagle-chair-logo.png" alt={companyName} className="h-14 sm:h-16 w-auto mb-3 sm:mb-4 opacity-80" loading="lazy" decoding="async" />
               )}
               <p className="text-sm mb-3 sm:mb-4 text-dark-200 max-w-xs">Family-owned manufacturer since 1984.</p>
               {/* Social media links from contentData.json */}
