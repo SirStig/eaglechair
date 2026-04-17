@@ -1,4 +1,5 @@
-import { Filter, X, ChevronDown, ChevronUp, ArrowUpDown, Search, Folder, Grid3x3, Users } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { X, ChevronDown, ChevronUp, ArrowUpDown, Search, Folder, Grid3x3, Users } from 'lucide-react';
 
 const FilterSidebar = ({
   filters,
@@ -22,23 +23,57 @@ const FilterSidebar = ({
   showMobileFilters,
   onCloseMobile,
 }) => {
-  const scrollBodyStyle = {
-    height: 'calc(100vh - 200px)',
-    maxHeight: 'calc(100vh - 200px)',
-    overflowY: 'scroll',
-    overflowX: 'hidden',
-    WebkitOverflowScrolling: 'touch',
-  };
+  const [lgSticky, setLgSticky] = useState(true);
+
+  useEffect(() => {
+    const footer = document.querySelector('footer');
+    if (!footer) return undefined;
+
+    const mq = window.matchMedia('(min-width: 1024px)');
+    let raf = 0;
+
+    const tick = () => {
+      if (!mq.matches) {
+        setLgSticky(true);
+        return;
+      }
+      const ft = footer.getBoundingClientRect().top;
+      const h = window.innerHeight;
+      setLgSticky((prev) => {
+        const release = ft < h + 80;
+        const engage = ft > h + 160;
+        if (release) return false;
+        if (engage) return true;
+        return prev;
+      });
+    };
+
+    const schedule = () => {
+      if (raf) return;
+      raf = requestAnimationFrame(() => {
+        raf = 0;
+        tick();
+      });
+    };
+
+    tick();
+    window.addEventListener('scroll', schedule, { passive: true });
+    window.addEventListener('resize', schedule);
+    return () => {
+      window.removeEventListener('scroll', schedule);
+      window.removeEventListener('resize', schedule);
+      if (raf) cancelAnimationFrame(raf);
+    };
+  }, []);
 
   return (
     <div
       className={`
         rounded-xl shadow-lg bg-white border border-cream-200
-        flex flex-col
-        ${showMobileFilters ? 'fixed inset-4 z-50 max-h-[90vh] lg:max-h-none' : 'hidden lg:block'}
-        lg:fixed lg:top-24 lg:left-8 xl:left-12 2xl:left-16
-        lg:w-[320px] xl:w-[360px]
-        lg:h-[calc(100vh-6rem)]
+        flex flex-col w-full overflow-hidden
+        ${showMobileFilters ? 'max-lg:fixed max-lg:inset-4 max-lg:z-50 max-lg:max-h-[90vh]' : 'max-lg:hidden'}
+        lg:block lg:max-h-[calc(100vh-6rem)]
+        ${lgSticky ? 'lg:sticky lg:top-24 lg:z-0' : 'lg:relative lg:top-auto lg:z-0'}
       `}
     >
       <div className="flex items-center justify-between p-4 sm:p-5 border-b border-cream-200 bg-cream-50 flex-shrink-0">
@@ -64,7 +99,7 @@ const FilterSidebar = ({
         </div>
       </div>
 
-      <div className="p-4 sm:p-5 space-y-4 filter-sidebar-scroll" style={scrollBodyStyle}>
+      <div className="p-4 sm:p-5 space-y-4 filter-sidebar-scroll flex-1 min-h-0 overflow-y-auto overflow-x-hidden overscroll-contain [-webkit-overflow-scrolling:touch]">
         <div className="pb-4 border-b border-cream-200">
           <label className="flex items-center gap-2 text-sm font-semibold text-slate-700 mb-2.5">
             <ArrowUpDown className="w-4 h-4" />
