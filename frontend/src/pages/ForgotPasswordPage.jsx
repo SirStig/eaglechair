@@ -1,4 +1,6 @@
 import { useState } from 'react';
+import SEOHead from '../components/SEOHead';
+import { SEO } from '../config/seoConfig';
 import { Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import axios from 'axios';
@@ -82,6 +84,7 @@ const ForgotPasswordPage = () => {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-dark-900 via-dark-800 to-dark-900 flex items-center justify-center py-12 px-4">
+      <SEOHead {...SEO.pages.forgotPassword} />
       <motion.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}

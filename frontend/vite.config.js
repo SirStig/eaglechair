@@ -87,7 +87,7 @@ const serveUploadsDirectory = () => ({
 });
 
 // https://vite.dev/config/
-export default defineConfig(({ mode }) => {
+export default defineConfig(({ mode, isSsrBuild }) => {
   const buildTimestamp = new Date().toISOString();
   const isProduction = mode === 'production';
   
@@ -97,7 +97,8 @@ export default defineConfig(({ mode }) => {
   return {
     plugins: [
       react(),
-      VitePWA({
+      // PWA and image optimizer are client-only; skip for SSR server bundle
+      !isSsrBuild && VitePWA({
         registerType: 'autoUpdate',
         manifest: false, // We manage manifests (manifest.json + manifest-admin.json) ourselves
         workbox: {
@@ -129,24 +130,18 @@ export default defineConfig(({ mode }) => {
           ],
         },
       }),
-      ViteImageOptimizer({
-        // PNG settings: lossless compression
+      !isSsrBuild && ViteImageOptimizer({
         png: { quality: 85 },
-        // JPEG settings
         jpeg: { quality: 85 },
         jpg: { quality: 85 },
-        // WebP conversion for better compression
         webp: { lossless: false, quality: 85 },
-        // SVG optimization via svgo — use preset-default with safe overrides
         svg: {
           multipass: true,
           plugins: ['preset-default'],
         },
       }),
-      serveTmpDirectory(), // Serve tmp directory for catalog images
-      // Only serve uploads directory directly in dev mode
-      // In production, files are served from frontend/dist/uploads
-      !isProduction && serveUploadsDirectory(),
+      !isSsrBuild && serveTmpDirectory(),
+      !isSsrBuild && !isProduction && serveUploadsDirectory(),
     ].filter(Boolean), // Remove falsy values from array
     
     // Optimize dependencies to ensure React is properly pre-bundled
@@ -228,6 +223,11 @@ export default defineConfig(({ mode }) => {
       __APP_NAME__: JSON.stringify('Eagle Chair'),
       __APP_VERSION__: JSON.stringify('1.0.0'),
       __BUILD_TIMESTAMP__: JSON.stringify(buildTimestamp),
+    },
+
+    // SSR: bundle these CJS packages so Vite can transform them correctly
+    ssr: {
+      noExternal: ['react-helmet-async'],
     },
   };
 });

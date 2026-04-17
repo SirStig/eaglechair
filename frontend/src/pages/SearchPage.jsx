@@ -1,5 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
+import SEOHead from '../components/SEOHead';
+import { SEO } from '../config/seoConfig';
 import { Filter, X, ChevronDown, ChevronUp, ArrowUpDown, Search as SearchIcon, Grid3x3 } from 'lucide-react';
 import ProductCard from '../components/ui/ProductCard';
 import Button from '../components/ui/Button';
@@ -212,6 +214,7 @@ const SearchPage = () => {
 
   return (
     <div className="min-h-screen py-8 bg-gradient-to-br from-cream-50 to-cream-100">
+      <SEOHead {...SEO.pages.search} />
       <div className="w-full px-4 sm:px-6 lg:px-8 xl:px-12 2xl:px-16">
         {/* Breadcrumb */}
         <div className="mb-6 text-sm text-slate-600">

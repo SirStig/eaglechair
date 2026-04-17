@@ -1,6 +1,8 @@
 import { useState } from 'react';
 // eslint-disable-next-line no-unused-vars
 import { motion } from 'framer-motion';
+import SEOHead from '../components/SEOHead';
+import { SEO } from '../config/seoConfig';
 import Modal from '../components/ui/Modal';
 import EditableWrapper from '../components/admin/EditableWrapper';
 import EditableList from '../components/admin/EditableList';
@@ -113,6 +115,7 @@ const GalleryPage = () => {
 
   return (
     <div className="min-h-screen bg-dark-800 py-8">
+      <SEOHead {...SEO.pages.gallery} />
       <div className="mx-auto px-4 sm:px-6 lg:px-8 max-w-[1800px]">
         {/* Header */}
         <div className="text-center mb-12">

@@ -1,6 +1,8 @@
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useCatalogs } from '../hooks/useContent';
+import SEOHead from '../components/SEOHead';
+import { SEO } from '../config/seoConfig';
 import { Eye, Download } from 'lucide-react';
 import LoadingSpinner from '../components/ui/LoadingSpinner';
 import PDFViewerModal from '../components/ui/PDFViewerModal';
@@ -58,6 +60,7 @@ const GuidesPage = () => {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-cream-50 to-cream-100">
+      <SEOHead {...SEO.pages.guides} />
       <div className="bg-cream-50/80 border-b border-cream-200 sticky top-[80px] z-40 backdrop-blur-sm">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
           <div>

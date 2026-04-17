@@ -2,6 +2,8 @@ import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { loadContentData } from '../utils/contentDataLoader';
+import SEOHead from '../components/SEOHead';
+import { SEO } from '../config/seoConfig';
 
 const GeneralInformationPage = () => {
   const [activeSection, setActiveSection] = useState(null);
@@ -36,6 +38,7 @@ const GeneralInformationPage = () => {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-dark-900 via-dark-800 to-dark-900">
+      <SEOHead {...SEO.pages.generalInfo} />
       <div className="max-w-[1600px] mx-auto px-4 sm:px-6 lg:px-8 py-12">
         {/* Page Header - Not Sticky */}
         <div className="mb-8">

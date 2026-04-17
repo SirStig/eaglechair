@@ -1,5 +1,7 @@
 // eslint-disable-next-line no-unused-vars
 import { motion } from 'framer-motion';
+import SEOHead from '../components/SEOHead';
+import { SEO } from '../config/seoConfig';
 import Card from '../components/ui/Card';
 import EditableWrapper from '../components/admin/EditableWrapper';
 import EditableList from '../components/admin/EditableList';
@@ -127,6 +129,7 @@ const AboutPage = () => {
 
   return (
     <div className="min-h-screen bg-dark-800">
+      <SEOHead {...SEO.pages.about} />
       {/* Hero Section - extends to top, header floats above */}
       <section className="relative min-h-[500px] sm:min-h-[600px] lg:min-h-[700px] -mt-[var(--header-height)] pt-[var(--header-height)] bg-dark-900 text-white flex">
         <div className="absolute inset-0 opacity-30">

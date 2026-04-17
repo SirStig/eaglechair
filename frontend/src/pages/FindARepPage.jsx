@@ -1,4 +1,6 @@
 import { useState, useCallback, useMemo } from 'react';
+import SEOHead from '../components/SEOHead';
+import { SEO } from '../config/seoConfig';
 import { motion } from 'framer-motion';
 import Card from '../components/ui/Card';
 import USMapInteractive from '../components/USMapInteractive';
@@ -74,6 +76,7 @@ const FindARepPage = () => {
 
   return (
     <div className="min-h-screen bg-dark-800 py-8">
+      <SEOHead {...SEO.pages.findARep} />
       <div className="container">
         {/* Header */}
         <div className="text-center mb-12">

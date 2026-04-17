@@ -25,8 +25,12 @@
   ],
   "scripts": {
     "dev": "vite --host 0.0.0.0",
-    "build": "vite build",
-    "build:production": "vite build --mode production",
+    "dev:ssr": "node server/index.js",
+    "build:client": "vite build",
+    "build:server": "vite build --ssr src/entry-server.jsx --outDir dist/server",
+    "build": "npm run build:client && npm run build:server",
+    "build:production": "npm run build:client -- --mode production && npm run build:server -- --mode production",
+    "serve": "NODE_ENV=production node server/index.js",
     "lint": "eslint .",
     "preview": "vite preview"
   },
@@ -38,6 +42,7 @@
     "axios": "^1.12.2",
     "clsx": "^2.1.1",
     "date-fns": "^4.1.0",
+    "express": "^4.22.1",
     "framer-motion": "^11.15.0",
     "lucide-react": "^0.548.0",
     "react": "^18.3.1",

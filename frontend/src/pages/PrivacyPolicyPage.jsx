@@ -2,6 +2,8 @@ import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { loadContentData } from '../utils/contentDataLoader';
+import SEOHead from '../components/SEOHead';
+import { SEO } from '../config/seoConfig';
 
 const PrivacyPolicyPage = () => {
   const [legalDocuments, setLegalDocuments] = useState([]);
@@ -40,6 +42,7 @@ const PrivacyPolicyPage = () => {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-dark-900 via-dark-800 to-dark-900">
+      <SEOHead {...SEO.pages.privacy} />
       <motion.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}

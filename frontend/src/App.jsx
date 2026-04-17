@@ -1,4 +1,4 @@
-import { BrowserRouter as Router, Routes, Route, Outlet, Navigate, useLocation } from 'react-router-dom';
+import { Routes, Route, Outlet, Navigate, useLocation } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { useEffect, lazy, Suspense } from 'react';
 import Layout from './components/layout/Layout';
@@ -127,10 +127,9 @@ function App() {
   return (
     <ErrorBoundary>
       <QueryClientProvider client={queryClient}>
-          <Router>
-            <ManifestInjector />
-            <CartSync />
-            <AdminAuthProvider>
+          <ManifestInjector />
+          <CartSync />
+          <AdminAuthProvider>
             <EditModeProvider>
               <ToastProvider>
                 <ScrollToTop />
@@ -210,10 +209,9 @@ function App() {
           </Route>
                   </Routes>
                 </Suspense>
-                </ToastProvider>
-              </EditModeProvider>
-            </AdminAuthProvider>
-          </Router>
+              </ToastProvider>
+            </EditModeProvider>
+          </AdminAuthProvider>
         </QueryClientProvider>
       </ErrorBoundary>
   );

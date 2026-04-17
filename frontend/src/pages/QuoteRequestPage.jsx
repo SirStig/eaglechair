@@ -1,5 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import SEOHead from '../components/SEOHead';
+import { SEO } from '../config/seoConfig';
 import { useForm } from 'react-hook-form';
 import { useDropzone } from 'react-dropzone';
 import { Upload, X, FileText, CheckCircle, AlertCircle, Package, Edit } from 'lucide-react';
@@ -185,6 +187,7 @@ const QuoteRequestPage = () => {
 
   return (
     <div className="min-h-screen bg-cream-50 py-8">
+      <SEOHead {...SEO.pages.quoteRequest} />
       <div className="container max-w-7xl mx-auto px-4">
         <div className="mb-8">
           <h1 className="text-2xl sm:text-3xl md:text-4xl font-bold text-slate-800 mb-2">Request a Quote</h1>

@@ -95,7 +95,7 @@ const Dropdown = ({
       <div onClick={() => setOpen(!isOpen)}>
         {triggerWithState}
       </div>
-      {fullWidth ? createPortal(dropdownContent, document.body) : dropdownContent}
+      {fullWidth && typeof document !== 'undefined' ? createPortal(dropdownContent, document.body) : dropdownContent}
     </div>
   );
 };

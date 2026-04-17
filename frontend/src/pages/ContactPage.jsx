@@ -1,4 +1,6 @@
 import { useState } from 'react';
+import SEOHead from '../components/SEOHead';
+import { SEO } from '../config/seoConfig';
 import { motion } from 'framer-motion';
 import { useForm } from 'react-hook-form';
 import Card from '../components/ui/Card';
@@ -143,6 +145,7 @@ const ContactPage = () => {
 
   return (
     <div className="min-h-screen bg-dark-800 py-8">
+      <SEOHead {...SEO.pages.contact} />
       <div className="container">
         {/* Header */}
         <div className="text-center mb-12">

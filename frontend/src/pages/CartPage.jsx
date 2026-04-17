@@ -1,4 +1,6 @@
 import { useState, useRef, useEffect } from 'react';
+import SEOHead from '../components/SEOHead';
+import { SEO } from '../config/seoConfig';
 import { Link } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import Button from '../components/ui/Button';
@@ -58,6 +60,7 @@ const CartPage = () => {
 
   return (
     <div className="min-h-screen bg-cream-50 py-12">
+      <SEOHead {...SEO.pages.cart} />
       <div className="container max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         {/* Header */}
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-10">

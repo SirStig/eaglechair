@@ -1,5 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { useNavigate, Link, useLocation } from 'react-router-dom';
+import SEOHead from '../components/SEOHead';
+import { SEO } from '../config/seoConfig';
 import { useForm } from 'react-hook-form';
 import { motion } from 'framer-motion';
 import Button from '../components/ui/Button';
@@ -103,6 +105,7 @@ const LoginPage = () => {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-dark-900 via-dark-800 to-dark-900 flex items-center justify-center py-12 px-4">
+      <SEOHead {...SEO.pages.login} />
       <motion.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
