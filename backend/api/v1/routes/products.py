@@ -313,8 +313,11 @@ async def get_products(
     When smart_sort=true, products are ordered by:
     1. Featured products first
     2. New products second
-    3. Popular products (by view count)
-    4. Then by display order and name
+    3. Products with catalog images (primary, gallery, or hover)
+    4. Popular products (by view count)
+    5. Then by display order and name
+
+    Default ordering (smart_sort=false) also deprioritizes products without images.
     """
     logger.info(
         f"Fetching products (page={page}, per_page={per_page}, "

@@ -34,8 +34,9 @@ const ProductFamilyQuickView = ({ family, isOpen, onClose }) => {
       // Fetch products in this family using productService
       const response = await productService.getProducts({
         family_id: family.id,
-        per_page: 6, // Show first 6 products
+        per_page: 6,
         exclude_variations: true,
+        smart_sort: true,
       });
       setFamilyProducts(response.data || []);
     } catch (error) {

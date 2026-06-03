@@ -7,7 +7,7 @@ Handles product catalog operations (chairs, categories, finishes, upholstery)
 import logging
 from typing import Any, Dict, List, Optional
 
-from sqlalchemy import and_, cast, func, or_, select
+from sqlalchemy import and_, case, cast, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 from sqlalchemy.types import String
@@ -50,6 +50,28 @@ def _rank_by_model_match(product: Chair, query: str) -> int:
     if mn.startswith(q):
         return 1
     return 0
+
+
+def _has_displayable_image_rank():
+    """SQL rank: 1 when the product has a catalog image, else 0."""
+    url_present = lambda col: and_(col.isnot(None), col != "")
+
+    def json_gallery_has_url(col):
+        serialized = cast(col, String)
+        return and_(col.isnot(None), serialized.ilike("%url%"))
+
+    return case(
+        (
+            or_(
+                url_present(Chair.primary_image_url),
+                url_present(Chair.thumbnail),
+                json_gallery_has_url(Chair.images),
+                json_gallery_has_url(Chair.hover_images),
+            ),
+            1,
+        ),
+        else_=0,
+    )
 
 
 class ProductService:
@@ -195,7 +217,7 @@ class ProductService:
             max_lead_time_days: Maximum lead time in days
             in_stock_only: Show only in-stock products
             exclude_variations: Exclude product variations, show only base products
-            smart_sort: Use smart sorting (featured → new → popular → rest)
+            smart_sort: Use smart sorting (featured → new → with image → popular → rest)
             include_inactive: Include inactive products
 
         Returns:
@@ -304,18 +326,22 @@ class ProductService:
                 )
             )
 
-        # Smart sorting algorithm: featured → new → popular (view_count) → display_order → name
+        has_image = _has_displayable_image_rank()
         if smart_sort:
             query = query.order_by(
                 Chair.is_featured.desc(),
                 Chair.is_new.desc(),
+                has_image.desc(),
                 Chair.view_count.desc(),
                 Chair.display_order,
                 Chair.name,
             )
         else:
-            # Default ordering
-            query = query.order_by(Chair.display_order, Chair.name)
+            query = query.order_by(
+                has_image.desc(),
+                Chair.display_order,
+                Chair.name,
+            )
 
         result = await paginate(db, query, pagination)
 

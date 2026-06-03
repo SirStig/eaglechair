@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { useSearchParams, useNavigate } from 'react-router-dom';
+import { useSearchParams, useNavigate, Link } from 'react-router-dom';
 import SEOHead from '../components/SEOHead';
 import { SEO } from '../config/seoConfig';
 import { Filter, X, ChevronDown, ChevronUp, ArrowUpDown, Search as SearchIcon, Grid3x3 } from 'lucide-react';
@@ -47,10 +47,17 @@ const SearchPage = () => {
   // Debounce search query
   const debouncedQuery = useDebounce(searchQuery, 300);
   
-  // Update local search query when URL changes
   useEffect(() => {
     setSearchQuery(urlQuery);
-  }, [urlQuery]);
+    setFilters({
+      category_id: searchParams.get('category_id') || '',
+      sortBy: searchParams.get('sort') || 'relevance',
+    });
+    setPagination((prev) => ({
+      ...prev,
+      page: Math.max(1, parseInt(searchParams.get('page') || '1', 10) || 1),
+    }));
+  }, [urlQuery, searchParams]);
 
   // Load categories on mount
   useEffect(() => {
@@ -140,16 +147,20 @@ const SearchPage = () => {
     updateURLParams(newFilters);
   };
 
-  const updateURLParams = (newFilters) => {
+  const updateURLParams = (newFilters, pageNum = 1) => {
     const params = new URLSearchParams();
-    params.set('q', searchQuery); // Keep search query
-    
-    Object.entries(newFilters).forEach(([key, value]) => {
-      if (value && value !== '') {
-        params.set(key, value);
-      }
-    });
-    
+    if (searchQuery) {
+      params.set('q', searchQuery);
+    }
+    if (newFilters.category_id) {
+      params.set('category_id', newFilters.category_id);
+    }
+    if (newFilters.sortBy && newFilters.sortBy !== 'relevance') {
+      params.set('sort', newFilters.sortBy);
+    }
+    if (pageNum > 1) {
+      params.set('page', String(pageNum));
+    }
     setSearchParams(params);
   };
 
@@ -170,18 +181,8 @@ const SearchPage = () => {
   const handleSearchSubmit = (e) => {
     e.preventDefault();
     if (searchQuery.trim()) {
-      const params = new URLSearchParams();
-      params.set('q', searchQuery.trim());
-      
-      // Keep existing filters
-      Object.entries(filters).forEach(([key, value]) => {
-        if (value && value !== '') {
-          params.set(key, value);
-        }
-      });
-      
-      setSearchParams(params);
-      setPagination(prev => ({ ...prev, page: 1 }));
+      setSearchQuery(searchQuery.trim());
+      updateURLParams(filters, 1);
     }
   };
 
@@ -197,7 +198,8 @@ const SearchPage = () => {
   };
 
   const handlePageChange = (newPage) => {
-    setPagination(prev => ({ ...prev, page: newPage }));
+    setPagination((prev) => ({ ...prev, page: newPage }));
+    updateURLParams(filters, newPage);
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
@@ -216,18 +218,29 @@ const SearchPage = () => {
     <div className="min-h-screen py-8 bg-gradient-to-br from-cream-50 to-cream-100">
       <SEOHead {...SEO.pages.search} />
       <div className="w-full px-4 sm:px-6 lg:px-8 xl:px-12 2xl:px-16">
-        {/* Breadcrumb */}
-        <div className="mb-6 text-sm text-slate-600">
-          <span className="cursor-pointer hover:text-primary-500" onClick={() => navigate('/')}>
-            Home
-          </span>
-          {' '}/{' '}
-          <span className="cursor-pointer hover:text-primary-500" onClick={() => navigate('/products')}>
-            Products
-          </span>
-          {' '}/{' '}
-          <span className="text-slate-800">Search Results</span>
-        </div>
+        <nav aria-label="Breadcrumb" className="mb-6 text-sm text-slate-600">
+          <ol className="flex items-center list-none m-0 p-0">
+            <li>
+              <Link to="/" className="hover:text-primary-500">
+                Home
+              </Link>
+            </li>
+            <li aria-hidden="true" className="mx-1">
+              /
+            </li>
+            <li>
+              <Link to="/products" className="hover:text-primary-500">
+                Products
+              </Link>
+            </li>
+            <li aria-hidden="true" className="mx-1">
+              /
+            </li>
+            <li>
+              <span className="text-slate-800">Search Results</span>
+            </li>
+          </ol>
+        </nav>
 
         {/* Header */}
         <div className="mb-8">

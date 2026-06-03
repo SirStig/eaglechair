@@ -215,7 +215,48 @@ class TestProductService:
         
         assert result["total"] >= 1
         assert any("office" in (p.short_description or "").lower() or "Office" in p.name for p in result["items"])
-    
+
+    @pytest.mark.asyncio
+    async def test_smart_sort_deprioritizes_products_without_images(
+        self, db_session: AsyncSession
+    ):
+        """Products with images should appear before those without when smart_sort is on."""
+        from backend.utils.pagination import PaginationParams
+
+        category = await create_category(db_session)
+        no_image = await create_chair(
+            db_session,
+            category_id=category.id,
+            name="AAA No Image",
+            display_order=1,
+            is_featured=False,
+            is_new=False,
+            view_count=1000,
+            primary_image_url=None,
+        )
+        with_image = await create_chair(
+            db_session,
+            category_id=category.id,
+            name="ZZZ With Image",
+            display_order=99,
+            is_featured=False,
+            is_new=False,
+            view_count=0,
+            primary_image_url="/uploads/images/products/test.webp",
+        )
+
+        pagination = PaginationParams(page=1, per_page=50)
+        result = await ProductService.get_products(
+            db_session,
+            pagination=pagination,
+            category_id=category.id,
+            smart_sort=True,
+            include_inactive=True,
+        )
+
+        ids = [p.id for p in result["items"]]
+        assert ids.index(with_image.id) < ids.index(no_image.id)
+
     @pytest.mark.asyncio
     async def test_get_product_by_id_success(self, db_session: AsyncSession):
         """Test successful product retrieval by ID."""

@@ -256,7 +256,7 @@ export const productService = {
   getFeaturedProducts: async (limit = 6) => {
     // Backend returns PaginatedResponse, need to map per_page
     const response = await api.get('/api/v1/products', {
-      params: { featured: true, per_page: limit }
+      params: { featured: true, per_page: limit, smart_sort: true },
     });
 
     // Extract items from paginated response
