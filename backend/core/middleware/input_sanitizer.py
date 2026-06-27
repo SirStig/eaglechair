@@ -101,6 +101,28 @@ class InputSanitizerMiddleware(BaseHTTPMiddleware):
         "cf-ray",
         "cf-request-id",
         "cf-visitor",
+        # Modern browser client-hint / fetch-metadata headers. These are set
+        # by the browser (not user-controllable) and legitimately contain
+        # characters like parentheses, e.g. Chrome's sec-ch-ua: "Not(A:Brand".
+        "sec-ch-ua",
+        "sec-ch-ua-mobile",
+        "sec-ch-ua-platform",
+        "sec-ch-ua-platform-version",
+        "sec-ch-ua-arch",
+        "sec-ch-ua-model",
+        "sec-ch-ua-full-version",
+        "sec-ch-ua-full-version-list",
+        "sec-fetch-site",
+        "sec-fetch-mode",
+        "sec-fetch-dest",
+        "sec-fetch-user",
+        "sec-gpc",
+        "dnt",
+        "priority",
+        "pragma",
+        "cache-control",
+        "te",
+        "upgrade-insecure-requests",
     }
     
     # Fields that commonly contain special characters legitimately
@@ -239,23 +261,30 @@ class InputSanitizerMiddleware(BaseHTTPMiddleware):
         return sanitized if modified else None
     
     def _detect_header_injection(self, request: Request) -> bool:
-        """Detect header injection attempts (but don't modify headers)"""
-        
+        """Detect header injection attempts (but don't modify headers).
+
+        The only genuine injection vector via HTTP headers is CRLF injection
+        (HTTP response splitting / header smuggling), so that is all we check
+        here. The broader SQL/XSS/LDAP/command INJECTION_PATTERNS are designed
+        for request bodies and query strings; running them against header
+        values produces false positives on legitimate, browser-set headers.
+
+        For example, Chrome's `sec-ch-ua` client-hint header contains values
+        like `"Not(A:Brand"` whose parenthesis matches the LDAP pattern
+        `(\\*|\\(|\\)|\\||&)`, which would wrongly reject every Chrome request
+        with a 400 "potentially malicious headers" error.
+        """
+
         for header_name, header_value in request.headers.items():
             # Skip protected headers
             if header_name.lower() in self.PROTECTED_HEADERS:
                 continue
-            
-            # Check for CRLF injection in header values
+
+            # Check for CRLF injection in header values (the real threat)
             if "\r" in header_value or "\n" in header_value:
                 logger.warning(f"CRLF injection detected in header '{header_name}'")
                 return True
-            
-            # Check for injection patterns in custom headers
-            if self._contains_injection_pattern(header_value):
-                logger.warning(f"Injection pattern in header '{header_name}': {header_value[:100]}")
-                return True
-        
+
         return False
     
     async def _sanitize_request_body(self, request: Request) -> None:
