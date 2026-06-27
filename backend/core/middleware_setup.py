@@ -284,19 +284,14 @@ def setup_middleware(app):
         app.add_middleware(GZipMiddleware, minimum_size=5000)
         logger.info("[OK] GZip compression enabled")
     
-    # CORS (must be early to handle preflight requests)
-    app.add_middleware(
-        CORSMiddleware,
-        allow_origins=settings.CORS_ORIGINS,
-        allow_credentials=settings.CORS_ALLOW_CREDENTIALS,
-        allow_methods=settings.CORS_ALLOW_METHODS,
-        allow_headers=settings.CORS_ALLOW_HEADERS,
-    )
-    logger.info("[OK] CORS configured")
-    logger.info(f"[CORS] Origins: {settings.CORS_ORIGINS}")
-    logger.info(f"[CORS] Methods: {settings.CORS_ALLOW_METHODS}")
-    logger.info(f"[CORS] Headers: {settings.CORS_ALLOW_HEADERS}")
-    
+    # NOTE: CORS is intentionally NOT added here. In Starlette, each
+    # add_middleware() call wraps OUTSIDE the previous one, so the request
+    # flow (outermost -> innermost) is the reverse of the add order. CORS
+    # must be the OUTERMOST middleware so that responses short-circuited by
+    # the security layers below (DDoS, rate limit, input sanitizer, etc.)
+    # still receive Access-Control-Allow-Origin headers. It is therefore
+    # added LAST, at the very end of this function.
+
     # ========================================================================
     # Layer 2: Security & Attack Prevention
     # ========================================================================
@@ -379,10 +374,32 @@ def setup_middleware(app):
     app.add_middleware(RequestLoggingMiddleware)
     logger.info("[OK] Request logging enabled")
     
-    # Error handling (outermost layer)
+    # Error handling
     app.add_middleware(ErrorHandlingMiddleware)
     logger.info("[OK] Error handling enabled")
-    
+
+    # ========================================================================
+    # Layer 6: CORS (OUTERMOST — added last)
+    # ========================================================================
+    # Added last so it wraps every other middleware. This guarantees that
+    # ALL responses — including 4xx/5xx short-circuited by the security
+    # layers above and OPTIONS preflight requests — carry the correct
+    # Access-Control-Allow-Origin headers. Without this, Chrome (which fires
+    # many parallel requests on load) sees "blocked by CORS policy: No
+    # 'Access-Control-Allow-Origin' header" whenever a request is rejected
+    # before reaching the app.
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=settings.CORS_ORIGINS,
+        allow_credentials=settings.CORS_ALLOW_CREDENTIALS,
+        allow_methods=settings.CORS_ALLOW_METHODS,
+        allow_headers=settings.CORS_ALLOW_HEADERS,
+    )
+    logger.info("[OK] CORS configured (outermost)")
+    logger.info(f"[CORS] Origins: {settings.CORS_ORIGINS}")
+    logger.info(f"[CORS] Methods: {settings.CORS_ALLOW_METHODS}")
+    logger.info(f"[CORS] Headers: {settings.CORS_ALLOW_HEADERS}")
+
     # ========================================================================
     # Additional Configuration
     # ========================================================================
