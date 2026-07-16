@@ -10,7 +10,7 @@ from functools import lru_cache
 from typing import Optional
 
 from dotenv import load_dotenv
-from pydantic import field_validator, model_validator
+from pydantic import Field, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -83,38 +83,56 @@ class Settings(BaseSettings):
     RELOAD: bool = True
 
     # CORS Configuration
-    CORS_ORIGINS: list[str] = [
-        "http://localhost:3000",
-        "http://localhost:5173",
-        "https://eaglechair.com",
-        "https://joshua.eaglechair.com",
-        "https://www.eaglechair.com",
-    ]
+    # These are read as plain strings (not list[str]) on purpose: pydantic-settings
+    # auto-JSON-decodes any env value bound to a list-typed field *before* any
+    # field_validator runs, and raises an uncaught SettingsError - crashing the
+    # whole app - if that value isn't valid JSON. Keeping the raw field a str and
+    # parsing it ourselves via the properties below lets a malformed value fail
+    # gracefully (falls back to comma-split, or a single-item list) instead of
+    # taking down the process.
+    CORS_ORIGINS_STR: str = Field(
+        default='["http://localhost:3000","http://localhost:5173","https://eaglechair.com","https://joshua.eaglechair.com","https://www.eaglechair.com"]',
+        validation_alias="CORS_ORIGINS",
+    )
     CORS_ALLOW_CREDENTIALS: bool = True
     # Restricted methods for security - only allow necessary HTTP methods
-    CORS_ALLOW_METHODS: list[str] = ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"]
-    # Restricted headers - only allow necessary headers
-    CORS_ALLOW_HEADERS: list[str] = [
-        "Authorization",
-        "Content-Type",
-        "X-Session-Token",
-        "X-Admin-Token",
-        "X-Request-ID",
-    ]
-
-    @field_validator(
-        "CORS_ORIGINS", "CORS_ALLOW_METHODS", "CORS_ALLOW_HEADERS", mode="before"
+    CORS_ALLOW_METHODS_STR: str = Field(
+        default='["GET","POST","PUT","PATCH","DELETE","OPTIONS"]',
+        validation_alias="CORS_ALLOW_METHODS",
     )
-    @classmethod
-    def parse_json_list(cls, v):
-        """Parse JSON string from .env file into Python list"""
-        if isinstance(v, str):
-            try:
-                return json.loads(v)
-            except json.JSONDecodeError:
-                # If it's not valid JSON, treat it as a single item list
-                return [v]
-        return v
+    # Restricted headers - only allow necessary headers
+    CORS_ALLOW_HEADERS_STR: str = Field(
+        default='["Authorization","Content-Type","X-Session-Token","X-Admin-Token","X-Request-ID"]',
+        validation_alias="CORS_ALLOW_HEADERS",
+    )
+
+    @staticmethod
+    def _parse_str_list(value: str) -> list[str]:
+        """Parse a JSON array or comma-separated string into a list of strings"""
+        value = value.strip()
+        try:
+            parsed = json.loads(value)
+            if isinstance(parsed, list):
+                return [str(item) for item in parsed]
+            return [str(parsed)]
+        except json.JSONDecodeError:
+            # Not valid JSON - fall back to comma-separated values, e.g.
+            # CORS_ORIGINS=https://a.com,https://b.com or the unquoted-array
+            # form CORS_ORIGINS=[https://a.com,https://b.com]
+            value = value.strip().removeprefix("[").removesuffix("]")
+            return [item.strip().strip('"').strip("'") for item in value.split(",") if item.strip()]
+
+    @property
+    def CORS_ORIGINS(self) -> list[str]:
+        return self._parse_str_list(self.CORS_ORIGINS_STR)
+
+    @property
+    def CORS_ALLOW_METHODS(self) -> list[str]:
+        return self._parse_str_list(self.CORS_ALLOW_METHODS_STR)
+
+    @property
+    def CORS_ALLOW_HEADERS(self) -> list[str]:
+        return self._parse_str_list(self.CORS_ALLOW_HEADERS_STR)
 
     # Database Configuration
     DATABASE_URL: str = "postgresql://postgres:postgres@postgres:5432/eaglechair"

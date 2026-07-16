@@ -84,6 +84,7 @@ class AdminSecurityMiddleware(BaseHTTPMiddleware):
                 )
                 self._log_suspicious_attempt(client_ip, "ip_not_whitelisted")
                 return self._create_error_response(
+                    request,
                     status.HTTP_403_FORBIDDEN,
                     "IP_NOT_WHITELISTED",
                     "Your IP address is not authorized for admin access."
@@ -102,6 +103,7 @@ class AdminSecurityMiddleware(BaseHTTPMiddleware):
             )
             self._log_suspicious_attempt(client_ip, "missing_tokens")
             return self._create_error_response(
+                request,
                 status.HTTP_401_UNAUTHORIZED,
                 "ADMIN_AUTHENTICATION_REQUIRED",
                 "Admin authentication requires both session and admin tokens."
@@ -115,6 +117,7 @@ class AdminSecurityMiddleware(BaseHTTPMiddleware):
                 {"path": path, "user_agent": request.headers.get("User-Agent")}
             )
             return self._create_error_response(
+                request,
                 status.HTTP_403_FORBIDDEN,
                 "ADMIN_ACCESS_DENIED",
                 "Invalid security headers for admin access."
@@ -227,18 +230,20 @@ class AdminSecurityMiddleware(BaseHTTPMiddleware):
     
     def _create_error_response(
         self,
+        request: Request,
         status_code: int,
         error: str,
         message: str
     ) -> JSONResponse:
         """
         Create a standardized error response with CORS headers
-        
+
         Args:
+            request: The incoming request (used to echo back its Origin)
             status_code: HTTP status code
             error: Error code
             message: Human-readable error message
-            
+
         Returns:
             JSONResponse: Formatted error response with CORS headers
         """
@@ -250,13 +255,15 @@ class AdminSecurityMiddleware(BaseHTTPMiddleware):
                 "status_code": status_code
             }
         )
-        
-        # Add CORS headers to error responses (critical for cross-origin requests)
-        for origin in settings.CORS_ORIGINS:
-            # Note: We set all allowed origins; the browser will use the matching one
+
+        # Add CORS headers to error responses (critical for cross-origin requests).
+        # Only echo back the actual requesting origin if it's allowed - sending
+        # some other allowed origin back is misleading and still gets blocked
+        # by the browser since it won't match the real Origin header.
+        origin = request.headers.get("Origin")
+        if origin and origin in settings.CORS_ORIGINS:
             response.headers["Access-Control-Allow-Origin"] = origin
-            break  # Use first origin as default (will be overridden by CORS middleware if needed)
-        
+
         response.headers["Access-Control-Allow-Credentials"] = "true"
         response.headers["Access-Control-Allow-Methods"] = ", ".join(settings.CORS_ALLOW_METHODS)
         response.headers["Access-Control-Allow-Headers"] = ", ".join(settings.CORS_ALLOW_HEADERS)

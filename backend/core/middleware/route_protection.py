@@ -152,8 +152,10 @@ class RouteProtectionMiddleware(BaseHTTPMiddleware):
         origin = request.headers.get("Origin")
         if origin and origin in settings.CORS_ORIGINS:
             response.headers["Access-Control-Allow-Origin"] = origin
-        elif settings.CORS_ORIGINS:
-            response.headers["Access-Control-Allow-Origin"] = settings.CORS_ORIGINS[0]
+        # If the origin isn't allowed, omit the header entirely instead of
+        # sending back some other allowed origin - a mismatched value still
+        # gets the response blocked by the browser, so it accomplishes
+        # nothing except being misleading in the network tab.
         if settings.CORS_ALLOW_CREDENTIALS:
             response.headers["Access-Control-Allow-Credentials"] = "true"
         response.headers["Access-Control-Allow-Methods"] = ", ".join(settings.CORS_ALLOW_METHODS)
