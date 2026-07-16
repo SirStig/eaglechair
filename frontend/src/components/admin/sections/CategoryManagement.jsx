@@ -19,8 +19,10 @@ import Card from '../../ui/Card';
 import Button from '../../ui/Button';
 import apiClient from '../../../config/apiClient';
 import { resolveImageUrl } from '../../../utils/apiHelpers';
-import { Edit2, Trash2, FolderTree, GripVertical, ChevronUp, ChevronDown } from 'lucide-react';
+import { Edit2, Trash2, FolderTree, GripVertical, ChevronUp, ChevronDown, RotateCcw } from 'lucide-react';
 import CategoryEditor from './CategoryEditor';
+import StatusTabs from '../StatusTabs';
+import PermanentDeleteModal from '../PermanentDeleteModal';
 
 function compareValues(a, b, dir) {
   const va = a == null ? '' : a;
@@ -257,7 +259,15 @@ const CategoryManagement = () => {
   const [loading, setLoading] = useState(true);
   const [editingCategory, setEditingCategory] = useState(null);
   const [expandedCategories, setExpandedCategories] = useState(new Set());
-  
+  const [tab, setTab] = useState('active');
+  const [permDeleteTarget, setPermDeleteTarget] = useState(null); // { type: 'category'|'subcategory', id, name }
+  const [permDeleting, setPermDeleting] = useState(false);
+
+  const handleTabChange = (newTab) => {
+    setTab(newTab);
+    setExpandedCategories(new Set());
+  };
+
   useEffect(() => {
     fetchCategories();
   }, [refreshKeys.categories]);
@@ -292,10 +302,11 @@ const CategoryManagement = () => {
   };
   
   const handleDelete = async (categoryId) => {
-    if (!confirm('Are you sure you want to delete this category?')) return;
+    const category = categories.find((c) => c.id === categoryId);
+    if (!confirm(`Move "${category?.name}" to Archived? It will be hidden from the active list but can be restored or permanently deleted later.`)) return;
     try {
       await apiClient.delete(`/api/v1/admin/categories/${categoryId}`);
-      toast.success('Category deleted');
+      toast.success('Category archived');
       await fetchCategories();
     } catch (error) {
       console.error('Failed to delete category:', error);
@@ -304,14 +315,55 @@ const CategoryManagement = () => {
   };
 
   const handleDeleteSubcategory = async (subcategoryId) => {
-    if (!confirm('Are you sure you want to delete this subcategory?')) return;
+    if (!confirm('Move this subcategory to Archived? It will be hidden from the active list but can be restored or permanently deleted later.')) return;
     try {
       await apiClient.delete(`/api/v1/admin/catalog/subcategories/${subcategoryId}`);
-      toast.success('Subcategory deleted');
+      toast.success('Subcategory archived');
       await fetchCategories();
     } catch (error) {
       console.error('Failed to delete subcategory:', error);
       toast.error(error.response?.data?.detail || 'Failed to delete subcategory');
+    }
+  };
+
+  const handleRestoreCategory = async (categoryId) => {
+    try {
+      await apiClient.put(`/api/v1/admin/categories/${categoryId}`, { is_active: true });
+      toast.success('Category restored');
+      await fetchCategories();
+    } catch (error) {
+      console.error('Failed to restore category:', error);
+      toast.error(error.response?.data?.detail || 'Failed to restore category');
+    }
+  };
+
+  const handleRestoreSubcategory = async (subcategoryId) => {
+    try {
+      await apiClient.put(`/api/v1/admin/catalog/subcategories/${subcategoryId}`, { is_active: true });
+      toast.success('Subcategory restored');
+      await fetchCategories();
+    } catch (error) {
+      console.error('Failed to restore subcategory:', error);
+      toast.error(error.response?.data?.detail || 'Failed to restore subcategory');
+    }
+  };
+
+  const handlePermanentDelete = async () => {
+    if (!permDeleteTarget) return;
+    setPermDeleting(true);
+    try {
+      const url = permDeleteTarget.type === 'category'
+        ? `/api/v1/admin/categories/${permDeleteTarget.id}?hard_delete=true`
+        : `/api/v1/admin/catalog/subcategories/${permDeleteTarget.id}?hard_delete=true`;
+      await apiClient.delete(url);
+      toast.success(`${permDeleteTarget.type === 'category' ? 'Category' : 'Subcategory'} permanently deleted`);
+      setPermDeleteTarget(null);
+      await fetchCategories();
+    } catch (error) {
+      console.error('Failed to permanently delete:', error);
+      toast.error(error.response?.data?.detail || 'Failed to permanently delete');
+    } finally {
+      setPermDeleting(false);
     }
   };
 
@@ -354,10 +406,40 @@ const CategoryManagement = () => {
   const [sortBy, setSortBy] = useState('display_order');
   const [sortDir, setSortDir] = useState('asc');
 
-  const topLevelCategories = useMemo(
+  const allTopLevelCategories = useMemo(
     () => [...(categories || [])].filter(c => !c.parent_id).sort((a, b) => (a.display_order ?? 0) - (b.display_order ?? 0)),
     [categories]
   );
+
+  // Active tab: only active top-level categories, each showing only its active subcategories
+  const topLevelCategories = useMemo(
+    () => allTopLevelCategories
+      .filter(c => c.is_active)
+      .map(c => ({ ...c, subcategories: (c.subcategories || []).filter(s => s.is_active) })),
+    [allTopLevelCategories]
+  );
+
+  // Archived tab: flat list of every inactive category and inactive subcategory (regardless of parent status)
+  const archivedItems = useMemo(() => {
+    const items = [];
+    for (const c of allTopLevelCategories) {
+      if (!c.is_active) {
+        items.push({ type: 'category', id: c.id, name: c.name, slug: c.slug, icon_url: c.icon_url, parentName: null, updated_at: c.updated_at });
+      }
+      for (const s of c.subcategories || []) {
+        if (!s.is_active) {
+          items.push({ type: 'subcategory', id: s.id, name: s.name, slug: s.slug, icon_url: null, parentName: c.name, updated_at: s.updated_at });
+        }
+      }
+    }
+    return items.sort((a, b) => a.name.localeCompare(b.name));
+  }, [allTopLevelCategories]);
+
+  const activeCount = useMemo(
+    () => topLevelCategories.reduce((sum, c) => sum + 1 + (c.subcategories?.length || 0), 0),
+    [topLevelCategories]
+  );
+  const archivedCount = archivedItems.length;
 
   const sortedTopLevel = useMemo(() => {
     if (sortBy === 'display_order') return topLevelCategories;
@@ -433,13 +515,15 @@ const CategoryManagement = () => {
             Manage product categories with subcategories and images
           </p>
         </div>
-        <Button 
+        <Button
           onClick={handleCreate}
           className="bg-primary-600 hover:bg-primary-500 px-6 py-3"
         >
           + Add Category
         </Button>
       </div>
+
+      <StatusTabs tab={tab} onChange={handleTabChange} activeCount={activeCount} archivedCount={archivedCount} />
 
       {/* Content */}
       <Card className="bg-dark-800 border-dark-700">
@@ -453,13 +537,82 @@ const CategoryManagement = () => {
             <FolderTree className="w-16 h-16 text-dark-600 mx-auto mb-4" />
             <h3 className="text-lg font-semibold text-dark-400 mb-2">No categories yet</h3>
             <p className="text-dark-500 mb-6">Get started by creating your first product category</p>
-            <Button 
+            <Button
               onClick={handleCreate}
               className="bg-primary-600 hover:bg-primary-500"
             >
               Create First Category
             </Button>
           </div>
+        ) : tab === 'archived' ? (
+          archivedItems.length === 0 ? (
+            <div className="text-center py-20">
+              <FolderTree className="w-16 h-16 text-dark-600 mx-auto mb-4" />
+              <h3 className="text-lg font-semibold text-dark-400 mb-2">Nothing archived</h3>
+              <p className="text-dark-500">Deleted categories and subcategories will show up here.</p>
+            </div>
+          ) : (
+            <div className="overflow-x-auto -mx-4 sm:mx-0">
+              <table className="w-full min-w-[700px]">
+                <thead>
+                  <tr className="border-b border-dark-700">
+                    <th className="text-left px-3 sm:px-6 py-3 sm:py-4 text-xs sm:text-sm font-semibold text-dark-200">Type</th>
+                    <th className="text-left px-3 sm:px-6 py-3 sm:py-4 text-xs sm:text-sm font-semibold text-dark-200">Name</th>
+                    <th className="text-left px-3 sm:px-6 py-3 sm:py-4 text-xs sm:text-sm font-semibold text-dark-200">Slug</th>
+                    <th className="text-left px-3 sm:px-6 py-3 sm:py-4 text-xs sm:text-sm font-semibold text-dark-200">Parent Category</th>
+                    <th className="text-right px-3 sm:px-6 py-3 sm:py-4 text-xs sm:text-sm font-semibold text-dark-200">Actions</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-dark-700">
+                  {archivedItems.map((item) => (
+                    <tr key={`${item.type}-${item.id}`} className="hover:bg-dark-750 transition-colors">
+                      <td className="px-3 sm:px-6 py-3 sm:py-4">
+                        <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-dark-700 text-dark-300 border border-dark-600">
+                          {item.type === 'category' ? 'Category' : 'Subcategory'}
+                        </span>
+                      </td>
+                      <td className="px-3 sm:px-6 py-3 sm:py-4">
+                        <div className="flex items-center gap-2">
+                          {item.icon_url ? (
+                            <img src={resolveImageUrl(item.icon_url)} alt={item.name} className="w-8 h-8 object-contain rounded-lg border border-dark-600" />
+                          ) : (
+                            <div className="w-8 h-8 bg-dark-700 rounded-lg border border-dark-600 flex items-center justify-center">
+                              <FolderTree className="w-4 h-4 text-dark-500" />
+                            </div>
+                          )}
+                          <span className="font-medium text-dark-50">{item.name}</span>
+                        </div>
+                      </td>
+                      <td className="px-3 sm:px-6 py-3 sm:py-4">
+                        <code className="text-xs sm:text-sm text-dark-300 bg-dark-700 px-2 py-1 rounded">/{item.slug}</code>
+                      </td>
+                      <td className="px-3 sm:px-6 py-3 sm:py-4 text-sm text-dark-300">
+                        {item.parentName || <span className="text-dark-600">—</span>}
+                      </td>
+                      <td className="px-3 sm:px-6 py-3 sm:py-4">
+                        <div className="flex items-center justify-end gap-2">
+                          <button
+                            onClick={() => (item.type === 'category' ? handleRestoreCategory(item.id) : handleRestoreSubcategory(item.id))}
+                            className="p-2 text-green-400 hover:bg-green-900/20 rounded-lg transition-colors"
+                            title="Restore"
+                          >
+                            <RotateCcw className="w-4 h-4" />
+                          </button>
+                          <button
+                            onClick={() => setPermDeleteTarget(item)}
+                            className="p-2 text-red-400 hover:bg-red-900/20 rounded-lg transition-colors"
+                            title="Delete permanently"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )
         ) : (
           <div className="overflow-x-auto -mx-4 sm:mx-0">
             <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={onDragEnd}>
@@ -504,6 +657,15 @@ const CategoryManagement = () => {
           </div>
         )}
       </Card>
+
+      <PermanentDeleteModal
+        isOpen={!!permDeleteTarget}
+        onClose={() => setPermDeleteTarget(null)}
+        onConfirm={handlePermanentDelete}
+        itemLabel={permDeleteTarget?.type === 'subcategory' ? 'subcategory' : 'category'}
+        itemName={permDeleteTarget?.name}
+        isLoading={permDeleting}
+      />
     </div>
   );
 };

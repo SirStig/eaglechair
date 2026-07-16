@@ -9,6 +9,7 @@ import Button from '../components/ui/Button';
 import Card from '../components/ui/Card';
 import Badge from '../components/ui/Badge';
 import { useCartStore } from '../store/cartStore';
+import { useAuthStore } from '../store/authStore';
 import apiClient from '../config/apiClient';
 import { getProductImage } from '../utils/apiHelpers';
 
@@ -17,6 +18,11 @@ const inputClass = 'w-full px-4 py-3 border border-cream-300 bg-white text-slate
 const QuoteRequestPage = () => {
   const navigate = useNavigate();
   const { clearCart } = useCartStore();
+  // NOTE: cartStore.isAuthenticated is not kept in sync with real login state
+  // (switchToAuthMode/mergeGuestCart are never invoked on login) - authStore is
+  // the authoritative source for whether a company user is logged in.
+  const { isAuthenticated, user } = useAuthStore();
+  const isLoggedInCompany = isAuthenticated && user?.type === 'company';
   const items = useCartStore((state) =>
     state.isAuthenticated && state.backendCart
       ? (state.backendCart.items || [])
@@ -136,7 +142,27 @@ const QuoteRequestPage = () => {
 
     try {
       setIsSubmitting(true);
-      if (uploadedFiles.length > 0) {
+      if (isLoggedInCompany) {
+        // Authenticated companies submit against their own backend cart (for
+        // company_id attribution, tier pricing, and the verified-email gate) -
+        // the backend reads the cart directly rather than from this payload's
+        // `items`. Sync the items currently shown on this page into that cart
+        // first, since they may only exist client-side (guest-style storage).
+        if (payload.items.length > 0) {
+          await apiClient.post('/api/v1/quotes/cart/merge', payload.items);
+        }
+        // Note: /quotes/request only accepts JSON (no file attachments) and
+        // doesn't need guest contact/billing info - those come from the
+        // authenticated company's account.
+        await apiClient.post('/api/v1/quotes/request', {
+          shipping_destinations: [shipping],
+          project_name: payload.project_name,
+          project_description: payload.project_description,
+          desired_delivery_date: payload.desired_delivery_date,
+          special_instructions: payload.special_instructions,
+          rush_order: payload.rush_order,
+        });
+      } else if (uploadedFiles.length > 0) {
         const formData = new FormData();
         formData.append('quote_data', JSON.stringify(payload));
         uploadedFiles.forEach((file) => formData.append('files', file, file.name));

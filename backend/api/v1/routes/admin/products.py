@@ -143,6 +143,10 @@ async def create_product(
             db=db, product_data=product_data.dict()
         )
 
+        from backend.services.cache_service import cache_service
+
+        await cache_service.invalidate_all_products()
+
         return orm_to_dict(product)
 
     except ValidationError as e:
@@ -237,6 +241,11 @@ async def update_product(
             product_id=product_id,
             update_data=update_data.dict(exclude_unset=True),
         )
+
+        from backend.services.cache_service import cache_service
+
+        await cache_service.invalidate_product(product_id)
+
         return orm_to_dict(product)
 
     except ResourceNotFoundError as e:
@@ -266,6 +275,10 @@ async def delete_product(
     try:
         await AdminService.delete_product(db=db, product_id=product_id, hard_delete=hard)
 
+        from backend.services.cache_service import cache_service
+
+        await cache_service.invalidate_product(product_id)
+
         return MessageResponse(
             message=f"Product {product_id} has been {'permanently deleted' if hard else 'deleted'} successfully"
         )
@@ -286,7 +299,7 @@ async def delete_product(
 )
 async def get_product_variations(
     product_id: int,
-    is_active: Optional[bool] = Query(None, description="Filter by active status"),
+    is_active: Optional[bool] = Query(None, description="Filter by availability status"),
     admin: AdminUser = Depends(get_current_admin),
     db: AsyncSession = Depends(get_db),
 ):
@@ -298,7 +311,9 @@ async def get_product_variations(
     query = select(ProductVariation).where(ProductVariation.product_id == product_id)
 
     if is_active is not None:
-        query = query.where(ProductVariation.is_active == is_active)
+        # ProductVariation has no `is_active` column; `is_available` is the
+        # model's actual active/inactive (availability) flag.
+        query = query.where(ProductVariation.is_available == is_active)
 
     query = query.order_by(ProductVariation.display_order, ProductVariation.id)
 
@@ -315,13 +330,14 @@ async def get_product_variations(
 )
 async def create_product_variation(
     product_id: int,
-    model_suffix: str,
+    sku: str,
+    name: Optional[str] = None,
     color_id: Optional[int] = None,
     finish_id: Optional[int] = None,
     upholstery_id: Optional[int] = None,
     price_adjustment: float = 0.0,
     display_order: int = 0,
-    is_active: bool = True,
+    is_available: bool = True,
     admin: AdminUser = Depends(require_role(AdminRole.ADMIN)),
     db: AsyncSession = Depends(get_db),
 ):
@@ -331,6 +347,8 @@ async def create_product_variation(
     **Admin only** - Requires admin role.
     """
     from sqlalchemy import select
+
+    from backend.services.cache_service import cache_service
 
     # Product model already imported as `Product`
 
@@ -347,21 +365,24 @@ async def create_product_variation(
     # Create variation
     variation = ProductVariation(
         product_id=product_id,
-        model_suffix=model_suffix,
+        sku=sku,
+        name=name,
         color_id=color_id,
         finish_id=finish_id,
         upholstery_id=upholstery_id,
-        price_adjustment=price_adjustment,
+        price_adjustment=int(round(price_adjustment)),
         display_order=display_order,
-        is_active=is_active,
+        is_available=is_available,
     )
 
     db.add(variation)
     await db.commit()
     await db.refresh(variation)
 
+    await cache_service.invalidate_product(product_id)
+
     logger.info(
-        f"Created variation {variation.id} ({model_suffix}) for product {product.name}"
+        f"Created variation {variation.id} ({sku}) for product {product.name}"
     )
 
     return orm_to_dict(variation)
@@ -375,13 +396,13 @@ async def create_product_variation(
 async def update_product_variation(
     product_id: int,
     variation_id: int,
-    model_suffix: Optional[str] = None,
+    name: Optional[str] = None,
     color_id: Optional[int] = None,
     finish_id: Optional[int] = None,
     upholstery_id: Optional[int] = None,
     price_adjustment: Optional[float] = None,
     display_order: Optional[int] = None,
-    is_active: Optional[bool] = None,
+    is_available: Optional[bool] = None,
     admin: AdminUser = Depends(require_role(AdminRole.ADMIN)),
     db: AsyncSession = Depends(get_db),
 ):
@@ -391,6 +412,8 @@ async def update_product_variation(
     **Admin only** - Requires admin role.
     """
     from sqlalchemy import select
+
+    from backend.services.cache_service import cache_service
 
     logger.info(
         f"Admin {admin.username} updating variation {variation_id} for product {product_id}"
@@ -409,8 +432,8 @@ async def update_product_variation(
         )
 
     # Update fields
-    if model_suffix is not None:
-        variation.model_suffix = model_suffix
+    if name is not None:
+        variation.name = name
     if color_id is not None:
         variation.color_id = color_id
     if finish_id is not None:
@@ -418,14 +441,16 @@ async def update_product_variation(
     if upholstery_id is not None:
         variation.upholstery_id = upholstery_id
     if price_adjustment is not None:
-        variation.price_adjustment = price_adjustment
+        variation.price_adjustment = int(round(price_adjustment))
     if display_order is not None:
         variation.display_order = display_order
-    if is_active is not None:
-        variation.is_active = is_active
+    if is_available is not None:
+        variation.is_available = is_available
 
     await db.commit()
     await db.refresh(variation)
+
+    await cache_service.invalidate_product(product_id)
 
     return orm_to_dict(variation)
 
@@ -452,6 +477,8 @@ async def delete_product_variation(
     """
     from sqlalchemy import select
 
+    from backend.services.cache_service import cache_service
+
     if hard_delete and admin.role != AdminRole.SUPER_ADMIN:
         raise HTTPException(
             status_code=403, detail="Hard delete requires SUPER_ADMIN role"
@@ -477,9 +504,13 @@ async def delete_product_variation(
     if hard_delete:
         await db.delete(variation)
     else:
-        variation.is_active = False
+        # ProductVariation has no `is_active` column; `is_available` is the
+        # model's actual soft-delete/availability flag.
+        variation.is_available = False
 
     await db.commit()
+
+    await cache_service.invalidate_product(product_id)
 
     return MessageResponse(
         message=f"Variation {variation_id} has been {'permanently deleted' if hard_delete else 'deactivated'}"

@@ -31,6 +31,11 @@ def load_environment_file():
         load_dotenv(fill_env, override=True)
         return
 
+    # Preserve variables that were already set in the process environment
+    # (e.g. by tests via os.environ[...] before app import) so that values
+    # from .env files never clobber them, regardless of file priority order.
+    preexisting_env = dict(os.environ)
+
     backend_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
     environment = os.getenv("ENVIRONMENT", "development")
     env_files = [
@@ -42,6 +47,12 @@ def load_environment_file():
         if os.path.exists(env_file):
             load_dotenv(env_file, override=True)
             print(f"Loaded environment file: {env_file}")
+
+    # Restore any variables that were already present in the process
+    # environment before we started loading files - the process env should
+    # always win over .env file values.
+    for key, value in preexisting_env.items():
+        os.environ[key] = value
 
 
 # Load environment files before creating Settings
@@ -131,6 +142,9 @@ class Settings(BaseSettings):
     # Password Reset
     PASSWORD_RESET_TOKEN_EXPIRE_HOURS: int = 1  # 1 hour
     PASSWORD_MIN_LENGTH: int = 8
+
+    # Email Verification
+    EMAIL_VERIFICATION_TOKEN_EXPIRE_HOURS: int = 24  # 24 hours
 
     # Rate Limiting (increased for normal website usage with multiple parallel requests)
     RATE_LIMIT_PER_MINUTE: int = (

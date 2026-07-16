@@ -158,6 +158,12 @@ async def get_dashboard_profile(
     db: AsyncSession = Depends(get_db),
 ):
     """Get company profile information."""
+    if company.id == 0:
+        raise HTTPException(
+            status_code=404,
+            detail="Admins do not have a company profile"
+        )
+
     result = await db.execute(
         select(Company).where(Company.id == company.id).options(selectinload(Company.shipping_addresses))
     )
@@ -216,6 +222,12 @@ async def update_dashboard_profile(
     db: AsyncSession = Depends(get_db)
 ):
     """Update company profile information."""
+    if company.id == 0:
+        raise HTTPException(
+            status_code=404,
+            detail="Admins do not have a company profile"
+        )
+
     allowed_fields = {
         "company_name", "legal_name", "industry", "website",
         "rep_first_name", "rep_last_name", "rep_title", "rep_phone",

@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
+import { RotateCcw, Trash2 } from 'lucide-react';
 import Card from '../../ui/Card';
 import Button from '../../ui/Button';
 import FamilyEditor from './FamilyEditor';
@@ -6,6 +7,8 @@ import apiClient from '../../../config/apiClient';
 import { resolveImageUrl } from '../../../utils/apiHelpers';
 import ReorderableTable from '../ReorderableTable';
 import PaginationBar from '../PaginationBar';
+import StatusTabs from '../StatusTabs';
+import PermanentDeleteModal from '../PermanentDeleteModal';
 import { useToast } from '../../../contexts/ToastContext';
 import { useAdminRefresh } from '../../../contexts/AdminRefreshContext';
 
@@ -21,34 +24,59 @@ const FamilyManagement = () => {
   const [editingFamily, setEditingFamily] = useState(null);
   const [showEditor, setShowEditor] = useState(false);
   const [filterCategory, setFilterCategory] = useState('');
-  const [filterActive, setFilterActive] = useState('all');
+  const [tab, setTab] = useState('active');
+  const [activeTotal, setActiveTotal] = useState(0);
+  const [archivedTotal, setArchivedTotal] = useState(0);
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(25);
   const [selectedFamilies, setSelectedFamilies] = useState([]);
+  const [permDeleteTarget, setPermDeleteTarget] = useState(null); // { id, name } | { bulk: [...ids] }
+  const [permDeleting, setPermDeleting] = useState(false);
   const lastSelectedIndexRef = useRef(null);
+
+  const handleTabChange = (newTab) => {
+    setTab(newTab);
+    setPage(1);
+    setSelectedFamilies([]);
+  };
 
   useEffect(() => {
     const loadData = async () => {
       await fetchFamilies();
+      await fetchCounts();
       if (categories.length === 0) {
         await fetchCategories();
       }
     };
     loadData();
-  }, [filterCategory, filterActive, refreshKeys.families]);
+  }, [filterCategory, tab, refreshKeys.families]);
 
   const fetchFamilies = async () => {
     try {
-      const params = {};
+      const params = { is_active: tab === 'active' };
       if (filterCategory) params.category_id = filterCategory;
-      if (filterActive !== 'all') params.is_active = filterActive === 'active';
-      
+
       const response = await apiClient.get('/api/v1/admin/catalog/families', { params });
       setFamilies(response || []);
     } catch (error) {
       console.error('Failed to fetch families:', error);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const fetchCounts = async () => {
+    try {
+      const params = {};
+      if (filterCategory) params.category_id = filterCategory;
+      const [activeRes, archivedRes] = await Promise.all([
+        apiClient.get('/api/v1/admin/catalog/families', { params: { ...params, is_active: true } }),
+        apiClient.get('/api/v1/admin/catalog/families', { params: { ...params, is_active: false } }),
+      ]);
+      setActiveTotal((activeRes || []).length);
+      setArchivedTotal((archivedRes || []).length);
+    } catch (error) {
+      console.error('Failed to fetch family counts:', error);
     }
   };
 
@@ -84,15 +112,62 @@ const FamilyManagement = () => {
   };
 
   const handleDelete = async (familyId) => {
-    if (!confirm('Are you sure you want to delete this family?')) return;
-    
+    const family = families.find((f) => f.id === familyId);
+    if (!confirm(`Move "${family?.name}" to Archived? It will be hidden from the active list but can be restored or permanently deleted later.`)) return;
+
     try {
       await apiClient.delete(`/api/v1/admin/catalog/families/${familyId}`);
-      toast.success('Family deleted');
+      toast.success('Family archived');
       await fetchFamilies();
+      await fetchCounts();
     } catch (error) {
       console.error('Failed to delete family:', error);
       toast.error(error.response?.data?.detail || 'Failed to delete family');
+    }
+  };
+
+  const handleRestore = async (familyId) => {
+    try {
+      await apiClient.put(`/api/v1/admin/catalog/families/${familyId}`, { is_active: true });
+      toast.success('Family restored');
+      await fetchFamilies();
+      await fetchCounts();
+    } catch (error) {
+      console.error('Failed to restore family:', error);
+      toast.error(error.response?.data?.detail || 'Failed to restore family');
+    }
+  };
+
+  const handlePermanentDelete = async () => {
+    if (!permDeleteTarget) return;
+    setPermDeleting(true);
+    try {
+      if (permDeleteTarget.bulk) {
+        let successCount = 0;
+        let failCount = 0;
+        for (const id of permDeleteTarget.bulk) {
+          try {
+            await apiClient.delete(`/api/v1/admin/catalog/families/${id}?hard_delete=true`);
+            successCount++;
+          } catch {
+            failCount++;
+          }
+        }
+        if (successCount > 0) toast.success(`${successCount} famil${successCount !== 1 ? 'ies' : 'y'} permanently deleted`);
+        if (failCount > 0) toast.error(`Failed to permanently delete ${failCount}`);
+        setSelectedFamilies([]);
+      } else {
+        await apiClient.delete(`/api/v1/admin/catalog/families/${permDeleteTarget.id}?hard_delete=true`);
+        toast.success('Family permanently deleted');
+      }
+      setPermDeleteTarget(null);
+      await fetchFamilies();
+      await fetchCounts();
+    } catch (error) {
+      console.error('Failed to permanently delete family:', error);
+      toast.error('Failed to permanently delete family');
+    } finally {
+      setPermDeleting(false);
     }
   };
 
@@ -150,23 +225,22 @@ const FamilyManagement = () => {
       toast.warning('Please select families first');
       return;
     }
-    if (action === 'delete' && !confirm(`Delete ${selectedFamilies.length} families? This cannot be undone.`)) return;
+    if (action === 'delete' && !confirm(`Move ${selectedFamilies.length} families to Archived? They'll be hidden from the active list but can be restored or permanently deleted later.`)) return;
     setLoading(true);
     const ids = [...selectedFamilies];
     setSelectedFamilies([]);
     try {
       let successCount = 0;
       let failCount = 0;
-      if (action === 'activate' || action === 'deactivate') {
-        const isActive = action === 'activate';
+      if (action === 'restore') {
         for (const id of ids) {
           try {
-            await apiClient.put(`/api/v1/admin/catalog/families/${id}`, { is_active: isActive });
+            await apiClient.put(`/api/v1/admin/catalog/families/${id}`, { is_active: true });
             successCount++;
           } catch { failCount++; }
         }
-        if (successCount > 0) toast.success(`${successCount} family/families ${action === 'activate' ? 'activated' : 'deactivated'}`);
-        if (failCount > 0) toast.error(`Failed to update ${failCount}`);
+        if (successCount > 0) toast.success(`${successCount} famil${successCount !== 1 ? 'ies' : 'y'} restored`);
+        if (failCount > 0) toast.error(`Failed to restore ${failCount}`);
       } else if (action === 'delete') {
         for (const id of ids) {
           try {
@@ -174,10 +248,11 @@ const FamilyManagement = () => {
             successCount++;
           } catch { failCount++; }
         }
-        if (successCount > 0) toast.success(`${successCount} family/families deleted`);
-        if (failCount > 0) toast.error(`Failed to delete ${failCount}`);
+        if (successCount > 0) toast.success(`${successCount} famil${successCount !== 1 ? 'ies' : 'y'} archived`);
+        if (failCount > 0) toast.error(`Failed to archive ${failCount}`);
       }
       await fetchFamilies();
+      await fetchCounts();
     } catch (error) {
       toast.error('Bulk action failed');
       setSelectedFamilies(ids);
@@ -230,6 +305,8 @@ const FamilyManagement = () => {
         </Button>
       </div>
 
+      <StatusTabs tab={tab} onChange={handleTabChange} activeCount={activeTotal} archivedCount={archivedTotal} />
+
       {/* Filters */}
       <Card>
         <div className="flex gap-4">
@@ -248,20 +325,6 @@ const FamilyManagement = () => {
               ))}
             </select>
           </div>
-          <div className="flex-1">
-            <label className="block text-sm font-medium text-dark-200 mb-2">
-              Filter by Status
-            </label>
-            <select
-              value={filterActive}
-              onChange={(e) => setFilterActive(e.target.value)}
-              className="w-full px-4 py-2 bg-dark-700 border border-dark-600 rounded-lg text-dark-50 focus:outline-none focus:ring-2 focus:ring-primary-500"
-            >
-              <option value="all">All Status</option>
-              <option value="active">Active Only</option>
-              <option value="inactive">Inactive Only</option>
-            </select>
-          </div>
         </div>
       </Card>
 
@@ -272,15 +335,25 @@ const FamilyManagement = () => {
               {selectedFamilies.length} family/families selected
             </p>
             <div className="flex flex-wrap gap-2">
-              <Button size="sm" variant="outline" onClick={() => handleBulkAction('activate')}>
-                Activate
-              </Button>
-              <Button size="sm" variant="outline" onClick={() => handleBulkAction('deactivate')}>
-                Deactivate
-              </Button>
-              <Button size="sm" variant="outline" onClick={() => handleBulkAction('delete')} className="text-red-500 border-red-500/50 hover:bg-red-900/20">
-                Delete
-              </Button>
+              {tab === 'active' ? (
+                <Button size="sm" variant="outline" onClick={() => handleBulkAction('delete')} className="text-red-500 border-red-500/50 hover:bg-red-900/20">
+                  Archive selected
+                </Button>
+              ) : (
+                <>
+                  <Button size="sm" variant="outline" onClick={() => handleBulkAction('restore')}>
+                    Restore selected
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => setPermDeleteTarget({ bulk: [...selectedFamilies] })}
+                    className="text-red-500 border-red-500/50 hover:bg-red-900/20"
+                  >
+                    Delete Permanently
+                  </Button>
+                </>
+              )}
             </div>
           </div>
         </Card>
@@ -320,6 +393,7 @@ const FamilyManagement = () => {
               }}
             getItemId={(item) => item.id}
             onReorder={handleReorder}
+            disabled={tab === 'archived'}
             minWidth="900px"
             columns={[
               { key: 'select', label: <input type="checkbox" checked={paginatedFamilies.length > 0 && selectedFamilies.length === paginatedFamilies.length} onChange={handleSelectAll} className="rounded border-dark-600 bg-dark-700" />, sortKey: null },
@@ -409,15 +483,32 @@ const FamilyManagement = () => {
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
                       </svg>
                     </button>
-                    <button
-                      onClick={() => handleDelete(family.id)}
-                      className="p-2 text-red-400 hover:bg-red-900/20 rounded-lg transition-colors"
-                      title="Delete family"
-                    >
-                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                      </svg>
-                    </button>
+                    {tab === 'active' ? (
+                      <button
+                        onClick={() => handleDelete(family.id)}
+                        className="p-2 text-red-400 hover:bg-red-900/20 rounded-lg transition-colors"
+                        title="Archive family"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    ) : (
+                      <>
+                        <button
+                          onClick={() => handleRestore(family.id)}
+                          className="p-2 text-green-400 hover:bg-green-900/20 rounded-lg transition-colors"
+                          title="Restore"
+                        >
+                          <RotateCcw className="w-4 h-4" />
+                        </button>
+                        <button
+                          onClick={() => setPermDeleteTarget({ id: family.id, name: family.name })}
+                          className="p-2 text-red-400 hover:bg-red-900/20 rounded-lg transition-colors"
+                          title="Delete permanently"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      </>
+                    )}
                   </div>
                 </td>
               </>
@@ -435,6 +526,17 @@ const FamilyManagement = () => {
           </>
         )}
       </Card>
+
+      <PermanentDeleteModal
+        isOpen={!!permDeleteTarget}
+        onClose={() => setPermDeleteTarget(null)}
+        onConfirm={handlePermanentDelete}
+        itemLabel="family"
+        itemName={permDeleteTarget?.bulk ? undefined : permDeleteTarget?.name}
+        title={permDeleteTarget?.bulk ? `Permanently delete ${permDeleteTarget.bulk.length} families?` : undefined}
+        message={permDeleteTarget?.bulk ? `${permDeleteTarget.bulk.length} families will be removed from the database immediately.` : undefined}
+        isLoading={permDeleting}
+      />
     </div>
   );
 };

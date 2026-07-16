@@ -3,9 +3,11 @@ import Card from '../../ui/Card';
 import Button from '../../ui/Button';
 import apiClient from '../../../config/apiClient';
 import { resolveImageUrl } from '../../../utils/apiHelpers';
-import { Edit, Trash2, Wrench, X, Plus } from 'lucide-react';
+import { Edit, Trash2, Wrench, X, Plus, RotateCcw } from 'lucide-react';
 import HardwareEditor from './HardwareEditor';
 import ReorderableTable from '../ReorderableTable';
+import StatusTabs from '../StatusTabs';
+import PermanentDeleteModal from '../PermanentDeleteModal';
 import { useToast } from '../../../contexts/ToastContext';
 import { useAdminRefresh } from '../../../contexts/AdminRefreshContext';
 
@@ -19,14 +21,21 @@ const HardwareManagement = () => {
   const [loading, setLoading] = useState(true);
   const [editingHardware, setEditingHardware] = useState(null);
   const [filterCategory, setFilterCategory] = useState('');
-  const [filterActive, setFilterActive] = useState('all');
+  const [tab, setTab] = useState('active');
+  const [activeTotal, setActiveTotal] = useState(0);
+  const [archivedTotal, setArchivedTotal] = useState(0);
+  const [permDeleteTarget, setPermDeleteTarget] = useState(null);
+  const [permDeleting, setPermDeleting] = useState(false);
+
+  const handleTabChange = (newTab) => {
+    setTab(newTab);
+  };
 
   const fetchHardware = useCallback(async () => {
     try {
-      const params = {};
+      const params = { is_active: tab === 'active' };
       if (filterCategory) params.category = filterCategory;
-      if (filterActive !== 'all') params.is_active = filterActive === 'active';
-      
+
       const response = await apiClient.get('/api/v1/admin/catalog/hardware', { params });
       setHardware(response || []);
     } catch (error) {
@@ -34,11 +43,27 @@ const HardwareManagement = () => {
     } finally {
       setLoading(false);
     }
-  }, [filterCategory, filterActive]);
+  }, [filterCategory, tab]);
+
+  const fetchCounts = useCallback(async () => {
+    try {
+      const params = {};
+      if (filterCategory) params.category = filterCategory;
+      const [activeRes, archivedRes] = await Promise.all([
+        apiClient.get('/api/v1/admin/catalog/hardware', { params: { ...params, is_active: true } }),
+        apiClient.get('/api/v1/admin/catalog/hardware', { params: { ...params, is_active: false } }),
+      ]);
+      setActiveTotal((activeRes || []).length);
+      setArchivedTotal((archivedRes || []).length);
+    } catch (error) {
+      console.error('Failed to fetch hardware counts:', error);
+    }
+  }, [filterCategory]);
 
   useEffect(() => {
     fetchHardware();
-  }, [fetchHardware, refreshKeys.hardware]);
+    fetchCounts();
+  }, [fetchHardware, fetchCounts, refreshKeys.hardware]);
 
   const handleCreate = () => {
     setEditingHardware('new');
@@ -59,21 +84,51 @@ const HardwareManagement = () => {
   };
 
   const handleDelete = async (hardwareId) => {
-    if (!confirm('Are you sure you want to delete this hardware item?')) return;
-    
+    const item = hardware.find((h) => h.id === hardwareId);
+    if (!confirm(`Move "${item?.name}" to Archived? It will be hidden from the active list but can be restored or permanently deleted later.`)) return;
+
     try {
       await apiClient.delete(`/api/v1/admin/catalog/hardware/${hardwareId}`);
-      toast.success('Hardware deleted');
+      toast.success('Hardware archived');
       await fetchHardware();
+      await fetchCounts();
     } catch (error) {
       console.error('Failed to delete hardware:', error);
       toast.error(error.response?.data?.detail || 'Failed to delete hardware');
     }
   };
 
+  const handleRestore = async (hardwareId) => {
+    try {
+      await apiClient.put(`/api/v1/admin/catalog/hardware/${hardwareId}`, { is_active: true });
+      toast.success('Hardware restored');
+      await fetchHardware();
+      await fetchCounts();
+    } catch (error) {
+      console.error('Failed to restore hardware:', error);
+      toast.error(error.response?.data?.detail || 'Failed to restore hardware');
+    }
+  };
+
+  const handlePermanentDelete = async () => {
+    if (!permDeleteTarget) return;
+    setPermDeleting(true);
+    try {
+      await apiClient.delete(`/api/v1/admin/catalog/hardware/${permDeleteTarget.id}?hard_delete=true`);
+      toast.success('Hardware permanently deleted');
+      setPermDeleteTarget(null);
+      await fetchHardware();
+      await fetchCounts();
+    } catch (error) {
+      console.error('Failed to permanently delete hardware:', error);
+      toast.error(error.response?.data?.detail || 'Failed to permanently delete hardware');
+    } finally {
+      setPermDeleting(false);
+    }
+  };
+
   const clearFilters = () => {
     setFilterCategory('');
-    setFilterActive('all');
   };
 
   const uniqueCategories = [...new Set(hardware.map(h => h.category).filter(Boolean))];
@@ -123,6 +178,8 @@ const HardwareManagement = () => {
         </Button>
       </div>
 
+      <StatusTabs tab={tab} onChange={handleTabChange} activeCount={activeTotal} archivedCount={archivedTotal} />
+
       <Card className="bg-dark-800 border-dark-700">
         <div className="flex gap-4">
           <div className="flex-1">
@@ -140,21 +197,7 @@ const HardwareManagement = () => {
               ))}
             </select>
           </div>
-          <div className="flex-1">
-            <label className="block text-sm font-medium text-dark-200 mb-2">
-              Filter by Status
-            </label>
-            <select
-              value={filterActive}
-              onChange={(e) => setFilterActive(e.target.value)}
-              className="w-full px-4 py-2 bg-dark-700 border border-dark-600 rounded-lg text-dark-50 focus:border-primary-500 focus:ring-1 focus:ring-primary-500 outline-none transition-all"
-            >
-              <option value="all">All Status</option>
-              <option value="active">Active Only</option>
-              <option value="inactive">Inactive Only</option>
-            </select>
-          </div>
-          {(filterCategory || filterActive !== 'all') && (
+          {filterCategory && (
             <div className="flex items-end">
               <Button
                 onClick={clearFilters}
@@ -178,8 +221,10 @@ const HardwareManagement = () => {
             <Wrench className="w-16 h-16 text-dark-600 mx-auto mb-4" />
             <h3 className="text-lg font-semibold text-dark-300 mb-2">No Hardware Found</h3>
             <p className="text-dark-400 mb-6">
-              {filterCategory || filterActive !== 'all' 
-                ? 'Try adjusting your filters' 
+              {filterCategory
+                ? 'Try adjusting your filters'
+                : tab === 'archived'
+                ? 'Archived hardware will show up here'
                 : 'Create your first hardware item to get started'}
             </p>
           </div>
@@ -189,6 +234,7 @@ const HardwareManagement = () => {
             setItems={(next) => setHardware(next.map((item, i) => ({ ...item, display_order: i })))}
             getItemId={(item) => item.id}
             onReorder={handleReorder}
+            disabled={tab === 'archived'}
             minWidth="800px"
             columns={[
               { key: 'image', label: 'Image' },
@@ -257,13 +303,32 @@ const HardwareManagement = () => {
                     >
                       <Edit className="w-4 h-4" />
                     </button>
-                    <button
-                      onClick={() => handleDelete(item.id)}
-                      className="p-2 text-red-400 hover:bg-red-900/20 rounded transition-colors"
-                      title="Delete hardware"
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </button>
+                    {tab === 'active' ? (
+                      <button
+                        onClick={() => handleDelete(item.id)}
+                        className="p-2 text-red-400 hover:bg-red-900/20 rounded transition-colors"
+                        title="Archive hardware"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    ) : (
+                      <>
+                        <button
+                          onClick={() => handleRestore(item.id)}
+                          className="p-2 text-green-400 hover:bg-green-900/20 rounded transition-colors"
+                          title="Restore"
+                        >
+                          <RotateCcw className="w-4 h-4" />
+                        </button>
+                        <button
+                          onClick={() => setPermDeleteTarget({ id: item.id, name: item.name })}
+                          className="p-2 text-red-400 hover:bg-red-900/20 rounded transition-colors"
+                          title="Delete permanently"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      </>
+                    )}
                   </div>
                 </td>
               </>
@@ -271,6 +336,15 @@ const HardwareManagement = () => {
           />
         )}
       </Card>
+
+      <PermanentDeleteModal
+        isOpen={!!permDeleteTarget}
+        onClose={() => setPermDeleteTarget(null)}
+        onConfirm={handlePermanentDelete}
+        itemLabel="hardware item"
+        itemName={permDeleteTarget?.name}
+        isLoading={permDeleting}
+      />
     </div>
   );
 };

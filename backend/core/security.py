@@ -152,6 +152,28 @@ class SecurityManager:
         return encoded_jwt
 
     @staticmethod
+    def create_email_verification_token(email: str) -> str:
+        """
+        Create an email verification token
+
+        Args:
+            email: User email address
+
+        Returns:
+            str: Encoded JWT token
+        """
+        expire = datetime.utcnow() + timedelta(
+            hours=settings.EMAIL_VERIFICATION_TOKEN_EXPIRE_HOURS
+        )
+
+        to_encode = {"sub": email, "type": "email_verification", "exp": expire}
+
+        encoded_jwt = jwt.encode(
+            to_encode, settings.SECRET_KEY, algorithm=settings.ALGORITHM
+        )
+        return encoded_jwt
+
+    @staticmethod
     def decode_token(token: str) -> dict[str, Any]:
         """
         Decode and verify a JWT token
@@ -231,7 +253,8 @@ def require_token_type(token_type: str):
     """
 
     async def validator(token: dict = Depends(get_current_token)):
-        if token.get("type") != token_type:
+        # "token_type" holds "access"/"refresh"; "type" holds "company"/"admin"
+        if token.get("token_type") != token_type:
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
                 detail=f"Invalid token type. Expected {token_type}",

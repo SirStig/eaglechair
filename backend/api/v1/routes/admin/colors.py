@@ -4,15 +4,20 @@ Admin Colors Routes
 CRUD operations for colors
 """
 
+import logging
 from typing import List, Optional
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from backend.api.dependencies import get_current_admin, require_role
 from backend.database.base import get_db
 from backend.models.chair import Color
+from backend.models.company import AdminRole, AdminUser
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
@@ -51,24 +56,25 @@ class ColorUpdate(BaseModel):
 async def get_colors(
     is_active: Optional[bool] = None,
     category: Optional[str] = None,
+    admin: AdminUser = Depends(get_current_admin),
     db: AsyncSession = Depends(get_db),
 ):
     """
     Get all colors with optional filtering
     """
     query = select(Color)
-    
+
     if is_active is not None:
         query = query.where(Color.is_active == is_active)
-    
+
     if category:
         query = query.where(Color.category == category)
-    
+
     query = query.order_by(Color.display_order, Color.name)
-    
+
     result = await db.execute(query)
     colors = result.scalars().all()
-    
+
     return [
         {
             "id": color.id,
@@ -87,6 +93,7 @@ async def get_colors(
 @router.get("/{color_id}")
 async def get_color(
     color_id: int,
+    admin: AdminUser = Depends(get_current_admin),
     db: AsyncSession = Depends(get_db),
 ):
     """
@@ -95,10 +102,10 @@ async def get_color(
     query = select(Color).where(Color.id == color_id)
     result = await db.execute(query)
     color = result.scalar_one_or_none()
-    
+
     if not color:
         raise HTTPException(status_code=404, detail="Color not found")
-    
+
     return {
         "id": color.id,
         "name": color.name,
@@ -114,6 +121,7 @@ async def get_color(
 @router.post("")
 async def create_color(
     color_data: ColorCreate,
+    admin: AdminUser = Depends(require_role(AdminRole.ADMIN)),
     db: AsyncSession = Depends(get_db),
 ):
     """
@@ -126,7 +134,7 @@ async def create_color(
         existing = result.scalar_one_or_none()
         if existing:
             raise HTTPException(status_code=400, detail="Color code already exists")
-    
+
     color = Color(
         name=color_data.name,
         color_code=color_data.color_code,
@@ -136,11 +144,11 @@ async def create_color(
         display_order=color_data.display_order,
         is_active=color_data.is_active,
     )
-    
+
     db.add(color)
     await db.commit()
     await db.refresh(color)
-    
+
     return {
         "id": color.id,
         "name": color.name,
@@ -156,6 +164,7 @@ async def create_color(
 @router.post("/reorder")
 async def reorder_colors(
     body: ReorderBody,
+    admin: AdminUser = Depends(require_role(AdminRole.ADMIN)),
     db: AsyncSession = Depends(get_db),
 ):
     for item in body.order:
@@ -172,18 +181,19 @@ async def reorder_colors(
 async def update_color(
     color_id: int,
     color_data: ColorUpdate,
+    admin: AdminUser = Depends(require_role(AdminRole.ADMIN)),
     db: AsyncSession = Depends(get_db),
 ):
     """
-    Update an existing color
+    Update a color
     """
     query = select(Color).where(Color.id == color_id)
     result = await db.execute(query)
     color = result.scalar_one_or_none()
-    
+
     if not color:
         raise HTTPException(status_code=404, detail="Color not found")
-    
+
     # Check for duplicate color_code if being updated
     if color_data.color_code and color_data.color_code != color.color_code:
         query = select(Color).where(Color.color_code == color_data.color_code)
@@ -191,7 +201,7 @@ async def update_color(
         existing = result.scalar_one_or_none()
         if existing:
             raise HTTPException(status_code=400, detail="Color code already exists")
-    
+
     # Update fields
     if color_data.name is not None:
         color.name = color_data.name
@@ -207,10 +217,10 @@ async def update_color(
         color.display_order = color_data.display_order
     if color_data.is_active is not None:
         color.is_active = color_data.is_active
-    
+
     await db.commit()
     await db.refresh(color)
-    
+
     return {
         "id": color.id,
         "name": color.name,
@@ -226,19 +236,30 @@ async def update_color(
 @router.delete("/{color_id}")
 async def delete_color(
     color_id: int,
+    hard_delete: bool = Query(False, description="Permanently delete (use with caution)"),
+    admin: AdminUser = Depends(require_role(AdminRole.SUPER_ADMIN)),
     db: AsyncSession = Depends(get_db),
 ):
     """
-    Delete a color
+    Delete a color. Soft delete (mark inactive) by default; pass
+    ?hard_delete=true to permanently remove it. Super admin only.
     """
+    logger.info(f"Admin {admin.username} deleting color {color_id} (hard={hard_delete})")
+
     query = select(Color).where(Color.id == color_id)
     result = await db.execute(query)
     color = result.scalar_one_or_none()
-    
+
     if not color:
         raise HTTPException(status_code=404, detail="Color not found")
-    
-    await db.delete(color)
+
+    if hard_delete:
+        await db.delete(color)
+    else:
+        color.is_active = False
+
     await db.commit()
-    
-    return {"message": "Color deleted successfully"}
+
+    return {
+        "message": f"Color '{color.name}' {'deleted' if hard_delete else 'deactivated'} successfully"
+    }

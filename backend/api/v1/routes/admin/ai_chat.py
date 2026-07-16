@@ -184,7 +184,10 @@ def serialize_session(session: AIChatSession, include_messages: bool = True, mes
         "tags": session.tags or [],
     }
     if include_messages:
-        data["messages"] = [serialize_message(m) for m in (messages_list or session.messages)]
+        data["messages"] = [
+            serialize_message(m)
+            for m in (messages_list if messages_list is not None else session.messages)
+        ]
         data["files"] = [serialize_file(f) for f in session.files]
     return data
 
@@ -300,7 +303,8 @@ async def update_chat(
 ):
     session = await get_session_or_404(session_id, db, admin)
     if "title" in body:
-        session.title = body["title"][:255]
+        title = body["title"]
+        session.title = title[:255] if title is not None else None
     if "pinned" in body:
         session.pinned = bool(body["pinned"])
     if "is_archived" in body:
@@ -348,6 +352,7 @@ async def delete_chat_message(
         raise HTTPException(status_code=404, detail="Message not found")
     await db.delete(msg)
     session.message_count = max(0, (session.message_count or 0) - 1)
+    session.total_tokens = max(0, (session.total_tokens or 0) - (msg.tokens_used or 0))
     await db.commit()
     return {"success": True}
 
@@ -399,9 +404,10 @@ async def upload_file_to_chat(
         except Exception as e:
             logger.error(f"Background file processing failed: {e}")
 
+    await db.commit()
+
     asyncio.create_task(process_bg())
 
-    await db.commit()
     return {
         "file_id": file_id,
         "filename": file.filename,
@@ -493,11 +499,16 @@ async def apply_edit(
         from backend.services.admin_service import AdminService
         from backend.core.exceptions import ResourceNotFoundError, ValidationError
 
+        try:
+            product_id = int(entity_id)
+        except (TypeError, ValueError):
+            raise HTTPException(status_code=400, detail=f"Invalid entity_id for product: {entity_id!r}")
+
         async with AsyncSessionLocal() as db:
             try:
                 product = await AdminService.update_product(
                     db=db,
-                    product_id=int(entity_id),
+                    product_id=product_id,
                     update_data=dict(changes),
                 )
                 from backend.utils.serializers import orm_to_dict
@@ -1033,7 +1044,15 @@ async def websocket_chat(websocket: WebSocket, session_id: str):
             error_sent = stream_state.get("error_sent", False)
             is_first_message = (session.message_count or 0) <= 1
 
-            if not error_sent:
+            has_content = bool(full_response and full_response.strip())
+
+            if not error_sent and not has_content:
+                logger.info(
+                    f"Skipping persistence of empty assistant message for session "
+                    f"{session_id} (interrupted={interrupted})"
+                )
+
+            if not error_sent and has_content:
                 try:
                     async with AsyncSessionLocal() as db:
                         asst_msg_id = str(uuid.uuid4())

@@ -214,8 +214,16 @@ class Cart(Base):
     last_updated = Column(String(50), nullable=True)
     
     # Relationships
-    items = relationship("CartItem", back_populates="cart", cascade="all, delete-orphan")
-    
+    # order_by ensures stable, deterministic item ordering (matters for
+    # cart_item_index-based shipping allocations between the request that
+    # populates the allocation UI and the request that submits the quote).
+    items = relationship(
+        "CartItem",
+        back_populates="cart",
+        cascade="all, delete-orphan",
+        order_by="CartItem.id",
+    )
+
     def __repr__(self) -> str:
         return f"<Cart(id={self.id}, company_id={self.company_id})>"
 

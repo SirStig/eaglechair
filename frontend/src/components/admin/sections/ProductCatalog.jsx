@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { Package, Edit2, Eye, EyeOff, Trash2, TrendingUp, MessageSquareQuote } from 'lucide-react';
+import { Package, Edit2, Trash2, RotateCcw, TrendingUp, MessageSquareQuote } from 'lucide-react';
 import Card from '../../ui/Card';
 import Button from '../../ui/Button';
 import apiClient from '../../../config/apiClient';
@@ -8,6 +8,8 @@ import { useToast } from '../../../contexts/ToastContext';
 import { useAdminRefresh } from '../../../contexts/AdminRefreshContext';
 import TableSortHead from '../TableSortHead';
 import PaginationBar from '../PaginationBar';
+import StatusTabs from '../StatusTabs';
+import PermanentDeleteModal from '../PermanentDeleteModal';
 
 /**
  * Product Catalog Management
@@ -25,7 +27,9 @@ const ProductCatalog = ({ onEdit }) => {
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [categoryFilter, setCategoryFilter] = useState('');
-  const [statusFilter, setStatusFilter] = useState('');
+  const [tab, setTab] = useState('active');
+  const [activeTotal, setActiveTotal] = useState(0);
+  const [archivedTotal, setArchivedTotal] = useState(0);
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(25);
   const [totalPages, setTotalPages] = useState(1);
@@ -37,7 +41,15 @@ const ProductCatalog = ({ onEdit }) => {
   const [selectedProducts, setSelectedProducts] = useState([]);
   const [sortBy, setSortBy] = useState('name');
   const [sortDir, setSortDir] = useState('asc');
+  const [permDeleteTarget, setPermDeleteTarget] = useState(null); // { id, name } | { bulk: [...ids] }
+  const [permDeleting, setPermDeleting] = useState(false);
   const lastSelectedIndexRef = useRef(null);
+
+  const handleTabChange = (newTab) => {
+    setTab(newTab);
+    setPage(1);
+    setSelectedProducts([]);
+  };
 
   const handleSort = useCallback((key) => {
     setSortBy(key);
@@ -49,7 +61,8 @@ const ProductCatalog = ({ onEdit }) => {
     fetchProducts();
     fetchCategories();
     fetchSubcategories();
-  }, [page, pageSize, search, categoryFilter, statusFilter, sortBy, sortDir, refreshKeys.catalog]);
+    fetchCounts();
+  }, [page, pageSize, search, categoryFilter, tab, sortBy, sortDir, refreshKeys.catalog]);
 
   useEffect(() => {
     lastSelectedIndexRef.current = null;
@@ -65,7 +78,7 @@ const ProductCatalog = ({ onEdit }) => {
           page_size: pageSize,
           search: search || undefined,
           category_id: categoryFilter || undefined,
-          is_active: statusFilter === 'active' ? true : statusFilter === 'inactive' ? false : undefined,
+          is_active: tab === 'active',
           sort_by: sortBy || undefined,
           sort_dir: sortDir,
         }
@@ -77,6 +90,19 @@ const ProductCatalog = ({ onEdit }) => {
       console.error('Failed to fetch products:', error);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const fetchCounts = async () => {
+    try {
+      const [activeRes, archivedRes] = await Promise.all([
+        apiClient.get('/api/v1/admin/products', { params: { page: 1, page_size: 1, search: search || undefined, category_id: categoryFilter || undefined, is_active: true } }),
+        apiClient.get('/api/v1/admin/products', { params: { page: 1, page_size: 1, search: search || undefined, category_id: categoryFilter || undefined, is_active: false } }),
+      ]);
+      setActiveTotal(activeRes.total ?? 0);
+      setArchivedTotal(archivedRes.total ?? 0);
+    } catch (error) {
+      console.error('Failed to fetch product counts:', error);
     }
   };
 
@@ -98,45 +124,66 @@ const ProductCatalog = ({ onEdit }) => {
     }
   };
 
-  const handleToggleActive = async (productId, currentStatus) => {
-    try {
-      await apiClient.patch(`/api/v1/admin/products/${productId}`, {
-        is_active: !currentStatus
-      });
-      toast.success(currentStatus ? 'Product deactivated' : 'Product activated');
-      await fetchProducts();
-    } catch (error) {
-      console.error('Failed to toggle product status:', error);
-      toast.error('Failed to update product status');
-    }
-  };
-
   const handleDelete = async (productId) => {
     const product = products.find(p => p.id === productId);
-    const confirmMessage = `Delete "${product?.name}"?\n\nType "DELETE" to deactivate (hide product, keep data).\nType "DELETE PERMANENTLY" to remove from database (frees SKUs for reuse).`;
-    
-    const userInput = prompt(confirmMessage);
-    if (userInput !== 'DELETE' && userInput !== 'DELETE PERMANENTLY') {
-      if (userInput !== null) {
-        toast.warning('Deletion cancelled.');
-      }
-      return;
-    }
-    
-    const hardDelete = userInput === 'DELETE PERMANENTLY';
+    if (!confirm(`Move "${product?.name}" to Archived? It will be hidden from the active list but can be restored or permanently deleted later.`)) return;
+
     setLoading(true);
     try {
-      const url = hardDelete
-        ? `/api/v1/admin/products/${productId}?hard=true`
-        : `/api/v1/admin/products/${productId}`;
-      await apiClient.delete(url);
-      toast.success(hardDelete ? 'Product permanently deleted' : 'Product deactivated');
+      await apiClient.delete(`/api/v1/admin/products/${productId}`);
+      toast.success('Product archived');
       await fetchProducts();
+      await fetchCounts();
     } catch (error) {
       console.error('Failed to delete product:', error);
       toast.error('Failed to delete product. Please try again.');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleRestore = async (productId) => {
+    try {
+      await apiClient.patch(`/api/v1/admin/products/${productId}`, { is_active: true });
+      toast.success('Product restored');
+      await fetchProducts();
+      await fetchCounts();
+    } catch (error) {
+      console.error('Failed to restore product:', error);
+      toast.error('Failed to restore product');
+    }
+  };
+
+  const handlePermanentDelete = async () => {
+    if (!permDeleteTarget) return;
+    setPermDeleting(true);
+    try {
+      if (permDeleteTarget.bulk) {
+        let successCount = 0;
+        let failCount = 0;
+        for (const id of permDeleteTarget.bulk) {
+          try {
+            await apiClient.delete(`/api/v1/admin/products/${id}?hard=true`);
+            successCount++;
+          } catch {
+            failCount++;
+          }
+        }
+        if (successCount > 0) toast.success(`${successCount} product${successCount !== 1 ? 's' : ''} permanently deleted`);
+        if (failCount > 0) toast.error(`Failed to permanently delete ${failCount} product${failCount !== 1 ? 's' : ''}`);
+        setSelectedProducts([]);
+      } else {
+        await apiClient.delete(`/api/v1/admin/products/${permDeleteTarget.id}?hard=true`);
+        toast.success('Product permanently deleted');
+      }
+      setPermDeleteTarget(null);
+      await fetchProducts();
+      await fetchCounts();
+    } catch (error) {
+      console.error('Failed to permanently delete product:', error);
+      toast.error('Failed to permanently delete product');
+    } finally {
+      setPermDeleting(false);
     }
   };
 
@@ -266,11 +313,7 @@ const ProductCatalog = ({ onEdit }) => {
       return;
     }
 
-    if (action === 'delete' && !confirm(`Deactivate (soft delete) ${selectedProducts.length} products? They will be hidden but data kept.`)) {
-      return;
-    }
-
-    if (action === 'delete_permanent' && !confirm(`Permanently delete ${selectedProducts.length} products? This removes them from the database and frees SKUs. This cannot be undone.`)) {
+    if (action === 'delete' && !confirm(`Move ${selectedProducts.length} products to Archived? They'll be hidden from the active list but can be restored or permanently deleted later.`)) {
       return;
     }
 
@@ -308,29 +351,30 @@ const ProductCatalog = ({ onEdit }) => {
           }
         }
         if (successCount > 0) {
-          toast.success(`${successCount} product${successCount !== 1 ? 's' : ''} deactivated`);
+          toast.success(`${successCount} product${successCount !== 1 ? 's' : ''} archived`);
         }
         if (failCount > 0) {
-          toast.error(`Failed to deactivate ${failCount} product${failCount !== 1 ? 's' : ''}`);
+          toast.error(`Failed to archive ${failCount} product${failCount !== 1 ? 's' : ''}`);
         }
-      } else if (action === 'delete_permanent') {
+      } else if (action === 'restore') {
         for (const id of ids) {
           try {
-            await apiClient.delete(`/api/v1/admin/products/${id}?hard=true`);
+            await apiClient.patch(`/api/v1/admin/products/${id}`, { is_active: true });
             successCount++;
           } catch {
             failCount++;
           }
         }
         if (successCount > 0) {
-          toast.success(`${successCount} product${successCount !== 1 ? 's' : ''} permanently deleted`);
+          toast.success(`${successCount} product${successCount !== 1 ? 's' : ''} restored`);
         }
         if (failCount > 0) {
-          toast.error(`Failed to permanently delete ${failCount} product${failCount !== 1 ? 's' : ''}`);
+          toast.error(`Failed to restore ${failCount} product${failCount !== 1 ? 's' : ''}`);
         }
       }
 
       await fetchProducts();
+      await fetchCounts();
     } catch (error) {
       console.error('Bulk action failed:', error);
       toast.error('Bulk action failed. Please try again.');
@@ -359,9 +403,11 @@ const ProductCatalog = ({ onEdit }) => {
         </Button>
       </div>
 
+      <StatusTabs tab={tab} onChange={handleTabChange} activeCount={activeTotal} archivedCount={archivedTotal} />
+
       {/* Filters */}
       <Card>
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4">
           <div>
             <label className="block text-sm font-medium text-dark-200 mb-2">
               Search Products
@@ -397,31 +443,12 @@ const ProductCatalog = ({ onEdit }) => {
             </select>
           </div>
 
-          <div>
-            <label className="block text-sm font-medium text-dark-200 mb-2">
-              Status
-            </label>
-            <select
-              value={statusFilter}
-              onChange={(e) => {
-                setStatusFilter(e.target.value);
-                setPage(1);
-              }}
-              className="w-full px-4 py-2 bg-dark-700 border border-dark-600 rounded-lg text-dark-50 focus:border-primary-500 focus:ring-1 focus:ring-primary-500 outline-none"
-            >
-              <option value="">All Status</option>
-              <option value="active">Active</option>
-              <option value="inactive">Inactive</option>
-            </select>
-          </div>
-
           <div className="flex items-end">
             <Button
               variant="outline"
               onClick={() => {
                 setSearch('');
                 setCategoryFilter('');
-                setStatusFilter('');
                 setPage(1);
               }}
               className="w-full"
@@ -474,23 +501,33 @@ const ProductCatalog = ({ onEdit }) => {
                   </Button>
                 </div>
                 <div className="w-px h-6 bg-dark-600 self-center" />
-                <Button size="sm" variant="outline" onClick={() => handleBulkAction('activate')}>
-                  Activate
-                </Button>
-                <Button size="sm" variant="outline" onClick={() => handleBulkAction('deactivate')}>
-                  Deactivate
-                </Button>
-                <Button size="sm" variant="outline" onClick={() => handleBulkAction('delete')}>
-                  Delete
-                </Button>
-                <Button
-                  size="sm"
-                  variant="outline"
-                  onClick={() => handleBulkAction('delete_permanent')}
-                  className="text-red-500 border-red-500/50 hover:bg-red-900/20"
-                >
-                  Delete Permanently
-                </Button>
+                {tab === 'active' ? (
+                  <>
+                    <Button size="sm" variant="outline" onClick={() => handleBulkAction('activate')}>
+                      Activate
+                    </Button>
+                    <Button size="sm" variant="outline" onClick={() => handleBulkAction('deactivate')}>
+                      Deactivate
+                    </Button>
+                    <Button size="sm" variant="outline" onClick={() => handleBulkAction('delete')}>
+                      Archive selected
+                    </Button>
+                  </>
+                ) : (
+                  <>
+                    <Button size="sm" variant="outline" onClick={() => handleBulkAction('restore')}>
+                      Restore selected
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => setPermDeleteTarget({ bulk: [...selectedProducts] })}
+                      className="text-red-500 border-red-500/50 hover:bg-red-900/20"
+                    >
+                      Delete Permanently
+                    </Button>
+                  </>
+                )}
               </div>
             </div>
           </div>
@@ -617,20 +654,32 @@ const ProductCatalog = ({ onEdit }) => {
                         >
                           <Edit2 className="w-4 h-4" />
                         </button>
-                        <button
-                          onClick={() => handleToggleActive(product.id, product.is_active)}
-                          className="p-2 text-accent-500 hover:bg-accent-900/20 rounded-lg transition-colors"
-                          title={product.is_active ? 'Deactivate' : 'Activate'}
-                        >
-                          {product.is_active ? <Eye className="w-4 h-4" /> : <EyeOff className="w-4 h-4" />}
-                        </button>
-                        <button
-                          onClick={() => handleDelete(product.id)}
-                          className="p-2 text-red-500 hover:bg-red-900/20 rounded-lg transition-colors"
-                          title="Delete"
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </button>
+                        {tab === 'active' ? (
+                          <button
+                            onClick={() => handleDelete(product.id)}
+                            className="p-2 text-red-500 hover:bg-red-900/20 rounded-lg transition-colors"
+                            title="Archive"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        ) : (
+                          <>
+                            <button
+                              onClick={() => handleRestore(product.id)}
+                              className="p-2 text-green-500 hover:bg-green-900/20 rounded-lg transition-colors"
+                              title="Restore"
+                            >
+                              <RotateCcw className="w-4 h-4" />
+                            </button>
+                            <button
+                              onClick={() => setPermDeleteTarget({ id: product.id, name: product.name })}
+                              className="p-2 text-red-500 hover:bg-red-900/20 rounded-lg transition-colors"
+                              title="Delete permanently"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </button>
+                          </>
+                        )}
                       </div>
                     </td>
                   </tr>
@@ -642,6 +691,17 @@ const ProductCatalog = ({ onEdit }) => {
           </>
         )}
       </Card>
+
+      <PermanentDeleteModal
+        isOpen={!!permDeleteTarget}
+        onClose={() => setPermDeleteTarget(null)}
+        onConfirm={handlePermanentDelete}
+        itemLabel="product"
+        itemName={permDeleteTarget?.bulk ? undefined : permDeleteTarget?.name}
+        title={permDeleteTarget?.bulk ? `Permanently delete ${permDeleteTarget.bulk.length} products?` : undefined}
+        message={permDeleteTarget?.bulk ? `${permDeleteTarget.bulk.length} products will be removed from the database immediately, freeing their SKUs for reuse.` : undefined}
+        isLoading={permDeleting}
+      />
     </div>
   );
 };

@@ -1211,7 +1211,9 @@ class CMSAdminService:
             await export_content_after_update('upholsteries', db)
             await export_content_after_update('hardware', db)
             await export_content_after_update('laminates', db)
-            
+            await export_content_after_update('contactLocations', db)
+            await export_content_after_update('companyInfo', db)
+
             logger.info("Successfully exported all static content")
             return True
             

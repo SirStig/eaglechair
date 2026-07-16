@@ -548,8 +548,8 @@ async def get_tmp_product(
         # Images
         "images": product.images if isinstance(product.images, list) else [],
         "primary_image_url": product.primary_image_url,
-        "hover_image_url": (product.hover_images or [None])[0] if product.hover_images else None,
-        "hover_images": product.hover_images if isinstance(product.hover_images, list) else [],
+        # TmpChair only has a singular `hover_image_url` field (no `hover_images`)
+        "hover_image_url": product.hover_image_url,
         "thumbnail": product.thumbnail,
         
         # Additional Media
@@ -670,7 +670,7 @@ async def update_tmp_product(
         'available_finishes', 'available_upholsteries', 'available_colors',
         
         # Images
-        'images', 'primary_image_url', 'hover_images', 'thumbnail',
+        'images', 'primary_image_url', 'hover_image_url', 'thumbnail',
         
         # Additional Media
         'dimensional_drawing_url', 'cad_file_url', 'spec_sheet_url',
@@ -793,7 +793,33 @@ async def import_to_production(
         'variations': 0,
         'images': 0,
     }
-    
+
+    # Pre-flight duplicate-SKU check: collect every variation SKU that would be
+    # inserted by this import and make sure none of them already exist in
+    # production. Doing this before any writes avoids an IntegrityError midway
+    # through the import rolling back the whole batch.
+    incoming_skus = []
+    for tmp_family in tmp_families:
+        for tmp_product in tmp_family.products:
+            if tmp_product.import_status != 'approved':
+                continue
+            for tmp_var in tmp_product.variations:
+                if tmp_var.sku:
+                    incoming_skus.append(tmp_var.sku)
+
+    if incoming_skus:
+        dup_stmt = select(ProductVariation.sku).where(ProductVariation.sku.in_(incoming_skus))
+        dup_result = await db.execute(dup_stmt)
+        conflicting_skus = sorted({row[0] for row in dup_result.all()})
+        if conflicting_skus:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=(
+                    "Cannot import: the following SKUs already exist in production: "
+                    f"{', '.join(conflicting_skus)}"
+                ),
+            )
+
     try:
         for tmp_family in tmp_families:
             # Create production family
@@ -807,84 +833,101 @@ async def import_to_production(
                 environmental_info=tmp_family.environmental_info,
             )
             db.add(family)
-            db.flush()
+            await db.flush()
             imported_counts['families'] += 1
-            
+
             # Import products
             for tmp_product in tmp_family.products:
                 if tmp_product.import_status != 'approved':
                     continue
-                
+
+                # Chair.category_id and Chair.base_price are NOT NULL - resolve
+                # from the product's tmp category, falling back to the family's.
+                category_id = tmp_product.category_id or tmp_family.category_id
+                if category_id is None:
+                    raise ValueError(
+                        f"Product '{tmp_product.name}' (model {tmp_product.model_number}) "
+                        "has no category assigned - assign a category before importing."
+                    )
+
                 product = Chair(
                     family_id=family.id,
+                    category_id=category_id,
+                    subcategory_id=tmp_product.subcategory_id,
                     model_number=tmp_product.model_number,
                     name=tmp_product.name,
                     slug=tmp_product.slug,
-                    description=tmp_product.description,
+                    short_description=tmp_product.short_description,
+                    full_description=tmp_product.full_description,
+                    base_price=tmp_product.base_price or 0,
                     height=tmp_product.height,
                     width=tmp_product.width,
                     depth=tmp_product.depth,
                     weight=tmp_product.weight,
-                    volume=tmp_product.volume,
-                    yardage=tmp_product.yardage,
                     frame_material=tmp_product.frame_material,
                     stock_status=tmp_product.stock_status,
+                    primary_image_url=tmp_product.primary_image_url,
                 )
                 db.add(product)
-                db.flush()
+                await db.flush()
                 imported_counts['products'] += 1
-                
+
                 # Import variations
                 for tmp_var in tmp_product.variations:
                     variation = ProductVariation(
                         product_id=product.id,
                         sku=tmp_var.sku,
-                        suffix=tmp_var.suffix,
-                        suffix_description=tmp_var.suffix_description,
+                        price_adjustment=tmp_var.price_adjustment,
                         stock_status=tmp_var.stock_status,
+                        is_available=tmp_var.is_available,
                     )
                     db.add(variation)
                     imported_counts['variations'] += 1
-                
-                # Import images
-                for tmp_img in tmp_product.images:
+
+                # Import images. `tmp_product.images` is a JSON array of URL
+                # strings (not TmpProductImage rows), and ProductImage has no
+                # `is_primary` column - the primary image lives on
+                # Chair.primary_image_url instead (set above).
+                image_urls = tmp_product.images if isinstance(tmp_product.images, list) else []
+                for image_url in image_urls:
+                    if not image_url:
+                        continue
                     image = ProductImage(
                         product_id=product.id,
-                        image_url=tmp_img.image_url,
-                        image_type=tmp_img.image_type,
-                        is_primary=tmp_img.is_primary,
+                        image_url=image_url,
+                        image_type="gallery",
                     )
                     db.add(image)
                     imported_counts['images'] += 1
-                
+
                 # Mark tmp product as imported
                 tmp_product.import_status = 'imported'
-            
+
             # Mark tmp family as imported
             tmp_family.import_status = 'imported'
-        
-        db.commit()
-        
+
+        await db.commit()
+
         # Update upload record
         stmt = select(CatalogUpload).where(
             CatalogUpload.upload_id == upload_id
         )
         result = await db.execute(stmt)
         upload = result.scalar_one_or_none()
-        
+
         if upload:
             upload.status = 'imported'
-        
-        db.commit()
-        
+
+        await db.commit()
+
         return {
             "success": True,
             "message": "Import completed successfully",
             "imported": imported_counts
         }
-    
+
     except Exception as e:
-        db.rollback()
+        await db.rollback()
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Import failed: {str(e)}"
@@ -915,8 +958,8 @@ async def delete_tmp_product(
     
     # Mark as skipped instead of deleting (for audit trail)
     product.import_status = 'skipped'
-    db.commit()
-    
+    await db.commit()
+
     return {
         "success": True,
         "message": "Product marked as skipped"

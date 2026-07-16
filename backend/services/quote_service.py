@@ -429,17 +429,33 @@ class QuoteService:
                 )
             
             cart_item.quantity = quantity
-        
+
+            # Recalculate unit_price with current pricing tier (in case tier
+            # changed), same as add_to_cart does - otherwise a quantity bump
+            # keeps stale pricing.
+            from backend.services.pricing_service import PricingService
+            company_result = await db.execute(
+                select(Company).where(Company.id == company_id)
+            )
+            company_obj = company_result.scalar_one_or_none()
+
+            base_price = cart_item.product.base_price or 0
+            if company_obj and base_price and cart_item.product.category_id:
+                tier_adjustment, _ = await PricingService._get_company_tier_adjustment(
+                    db, company_id, cart_item.product.category_id, base_price
+                )
+                cart_item.unit_price = base_price + tier_adjustment
+
         if selected_finish_id is not None:
             cart_item.selected_finish_id = selected_finish_id
-        
+
         if selected_upholstery_id is not None:
             cart_item.selected_upholstery_id = selected_upholstery_id
-        
+
         if custom_notes is not None:
             cart_item.item_notes = custom_notes  # Model uses item_notes, not custom_notes
-        
-        # Recalculate line_total if quantity changed
+
+        # Recalculate line_total (quantity and/or unit_price may have changed)
         cart_item.line_total = cart_item.quantity * (
             cart_item.unit_price + cart_item.customization_cost
         )
@@ -742,17 +758,27 @@ class QuoteService:
                     continue
                 db.add(QuoteItemAllocation(quote_item_id=quote_item.id, quote_shipping_destination_id=dest_id, quantity=qty))
 
-        subtotal = sum(item.quantity * (item.unit_price + item.customization_cost) for item in cart.items)
+        result_quote_items = await db.execute(
+            select(QuoteItem).where(QuoteItem.quote_id == quote_request.id)
+        )
+        created_quote_items = result_quote_items.scalars().all()
+        subtotal = sum(qi.line_total for qi in created_quote_items)
         quote_request.subtotal = subtotal
         quote_request.tax_amount = 0
         quote_request.shipping_cost = 0
         quote_request.discount_amount = 0
         quote_request.total_amount = subtotal
         quote_request.submitted_at = datetime.utcnow().isoformat()
+
+        # Clear the cart so get_or_create_cart doesn't resurrect these items
+        # (and their now-stale totals) into what should be a fresh cart.
+        for cart_item in cart_items_list:
+            await db.delete(cart_item)
         cart.is_active = False
+
         await db.commit()
         await db.refresh(quote_request)
-        logger.info(f"Created quote request {quote_number} for company {company_id} with {len(cart.items)} items")
+        logger.info(f"Created quote request {quote_number} for company {company_id} with {len(cart_items_list)} items")
         return quote_request
 
     @staticmethod

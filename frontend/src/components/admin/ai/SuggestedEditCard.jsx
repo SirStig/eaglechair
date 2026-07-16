@@ -2,21 +2,32 @@ import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Check, X, Edit2, Loader2 } from 'lucide-react';
 import { applyEdit } from '../../../services/aiChatService';
+import { useAIChat } from '../../../contexts/AIChatContext';
 
 function formatChange(key, value) {
-  if (key === 'base_price' && typeof value === 'number') {
+  if ((key === 'base_price' || key === 'msrp') && typeof value === 'number') {
     return `$${(value / 100).toFixed(2)}`;
   }
   if (typeof value === 'object') return JSON.stringify(value);
   return String(value);
 }
 
+function getEditKey(edit) {
+  return `${edit.entity_type}:${edit.entity_id}`;
+}
+
 export default function SuggestedEditCard({ edit, onApplied, onDeclined }) {
+  const { applyingEditKeys, beginApplyingEdit, endApplyingEdit } = useAIChat();
   const [localStatus, setLocalStatus] = useState(null);
   const [error, setError] = useState(null);
   const status = edit.status || localStatus || 'pending';
+  const editKey = getEditKey(edit);
+  // True while this edit is being applied elsewhere (e.g. via "Accept All").
+  const lockedElsewhere = !!applyingEditKeys[editKey] && localStatus !== 'applying';
 
   const handleApprove = async () => {
+    if (applyingEditKeys[editKey]) return; // already in flight (this card or Accept All)
+    beginApplyingEdit(editKey);
     setLocalStatus('applying');
     setError(null);
     try {
@@ -30,6 +41,8 @@ export default function SuggestedEditCard({ edit, onApplied, onDeclined }) {
     } catch (err) {
       setError(err?.message || 'Failed to apply');
       setLocalStatus(null);
+    } finally {
+      endApplyingEdit(editKey);
     }
   };
 
@@ -97,7 +110,7 @@ export default function SuggestedEditCard({ edit, onApplied, onDeclined }) {
           <button
             type="button"
             onClick={handleDecline}
-            disabled={status === 'applying'}
+            disabled={status === 'applying' || lockedElsewhere}
             className="p-1.5 rounded-lg text-dark-400 hover:text-red-400 hover:bg-dark-700/50 transition-colors disabled:opacity-50"
             title="Decline"
           >
@@ -106,11 +119,11 @@ export default function SuggestedEditCard({ edit, onApplied, onDeclined }) {
           <button
             type="button"
             onClick={handleApprove}
-            disabled={status === 'applying'}
+            disabled={status === 'applying' || lockedElsewhere}
             className="p-1.5 rounded-lg bg-green-600 hover:bg-green-500 text-white transition-colors disabled:opacity-50"
             title="Apply"
           >
-            {status === 'applying' ? (
+            {status === 'applying' || lockedElsewhere ? (
               <Loader2 className="w-3.5 h-3.5 animate-spin" />
             ) : (
               <Check className="w-3.5 h-3.5" />

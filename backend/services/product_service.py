@@ -190,6 +190,7 @@ class ProductService:
         in_stock_only: bool = False,
         exclude_variations: bool = False,
         smart_sort: bool = False,
+        sort: Optional[str] = None,
         include_inactive: bool = False,
     ) -> Dict[str, Any]:
         """
@@ -218,6 +219,7 @@ class ProductService:
             in_stock_only: Show only in-stock products
             exclude_variations: Exclude product variations, show only base products
             smart_sort: Use smart sorting (featured → new → with image → popular → rest)
+            sort: Explicit sort order (name-asc, name-desc, featured); ignored when smart_sort is True
             include_inactive: Include inactive products
 
         Returns:
@@ -270,17 +272,52 @@ class ProductService:
                 or_(Chair.model_suffix.is_(None), Chair.model_suffix == "")
             )
 
-        # Finish filters
-        if finish_ids:
-            query = query.where(Chair.finish_id.in_(finish_ids))
+        # Finish / upholstery / color filters — these are stored as JSON id
+        # arrays on Chair (available_finishes/available_upholsteries/
+        # available_colors), not FK columns, and JSON "contains any of"
+        # isn't portable across MySQL/SQLite/Postgres, so resolve the
+        # matching ids in Python and filter by Chair.id.in_(...).
+        if finish_ids or upholstery_ids or color_ids:
+            option_rows = (
+                await db.execute(
+                    select(
+                        Chair.id,
+                        Chair.available_finishes,
+                        Chair.available_upholsteries,
+                        Chair.available_colors,
+                    )
+                )
+            ).all()
 
-        # Upholstery filters
-        if upholstery_ids:
-            query = query.where(Chair.upholstery_id.in_(upholstery_ids))
+            if finish_ids:
+                finish_id_set = set(finish_ids)
+                matching_ids = {
+                    row.id
+                    for row in option_rows
+                    if row.available_finishes
+                    and finish_id_set.intersection(row.available_finishes)
+                }
+                query = query.where(Chair.id.in_(matching_ids))
 
-        # Color filters
-        if color_ids:
-            query = query.where(Chair.primary_color_id.in_(color_ids))
+            if upholstery_ids:
+                upholstery_id_set = set(upholstery_ids)
+                matching_ids = {
+                    row.id
+                    for row in option_rows
+                    if row.available_upholsteries
+                    and upholstery_id_set.intersection(row.available_upholsteries)
+                }
+                query = query.where(Chair.id.in_(matching_ids))
+
+            if color_ids:
+                color_id_set = set(color_ids)
+                matching_ids = {
+                    row.id
+                    for row in option_rows
+                    if row.available_colors
+                    and color_id_set.intersection(row.available_colors)
+                }
+                query = query.where(Chair.id.in_(matching_ids))
 
         # Dimension filters
         if min_seat_height is not None:
@@ -333,6 +370,17 @@ class ProductService:
                 Chair.is_new.desc(),
                 has_image.desc(),
                 Chair.view_count.desc(),
+                Chair.display_order,
+                Chair.name,
+            )
+        elif sort == "name-asc":
+            query = query.order_by(Chair.name.asc())
+        elif sort == "name-desc":
+            query = query.order_by(Chair.name.desc())
+        elif sort == "featured":
+            query = query.order_by(
+                Chair.is_featured.desc(),
+                has_image.desc(),
                 Chair.display_order,
                 Chair.name,
             )
@@ -561,12 +609,14 @@ class ProductService:
         # If we have cached results, fetch the full products
         if cache_results:
             product_ids = []
+            product_scores = []
             for result in cache_results:
                 # Extract product ID from cache key (format: "eaglechair:product_search:123")
                 try:
                     key_parts = result["key"].split(":")
                     if len(key_parts) >= 3 and key_parts[1] == "product_search":
                         product_ids.append(int(key_parts[2]))
+                        product_scores.append(result["score"])
                 except (ValueError, IndexError):
                     continue
 
@@ -579,13 +629,7 @@ class ProductService:
                 result = await db.execute(query)
                 products = list(result.scalars().all())
 
-                product_score_map = {
-                    pid: score
-                    for pid, score in zip(
-                        product_ids,
-                        [r["score"] for r in cache_results[: len(product_ids)]],
-                    )
-                }
+                product_score_map = dict(zip(product_ids, product_scores))
                 if _is_model_like_query(search_query):
                     products.sort(
                         key=lambda p: (

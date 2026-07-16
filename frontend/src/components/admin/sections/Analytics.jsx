@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import Card from '../../ui/Card';
 import apiClient from '../../../config/apiClient';
 import {
@@ -32,6 +32,7 @@ const Analytics = () => {
   const [popularProducts, setPopularProducts] = useState([]);
   const [loading, setLoading] = useState(true);
   const [timeRange, setTimeRange] = useState('30d'); // 7d, 30d, 90d, 1y
+  const requestIdRef = useRef(0);
 
   useEffect(() => {
     fetchAnalytics();
@@ -48,6 +49,10 @@ const Analytics = () => {
   };
 
   const fetchAnalytics = async () => {
+    // Guard against out-of-order responses: only the most recently started
+    // request is allowed to write to state, so rapidly switching timeRange
+    // can't let a stale response overwrite fresher data.
+    const requestId = ++requestIdRef.current;
     try {
       setLoading(true);
       const days = getDaysFromRange(timeRange);
@@ -65,6 +70,8 @@ const Analytics = () => {
         apiClient.get(`/api/v1/admin/dashboard/analytics/popular-products?limit=5&days=${days}`)
       ]);
 
+      if (requestId !== requestIdRef.current) return; // a newer request superseded this one
+
       setStats(statsRes);
       setCategoryStats(categoryRes.items || []);
       setConversionRates(conversionRes);
@@ -72,7 +79,9 @@ const Analytics = () => {
     } catch (error) {
       console.error('Failed to fetch analytics:', error);
     } finally {
-      setLoading(false);
+      if (requestId === requestIdRef.current) {
+        setLoading(false);
+      }
     }
   };
 

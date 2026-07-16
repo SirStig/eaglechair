@@ -20,7 +20,7 @@ from backend.api.v1.schemas.product import (
     CategoryWithSubcategories,
 )
 from backend.database.base import get_db
-from backend.models.chair import Category, ProductSubcategory
+from backend.models.chair import Category, Chair, ProductSubcategory
 from backend.models.company import AdminRole, AdminUser
 from backend.utils.slug import slugify
 from backend.utils.static_content_exporter import export_content_after_update
@@ -318,18 +318,26 @@ async def delete_category(
     if not category:
         raise HTTPException(status_code=404, detail=f"Category {category_id} not found")
     
-    # Check if category has products
-    if not hard_delete:
-        # Check for subcategories in ProductSubcategory table
-        subcat_check = await db.execute(
-            select(ProductSubcategory).where(ProductSubcategory.category_id == category_id)
+    # Check if category has products or subcategories (applies to both soft and
+    # hard delete - a hard delete must not be allowed to skip these checks).
+    subcat_check = await db.execute(
+        select(ProductSubcategory).where(ProductSubcategory.category_id == category_id)
+    )
+    if subcat_check.first():
+        raise HTTPException(
+            status_code=400,
+            detail="Cannot delete category with subcategories. Delete subcategories first."
         )
-        if subcat_check.first():
-            raise HTTPException(
-                status_code=400,
-                detail="Cannot delete category with subcategories. Delete subcategories first."
-            )
-    
+
+    product_check = await db.execute(
+        select(Chair).where(Chair.category_id == category_id)
+    )
+    if product_check.first():
+        raise HTTPException(
+            status_code=400,
+            detail="Cannot delete category with existing products. Reassign or delete products first."
+        )
+
     if hard_delete:
         await db.delete(category)
     else:

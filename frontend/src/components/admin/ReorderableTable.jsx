@@ -92,7 +92,11 @@ export default function ReorderableTable({
   const [sortDir, setSortDir] = useState('asc');
 
   const sortedItems = useMemo(() => {
-    if (!columns || sortBy === ORDER_COLUMN_KEY) return items;
+    if (!columns) return items;
+    // Items already come in display_order sequence, so sorting by
+    // ORDER_COLUMN_KEY (using each item's own display_order field) makes the
+    // "Order" header's chevron toggle actually do something instead of being
+    // a no-op affordance.
     return [...items].sort((a, b) => compareValues(a[sortBy], b[sortBy], sortDir));
   }, [items, columns, sortBy, sortDir]);
 

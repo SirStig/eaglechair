@@ -12,11 +12,11 @@ from pydantic import BaseModel
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from backend.api.dependencies import get_current_admin
+from backend.api.dependencies import get_current_admin, require_role
 from backend.api.v1.schemas.admin import UpholsteryCreate, UpholsteryUpdate
 from backend.database.base import get_db
 from backend.models.chair import Upholstery
-from backend.models.company import AdminUser
+from backend.models.company import AdminRole, AdminUser
 from backend.utils.serializers import orm_list_to_dict_list, orm_to_dict
 from backend.utils.static_content_exporter import export_content_after_update
 
@@ -34,40 +34,45 @@ async def get_all_upholsteries(
     page: int = Query(1, ge=1, description="Page number"),
     page_size: int = Query(50, ge=1, le=100, description="Items per page"),
     material_type: Optional[str] = Query(None, description="Filter by material type"),
+    is_active: Optional[bool] = Query(None, description="Filter by active status"),
     admin: AdminUser = Depends(get_current_admin),
     db: AsyncSession = Depends(get_db)
 ):
     """
     Get all upholsteries with admin filtering options.
-    
+
     **Admin only** - Requires admin authentication.
     """
     logger.info(f"Admin {admin.username} fetching upholsteries (page {page})")
-    
+
     # Build query
     stmt = select(Upholstery).order_by(Upholstery.name)
-    
+
     if material_type:
         stmt = stmt.where(Upholstery.material_type == material_type)
-    
+    if is_active is not None:
+        stmt = stmt.where(Upholstery.is_active == is_active)
+
     # Get total count
     count_stmt = select(Upholstery)
     if material_type:
         count_stmt = count_stmt.where(Upholstery.material_type == material_type)
-    
+    if is_active is not None:
+        count_stmt = count_stmt.where(Upholstery.is_active == is_active)
+
     result = await db.execute(count_stmt)
     total_count = len(result.scalars().all())
-    
+
     # Apply pagination
     offset = (page - 1) * page_size
     stmt = stmt.offset(offset).limit(page_size)
-    
+
     result = await db.execute(stmt)
     upholsteries = result.scalars().all()
-    
+
     # Convert ORM objects to dicts
     upholsteries_data = orm_list_to_dict_list(upholsteries)
-    
+
     response_data = {
         "items": upholsteries_data,
         "total": total_count,
@@ -75,7 +80,7 @@ async def get_all_upholsteries(
         "page_size": page_size,
         "pages": (total_count + page_size - 1) // page_size
     }
-    
+
     return response_data
 
 
@@ -91,18 +96,18 @@ async def get_upholstery(
 ):
     """
     Get upholstery by ID.
-    
+
     **Admin only** - Requires admin authentication.
     """
     logger.info(f"Admin {admin.username} fetching upholstery {upholstery_id}")
-    
+
     stmt = select(Upholstery).where(Upholstery.id == upholstery_id)
     result = await db.execute(stmt)
     upholstery = result.scalar_one_or_none()
-    
+
     if not upholstery:
         raise HTTPException(status_code=404, detail=f"Upholstery {upholstery_id} not found")
-    
+
     return orm_to_dict(upholstery)
 
 
@@ -119,13 +124,13 @@ async def create_upholstery(
 ):
     """
     Create a new upholstery material.
-    
+
     **Admin only** - Requires admin authentication.
     """
     logger.info(f"Admin {admin.username} creating upholstery: {upholstery_data.name}")
-    
+
     upholstery = Upholstery(**upholstery_data.dict())
-    
+
     db.add(upholstery)
     await db.commit()
     await db.refresh(upholstery)
@@ -176,23 +181,23 @@ async def update_upholstery(
 ):
     """
     Update an existing upholstery material.
-    
+
     **Admin only** - Requires admin authentication.
     """
     logger.info(f"Admin {admin.username} updating upholstery {upholstery_id}")
-    
+
     stmt = select(Upholstery).where(Upholstery.id == upholstery_id)
     result = await db.execute(stmt)
     upholstery = result.scalar_one_or_none()
-    
+
     if not upholstery:
         raise HTTPException(status_code=404, detail=f"Upholstery {upholstery_id} not found")
-    
+
     # Update only provided fields
     update_data = upholstery_data.dict(exclude_unset=True)
     for field, value in update_data.items():
         setattr(upholstery, field, value)
-    
+
     await db.commit()
     await db.refresh(upholstery)
     await export_content_after_update("upholsteries", db)
@@ -203,31 +208,35 @@ async def update_upholstery(
 @router.delete(
     "/{upholstery_id}",
     summary="Delete upholstery (Admin)",
-    description="Delete an upholstery material"
+    description="Delete an upholstery material (soft delete by marking inactive)"
 )
 async def delete_upholstery(
     upholstery_id: int,
-    admin: AdminUser = Depends(get_current_admin),
+    hard_delete: bool = Query(False, description="Permanently delete (use with caution)"),
+    admin: AdminUser = Depends(require_role(AdminRole.SUPER_ADMIN)),
     db: AsyncSession = Depends(get_db)
 ):
     """
-    Delete an upholstery material.
-    
-    **Admin only** - Requires admin authentication.
+    Delete an upholstery material. Soft delete (mark inactive) by default;
+    pass ?hard_delete=true to permanently remove it. Super admin only.
     """
-    logger.info(f"Admin {admin.username} deleting upholstery {upholstery_id}")
-    
+    logger.info(f"Admin {admin.username} deleting upholstery {upholstery_id} (hard={hard_delete})")
+
     stmt = select(Upholstery).where(Upholstery.id == upholstery_id)
     result = await db.execute(stmt)
     upholstery = result.scalar_one_or_none()
-    
+
     if not upholstery:
         raise HTTPException(status_code=404, detail=f"Upholstery {upholstery_id} not found")
-    
-    await db.delete(upholstery)
+
+    if hard_delete:
+        await db.delete(upholstery)
+    else:
+        upholstery.is_active = False
+
     await db.commit()
     await export_content_after_update("upholsteries", db)
-    logger.info(f"Deleted upholstery: {upholstery.name} (ID: {upholstery_id})")
+    logger.info(f"{'Deleted' if hard_delete else 'Deactivated'} upholstery: {upholstery.name} (ID: {upholstery_id})")
     return {
-        "message": "Upholstery deleted successfully"
+        "message": f"Upholstery '{upholstery.name}' {'deleted' if hard_delete else 'deactivated'} successfully"
     }

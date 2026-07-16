@@ -112,7 +112,7 @@ const ProductEditor = ({ product, onBack }) => {
   const deleteProductImage = async (url) => {
     if (!url) return;
     try {
-      await deleteProductImage(url);
+      await deleteImage(url);
     } catch (error) {
       console.error('Failed to delete image:', error);
     }

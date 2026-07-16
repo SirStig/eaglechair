@@ -79,7 +79,7 @@ class AuthService:
         company_data_clean = {k: v for k, v in company_data.items() if k != 'rep_email' and k not in shipping_fields}
         shipping_data = {k: company_data.get(k) for k in shipping_fields}
 
-        verification_token = security_manager.create_password_reset_token(email)
+        verification_token = security_manager.create_email_verification_token(email)
         new_company = Company(
             rep_email=email,
             hashed_password=hashed_password,
@@ -762,7 +762,7 @@ class AuthService:
             return True
         
         # Generate new verification token
-        verification_token = security_manager.create_password_reset_token(email)  # Reuse this method
+        verification_token = security_manager.create_email_verification_token(email)
         
         # Store token
         company.email_verification_token = verification_token

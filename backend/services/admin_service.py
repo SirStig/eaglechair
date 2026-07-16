@@ -43,6 +43,61 @@ from backend.models.quote import Quote, QuoteItem, QuoteStatus
 logger = logging.getLogger(__name__)
 
 
+# Allowed company status transitions. Intentionally permissive - only blocks
+# reverting back to PENDING once a company has left that initial state.
+COMPANY_STATUS_TRANSITIONS: Dict[CompanyStatus, set] = {
+    CompanyStatus.PENDING: {
+        CompanyStatus.PENDING,
+        CompanyStatus.ACTIVE,
+        CompanyStatus.SUSPENDED,
+        CompanyStatus.INACTIVE,
+    },
+    CompanyStatus.ACTIVE: {
+        CompanyStatus.ACTIVE,
+        CompanyStatus.SUSPENDED,
+        CompanyStatus.INACTIVE,
+    },
+    CompanyStatus.SUSPENDED: {
+        CompanyStatus.SUSPENDED,
+        CompanyStatus.ACTIVE,
+        CompanyStatus.INACTIVE,
+    },
+    CompanyStatus.INACTIVE: {
+        CompanyStatus.INACTIVE,
+        CompanyStatus.ACTIVE,
+        CompanyStatus.SUSPENDED,
+    },
+}
+
+# Allowed quote status transitions. Terminal statuses (ACCEPTED/DECLINED/EXPIRED)
+# cannot be reverted back to DRAFT/SUBMITTED/UNDER_REVIEW/QUOTED.
+QUOTE_STATUS_TRANSITIONS: Dict[QuoteStatus, set] = {
+    QuoteStatus.DRAFT: {QuoteStatus.DRAFT, QuoteStatus.SUBMITTED},
+    QuoteStatus.SUBMITTED: {
+        QuoteStatus.SUBMITTED,
+        QuoteStatus.UNDER_REVIEW,
+        QuoteStatus.QUOTED,
+        QuoteStatus.DECLINED,
+        QuoteStatus.EXPIRED,
+    },
+    QuoteStatus.UNDER_REVIEW: {
+        QuoteStatus.UNDER_REVIEW,
+        QuoteStatus.QUOTED,
+        QuoteStatus.DECLINED,
+        QuoteStatus.EXPIRED,
+    },
+    QuoteStatus.QUOTED: {
+        QuoteStatus.QUOTED,
+        QuoteStatus.ACCEPTED,
+        QuoteStatus.DECLINED,
+        QuoteStatus.EXPIRED,
+    },
+    QuoteStatus.ACCEPTED: {QuoteStatus.ACCEPTED},
+    QuoteStatus.DECLINED: {QuoteStatus.DECLINED},
+    QuoteStatus.EXPIRED: {QuoteStatus.EXPIRED},
+}
+
+
 class AdminService:
     """Service for admin operations"""
 
@@ -299,8 +354,9 @@ class AdminService:
 
         stmt = select(ProductVariation).where(ProductVariation.product_id == product_id)
         result = await db.execute(stmt)
-        existing_variations_by_id = {v.id: v for v in result.scalars().all()}
-        existing_variations_by_sku = {v.sku: v for v in result.scalars().all() if v.sku}
+        existing_variations = result.scalars().all()
+        existing_variations_by_id = {v.id: v for v in existing_variations}
+        existing_variations_by_sku = {v.sku: v for v in existing_variations if v.sku}
 
         # Track which variations we're keeping
         kept_variation_ids = set()
@@ -659,6 +715,13 @@ class AdminService:
         if not company:
             raise ResourceNotFoundError(resource_type="Company", resource_id=company_id)
 
+        allowed_next_statuses = COMPANY_STATUS_TRANSITIONS.get(company.status, set())
+        if status not in allowed_next_statuses:
+            raise BusinessLogicError(
+                f"Invalid status transition for company {company_id}: "
+                f"cannot go from '{company.status.value}' to '{status.value}'"
+            )
+
         company.status = status
         if admin_notes:
             company.admin_notes = admin_notes
@@ -698,13 +761,13 @@ class AdminService:
         if status:
             query = query.where(Quote.status == status)
 
-        if company_id:
+        if company_id is not None:
             query = query.where(Quote.company_id == company_id)
 
         count_query = select(func.count(Quote.id))
         if status:
             count_query = count_query.where(Quote.status == status)
-        if company_id:
+        if company_id is not None:
             count_query = count_query.where(Quote.company_id == company_id)
 
         total_result = await db.execute(count_query)
@@ -776,6 +839,13 @@ class AdminService:
 
         if not quote:
             raise ResourceNotFoundError(resource_type="Quote", resource_id=quote_id)
+
+        allowed_next_statuses = QUOTE_STATUS_TRANSITIONS.get(quote.status, set())
+        if status not in allowed_next_statuses:
+            raise BusinessLogicError(
+                f"Invalid status transition for quote {quote_id}: "
+                f"cannot go from '{quote.status.value}' to '{status.value}'"
+            )
 
         quote.status = status
 
@@ -902,7 +972,10 @@ class AdminService:
 
         # Calculate tax (default 10% if not set)
         tax_rate = 0.10  # TODO: Make configurable
-        tax_amount = int(subtotal * tax_rate)
+        # Use round() instead of int() truncation - truncation systematically
+        # under-collects tax (e.g. int(1234 * 0.10) == 123 instead of 123.4 -> 123,
+        # but int(1236 * 0.10) == 123 instead of the correctly-rounded 124).
+        tax_amount = round(subtotal * tax_rate)
 
         # Shipping cost and discount_amount are already set or calculated separately
         # Calculate total

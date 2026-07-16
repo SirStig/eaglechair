@@ -283,7 +283,9 @@
       "effectiveDate": "January 1, 2020",
       "shortDescription": "Pricing policies and terms for Eagle Chair products",
       "isActive": true,
-      "displayOrder": 1
+      "displayOrder": 1,
+      "metaTitle": null,
+      "metaDescription": null
     },
     {
       "id": 2,
@@ -295,7 +297,9 @@
       "effectiveDate": null,
       "shortDescription": "Dimensional specifications and tolerances",
       "isActive": true,
-      "displayOrder": 2
+      "displayOrder": 2,
+      "metaTitle": null,
+      "metaDescription": null
     },
     {
       "id": 3,
@@ -307,7 +311,9 @@
       "effectiveDate": null,
       "shortDescription": "Order requirements and procedures",
       "isActive": true,
-      "displayOrder": 3
+      "displayOrder": 3,
+      "metaTitle": null,
+      "metaDescription": null
     },
     {
       "id": 4,
@@ -319,7 +325,9 @@
       "effectiveDate": null,
       "shortDescription": "Customer's Own Material and Leather order policies",
       "isActive": true,
-      "displayOrder": 4
+      "displayOrder": 4,
+      "metaTitle": null,
+      "metaDescription": null
     },
     {
       "id": 5,
@@ -331,7 +339,9 @@
       "effectiveDate": null,
       "shortDescription": "Minimum order quantities and surcharges",
       "isActive": true,
-      "displayOrder": 5
+      "displayOrder": 5,
+      "metaTitle": null,
+      "metaDescription": null
     },
     {
       "id": 6,
@@ -343,7 +353,9 @@
       "effectiveDate": null,
       "shortDescription": "Payment methods and credit terms",
       "isActive": true,
-      "displayOrder": 6
+      "displayOrder": 6,
+      "metaTitle": null,
+      "metaDescription": null
     },
     {
       "id": 7,
@@ -355,7 +367,9 @@
       "effectiveDate": null,
       "shortDescription": "Credit terms and late payment policies",
       "isActive": true,
-      "displayOrder": 7
+      "displayOrder": 7,
+      "metaTitle": null,
+      "metaDescription": null
     },
     {
       "id": 8,
@@ -367,7 +381,9 @@
       "effectiveDate": null,
       "shortDescription": "Tax responsibilities and obligations",
       "isActive": true,
-      "displayOrder": 8
+      "displayOrder": 8,
+      "metaTitle": null,
+      "metaDescription": null
     },
     {
       "id": 9,
@@ -379,7 +395,9 @@
       "effectiveDate": null,
       "shortDescription": "Legal fees, governing law, and jurisdiction",
       "isActive": true,
-      "displayOrder": 9
+      "displayOrder": 9,
+      "metaTitle": null,
+      "metaDescription": null
     },
     {
       "id": 10,
@@ -391,7 +409,9 @@
       "effectiveDate": null,
       "shortDescription": "Quote validity period",
       "isActive": true,
-      "displayOrder": 10
+      "displayOrder": 10,
+      "metaTitle": null,
+      "metaDescription": null
     },
     {
       "id": 11,
@@ -403,7 +423,9 @@
       "effectiveDate": null,
       "shortDescription": "Product warranty terms and conditions",
       "isActive": true,
-      "displayOrder": 11
+      "displayOrder": 11,
+      "metaTitle": null,
+      "metaDescription": null
     },
     {
       "id": 12,
@@ -415,7 +437,9 @@
       "effectiveDate": null,
       "shortDescription": "Fire safety and flammability standards",
       "isActive": true,
-      "displayOrder": 12
+      "displayOrder": 12,
+      "metaTitle": null,
+      "metaDescription": null
     },
     {
       "id": 13,
@@ -427,7 +451,9 @@
       "effectiveDate": null,
       "shortDescription": "Custom finish options and requirements",
       "isActive": true,
-      "displayOrder": 13
+      "displayOrder": 13,
+      "metaTitle": null,
+      "metaDescription": null
     },
     {
       "id": 14,
@@ -439,7 +465,9 @@
       "effectiveDate": null,
       "shortDescription": "Partial shipment policy",
       "isActive": true,
-      "displayOrder": 14
+      "displayOrder": 14,
+      "metaTitle": null,
+      "metaDescription": null
     },
     {
       "id": 15,
@@ -451,7 +479,9 @@
       "effectiveDate": null,
       "shortDescription": "Storage fees and conditions",
       "isActive": true,
-      "displayOrder": 15
+      "displayOrder": 15,
+      "metaTitle": null,
+      "metaDescription": null
     },
     {
       "id": 16,
@@ -463,7 +493,9 @@
       "effectiveDate": null,
       "shortDescription": "Return authorization and restocking policy",
       "isActive": true,
-      "displayOrder": 16
+      "displayOrder": 16,
+      "metaTitle": null,
+      "metaDescription": null
     },
     {
       "id": 17,
@@ -475,7 +507,9 @@
       "effectiveDate": null,
       "shortDescription": "Order cancellation policy",
       "isActive": true,
-      "displayOrder": 17
+      "displayOrder": 17,
+      "metaTitle": null,
+      "metaDescription": null
     },
     {
       "id": 18,
@@ -487,7 +521,9 @@
       "effectiveDate": null,
       "shortDescription": "Product care and maintenance instructions",
       "isActive": true,
-      "displayOrder": 18
+      "displayOrder": 18,
+      "metaTitle": null,
+      "metaDescription": null
     },
     {
       "id": 19,
@@ -499,7 +535,9 @@
       "effectiveDate": null,
       "shortDescription": "Special repair and refurbishment services",
       "isActive": true,
-      "displayOrder": 19
+      "displayOrder": 19,
+      "metaTitle": null,
+      "metaDescription": null
     },
     {
       "id": 20,
@@ -511,7 +549,9 @@
       "effectiveDate": null,
       "shortDescription": "Shipping terms and damage claim procedures",
       "isActive": true,
-      "displayOrder": 20
+      "displayOrder": 20,
+      "metaTitle": null,
+      "metaDescription": null
     },
     {
       "id": 21,
@@ -523,7 +563,9 @@
       "effectiveDate": null,
       "shortDescription": "Freight classification and rates",
       "isActive": true,
-      "displayOrder": 21
+      "displayOrder": 21,
+      "metaTitle": null,
+      "metaDescription": null
     },
     {
       "id": 22,
@@ -535,7 +577,9 @@
       "effectiveDate": null,
       "shortDescription": "IP indemnification and customer responsibilities",
       "isActive": true,
-      "displayOrder": 22
+      "displayOrder": 22,
+      "metaTitle": null,
+      "metaDescription": null
     },
     {
       "id": 23,
@@ -547,7 +591,9 @@
       "effectiveDate": null,
       "shortDescription": "Eagle Chair intellectual property rights",
       "isActive": true,
-      "displayOrder": 23
+      "displayOrder": 23,
+      "metaTitle": null,
+      "metaDescription": null
     },
     {
       "id": 24,
@@ -559,7 +605,9 @@
       "effectiveDate": null,
       "shortDescription": "Complete terms and conditions of sale",
       "isActive": true,
-      "displayOrder": 24
+      "displayOrder": 24,
+      "metaTitle": null,
+      "metaDescription": null
     }
   ],
   "warranties": [],
@@ -569,5 +617,7 @@
   "finishes": [],
   "upholsteries": [],
   "hardware": [],
-  "laminates": []
+  "laminates": [],
+  "contactLocations": [],
+  "companyInfo": []
 }

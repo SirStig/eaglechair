@@ -401,23 +401,47 @@ async def delete_pricing_tier(
     companies_count = companies_count_result.scalar() or 0
     
     # Unassign tier from all companies
+    deleted_records_count = 0
     if companies_count > 0:
         update_stmt = select(Company).where(Company.pricing_tier_id == tier_id)
         update_result = await db.execute(update_stmt)
         companies = update_result.scalars().all()
-        
+        company_ids = [company.id for company in companies]
+
         for company in companies:
             company.pricing_tier_id = None
-        
+
         logger.info(f"Unassigned pricing tier {tier_id} from {companies_count} companies")
-    
+
+        # force=True: also remove legacy company-specific pricing overrides
+        # (CompanyPricing rows with company_id set) belonging to the companies
+        # that were using this tier.
+        if force and company_ids:
+            company_specific_stmt = select(CompanyPricing).where(
+                CompanyPricing.company_id.in_(company_ids)
+            )
+            company_specific_result = await db.execute(company_specific_stmt)
+            company_specific_records = company_specific_result.scalars().all()
+
+            for record in company_specific_records:
+                await db.delete(record)
+            deleted_records_count = len(company_specific_records)
+
+            if deleted_records_count:
+                logger.info(
+                    f"Force-deleted {deleted_records_count} company-specific pricing "
+                    f"records referencing tier {tier_id}"
+                )
+
     # Delete the tier
     await db.delete(pricing_tier)
     await db.commit()
-    
+
     message = f"Pricing tier '{pricing_tier.pricing_tier_name}' deleted successfully"
     if companies_count > 0:
         message += f". Unassigned from {companies_count} companies."
+    if deleted_records_count:
+        message += f" Deleted {deleted_records_count} company-specific pricing records."
     
     logger.info(f"Deleted pricing tier {tier_id}")
     

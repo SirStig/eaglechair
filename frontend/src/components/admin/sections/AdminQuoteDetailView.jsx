@@ -31,6 +31,7 @@ const AdminQuoteDetailView = ({ quoteId, onBack, onUpdated }) => {
   const [saving, setSaving] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
   const [editingItemId, setEditingItemId] = useState(null);
+  const [itemDraft, setItemDraft] = useState(null);
   const [addingItem, setAddingItem] = useState(false);
   const [formData, setFormData] = useState({});
   const [newItemData, setNewItemData] = useState({
@@ -156,6 +157,7 @@ const AdminQuoteDetailView = ({ quoteId, onBack, onUpdated }) => {
   const handleCancel = () => {
     setIsEditing(false);
     setEditingItemId(null);
+    setItemDraft(null);
     setAddingItem(false);
     setNewItemData({ 
       product_id: '', 
@@ -217,6 +219,7 @@ const AdminQuoteDetailView = ({ quoteId, onBack, onUpdated }) => {
       };
       await apiClient.patch(`/api/v1/admin/quotes/${quoteId}/items/${itemId}`, updateData);
       setEditingItemId(null);
+      setItemDraft(null);
       await loadQuote();
       if (onUpdated) onUpdated();
     } catch (err) {
@@ -660,27 +663,24 @@ const AdminQuoteDetailView = ({ quoteId, onBack, onUpdated }) => {
               <div className="space-y-3">
                 {quote.items.map((item, index) => (
                   <div key={item.id || index} className="p-4 bg-dark-700 rounded-lg border border-dark-600">
-                    {editingItemId === item.id ? (
+                    {editingItemId === item.id && itemDraft ? (
                       <div className="space-y-4">
                         {/* Product Info (read-only) */}
                         <div className="pb-3 border-b border-dark-600">
                           <p className="font-medium text-dark-50">{item.product_name || item.product_model_number || 'Product'}</p>
                           <p className="text-sm text-dark-400">Model: {item.product_model_number || 'N/A'}</p>
                         </div>
-                        
+
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                           <div>
                             <label className="block text-sm font-medium text-dark-300 mb-1">Quantity *</label>
                             <Input
                               type="number"
                               min="1"
-                              value={item.quantity || 1}
+                              value={itemDraft.quantity || 1}
                               onChange={(e) => {
                                 const qty = parseInt(e.target.value) || 1;
-                                const updatedItems = quote.items.map(i =>
-                                  i.id === item.id ? { ...i, quantity: qty } : i
-                                );
-                                setQuote({ ...quote, items: updatedItems });
+                                setItemDraft({ ...itemDraft, quantity: qty });
                               }}
                             />
                           </div>
@@ -689,13 +689,10 @@ const AdminQuoteDetailView = ({ quoteId, onBack, onUpdated }) => {
                             <Input
                               type="number"
                               min="0"
-                              value={item.unit_price || 0}
+                              value={itemDraft.unit_price || 0}
                               onChange={(e) => {
                                 const price = parseInt(e.target.value) || 0;
-                                const updatedItems = quote.items.map(i =>
-                                  i.id === item.id ? { ...i, unit_price: price } : i
-                                );
-                                setQuote({ ...quote, items: updatedItems });
+                                setItemDraft({ ...itemDraft, unit_price: price });
                               }}
                             />
                           </div>
@@ -704,26 +701,20 @@ const AdminQuoteDetailView = ({ quoteId, onBack, onUpdated }) => {
                             <Input
                               type="number"
                               min="0"
-                              value={item.customization_cost || 0}
+                              value={itemDraft.customization_cost || 0}
                               onChange={(e) => {
                                 const cost = parseInt(e.target.value) || 0;
-                                const updatedItems = quote.items.map(i =>
-                                  i.id === item.id ? { ...i, customization_cost: cost } : i
-                                );
-                                setQuote({ ...quote, items: updatedItems });
+                                setItemDraft({ ...itemDraft, customization_cost: cost });
                               }}
                             />
                           </div>
                           <div>
                             <label className="block text-sm font-medium text-dark-300 mb-1">Selected Finish</label>
                             <select
-                              value={item.selected_finish_id || ''}
+                              value={itemDraft.selected_finish_id || ''}
                               onChange={(e) => {
                                 const finishId = e.target.value ? parseInt(e.target.value) : null;
-                                const updatedItems = quote.items.map(i =>
-                                  i.id === item.id ? { ...i, selected_finish_id: finishId } : i
-                                );
-                                setQuote({ ...quote, items: updatedItems });
+                                setItemDraft({ ...itemDraft, selected_finish_id: finishId });
                               }}
                               className="w-full px-3 py-2 bg-dark-800 border border-dark-600 rounded-lg text-dark-50 focus:outline-none focus:ring-2 focus:ring-accent-500"
                             >
@@ -738,13 +729,10 @@ const AdminQuoteDetailView = ({ quoteId, onBack, onUpdated }) => {
                           <div>
                             <label className="block text-sm font-medium text-dark-300 mb-1">Selected Upholstery</label>
                             <select
-                              value={item.selected_upholstery_id || ''}
+                              value={itemDraft.selected_upholstery_id || ''}
                               onChange={(e) => {
                                 const upholsteryId = e.target.value ? parseInt(e.target.value) : null;
-                                const updatedItems = quote.items.map(i =>
-                                  i.id === item.id ? { ...i, selected_upholstery_id: upholsteryId } : i
-                                );
-                                setQuote({ ...quote, items: updatedItems });
+                                setItemDraft({ ...itemDraft, selected_upholstery_id: upholsteryId });
                               }}
                               className="w-full px-3 py-2 bg-dark-800 border border-dark-600 rounded-lg text-dark-50 focus:outline-none focus:ring-2 focus:ring-accent-500"
                             >
@@ -760,7 +748,7 @@ const AdminQuoteDetailView = ({ quoteId, onBack, onUpdated }) => {
                         <div>
                           <label className="block text-sm font-medium text-dark-300 mb-1">Custom Options (JSON)</label>
                           <textarea
-                            value={item.custom_options ? JSON.stringify(item.custom_options, null, 2) : ''}
+                            value={itemDraft.custom_options ? JSON.stringify(itemDraft.custom_options, null, 2) : ''}
                             onChange={(e) => {
                               let customOptions = null;
                               try {
@@ -770,10 +758,7 @@ const AdminQuoteDetailView = ({ quoteId, onBack, onUpdated }) => {
                               } catch {
                                 // Invalid JSON, keep as is
                               }
-                              const updatedItems = quote.items.map(i =>
-                                i.id === item.id ? { ...i, custom_options: customOptions } : i
-                              );
-                              setQuote({ ...quote, items: updatedItems });
+                              setItemDraft({ ...itemDraft, custom_options: customOptions });
                             }}
                             rows={4}
                             className="w-full px-3 py-2 bg-dark-800 border border-dark-600 rounded-lg text-dark-50 font-mono text-sm focus:outline-none focus:ring-2 focus:ring-accent-500"
@@ -783,12 +768,9 @@ const AdminQuoteDetailView = ({ quoteId, onBack, onUpdated }) => {
                         <div>
                           <label className="block text-sm font-medium text-dark-300 mb-1">Item Notes</label>
                           <textarea
-                            value={item.item_notes || ''}
+                            value={itemDraft.item_notes || ''}
                             onChange={(e) => {
-                              const updatedItems = quote.items.map(i =>
-                                i.id === item.id ? { ...i, item_notes: e.target.value } : i
-                              );
-                              setQuote({ ...quote, items: updatedItems });
+                              setItemDraft({ ...itemDraft, item_notes: e.target.value });
                             }}
                             rows={3}
                             className="w-full px-3 py-2 bg-dark-800 border border-dark-600 rounded-lg text-dark-50 focus:outline-none focus:ring-2 focus:ring-accent-500"
@@ -799,21 +781,20 @@ const AdminQuoteDetailView = ({ quoteId, onBack, onUpdated }) => {
                           <Button
                             size="sm"
                             onClick={() => {
-                              const currentItem = quote.items.find(i => i.id === item.id);
                               handleUpdateItem(item.id, {
-                                quantity: currentItem.quantity,
-                                unit_price: currentItem.unit_price,
-                                customization_cost: currentItem.customization_cost || 0,
-                                selected_finish_id: currentItem.selected_finish_id || null,
-                                selected_upholstery_id: currentItem.selected_upholstery_id || null,
-                                custom_options: currentItem.custom_options || null,
-                                item_notes: currentItem.item_notes || null,
+                                quantity: itemDraft.quantity,
+                                unit_price: itemDraft.unit_price,
+                                customization_cost: itemDraft.customization_cost || 0,
+                                selected_finish_id: itemDraft.selected_finish_id || null,
+                                selected_upholstery_id: itemDraft.selected_upholstery_id || null,
+                                custom_options: itemDraft.custom_options || null,
+                                item_notes: itemDraft.item_notes || null,
                               });
                             }}
                           >
                             Save
                           </Button>
-                          <Button variant="outline" size="sm" onClick={() => { setEditingItemId(null); loadQuote(); }}>Cancel</Button>
+                          <Button variant="outline" size="sm" onClick={() => { setEditingItemId(null); setItemDraft(null); }}>Cancel</Button>
                         </div>
                       </div>
                     ) : (
@@ -907,7 +888,7 @@ const AdminQuoteDetailView = ({ quoteId, onBack, onUpdated }) => {
                           </div>
                         </div>
                         <div className="flex items-center gap-2 ml-4">
-                          <Button variant="outline" size="sm" onClick={() => setEditingItemId(item.id)} className="flex items-center gap-1">
+                          <Button variant="outline" size="sm" onClick={() => { setEditingItemId(item.id); setItemDraft({ ...item }); }} className="flex items-center gap-1">
                             <Edit2 className="w-4 h-4" />
                             Edit
                           </Button>

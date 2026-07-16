@@ -175,7 +175,10 @@ export const getHeroSlides = async () => {
 // Features (Why Choose Us)
 export const getFeatures = async (featureType = 'general') => {
   return getStaticOrAPI(
-    (content) => content.features,
+    (content) => {
+      const features = content.features || [];
+      return features.filter((f) => f.featureType === featureType);
+    },
     async () => {
       const response = await api.get(`/api/v1/content/features?type=${featureType}`);
       return response;

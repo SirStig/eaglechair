@@ -306,7 +306,7 @@ const QuoteManagement = () => {
                   <TableSortHead label="Quote #" sortKey="quote_number" activeSortBy={sortBy} sortDir={sortDir} onSort={handleSort} className="text-left px-3 sm:p-4 py-3 text-xs sm:text-sm text-dark-300 font-medium" />
                   <TableSortHead label="Company" sortKey="company_name" activeSortBy={sortBy} sortDir={sortDir} onSort={handleSort} className="text-left px-3 sm:p-4 py-3 text-xs sm:text-sm text-dark-300 font-medium" />
                   <TableSortHead label="Contact" sortKey="contact_name" activeSortBy={sortBy} sortDir={sortDir} onSort={handleSort} className="text-left px-3 sm:p-4 py-3 text-xs sm:text-sm text-dark-300 font-medium" />
-                  <TableSortHead label="Items" sortKey="items" activeSortBy={sortBy} sortDir={sortDir} onSort={handleSort} className="text-left px-3 sm:p-4 py-3 text-xs sm:text-sm text-dark-300 font-medium" />
+                  <TableSortHead label="Items" sortKey="items_count" activeSortBy={sortBy} sortDir={sortDir} onSort={handleSort} className="text-left px-3 sm:p-4 py-3 text-xs sm:text-sm text-dark-300 font-medium" />
                   <TableSortHead label="Status" sortKey="status" activeSortBy={sortBy} sortDir={sortDir} onSort={handleSort} className="text-left px-3 sm:p-4 py-3 text-xs sm:text-sm text-dark-300 font-medium" />
                   <TableSortHead label="Created" sortKey="created_at" activeSortBy={sortBy} sortDir={sortDir} onSort={handleSort} className="text-left px-3 sm:p-4 py-3 text-xs sm:text-sm text-dark-300 font-medium" />
                   <th className="text-right px-3 sm:p-4 py-3 text-xs sm:text-sm text-dark-300 font-medium">Actions</th>
@@ -389,7 +389,6 @@ const QuoteManagement = () => {
               </tbody>
             </table>
           </div>
-        )}
 
             <PaginationBar
               page={page}

@@ -24,7 +24,7 @@ const LoginPage = () => {
 
   const { register, handleSubmit, formState: { errors } } = useForm();
 
-  const from = location.state?.from?.pathname || '/admin/dashboard';
+  const from = location.state?.from?.pathname || null;
 
   useEffect(() => {
     if (isInitializing || hasRedirectedRef.current) return;

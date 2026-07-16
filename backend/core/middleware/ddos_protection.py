@@ -183,6 +183,14 @@ class DDoSProtectionMiddleware(BaseHTTPMiddleware):
         """Detect common attack patterns in request"""
         # Check URL path
         path = str(request.url.path).lower()
+
+        # Skip attack-pattern detection for health checks - load balancers
+        # and minimal HTTP clients often send no/short User-Agent headers,
+        # which would otherwise be flagged as an attack pattern below.
+        health_check_paths = ["/health", "/api/v1/health"]
+        if any(path == p or path.startswith(p + "/") for p in health_check_paths):
+            return False
+
         for pattern in self.attack_patterns:
             if pattern in path:
                 return True

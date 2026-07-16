@@ -705,6 +705,24 @@ export function AIChatProvider({ children }) {
     updateEditInMessage(message, edit, 'declined');
   }, [updateEditInMessage]);
 
+  // Shared lock so "Accept All" (SuggestedEditsBar) and an individual card's
+  // Approve button (SuggestedEditCard) can't both apply the same suggested
+  // edit at once.
+  const [applyingEditKeys, setApplyingEditKeys] = useState({});
+
+  const beginApplyingEdit = useCallback((key) => {
+    setApplyingEditKeys(prev => (prev[key] ? prev : { ...prev, [key]: true }));
+  }, []);
+
+  const endApplyingEdit = useCallback((key) => {
+    setApplyingEditKeys(prev => {
+      if (!prev[key]) return prev;
+      const next = { ...prev };
+      delete next[key];
+      return next;
+    });
+  }, []);
+
   // Cleanup on unmount
   useEffect(() => {
     return () => {
@@ -778,6 +796,9 @@ export function AIChatProvider({ children }) {
     removePendingFile,
     markEditApplied,
     markEditDeclined,
+    applyingEditKeys,
+    beginApplyingEdit,
+    endApplyingEdit,
     loadSessions,
     setMessages,
     setSessions,

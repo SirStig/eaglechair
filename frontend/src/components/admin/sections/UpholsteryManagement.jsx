@@ -6,9 +6,11 @@ import { useToast } from '../../../contexts/ToastContext';
 import { useAdminRefresh } from '../../../contexts/AdminRefreshContext';
 import apiClient from '../../../config/apiClient';
 import { resolveImageUrl } from '../../../utils/apiHelpers';
-import { Edit, Trash2, Armchair, X } from 'lucide-react';
+import { Edit, Trash2, Armchair, X, RotateCcw } from 'lucide-react';
 import UpholsteryEditor from './UpholsteryEditor';
 import ReorderableTable from '../ReorderableTable';
+import StatusTabs from '../StatusTabs';
+import PermanentDeleteModal from '../PermanentDeleteModal';
 
 /**
  * Upholstery Management - Table Layout with Separate Editor
@@ -22,16 +24,23 @@ const UpholsteryManagement = () => {
   const [editingUpholstery, setEditingUpholstery] = useState(null);
   const [filterType, setFilterType] = useState('');
   const [filterGrade, setFilterGrade] = useState('');
-  const [filterActive, setFilterActive] = useState('all');
+  const [tab, setTab] = useState('active');
+  const [activeTotal, setActiveTotal] = useState(0);
+  const [archivedTotal, setArchivedTotal] = useState(0);
   const [confirmModal, setConfirmModal] = useState({ isOpen: false, onConfirm: null, message: '', title: '' });
+  const [permDeleteTarget, setPermDeleteTarget] = useState(null);
+  const [permDeleting, setPermDeleting] = useState(false);
+
+  const handleTabChange = (newTab) => {
+    setTab(newTab);
+  };
 
   const fetchUpholsteries = useCallback(async () => {
     try {
-      const params = {};
+      const params = { is_active: tab === 'active', page_size: 100 };
       if (filterType) params.material_type = filterType;
       if (filterGrade) params.grade = filterGrade;
-      if (filterActive !== 'all') params.is_active = filterActive === 'active';
-      
+
       const response = await apiClient.get('/api/v1/admin/upholsteries', { params });
       setUpholsteries(response?.items || []);
     } catch (error) {
@@ -39,12 +48,29 @@ const UpholsteryManagement = () => {
     } finally {
       setLoading(false);
     }
-  }, [filterType, filterGrade, filterActive]);
+  }, [filterType, filterGrade, tab]);
+
+  const fetchCounts = useCallback(async () => {
+    try {
+      const params = { page_size: 1 };
+      if (filterType) params.material_type = filterType;
+      if (filterGrade) params.grade = filterGrade;
+      const [activeRes, archivedRes] = await Promise.all([
+        apiClient.get('/api/v1/admin/upholsteries', { params: { ...params, is_active: true } }),
+        apiClient.get('/api/v1/admin/upholsteries', { params: { ...params, is_active: false } }),
+      ]);
+      setActiveTotal(activeRes?.total ?? 0);
+      setArchivedTotal(archivedRes?.total ?? 0);
+    } catch (error) {
+      console.error('Failed to fetch upholstery counts:', error);
+    }
+  }, [filterType, filterGrade]);
 
   useEffect(() => {
     fetchUpholsteries();
     fetchColors();
-  }, [fetchUpholsteries, refreshKeys.upholstery]);
+    fetchCounts();
+  }, [fetchUpholsteries, fetchCounts, refreshKeys.upholstery]);
 
   const fetchColors = async () => {
     try {
@@ -76,19 +102,49 @@ const UpholsteryManagement = () => {
   const handleDelete = async (upholstery) => {
     setConfirmModal({
       isOpen: true,
-      title: 'Delete Upholstery',
-      message: `Are you sure you want to delete "${upholstery.name}"? This action cannot be undone.`,
+      title: 'Archive Upholstery',
+      message: `Move "${upholstery.name}" to Archived? It will be hidden from the active list but can be restored or permanently deleted later.`,
       onConfirm: async () => {
         try {
           await apiClient.delete(`/api/v1/admin/upholsteries/${upholstery.id}`);
-          fetchUpholsteries();
-          toast.success(`${upholstery.name} deleted successfully`);
+          await fetchUpholsteries();
+          await fetchCounts();
+          toast.success(`${upholstery.name} archived`);
         } catch (error) {
           console.error('Failed to delete upholstery:', error);
           toast.error(error.response?.data?.detail || 'Failed to delete upholstery');
         }
       }
     });
+  };
+
+  const handleRestore = async (upholstery) => {
+    try {
+      await apiClient.put(`/api/v1/admin/upholsteries/${upholstery.id}`, { is_active: true });
+      toast.success(`${upholstery.name} restored`);
+      await fetchUpholsteries();
+      await fetchCounts();
+    } catch (error) {
+      console.error('Failed to restore upholstery:', error);
+      toast.error(error.response?.data?.detail || 'Failed to restore upholstery');
+    }
+  };
+
+  const handlePermanentDelete = async () => {
+    if (!permDeleteTarget) return;
+    setPermDeleting(true);
+    try {
+      await apiClient.delete(`/api/v1/admin/upholsteries/${permDeleteTarget.id}?hard_delete=true`);
+      toast.success('Upholstery permanently deleted');
+      setPermDeleteTarget(null);
+      await fetchUpholsteries();
+      await fetchCounts();
+    } catch (error) {
+      console.error('Failed to permanently delete upholstery:', error);
+      toast.error(error.response?.data?.detail || 'Failed to permanently delete upholstery');
+    } finally {
+      setPermDeleting(false);
+    }
   };
 
   const getColorName = (colorId) => {
@@ -99,7 +155,6 @@ const UpholsteryManagement = () => {
   const clearFilters = () => {
     setFilterType('');
     setFilterGrade('');
-    setFilterActive('all');
   };
 
   const sortedUpholsteries = useMemo(
@@ -148,6 +203,8 @@ const UpholsteryManagement = () => {
         </Button>
       </div>
 
+      <StatusTabs tab={tab} onChange={handleTabChange} activeCount={activeTotal} archivedCount={archivedTotal} />
+
       {/* Filters */}
       <Card className="bg-dark-800 border-dark-700">
         <div className="flex gap-4">
@@ -185,21 +242,7 @@ const UpholsteryManagement = () => {
               <option value="Luxury">Luxury</option>
             </select>
           </div>
-          <div className="flex-1">
-            <label className="block text-sm font-medium text-dark-200 mb-2">
-              Filter by Status
-            </label>
-            <select
-              value={filterActive}
-              onChange={(e) => setFilterActive(e.target.value)}
-              className="w-full px-4 py-2 bg-dark-700 border border-dark-600 rounded-lg text-dark-50 focus:border-primary-500 focus:ring-1 focus:ring-primary-500 outline-none transition-all"
-            >
-              <option value="all">All Status</option>
-              <option value="active">Active Only</option>
-              <option value="inactive">Inactive Only</option>
-            </select>
-          </div>
-          {(filterType || filterGrade || filterActive !== 'all') && (
+          {(filterType || filterGrade) && (
             <div className="flex items-end">
               <Button
                 onClick={clearFilters}
@@ -224,11 +267,13 @@ const UpholsteryManagement = () => {
             <Armchair className="w-16 h-16 text-dark-600 mx-auto mb-4" />
             <h3 className="text-lg font-semibold text-dark-300 mb-2">No Upholstery Options Found</h3>
             <p className="text-dark-400 mb-6">
-              {filterType || filterGrade || filterActive !== 'all' 
-                ? 'Try adjusting your filters' 
+              {filterType || filterGrade
+                ? 'Try adjusting your filters'
+                : tab === 'archived'
+                ? 'Archived upholstery options will show up here'
                 : 'Create your first upholstery option to get started'}
             </p>
-            {!filterType && !filterGrade && filterActive === 'all' && (
+            {!filterType && !filterGrade && tab === 'active' && (
               <Button onClick={handleCreate} className="bg-primary-600 hover:bg-primary-500">
                 Create First Upholstery
               </Button>
@@ -240,6 +285,7 @@ const UpholsteryManagement = () => {
             setItems={(next) => setUpholsteries(next.map((item, i) => ({ ...item, display_order: i })))}
             getItemId={(item) => item.id}
             onReorder={handleReorder}
+            disabled={tab === 'archived'}
             minWidth="1000px"
             columns={[
               { key: 'swatch', label: 'Swatch' },
@@ -329,13 +375,32 @@ const UpholsteryManagement = () => {
                     >
                       <Edit className="w-4 h-4" />
                     </button>
-                    <button
-                      onClick={() => handleDelete(upholstery)}
-                      className="p-2 text-red-400 hover:bg-red-900/20 rounded transition-colors"
-                      title="Delete upholstery"
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </button>
+                    {tab === 'active' ? (
+                      <button
+                        onClick={() => handleDelete(upholstery)}
+                        className="p-2 text-red-400 hover:bg-red-900/20 rounded transition-colors"
+                        title="Archive upholstery"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    ) : (
+                      <>
+                        <button
+                          onClick={() => handleRestore(upholstery)}
+                          className="p-2 text-green-400 hover:bg-green-900/20 rounded transition-colors"
+                          title="Restore"
+                        >
+                          <RotateCcw className="w-4 h-4" />
+                        </button>
+                        <button
+                          onClick={() => setPermDeleteTarget({ id: upholstery.id, name: upholstery.name })}
+                          className="p-2 text-red-400 hover:bg-red-900/20 rounded transition-colors"
+                          title="Delete permanently"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      </>
+                    )}
                   </div>
                 </td>
               </>
@@ -353,6 +418,15 @@ const UpholsteryManagement = () => {
         message={confirmModal.message}
         variant="danger"
         confirmButtonVariant="danger"
+      />
+
+      <PermanentDeleteModal
+        isOpen={!!permDeleteTarget}
+        onClose={() => setPermDeleteTarget(null)}
+        onConfirm={handlePermanentDelete}
+        itemLabel="upholstery"
+        itemName={permDeleteTarget?.name}
+        isLoading={permDeleting}
       />
     </div>
   );

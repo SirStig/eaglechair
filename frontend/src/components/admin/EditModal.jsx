@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 // eslint-disable-next-line no-unused-vars
 import { motion, AnimatePresence } from 'framer-motion';
 import Button from '../ui/Button';
@@ -19,6 +19,7 @@ const EditModal = ({ isOpen, onClose, onSave, elementData, elementType }) => {
   const [error, setError] = useState(null);
   const [imagePreview, setImagePreview] = useState(null);
   const [uploadingImage, setUploadingImage] = useState(false);
+  const uploadSeqRef = useRef({});
 
   useEffect(() => {
     if (isOpen && elementData) {
@@ -38,20 +39,33 @@ const EditModal = ({ isOpen, onClose, onSave, elementData, elementType }) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
+    // Guard against out-of-order resolution when multiple uploads are
+    // kicked off for the same field before an earlier one finishes.
+    const seq = (uploadSeqRef.current[fieldName] || 0) + 1;
+    uploadSeqRef.current[fieldName] = seq;
+    const isLatest = () => uploadSeqRef.current[fieldName] === seq;
+
     setUploadingImage(true);
     setError(null);
-    previewImage(file).then(preview => setImagePreview(prev => ({ ...prev, [fieldName]: preview }))).catch(() => {});
+    previewImage(file).then(preview => {
+      if (!isLatest()) return;
+      setImagePreview(prev => ({ ...prev, [fieldName]: preview }));
+    }).catch(() => {});
 
     try {
       const subfolder = elementType || 'general';
       const imageUrl = await uploadImage(file, subfolder);
+      if (!isLatest()) return;
       setFormData(prev => ({ ...prev, [fieldName]: imageUrl }));
       logger.info(CONTEXT, `Image uploaded for ${fieldName}: ${imageUrl}`);
     } catch (err) {
+      if (!isLatest()) return;
       logger.error(CONTEXT, 'Image upload failed', err);
       setError(err.message || 'Failed to upload image');
     } finally {
-      setUploadingImage(false);
+      if (isLatest()) {
+        setUploadingImage(false);
+      }
     }
   };
 

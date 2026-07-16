@@ -292,6 +292,7 @@ async def get_products(
     in_stock_only: bool = Query(False, description="Show only in-stock products"),
     exclude_variations: bool = Query(False, description="Exclude variations, show only base products"),
     smart_sort: bool = Query(False, description="Use smart sorting (featured→new→popular)"),
+    sort: Optional[str] = Query(None, description="Sort order: name-asc, name-desc, featured (ignored when smart_sort=true)"),
     company: Optional[Company] = Depends(get_optional_company),
     db: AsyncSession = Depends(get_db)
 ):
@@ -354,6 +355,7 @@ async def get_products(
         in_stock_only=in_stock_only,
         exclude_variations=exclude_variations,
         smart_sort=smart_sort,
+        sort=sort,
         include_inactive=False
     )
     

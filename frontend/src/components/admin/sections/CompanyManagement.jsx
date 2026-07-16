@@ -28,14 +28,14 @@ const CompanyManagement = () => {
   const [inviteLoading, setInviteLoading] = useState(false);
   const [inviteSuccess, setInviteSuccess] = useState(false);
 
+  const [sortBy, setSortBy] = useState('company_name');
+  const [sortDir, setSortDir] = useState('asc');
+
   useEffect(() => {
     if (!selectedCompanyId) {
       fetchCompanies();
     }
   }, [page, pageSize, selectedCompanyId, sortBy, sortDir, refreshKeys.companies]);
-
-  const [sortBy, setSortBy] = useState('company_name');
-  const [sortDir, setSortDir] = useState('asc');
 
   const handleSort = useCallback((key) => {
     setSortBy(key);

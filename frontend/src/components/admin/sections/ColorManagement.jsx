@@ -3,9 +3,11 @@ import Card from '../../ui/Card';
 import Button from '../../ui/Button';
 import apiClient from '../../../config/apiClient';
 import { resolveImageUrl } from '../../../utils/apiHelpers';
-import { Edit2, Trash2, Palette } from 'lucide-react';
+import { Edit2, Trash2, Palette, RotateCcw } from 'lucide-react';
 import ColorEditor from './ColorEditor';
 import ReorderableTable from '../ReorderableTable';
+import StatusTabs from '../StatusTabs';
+import PermanentDeleteModal from '../PermanentDeleteModal';
 import { useToast } from '../../../contexts/ToastContext';
 import { useAdminRefresh } from '../../../contexts/AdminRefreshContext';
 
@@ -20,24 +22,47 @@ const ColorManagement = () => {
   const [loading, setLoading] = useState(true);
   const [editingColor, setEditingColor] = useState(null);
   const [filterCategory, setFilterCategory] = useState('');
-  const [filterActive, setFilterActive] = useState('all');
+  const [tab, setTab] = useState('active');
+  const [activeTotal, setActiveTotal] = useState(0);
+  const [archivedTotal, setArchivedTotal] = useState(0);
+  const [permDeleteTarget, setPermDeleteTarget] = useState(null);
+  const [permDeleting, setPermDeleting] = useState(false);
+
+  const handleTabChange = (newTab) => {
+    setTab(newTab);
+  };
 
   useEffect(() => {
     fetchColors();
-  }, [filterCategory, filterActive, refreshKeys.colors]);
+    fetchCounts();
+  }, [filterCategory, tab, refreshKeys.colors]);
 
   const fetchColors = async () => {
     try {
-      const params = {};
+      const params = { is_active: tab === 'active' };
       if (filterCategory) params.category = filterCategory;
-      if (filterActive !== 'all') params.is_active = filterActive === 'active';
-      
+
       const response = await apiClient.get('/api/v1/admin/colors', { params });
       setColors(response);
     } catch (error) {
       console.error('Failed to fetch colors:', error);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const fetchCounts = async () => {
+    try {
+      const params = {};
+      if (filterCategory) params.category = filterCategory;
+      const [activeRes, archivedRes] = await Promise.all([
+        apiClient.get('/api/v1/admin/colors', { params: { ...params, is_active: true } }),
+        apiClient.get('/api/v1/admin/colors', { params: { ...params, is_active: false } }),
+      ]);
+      setActiveTotal((activeRes || []).length);
+      setArchivedTotal((archivedRes || []).length);
+    } catch (error) {
+      console.error('Failed to fetch color counts:', error);
     }
   };
 
@@ -60,15 +85,46 @@ const ColorManagement = () => {
   };
 
   const handleDelete = async (colorId) => {
-    if (!confirm('Are you sure you want to delete this color?')) return;
-    
+    const color = colors.find((c) => c.id === colorId);
+    if (!confirm(`Move "${color?.name}" to Archived? It will be hidden from the active list but can be restored or permanently deleted later.`)) return;
+
     try {
       await apiClient.delete(`/api/v1/admin/colors/${colorId}`);
-      toast.success('Color deleted');
+      toast.success('Color archived');
       await fetchColors();
+      await fetchCounts();
     } catch (error) {
       console.error('Failed to delete color:', error);
       toast.error(error.response?.data?.detail || 'Failed to delete color');
+    }
+  };
+
+  const handleRestore = async (colorId) => {
+    try {
+      await apiClient.put(`/api/v1/admin/colors/${colorId}`, { is_active: true });
+      toast.success('Color restored');
+      await fetchColors();
+      await fetchCounts();
+    } catch (error) {
+      console.error('Failed to restore color:', error);
+      toast.error(error.response?.data?.detail || 'Failed to restore color');
+    }
+  };
+
+  const handlePermanentDelete = async () => {
+    if (!permDeleteTarget) return;
+    setPermDeleting(true);
+    try {
+      await apiClient.delete(`/api/v1/admin/colors/${permDeleteTarget.id}?hard_delete=true`);
+      toast.success('Color permanently deleted');
+      setPermDeleteTarget(null);
+      await fetchColors();
+      await fetchCounts();
+    } catch (error) {
+      console.error('Failed to permanently delete color:', error);
+      toast.error(error.response?.data?.detail || 'Failed to permanently delete color');
+    } finally {
+      setPermDeleting(false);
     }
   };
 
@@ -121,6 +177,8 @@ const ColorManagement = () => {
         </Button>
       </div>
 
+      <StatusTabs tab={tab} onChange={handleTabChange} activeCount={activeTotal} archivedCount={archivedTotal} />
+
       {/* Filters */}
       <Card className="bg-dark-800 border-dark-700">
         <div className="flex gap-4 items-end">
@@ -142,25 +200,8 @@ const ColorManagement = () => {
               <option value="vinyl">Vinyl</option>
             </select>
           </div>
-          <div className="flex-1">
-            <label className="block text-sm font-medium text-dark-200 mb-2">
-              Status
-            </label>
-            <select
-              value={filterActive}
-              onChange={(e) => setFilterActive(e.target.value)}
-              className="w-full px-4 py-2 bg-dark-700 border border-dark-600 rounded-lg text-dark-50 focus:border-primary-500 focus:ring-1 focus:ring-primary-500 outline-none transition-all"
-            >
-              <option value="all">All</option>
-              <option value="active">Active Only</option>
-              <option value="inactive">Inactive Only</option>
-            </select>
-          </div>
           <Button
-            onClick={() => {
-              setFilterCategory('');
-              setFilterActive('all');
-            }}
+            onClick={() => setFilterCategory('')}
             className="bg-dark-600 hover:bg-dark-500 text-dark-200"
           >
             Clear Filters
@@ -180,16 +221,20 @@ const ColorManagement = () => {
             <Palette className="w-16 h-16 text-dark-600 mx-auto mb-4" />
             <h3 className="text-lg font-semibold text-dark-400 mb-2">No colors found</h3>
             <p className="text-dark-500 mb-6">
-              {filterCategory || filterActive !== 'all' 
-                ? 'Try adjusting your filters' 
+              {filterCategory
+                ? 'Try adjusting your filters'
+                : tab === 'archived'
+                ? 'Archived colors will show up here'
                 : 'Get started by creating your first color'}
             </p>
-            <Button 
-              onClick={handleCreate}
-              className="bg-primary-600 hover:bg-primary-500"
-            >
-              Create First Color
-            </Button>
+            {tab === 'active' && (
+              <Button
+                onClick={handleCreate}
+                className="bg-primary-600 hover:bg-primary-500"
+              >
+                Create First Color
+              </Button>
+            )}
           </div>
         ) : (
           <ReorderableTable
@@ -197,6 +242,7 @@ const ColorManagement = () => {
             setItems={(next) => setColors(next.map((item, i) => ({ ...item, display_order: i })))}
             getItemId={(item) => item.id}
             onReorder={handleReorder}
+            disabled={tab === 'archived'}
             minWidth="900px"
             columns={[
               { key: 'swatch', label: 'Swatch' },
@@ -284,13 +330,32 @@ const ColorManagement = () => {
                     >
                       <Edit2 className="w-4 h-4" />
                     </button>
-                    <button
-                      onClick={() => handleDelete(color.id)}
-                      className="p-2 text-red-400 hover:bg-red-900/20 rounded-lg transition-colors"
-                      title="Delete color"
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </button>
+                    {tab === 'active' ? (
+                      <button
+                        onClick={() => handleDelete(color.id)}
+                        className="p-2 text-red-400 hover:bg-red-900/20 rounded-lg transition-colors"
+                        title="Archive color"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    ) : (
+                      <>
+                        <button
+                          onClick={() => handleRestore(color.id)}
+                          className="p-2 text-green-400 hover:bg-green-900/20 rounded-lg transition-colors"
+                          title="Restore"
+                        >
+                          <RotateCcw className="w-4 h-4" />
+                        </button>
+                        <button
+                          onClick={() => setPermDeleteTarget({ id: color.id, name: color.name })}
+                          className="p-2 text-red-400 hover:bg-red-900/20 rounded-lg transition-colors"
+                          title="Delete permanently"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      </>
+                    )}
                   </div>
                 </td>
               </>
@@ -298,6 +363,15 @@ const ColorManagement = () => {
           />
         )}
       </Card>
+
+      <PermanentDeleteModal
+        isOpen={!!permDeleteTarget}
+        onClose={() => setPermDeleteTarget(null)}
+        onConfirm={handlePermanentDelete}
+        itemLabel="color"
+        itemName={permDeleteTarget?.name}
+        isLoading={permDeleting}
+      />
     </div>
   );
 };

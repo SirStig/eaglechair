@@ -2,6 +2,11 @@ import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Check, X, Loader2 } from 'lucide-react';
 import { applyEdit } from '../../../services/aiChatService';
+import { useAIChat } from '../../../contexts/AIChatContext';
+
+function getEditKey(edit) {
+  return `${edit.entity_type}:${edit.entity_id}`;
+}
 
 function getPendingEdits(messages) {
   const seen = new Set();
@@ -27,6 +32,7 @@ function getPendingEdits(messages) {
 }
 
 export default function SuggestedEditsBar({ messages, onEditApplied, onEditDeclined }) {
+  const { applyingEditKeys, beginApplyingEdit, endApplyingEdit } = useAIChat();
   const [isAccepting, setIsAccepting] = useState(false);
   const [isRejecting, setIsRejecting] = useState(false);
 
@@ -39,6 +45,9 @@ export default function SuggestedEditsBar({ messages, onEditApplied, onEditDecli
     setIsAccepting(true);
     try {
       for (const { message, edit } of pending) {
+        const key = getEditKey(edit);
+        if (applyingEditKeys[key]) continue; // already being applied (e.g. an individual card's Approve)
+        beginApplyingEdit(key);
         try {
           await applyEdit({
             entity_type: edit.entity_type,
@@ -48,6 +57,8 @@ export default function SuggestedEditsBar({ messages, onEditApplied, onEditDecli
           onEditApplied?.(message, edit);
         } catch (err) {
           console.error('Failed to apply edit:', err);
+        } finally {
+          endApplyingEdit(key);
         }
       }
     } finally {
@@ -63,7 +74,10 @@ export default function SuggestedEditsBar({ messages, onEditApplied, onEditDecli
     setIsRejecting(false);
   };
 
-  const busy = isAccepting || isRejecting;
+  // Also disable while any pending edit is being applied by an individual
+  // card's Approve button, so Accept All can't double-submit it.
+  const anyLocked = pending.some(({ edit }) => applyingEditKeys[getEditKey(edit)]);
+  const busy = isAccepting || isRejecting || anyLocked;
 
   return (
     <AnimatePresence>

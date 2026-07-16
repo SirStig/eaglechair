@@ -444,15 +444,17 @@ async def assign_quote(
     logger.info(f"Admin {admin.username} assigning quote {quote_id} to themselves")
 
     try:
-        quote = await AdminService.update_quote_status(
-            db=db,
-            quote_id=quote_id,
-            status=QuoteStatus.SUBMITTED,  # Keep current status
-            admin_notes=f"Assigned to admin {admin.username}",
-        )
+        result = await db.execute(select(Quote).where(Quote.id == quote_id))
+        quote = result.scalar_one_or_none()
 
-        # Update assigned admin
+        if not quote:
+            raise ResourceNotFoundError(resource_type="Quote", resource_id=quote_id)
+
+        # Only update the assignee - status is intentionally left untouched so
+        # assigning a quote doesn't regress already-quoted/accepted/declined
+        # quotes back to submitted (and doesn't re-fire the submitted email).
         quote.assigned_to_admin_id = admin.id
+        quote.admin_notes = f"Assigned to admin {admin.username}"
         await db.commit()
 
         result = await db.execute(
@@ -849,7 +851,6 @@ async def replace_quote_item_allocations(
     if not item:
         raise HTTPException(status_code=404, detail="Quote item not found")
     dest_ids = (await db.execute(select(QuoteShippingDestination.id).where(QuoteShippingDestination.quote_id == quote_id))).scalars().all()
-    dest_ids = [r[0] for r in dest_ids]
     total = sum(a.quantity for a in allocations)
     if total != item.quantity:
         raise HTTPException(status_code=400, detail=f"Allocation total {total} must equal item quantity {item.quantity}")

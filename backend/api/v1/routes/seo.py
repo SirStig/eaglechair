@@ -10,6 +10,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import Response
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
+from sqlalchemy.orm import selectinload
 
 from backend.database.base import get_db
 from backend.models.chair import Chair, Category, ProductFamily
@@ -26,6 +27,10 @@ async def get_sitemap(db: AsyncSession = Depends(get_db)):
         # Get all active products
         products_result = await db.execute(
             select(Chair)
+            .options(
+                selectinload(Chair.category),
+                selectinload(Chair.subcategory),
+            )
             .where(Chair.is_active == True)
             .order_by(Chair.updated_at.desc())
         )
@@ -143,14 +148,18 @@ async def get_product_seo(
     """
     try:
         # Try to find by ID first, then by slug
+        product_query = select(Chair).options(
+            selectinload(Chair.category),
+            selectinload(Chair.subcategory),
+        )
         try:
             product_id = int(product_id_or_slug)
             result = await db.execute(
-                select(Chair).where(Chair.id == product_id, Chair.is_active == True)
+                product_query.where(Chair.id == product_id, Chair.is_active == True)
             )
         except ValueError:
             result = await db.execute(
-                select(Chair).where(Chair.slug == product_id_or_slug, Chair.is_active == True)
+                product_query.where(Chair.slug == product_id_or_slug, Chair.is_active == True)
             )
         
         product = result.scalar_one_or_none()

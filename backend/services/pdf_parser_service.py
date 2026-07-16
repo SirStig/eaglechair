@@ -453,8 +453,8 @@ class CatalogParserService:
         
         logger.info(f"Processing {total_pages} pages for upload {upload_id}")
         
-        # Limit pages if specified
-        pages_to_process = min(max_pages, total_pages) if max_pages else total_pages
+        # Limit pages if specified (max_pages=0 must mean "parse 0 pages", not "unset")
+        pages_to_process = min(max_pages, total_pages) if max_pages is not None else total_pages
         
         all_families = []
         all_products = []
@@ -538,6 +538,10 @@ class CatalogParserService:
                 
             except Exception as e:
                 logger.error(f"Error parsing page {page_num}: {e}")
+                # Roll back so a failed page doesn't poison the session for
+                # subsequent pages (which would otherwise still be reported
+                # as 'completed').
+                self.db.rollback()
                 continue
         
         # Final commit

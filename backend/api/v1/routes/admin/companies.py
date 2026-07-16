@@ -629,7 +629,7 @@ async def list_all_pricing_tiers(
     
     query = select(CompanyPricing, Company).join(Company, CompanyPricing.company_id == Company.id)
     
-    if company_id:
+    if company_id is not None:
         query = query.where(CompanyPricing.company_id == company_id)
     
     if is_active is not None:

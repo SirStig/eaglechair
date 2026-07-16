@@ -637,21 +637,35 @@ async def logout(
     
     user_type = token_payload.get("type", "company")
     user_id = int(token_payload.get("sub"))
-    
-    # If admin, invalidate tokens in database
+
+    # Invalidate stored tokens in database
     if user_type == "admin":
         from sqlalchemy import select
         result = await db.execute(
             select(AdminUser).where(AdminUser.id == user_id)
         )
         admin = result.scalar_one_or_none()
-        
+
         if admin:
             admin.session_token = None
             admin.admin_token = None
+            admin.refresh_token = None
+            admin.refresh_token_expires = None
             await db.commit()
             logger.info(f"Admin tokens invalidated for user: {user_id}")
-    
+    else:
+        from sqlalchemy import select
+        result = await db.execute(
+            select(Company).where(Company.id == user_id)
+        )
+        company = result.scalar_one_or_none()
+
+        if company:
+            company.refresh_token = None
+            company.refresh_token_expires = None
+            await db.commit()
+            logger.info(f"Company refresh token invalidated for user: {user_id}")
+
     # Clear all authentication cookies
     clear_auth_cookies(response)
     

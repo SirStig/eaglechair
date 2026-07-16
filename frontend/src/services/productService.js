@@ -32,8 +32,8 @@ export const productService = {
    * @returns {Promise<Object>} Products and metadata
    */
   getProducts: async (params = {}) => {
-    // Backend uses 'per_page' instead of 'limit', handle sorting client-side
-    const { sort, limit, ...apiParams } = params;
+    // Backend uses 'per_page' instead of 'limit'
+    const { limit, ...apiParams } = params;
 
     // Map limit to per_page for backend
     if (limit) {
@@ -44,28 +44,8 @@ export const productService = {
 
     // Backend returns PaginatedResponse[ChairResponse]:
     // { items: [...], total: int, page: int, per_page: int, total_pages: int, has_next: bool, has_prev: bool }
-    let products = response.items || [];
-
-    // Apply client-side sorting if sort param was provided
-    if (sort) {
-      switch (sort) {
-        case 'name-asc':
-          products.sort((a, b) => a.name.localeCompare(b.name));
-          break;
-        case 'name-desc':
-          products.sort((a, b) => b.name.localeCompare(a.name));
-          break;
-        case 'featured':
-          products.sort((a, b) => (b.is_featured ? 1 : 0) - (a.is_featured ? 1 : 0));
-          break;
-        case 'display_order':
-          products.sort((a, b) => (a.display_order || 999) - (b.display_order || 999));
-          break;
-        default:
-          // Default sort already applied by backend
-          break;
-      }
-    }
+    // Sorting (including `sort`) is applied backend-side across the full result set.
+    const products = response.items || [];
 
     // Transform products to include legacy fields for backward compatibility
     // Return in expected format: { data: [...], total, page, limit/per_page, pages/total_pages }

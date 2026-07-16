@@ -140,14 +140,29 @@ const LegalDocumentManagement = () => {
   // Save document (create or update)
   const handleSave = async (docData) => {
     try {
+      // Backend Pydantic schemas (LegalDocumentCreate/Update) expect snake_case
+      const payload = {
+        title: docData.title,
+        document_type: docData.documentType || docData.document_type,
+        content: docData.content,
+        short_description: docData.shortDescription || docData.short_description,
+        slug: docData.slug,
+        version: docData.version,
+        effective_date: docData.effectiveDate || docData.effective_date,
+        meta_title: docData.metaTitle || docData.meta_title,
+        meta_description: docData.metaDescription || docData.meta_description,
+        display_order: docData.displayOrder ?? docData.display_order,
+        is_active: docData.isActive ?? docData.is_active,
+      };
+
       if (docData.id) {
         // Update existing
-        await apiClient.put(`/api/v1/cms-admin/legal-documents/${docData.id}`, docData);
+        await apiClient.put(`/api/v1/cms-admin/legal-documents/${docData.id}`, payload);
       } else {
         // Create new
-        await apiClient.post('/api/v1/cms-admin/legal-documents', docData);
+        await apiClient.post('/api/v1/cms-admin/legal-documents', payload);
       }
-      
+
       await fetchDocuments();
       setShowEditModal(false);
       setSelectedDoc(null);

@@ -90,26 +90,21 @@ const VirtualCatalogUpload = () => {
         const hasProducts = productsData?.products && productsData.products.length > 0;
         
         if (hasFamilies || hasProducts) {
-          // Set families if we have them
-          if (hasFamilies) {
-            setTmpFamilies(familiesData.families);
-          }
-          
           // Load all products if there are more than 200
           let allProducts = productsData?.products || [];
-          
+
           if (productsData?.total > 200) {
             console.log(`Need to fetch ${productsData.total} products in multiple pages...`);
             // Need to fetch more pages
             const remainingPages = Math.ceil((productsData.total - 200) / 200);
             const additionalRequests = [];
-            
+
             for (let i = 1; i <= remainingPages; i++) {
               additionalRequests.push(
                 virtualCatalogService.listTmpProducts(null, null, i * 200, 200)
               );
             }
-            
+
             const additionalResults = await Promise.all(additionalRequests);
             additionalResults.forEach(result => {
               if (result?.products) {
@@ -117,18 +112,38 @@ const VirtualCatalogUpload = () => {
               }
             });
           }
-          
-          setTmpProducts(allProducts);
-          console.log(`✅ Loaded ${familiesData?.families?.length || 0} families and ${allProducts.length} products (total: ${productsData?.total || 0})`);
-          console.log('First product:', allProducts[0]);
-          
+
+          // This component only operates on one upload session at a time
+          // (Import/Clear Session both act on a single uploadState.uploadId).
+          // Determine how many distinct sessions are pending, and only load
+          // the one we'll actually operate on so the review list/stats don't
+          // silently mix data from multiple sessions.
+          const allFamilies = familiesData?.families || [];
+          const sessionIds = new Set([
+            ...allFamilies.map((f) => f.upload_id).filter(Boolean),
+            ...allProducts.map((p) => p.upload_id).filter(Boolean),
+          ]);
+          const activeUploadId = allFamilies[0]?.upload_id || allProducts[0]?.upload_id || 'existing';
+
+          const sessionFamilies = allFamilies.filter((f) => !f.upload_id || f.upload_id === activeUploadId);
+          const sessionProducts = allProducts.filter((p) => !p.upload_id || p.upload_id === activeUploadId);
+
+          setTmpFamilies(sessionFamilies);
+          setTmpProducts(sessionProducts);
+          console.log(`✅ Loaded ${sessionFamilies.length} families and ${sessionProducts.length} products for session ${activeUploadId}`);
+
+          if (sessionIds.size > 1) {
+            console.warn(`Multiple pending upload sessions found (${sessionIds.size}). Showing session ${activeUploadId} — clear or import it to review the others.`);
+          }
+
           // Set upload state to show we're in review mode
           setUploadState(prev => ({
             ...prev,
-            uploadId: familiesData?.families?.[0]?.upload_id || productsData?.products?.[0]?.upload_id || 'existing',
-            status: { status: 'completed' }
+            uploadId: activeUploadId,
+            status: { status: 'completed' },
+            otherPendingSessions: sessionIds.size > 1 ? sessionIds.size - 1 : 0,
           }));
-          
+
           // Switch to review tab automatically
           setActiveTab('review');
         } else {

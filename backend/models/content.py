@@ -159,15 +159,16 @@ class Catalog(Base):
     
     # Related category (optional)
     category_id = Column(Integer, ForeignKey("categories.id"), nullable=True)
-    
+    category = relationship("Category", foreign_keys=[category_id])
+
     # Display
     display_order = Column(Integer, default=0, nullable=False)
     is_active = Column(Boolean, default=True, nullable=False)
     is_featured = Column(Boolean, default=False, nullable=False)
-    
+
     # Analytics
     download_count = Column(Integer, default=0, nullable=False)
-    
+
     def __repr__(self) -> str:
         return f"<Catalog(id={self.id}, title={self.title}, type={self.catalog_type})>"
 

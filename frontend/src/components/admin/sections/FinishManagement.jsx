@@ -3,9 +3,11 @@ import Card from '../../ui/Card';
 import Button from '../../ui/Button';
 import apiClient from '../../../config/apiClient';
 import { resolveImageUrl } from '../../../utils/apiHelpers';
-import { Edit, Trash2, Palette, X } from 'lucide-react';
+import { Edit, Trash2, Palette, X, RotateCcw } from 'lucide-react';
 import FinishEditor from './FinishEditor';
 import ReorderableTable from '../ReorderableTable';
+import StatusTabs from '../StatusTabs';
+import PermanentDeleteModal from '../PermanentDeleteModal';
 import { useToast } from '../../../contexts/ToastContext';
 import { useAdminRefresh } from '../../../contexts/AdminRefreshContext';
 
@@ -21,15 +23,22 @@ const FinishManagement = () => {
   const [editingFinish, setEditingFinish] = useState(null);
   const [filterType, setFilterType] = useState('');
   const [filterGrade, setFilterGrade] = useState('');
-  const [filterActive, setFilterActive] = useState('all');
+  const [tab, setTab] = useState('active');
+  const [activeTotal, setActiveTotal] = useState(0);
+  const [archivedTotal, setArchivedTotal] = useState(0);
+  const [permDeleteTarget, setPermDeleteTarget] = useState(null);
+  const [permDeleting, setPermDeleting] = useState(false);
+
+  const handleTabChange = (newTab) => {
+    setTab(newTab);
+  };
 
   const fetchFinishes = useCallback(async () => {
     try {
-      const params = {};
+      const params = { is_active: tab === 'active' };
       if (filterType) params.finish_type = filterType;
       if (filterGrade) params.grade = filterGrade;
-      if (filterActive !== 'all') params.is_active = filterActive === 'active';
-      
+
       const response = await apiClient.get('/api/v1/admin/catalog/finishes', { params });
       setFinishes(response || []);
     } catch (error) {
@@ -37,12 +46,29 @@ const FinishManagement = () => {
     } finally {
       setLoading(false);
     }
-  }, [filterType, filterGrade, filterActive]);
+  }, [filterType, filterGrade, tab]);
+
+  const fetchCounts = useCallback(async () => {
+    try {
+      const params = {};
+      if (filterType) params.finish_type = filterType;
+      if (filterGrade) params.grade = filterGrade;
+      const [activeRes, archivedRes] = await Promise.all([
+        apiClient.get('/api/v1/admin/catalog/finishes', { params: { ...params, is_active: true } }),
+        apiClient.get('/api/v1/admin/catalog/finishes', { params: { ...params, is_active: false } }),
+      ]);
+      setActiveTotal((activeRes || []).length);
+      setArchivedTotal((archivedRes || []).length);
+    } catch (error) {
+      console.error('Failed to fetch finish counts:', error);
+    }
+  }, [filterType, filterGrade]);
 
   useEffect(() => {
     fetchFinishes();
     fetchColors();
-  }, [fetchFinishes, refreshKeys.finishes]);
+    fetchCounts();
+  }, [fetchFinishes, fetchCounts, refreshKeys.finishes]);
 
   const fetchColors = async () => {
     try {
@@ -72,15 +98,46 @@ const FinishManagement = () => {
   };
 
   const handleDelete = async (finishId) => {
-    if (!confirm('Are you sure you want to delete this finish?')) return;
-    
+    const finish = finishes.find((f) => f.id === finishId);
+    if (!confirm(`Move "${finish?.name}" to Archived? It will be hidden from the active list but can be restored or permanently deleted later.`)) return;
+
     try {
       await apiClient.delete(`/api/v1/admin/catalog/finishes/${finishId}`);
-      toast.success('Finish deleted');
+      toast.success('Finish archived');
       await fetchFinishes();
+      await fetchCounts();
     } catch (error) {
       console.error('Failed to delete finish:', error);
       toast.error(error.response?.data?.detail || 'Failed to delete finish');
+    }
+  };
+
+  const handleRestore = async (finishId) => {
+    try {
+      await apiClient.put(`/api/v1/admin/catalog/finishes/${finishId}`, { is_active: true });
+      toast.success('Finish restored');
+      await fetchFinishes();
+      await fetchCounts();
+    } catch (error) {
+      console.error('Failed to restore finish:', error);
+      toast.error(error.response?.data?.detail || 'Failed to restore finish');
+    }
+  };
+
+  const handlePermanentDelete = async () => {
+    if (!permDeleteTarget) return;
+    setPermDeleting(true);
+    try {
+      await apiClient.delete(`/api/v1/admin/catalog/finishes/${permDeleteTarget.id}?hard_delete=true`);
+      toast.success('Finish permanently deleted');
+      setPermDeleteTarget(null);
+      await fetchFinishes();
+      await fetchCounts();
+    } catch (error) {
+      console.error('Failed to permanently delete finish:', error);
+      toast.error('Failed to permanently delete finish');
+    } finally {
+      setPermDeleting(false);
     }
   };
 
@@ -92,7 +149,6 @@ const FinishManagement = () => {
   const clearFilters = () => {
     setFilterType('');
     setFilterGrade('');
-    setFilterActive('all');
   };
 
   const sortedFinishes = useMemo(
@@ -141,6 +197,8 @@ const FinishManagement = () => {
         </Button>
       </div>
 
+      <StatusTabs tab={tab} onChange={handleTabChange} activeCount={activeTotal} archivedCount={archivedTotal} />
+
       {/* Filters */}
       <Card className="bg-dark-800 border-dark-700">
         <div className="flex gap-4">
@@ -179,21 +237,7 @@ const FinishManagement = () => {
               <option value="Artisan">Artisan</option>
             </select>
           </div>
-          <div className="flex-1">
-            <label className="block text-sm font-medium text-dark-200 mb-2">
-              Filter by Status
-            </label>
-            <select
-              value={filterActive}
-              onChange={(e) => setFilterActive(e.target.value)}
-              className="w-full px-4 py-2 bg-dark-700 border border-dark-600 rounded-lg text-dark-50 focus:border-primary-500 focus:ring-1 focus:ring-primary-500 outline-none transition-all"
-            >
-              <option value="all">All Status</option>
-              <option value="active">Active Only</option>
-              <option value="inactive">Inactive Only</option>
-            </select>
-          </div>
-          {(filterType || filterGrade || filterActive !== 'all') && (
+          {(filterType || filterGrade) && (
             <div className="flex items-end">
               <Button
                 onClick={clearFilters}
@@ -218,11 +262,13 @@ const FinishManagement = () => {
             <Palette className="w-16 h-16 text-dark-600 mx-auto mb-4" />
             <h3 className="text-lg font-semibold text-dark-300 mb-2">No Finishes Found</h3>
             <p className="text-dark-400 mb-6">
-              {filterType || filterGrade || filterActive !== 'all' 
-                ? 'Try adjusting your filters' 
+              {filterType || filterGrade
+                ? 'Try adjusting your filters'
+                : tab === 'archived'
+                ? 'Archived finishes will show up here'
                 : 'Create your first finish option to get started'}
             </p>
-            {!filterType && !filterGrade && filterActive === 'all' && (
+            {!filterType && !filterGrade && tab === 'active' && (
               <Button onClick={handleCreate} className="bg-primary-600 hover:bg-primary-500">
                 Create First Finish
               </Button>
@@ -234,6 +280,7 @@ const FinishManagement = () => {
             setItems={(next) => setFinishes(next.map((item, i) => ({ ...item, display_order: i })))}
             getItemId={(item) => item.id}
             onReorder={handleReorder}
+            disabled={tab === 'archived'}
             minWidth="1000px"
             columns={[
               { key: 'sample', label: 'Sample' },
@@ -334,13 +381,32 @@ const FinishManagement = () => {
                     >
                       <Edit className="w-4 h-4" />
                     </button>
-                    <button
-                      onClick={() => handleDelete(finish.id)}
-                      className="p-2 text-red-400 hover:bg-red-900/20 rounded transition-colors"
-                      title="Delete finish"
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </button>
+                    {tab === 'active' ? (
+                      <button
+                        onClick={() => handleDelete(finish.id)}
+                        className="p-2 text-red-400 hover:bg-red-900/20 rounded transition-colors"
+                        title="Archive finish"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    ) : (
+                      <>
+                        <button
+                          onClick={() => handleRestore(finish.id)}
+                          className="p-2 text-green-400 hover:bg-green-900/20 rounded transition-colors"
+                          title="Restore"
+                        >
+                          <RotateCcw className="w-4 h-4" />
+                        </button>
+                        <button
+                          onClick={() => setPermDeleteTarget({ id: finish.id, name: finish.name })}
+                          className="p-2 text-red-400 hover:bg-red-900/20 rounded transition-colors"
+                          title="Delete permanently"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      </>
+                    )}
                   </div>
                 </td>
               </>
@@ -348,6 +414,15 @@ const FinishManagement = () => {
           />
         )}
       </Card>
+
+      <PermanentDeleteModal
+        isOpen={!!permDeleteTarget}
+        onClose={() => setPermDeleteTarget(null)}
+        onConfirm={handlePermanentDelete}
+        itemLabel="finish"
+        itemName={permDeleteTarget?.name}
+        isLoading={permDeleting}
+      />
     </div>
   );
 };

@@ -311,7 +311,8 @@ export const useAuthStore = create(
                 lastName: responseData.rep_last_name,
                 role: 'company',
                 type: 'company',
-                status: responseData.status?.value || responseData.status
+                status: responseData.status?.value || responseData.status,
+                isVerified: responseData.is_verified
               };
             } else if (responseData && responseData.type) {
               validatedUser = responseData;

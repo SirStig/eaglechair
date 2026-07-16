@@ -33,17 +33,22 @@ def orjson_deserializer(obj):
     return orjson.loads(obj)
 
 
-# Create async engine
-engine = create_async_engine(
-    settings.database_url_async,
+# NullPool does not accept pool_size/max_overflow kwargs, so only include
+# them when we're not forcing NullPool (i.e. not in TESTING mode).
+_async_engine_kwargs = dict(
     echo=settings.DATABASE_ECHO,
-    pool_size=settings.DATABASE_POOL_SIZE,
-    max_overflow=settings.DATABASE_MAX_OVERFLOW,
     pool_pre_ping=True,
-    poolclass=NullPool if settings.TESTING else None,
     json_serializer=orjson_serializer,
     json_deserializer=orjson_deserializer,
 )
+if settings.TESTING:
+    _async_engine_kwargs["poolclass"] = NullPool
+else:
+    _async_engine_kwargs["pool_size"] = settings.DATABASE_POOL_SIZE
+    _async_engine_kwargs["max_overflow"] = settings.DATABASE_MAX_OVERFLOW
+
+# Create async engine
+engine = create_async_engine(settings.database_url_async, **_async_engine_kwargs)
 
 # Create async session factory
 AsyncSessionLocal = async_sessionmaker(
@@ -54,19 +59,30 @@ AsyncSessionLocal = async_sessionmaker(
     autoflush=False,
 )
 
-# Create sync engine for background tasks (PDF parsing, etc.)
-sync_engine = create_engine(
-    settings.database_url_async.replace("+asyncpg", "").replace(
-        "postgresql://", "postgresql+psycopg2://"
-    ),
+# Build a sync-driver URL for the background-task engine. Convert the
+# async driver prefixes to their sync equivalents:
+#   postgresql+asyncpg:// -> postgresql+psycopg2://
+#   mysql+aiomysql://     -> mysql+pymysql://
+_sync_database_url = (
+    settings.database_url_async.replace("+asyncpg", "")
+    .replace("postgresql://", "postgresql+psycopg2://")
+    .replace("mysql+aiomysql://", "mysql+pymysql://")
+)
+
+_sync_engine_kwargs = dict(
     echo=settings.DATABASE_ECHO,
-    pool_size=settings.DATABASE_POOL_SIZE,
-    max_overflow=settings.DATABASE_MAX_OVERFLOW,
     pool_pre_ping=True,
-    poolclass=NullPool if settings.TESTING else None,
     json_serializer=orjson_serializer,
     json_deserializer=orjson_deserializer,
 )
+if settings.TESTING:
+    _sync_engine_kwargs["poolclass"] = NullPool
+else:
+    _sync_engine_kwargs["pool_size"] = settings.DATABASE_POOL_SIZE
+    _sync_engine_kwargs["max_overflow"] = settings.DATABASE_MAX_OVERFLOW
+
+# Create sync engine for background tasks (PDF parsing, etc.)
+sync_engine = create_engine(_sync_database_url, **_sync_engine_kwargs)
 
 # Create sync session factory for background tasks
 SessionLocal = sessionmaker(

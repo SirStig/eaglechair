@@ -17,6 +17,7 @@ import {
   AlertCircle,
   CheckCircle2,
   ArrowLeft,
+  DollarSign,
 } from 'lucide-react';
 import { quoteService } from '../../services/quoteService';
 

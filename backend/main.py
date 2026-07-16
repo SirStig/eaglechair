@@ -18,7 +18,7 @@ from contextlib import asynccontextmanager
 from pathlib import Path
 
 from fastapi import FastAPI, Request
-from fastapi.responses import HTMLResponse
+from fastapi.responses import HTMLResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 import gunicorn.app.base
 
@@ -391,7 +391,7 @@ if frontend_dist_path.exists() and (frontend_dist_path / "index.html").exists():
                         "Expires": "0",
                     },
                 )
-            return {"detail": "Content data not found"}, 404
+            return JSONResponse(content={"detail": "Content data not found"}, status_code=404)
 
         @app.get(
             "/data/contentData.js", response_class=FileResponse, include_in_schema=False
@@ -409,7 +409,7 @@ if frontend_dist_path.exists() and (frontend_dist_path / "index.html").exists():
                         "Expires": "0",
                     },
                 )
-            return {"detail": "Content data not found"}, 404
+            return JSONResponse(content={"detail": "Content data not found"}, status_code=404)
 
         # Mount other data files with normal caching
         app.mount(
@@ -443,9 +443,9 @@ if frontend_dist_path.exists() and (frontend_dist_path / "index.html").exists():
     async def serve_spa(full_path: str):
         """Serve SPA for all non-API routes (enables client-side routing)"""
         if full_path.startswith("api/"):
-            return {"detail": "Not found"}, 404
+            return JSONResponse(content={"detail": "Not found"}, status_code=404)
         if not settings.DEBUG and full_path in ["docs", "redoc", "openapi.json"]:
-            return {"detail": "Not found"}, 404
+            return JSONResponse(content={"detail": "Not found"}, status_code=404)
 
         try:
             with open(frontend_dist_path / "index.html", "r", encoding="utf-8") as f:

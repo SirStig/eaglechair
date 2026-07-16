@@ -8,6 +8,7 @@ like hero images, site settings, reps, gallery images, etc.
 Handles both development and production environments.
 """
 
+import asyncio
 import json
 import logging
 import os
@@ -19,6 +20,17 @@ if TYPE_CHECKING:
     from sqlalchemy.ext.asyncio import AsyncSession
 
 logger = logging.getLogger(__name__)
+
+# Guards the read-modify-write sequence in export_content_after_update() so that
+# concurrent exports (e.g. two admin saves for different content sections landing
+# in the same worker process at nearly the same time) don't race on the shared
+# contentData.json file and silently drop each other's changes.
+#
+# NOTE: This only serializes exports within a single process/event loop. It does
+# NOT protect against races between separate Gunicorn worker processes writing to
+# the same file concurrently - that would require a cross-process lock (e.g. a
+# Redis-based lock like the one used for startup coordination in backend/main.py).
+_export_lock = asyncio.Lock()
 
 
 class StaticContentExporter:
@@ -811,8 +823,10 @@ async def export_content_after_update(content_type: str, db: "AsyncSession") -> 
         FAQ,
         Catalog,
         ClientLogo,
+        CompanyInfo,
         CompanyMilestone,
         CompanyValue,
+        ContactLocation,
         FAQCategory,
         Feature,
         Hardware,
@@ -980,7 +994,10 @@ async def export_content_after_update(content_type: str, db: "AsyncSession") -> 
                 result = await db.execute(
                     select(SalesRepresentative)
                     .where(SalesRepresentative.is_active == True)
-                    .order_by(SalesRepresentative.territory_name)
+                    .order_by(
+                        SalesRepresentative.display_order,
+                        SalesRepresentative.territory_name,
+                    )
                 )
                 reps = result.scalars().all()
                 data = [
@@ -1039,6 +1056,8 @@ async def export_content_after_update(content_type: str, db: "AsyncSession") -> 
                         "title": f.title,
                         "description": f.description,
                         "icon": f.icon,
+                        "featureType": f.feature_type,
+                        "displayOrder": f.display_order,
                     }
                     for f in features
                 ]
@@ -1167,6 +1186,8 @@ async def export_content_after_update(content_type: str, db: "AsyncSession") -> 
                         "shortDescription": d.short_description,
                         "isActive": d.is_active,
                         "displayOrder": d.display_order,
+                        "metaTitle": d.meta_title,
+                        "metaDescription": d.meta_description,
                     }
                     for d in docs
                 ]
@@ -1206,6 +1227,7 @@ async def export_content_after_update(content_type: str, db: "AsyncSession") -> 
             elif content_type == "catalogs":
                 result = await db.execute(
                     select(Catalog)
+                    .options(selectinload(Catalog.category))
                     .where(Catalog.is_active == True)
                     .order_by(Catalog.display_order)
                 )
@@ -1216,7 +1238,7 @@ async def export_content_after_update(content_type: str, db: "AsyncSession") -> 
                         "title": c.title,
                         "description": c.description,
                         "catalogType": c.catalog_type.value if c.catalog_type else None,
-                        "category": None,  # Catalog model has category_id but no relationship defined
+                        "category": c.category.name if c.category_id and c.category else None,
                         "fileUrl": c.file_url,
                         "fileType": c.file_type,
                         "fileSize": c.file_size,
@@ -1388,11 +1410,69 @@ async def export_content_after_update(content_type: str, db: "AsyncSession") -> 
                 ]
                 return exporter.export_warranty_information(data)
 
+            elif content_type == "contactLocations":
+                result = await db.execute(
+                    select(ContactLocation)
+                    .where(ContactLocation.is_active == True)
+                    .order_by(
+                        ContactLocation.display_order, ContactLocation.location_name
+                    )
+                )
+                locations = result.scalars().all()
+                data = [
+                    {
+                        "id": loc.id,
+                        "locationName": loc.location_name,
+                        "description": loc.description,
+                        "addressLine1": loc.address_line1,
+                        "addressLine2": loc.address_line2,
+                        "city": loc.city,
+                        "state": loc.state,
+                        "zipCode": loc.zip_code,
+                        "country": loc.country,
+                        "phone": loc.phone,
+                        "fax": loc.fax,
+                        "email": loc.email,
+                        "tollFree": loc.toll_free,
+                        "businessHours": loc.business_hours,
+                        "imageUrl": loc.image_url,
+                        "mapEmbedUrl": loc.map_embed_url,
+                        "locationType": loc.location_type,
+                        "displayOrder": loc.display_order,
+                        "isActive": loc.is_active,
+                        "isPrimary": loc.is_primary,
+                    }
+                    for loc in locations
+                ]
+                return exporter.export_contact_locations(data)
+
+            elif content_type == "companyInfo":
+                result = await db.execute(
+                    select(CompanyInfo)
+                    .where(CompanyInfo.is_active == True)
+                    .order_by(CompanyInfo.display_order)
+                )
+                info_sections = result.scalars().all()
+                data = [
+                    {
+                        "id": i.id,
+                        "sectionKey": i.section_key,
+                        "title": i.title,
+                        "content": i.content,
+                        "imageUrl": i.image_url,
+                        "displayOrder": i.display_order,
+                        "isActive": i.is_active,
+                    }
+                    for i in info_sections
+                ]
+                return exporter.export_company_info(data)
+
             else:
                 logger.warning(f"Unknown content type: {content_type}")
                 return False
 
-        return await fetch_and_export()
+        async with _export_lock:
+            return await fetch_and_export()
 
     except Exception as e:
         logger.error(f"Export failed for {content_type}: {e}", exc_info=True)
