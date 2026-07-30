@@ -634,7 +634,8 @@ async def logout(
     Clears all authentication cookies.
     """
     from backend.core.security import clear_auth_cookies
-    
+    from backend.core.config import settings
+
     user_type = token_payload.get("type", "company")
     user_id = int(token_payload.get("sub"))
 
@@ -667,7 +668,7 @@ async def logout(
             logger.info(f"Company refresh token invalidated for user: {user_id}")
 
     # Clear all authentication cookies
-    clear_auth_cookies(response)
+    clear_auth_cookies(response, is_production=settings.is_production)
     
     logger.info(f"Logout successful for {user_type} user: {user_id}")
     

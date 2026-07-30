@@ -289,17 +289,21 @@ def set_auth_cookies(
     """
     from backend.core.config import settings
 
-    # Cookie settings - use "lax" instead of "strict" for better cross-tab/window persistence
-    # "lax" allows cookies to be sent in same-site navigations while still providing CSRF protection
+    # Cookie settings
+    # Production frontend and API are hosted on different registrable domains
+    # (cross-site), so cookies need SameSite=None to be sent on cross-site
+    # requests at all - browsers require the Secure flag alongside it.
+    # In local dev (same-site/http), "lax" + no Secure keeps things working.
     cookie_kwargs = {
         "httponly": True,
-        "samesite": "lax",  # Changed from "strict" - allows cross-tab persistence
         "path": "/",
     }
 
-    # Secure flag in production (requires HTTPS)
     if is_production:
         cookie_kwargs["secure"] = True
+        cookie_kwargs["samesite"] = "none"
+    else:
+        cookie_kwargs["samesite"] = "lax"
 
     # Decode tokens to get actual expiration times (without verification, we trust our own tokens)
     try:
@@ -364,24 +368,23 @@ def set_auth_cookies(
         )
 
 
-def clear_auth_cookies(response: Any) -> None:
+def clear_auth_cookies(response: Any, is_production: bool = False) -> None:
     """
     Clear all authentication cookies
 
     Args:
         response: FastAPI Response object (Response or JSONResponse)
+        is_production: Whether running in production (must match the
+            samesite/secure attributes used in set_auth_cookies)
     """
     # Use same cookie settings as set_auth_cookies for proper clearing
-    cookie_kwargs = {
-        "httponly": True,
-        "samesite": "lax",  # Match the setting used in set_auth_cookies
-        "path": "/",
-    }
+    samesite = "none" if is_production else "lax"
     cookies_to_clear = ["access_token", "refresh_token", "session_token", "admin_token"]
 
     for cookie_name in cookies_to_clear:
         response.delete_cookie(
             key=cookie_name,
             path="/",
-            samesite="lax",  # Match the setting used in set_auth_cookies
+            samesite=samesite,  # Match the setting used in set_auth_cookies
+            secure=is_production,
         )
