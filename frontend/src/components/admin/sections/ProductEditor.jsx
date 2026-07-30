@@ -697,7 +697,7 @@ const ProductEditor = ({ product, onBack }) => {
                             await deleteProductImage(formData.primary_image_url);
                             handleChange('primary_image_url', null);
                           }}
-                          className="absolute top-2 right-2 p-2 bg-red-500 text-white rounded-lg opacity-0 group-hover:opacity-100 transition-opacity"
+                          className="absolute top-2 right-2 p-2 bg-red-500 text-white rounded-lg transition-colors"
                         >
                           <X className="w-4 h-4" />
                         </button>
@@ -755,7 +755,7 @@ const ProductEditor = ({ product, onBack }) => {
                               return { ...prev, hover_images: next };
                             });
                           }}
-                          className="absolute top-2 right-2 p-2 bg-red-500 text-white rounded-lg opacity-0 group-hover:opacity-100 transition-opacity"
+                          className="absolute top-2 right-2 p-2 bg-red-500 text-white rounded-lg transition-colors"
                         >
                           <X className="w-4 h-4" />
                         </button>
@@ -817,7 +817,7 @@ const ProductEditor = ({ product, onBack }) => {
                               return { ...prev, hover_images: next };
                             });
                           }}
-                          className="absolute top-2 right-2 p-2 bg-red-500 text-white rounded-lg opacity-0 group-hover:opacity-100 transition-opacity"
+                          className="absolute top-2 right-2 p-2 bg-red-500 text-white rounded-lg transition-colors"
                         >
                           <X className="w-4 h-4" />
                         </button>
@@ -876,7 +876,7 @@ const ProductEditor = ({ product, onBack }) => {
                             await deleteProductImage(formData.thumbnail);
                             handleChange('thumbnail', null);
                           }}
-                          className="absolute top-2 right-2 p-2 bg-red-500 text-white rounded-lg opacity-0 group-hover:opacity-100 transition-opacity"
+                          className="absolute top-2 right-2 p-2 bg-red-500 text-white rounded-lg transition-colors"
                         >
                           <X className="w-4 h-4" />
                         </button>
@@ -932,7 +932,7 @@ const ProductEditor = ({ product, onBack }) => {
                         await deleteProductImage(imgUrl);
                         setImages(images.filter((_, i) => i !== index));
                       }}
-                      className="absolute top-2 right-2 p-2 bg-red-500 text-white rounded-lg opacity-0 group-hover:opacity-100 transition-opacity"
+                      className="absolute top-2 right-2 p-2 bg-red-500 text-white rounded-lg transition-colors"
                     >
                       <X className="w-4 h-4" />
                     </button>
@@ -1009,7 +1009,7 @@ const ProductEditor = ({ product, onBack }) => {
                                   newVariations[index].primary_image_url = null;
                                   setVariations(newVariations);
                                 }}
-                                className="absolute top-2 right-2 p-2 bg-red-500 text-white rounded-lg opacity-0 group-hover:opacity-100 transition-opacity"
+                                className="absolute top-2 right-2 p-2 bg-red-500 text-white rounded-lg transition-colors"
                               >
                                 <X className="w-4 h-4" />
                               </button>
@@ -1066,7 +1066,7 @@ const ProductEditor = ({ product, onBack }) => {
                                       newVariations[index].images = newVariations[index].images.filter((_, i) => i !== imgIndex);
                                       setVariations(newVariations);
                                     }}
-                                    className="absolute top-1 right-1 p-1 bg-red-500 text-white rounded opacity-0 group-hover:opacity-100 transition-opacity"
+                                    className="absolute top-1 right-1 p-1 bg-red-500 text-white rounded transition-colors"
                                   >
                                     <X className="w-3 h-3" />
                                   </button>

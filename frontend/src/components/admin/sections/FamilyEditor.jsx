@@ -122,7 +122,7 @@ const FamilyEditor = ({ family, categories, onBack, onSave }) => {
             />
             <button
               onClick={() => deleteImage(field, currentValue)}
-              className="absolute top-2 right-2 p-2 bg-red-600 hover:bg-red-500 text-white rounded-lg opacity-0 group-hover:opacity-100 transition-opacity"
+              className="absolute top-2 right-2 p-2 bg-red-600 hover:bg-red-500 text-white rounded-lg transition-colors"
               type="button"
               title="Delete image"
             >
@@ -135,7 +135,7 @@ const FamilyEditor = ({ family, categories, onBack, onSave }) => {
               type="file"
               accept="image/*"
               onChange={(e) => handleImageUpload(e, field)}
-              className="hidden"
+              className="sr-only"
               disabled={fieldUploading}
             />
             <div className={`flex flex-col items-center justify-center border-2 border-dashed border-dark-600 hover:border-primary-500 rounded-lg cursor-pointer transition-all ${isFamilyImage ? 'h-48' : 'h-32'} ${fieldUploading ? 'opacity-50' : ''}`}>
@@ -312,7 +312,7 @@ const FamilyEditor = ({ family, categories, onBack, onSave }) => {
                     type="file"
                     accept=".pdf,application/pdf"
                     onChange={handlePdfUpload}
-                    className="hidden"
+                    className="sr-only"
                     disabled={uploadingPdf}
                   />
                   <div className={`flex flex-col items-center justify-center border-2 border-dashed border-dark-600 hover:border-primary-500 rounded-lg cursor-pointer transition-all h-32 ${uploadingPdf ? 'opacity-50' : ''}`}>

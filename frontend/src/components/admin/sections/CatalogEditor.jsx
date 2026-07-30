@@ -325,7 +325,7 @@ const CatalogEditor = ({ catalog, onBack, onSave }) => {
                       type="file"
                       accept=".pdf"
                       onChange={handleFileSelect}
-                      className="hidden"
+                      className="sr-only"
                       disabled={saving}
                       required={!catalog}
                     />
@@ -362,7 +362,7 @@ const CatalogEditor = ({ catalog, onBack, onSave }) => {
                     />
                     <button
                       onClick={deleteThumbnail}
-                      className="absolute top-2 right-2 p-2 bg-red-600 hover:bg-red-500 text-white rounded-lg opacity-0 group-hover:opacity-100 transition-opacity"
+                      className="absolute top-2 right-2 p-2 bg-red-600 hover:bg-red-500 text-white rounded-lg transition-colors"
                       type="button"
                       title="Delete thumbnail"
                     >
@@ -375,7 +375,7 @@ const CatalogEditor = ({ catalog, onBack, onSave }) => {
                       type="file"
                       accept="image/*"
                       onChange={handleThumbnailUpload}
-                      className="hidden"
+                      className="sr-only"
                       disabled={uploadingThumbnail}
                     />
                     <div className={`flex flex-col items-center justify-center w-48 h-32 border-2 border-dashed border-dark-600 hover:border-primary-500 rounded-lg cursor-pointer transition-all ${uploadingThumbnail ? 'opacity-50' : ''}`}>

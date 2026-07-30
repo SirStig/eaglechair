@@ -290,7 +290,7 @@ const HardwareEditor = ({ hardware, onBack, onSave }) => {
                       />
                       <button
                         onClick={() => deleteImage('main')}
-                        className="absolute top-2 right-2 p-2 bg-red-600 hover:bg-red-500 text-white rounded-lg opacity-0 group-hover:opacity-100 transition-opacity"
+                        className="absolute top-2 right-2 p-2 bg-red-600 hover:bg-red-500 text-white rounded-lg transition-colors"
                         type="button"
                       >
                         <X className="w-4 h-4" />
@@ -302,7 +302,7 @@ const HardwareEditor = ({ hardware, onBack, onSave }) => {
                         type="file"
                         accept="image/*"
                         onChange={(e) => handleImageUpload(e, 'main')}
-                        className="hidden"
+                        className="sr-only"
                         disabled={uploadingImage}
                       />
                       <div className={`flex flex-col items-center justify-center w-48 h-32 border-2 border-dashed border-dark-600 hover:border-primary-500 rounded-lg cursor-pointer transition-all ${uploadingImage ? 'opacity-50' : ''}`}>
@@ -334,7 +334,7 @@ const HardwareEditor = ({ hardware, onBack, onSave }) => {
                       />
                       <button
                         onClick={() => deleteImage('thumbnail')}
-                        className="absolute top-2 right-2 p-2 bg-red-600 hover:bg-red-500 text-white rounded-lg opacity-0 group-hover:opacity-100 transition-opacity"
+                        className="absolute top-2 right-2 p-2 bg-red-600 hover:bg-red-500 text-white rounded-lg transition-colors"
                         type="button"
                       >
                         <X className="w-4 h-4" />
@@ -346,7 +346,7 @@ const HardwareEditor = ({ hardware, onBack, onSave }) => {
                         type="file"
                         accept="image/*"
                         onChange={(e) => handleImageUpload(e, 'thumbnail')}
-                        className="hidden"
+                        className="sr-only"
                         disabled={uploadingThumbnail}
                       />
                       <div className={`flex flex-col items-center justify-center w-48 h-32 border-2 border-dashed border-dark-600 hover:border-primary-500 rounded-lg cursor-pointer transition-all ${uploadingThumbnail ? 'opacity-50' : ''}`}>

@@ -127,7 +127,7 @@ const CategoryEditor = ({ category, categories, parentCategory, isSubcategory, o
             />
             <button
               onClick={() => deleteImage(field, currentValue)}
-              className="absolute top-2 right-2 p-2 bg-red-600 hover:bg-red-500 text-white rounded-lg opacity-0 group-hover:opacity-100 transition-opacity"
+              className="absolute top-2 right-2 p-2 bg-red-600 hover:bg-red-500 text-white rounded-lg transition-colors"
               type="button"
               title="Delete image"
             >
@@ -140,7 +140,7 @@ const CategoryEditor = ({ category, categories, parentCategory, isSubcategory, o
               type="file"
               accept="image/*"
               onChange={(e) => handleImageUpload(e, field)}
-              className="hidden"
+              className="sr-only"
               disabled={fieldUploading}
             />
             <div className={`flex flex-col items-center justify-center border-2 border-dashed border-dark-600 hover:border-primary-500 rounded-lg cursor-pointer transition-all ${isIcon ? 'h-32 w-32' : 'h-32 w-full'} ${fieldUploading ? 'opacity-50' : ''}`}>

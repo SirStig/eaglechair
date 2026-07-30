@@ -160,7 +160,7 @@ const SiteSettingsManager = () => {
                     type="file"
                     accept="image/*"
                     onChange={(e) => handleLogoUpload(e, 'logo_url')}
-                    className="hidden"
+                    className="sr-only"
                     disabled={uploadingLogo}
                   />
                   <div className="px-4 py-2 bg-dark-700 hover:bg-dark-600 text-dark-50 rounded-lg transition-colors border border-dark-500 text-sm font-medium text-center">
@@ -183,7 +183,7 @@ const SiteSettingsManager = () => {
                     type="file"
                     accept="image/*"
                     onChange={(e) => handleLogoUpload(e, 'logo_dark_url')}
-                    className="hidden"
+                    className="sr-only"
                     disabled={uploadingLogo}
                   />
                   <div className="px-4 py-2 bg-dark-700 hover:bg-dark-600 text-dark-50 rounded-lg transition-colors border border-dark-500 text-sm font-medium text-center">

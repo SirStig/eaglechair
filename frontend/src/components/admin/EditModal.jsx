@@ -269,7 +269,7 @@ const EditModal = ({ isOpen, onClose, onSave, elementData, elementType }) => {
                 type="file"
                 accept="image/*"
                 onChange={(e) => handleImageSelect(e, key)}
-                className="hidden"
+                className="sr-only"
                 disabled={uploadingImage}
               />
               <div className="px-4 py-2 bg-primary-600 hover:bg-primary-700 text-dark-900 rounded-lg transition-colors border border-primary-500 text-sm font-semibold">

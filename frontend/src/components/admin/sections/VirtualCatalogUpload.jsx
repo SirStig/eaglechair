@@ -415,7 +415,7 @@ const VirtualCatalogUpload = () => {
                   type="file"
                   accept=".pdf"
                   onChange={handleFileSelect}
-                  className="hidden"
+                  className="sr-only"
                   disabled={uploadState.uploading}
                 />
                 {uploadState.file ? (

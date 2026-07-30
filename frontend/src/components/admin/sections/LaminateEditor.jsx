@@ -328,7 +328,7 @@ const LaminateEditor = ({ laminate, onBack, onSave }) => {
                       />
                       <button
                         onClick={() => deleteImage('swatch')}
-                        className="absolute top-2 right-2 p-2 bg-red-600 hover:bg-red-500 text-white rounded-lg opacity-0 group-hover:opacity-100 transition-opacity"
+                        className="absolute top-2 right-2 p-2 bg-red-600 hover:bg-red-500 text-white rounded-lg transition-colors"
                         type="button"
                       >
                         <X className="w-4 h-4" />
@@ -340,7 +340,7 @@ const LaminateEditor = ({ laminate, onBack, onSave }) => {
                         type="file"
                         accept="image/*"
                         onChange={(e) => handleImageUpload(e, 'swatch')}
-                        className="hidden"
+                        className="sr-only"
                         disabled={uploadingSwatch}
                       />
                       <div className={`flex flex-col items-center justify-center w-32 h-32 border-2 border-dashed border-dark-600 hover:border-primary-500 rounded-lg cursor-pointer transition-all ${uploadingSwatch ? 'opacity-50' : ''}`}>
@@ -372,7 +372,7 @@ const LaminateEditor = ({ laminate, onBack, onSave }) => {
                       />
                       <button
                         onClick={() => deleteImage('full')}
-                        className="absolute top-2 right-2 p-2 bg-red-600 hover:bg-red-500 text-white rounded-lg opacity-0 group-hover:opacity-100 transition-opacity"
+                        className="absolute top-2 right-2 p-2 bg-red-600 hover:bg-red-500 text-white rounded-lg transition-colors"
                         type="button"
                       >
                         <X className="w-4 h-4" />
@@ -384,7 +384,7 @@ const LaminateEditor = ({ laminate, onBack, onSave }) => {
                         type="file"
                         accept="image/*"
                         onChange={(e) => handleImageUpload(e, 'full')}
-                        className="hidden"
+                        className="sr-only"
                         disabled={uploadingFullImage}
                       />
                       <div className={`flex flex-col items-center justify-center w-32 h-32 border-2 border-dashed border-dark-600 hover:border-primary-500 rounded-lg cursor-pointer transition-all ${uploadingFullImage ? 'opacity-50' : ''}`}>

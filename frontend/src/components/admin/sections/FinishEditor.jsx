@@ -83,6 +83,7 @@ const FinishEditor = ({ finish, onBack, onSave }) => {
       handleChange('image_url', '');
     } catch (error) {
       console.error('Failed to delete image:', error);
+      alert('Failed to delete image');
     }
   };
 
@@ -279,7 +280,7 @@ const FinishEditor = ({ finish, onBack, onSave }) => {
                     />
                     <button
                       onClick={deleteImage}
-                      className="absolute top-2 right-2 p-2 bg-red-600 hover:bg-red-500 text-white rounded-lg opacity-0 group-hover:opacity-100 transition-opacity"
+                      className="absolute top-2 right-2 p-2 bg-red-600 hover:bg-red-500 text-white rounded-lg transition-colors"
                       type="button"
                       title="Delete sample"
                     >
@@ -292,7 +293,7 @@ const FinishEditor = ({ finish, onBack, onSave }) => {
                       type="file"
                       accept="image/*"
                       onChange={handleImageUpload}
-                      className="hidden"
+                      className="sr-only"
                       disabled={uploadingImage}
                     />
                     <div className={`flex flex-col items-center justify-center w-48 h-32 border-2 border-dashed border-dark-600 hover:border-primary-500 rounded-lg cursor-pointer transition-all ${uploadingImage ? 'opacity-50' : ''}`}>
