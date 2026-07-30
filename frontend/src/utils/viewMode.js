@@ -21,7 +21,11 @@ export const isDesktopViewEnabled = () => {
  */
 export const enableDesktopView = () => {
   if (typeof window === 'undefined') return;
-  localStorage.setItem(DESKTOP_VIEW_KEY, 'true');
+  try {
+    localStorage.setItem(DESKTOP_VIEW_KEY, 'true');
+  } catch (error) {
+    console.warn('Failed to persist desktop view preference:', error);
+  }
   // Add class to body to trigger CSS changes
   document.body.classList.add('desktop-view-mode');
 };
@@ -31,7 +35,11 @@ export const enableDesktopView = () => {
  */
 export const disableDesktopView = () => {
   if (typeof window === 'undefined') return;
-  localStorage.setItem(DESKTOP_VIEW_KEY, 'false');
+  try {
+    localStorage.setItem(DESKTOP_VIEW_KEY, 'false');
+  } catch (error) {
+    console.warn('Failed to persist desktop view preference:', error);
+  }
   // Remove class from body
   document.body.classList.remove('desktop-view-mode');
 };

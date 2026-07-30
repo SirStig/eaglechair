@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import apiClient from '../config/apiClient';
 import logger from '../utils/logger';
+import { safeSetItem } from '../utils/safeStorage';
 
 const AUTH_CONTEXT = 'AuthStore';
 
@@ -37,16 +38,23 @@ export const useAuthStore = create(
             throw new Error('Invalid user data received from server');
           }
 
-          if (accessToken) localStorage.setItem(ACCESS_TOKEN_KEY, accessToken);
-          if (refreshToken) localStorage.setItem(REFRESH_TOKEN_KEY, refreshToken);
-          if (sessionToken) localStorage.setItem(SESSION_TOKEN_KEY, sessionToken);
-          if (adminToken) localStorage.setItem(ADMIN_TOKEN_KEY, adminToken);
-          if (user) localStorage.setItem(USER_KEY, JSON.stringify(user));
+          let storageOk = true;
+          if (accessToken) storageOk = safeSetItem(ACCESS_TOKEN_KEY, accessToken) && storageOk;
+          if (refreshToken) storageOk = safeSetItem(REFRESH_TOKEN_KEY, refreshToken) && storageOk;
+          if (sessionToken) storageOk = safeSetItem(SESSION_TOKEN_KEY, sessionToken) && storageOk;
+          if (adminToken) storageOk = safeSetItem(ADMIN_TOKEN_KEY, adminToken) && storageOk;
+          if (user) storageOk = safeSetItem(USER_KEY, JSON.stringify(user)) && storageOk;
 
           set({ user, isAuthenticated: true });
 
-          logger.info(AUTH_CONTEXT, 'Login successful, tokens stored in localStorage');
-          return { success: true, user, requiresSetup: data.requiresSetup };
+          if (storageOk) {
+            logger.info(AUTH_CONTEXT, 'Login successful, tokens stored in localStorage');
+          } else {
+            // Login succeeded but the browser refused to persist the session
+            // (e.g. Safari private browsing) - session won't survive a reload
+            logger.warn(AUTH_CONTEXT, 'Login successful, but session could not be saved to storage');
+          }
+          return { success: true, user, requiresSetup: data.requiresSetup, sessionPersisted: storageOk };
         } catch (error) {
           console.error('Login error:', error);
           
@@ -100,13 +108,17 @@ export const useAuthStore = create(
           });
           const { access_token, refresh_token, session_token, admin_token, user } = data;
           if (!isValidUser(user)) throw new Error('Invalid user data');
-          if (access_token) localStorage.setItem(ACCESS_TOKEN_KEY, access_token);
-          if (refresh_token) localStorage.setItem(REFRESH_TOKEN_KEY, refresh_token);
-          if (session_token) localStorage.setItem(SESSION_TOKEN_KEY, session_token);
-          if (admin_token) localStorage.setItem(ADMIN_TOKEN_KEY, admin_token);
-          if (user) localStorage.setItem(USER_KEY, JSON.stringify(user));
+          let storageOk = true;
+          if (access_token) storageOk = safeSetItem(ACCESS_TOKEN_KEY, access_token) && storageOk;
+          if (refresh_token) storageOk = safeSetItem(REFRESH_TOKEN_KEY, refresh_token) && storageOk;
+          if (session_token) storageOk = safeSetItem(SESSION_TOKEN_KEY, session_token) && storageOk;
+          if (admin_token) storageOk = safeSetItem(ADMIN_TOKEN_KEY, admin_token) && storageOk;
+          if (user) storageOk = safeSetItem(USER_KEY, JSON.stringify(user)) && storageOk;
           set({ user, isAuthenticated: true });
-          return { success: true, user, requiresSetup: data.requiresSetup };
+          if (!storageOk) {
+            logger.warn(AUTH_CONTEXT, 'Passkey login successful, but session could not be saved to storage');
+          }
+          return { success: true, user, requiresSetup: data.requiresSetup, sessionPersisted: storageOk };
         } catch (error) {
           const msg = error.response?.data?.detail || error.message || 'Passkey sign-in failed';
           return { success: false, error: typeof msg === 'string' ? msg : JSON.stringify(msg) };
@@ -138,24 +150,28 @@ export const useAuthStore = create(
           const { user } = data;
           if (user && isValidUser(user)) {
             // Store tokens and user in localStorage
+            let storageOk = true;
             if (accessToken) {
-              localStorage.setItem(ACCESS_TOKEN_KEY, accessToken);
+              storageOk = safeSetItem(ACCESS_TOKEN_KEY, accessToken) && storageOk;
             }
             if (refreshToken) {
-              localStorage.setItem(REFRESH_TOKEN_KEY, refreshToken);
+              storageOk = safeSetItem(REFRESH_TOKEN_KEY, refreshToken) && storageOk;
             }
             if (sessionToken) {
-              localStorage.setItem(SESSION_TOKEN_KEY, sessionToken);
+              storageOk = safeSetItem(SESSION_TOKEN_KEY, sessionToken) && storageOk;
             }
             if (adminToken) {
-              localStorage.setItem(ADMIN_TOKEN_KEY, adminToken);
+              storageOk = safeSetItem(ADMIN_TOKEN_KEY, adminToken) && storageOk;
             }
             if (user) {
-              localStorage.setItem(USER_KEY, JSON.stringify(user));
+              storageOk = safeSetItem(USER_KEY, JSON.stringify(user)) && storageOk;
             }
-            
+
             set({ user, isAuthenticated: true });
-            return { success: true, user };
+            if (!storageOk) {
+              logger.warn(AUTH_CONTEXT, 'Registration successful, but session could not be saved to storage');
+            }
+            return { success: true, user, sessionPersisted: storageOk };
           }
           
           // Default success response
@@ -213,7 +229,7 @@ export const useAuthStore = create(
         
         // Update user in localStorage
         if (updatedUser) {
-          localStorage.setItem(USER_KEY, JSON.stringify(updatedUser));
+          safeSetItem(USER_KEY, JSON.stringify(updatedUser));
         }
       },
 
@@ -318,7 +334,7 @@ export const useAuthStore = create(
               validatedUser = responseData;
             }
             if (validatedUser && isValidUser(validatedUser)) {
-              localStorage.setItem(USER_KEY, JSON.stringify(validatedUser));
+              safeSetItem(USER_KEY, JSON.stringify(validatedUser));
               set({ user: validatedUser, isAuthenticated: true, isInitializing: false });
               return validatedUser;
             }
@@ -328,8 +344,8 @@ export const useAuthStore = create(
           const tryCookieRefresh = async () => {
             try {
               const refreshData = await apiClient.post('/api/v1/auth/refresh', {});
-              if (refreshData.access_token) localStorage.setItem(ACCESS_TOKEN_KEY, refreshData.access_token);
-              if (refreshData.refresh_token) localStorage.setItem(REFRESH_TOKEN_KEY, refreshData.refresh_token);
+              if (refreshData.access_token) safeSetItem(ACCESS_TOKEN_KEY, refreshData.access_token);
+              if (refreshData.refresh_token) safeSetItem(REFRESH_TOKEN_KEY, refreshData.refresh_token);
               return refreshData.access_token;
             } catch {
               return null;
@@ -363,8 +379,8 @@ export const useAuthStore = create(
                         const d = await apiClient.post('/api/v1/auth/refresh', {}, {
                           headers: { Authorization: `Bearer ${refreshToken}` }
                         });
-                        if (d.access_token) localStorage.setItem(ACCESS_TOKEN_KEY, d.access_token);
-                        if (d.refresh_token) localStorage.setItem(REFRESH_TOKEN_KEY, d.refresh_token);
+                        if (d.access_token) safeSetItem(ACCESS_TOKEN_KEY, d.access_token);
+                        if (d.refresh_token) safeSetItem(REFRESH_TOKEN_KEY, d.refresh_token);
                         return d.access_token;
                       } catch {
                         return null;

@@ -78,7 +78,7 @@ const Dropdown = ({
               maxWidth: '100vw'
             }),
             ...(!fullWidth && {
-              maxHeight: 'calc(100vh - 120px)',
+              maxHeight: 'calc(100dvh - 120px)',
               overflowY: 'auto'
             })
           }}

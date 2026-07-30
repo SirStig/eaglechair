@@ -276,9 +276,10 @@ const SearchPage = () => {
               )}
             </button>
 
-            <div className={`rounded-xl shadow-lg bg-white border border-cream-200 ${
+            <div className={`${
               showMobileFilters ? 'block' : 'hidden lg:block'
-            } lg:sticky lg:top-24 overflow-hidden`}>
+            } lg:sticky lg:top-24`}>
+            <div className="rounded-xl shadow-lg bg-white border border-cream-200 overflow-hidden">
               {/* Filter Header */}
               <div className="flex items-center justify-between p-5 border-b border-cream-200 bg-cream-50">
                 <h2 className="text-xl font-bold text-slate-800">Filters</h2>
@@ -293,7 +294,7 @@ const SearchPage = () => {
                 )}
               </div>
 
-              <div className="p-5 space-y-4 max-h-[calc(100vh-16rem)] lg:max-h-[calc(100vh-12rem)] overflow-y-auto">
+              <div className="p-5 space-y-4 max-h-[calc(100dvh-16rem)] lg:max-h-[calc(100dvh-12rem)] overflow-y-auto">
                 {/* Search Query Input */}
                 <div className="pb-4 border-b border-cream-200">
                   <label className="flex items-center gap-2 text-sm font-semibold text-slate-700 mb-2.5">
@@ -399,6 +400,7 @@ const SearchPage = () => {
                   )}
                 </div>
               </div>
+            </div>
             </div>
           </aside>
 

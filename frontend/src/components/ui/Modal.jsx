@@ -63,7 +63,7 @@ const Modal = ({
               exit={{ opacity: 0, scale: 0.95, y: 20 }}
               transition={{ duration: 0.2 }}
               className={clsx(
-                'relative bg-dark-600 border border-dark-500 rounded-xl shadow-2xl w-full max-h-[calc(100vh-2rem)] sm:max-h-[calc(100vh-4rem)] overflow-y-auto',
+                'relative bg-dark-600 border border-dark-500 rounded-xl shadow-2xl w-full max-h-[calc(100dvh-2rem)] sm:max-h-[calc(100dvh-4rem)] overflow-y-auto',
                 sizes[size],
                 size === 'full' ? 'mx-2 sm:mx-4' : ''
               )}

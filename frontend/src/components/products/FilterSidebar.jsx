@@ -69,11 +69,18 @@ const FilterSidebar = ({
   return (
     <div
       className={`
-        rounded-xl shadow-lg bg-white border border-cream-200
-        flex flex-col w-full overflow-hidden
-        ${showMobileFilters ? 'max-lg:fixed max-lg:inset-4 max-lg:z-50 max-lg:max-h-[90vh]' : 'max-lg:hidden'}
-        lg:block lg:max-h-[calc(100vh-6rem)]
+        w-full
+        ${showMobileFilters ? 'max-lg:fixed max-lg:inset-4 max-lg:z-50' : 'max-lg:hidden'}
+        lg:block
         ${lgSticky ? 'lg:sticky lg:top-24 lg:z-0' : 'lg:relative lg:top-auto lg:z-0'}
+      `}
+    >
+    <div
+      className={`
+        rounded-xl shadow-lg bg-white border border-cream-200
+        flex flex-col w-full h-full overflow-hidden
+        ${showMobileFilters ? 'max-lg:max-h-[90dvh]' : ''}
+        lg:max-h-[calc(100dvh-6rem)]
       `}
     >
       <div className="flex items-center justify-between p-4 sm:p-5 border-b border-cream-200 bg-cream-50 flex-shrink-0">
@@ -507,6 +514,7 @@ const FilterSidebar = ({
           </div>
         </div>
       </div>
+    </div>
     </div>
   );
 };

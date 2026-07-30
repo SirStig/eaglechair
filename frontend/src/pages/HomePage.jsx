@@ -366,7 +366,7 @@ const HomePage = () => {
                               }
                             });
                           }}
-                          className="absolute top-0 right-0 p-1 bg-red-600 hover:bg-red-700 text-white rounded opacity-0 group-hover:opacity-100 transition-opacity z-30"
+                          className="absolute top-0 right-0 p-1 bg-red-600 hover:bg-red-700 text-white rounded transition-colors z-30"
                           title="Delete"
                         >
                           <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">

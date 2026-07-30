@@ -162,7 +162,7 @@ const ImageLightboxModal = ({ isOpen, onClose, images = [], initialIndex = 0, sh
                 <img
                   src={currentSrc}
                   alt=""
-                  className="max-w-full max-h-[calc(100vh-140px)] sm:max-h-[calc(100vh-160px)] object-contain select-none"
+                  className="max-w-full max-h-[calc(100dvh-140px)] sm:max-h-[calc(100dvh-160px)] object-contain select-none"
                   draggable={false}
                   style={{ touchAction: 'none' }}
                 />
