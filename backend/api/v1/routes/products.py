@@ -14,7 +14,9 @@ from sqlalchemy.orm import attributes as sa_attributes
 from backend.api.dependencies import get_optional_company
 from backend.api.v1.schemas.common import MessageResponse
 from backend.api.v1.schemas.product import (
+    CategoryChildResponse,
     CategoryResponse,
+    CategoryWithChildren,
     ChairDetailResponse,
     ChairResponse,
     ColorResponse,
@@ -185,28 +187,62 @@ async def _apply_pricing_tiers_to_products(
 
 @router.get(
     "/categories",
-    response_model=list[CategoryResponse],
+    response_model=list[CategoryWithChildren],
     summary="Get all categories",
-    description="Retrieve all product categories (chairs, booths, tables, etc.)"
+    description="Retrieve primary product categories (chairs, booths, tables, etc.) with their children"
 )
 async def get_categories(
     parent_id: Optional[int] = Query(None, description="Filter by parent category ID"),
+    include_nested: bool = Query(
+        False,
+        description="Include nested (child) categories in the returned list instead of only primary categories",
+    ),
     db: AsyncSession = Depends(get_db)
 ):
     """
-    Get all product categories.
-    
+    Get product categories.
+
     **Public endpoint** - No authentication required.
+
+    By default only primary (top-level) categories are returned. Nested
+    categories — categories that have a `parent_id` — are children and are
+    returned inside their parent's `subcategories` list alongside the
+    category's product subcategories, each tagged with a `type`.
     """
-    logger.info(f"Fetching categories (parent_id={parent_id})")
-    
+    logger.info(
+        f"Fetching categories (parent_id={parent_id}, include_nested={include_nested})"
+    )
+
     categories = await ProductService.get_categories(
         db=db,
         include_inactive=False,
-        parent_id=parent_id
+        parent_id=parent_id,
+        top_level_only=not include_nested,
     )
-    
-    return categories
+
+    children = await ProductService.get_category_children(
+        db=db, include_inactive=False, with_counts=True
+    )
+
+    return [
+        {
+            "id": category.id,
+            "name": category.name,
+            "slug": category.slug,
+            "description": category.description,
+            "parent_id": category.parent_id,
+            "display_order": category.display_order,
+            "is_active": category.is_active,
+            "icon_url": category.icon_url,
+            "banner_image_url": category.banner_image_url,
+            "meta_title": category.meta_title,
+            "meta_description": category.meta_description,
+            "created_at": category.created_at,
+            "updated_at": category.updated_at,
+            "subcategories": children.get(category.id, []),
+        }
+        for category in categories
+    ]
 
 
 @router.get(
@@ -942,44 +978,35 @@ async def get_family_members(
 
 @router.get(
     "/subcategories",
-    response_model=list[ProductSubcategoryResponse],
+    response_model=list[CategoryChildResponse],
     summary="Get product subcategories",
-    description="Retrieve product subcategories with optional filters and product counts"
+    description="Retrieve the children of a category (subcategories and nested categories) with product counts"
 )
 async def get_subcategories(
     category_id: Optional[int] = Query(None, description="Filter by category ID"),
     db: AsyncSession = Depends(get_db)
 ):
     """
-    Get product subcategories.
-    
+    Get the children of a category.
+
     **Public endpoint** - No authentication required.
-    
-    Returns subcategories with product counts for catalog browsing.
+
+    Returns both product subcategories (`type: "subcategory"`) and nested
+    categories (`type: "category"`) with product counts for catalog browsing.
     """
     logger.info(f"Fetching subcategories (category_id={category_id})")
-    
-    from sqlalchemy import func, select
 
-    from backend.models.chair import Chair, ProductSubcategory
-    
-    # Get subcategories with product counts
-    subcategories = await ProductService.get_subcategories(
+    children = await ProductService.get_category_children(
         db=db,
         category_id=category_id,
-        include_inactive=False
+        include_inactive=False,
+        with_counts=True,
     )
-    
-    # Add product counts
-    for subcategory in subcategories:
-        count_stmt = select(func.count(Chair.id)).where(
-            Chair.subcategory_id == subcategory.id,
-            Chair.is_active == True
-        )
-        count_result = await db.execute(count_stmt)
-        subcategory.product_count = count_result.scalar() or 0
-    
-    return subcategories
+
+    if category_id is not None:
+        return children.get(category_id, [])
+
+    return [child for items in children.values() for child in items]
 
 
 # ============================================================================

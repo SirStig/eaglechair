@@ -26,6 +26,8 @@ from backend.models.chair import (
     ProductSubcategory,
     ProductVariation,
     Upholstery,
+    chair_categories,
+    chair_subcategories,
     variation_families,
 )
 from backend.models.company import AdminUser, Company, CompanyStatus
@@ -41,6 +43,18 @@ from backend.models.content import (
 from backend.models.quote import Quote, QuoteItem, QuoteStatus
 
 logger = logging.getLogger(__name__)
+
+
+def _chair_in_category(category_id: int):
+    """Match products whose primary or additional categories include this category."""
+    return or_(
+        Chair.category_id == category_id,
+        Chair.id.in_(
+            select(chair_categories.c.chair_id).where(
+                chair_categories.c.category_id == category_id
+            )
+        ),
+    )
 
 
 # Allowed company status transitions. Intentionally permissive - only blocks
@@ -143,7 +157,7 @@ class AdminService:
             )
 
         if category_id:
-            query = query.where(Chair.category_id == category_id)
+            query = query.where(_chair_in_category(category_id))
 
         if is_active is not None:
             query = query.where(Chair.is_active == is_active)
@@ -159,7 +173,7 @@ class AdminService:
                 )
             )
         if category_id:
-            count_query = count_query.where(Chair.category_id == category_id)
+            count_query = count_query.where(_chair_in_category(category_id))
         if is_active is not None:
             count_query = count_query.where(Chair.is_active == is_active)
 
@@ -203,6 +217,15 @@ class AdminService:
         """
         variations_data = product_data.pop("variations", None)
         secondary_family_ids = product_data.pop("secondary_family_ids", None) or []
+        category_ids = product_data.pop("category_ids", None)
+        subcategory_ids = product_data.pop("subcategory_ids", None)
+
+        # The primary category/subcategory falls back to the first entry of
+        # the multi-select when it wasn't sent explicitly.
+        if not product_data.get("category_id") and category_ids:
+            product_data["category_id"] = category_ids[0]
+        if not product_data.get("subcategory_id") and subcategory_ids:
+            product_data["subcategory_id"] = subcategory_ids[0]
 
         if product_data.get("category_id"):
             result = await db.execute(
@@ -234,6 +257,13 @@ class AdminService:
             )
             product.secondary_families = list(fam_result.scalars().all())
 
+        await AdminService._sync_product_categories(
+            db=db,
+            product=product,
+            category_ids=category_ids,
+            subcategory_ids=subcategory_ids,
+        )
+
         if variations_data:
             await AdminService._update_product_variations(
                 db=db, product_id=product.id, variations_data=variations_data
@@ -264,7 +294,11 @@ class AdminService:
         result = await db.execute(
             select(Chair)
             .where(Chair.id == product_id)
-            .options(selectinload(Chair.secondary_families))
+            .options(
+                selectinload(Chair.secondary_families),
+                selectinload(Chair.categories),
+                selectinload(Chair.subcategories),
+            )
         )
         product = result.scalar_one_or_none()
 
@@ -283,9 +317,14 @@ class AdminService:
             "image_records",
             "category",
             "subcategory",
+            "categories",
+            "subcategories",
             "family",
             "secondary_families",
         }
+
+        category_ids = update_data.pop("category_ids", None)
+        subcategory_ids = update_data.pop("subcategory_ids", None)
 
         if "secondary_family_ids" in update_data:
             secondary_family_ids = update_data.pop("secondary_family_ids") or []
@@ -327,12 +366,102 @@ class AdminService:
             if key not in read_only_fields and hasattr(product, key):
                 setattr(product, key, value)
 
+        await AdminService._sync_product_categories(
+            db=db,
+            product=product,
+            category_ids=category_ids,
+            subcategory_ids=subcategory_ids,
+        )
+
         await db.commit()
         await db.refresh(product)
 
         logger.info(f"Updated product {product_id}")
 
         return product
+
+    @staticmethod
+    async def _sync_product_categories(
+        db: AsyncSession,
+        product: Chair,
+        category_ids: Optional[List[int]] = None,
+        subcategory_ids: Optional[List[int]] = None,
+    ) -> None:
+        """
+        Set a product's full category / subcategory assignments.
+
+        A product can be listed under several categories and subcategories.
+        ``Chair.category_id`` / ``Chair.subcategory_id`` stay the primary
+        assignment (breadcrumbs, URLs, pricing tiers) and are always part of
+        the stored set: when the current primary isn't in the submitted list,
+        the first submitted entry becomes the new primary. Passing None leaves
+        an assignment untouched.
+
+        The association rows are written directly rather than through the
+        relationship so no lazy load is triggered mid-request.
+
+        Raises:
+            ValidationError: If any ID does not exist
+        """
+        if category_ids is not None:
+            ids = list(dict.fromkeys(category_ids))
+
+            if ids:
+                found = await db.execute(
+                    select(Category.id).where(Category.id.in_(ids))
+                )
+                missing = set(ids) - set(found.scalars().all())
+                if missing:
+                    raise ValidationError(f"Category ID {sorted(missing)[0]} not found")
+
+                # The primary category must always be part of the set
+                if product.category_id not in ids:
+                    product.category_id = ids[0]
+            elif product.category_id:
+                ids = [product.category_id]
+
+            await db.execute(
+                delete(chair_categories).where(
+                    chair_categories.c.chair_id == product.id
+                )
+            )
+            if ids:
+                await db.execute(
+                    insert(chair_categories),
+                    [{"chair_id": product.id, "category_id": cid} for cid in ids],
+                )
+
+        if subcategory_ids is not None:
+            ids = list(dict.fromkeys(subcategory_ids))
+
+            if ids:
+                found = await db.execute(
+                    select(ProductSubcategory.id).where(
+                        ProductSubcategory.id.in_(ids)
+                    )
+                )
+                missing = set(ids) - set(found.scalars().all())
+                if missing:
+                    raise ValidationError(
+                        f"Subcategory ID {sorted(missing)[0]} not found"
+                    )
+
+                if product.subcategory_id not in ids:
+                    product.subcategory_id = ids[0]
+            elif product.subcategory_id:
+                # An empty list clears the extra assignments and the primary
+                product.subcategory_id = None
+
+            await db.execute(
+                delete(chair_subcategories).where(
+                    chair_subcategories.c.chair_id == product.id
+                )
+            )
+            if ids:
+                await db.execute(
+                    insert(chair_subcategories),
+                    [{"chair_id": product.id, "subcategory_id": sid} for sid in ids],
+                )
 
     @staticmethod
     async def _update_product_variations(

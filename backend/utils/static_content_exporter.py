@@ -919,35 +919,33 @@ async def export_content_after_update(content_type: str, db: "AsyncSession") -> 
                 return exporter.export_site_settings(data)
 
             elif content_type == "categories":
-                # Fetch categories with active subcategories
-                # We need to use selectinload or another strategy to load subcategories efficiently
-                # For static export, we want the hierarchy
+                # Export the catalog nav hierarchy: only primary (top-level)
+                # categories, each with its children. Children are both
+                # product subcategories and nested categories (categories
+                # with a parent_id) — a nested category is a child and must
+                # never be exported as a primary category.
+                from backend.services.product_service import ProductService
 
-                # First fetch all active subcategories
-                subcat_result = await db.execute(
-                    select(ProductSubcategory)
-                    .where(ProductSubcategory.is_active == True)
-                    .order_by(ProductSubcategory.display_order)
+                children_by_category = await ProductService.get_category_children(
+                    db=db, include_inactive=False, with_counts=False
                 )
-                all_subcats = subcat_result.scalars().all()
-                subcats_by_category = {}
-                for sub in all_subcats:
-                    if sub.category_id not in subcats_by_category:
-                        subcats_by_category[sub.category_id] = []
-                    subcats_by_category[sub.category_id].append(
-                        {
-                            "id": sub.id,
-                            "name": sub.name,
-                            "slug": sub.slug,
-                            "displayOrder": sub.display_order,
-                            "isActive": sub.is_active,
-                        }
-                    )
 
-                # Fetch active categories
+                def _child_payload(child):
+                    return {
+                        "id": child["id"],
+                        "name": child["name"],
+                        "slug": child["slug"],
+                        "description": child["description"],
+                        "categoryId": child["category_id"],
+                        "displayOrder": child["display_order"],
+                        "isActive": child["is_active"],
+                        "type": child["type"],
+                    }
+
+                # Fetch active top-level categories
                 result = await db.execute(
                     select(Category)
-                    .where(Category.is_active == True)
+                    .where(Category.is_active == True, Category.parent_id.is_(None))
                     .order_by(Category.display_order)
                 )
                 categories = result.scalars().all()
@@ -963,7 +961,10 @@ async def export_content_after_update(content_type: str, db: "AsyncSession") -> 
                         "isActive": c.is_active,
                         "iconUrl": c.icon_url,
                         "bannerImageUrl": c.banner_image_url,
-                        "subcategories": subcats_by_category.get(c.id, []),
+                        "subcategories": [
+                            _child_payload(child)
+                            for child in children_by_category.get(c.id, [])
+                        ],
                     }
                     for c in categories
                 ]

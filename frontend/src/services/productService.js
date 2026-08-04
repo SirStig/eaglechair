@@ -2,11 +2,16 @@ import { api } from '../config/apiClient';
 import { loadContentData } from '../utils/contentDataLoader';
 import { transformProducts, transformProduct } from '../utils/apiHelpers';
 
+// A category child is either a product subcategory or a nested category;
+// `type` says which, and decides how the child is filtered and linked.
 const normalizeSubcategory = (s) => ({
   ...s,
   id: s.id,
   name: s.name,
   slug: s.slug,
+  type: s.type || 'subcategory',
+  category_id: s.category_id ?? s.categoryId,
+  product_count: s.product_count ?? s.productCount ?? 0,
   display_order: s.display_order ?? s.displayOrder,
   is_active: s.is_active ?? s.isActive,
 });
@@ -115,7 +120,7 @@ export const productService = {
     } catch (_) {}
 
     const response = await api.get('/api/v1/categories');
-    const categories = Array.isArray(response) ? response : [];
+    const categories = (Array.isArray(response) ? response : []).map(normalizeCategory);
     productService._categoriesCache = categories;
     productService._categoriesCacheTime = now;
     return categories;
@@ -175,7 +180,7 @@ export const productService = {
       } catch (_) {}
     }
     const response = await api.get('/api/v1/subcategories', { params });
-    return Array.isArray(response) ? response : [];
+    return (Array.isArray(response) ? response : []).map(normalizeSubcategory);
   },
 
   /**

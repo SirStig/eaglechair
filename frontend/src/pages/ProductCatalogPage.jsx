@@ -17,6 +17,7 @@ import {
   getCatalogLocation,
   buildCatalogPath,
 } from '../utils/catalogUrl';
+import { findCategoryById, findNestedCategoryById } from '../utils/categoryTree';
 
 const CONTEXT = 'ProductCatalogPage';
 const PAGE_SIZE = 25;
@@ -111,12 +112,17 @@ const ProductCatalogPage = () => {
   }, [categoryParam, subcategoryParam]);
 
   useEffect(() => {
-    if (filters.category_id) {
-      loadSubcategories(filters.category_id);
+    // When a nested category is selected we still list its parent's children,
+    // so the sidebar keeps showing its siblings.
+    const nested = findNestedCategoryById(categories, filters.category_id);
+    const childListCategoryId = nested ? nested.parent.id : filters.category_id;
+
+    if (childListCategoryId) {
+      loadSubcategories(childListCategoryId);
     } else {
       setSubcategories([]);
     }
-  }, [filters.category_id]);
+  }, [filters.category_id, categories]);
 
   useEffect(() => {
     loadFamilies();
@@ -349,10 +355,22 @@ const ProductCatalogPage = () => {
     logger.info(CONTEXT, `Opening quick view for: ${product.name}`);
   };
 
-  const activeCategory = categories.find((c) => String(c.id) === String(filters.category_id));
-  const activeSubcategory = subcategories.find(
-    (s) => String(s.id) === String(filters.subcategory_id)
-  );
+  // The active "child" is either a subcategory or a nested category; a nested
+  // category filters by category_id but still renders as a child of its parent.
+  const activeNestedCategory = findNestedCategoryById(categories, filters.category_id);
+  const activeCategory = activeNestedCategory
+    ? activeNestedCategory.parent
+    : findCategoryById(categories, filters.category_id);
+  const activeSubcategory = activeNestedCategory
+    ? activeNestedCategory.category
+    : subcategories.find((s) => String(s.id) === String(filters.subcategory_id));
+
+  // Clearing the child filter falls back to the parent category
+  const filtersWithoutChild = {
+    ...filters,
+    subcategory_id: '',
+    category_id: activeCategory?.id || '',
+  };
 
   const catalogPath = buildCatalogPath(activeCategory?.slug, activeSubcategory?.slug);
   const productsBreadcrumbPath = getCatalogLocation(
@@ -496,7 +514,7 @@ const ProductCatalogPage = () => {
                   {activeSubcategory ? (
                     <Link
                       to={getCatalogLocation(
-                        { ...filters, subcategory_id: '' },
+                        filtersWithoutChild,
                         categories,
                         subcategories,
                         1
