@@ -200,7 +200,9 @@ function SortableCategoryRow({ category, index, isExpanded, hasSubcategories, on
               <span className="text-dark-400 text-xs">└</span>
               <div>
                 <div className="text-sm font-medium text-dark-200">{subcat.name}</div>
-                <div className="text-xs text-dark-500 mt-0.5">Subcategory · Order: {subcat.display_order}</div>
+                <div className="text-xs text-dark-500 mt-0.5">
+                  {subcat.type === 'category' ? 'Nested category' : 'Subcategory'} · Order: {subcat.display_order}
+                </div>
               </div>
             </div>
           </td>
@@ -234,7 +236,7 @@ function SortableCategoryRow({ category, index, isExpanded, hasSubcategories, on
                 <Edit2 className="w-3.5 h-3.5" />
               </button>
               <button
-                onClick={() => handleDeleteSubcategory(subcat.id)}
+                onClick={() => handleDeleteSubcategory(subcat)}
                 className="p-1.5 text-red-400 hover:bg-red-900/20 rounded-lg transition-colors"
                 title="Delete subcategory"
               >
@@ -314,10 +316,15 @@ const CategoryManagement = () => {
     }
   };
 
-  const handleDeleteSubcategory = async (subcategoryId) => {
+  // A child is either a product subcategory or a nested category; each lives
+  // in a different table, so route the request by its type.
+  const handleDeleteSubcategory = async (subcategory) => {
     if (!confirm('Move this subcategory to Archived? It will be hidden from the active list but can be restored or permanently deleted later.')) return;
+    const url = subcategory.type === 'category'
+      ? `/api/v1/admin/categories/${subcategory.id}`
+      : `/api/v1/admin/catalog/subcategories/${subcategory.id}`;
     try {
-      await apiClient.delete(`/api/v1/admin/catalog/subcategories/${subcategoryId}`);
+      await apiClient.delete(url);
       toast.success('Subcategory archived');
       await fetchCategories();
     } catch (error) {
@@ -367,12 +374,18 @@ const CategoryManagement = () => {
     }
   };
 
+  // Locate the row being edited within the tree so the editor knows whether it
+  // is a top-level category, a nested category, or a product subcategory.
+  const editingChildEntry = editingCategory?.id
+    ? categories
+        .flatMap((c) => (c.subcategories || []).map((s) => ({ child: s, parent: c })))
+        .find(({ child }) => child.id === editingCategory.id && child.type === editingCategory.type)
+    : null;
   const parentCategoryForSubcategory = editingCategory?.parent_id != null && !editingCategory?.id
     ? categories.find((c) => c.id === editingCategory.parent_id)
-    : editingCategory?.id && categories.some((c) => c.subcategories?.some((s) => s.id === editingCategory.id))
-      ? categories.find((c) => c.subcategories?.some((s) => s.id === editingCategory.id))
-      : null;
-  const isSubcategory = !!editingCategory?.id && categories.some((c) => c.subcategories?.some((s) => s.id === editingCategory.id));
+    : editingChildEntry?.parent || null;
+  // Nested categories are edited through the categories endpoint
+  const isSubcategory = !!editingChildEntry && editingChildEntry.child.type !== 'category';
 
   const getSubcategoryCount = (category) => {
     return category.subcategories?.length || 0;
@@ -428,7 +441,7 @@ const CategoryManagement = () => {
       }
       for (const s of c.subcategories || []) {
         if (!s.is_active) {
-          items.push({ type: 'subcategory', id: s.id, name: s.name, slug: s.slug, icon_url: null, parentName: c.name, updated_at: s.updated_at });
+          items.push({ type: s.type === 'category' ? 'category' : 'subcategory', id: s.id, name: s.name, slug: s.slug, icon_url: s.icon_url || null, parentName: c.name, updated_at: s.updated_at });
         }
       }
     }

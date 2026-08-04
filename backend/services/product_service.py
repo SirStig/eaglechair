@@ -24,13 +24,81 @@ from backend.models.chair import (
     ProductTag,
     ProductVariation,
     Upholstery,
+    chair_categories,
     chair_secondary_families,
+    chair_subcategories,
     variation_families,
 )
 from backend.utils.pagination import PaginationParams, paginate
 from backend.utils.slug import slugify
 
 logger = logging.getLogger(__name__)
+
+
+def _chair_in_category(category_id: int):
+    """
+    Match products assigned to a category either as their primary category
+    or through the chair_categories many-to-many table.
+    """
+    return or_(
+        Chair.category_id == category_id,
+        Chair.id.in_(
+            select(chair_categories.c.chair_id).where(
+                chair_categories.c.category_id == category_id
+            )
+        ),
+    )
+
+
+def _chair_in_subcategory(subcategory_id: int):
+    """
+    Match products assigned to a subcategory either as their primary
+    subcategory or through the chair_subcategories many-to-many table.
+    """
+    return or_(
+        Chair.subcategory_id == subcategory_id,
+        Chair.id.in_(
+            select(chair_subcategories.c.chair_id).where(
+                chair_subcategories.c.subcategory_id == subcategory_id
+            )
+        ),
+    )
+
+
+def category_child_from_category(category: Category, product_count: int = 0) -> Dict[str, Any]:
+    """Serialize a nested category as a child of its parent category."""
+    return {
+        "id": category.id,
+        "name": category.name,
+        "slug": category.slug,
+        "description": category.description,
+        "category_id": category.parent_id,
+        "display_order": category.display_order,
+        "is_active": category.is_active,
+        "type": "category",
+        "product_count": product_count,
+        "icon_url": category.icon_url,
+        "banner_image_url": category.banner_image_url,
+    }
+
+
+def category_child_from_subcategory(
+    subcategory: ProductSubcategory, product_count: int = 0
+) -> Dict[str, Any]:
+    """Serialize a product subcategory as a child of its category."""
+    return {
+        "id": subcategory.id,
+        "name": subcategory.name,
+        "slug": subcategory.slug,
+        "description": subcategory.description,
+        "category_id": subcategory.category_id,
+        "display_order": subcategory.display_order,
+        "is_active": subcategory.is_active,
+        "type": "subcategory",
+        "product_count": product_count,
+        "icon_url": None,
+        "banner_image_url": None,
+    }
 
 
 def _is_model_like_query(query: str) -> bool:
@@ -86,6 +154,7 @@ class ProductService:
         db: AsyncSession,
         include_inactive: bool = False,
         parent_id: Optional[int] = None,
+        top_level_only: bool = False,
     ) -> List[Category]:
         """
         Get all categories
@@ -94,6 +163,9 @@ class ProductService:
             db: Database session
             include_inactive: Include inactive categories
             parent_id: Filter by parent category ID
+            top_level_only: Only return categories without a parent. Nested
+                categories are children and must never be presented as
+                primary categories on the storefront.
 
         Returns:
             List of categories
@@ -105,6 +177,8 @@ class ProductService:
 
         if parent_id is not None:
             query = query.where(Category.parent_id == parent_id)
+        elif top_level_only:
+            query = query.where(Category.parent_id.is_(None))
 
         query = query.order_by(Category.display_order, Category.name)
 
@@ -113,6 +187,161 @@ class ProductService:
 
         logger.info(f"Retrieved {len(categories)} categories")
         return list(categories)
+
+    @staticmethod
+    async def get_child_categories_by_parent(
+        db: AsyncSession,
+        parent_ids: Optional[List[int]] = None,
+        include_inactive: bool = False,
+    ) -> Dict[int, List[Category]]:
+        """
+        Get nested (child) categories grouped by their parent category ID.
+
+        Child categories are a second way of expressing a subcategory (the
+        other being the ``product_subcategories`` table). Both must be shown
+        as children of their parent, never as primary categories.
+
+        Args:
+            db: Database session
+            parent_ids: Restrict to these parent category IDs (all when None)
+            include_inactive: Include inactive categories
+
+        Returns:
+            Mapping of parent category ID -> list of child categories
+        """
+        query = select(Category).where(Category.parent_id.is_not(None))
+
+        if not include_inactive:
+            query = query.where(Category.is_active == True)
+
+        if parent_ids is not None:
+            if not parent_ids:
+                return {}
+            query = query.where(Category.parent_id.in_(parent_ids))
+
+        query = query.order_by(Category.display_order, Category.name)
+
+        result = await db.execute(query)
+
+        children: Dict[int, List[Category]] = {}
+        for category in result.scalars().all():
+            children.setdefault(category.parent_id, []).append(category)
+
+        return children
+
+    @staticmethod
+    async def get_category_product_counts(db: AsyncSession) -> Dict[int, int]:
+        """
+        Count active products per category, counting both the primary category
+        and any additional categories assigned through chair_categories.
+        """
+        primary = select(
+            Chair.id.label("chair_id"), Chair.category_id.label("cat_id")
+        ).where(Chair.is_active == True, Chair.category_id.is_not(None))
+        extra = (
+            select(
+                chair_categories.c.chair_id.label("chair_id"),
+                chair_categories.c.category_id.label("cat_id"),
+            )
+            .select_from(
+                chair_categories.join(Chair, Chair.id == chair_categories.c.chair_id)
+            )
+            .where(Chair.is_active == True)
+        )
+        pairs = primary.union(extra).subquery()
+
+        result = await db.execute(
+            select(pairs.c.cat_id, func.count()).group_by(pairs.c.cat_id)
+        )
+        return {row[0]: row[1] for row in result.all() if row[0] is not None}
+
+    @staticmethod
+    async def get_subcategory_product_counts(db: AsyncSession) -> Dict[int, int]:
+        """
+        Count active products per subcategory, counting both the primary
+        subcategory and any assigned through chair_subcategories.
+        """
+        primary = select(
+            Chair.id.label("chair_id"), Chair.subcategory_id.label("sub_id")
+        ).where(Chair.is_active == True, Chair.subcategory_id.is_not(None))
+        extra = (
+            select(
+                chair_subcategories.c.chair_id.label("chair_id"),
+                chair_subcategories.c.subcategory_id.label("sub_id"),
+            )
+            .select_from(
+                chair_subcategories.join(
+                    Chair, Chair.id == chair_subcategories.c.chair_id
+                )
+            )
+            .where(Chair.is_active == True)
+        )
+        pairs = primary.union(extra).subquery()
+
+        result = await db.execute(
+            select(pairs.c.sub_id, func.count()).group_by(pairs.c.sub_id)
+        )
+        return {row[0]: row[1] for row in result.all() if row[0] is not None}
+
+    @staticmethod
+    async def get_category_children(
+        db: AsyncSession,
+        category_id: Optional[int] = None,
+        include_inactive: bool = False,
+        with_counts: bool = False,
+    ) -> Dict[int, List[Dict[str, Any]]]:
+        """
+        Get the children of categories, grouped by parent category ID.
+
+        Children are the union of ``product_subcategories`` rows and nested
+        categories (categories with a ``parent_id``), each tagged with a
+        ``type`` so callers can build the right link for them.
+
+        Args:
+            db: Database session
+            category_id: Only return children of this category (all when None)
+            include_inactive: Include inactive children
+            with_counts: Populate ``product_count`` on each child
+
+        Returns:
+            Mapping of parent category ID -> list of child dictionaries
+        """
+        subcategories = await ProductService.get_subcategories(
+            db=db, category_id=category_id, include_inactive=include_inactive
+        )
+        child_categories = await ProductService.get_child_categories_by_parent(
+            db=db,
+            parent_ids=[category_id] if category_id else None,
+            include_inactive=include_inactive,
+        )
+
+        subcategory_counts: Dict[int, int] = {}
+        category_counts: Dict[int, int] = {}
+        if with_counts:
+            subcategory_counts = await ProductService.get_subcategory_product_counts(db)
+            category_counts = await ProductService.get_category_product_counts(db)
+
+        children: Dict[int, List[Dict[str, Any]]] = {}
+
+        for sub in subcategories:
+            children.setdefault(sub.category_id, []).append(
+                category_child_from_subcategory(
+                    sub, subcategory_counts.get(sub.id, 0)
+                )
+            )
+
+        for parent_id, categories in child_categories.items():
+            for category in categories:
+                children.setdefault(parent_id, []).append(
+                    category_child_from_category(
+                        category, category_counts.get(category.id, 0)
+                    )
+                )
+
+        for items in children.values():
+            items.sort(key=lambda c: (c["display_order"] or 0, c["name"] or ""))
+
+        return children
 
     @staticmethod
     async def get_category_by_id(db: AsyncSession, category_id: int) -> Category:
@@ -235,10 +464,10 @@ class ProductService:
             query = query.where(Chair.is_active)
 
         if category_id:
-            query = query.where(Chair.category_id == category_id)
+            query = query.where(_chair_in_category(category_id))
 
         if subcategory_id:
-            query = query.where(Chair.subcategory_id == subcategory_id)
+            query = query.where(_chair_in_subcategory(subcategory_id))
 
         if family_id:
             chair_in_family = or_(
@@ -1050,10 +1279,10 @@ class ProductService:
             query = query.where(Chair.is_active == True)
 
         if category_id:
-            query = query.where(Chair.category_id == category_id)
+            query = query.where(_chair_in_category(category_id))
 
         if subcategory_id:
-            query = query.where(Chair.subcategory_id == subcategory_id)
+            query = query.where(_chair_in_subcategory(subcategory_id))
 
         if family_id:
             chair_in_family = or_(

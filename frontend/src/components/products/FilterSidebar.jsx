@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { X, ChevronDown, ChevronUp, ArrowUpDown, Search, Folder, Grid3x3, Users } from 'lucide-react';
+import { childFilterKey, isChildActive } from '../../utils/categoryTree';
 
 const FilterSidebar = ({
   filters,
@@ -203,7 +204,7 @@ const FilterSidebar = ({
               <span className="flex items-center gap-2">
                 <Folder className="w-4 h-4" />
                 Subcategory
-                {filters.subcategory_id && (
+                {subcategories.some((subcat) => isChildActive(subcat, filters)) && (
                   <span className="text-xs bg-primary-100 text-primary-700 px-2 py-0.5 rounded-full font-medium">
                     1
                   </span>
@@ -214,25 +215,28 @@ const FilterSidebar = ({
 
             {expandedSections.subcategory && (
               <div className="space-y-1.5">
-                {subcategories.map((subcat) => (
-                  <button
-                    key={subcat.id}
-                    onClick={() => updateFilter('subcategory_id', subcat.id)}
-                    className={`w-full text-left px-3 py-2 rounded-lg transition-all text-sm ${filters.subcategory_id === subcat.id || filters.subcategory_id === String(subcat.id)
-                      ? 'bg-primary-600 text-white font-semibold shadow-sm'
-                      : 'hover:bg-cream-100 text-slate-700'
-                    }`}
-                  >
-                    <div className="flex items-center justify-between">
-                      <span>{subcat.name}</span>
-                      {subcat.product_count > 0 && (
-                        <span className={`text-xs ${filters.subcategory_id === subcat.id || filters.subcategory_id === String(subcat.id) ? 'text-white/80' : 'text-slate-500'}`}>
-                          {subcat.product_count}
-                        </span>
-                      )}
-                    </div>
-                  </button>
-                ))}
+                {subcategories.map((subcat) => {
+                  const isActive = isChildActive(subcat, filters);
+                  return (
+                    <button
+                      key={`${subcat.type || 'subcategory'}-${subcat.id}`}
+                      onClick={() => updateFilter(childFilterKey(subcat), subcat.id)}
+                      className={`w-full text-left px-3 py-2 rounded-lg transition-all text-sm ${isActive
+                        ? 'bg-primary-600 text-white font-semibold shadow-sm'
+                        : 'hover:bg-cream-100 text-slate-700'
+                      }`}
+                    >
+                      <div className="flex items-center justify-between">
+                        <span>{subcat.name}</span>
+                        {subcat.product_count > 0 && (
+                          <span className={`text-xs ${isActive ? 'text-white/80' : 'text-slate-500'}`}>
+                            {subcat.product_count}
+                          </span>
+                        )}
+                      </div>
+                    </button>
+                  );
+                })}
               </div>
             )}
           </div>

@@ -64,10 +64,56 @@ class CategoryResponse(CategoryBase, TimestampSchema):
         from_attributes = True
 
 
+class CategoryChildAdminResponse(CategoryResponse):
+    """
+    A child of a category in the admin UI.
+
+    ``type`` says which table the row lives in: "subcategory" for
+    ``product_subcategories`` rows, "category" for nested categories. The
+    admin UI needs it to know which endpoint to edit/delete the row through.
+    """
+
+    type: str = "subcategory"
+    subcategories: list["CategoryChildAdminResponse"] = []
+
+
 class CategoryWithSubcategories(CategoryResponse):
     """Category with subcategories"""
 
-    subcategories: list[CategoryResponse] = []
+    type: str = "category"
+    subcategories: list[CategoryChildAdminResponse] = []
+
+
+class CategoryChildResponse(BaseModel):
+    """
+    A child of a category, as presented to the storefront.
+
+    A category can have children in two ways: rows in ``product_subcategories``
+    (``type == "subcategory"``) and nested categories, i.e. categories with a
+    ``parent_id`` (``type == "category"``). Both are rendered as children of
+    their parent; neither may be listed as a primary category.
+    """
+
+    id: int
+    name: str
+    slug: str
+    description: Optional[str] = None
+    category_id: int  # Parent category ID
+    display_order: int = 0
+    is_active: bool = True
+    type: str = "subcategory"  # "subcategory" | "category"
+    product_count: Optional[int] = 0
+    icon_url: Optional[str] = None
+    banner_image_url: Optional[str] = None
+
+    class Config:
+        from_attributes = True
+
+
+class CategoryWithChildren(CategoryResponse):
+    """Top-level category with its children (subcategories + nested categories)"""
+
+    subcategories: list[CategoryChildResponse] = []
 
 
 # ============================================================================
@@ -470,6 +516,11 @@ class ChairResponse(ChairBase, TimestampSchema):
     """Schema for chair response"""
 
     id: int
+    # Every category / subcategory the product is listed under, primary first
+    categories: Optional[list[CategoryResponse]] = None
+    subcategories: Optional[list[ProductSubcategoryResponse]] = None
+    category_ids: Optional[list[int]] = None
+    subcategory_ids: Optional[list[int]] = None
     family_id: Optional[int] = None
     variation_id: Optional[int] = None
     view_count: int
@@ -484,6 +535,28 @@ class ChairResponse(ChairBase, TimestampSchema):
     )
 
     model_config = {"from_attributes": True}
+
+    @model_validator(mode="after")
+    def populate_category_ids(self):
+        """
+        Derive the flat ID lists from the loaded relationships, keeping the
+        primary category / subcategory first.
+        """
+        category_ids = [c.id for c in (self.categories or [])]
+        if self.category_id is not None:
+            category_ids = [self.category_id] + [
+                cid for cid in category_ids if cid != self.category_id
+            ]
+        self.category_ids = category_ids
+
+        subcategory_ids = [s.id for s in (self.subcategories or [])]
+        if self.subcategory_id is not None:
+            subcategory_ids = [self.subcategory_id] + [
+                sid for sid in subcategory_ids if sid != self.subcategory_id
+            ]
+        self.subcategory_ids = subcategory_ids
+
+        return self
 
     @computed_field
     @property

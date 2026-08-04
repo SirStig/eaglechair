@@ -171,8 +171,16 @@ class ProductCreate(BaseModel):
     full_description: Optional[str] = Field(None, description="Full description")
 
     # Category & Family
-    category_id: int = Field(..., description="Category ID (required)")
-    subcategory_id: Optional[int] = Field(None, description="Subcategory ID")
+    category_id: int = Field(..., description="Primary category ID (required)")
+    category_ids: Optional[List[int]] = Field(
+        None,
+        description="All categories this product belongs to. The primary category is always included.",
+    )
+    subcategory_id: Optional[int] = Field(None, description="Primary subcategory ID")
+    subcategory_ids: Optional[List[int]] = Field(
+        None,
+        description="All subcategories this product belongs to. The primary subcategory is always included.",
+    )
     family_id: Optional[int] = Field(None, description="Primary product family ID")
     secondary_family_ids: Optional[List[int]] = Field(default_factory=list, description="Additional family IDs for listing in other families")
 
@@ -307,8 +315,16 @@ class ProductUpdate(BaseModel):
     full_description: Optional[str] = Field(None, description="Full description")
 
     # Category & Family
-    category_id: Optional[int] = Field(None, description="Category ID")
-    subcategory_id: Optional[int] = Field(None, description="Subcategory ID")
+    category_id: Optional[int] = Field(None, description="Primary category ID")
+    category_ids: Optional[List[int]] = Field(
+        None,
+        description="All categories this product belongs to. The primary category is always included.",
+    )
+    subcategory_id: Optional[int] = Field(None, description="Primary subcategory ID")
+    subcategory_ids: Optional[List[int]] = Field(
+        None,
+        description="All subcategories this product belongs to. The primary subcategory is always included.",
+    )
     family_id: Optional[int] = Field(None, description="Primary product family ID")
     secondary_family_ids: Optional[List[int]] = Field(None, description="Additional family IDs for listing in other families")
 

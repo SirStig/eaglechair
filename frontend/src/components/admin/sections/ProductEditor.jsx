@@ -84,6 +84,8 @@ const ProductEditor = ({ product, onBack }) => {
     hover_images: Array.isArray(product?.hover_images) ? product.hover_images : [],
     keywords: Array.isArray(product?.keywords) ? product.keywords : [],
     secondary_family_ids: Array.isArray(product?.secondary_family_ids) ? product.secondary_family_ids : [],
+    category_ids: Array.isArray(product?.category_ids) ? product.category_ids : [],
+    subcategory_ids: Array.isArray(product?.subcategory_ids) ? product.subcategory_ids : [],
   });
   const [saving, setSaving] = useState(false);
 
@@ -126,28 +128,58 @@ const ProductEditor = ({ product, onBack }) => {
     fetchColors();
   }, []);
 
-  // Fetch subcategories when category changes
+  // Subcategory options follow every selected category, not just the primary
+  const selectedCategoryIds = [
+    ...(formData.category_id ? [formData.category_id] : []),
+    ...(formData.category_ids || []),
+  ].filter((id, index, all) => all.indexOf(id) === index);
+  const selectedCategoryKey = selectedCategoryIds.join(',');
+
   useEffect(() => {
-    if (formData.category_id) {
-      fetchSubcategories(formData.category_id);
+    if (selectedCategoryIds.length > 0) {
+      fetchSubcategories(selectedCategoryIds);
     } else {
       setSubcategories([]);
     }
-  }, [formData.category_id]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedCategoryKey]);
 
   const fetchCategories = async () => {
     try {
-      const response = await apiClient.get('/api/v1/categories');
-      setCategories(response || []);
+      // include_nested so nested categories can be assigned too
+      const response = await apiClient.get('/api/v1/categories?include_nested=true');
+      const list = Array.isArray(response) ? response : [];
+      // Parents first, each followed by its nested categories
+      const topLevel = list.filter((c) => !c.parent_id);
+      setCategories(
+        topLevel.flatMap((parent) => [
+          parent,
+          ...list.filter((c) => c.parent_id === parent.id),
+        ])
+      );
     } catch (error) {
       console.error('Failed to fetch categories:', error);
     }
   };
 
-  const fetchSubcategories = async (categoryId) => {
+  const fetchSubcategories = async (categoryIds) => {
     try {
-      const response = await apiClient.get(`/api/v1/admin/subcategories?category_id=${categoryId}`);
-      setSubcategories(response.items || []);
+      const responses = await Promise.all(
+        categoryIds.map((categoryId) =>
+          apiClient.get(`/api/v1/admin/subcategories?category_id=${categoryId}`)
+        )
+      );
+      const seen = new Set();
+      const merged = [];
+      for (const response of responses) {
+        for (const sub of response.items || []) {
+          if (!seen.has(sub.id)) {
+            seen.add(sub.id);
+            merged.push(sub);
+          }
+        }
+      }
+      setSubcategories(merged);
     } catch (error) {
       console.error('Failed to fetch subcategories:', error);
     }
@@ -194,12 +226,65 @@ const ProductEditor = ({ product, onBack }) => {
     }
   };
 
+  // The primary category always stays part of the assigned set
+  const handlePrimaryCategoryChange = (categoryId) => {
+    setFormData((prev) => {
+      const categoryIds = (prev.category_ids || []).filter((id) => id !== categoryId);
+      return {
+        ...prev,
+        category_id: categoryId,
+        category_ids: categoryId ? [categoryId, ...categoryIds] : categoryIds,
+      };
+    });
+  };
+
+  const handlePrimarySubcategoryChange = (subcategoryId) => {
+    setFormData((prev) => {
+      const subcategoryIds = (prev.subcategory_ids || []).filter((id) => id !== subcategoryId);
+      return {
+        ...prev,
+        subcategory_id: subcategoryId,
+        subcategory_ids: subcategoryId ? [subcategoryId, ...subcategoryIds] : subcategoryIds,
+      };
+    });
+  };
+
+  const toggleCategory = (categoryId) => {
+    setFormData((prev) => {
+      if (categoryId === prev.category_id) return prev;
+      const current = prev.category_ids || [];
+      return {
+        ...prev,
+        category_ids: current.includes(categoryId)
+          ? current.filter((id) => id !== categoryId)
+          : [...current, categoryId],
+      };
+    });
+  };
+
+  const toggleSubcategory = (subcategoryId) => {
+    setFormData((prev) => {
+      if (subcategoryId === prev.subcategory_id) return prev;
+      const current = prev.subcategory_ids || [];
+      return {
+        ...prev,
+        subcategory_ids: current.includes(subcategoryId)
+          ? current.filter((id) => id !== subcategoryId)
+          : [...current, subcategoryId],
+      };
+    });
+  };
+
   const handleSave = async () => {
     setSaving(true);
     try {
       const hoverImages = (formData.hover_images || []).filter((u) => u && String(u).trim());
+      const dedupe = (ids) => ids.filter((id, index, all) => id && all.indexOf(id) === index);
       const saveData = {
         ...formData,
+        // The primary assignment leads the list the backend stores
+        category_ids: dedupe([formData.category_id, ...(formData.category_ids || [])]),
+        subcategory_ids: dedupe([formData.subcategory_id, ...(formData.subcategory_ids || [])]),
         hover_images: hoverImages,
         images,
         variations,
@@ -310,39 +395,112 @@ const ProductEditor = ({ product, onBack }) => {
 
               <div>
                 <label className="block text-sm font-medium text-dark-200 mb-2">
-                  Category *
+                  Primary Category *
                 </label>
                 <select
                   value={formData.category_id || ''}
-                  onChange={(e) => {
-                    const categoryId = parseInt(e.target.value) || null;
-                    handleChange('category_id', categoryId);
-                    handleChange('subcategory_id', null);
-                  }}
+                  onChange={(e) => handlePrimaryCategoryChange(parseInt(e.target.value) || null)}
                   className="w-full px-4 py-2 bg-dark-700 border border-dark-600 rounded-lg text-dark-50 focus:border-primary-500 focus:ring-1 focus:ring-primary-500 outline-none"
                 >
                   <option value="">Select Category</option>
                   {categories.map(cat => (
-                    <option key={cat.id} value={cat.id}>{cat.name}</option>
+                    <option key={cat.id} value={cat.id}>
+                      {cat.parent_id ? `— ${cat.name}` : cat.name}
+                    </option>
                   ))}
                 </select>
+                <p className="mt-1 text-xs text-dark-400">
+                  Used for the product URL and breadcrumbs.
+                </p>
               </div>
 
               <div>
                 <label className="block text-sm font-medium text-dark-200 mb-2">
-                  Subcategory
+                  Primary Subcategory
                 </label>
                 <select
                   value={formData.subcategory_id || ''}
-                  onChange={(e) => handleChange('subcategory_id', parseInt(e.target.value) || null)}
+                  onChange={(e) => handlePrimarySubcategoryChange(parseInt(e.target.value) || null)}
                   className="w-full px-4 py-2 bg-dark-700 border border-dark-600 rounded-lg text-dark-50 focus:border-primary-500 focus:ring-1 focus:ring-primary-500 outline-none"
-                  disabled={!formData.category_id}
+                  disabled={subcategories.length === 0}
                 >
                   <option value="">Select Subcategory</option>
                   {subcategories.map(sub => (
                     <option key={sub.id} value={sub.id}>{sub.name}</option>
                   ))}
                 </select>
+              </div>
+
+              <div className="md:col-span-2">
+                <label className="block text-sm font-medium text-dark-200 mb-2">
+                  Categories
+                </label>
+                <p className="mb-2 text-xs text-dark-400">
+                  A product can be listed under several categories. The primary category is always included.
+                </p>
+                <div className="max-h-52 overflow-y-auto grid grid-cols-1 sm:grid-cols-2 gap-1 p-3 bg-dark-700 border border-dark-600 rounded-lg">
+                  {categories.length === 0 && (
+                    <span className="text-sm text-dark-400">No categories available</span>
+                  )}
+                  {categories.map(cat => {
+                    const isPrimary = cat.id === formData.category_id;
+                    return (
+                      <label
+                        key={cat.id}
+                        className={`flex items-center gap-2 px-2 py-1.5 rounded text-sm ${
+                          isPrimary ? 'text-dark-300' : 'text-dark-100 hover:bg-dark-600 cursor-pointer'
+                        }`}
+                      >
+                        <input
+                          type="checkbox"
+                          checked={isPrimary || (formData.category_ids || []).includes(cat.id)}
+                          disabled={isPrimary}
+                          onChange={() => toggleCategory(cat.id)}
+                          className="rounded border-dark-500 bg-dark-800 text-primary-500 focus:ring-primary-500"
+                        />
+                        <span>{cat.parent_id ? `— ${cat.name}` : cat.name}</span>
+                        {isPrimary && <span className="text-xs text-primary-400">primary</span>}
+                      </label>
+                    );
+                  })}
+                </div>
+              </div>
+
+              <div className="md:col-span-2">
+                <label className="block text-sm font-medium text-dark-200 mb-2">
+                  Subcategories
+                </label>
+                <p className="mb-2 text-xs text-dark-400">
+                  Subcategories of the selected categories. The primary subcategory is always included.
+                </p>
+                <div className="max-h-52 overflow-y-auto grid grid-cols-1 sm:grid-cols-2 gap-1 p-3 bg-dark-700 border border-dark-600 rounded-lg">
+                  {subcategories.length === 0 && (
+                    <span className="text-sm text-dark-400">
+                      No subcategories for the selected categories
+                    </span>
+                  )}
+                  {subcategories.map(sub => {
+                    const isPrimary = sub.id === formData.subcategory_id;
+                    return (
+                      <label
+                        key={sub.id}
+                        className={`flex items-center gap-2 px-2 py-1.5 rounded text-sm ${
+                          isPrimary ? 'text-dark-300' : 'text-dark-100 hover:bg-dark-600 cursor-pointer'
+                        }`}
+                      >
+                        <input
+                          type="checkbox"
+                          checked={isPrimary || (formData.subcategory_ids || []).includes(sub.id)}
+                          disabled={isPrimary}
+                          onChange={() => toggleSubcategory(sub.id)}
+                          className="rounded border-dark-500 bg-dark-800 text-primary-500 focus:ring-primary-500"
+                        />
+                        <span>{sub.name}</span>
+                        {isPrimary && <span className="text-xs text-primary-400">primary</span>}
+                      </label>
+                    );
+                  })}
+                </div>
               </div>
 
               <div>

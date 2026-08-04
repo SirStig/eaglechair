@@ -23,6 +23,29 @@ variation_families = Table(
     Column("family_id", Integer, ForeignKey("product_families.id", ondelete="CASCADE"), primary_key=True),
 )
 
+# A product can live in several categories / subcategories at once.
+# Chair.category_id / Chair.subcategory_id remain the "primary" assignment
+# (used for breadcrumbs, URLs and pricing tiers); these tables hold the full
+# set, primary included.
+chair_categories = Table(
+    "chair_categories",
+    Base.metadata,
+    Column("chair_id", Integer, ForeignKey("chairs.id", ondelete="CASCADE"), primary_key=True),
+    Column("category_id", Integer, ForeignKey("categories.id", ondelete="CASCADE"), primary_key=True),
+)
+
+chair_subcategories = Table(
+    "chair_subcategories",
+    Base.metadata,
+    Column("chair_id", Integer, ForeignKey("chairs.id", ondelete="CASCADE"), primary_key=True),
+    Column(
+        "subcategory_id",
+        Integer,
+        ForeignKey("product_subcategories.id", ondelete="CASCADE"),
+        primary_key=True,
+    ),
+)
+
 
 class Category(Base):
     """
@@ -297,6 +320,24 @@ class Chair(Base):
         nullable=True,
     )
     subcategory = relationship("ProductSubcategory", backref="products")
+
+    # Additional category / subcategory assignments (many-to-many).
+    # Always contains the primary assignment as well, so `categories` is the
+    # complete set of categories a product should be listed under.
+    # lazy="selectin" keeps these usable from async response serialization
+    # without every caller having to remember to eager load them.
+    categories = relationship(
+        "Category",
+        secondary=chair_categories,
+        backref="all_products",
+        lazy="selectin",
+    )
+    subcategories = relationship(
+        "ProductSubcategory",
+        secondary=chair_subcategories,
+        backref="all_products",
+        lazy="selectin",
+    )
 
     family_id = Column(
         Integer, ForeignKey("product_families.id", ondelete="SET NULL"), nullable=True

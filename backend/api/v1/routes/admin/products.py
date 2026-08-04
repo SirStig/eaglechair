@@ -10,6 +10,7 @@ from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import JSONResponse
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from backend.api.dependencies import get_current_admin, require_role
@@ -23,7 +24,12 @@ from backend.api.v1.schemas.product import ChairResponse
 from backend.core.exceptions import ResourceNotFoundError, ValidationError
 from backend.database.base import get_db
 from backend.models.chair import Chair as Product
-from backend.models.chair import ProductImage, ProductVariation
+from backend.models.chair import (
+    ProductImage,
+    ProductVariation,
+    chair_categories,
+    chair_subcategories,
+)
 from backend.models.company import AdminRole, AdminUser
 from backend.services.admin_service import AdminService
 from backend.utils.serializers import orm_list_to_dict_list, orm_to_dict
@@ -31,6 +37,59 @@ from backend.utils.serializers import orm_list_to_dict_list, orm_to_dict
 logger = logging.getLogger(__name__)
 
 router = APIRouter(tags=["Admin - Products"])
+
+
+async def _add_category_assignments(
+    db: AsyncSession, product_dicts: list, product_ids: list
+) -> None:
+    """
+    Add `category_ids` / `subcategory_ids` to serialized products.
+
+    A product can be listed under several categories and subcategories; the
+    primary assignment (`category_id` / `subcategory_id`) is always first in
+    the list. Read straight from the association tables so this works no
+    matter how the product was loaded.
+    """
+    if not product_ids:
+        return
+
+    cat_rows = await db.execute(
+        select(chair_categories.c.chair_id, chair_categories.c.category_id).where(
+            chair_categories.c.chair_id.in_(product_ids)
+        )
+    )
+    subcat_rows = await db.execute(
+        select(
+            chair_subcategories.c.chair_id, chair_subcategories.c.subcategory_id
+        ).where(chair_subcategories.c.chair_id.in_(product_ids))
+    )
+
+    categories_by_product = {}
+    for chair_id, category_id in cat_rows.all():
+        categories_by_product.setdefault(chair_id, []).append(category_id)
+
+    subcategories_by_product = {}
+    for chair_id, subcategory_id in subcat_rows.all():
+        subcategories_by_product.setdefault(chair_id, []).append(subcategory_id)
+
+    for product_dict in product_dicts:
+        product_id = product_dict.get("id")
+
+        category_ids = list(categories_by_product.get(product_id, []))
+        primary_category_id = product_dict.get("category_id")
+        if primary_category_id:
+            category_ids = [primary_category_id] + [
+                c for c in category_ids if c != primary_category_id
+            ]
+        product_dict["category_ids"] = category_ids
+
+        subcategory_ids = list(subcategories_by_product.get(product_id, []))
+        primary_subcategory_id = product_dict.get("subcategory_id")
+        if primary_subcategory_id:
+            subcategory_ids = [primary_subcategory_id] + [
+                s for s in subcategory_ids if s != primary_subcategory_id
+            ]
+        product_dict["subcategory_ids"] = subcategory_ids
 
 
 @router.get(
@@ -114,6 +173,8 @@ async def get_all_products(
         else:
             products_data[i]["variations"] = []
 
+    await _add_category_assignments(db, products_data, [p.id for p in products])
+
     response_data = {
         "items": products_data,
         "total": total_count,
@@ -147,7 +208,10 @@ async def create_product(
 
         await cache_service.invalidate_all_products()
 
-        return orm_to_dict(product)
+        product_dict = orm_to_dict(product)
+        await _add_category_assignments(db, [product_dict], [product.id])
+
+        return product_dict
 
     except ValidationError as e:
         raise HTTPException(status_code=400, detail=str(e))
@@ -213,6 +277,8 @@ async def get_product(
         else:
             product_dict["variations"] = []
 
+        await _add_category_assignments(db, [product_dict], [product.id])
+
         return product_dict
 
     except ResourceNotFoundError as e:
@@ -246,7 +312,10 @@ async def update_product(
 
         await cache_service.invalidate_product(product_id)
 
-        return orm_to_dict(product)
+        product_dict = orm_to_dict(product)
+        await _add_category_assignments(db, [product_dict], [product.id])
+
+        return product_dict
 
     except ResourceNotFoundError as e:
         raise HTTPException(status_code=404, detail=str(e))

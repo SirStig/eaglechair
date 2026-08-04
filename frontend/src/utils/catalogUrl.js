@@ -1,3 +1,12 @@
+import {
+  findCategoryById,
+  findCategoryBySlug,
+  findChildBySlug,
+  findNestedCategoryById,
+  findNestedCategoryBySlug,
+  isNestedCategoryChild,
+} from './categoryTree';
+
 export const DEFAULT_CATALOG_FILTERS = {
   category_id: '',
   subcategory_id: '',
@@ -59,16 +68,34 @@ export function resolveCatalogFilters({
   const filters = parseCatalogFilters(searchParams);
 
   if (categoryParam && categories.length > 0) {
-    const category = categories.find((c) => c.slug === categoryParam);
-    if (category) {
-      filters.category_id = category.id;
-      if (subcategoryParam && subcategories.length > 0) {
-        const subcat = subcategories.find(
+    const category = findCategoryBySlug(categories, categoryParam);
+
+    if (!category) {
+      // A nested category addressed directly, e.g. /products/category/wood-chairs
+      const nested = findNestedCategoryBySlug(categories, categoryParam);
+      if (nested) {
+        filters.category_id = nested.category.id;
+        filters.subcategory_id = '';
+      }
+      return filters;
+    }
+
+    filters.category_id = category.id;
+    filters.subcategory_id = '';
+
+    if (subcategoryParam) {
+      // A child is either a subcategory or a nested category; they share the
+      // /products/category/<parent>/<child> URL shape but filter differently.
+      const child =
+        findChildBySlug(category, subcategoryParam) ||
+        (subcategories || []).find(
           (s) => (s.slug || '').toLowerCase() === subcategoryParam.toLowerCase()
         );
-        filters.subcategory_id = subcat ? subcat.id : '';
-      } else {
-        filters.subcategory_id = '';
+
+      if (isNestedCategoryChild(child)) {
+        filters.category_id = child.id;
+      } else if (child) {
+        filters.subcategory_id = child.id;
       }
     }
   }
@@ -149,8 +176,17 @@ export function buildCatalogSearchParams(filters, page = 1) {
 }
 
 export function getCatalogLocation(filters, categories, subcategories, page = 1) {
-  const category = categories.find((c) => String(c.id) === String(filters.category_id));
-  const subcategory = subcategories.find((s) => String(s.id) === String(filters.subcategory_id));
+  const nested = findCategoryById(categories, filters.category_id)
+    ? null
+    : findNestedCategoryById(categories, filters.category_id);
+
+  const category = nested
+    ? nested.parent
+    : findCategoryById(categories, filters.category_id);
+  const subcategory = nested
+    ? nested.category
+    : subcategories.find((s) => String(s.id) === String(filters.subcategory_id));
+
   const pathname = buildCatalogPath(category?.slug, subcategory?.slug);
   const search = buildCatalogSearchParams(filters, page);
   const searchString = search.toString();

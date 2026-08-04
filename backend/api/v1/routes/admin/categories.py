@@ -9,7 +9,7 @@ from typing import List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from pydantic import BaseModel
-from sqlalchemy import select
+from sqlalchemy import or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from backend.api.dependencies import get_current_admin, require_role
@@ -20,7 +20,7 @@ from backend.api.v1.schemas.product import (
     CategoryWithSubcategories,
 )
 from backend.database.base import get_db
-from backend.models.chair import Category, Chair, ProductSubcategory
+from backend.models.chair import Category, Chair, ProductSubcategory, chair_categories
 from backend.models.company import AdminRole, AdminUser
 from backend.utils.slug import slugify
 from backend.utils.static_content_exporter import export_content_after_update
@@ -37,6 +37,99 @@ class ReorderItem(BaseModel):
 
 class ReorderBody(BaseModel):
     order: List[ReorderItem]
+
+
+# ============================================================================
+# Serialization helpers
+# ============================================================================
+
+
+def _category_dict(category: Category, children: List[dict]) -> dict:
+    """Serialize a top-level category with its children for the admin UI."""
+    return {
+        "id": category.id,
+        "name": category.name,
+        "slug": category.slug,
+        "description": category.description,
+        "parent_id": category.parent_id,
+        "display_order": category.display_order,
+        "is_active": category.is_active,
+        "icon_url": category.icon_url,
+        "banner_image_url": category.banner_image_url,
+        "meta_title": category.meta_title,
+        "meta_description": category.meta_description,
+        "created_at": category.created_at,
+        "updated_at": category.updated_at,
+        "type": "category",
+        "subcategories": children,
+    }
+
+
+async def _load_category_children(db: AsyncSession, category_id: int) -> List[dict]:
+    """
+    Load everything that hangs off a category: product subcategories and
+    nested categories (categories whose parent_id points at it).
+
+    Nested categories are returned here — rather than as top-level rows — so
+    the admin list and the storefront agree on what is a primary category.
+    Each child carries a ``type`` so the UI knows which endpoint owns it.
+    """
+    subcat_result = await db.execute(
+        select(ProductSubcategory)
+        .where(ProductSubcategory.category_id == category_id)
+        .order_by(ProductSubcategory.display_order, ProductSubcategory.name)
+    )
+
+    children = [
+        {
+            "id": sub.id,
+            "name": sub.name,
+            "slug": sub.slug,
+            "description": sub.description,
+            "parent_id": None,  # ProductSubcategory uses category_id, not parent_id
+            "display_order": sub.display_order,
+            "is_active": sub.is_active,
+            "icon_url": None,  # ProductSubcategory doesn't have image fields
+            "banner_image_url": None,
+            "meta_title": None,  # ProductSubcategory doesn't have meta fields
+            "meta_description": None,
+            "created_at": getattr(sub, "created_at", None),
+            "updated_at": getattr(sub, "updated_at", None),
+            "type": "subcategory",
+            "subcategories": [],
+        }
+        for sub in subcat_result.scalars().all()
+    ]
+
+    nested_result = await db.execute(
+        select(Category)
+        .where(Category.parent_id == category_id)
+        .order_by(Category.display_order, Category.name)
+    )
+
+    children.extend(
+        {
+            "id": nested.id,
+            "name": nested.name,
+            "slug": nested.slug,
+            "description": nested.description,
+            "parent_id": nested.parent_id,
+            "display_order": nested.display_order,
+            "is_active": nested.is_active,
+            "icon_url": nested.icon_url,
+            "banner_image_url": nested.banner_image_url,
+            "meta_title": nested.meta_title,
+            "meta_description": nested.meta_description,
+            "created_at": nested.created_at,
+            "updated_at": nested.updated_at,
+            "type": "category",
+            "subcategories": [],
+        }
+        for nested in nested_result.scalars().all()
+    )
+
+    children.sort(key=lambda c: (c["display_order"] or 0, c["name"] or ""))
+    return children
 
 
 # ============================================================================
@@ -70,52 +163,9 @@ async def get_categories_admin(
     # Build response with subcategories
     response_data = []
     for category in categories:
-        # Load subcategories from ProductSubcategory table (not Category.parent_id)
-        subcat_query = (
-            select(ProductSubcategory)
-            .where(ProductSubcategory.category_id == category.id)
-            .order_by(ProductSubcategory.display_order, ProductSubcategory.name)
-        )
-        subcat_result = await db.execute(subcat_query)
-        subcategories = subcat_result.scalars().all()
-        
-        # Build dict manually to avoid lazy loading issues
-        cat_dict = {
-            "id": category.id,
-            "name": category.name,
-            "slug": category.slug,
-            "description": category.description,
-            "parent_id": category.parent_id,
-            "display_order": category.display_order,
-            "is_active": category.is_active,
-            "icon_url": category.icon_url,
-            "banner_image_url": category.banner_image_url,
-            "meta_title": category.meta_title,
-            "meta_description": category.meta_description,
-            "created_at": category.created_at,
-            "updated_at": category.updated_at,
-            "subcategories": [
-                {
-                    "id": sub.id,
-                    "name": sub.name,
-                    "slug": sub.slug,
-                    "description": sub.description,
-                    "parent_id": None,  # ProductSubcategory uses category_id, not parent_id
-                    "display_order": sub.display_order,
-                    "is_active": sub.is_active,
-                    "icon_url": None,  # ProductSubcategory doesn't have icon_url
-                    "banner_image_url": None,  # ProductSubcategory doesn't have banner_image_url
-                    "meta_title": None,  # ProductSubcategory doesn't have meta fields
-                    "meta_description": None,
-                    "created_at": sub.created_at if hasattr(sub, 'created_at') else None,
-                    "updated_at": sub.updated_at if hasattr(sub, 'updated_at') else None,
-                    "subcategories": []
-                }
-                for sub in subcategories
-            ]
-        }
-        response_data.append(cat_dict)
-    
+        children = await _load_category_children(db, category.id)
+        response_data.append(_category_dict(category, children))
+
     return response_data
 
 
@@ -178,22 +228,7 @@ async def create_category(
 
     logger.info(f"Created category: {category.name} (ID: {category.id})")
     
-    return {
-        "id": category.id,
-        "name": category.name,
-        "slug": category.slug,
-        "description": category.description,
-        "parent_id": category.parent_id,
-        "display_order": category.display_order,
-        "is_active": category.is_active,
-        "icon_url": category.icon_url,
-        "banner_image_url": category.banner_image_url,
-        "meta_title": category.meta_title,
-        "meta_description": category.meta_description,
-        "created_at": category.created_at,
-        "updated_at": category.updated_at,
-        "subcategories": []
-    }
+    return _category_dict(category, [])
 
 
 @router.put(
@@ -251,49 +286,9 @@ async def update_category(
 
     await export_content_after_update('categories', db)
     
-    # Load subcategories from ProductSubcategory table (not Category.parent_id)
-    subcat_query = (
-        select(ProductSubcategory)
-        .where(ProductSubcategory.category_id == category.id)
-        .order_by(ProductSubcategory.display_order, ProductSubcategory.name)
-    )
-    subcat_result = await db.execute(subcat_query)
-    subcategories = subcat_result.scalars().all()
-    
-    return {
-        "id": category.id,
-        "name": category.name,
-        "slug": category.slug,
-        "description": category.description,
-        "parent_id": category.parent_id,
-        "display_order": category.display_order,
-        "is_active": category.is_active,
-        "icon_url": category.icon_url,
-        "banner_image_url": category.banner_image_url,
-        "meta_title": category.meta_title,
-        "meta_description": category.meta_description,
-        "created_at": category.created_at,
-        "updated_at": category.updated_at,
-        "subcategories": [
-            {
-                "id": sub.id,
-                "name": sub.name,
-                "slug": sub.slug,
-                "description": sub.description,
-                "parent_id": None,  # ProductSubcategory uses category_id, not parent_id
-                "display_order": sub.display_order,
-                "is_active": sub.is_active,
-                "icon_url": None,  # ProductSubcategory doesn't have these fields
-                "banner_image_url": None,
-                "meta_title": None,
-                "meta_description": None,
-                "created_at": sub.created_at if hasattr(sub, 'created_at') else None,
-                "updated_at": sub.updated_at if hasattr(sub, 'updated_at') else None,
-                "subcategories": []
-            }
-            for sub in subcategories
-        ]
-    }
+    children = await _load_category_children(db, category.id)
+
+    return _category_dict(category, children)
 
 
 @router.delete(
@@ -329,8 +324,26 @@ async def delete_category(
             detail="Cannot delete category with subcategories. Delete subcategories first."
         )
 
+    nested_check = await db.execute(
+        select(Category).where(Category.parent_id == category_id)
+    )
+    if nested_check.first():
+        raise HTTPException(
+            status_code=400,
+            detail="Cannot delete category with subcategories. Delete subcategories first."
+        )
+
     product_check = await db.execute(
-        select(Chair).where(Chair.category_id == category_id)
+        select(Chair).where(
+            or_(
+                Chair.category_id == category_id,
+                Chair.id.in_(
+                    select(chair_categories.c.chair_id).where(
+                        chair_categories.c.category_id == category_id
+                    )
+                ),
+            )
+        )
     )
     if product_check.first():
         raise HTTPException(
