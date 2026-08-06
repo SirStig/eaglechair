@@ -24,6 +24,7 @@ import {
   deleteHeroSlide,
   deleteClientLogo
 } from '../services/contentService';
+import CategoryTile from '../components/products/CategoryTile';
 import productService from '../services/productService';
 import { resolveImageUrl } from '../utils/apiHelpers';
 import logger from '../utils/logger';
@@ -33,12 +34,25 @@ const CONTEXT = 'HomePage';
 
 const DEFAULT_BANNER = '/assets/default-banner-categories.png';
 
+// Widest the product grid goes before extra categories collapse into
+// "More Categories" - matches the Products dropdown
+const MAX_CATEGORY_COLUMNS = 5;
+
 const HomePage = () => {
   const [selectedQuickView, setSelectedQuickView] = useState(null);
   const [isCreatingLogo, setIsCreatingLogo] = useState(false);
   const [categories, setCategories] = useState([]);
   const [subcategoriesByCategory, setSubcategoriesByCategory] = useState({});
   const [categoriesLoading, setCategoriesLoading] = useState(true);
+
+  // Categories beyond the first four collapse into a "More Categories" tile,
+  // so the row never wraps onto a second, half-empty line.
+  const featuredCategories = categories.slice(0, MAX_CATEGORY_COLUMNS - 1);
+  const overflowCategories = categories.slice(MAX_CATEGORY_COLUMNS - 1);
+  const categoryColumnCount = Math.min(
+    featuredCategories.length + (overflowCategories.length > 0 ? 1 : 0),
+    MAX_CATEGORY_COLUMNS
+  );
   const galleryScrollRef = useRef(null);
   const [confirmModal, setConfirmModal] = useState({ isOpen: false, onConfirm: null, message: '', title: '' });
   const { isEditMode } = useEditMode();
@@ -590,101 +604,52 @@ const HomePage = () => {
           </div>
         ) : (
           <div className="w-full bg-cream-50">
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-0">
-              {categories.slice(0, 4).map((category) => {
+            {/* The column count is set inline so all tiles stay on one row -
+                a Tailwind class can't be built from a runtime value. */}
+            <div
+              className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-[repeat(var(--tile-columns),minmax(0,1fr))] gap-0"
+              style={{ '--tile-columns': categoryColumnCount }}
+            >
+              {featuredCategories.map((category) => {
                 const subcategories = subcategoriesByCategory[category.id] || [];
-                const bannerImage = resolveImageUrl(category.banner_image_url || category.bannerImage || DEFAULT_BANNER);
                 return (
-                  <div key={category.id} className="relative group">
-                    <div className="relative h-[520px] sm:h-[500px] md:h-[550px] lg:h-[600px] overflow-hidden">
-                      <Link to={`/products/category/${category.slug}`} className="absolute inset-0 block bg-slate-100">
-                        <img
-                          src={bannerImage}
-                          alt={category.name}
-                          className="absolute inset-0 w-full h-full object-cover transition-all duration-150 group-hover:scale-110"
-                          loading="eager"
-                        />
-                        <div
-                          className="absolute top-0 left-0 right-0 bottom-0 w-full h-full pointer-events-none"
-                          style={{ background: 'linear-gradient(to top, rgba(0,0,0,0.95) 0%, rgba(0,0,0,0.9) 20%, rgba(0,0,0,0.75) 45%, rgba(0,0,0,0.5) 70%, rgba(0,0,0,0.35) 85%, rgba(0,0,0,0.2) 100%)' }}
-                          aria-hidden
-                        />
-                      </Link>
-                      <div className="absolute inset-0 flex flex-col justify-between p-6 sm:p-8 pointer-events-none">
-                        <div>
-                          <h3 className="text-white font-bold mb-2 text-[clamp(0.875rem,1.25vw+0.75rem,1.875rem)] [text-shadow:0_0_20px_rgba(0,0,0,0.9),0_0_8px_rgba(0,0,0,0.8),0_2px_4px_rgba(0,0,0,0.9)]">
-                            {category.name}
-                          </h3>
-                          <div className="w-16 h-1 bg-primary-500 rounded-full" />
-                        </div>
-                        <div className="relative pl-2 sm:pl-4 pointer-events-auto py-6">
-                          <div className="space-y-2">
-                            {subcategories.slice(0, 5).map((subcat) => (
-                              <Link
-                                key={subcat.id}
-                                to={`/products/category/${category.slug}/${subcat.slug}`}
-                                className="block w-full text-left py-3 px-2 text-white hover:text-white hover:translate-x-2 transition-all duration-200 text-base font-medium [text-shadow:0_0_12px_rgba(0,0,0,0.9),0_0_4px_rgba(0,0,0,0.8),0_1px_3px_rgba(0,0,0,0.9)]"
-                              >
-                                {subcat.name}
-                              </Link>
-                            ))}
-                            <Link
-                              to={`/products/category/${category.slug}`}
-                              className="block w-full text-left py-3 px-2 text-white hover:text-primary-300 hover:translate-x-2 transition-all duration-200 text-base font-bold mt-4 [text-shadow:0_0_12px_rgba(0,0,0,0.9),0_0_4px_rgba(0,0,0,0.8),0_1px_3px_rgba(0,0,0,0.9)]"
-                            >
-                              View All {category.name} →
-                            </Link>
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
+                  <CategoryTile
+                    key={category.id}
+                    title={category.name}
+                    href={`/products/category/${category.slug}`}
+                    imageUrl={resolveImageUrl(category.banner_image_url || category.bannerImage || DEFAULT_BANNER)}
+                    fallbackImage={DEFAULT_BANNER}
+                    columns={categoryColumnCount}
+                    heightClassName="h-[520px] sm:h-[500px] md:h-[550px] lg:h-[600px]"
+                    backgroundClassName="bg-slate-100"
+                    eager
+                    links={subcategories.slice(0, 5).map((subcat) => ({
+                      key: `${subcat.type || 'subcategory'}-${subcat.id}`,
+                      label: subcat.name,
+                      to: `/products/category/${category.slug}/${subcat.slug}`,
+                    }))}
+                    viewAllLabel={`View All ${category.name}`}
+                  />
                 );
               })}
-              {categories.length > 4 && (
-                <div className="relative group">
-                  <div className="relative h-[520px] sm:h-[500px] md:h-[550px] lg:h-[600px] overflow-hidden">
-                    <Link to="/products" className="absolute inset-0 block">
-                      <img
-                        src={DEFAULT_BANNER}
-                        alt="More Categories"
-                        className="absolute inset-0 w-full h-full object-cover transition-all duration-150 group-hover:scale-110"
-                      />
-                      <div
-                        className="absolute top-0 left-0 right-0 bottom-0 w-full h-full pointer-events-none"
-                        style={{ background: 'linear-gradient(to top, rgba(0,0,0,0.95) 0%, rgba(0,0,0,0.9) 20%, rgba(0,0,0,0.75) 45%, rgba(0,0,0,0.5) 70%, rgba(0,0,0,0.35) 85%, rgba(0,0,0,0.2) 100%)' }}
-                        aria-hidden
-                      />
-                    </Link>
-                    <div className="absolute inset-0 flex flex-col justify-between p-6 sm:p-8 pointer-events-none">
-                      <div>
-                        <h3 className="text-white font-bold mb-2 text-[clamp(0.875rem,1.25vw+0.75rem,1.875rem)] [text-shadow:0_0_20px_rgba(0,0,0,0.9),0_0_8px_rgba(0,0,0,0.8),0_2px_4px_rgba(0,0,0,0.9)]">
-                          More Categories
-                        </h3>
-                        <div className="w-16 h-1 bg-primary-500 rounded-full" />
-                      </div>
-                      <div className="relative pl-2 sm:pl-4 pointer-events-auto py-6">
-                        <div className="space-y-2">
-                          {categories.slice(4).map((cat) => (
-                            <Link
-                              key={cat.id}
-                              to={`/products/category/${cat.slug}`}
-                              className="block w-full text-left py-3 px-2 text-white hover:text-white hover:translate-x-2 transition-all duration-200 text-base font-medium [text-shadow:0_0_12px_rgba(0,0,0,0.9),0_0_4px_rgba(0,0,0,0.8),0_1px_3px_rgba(0,0,0,0.9)]"
-                            >
-                              {cat.name}
-                            </Link>
-                          ))}
-                          <Link
-                            to="/products"
-                            className="block w-full text-left py-3 px-2 text-white hover:text-primary-300 hover:translate-x-2 transition-all duration-200 text-base font-bold mt-4 [text-shadow:0_0_12px_rgba(0,0,0,0.9),0_0_4px_rgba(0,0,0,0.8),0_1px_3px_rgba(0,0,0,0.9)]"
-                          >
-                            View All Products →
-                          </Link>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                </div>
+
+              {overflowCategories.length > 0 && (
+                <CategoryTile
+                  title="More Categories"
+                  href="/products"
+                  imageUrl={DEFAULT_BANNER}
+                  fallbackImage={DEFAULT_BANNER}
+                  columns={categoryColumnCount}
+                  heightClassName="h-[520px] sm:h-[500px] md:h-[550px] lg:h-[600px]"
+                  backgroundClassName="bg-slate-100"
+                  eager
+                  links={overflowCategories.map((category) => ({
+                    key: `category-${category.id}`,
+                    label: category.name,
+                    to: `/products/category/${category.slug}`,
+                  }))}
+                  viewAllLabel="View All Products"
+                />
               )}
             </div>
           </div>
