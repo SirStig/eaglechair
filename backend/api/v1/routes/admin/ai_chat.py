@@ -821,8 +821,20 @@ async def websocket_chat(websocket: WebSocket, session_id: str):
     """
     await websocket.accept()
 
-    # Validate session and admin token via header or query param
+    # Authenticate via the httpOnly access_token cookie (browsers) or a
+    # ?token= query param (non-browser clients)
     token = websocket.query_params.get("token", "")
+    if not token:
+        token = websocket.cookies.get("access_token", "")
+        if token:
+            # Cookie auth: block cross-site WebSocket hijacking
+            from backend.core.middleware.csrf import CSRFOriginMiddleware, normalize_origin
+
+            origin = normalize_origin(websocket.headers.get("origin"))
+            if not origin or origin not in CSRFOriginMiddleware._trusted_origins():
+                await websocket.send_json(AIStreamEvent.error("Origin not allowed"))
+                await websocket.close(code=4003)
+                return
     if not token:
         await websocket.send_json(AIStreamEvent.error("Authentication required"))
         await websocket.close(code=4001)
@@ -830,8 +842,8 @@ async def websocket_chat(websocket: WebSocket, session_id: str):
 
     try:
         payload = SecurityManager.decode_token(token)
-        if payload.get("type") != "admin":
-            raise ValueError("Not an admin token")
+        if payload.get("type") != "admin" or payload.get("token_type") != "access":
+            raise ValueError("Not an admin access token")
     except Exception:
         await websocket.send_json(AIStreamEvent.error("Invalid or expired token"))
         await websocket.close(code=4001)
@@ -850,8 +862,12 @@ async def websocket_chat(websocket: WebSocket, session_id: str):
     try:
         async with AsyncSessionLocal() as db:
             ws_admin = await db.get(AdminUser, admin_id)
-            if ws_admin is None or not ws_admin.is_active:
-                await websocket.send_json(AIStreamEvent.error("Invalid token"))
+            if (
+                ws_admin is None
+                or not ws_admin.is_active
+                or not SecurityManager.token_version_matches(payload, ws_admin)
+            ):
+                await websocket.send_json(AIStreamEvent.error("Invalid or expired token"))
                 await websocket.close(code=4001)
                 return
             # Edit/agent modes can create products directly (create_product tool);

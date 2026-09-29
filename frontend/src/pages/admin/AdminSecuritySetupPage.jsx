@@ -44,13 +44,14 @@ const AdminSecuritySetupPage = () => {
   const handlePasskeyRegister = async () => {
     setError(null);
     try {
-      const options = await getPasskeyRegisterOptions();
-      const credential = await createPasskey(options);
+      // The server keeps the challenge; we only echo back its id
+      const { challengeId, ...publicKeyOptions } = await getPasskeyRegisterOptions();
+      const credential = await createPasskey(publicKeyOptions);
       if (!credential) {
         setError('Passkey registration was cancelled');
         return;
       }
-      await registerPasskey({ options, credential });
+      await registerPasskey({ challengeId, credential });
       setPasskeyDone(true);
       if (!status?.needsMfa) navigate('/admin/dashboard', { replace: true });
     } catch (err) {

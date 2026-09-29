@@ -23,6 +23,7 @@ from fastapi.responses import Response
 from pydantic import TypeAdapter
 
 from backend.core.config import settings
+from backend.core.security import AUTH_COOKIE_NAMES
 
 logger = logging.getLogger(__name__)
 
@@ -124,7 +125,11 @@ def _cache_key(request: Request, version: int) -> str:
 
 
 def _is_authenticated_request(request: Request) -> bool:
-    return bool(request.headers.get("authorization"))
+    # Browsers authenticate with httpOnly cookies, API clients with a header;
+    # either way the response may carry per-company pricing.
+    if request.headers.get("authorization"):
+        return True
+    return any(request.cookies.get(name) for name in AUTH_COOKIE_NAMES)
 
 
 def _apply_cache_headers(response: Response, request: Request) -> Response:
@@ -133,7 +138,7 @@ def _apply_cache_headers(response: Response, request: Request) -> Response:
         if _is_authenticated_request(request)
         else PUBLIC_CACHE_CONTROL
     )
-    response.headers["Vary"] = "Authorization"
+    response.headers["Vary"] = "Authorization, Cookie"
     return response
 
 
@@ -184,6 +189,6 @@ async def public_json_response(
     response = Response(content=body, media_type="application/json")
     if not cacheable:
         response.headers["Cache-Control"] = PRIVATE_CACHE_CONTROL
-        response.headers["Vary"] = "Authorization"
+        response.headers["Vary"] = "Authorization, Cookie"
         return response
     return _apply_cache_headers(response, request)

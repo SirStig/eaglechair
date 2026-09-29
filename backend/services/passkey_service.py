@@ -1,8 +1,11 @@
+import hashlib
+import hmac
 import json
 import logging
+import secrets
 from typing import Optional
 
-from sqlalchemy import select
+from sqlalchemy import func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from webauthn import (
     generate_authentication_options,
@@ -10,7 +13,7 @@ from webauthn import (
     verify_authentication_response,
     verify_registration_response,
 )
-from webauthn.helpers import base64url_to_bytes, options_to_json
+from webauthn.helpers import base64url_to_bytes, bytes_to_base64url, options_to_json
 from webauthn.helpers.structs import (
     AuthenticatorSelectionCriteria,
     PublicKeyCredentialDescriptor,
@@ -19,6 +22,7 @@ from webauthn.helpers.structs import (
 )
 
 from backend.core.config import settings
+from backend.core.ephemeral_store import ephemeral_store
 from backend.core.exceptions import InvalidCredentialsError, InvalidInputError
 from backend.models.company import AdminUser
 from backend.models.passkey import AdminPasskeyCredential
@@ -40,6 +44,48 @@ def _get_origin() -> str:
     if not url.startswith("http"):
         url = f"https://{url}"
     return url
+
+
+# WebAuthn challenges are stored server-side, single use, for this long
+CHALLENGE_TTL_SECONDS = 120
+
+
+async def _store_challenge(purpose: str, challenge: bytes, admin_id: Optional[int]) -> str:
+    """Store an issued challenge under a random id and return the id"""
+    challenge_id = secrets.token_urlsafe(32)
+    await ephemeral_store.set(
+        f"webauthn:{purpose}:{challenge_id}",
+        json.dumps({"challenge": bytes_to_base64url(challenge), "admin_id": admin_id}),
+        CHALLENGE_TTL_SECONDS,
+    )
+    return challenge_id
+
+
+async def _consume_challenge(purpose: str, challenge_id) -> Optional[dict]:
+    """Fetch and delete (single use) a stored challenge; None if missing/expired"""
+    if not isinstance(challenge_id, str) or not challenge_id or len(challenge_id) > 128:
+        return None
+    raw = await ephemeral_store.pop(f"webauthn:{purpose}:{challenge_id}")
+    if not raw:
+        return None
+    try:
+        record = json.loads(raw)
+        record["challenge"] = base64url_to_bytes(record["challenge"])
+        return record
+    except Exception:
+        return None
+
+
+def _decoy_credential_id(identifier: str) -> bytes:
+    """
+    Deterministic fake credential id for unknown usernames (or admins without
+    passkeys) so /passkey/options has the same shape either way.
+    """
+    return hmac.new(
+        settings.SECRET_KEY.encode("utf-8"),
+        f"webauthn-decoy:{identifier.strip().lower()}".encode("utf-8"),
+        hashlib.sha256,
+    ).digest()
 
 
 class PasskeyService:
@@ -71,7 +117,8 @@ class PasskeyService:
             ),
             timeout=60000,
         )
-        return json.loads(options_to_json(options))
+        challenge_id = await _store_challenge("register", options.challenge, admin_user.id)
+        return {**json.loads(options_to_json(options)), "challengeId": challenge_id}
 
     @staticmethod
     async def verify_registration(
@@ -80,26 +127,27 @@ class PasskeyService:
         credential: dict,
         device_name: Optional[str] = None,
     ) -> AdminPasskeyCredential:
-        options_json = credential.get("options")
-        if not options_json:
-            raise InvalidInputError(field="options", reason="Registration options required")
-        challenge = options_json.get("challenge")
-        if not challenge:
-            raise InvalidInputError(field="challenge", reason="Challenge required")
-        try:
-            challenge_bytes = base64url_to_bytes(challenge)
-        except Exception as e:
-            raise InvalidInputError(field="challenge", reason=f"Invalid challenge: {e}")
+        # The challenge comes from server-side storage (never from the client)
+        record = await _consume_challenge("register", credential.get("challengeId"))
+        if not record or record.get("admin_id") != admin_user.id:
+            raise InvalidInputError(
+                field="challengeId",
+                reason="Registration challenge is invalid or has expired. Please try again.",
+            )
         cred = credential.get("credential")
         if not cred:
             raise InvalidInputError(field="credential", reason="Registration credential required")
-        verification = verify_registration_response(
-            credential=cred,
-            expected_challenge=challenge_bytes,
-            expected_origin=_get_origin(),
-            expected_rp_id=_get_rp_id(),
-            require_user_verification=True,
-        )
+        try:
+            verification = verify_registration_response(
+                credential=cred,
+                expected_challenge=record["challenge"],
+                expected_origin=_get_origin(),
+                expected_rp_id=_get_rp_id(),
+                require_user_verification=True,
+            )
+        except Exception as e:
+            logger.warning(f"Passkey registration verification failed for {admin_user.username}: {e}")
+            raise InvalidInputError(field="credential", reason="Passkey registration could not be verified")
         existing = await db.execute(
             select(AdminPasskeyCredential).where(
                 AdminPasskeyCredential.credential_id == verification.credential_id
@@ -124,36 +172,66 @@ class PasskeyService:
         return passkey
 
     @staticmethod
-    async def get_authentication_options(db: AsyncSession) -> dict:
-        result = await db.execute(select(AdminPasskeyCredential))
-        credentials = result.scalars().all()
-        allow_credentials = [
-            PublicKeyCredentialDescriptor(id=c.credential_id, transports=None)
-            for c in credentials
-        ]
+    async def get_authentication_options(db: AsyncSession, username: str) -> dict:
+        """
+        Options for signing in as `username` (username or email).
+
+        Only that admin's credential ids are listed. Unknown users (and admins
+        without passkeys) get a deterministic decoy credential id so the
+        response has the same shape and does not reveal whether they exist.
+        """
+        identifier = (username or "").strip()
+        admin = None
+        if identifier:
+            result = await db.execute(
+                select(AdminUser).where(
+                    or_(
+                        AdminUser.username == identifier,
+                        func.lower(AdminUser.email) == identifier.lower(),
+                    )
+                )
+            )
+            admin = result.scalars().first()
+
+        credentials = []
+        if admin and admin.is_active:
+            result = await db.execute(
+                select(AdminPasskeyCredential).where(
+                    AdminPasskeyCredential.admin_user_id == admin.id
+                )
+            )
+            credentials = result.scalars().all()
+
+        if credentials:
+            allow_credentials = [
+                PublicKeyCredentialDescriptor(id=c.credential_id, transports=None)
+                for c in credentials
+            ]
+            bound_admin_id = admin.id
+        else:
+            allow_credentials = [
+                PublicKeyCredentialDescriptor(id=_decoy_credential_id(identifier), transports=None)
+            ]
+            bound_admin_id = None
+
         options = generate_authentication_options(
             rp_id=_get_rp_id(),
-            allow_credentials=allow_credentials if allow_credentials else None,
+            allow_credentials=allow_credentials,
             user_verification=UserVerificationRequirement.REQUIRED,
             timeout=60000,
         )
-        return json.loads(options_to_json(options))
+        challenge_id = await _store_challenge("auth", options.challenge, bound_admin_id)
+        return {**json.loads(options_to_json(options)), "challengeId": challenge_id}
 
     @staticmethod
     async def verify_authentication(
         db: AsyncSession,
         credential: dict,
     ) -> AdminUser:
-        options_json = credential.get("options")
-        if not options_json:
-            raise InvalidCredentialsError("Authentication options required")
-        challenge = options_json.get("challenge")
-        if not challenge:
-            raise InvalidCredentialsError("Challenge required")
-        try:
-            challenge_bytes = base64url_to_bytes(challenge)
-        except Exception:
-            raise InvalidCredentialsError("Invalid challenge")
+        # The challenge comes from server-side storage (never from the client)
+        record = await _consume_challenge("auth", credential.get("challengeId"))
+        if not record:
+            raise InvalidCredentialsError("Passkey challenge is invalid or has expired. Please try again.")
         cred = credential.get("credential")
         if not cred:
             raise InvalidCredentialsError("Authentication credential required")
@@ -170,17 +248,22 @@ class PasskeyService:
             )
         )
         passkey = result.scalar_one_or_none()
-        if not passkey:
-            raise InvalidCredentialsError("Passkey not found")
-        verification = verify_authentication_response(
-            credential=cred,
-            expected_challenge=challenge_bytes,
-            expected_origin=_get_origin(),
-            expected_rp_id=_get_rp_id(),
-            credential_public_key=passkey.public_key,
-            credential_current_sign_count=passkey.sign_count,
-            require_user_verification=True,
-        )
+        # The passkey must belong to the admin the challenge was issued for
+        if not passkey or record.get("admin_id") is None or passkey.admin_user_id != record["admin_id"]:
+            raise InvalidCredentialsError("Passkey not recognized")
+        try:
+            verification = verify_authentication_response(
+                credential=cred,
+                expected_challenge=record["challenge"],
+                expected_origin=_get_origin(),
+                expected_rp_id=_get_rp_id(),
+                credential_public_key=passkey.public_key,
+                credential_current_sign_count=passkey.sign_count,
+                require_user_verification=True,
+            )
+        except Exception as e:
+            logger.warning(f"Passkey authentication verification failed: {e}")
+            raise InvalidCredentialsError("Passkey could not be verified")
         passkey.sign_count = verification.new_sign_count
         await db.commit()
         result = await db.execute(

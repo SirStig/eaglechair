@@ -54,6 +54,9 @@ class RouteConfig:
         "/api/v1/auth/admin/passkey/options",
         "/api/v1/auth/admin/passkey/authenticate",
         "/api/v1/auth/refresh",
+        # Logout authenticates itself (access or refresh token) and must be
+        # reachable after the access cookie has expired so cookies get cleared
+        "/api/v1/auth/logout",
         "/api/v1/auth/verify-email",
         "/api/v1/auth/resend-verification",
         "/api/v1/auth/password/reset-request",

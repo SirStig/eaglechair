@@ -1,5 +1,17 @@
+"""
+Reset the admin@eaglechair.com password.
+
+Usage:
+    python -m backend.scripts.reset_admin_password [--password PASSWORD]
+
+Without --password a strong random password is generated and printed once.
+Also signs out all existing sessions and clears any account lockout.
+"""
+
+import argparse
 import asyncio
 import logging
+import secrets
 import sys
 from pathlib import Path
 
@@ -12,14 +24,18 @@ from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
 from backend.core.config import settings
 from backend.core.security import SecurityManager
+from backend.database.base import ensure_token_version_columns
 from backend.models.company import AdminUser
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 
-async def reset_password():
-    """Reset admin password to temp123"""
+async def reset_password(password: str | None = None):
+    """Reset admin password (random unless one is given)"""
+    generated = password is None
+    if generated:
+        password = secrets.token_urlsafe(24)
 
     db_url = settings.DATABASE_URL
     if db_url.startswith("postgresql://"):
@@ -28,6 +44,7 @@ async def reset_password():
         db_url = db_url.replace("postgresql+psycopg2://", "postgresql+asyncpg://", 1)
 
     engine = create_async_engine(db_url, echo=False, future=True)
+    await ensure_token_version_columns(engine)
     async_session_factory = async_sessionmaker(engine, expire_on_commit=False)
 
     async with async_session_factory() as session:
@@ -42,15 +59,27 @@ async def reset_password():
                 logger.error("❌ Admin user not found!")
                 return
 
-            # Update password
-            new_hash = SecurityManager.hash_password("temp123")
+            # Update password, revoke existing sessions, clear lockout
+            new_hash = SecurityManager.hash_password(password)
             await session.execute(
                 update(AdminUser)
                 .where(AdminUser.email == "admin@eaglechair.com")
-                .values(hashed_password=new_hash)
+                .values(
+                    hashed_password=new_hash,
+                    token_version=(admin.token_version or 0) + 1,
+                    session_token=None,
+                    admin_token=None,
+                    refresh_token=None,
+                    refresh_token_expires=None,
+                    failed_login_attempts=0,
+                    locked_until=None,
+                )
             )
             await session.commit()
-            logger.info("✅ Password for admin@eaglechair.com reset to: temp123")
+            logger.info("✅ Password for admin@eaglechair.com reset; existing sessions revoked")
+            if generated:
+                # Printed once - it is not stored anywhere in plain text
+                print(f"\nNew admin password (save it now, it will not be shown again): {password}\n")
 
         except Exception as e:
             logger.error(f"❌ Error resetting password: {e}")
@@ -60,4 +89,10 @@ async def reset_password():
 
 
 if __name__ == "__main__":
-    asyncio.run(reset_password())
+    parser = argparse.ArgumentParser(description="Reset the admin password")
+    parser.add_argument(
+        "--password",
+        help="Password to set (default: generate a strong random password)",
+    )
+    args = parser.parse_args()
+    asyncio.run(reset_password(args.password))

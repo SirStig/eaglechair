@@ -117,6 +117,9 @@ class Company(Base):
     # Token Management
     refresh_token = Column(String(500), nullable=True)  # Store current valid refresh token
     refresh_token_expires = Column(String(50), nullable=True)  # ISO format datetime string
+    # Incremented on logout / password change / password reset to revoke all
+    # previously issued JWTs (compared against the token's `tv` claim)
+    token_version = Column(Integer, default=0, server_default="0", nullable=False)
     
     # Password Reset
     password_reset_token = Column(String(500), nullable=True)
@@ -214,6 +217,9 @@ class AdminUser(Base):
     # Token Management
     refresh_token = Column(String(500), nullable=True)  # Store current valid refresh token
     refresh_token_expires = Column(String(50), nullable=True)  # ISO format datetime string
+    # Incremented on logout / password change / password reset to revoke all
+    # previously issued JWTs (compared against the token's `tv` claim)
+    token_version = Column(Integer, default=0, server_default="0", nullable=False)
     
     # Password Reset (admins don't get password reset - security policy)
     # password_reset_token = Column(String(500), nullable=True)
