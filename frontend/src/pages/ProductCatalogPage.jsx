@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, useCallback } from 'react';
+import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { useSearchParams, useNavigate, useParams, Link } from 'react-router-dom';
 import { Filter } from 'lucide-react';
 import ProductCard from '../components/ui/ProductCard';
@@ -78,6 +78,12 @@ const ProductCatalogPage = () => {
     [navigate, categories, subcategories]
   );
 
+  // Request sequence numbers: a slower, older response must never overwrite
+  // the results for the current filters.
+  const productsRequestRef = useRef(0);
+  const familiesRequestRef = useRef(0);
+  const [categoriesLoaded, setCategoriesLoaded] = useState(false);
+
   useEffect(() => {
     loadCategories();
     loadFilterOptions();
@@ -124,11 +130,17 @@ const ProductCatalogPage = () => {
     }
   }, [filters.category_id, categories]);
 
+  // A /products/category/:slug URL can't be turned into a category_id until
+  // categories load; fetching before that returns the unfiltered catalog.
+  const waitingForCategorySlug = Boolean(categoryParam) && !categoriesLoaded;
+
   useEffect(() => {
+    if (waitingForCategorySlug) return;
     loadFamilies();
     loadProducts();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
+    waitingForCategorySlug,
     debouncedSearch,
     filters.category_id,
     filters.subcategory_id,
@@ -158,6 +170,8 @@ const ProductCatalogPage = () => {
     } catch (error) {
       logger.error(CONTEXT, 'Error loading categories', error);
       setCategories([]);
+    } finally {
+      setCategoriesLoaded(true);
     }
   };
 
@@ -190,6 +204,7 @@ const ProductCatalogPage = () => {
   };
 
   const loadFamilies = async () => {
+    const requestId = ++familiesRequestRef.current;
     try {
       const params = {};
 
@@ -202,14 +217,17 @@ const ProductCatalogPage = () => {
       }
 
       const familiesData = await productService.getFamilies(params);
+      if (requestId !== familiesRequestRef.current) return;
       setFamilies(Array.isArray(familiesData) ? familiesData : []);
     } catch (error) {
+      if (requestId !== familiesRequestRef.current) return;
       logger.error(CONTEXT, 'Error loading families', error);
       setFamilies([]);
     }
   };
 
   const loadProducts = async () => {
+    const requestId = ++productsRequestRef.current;
     setLoading(true);
 
     try {
@@ -298,6 +316,7 @@ const ProductCatalogPage = () => {
       }
 
       const response = await productService.getProducts(params);
+      if (requestId !== productsRequestRef.current) return;
 
       logger.debug(CONTEXT, `Loaded ${response.total} products`, response);
 
@@ -307,11 +326,12 @@ const ProductCatalogPage = () => {
         pages: response.pages || 0,
       });
     } catch (error) {
+      if (requestId !== productsRequestRef.current) return;
       logger.error(CONTEXT, 'Error loading products', error);
       setProducts([]);
       setResultMeta({ total: 0, pages: 0 });
     } finally {
-      setLoading(false);
+      if (requestId === productsRequestRef.current) setLoading(false);
     }
   };
 

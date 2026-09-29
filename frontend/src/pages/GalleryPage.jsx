@@ -1,9 +1,10 @@
 import { useState } from 'react';
 // eslint-disable-next-line no-unused-vars
-import { motion } from 'framer-motion';
+import { m } from 'framer-motion';
 import SEOHead from '../components/SEOHead';
 import { SEO } from '../config/seoConfig';
 import Modal from '../components/ui/Modal';
+import ResponsiveImage from '../components/ui/ResponsiveImage';
 import EditableWrapper from '../components/admin/EditableWrapper';
 import EditableList from '../components/admin/EditableList';
 import { useInstallations } from '../hooks/useContent';
@@ -179,21 +180,19 @@ const GalleryPage = () => {
               const location = image.location;
               
               return (
-                <motion.div
+                <m.div
                   initial={{ opacity: 0, scale: 0.9 }}
                   animate={{ opacity: 1, scale: 1 }}
                   transition={{ delay: index * 0.05 }}
                   className="relative group cursor-pointer overflow-hidden rounded-xl shadow-md hover:shadow-2xl transition-shadow"
                   onClick={() => setSelectedImage(image)}
                 >
-                  <img
+                  <ResponsiveImage
                     src={imageUrl}
+                    sizes="(min-width: 1280px) 400px, (min-width: 1024px) 33vw, (min-width: 640px) 50vw, 100vw"
                     alt={title}
                     className="w-full h-full object-cover img-sharp group-hover:scale-105 transition-transform duration-500"
                     style={{ aspectRatio: '16/10', objectFit: 'cover' }}
-                    loading={index < 6 ? "eager" : "lazy"}
-                    decoding={index < 3 ? "sync" : "async"}
-                    fetchpriority={index < 3 ? "high" : index < 6 ? "auto" : "low"}
                   />
                   <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/30 to-transparent opacity-0 group-hover:opacity-100 transition-opacity">
                     <div className="absolute bottom-0 left-0 right-0 p-6 text-white">
@@ -202,7 +201,7 @@ const GalleryPage = () => {
                       {location && <p className="text-xs text-dark-200">{location}</p>}
                     </div>
                   </div>
-                </motion.div>
+                </m.div>
               );
             }}
             className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6"
@@ -218,8 +217,10 @@ const GalleryPage = () => {
         >
           {selectedImage && (
             <div className="max-h-[70vh] overflow-auto">
-              <img
+              <ResponsiveImage
                 src={selectedImage.url}
+                sizes="(min-width: 1024px) 896px, 100vw"
+                priority
                 alt={selectedImage.title}
                 className="w-full h-auto max-h-[60vh] object-contain img-sharp rounded-lg"
               />

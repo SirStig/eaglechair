@@ -1,3 +1,4 @@
+/* global __BUILD_TIMESTAMP__ */
 import axios from 'axios';
 import logger from '../utils/logger';
 
@@ -23,11 +24,37 @@ if (import.meta.env.PROD && !API_BASE_URL) {
 }
 
 // Create axios instance with base configuration
+// Authentication uses httpOnly cookies set by the backend (access_token,
+// refresh_token, and for admins session_token/admin_token). withCredentials
+// makes the browser send them; tokens are never readable from JS.
 const apiClient = axios.create({
   baseURL: API_BASE_URL,
   timeout: API_TIMEOUT,
   withCredentials: true,
 });
+
+// Token keys used by older builds that kept credentials in Web Storage
+const LEGACY_TOKEN_KEYS = [
+  'auth_access_token',
+  'auth_refresh_token',
+  'auth_session_token',
+  'auth_admin_token',
+];
+
+/**
+ * Remove any auth tokens left in localStorage/sessionStorage by older builds.
+ * Safe to call at any time (e.g. on app start).
+ */
+export const purgeStoredTokens = () => {
+  if (typeof window === 'undefined') return;
+  for (const storage of [window.localStorage, window.sessionStorage]) {
+    try {
+      LEGACY_TOKEN_KEYS.forEach((key) => storage?.removeItem(key));
+    } catch {
+      // Storage may be unavailable (private mode / blocked) - nothing to clear
+    }
+  }
+};
 
 // Retry configuration for network errors
 const isAbortedError = (error) => {
@@ -48,7 +75,7 @@ const getRetryConfig = (config) => {
 };
 
 // Request interceptor
-// Tokens are stored in localStorage and sent via Authorization header
+// Auth is carried by httpOnly cookies (withCredentials) - no token headers
 apiClient.interceptors.request.use(
   async (config) => {
     // Initialize retry config if not set
@@ -58,38 +85,6 @@ apiClient.interceptors.request.use(
       config.retryDelay = retryConfig.retryDelay;
       config.retryCondition = retryConfig.retryCondition;
       config._retryCount = config._retryCount || 0;
-    }
-    
-    // Skip adding access token for refresh endpoint (it needs refresh token instead)
-    // Also skip if Authorization header is already set (explicit override)
-    const isRefreshEndpoint = config.url?.includes('/auth/refresh');
-    const hasExplicitAuth = config.headers?.Authorization;
-    
-    // Get access token from localStorage and add to Authorization header
-    // But skip for refresh endpoint or if header is already set
-    if (!isRefreshEndpoint && !hasExplicitAuth) {
-      const accessToken = typeof window !== 'undefined' 
-        ? localStorage.getItem('auth_access_token') 
-        : null;
-      
-      if (accessToken) {
-        config.headers.Authorization = `Bearer ${accessToken}`;
-      }
-    }
-    
-    // For admin users, also send session_token and admin_token headers
-    const sessionToken = typeof window !== 'undefined' 
-      ? localStorage.getItem('auth_session_token') 
-      : null;
-    const adminToken = typeof window !== 'undefined' 
-      ? localStorage.getItem('auth_admin_token') 
-      : null;
-    
-    if (sessionToken) {
-      config.headers['X-Session-Token'] = sessionToken;
-    }
-    if (adminToken) {
-      config.headers['X-Admin-Token'] = adminToken;
     }
     
     logger.debug(CONTEXT, `${config.method?.toUpperCase()} ${config.url}`, {
@@ -109,19 +104,19 @@ let refreshPromise = null;
 let failedQueue = [];
 
 // Process queued requests after token refresh
-const processQueue = (error, token = null) => {
+const processQueue = (error) => {
   failedQueue.forEach(({ resolve, reject }) => {
     if (error) {
       reject(error);
     } else {
-      resolve(token);
+      resolve();
     }
   });
   failedQueue = [];
 };
 
 // Response interceptor - Normalized error handling with token refresh
-// Tokens are stored in localStorage and sent via Authorization headers
+// Refresh uses the httpOnly refresh_token cookie; the backend sets new cookies
 apiClient.interceptors.response.use(
   (response) => {
     return response.data;
@@ -143,63 +138,28 @@ apiClient.interceptors.response.use(
       if (isRefreshing && refreshPromise) {
         return new Promise((resolve, reject) => {
           failedQueue.push({ resolve, reject });
-        }).then((newToken) => {
-          // Retry original request with new token
-          originalRequest.headers.Authorization = `Bearer ${newToken}`;
-          // Preserve admin headers
-          const sessionToken = typeof window !== 'undefined' 
-            ? localStorage.getItem('auth_session_token') 
-            : null;
-          const adminToken = typeof window !== 'undefined' 
-            ? localStorage.getItem('auth_admin_token') 
-            : null;
-          if (sessionToken) {
-            originalRequest.headers['X-Session-Token'] = sessionToken;
-          }
-          if (adminToken) {
-            originalRequest.headers['X-Admin-Token'] = adminToken;
-          }
+        }).then(() => {
+          // Retry original request - the refreshed cookies are sent automatically
           return apiClient(originalRequest);
         }).catch((err) => {
           return Promise.reject(err);
         });
       }
 
-      // Try to refresh token using refresh_token from localStorage
+      // Try to refresh using the httpOnly refresh_token cookie
       originalRequest._retry = true;
       isRefreshing = true;
 
       refreshPromise = (async () => {
         try {
-          const refreshToken = typeof window !== 'undefined'
-            ? localStorage.getItem('auth_refresh_token')
-            : null;
+          // Backend reads the refresh_token cookie and sets new auth cookies
+          await apiClient.post('/api/v1/auth/refresh', {});
 
-          const refreshConfig = refreshToken
-            ? { headers: { Authorization: `Bearer ${refreshToken}` } }
-            : {};
-
-          const refreshResponse = await apiClient.post('/api/v1/auth/refresh', {}, refreshConfig);
-          
-          // Update tokens in localStorage
-          if (refreshResponse.access_token) {
-            localStorage.setItem('auth_access_token', refreshResponse.access_token);
-          }
-          if (refreshResponse.refresh_token) {
-            localStorage.setItem('auth_refresh_token', refreshResponse.refresh_token);
-          }
-          // Note: Admin tokens (session_token, admin_token) are NOT refreshed
-          // They persist from login until logout - keep existing ones in localStorage
-          
-          const newAccessToken = refreshResponse.access_token;
-          
           // Process queued requests
-          processQueue(null, newAccessToken);
-          
-          return newAccessToken;
+          processQueue(null);
         } catch (refreshError) {
           // Process queued requests with error
-          processQueue(refreshError, null);
+          processQueue(refreshError);
           throw refreshError;
         } finally {
           isRefreshing = false;
@@ -208,25 +168,11 @@ apiClient.interceptors.response.use(
       })();
 
       try {
-        const newAccessToken = await refreshPromise;
-        
-        // Retry original request with new access token
-        originalRequest.headers.Authorization = `Bearer ${newAccessToken}`;
-        // Preserve admin headers if they exist in localStorage
-        const sessionToken = typeof window !== 'undefined' 
-          ? localStorage.getItem('auth_session_token') 
-          : null;
-        const adminToken = typeof window !== 'undefined' 
-          ? localStorage.getItem('auth_admin_token') 
-          : null;
-        if (sessionToken) {
-          originalRequest.headers['X-Session-Token'] = sessionToken;
-        }
-        if (adminToken) {
-          originalRequest.headers['X-Admin-Token'] = adminToken;
-        }
+        await refreshPromise;
+
+        // Retry original request - new cookies are sent automatically
         return apiClient(originalRequest);
-      } catch (refreshError) {
+      } catch {
         // Refresh failed - clear auth state
         return Promise.reject(handleAuthError(error));
       }
@@ -266,23 +212,25 @@ function handleAuthError(error) {
     import('../store/authStore').then(({ useAuthStore }) => {
       // Clear auth state without calling logout() to avoid redirect loops
       // ProtectedRoute will handle redirects naturally
-      useAuthStore.setState({ 
-        user: null, 
-        isAuthenticated: false 
+      useAuthStore.setState({
+        user: null,
+        isAuthenticated: false
       });
-      // Clear tokens from localStorage
-      localStorage.removeItem('auth_access_token');
-      localStorage.removeItem('auth_refresh_token');
-      localStorage.removeItem('auth_session_token');
-      localStorage.removeItem('auth_admin_token');
-      localStorage.removeItem('auth_user');
+      // Clear cached profile (and any legacy tokens) from storage
+      purgeStoredTokens();
+      try {
+        localStorage.removeItem('auth_user');
+      } catch {
+        // Storage unavailable
+      }
     }).catch(() => {
-      // Fallback if import fails - clear localStorage manually
-      localStorage.removeItem('auth_access_token');
-      localStorage.removeItem('auth_refresh_token');
-      localStorage.removeItem('auth_session_token');
-      localStorage.removeItem('auth_admin_token');
-      localStorage.removeItem('auth_user');
+      // Fallback if import fails - clear storage manually
+      purgeStoredTokens();
+      try {
+        localStorage.removeItem('auth_user');
+      } catch {
+        // Storage unavailable
+      }
       logger.warn(CONTEXT, 'Failed to import authStore for logout');
     });
   }
@@ -357,64 +305,40 @@ function handleNonAuthError(error) {
 export const api = {
   // GET request
   get: async (url, config = {}) => {
-    try {
-      return await apiClient.get(url, config);
-    } catch (error) {
-      throw error;
-    }
+    return apiClient.get(url, config);
   },
 
   // POST request
   post: async (url, data = {}, config = {}) => {
-    try {
-      return await apiClient.post(url, data, config);
-    } catch (error) {
-      throw error;
-    }
+    return apiClient.post(url, data, config);
   },
 
   // PUT request
   put: async (url, data = {}, config = {}) => {
-    try {
-      return await apiClient.put(url, data, config);
-    } catch (error) {
-      throw error;
-    }
+    return apiClient.put(url, data, config);
   },
 
   // PATCH request
   patch: async (url, data = {}, config = {}) => {
-    try {
-      return await apiClient.patch(url, data, config);
-    } catch (error) {
-      throw error;
-    }
+    return apiClient.patch(url, data, config);
   },
 
   // DELETE request
   delete: async (url, config = {}) => {
-    try {
-      return await apiClient.delete(url, config);
-    } catch (error) {
-      throw error;
-    }
+    return apiClient.delete(url, config);
   },
 
   // Upload file(s) with FormData
   upload: async (url, formData, onUploadProgress = null) => {
-    try {
-      return await apiClient.post(url, formData, {
-        headers: {
-          'Content-Type': 'multipart/form-data',
-        },
-        onUploadProgress: onUploadProgress ? (progressEvent) => {
-          const percentCompleted = Math.round((progressEvent.loaded * 100) / progressEvent.total);
-          onUploadProgress(percentCompleted);
-        } : undefined,
-      });
-    } catch (error) {
-      throw error;
-    }
+    return apiClient.post(url, formData, {
+      headers: {
+        'Content-Type': 'multipart/form-data',
+      },
+      onUploadProgress: onUploadProgress ? (progressEvent) => {
+        const percentCompleted = Math.round((progressEvent.loaded * 100) / progressEvent.total);
+        onUploadProgress(percentCompleted);
+      } : undefined,
+    });
   },
 };
 

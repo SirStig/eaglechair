@@ -5,9 +5,11 @@ Handles company and admin authentication
 """
 
 import logging
+from typing import Optional
 
 from fastapi import APIRouter, Depends, Request, Response
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from backend.api.dependencies import (
@@ -23,19 +25,36 @@ from backend.api.v1.schemas.company import (
     CompanyLoginRequest,
     CompanyRegistration,
     CompanyResponse,
+    CompanyUpdate,
     PasswordChangeRequest,
     PasswordReset,
     PasswordResetRequest,
     TokenResponse,
 )
+from backend.core.security import tokens_for_response_body
 from backend.database.base import get_db
 from backend.models.company import AdminUser, Company
-from backend.services.auth_service import AuthService
+from backend.models.passkey import AdminPasskeyCredential
+from backend.services.auth_service import AuthService, revoke_user_tokens
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter(tags=["Authentication"])
 security = HTTPBearer()
+
+# Profile fields a company may change on its own account (mirrors dashboard profile update).
+# Privileged fields (status, is_verified, pricing tier, credit, notes, tax_id, email) are excluded.
+COMPANY_SELF_EDITABLE_FIELDS = {
+    "company_name", "legal_name", "industry", "website",
+    "rep_first_name", "rep_last_name", "rep_title", "rep_phone",
+    "billing_address_line1", "billing_address_line2",
+    "billing_city", "billing_state", "billing_zip", "billing_country",
+}
+
+
+def _company_profile(company: Company) -> dict:
+    """Serialize a company to the public profile shape (no secrets, tokens or admin notes)."""
+    return {field: getattr(company, field, None) for field in CompanyResponse.model_fields}
 
 
 # ============================================================================
@@ -159,7 +178,7 @@ async def unified_login(
         has_passkey = result.scalars().first() is not None
         requires_setup = not (has_passkey and admin.is_2fa_enabled)
         return {
-            **tokens,
+            **tokens_for_response_body(request, tokens),
             "requiresSetup": requires_setup,
             "user": {
                 "id": admin.id,
@@ -189,9 +208,10 @@ async def unified_login(
         is_production=settings.is_production
     )
     
-    # Include company user data in response (also include tokens for backward compatibility)
+    # Include company user data in response. Browsers get tokens only via
+    # httpOnly cookies; non-browser clients also get them in the body.
     return {
-        **tokens,
+        **tokens_for_response_body(request, tokens),
         "user": {
             "id": company.id,
             "companyName": company.company_name,
@@ -208,7 +228,6 @@ async def unified_login(
 
 @router.post(
     "/auth/refresh",
-    response_model=TokenResponse,
     summary="Refresh access token",
     description="Use refresh token to get new access token."
 )
@@ -239,7 +258,11 @@ async def refresh_token(
     
     # Decode token to get payload
     from backend.core.security import security_manager
-    token_payload = security_manager.decode_token(refresh_token_value)
+    try:
+        token_payload = security_manager.decode_token(refresh_token_value)
+    except Exception:
+        from backend.core.exceptions import InvalidTokenError
+        raise InvalidTokenError("Invalid or expired refresh token")
     
     # Verify it's a refresh token
     if token_payload.get("token_type") != "refresh":
@@ -263,8 +286,8 @@ async def refresh_token(
         is_production=settings.is_production
     )
     
-    # Also return in response body for backward compatibility
-    return tokens
+    # Non-browser clients also get the tokens in the response body
+    return tokens_for_response_body(request, tokens)
 
 
 # ============================================================================
@@ -326,7 +349,7 @@ async def login_admin(
     requires_setup = not (has_passkey and admin.is_2fa_enabled)
 
     return {
-        **tokens,
+        **tokens_for_response_body(request, tokens),
         "requiresSetup": requires_setup,
         "user": {
             "id": admin.id,
@@ -430,16 +453,33 @@ async def resend_verification(
 )
 async def change_password(
     password_data: PasswordChangeRequest,
+    request: Request,
+    response: Response,
     token_payload: dict = Depends(get_current_token_payload),
     db: AsyncSession = Depends(get_db)
 ):
     """
     Change password for current user.
-    
+
     Requires authentication. Works for both company and admin users.
+    Revokes every existing session (token_version bump), then issues fresh
+    cookies for the current session so the caller stays signed in.
     """
+    from backend.core.config import settings
+    from backend.core.security import set_auth_cookies
+
     user_id = int(token_payload.get("sub"))
     user_type = token_payload.get("type", "company")
+
+    # Authenticate the caller fully (token version, admin session tokens)
+    # before allowing the change
+    if user_type == "admin":
+        caller = await get_current_admin(request, token_payload, db)
+    else:
+        caller = await get_current_company(request, token_payload, db)
+    if caller.id != user_id:
+        from backend.core.exceptions import AuthenticationError
+        raise AuthenticationError("Invalid session for password change")
     
     logger.info(f"Password change request for {user_type} user: {user_id}")
     
@@ -453,10 +493,29 @@ async def change_password(
     )
     
     logger.info(f"Password changed successfully for {user_type} user: {user_id}")
-    
+
+    # Re-issue tokens for this session (all other sessions stay revoked)
+    await db.refresh(caller)
+    if user_type == "admin":
+        tokens = await AuthService.create_admin_tokens(
+            db, caller,
+            ip_address=request.client.host if request.client else None,
+            strong_session=bool(caller.is_2fa_enabled),
+        )
+    else:
+        tokens = await AuthService.create_company_tokens(db, caller)
+    set_auth_cookies(
+        response=response,
+        access_token=tokens["access_token"],
+        refresh_token=tokens["refresh_token"],
+        session_token=tokens.get("session_token"),
+        admin_token=tokens.get("admin_token"),
+        is_production=settings.is_production,
+    )
+
     return MessageResponse(
         message="Password changed successfully",
-        detail="Your password has been updated. Please use your new password for future logins."
+        detail="Your password has been updated. Other sessions have been signed out."
     )
 
 
@@ -487,16 +546,26 @@ async def request_password_reset(
         email=reset_request.email
     )
     
-    # TODO: Send email with reset link
-    # For now, we'll log it (in production, send via email service)
     if reset_token:
-        reset_url = f"http://localhost:5173/reset-password?token={reset_token}"
-        logger.info(f"Password reset link: {reset_url}")
-        # await EmailService.send_password_reset_email(
-        #     db=db,
-        #     to_email=reset_request.email,
-        #     reset_link=reset_url
-        # )
+        from sqlalchemy import select
+
+        from backend.core.config import settings
+        from backend.services.email_service import EmailService
+
+        result = await db.execute(
+            select(Company).where(Company.rep_email == reset_request.email)
+        )
+        company = result.scalar_one_or_none()
+        reset_url = f"{settings.FRONTEND_URL}/reset-password?token={reset_token}"
+        try:
+            await EmailService.send_password_reset_email(
+                db=db,
+                to_email=reset_request.email,
+                company_name=company.company_name if company else "",
+                reset_link=reset_url
+            )
+        except Exception as e:
+            logger.error(f"Failed to send password reset email: {e}")
     
     return MessageResponse(
         message="Password reset requested",
@@ -581,7 +650,7 @@ async def get_current_user_profile(
     # Handle company token (default)
     company = await get_current_company(request, token_payload, db)
     logger.info(f"Profile retrieved for company: {company.id}")
-    return company
+    return _company_profile(company)
 
 
 @router.patch(
@@ -591,7 +660,7 @@ async def get_current_user_profile(
     description="Update profile information for currently authenticated company."
 )
 async def update_current_user_profile(
-    update_data: dict,  # TODO: Create proper update schema
+    update_data: CompanyUpdate,
     company: Company = Depends(get_current_company),
     db: AsyncSession = Depends(get_db)
 ):
@@ -602,10 +671,14 @@ async def update_current_user_profile(
     """
     logger.info(f"Profile update request for company: {company.id}")
     
-    # Update company (simplified - add proper validation)
-    for key, value in update_data.items():
-        if hasattr(company, key) and key not in ['id', 'hashed_password', 'rep_email']:
-            setattr(company, key, value)
+    # Only allow self-editable profile fields; unknown/privileged fields are ignored
+    changes = update_data.model_dump(exclude_unset=True)
+    for key, value in changes.items():
+        if key not in COMPANY_SELF_EDITABLE_FIELDS:
+            continue
+        if value is None and not Company.__table__.c[key].nullable:
+            continue
+        setattr(company, key, value)
     
     await db.commit()
     await db.refresh(company)
@@ -619,58 +692,68 @@ async def update_current_user_profile(
     "/auth/logout",
     response_model=MessageResponse,
     summary="Logout",
-    description="Logout current user (invalidate tokens)."
+    description="Logout current user (revokes all issued tokens and clears auth cookies)."
 )
 async def logout(
+    request: Request,
     response: Response,
-    token_payload: dict = Depends(get_current_token_payload),
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_db),
+    credentials: Optional[HTTPAuthorizationCredentials] = Depends(HTTPBearer(auto_error=False)),
 ):
     """
     Logout user.
-    
-    For admin users, this invalidates session and admin tokens.
-    For company users, client should discard tokens.
-    Clears all authentication cookies.
+
+    Identifies the user from the access token (cookie or Authorization header)
+    or, if that has expired, the refresh token cookie. Bumps the user's
+    token_version so every previously issued access/refresh token stops
+    working, clears admin session/admin tokens, and always clears the
+    authentication cookies (even if the tokens were already invalid).
     """
-    from backend.core.security import clear_auth_cookies
+    from backend.core.security import clear_auth_cookies, security_manager
     from backend.core.config import settings
 
-    user_type = token_payload.get("type", "company")
-    user_id = int(token_payload.get("sub"))
+    candidates = [
+        request.cookies.get("access_token"),
+        credentials.credentials if credentials else None,
+        request.cookies.get("refresh_token"),
+    ]
+    token_payload = None
+    for candidate in candidates:
+        if not candidate:
+            continue
+        try:
+            token_payload = security_manager.decode_token(candidate)
+            break
+        except Exception:
+            continue
 
-    # Invalidate stored tokens in database
-    if user_type == "admin":
-        from sqlalchemy import select
-        result = await db.execute(
-            select(AdminUser).where(AdminUser.id == user_id)
-        )
-        admin = result.scalar_one_or_none()
+    user_type = None
+    user_id = None
+    if token_payload and token_payload.get("token_type") in ("access", "refresh"):
+        user_type = token_payload.get("type", "company")
+        try:
+            user_id = int(token_payload.get("sub"))
+        except (TypeError, ValueError):
+            user_id = None
 
-        if admin:
-            admin.session_token = None
-            admin.admin_token = None
-            admin.refresh_token = None
-            admin.refresh_token_expires = None
+    if user_id is not None:
+        model = AdminUser if user_type == "admin" else Company
+        result = await db.execute(select(model).where(model.id == user_id))
+        user = result.scalar_one_or_none()
+
+        # Only a current (non-revoked) token can revoke the user's sessions
+        if user and security_manager.token_version_matches(token_payload, user):
+            revoke_user_tokens(user)
+            if user_type == "admin":
+                user.session_token = None
+                user.admin_token = None
             await db.commit()
-            logger.info(f"Admin tokens invalidated for user: {user_id}")
-    else:
-        from sqlalchemy import select
-        result = await db.execute(
-            select(Company).where(Company.id == user_id)
-        )
-        company = result.scalar_one_or_none()
-
-        if company:
-            company.refresh_token = None
-            company.refresh_token_expires = None
-            await db.commit()
-            logger.info(f"Company refresh token invalidated for user: {user_id}")
+            logger.info(f"All tokens revoked for {user_type} user: {user_id}")
 
     # Clear all authentication cookies
     clear_auth_cookies(response, is_production=settings.is_production)
-    
-    logger.info(f"Logout successful for {user_type} user: {user_id}")
+
+    logger.info(f"Logout successful for {user_type or 'unknown'} user: {user_id}")
     
     return MessageResponse(
         message="Logged out successfully",

@@ -1,11 +1,12 @@
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
-import { motion } from 'framer-motion';
+import { m } from 'framer-motion';
 import { useUpholsteries } from '../hooks/useContent';
 import SEOHead from '../components/SEOHead';
 import { SEO } from '../config/seoConfig';
 import { Scissors, Palette, Layers, Book } from 'lucide-react';
 import LoadingSpinner from '../components/ui/LoadingSpinner';
+import ResponsiveImage from '../components/ui/ResponsiveImage';
 
 const UpholsteryPage = () => {
   const [searchTerm, setSearchTerm] = useState('');
@@ -107,7 +108,7 @@ const UpholsteryPage = () => {
         ) : (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
             {filteredUpholsteries.map((upholstery, index) => (
-              <motion.div
+              <m.div
                 key={upholstery.id}
                 layout={false}
                 initial={{ opacity: 0, y: 16 }}
@@ -118,16 +119,18 @@ const UpholsteryPage = () => {
               >
                 {upholstery.swatchImageUrl ? (
                   <div className="aspect-square overflow-hidden rounded-full bg-slate-100">
-                    <img
+                    <ResponsiveImage
                       src={upholstery.swatchImageUrl}
+                      sizes="(min-width: 1280px) 25vw, (min-width: 1024px) 33vw, (min-width: 640px) 50vw, 100vw"
                       alt={upholstery.name}
                       className="w-full h-full object-cover scale-125"
                     />
                   </div>
                 ) : upholstery.imageUrl ? (
                   <div className="aspect-square overflow-hidden rounded-full bg-slate-100">
-                    <img
+                    <ResponsiveImage
                       src={upholstery.imageUrl}
+                      sizes="(min-width: 1280px) 25vw, (min-width: 1024px) 33vw, (min-width: 640px) 50vw, 100vw"
                       alt={upholstery.name}
                       className="w-full h-full object-cover scale-125"
                     />
@@ -188,7 +191,7 @@ const UpholsteryPage = () => {
                     )}
                   </div>
                 </div>
-              </motion.div>
+              </m.div>
             ))}
           </div>
         )}

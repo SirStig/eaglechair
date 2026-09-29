@@ -124,7 +124,6 @@ ddgs>=9.11.0                  # Web search for AI (renamed from duckduckgo-searc
 pandas==3.0.1                 # CSV/data analysis
 xlrd==2.0.1                   # Excel .xls for pandas read_excel
 openpyxl==3.1.5               # Excel .xlsx/.xlsm for pandas read_excel
-sympy==1.14.0                 # Math calculations
 tabulate==0.10.0              # Table formatting
 html2text==2025.4.15          # HTML to markdown conversion
 markdownify==1.2.2            # HTML to markdown (alternate)

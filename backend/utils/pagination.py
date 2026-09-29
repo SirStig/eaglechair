@@ -70,7 +70,8 @@ async def paginate(
         result = await paginate(db, query, PaginationParams(page=1, per_page=20))
     """
     # Get total count
-    count_query = select(func.count()).select_from(query.subquery())
+    # ORDER BY is irrelevant to the count and can force a costly sort
+    count_query = select(func.count()).select_from(query.order_by(None).subquery())
     total_result = await db.execute(count_query)
     total = total_result.scalar_one()
     

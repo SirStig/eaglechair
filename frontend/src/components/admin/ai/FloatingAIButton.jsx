@@ -4,7 +4,7 @@
  * Opens the AI chat widget.
  */
 
-import { motion, AnimatePresence } from 'framer-motion';
+import { m, AnimatePresence } from 'framer-motion';
 import { X } from 'lucide-react';
 import { useAIChat } from '../../../contexts/AIChatContext';
 
@@ -12,7 +12,7 @@ export default function FloatingAIButton() {
   const { isOpen, openChat, closeChat, isStreaming } = useAIChat();
 
   return (
-    <motion.button
+    <m.button
       onClick={isOpen ? closeChat : openChat}
       whileHover={{ scale: 1.05 }}
       whileTap={{ scale: 0.95 }}
@@ -34,7 +34,7 @@ export default function FloatingAIButton() {
     >
       <AnimatePresence mode="wait">
         {isOpen ? (
-          <motion.div
+          <m.div
             key="close"
             initial={{ rotate: -90, opacity: 0 }}
             animate={{ rotate: 0, opacity: 1 }}
@@ -42,9 +42,9 @@ export default function FloatingAIButton() {
             transition={{ duration: 0.15 }}
           >
             <X className="w-5 h-5 text-dark-200" />
-          </motion.div>
+          </m.div>
         ) : (
-          <motion.div
+          <m.div
             key="open"
             initial={{ rotate: 90, opacity: 0 }}
             animate={{ rotate: 0, opacity: 1 }}
@@ -52,13 +52,13 @@ export default function FloatingAIButton() {
             transition={{ duration: 0.15 }}
             className="relative w-full h-full flex items-center justify-center p-0.5"
           >
-            <img src="/favicon.svg" alt="Eagle Chair" className="w-full h-full object-contain" />
+            <img src="/web-app-manifest-192x192.png" alt="Eagle Chair" className="w-full h-full object-contain" />
             {isStreaming && (
               <span className="absolute -top-1 -right-1 w-2.5 h-2.5 rounded-full bg-green-400 border-2 border-dark-800 animate-pulse" />
             )}
-          </motion.div>
+          </m.div>
         )}
       </AnimatePresence>
-    </motion.button>
+    </m.button>
   );
 }

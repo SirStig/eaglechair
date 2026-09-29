@@ -10,8 +10,10 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from backend.api.dependencies import get_current_admin
 from backend.database.base import get_db
 from backend.models.chair import ProductFamily
+from backend.models.company import AdminUser
 
 router = APIRouter()
 
@@ -20,6 +22,7 @@ router = APIRouter()
 async def get_families(
     category_id: Optional[int] = Query(None, description="Filter by category ID"),
     subcategory_id: Optional[int] = Query(None, description="Filter by subcategory ID"),
+    admin: AdminUser = Depends(get_current_admin),
     db: AsyncSession = Depends(get_db),
 ):
     """
@@ -63,6 +66,7 @@ async def get_families(
 @router.get("/{family_id}")
 async def get_family(
     family_id: int,
+    admin: AdminUser = Depends(get_current_admin),
     db: AsyncSession = Depends(get_db),
 ):
     """

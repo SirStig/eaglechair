@@ -1,6 +1,6 @@
 import React from 'react';
 import { AlertTriangle, RefreshCw, Home, ChevronDown, ChevronUp } from 'lucide-react';
-import { motion, AnimatePresence } from 'framer-motion';
+import { m, AnimatePresence } from 'framer-motion';
 import Button from './ui/Button';
 import Card from './ui/Card';
 
@@ -67,7 +67,7 @@ class ErrorBoundary extends React.Component {
 
       return (
         <div className="min-h-screen bg-dark-800 flex items-center justify-center p-4">
-          <motion.div
+          <m.div
             initial={{ opacity: 0, scale: 0.95, y: 20 }}
             animate={{ opacity: 1, scale: 1, y: 0 }}
             transition={{ duration: 0.3, ease: 'easeOut' }}
@@ -80,14 +80,14 @@ class ErrorBoundary extends React.Component {
               <div className="relative z-10">
                 {/* Header */}
                 <div className="flex items-start gap-4 mb-6">
-                  <motion.div
+                  <m.div
                     initial={{ scale: 0 }}
                     animate={{ scale: 1 }}
                     transition={{ delay: 0.1, type: 'spring', stiffness: 200 }}
                     className="flex-shrink-0 w-16 h-16 bg-secondary-500/10 rounded-full flex items-center justify-center border-2 border-secondary-500/20"
                   >
                     <AlertTriangle className="w-8 h-8 text-secondary-500" />
-                  </motion.div>
+                  </m.div>
                   
                   <div className="flex-1">
                     <h1 className="text-2xl font-bold text-dark-50 mb-2">
@@ -117,7 +117,7 @@ class ErrorBoundary extends React.Component {
                 {/* Expandable Error Details */}
                 <AnimatePresence>
                   {isExpanded && (
-                    <motion.div
+                    <m.div
                       initial={{ height: 0, opacity: 0 }}
                       animate={{ height: 'auto', opacity: 1 }}
                       exit={{ height: 0, opacity: 0 }}
@@ -132,7 +132,7 @@ class ErrorBoundary extends React.Component {
                           {errorStack || 'No stack trace available'}
                         </pre>
                       </div>
-                    </motion.div>
+                    </m.div>
                   )}
                 </AnimatePresence>
 
@@ -175,7 +175,7 @@ class ErrorBoundary extends React.Component {
                   className="mt-4 w-full text-sm text-dark-400 hover:text-dark-200 transition-colors flex items-center justify-center gap-2 py-2 rounded-lg hover:bg-dark-700/50"
                 >
                   <span>{isExpanded ? 'Hide' : 'Show'} Technical Details</span>
-                  <motion.div
+                  <m.div
                     animate={{ rotate: isExpanded ? 180 : 0 }}
                     transition={{ duration: 0.2 }}
                   >
@@ -184,13 +184,13 @@ class ErrorBoundary extends React.Component {
                     ) : (
                       <ChevronDown className="w-4 h-4" />
                     )}
-                  </motion.div>
+                  </m.div>
                 </button>
               </div>
             </Card>
 
             {/* Footer Note */}
-            <motion.div
+            <m.div
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               transition={{ delay: 0.3 }}
@@ -199,8 +199,8 @@ class ErrorBoundary extends React.Component {
               <p className="text-sm text-dark-400">
                 If this problem persists, please contact support.
               </p>
-            </motion.div>
-          </motion.div>
+            </m.div>
+          </m.div>
         </div>
       );
     }

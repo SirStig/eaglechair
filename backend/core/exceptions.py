@@ -277,11 +277,11 @@ class AccountSuspendedError(BusinessLogicError):
 class AccountNotVerifiedError(BusinessLogicError):
     """Account not verified"""
 
-    def __init__(self, **kwargs):
+    def __init__(self, message: Optional[str] = None, **kwargs):
         kwargs.setdefault("status_code", status.HTTP_403_FORBIDDEN)
         kwargs.setdefault("error_code", "ACCOUNT_NOT_VERIFIED")
         super().__init__(
-            message="Your account needs to be verified before you can perform this action. Please check your email or contact support.",
+            message=message or "Your account needs to be verified before you can perform this action. Please check your email or contact support.",
             **kwargs
         )
 

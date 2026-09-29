@@ -2,9 +2,10 @@ import { useState, useRef, useEffect } from 'react';
 import SEOHead from '../components/SEOHead';
 import { SEO } from '../config/seoConfig';
 import { Link } from 'react-router-dom';
-import { motion, AnimatePresence } from 'framer-motion';
+import { m, AnimatePresence } from 'framer-motion';
 import Button from '../components/ui/Button';
 import Card from '../components/ui/Card';
+import ResponsiveImage from '../components/ui/ResponsiveImage';
 import { useCartStore } from '../store/cartStore';
 import { getProductImage, buildProductUrl } from '../utils/apiHelpers';
 
@@ -100,7 +101,7 @@ const CartPage = () => {
                   : (product.subcategory || '');
 
                 return (
-                  <motion.div
+                  <m.div
                     key={item.id || index}
                     initial={{ opacity: 0, y: 20 }}
                     animate={{ opacity: 1, y: 0 }}
@@ -118,8 +119,9 @@ const CartPage = () => {
                                 </svg>
                               </div>
                             ) : (
-                              <img
+                              <ResponsiveImage
                                 src={productImage}
+                                sizes="(min-width: 640px) 128px, 112px"
                                 alt={productName}
                                 onError={() => markImageBroken(itemKey)}
                                 className="w-full h-full object-contain hover:scale-105 transition-transform duration-300"
@@ -302,7 +304,7 @@ const CartPage = () => {
                         </div>
                       </div>
                     </Card>
-                  </motion.div>
+                  </m.div>
                 );
               })}
             </AnimatePresence>

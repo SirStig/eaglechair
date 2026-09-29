@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { motion } from 'framer-motion';
+import { m } from 'framer-motion';
 import Card from '../../ui/Card';
 import Button from '../../ui/Button';
 import apiClient from '../../../config/apiClient';
@@ -99,7 +99,7 @@ const DashboardOverview = ({ onNavigate }) => {
         {statCards.map((stat, index) => {
           const Icon = stat.icon;
           return (
-            <motion.div
+            <m.div
               key={stat.title}
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
@@ -119,7 +119,7 @@ const DashboardOverview = ({ onNavigate }) => {
                   <p className="text-xs text-dark-400">{stat.change}</p>
                 </div>
               </Card>
-            </motion.div>
+            </m.div>
           );
         })}
       </div>

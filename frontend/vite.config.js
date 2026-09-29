@@ -102,31 +102,38 @@ export default defineConfig(({ mode, isSsrBuild }) => {
         registerType: 'autoUpdate',
         manifest: false, // We manage manifests (manifest.json + manifest-admin.json) ourselves
         workbox: {
-          globPatterns: ['**/*.{js,css,ico,png,jpg,jpeg,webp,avif,woff2}'],
-          globIgnores: ['**/index.html', '**/favicon.svg'],
-          navigateFallback: '/index.html',
-          maximumFileSizeToCacheInBytes: 4 * 1024 * 1024, // 4 MiB
+          // Precache only the shell every visitor needs. Route/admin chunks are
+          // cached on first use by the runtime rule below instead of being
+          // downloaded up front (the full dist is several MB).
+          globPatterns: ['assets/index-*.{js,css}', 'assets/react-vendor-*.js', 'favicon.ico'],
+          // index.html is served by Apache/FastAPI (with no-cache) and must stay
+          // fresh, so it's not precached; a navigateFallback pointing at a
+          // non-precached URL throws and stops the SW from installing.
+          navigateFallback: null,
+          cleanupOutdatedCaches: true,
           runtimeCaching: [
             {
-              urlPattern: /^\/api\/v1\/admin\//,
-              handler: 'NetworkFirst',
+              // Hashed build output: content never changes for a given URL.
+              urlPattern: ({ url, sameOrigin }) => sameOrigin && url.pathname.startsWith('/assets/') && /-[\w-]{8,}\.(js|css)$/.test(url.pathname),
+              handler: 'CacheFirst',
               options: {
-                cacheName: 'admin-api-cache',
-                networkTimeoutSeconds: 10,
+                cacheName: 'build-assets',
+                expiration: { maxEntries: 120, maxAgeSeconds: 30 * 24 * 60 * 60 },
               },
             },
             {
-              // Cache uploaded product images with stale-while-revalidate
-              urlPattern: /^\/uploads\/.+\.(png|jpg|jpeg|webp|avif)$/i,
-              handler: 'StaleWhileRevalidate',
+              // Uploaded media. Filenames are unique per upload, so cache-first is safe.
+              // Same-origin only: cross-origin (opaque) responses bloat quota.
+              urlPattern: ({ url, sameOrigin }) => sameOrigin && url.pathname.startsWith('/uploads/images/'),
+              handler: 'CacheFirst',
               options: {
                 cacheName: 'uploads-image-cache',
-                expiration: {
-                  maxEntries: 200,
-                  maxAgeSeconds: 7 * 24 * 60 * 60, // 7 days
-                },
+                cacheableResponse: { statuses: [200] },
+                expiration: { maxEntries: 300, maxAgeSeconds: 30 * 24 * 60 * 60, purgeOnQuotaError: true },
               },
             },
+            // Never cache /api/v1/admin/*: responses are authenticated and would
+            // persist in CacheStorage on shared machines.
           ],
         },
       }),
@@ -174,42 +181,18 @@ export default defineConfig(({ mode, isSsrBuild }) => {
       rollupOptions: {
         output: {
           // Add hash to filenames for cache busting
-          entryFileNames: 'assets/[name]-[hash].js',
+          // SSR entry must keep a stable name: server/index.js imports dist/server/entry-server.js
+          entryFileNames: isSsrBuild ? '[name].js' : 'assets/[name]-[hash].js',
           chunkFileNames: 'assets/[name]-[hash].js',
           assetFileNames: 'assets/[name]-[hash].[ext]',
-          // Manual chunk splitting for optimal performance
+          // Only the libraries every public page needs go in a shared vendor
+          // chunk. Everything else (recharts, markdown, dropzone, dnd-kit...)
+          // is left to Rollup so it rides along with the lazy route that uses it.
+          // Match exact package dirs: a bare 'node_modules/react' prefix also
+          // matches react-quill, react-markdown, etc. and drags them onto every page.
           manualChunks: (id) => {
-            // React vendor chunk - must include all React-related packages
-            if (id.includes('node_modules/react') || 
-                id.includes('node_modules/react-dom') || 
-                id.includes('node_modules/react-router') ||
-                id.includes('node_modules/react-is') ||
-                id.includes('node_modules/react/jsx-runtime')) {
+            if (/[\\/]node_modules[\\/](react|react-dom|scheduler|react-router|react-router-dom|react-helmet-async|react-fast-compare|invariant|shallowequal)[\\/]/.test(id)) {
               return 'react-vendor';
-            }
-            // Chart/visualization chunk - keep with React since it depends on it
-            if (id.includes('node_modules/recharts')) {
-              return 'react-vendor'; // Put recharts with React since it needs React.forwardRef
-            }
-            // UI libraries chunk
-            if (id.includes('node_modules/framer-motion') || id.includes('node_modules/lucide-react')) {
-              return 'ui-vendor';
-            }
-            // Query library chunk
-            if (id.includes('node_modules/@tanstack/react-query')) {
-              return 'query-vendor';
-            }
-            // Form libraries chunk
-            if (id.includes('node_modules/react-hook-form') || id.includes('node_modules/react-quill')) {
-              return 'form-vendor';
-            }
-            // Carousel chunk
-            if (id.includes('node_modules/react-slick') || id.includes('node_modules/slick-carousel')) {
-              return 'carousel-vendor';
-            }
-            // Map libraries chunk
-            if (id.includes('node_modules/leaflet') || id.includes('node_modules/react-leaflet')) {
-              return 'map-vendor';
             }
           },
         },

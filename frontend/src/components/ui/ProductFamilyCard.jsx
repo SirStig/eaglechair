@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import Button from './Button';
 import Tag from './Tag';
 import { resolveImageUrl } from '../../utils/apiHelpers';
+import ResponsiveImage from './ResponsiveImage';
 
 /**
  * ProductFamilyCard Component
@@ -55,8 +56,9 @@ const ProductFamilyCard = ({ family, onQuickView, darkMode = false }) => {
             <div className={`h-8 w-8 border-4 ${spinnerBorder} border-t-primary-500 rounded-full animate-spin`} />
           </div>
         )}
-        <img
+        <ResponsiveImage
           src={familyImage}
+          sizes="(min-width: 1280px) 25vw, (min-width: 1024px) 36vw, 50vw"
           alt={family.name}
           onLoad={handleImageLoad}
           className={`w-full h-full object-contain transition-all duration-150 ${

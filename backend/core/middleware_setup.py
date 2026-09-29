@@ -21,6 +21,7 @@ from backend.core.config import settings
 from backend.core.exceptions import BaseAppException
 from backend.core.logging_config import request_logger, security_logger
 from backend.core.middleware.admin_security import AdminSecurityMiddleware
+from backend.core.middleware.csrf import CSRFOriginMiddleware
 from backend.core.middleware.ddos_protection import DDoSProtectionMiddleware
 from backend.core.middleware.input_sanitizer import InputSanitizerMiddleware
 from backend.core.middleware.rate_limiter import AdvancedRateLimiter
@@ -43,7 +44,7 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
         
         # Check if this is a SwaggerUI/ReDoc route (only in DEBUG mode)
         path = request.url.path
-        is_docs_route = settings.DEBUG and (
+        is_docs_route = settings.docs_enabled and (
             path.startswith("/docs") or 
             path.startswith("/redoc") or 
             path.startswith("/openapi.json") or
@@ -208,13 +209,14 @@ class ErrorHandlingMiddleware(BaseHTTPMiddleware):
             return await call_next(request)
         except Exception as exc:
             if not hasattr(request.state, "error_logged"):
+                # request.client.host already reflects trusted proxy headers
+                # (uvicorn proxy_headers + FORWARDED_ALLOW_IPS); raw
+                # X-Forwarded-For is client-controlled and not logged as the IP.
                 client_ip = request.client.host if request.client else "unknown"
-                forwarded = request.headers.get("X-Forwarded-For")
-                ip_address = forwarded.split(",")[0].strip() if forwarded else client_ip
                 extra = {
                     "path": request.url.path,
                     "method": request.method,
-                    "ip_address": ip_address,
+                    "ip_address": client_ip,
                     "request_id": request.headers.get("X-Request-ID"),
                     "user_agent": request.headers.get("User-Agent"),
                 }
@@ -256,32 +258,12 @@ def setup_middleware(app):
     logger.info("Configuring middleware stack...")
     
     # ========================================================================
-    # DEBUG: OPTIONS Request Logger (FIRST - before everything)
-    # ========================================================================
-    
-    class OptionsDebugMiddleware(BaseHTTPMiddleware):
-        async def dispatch(self, request: Request, call_next):
-            if request.method == "OPTIONS":
-                logger.info(f"[OPTIONS DEBUG] Path: {request.url.path}")
-                logger.info(f"[OPTIONS DEBUG] Origin: {request.headers.get('Origin')}")
-                logger.info(f"[OPTIONS DEBUG] Access-Control-Request-Method: {request.headers.get('Access-Control-Request-Method')}")
-                logger.info(f"[OPTIONS DEBUG] Access-Control-Request-Headers: {request.headers.get('Access-Control-Request-Headers')}")
-            response = await call_next(request)
-            if request.method == "OPTIONS":
-                logger.info(f"[OPTIONS DEBUG] Response Status: {response.status_code}")
-                logger.info(f"[OPTIONS DEBUG] Response Headers: {dict(response.headers)}")
-            return response
-    
-    app.add_middleware(OptionsDebugMiddleware)
-    logger.info("[OK] OPTIONS debug logging enabled")
-    
-    # ========================================================================
     # Layer 1: Performance & Optimization
     # ========================================================================
     
     # GZip compression for performance
     if settings.ENABLE_COMPRESSION:
-        app.add_middleware(GZipMiddleware, minimum_size=5000)
+        app.add_middleware(GZipMiddleware, minimum_size=1000)
         logger.info("[OK] GZip compression enabled")
     
     # NOTE: CORS is intentionally NOT added here. In Starlette, each
@@ -352,6 +334,11 @@ def setup_middleware(app):
     # Route Protection (public/protected routes)
     app.add_middleware(RouteProtectionMiddleware)
     logger.info("[OK] Route protection enabled")
+
+    # CSRF: unsafe /api requests carrying auth cookies must come from a
+    # trusted Origin/Referer (added after the auth layers, so it runs first)
+    app.add_middleware(CSRFOriginMiddleware)
+    logger.info("[OK] CSRF origin verification enabled")
     
     # ========================================================================
     # Layer 4: Security Headers & Redirects

@@ -1,53 +1,80 @@
 # EagleChair Frontend - Dreamhost Configuration
 
 # ==================================================
-# Cache Control Strategy
+# MIME types
 # ==================================================
-# - Static assets with hashes: Cache for 1 year (they have unique filenames)
-# - contentData.js: Never cache (dynamic CMS content)
-# - HTML: Don't cache (contains asset references)
-# ==================================================
-
-<IfModule mod_headers.c>
-  # Default: No cache for HTML files (but allow localStorage/sessionStorage)
-  # NOTE: Using "no-cache" instead of "no-store" to allow browser storage APIs
-  <FilesMatch "\.(html)$">
-    Header set Cache-Control "no-cache, must-revalidate, max-age=0"
-    Header set Pragma "no-cache"
-    Header set Expires "0"
-  </FilesMatch>
-  
-  # CRITICAL: Never cache contentData.js (CMS content that changes frequently)
-  <FilesMatch "contentData\.js$">
-    Header set Cache-Control "no-store, no-cache, must-revalidate, max-age=0"
-    Header set Pragma "no-cache"
-    Header set Expires "0"
-    Header unset ETag
-  </FilesMatch>
-  
-  # Cache static assets with content hashes for 1 year (immutable)
-  <FilesMatch "\.(js|css|woff2?|ttf|eot|svg|png|jpg|jpeg|gif|webp|ico)$">
-    Header set Cache-Control "public, max-age=31536000, immutable"
-  </FilesMatch>
+<IfModule mod_mime.c>
+  AddType image/webp .webp
+  AddType image/avif .avif
+  AddType font/woff2 .woff2
+  AddType application/manifest+json .webmanifest
+  AddType video/mp4 .mp4
+  AddType video/webm .webm
 </IfModule>
 
-# Disable ETags for contentData.js only
-<FilesMatch "contentData\.js$">
-  FileETag None
-</FilesMatch>
+# ==================================================
+# Compression (text assets only; images/video are already compressed)
+# ==================================================
+<IfModule mod_deflate.c>
+  AddOutputFilterByType DEFLATE text/html text/css text/plain text/xml application/javascript text/javascript application/json application/manifest+json application/xml image/svg+xml
+</IfModule>
+
+# ==================================================
+# Cache Control Strategy
+# ==================================================
+# - Vite-hashed build files (name-XXXXXXXX.js/css/...): 1 year, immutable
+# - /uploads/*: 1 year, immutable (every upload gets a unique filename)
+# - HTML, contentData.json, legalDocuments.json, service worker: revalidate every time (ETag -> 304)
+# - Everything else (favicons, logo, non-hashed /assets images): 1 day
+# ==================================================
+<IfModule mod_headers.c>
+  # Default for non-hashed static files
+  <FilesMatch "\.(js|css|woff2?|ttf|eot|svg|png|jpe?g|gif|webp|avif|ico|mp4|webm|pdf|json|xml|txt)$">
+    Header set Cache-Control "public, max-age=86400"
+  </FilesMatch>
+
+  # Vite content-hashed build output
+  <FilesMatch "-[A-Za-z0-9_-]{8}\.(js|css|woff2?|ttf|eot|svg|png|jpe?g|gif|webp|avif)$">
+    Header set Cache-Control "public, max-age=31536000, immutable"
+  </FilesMatch>
+
+  # HTML, CMS content and service worker must always be revalidated
+  <FilesMatch "(\.html|contentData\.json|legalDocuments\.json|^sw\.js|^registerSW\.js)$">
+    Header set Cache-Control "no-cache"
+    Header unset Pragma
+    Header unset Expires
+  </FilesMatch>
+
+  <If "%{REQUEST_URI} =~ m#^/uploads/#">
+    Header set Cache-Control "public, max-age=31536000, immutable"
+    Header set X-Content-Type-Options "nosniff"
+  </If>
+  # Uploaded files are data, never active content: if someone opens an
+  # uploaded SVG/HTML directly, scripts inside it can't run on our origin.
+  # (PDFs excluded: a sandboxed document can't use the browser's PDF viewer.)
+  <If "%{REQUEST_URI} =~ m#^/uploads/# && %{REQUEST_URI} !~ m#\.pdf$#i">
+    Header set Content-Security-Policy "default-src 'none'; img-src 'self' data:; style-src 'unsafe-inline'; sandbox"
+  </If>
+</IfModule>
 
 # Enable mod_rewrite for React Router
 <IfModule mod_rewrite.c>
   RewriteEngine On
   RewriteBase /
-  
+
+  # Never execute or serve server-side scripts from uploads
+  RewriteRule ^uploads/.*\.(php[0-9]?|phtml|phar|pl|py|cgi|sh|asp|aspx|jsp|htaccess)$ - [F,NC,L]
+
+  # Legacy guest quote attachments are private (served only via the admin API)
+  RewriteRule ^uploads/quotes(/|$) - [F,NC,L]
+
   # Don't rewrite files or directories
   RewriteCond %{REQUEST_FILENAME} !-f
   RewriteCond %{REQUEST_FILENAME} !-d
-  
+
   # Don't rewrite uploads directory (served as static files)
   RewriteCond %{REQUEST_URI} !^/uploads/
-  
+
   # Rewrite everything else to index.html
   RewriteRule ^ index.html [L]
 </IfModule>

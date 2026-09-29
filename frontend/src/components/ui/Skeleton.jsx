@@ -1,4 +1,4 @@
-import { motion } from 'framer-motion';
+import { m } from 'framer-motion';
 
 /**
  * Skeleton loader component for content placeholders
@@ -44,7 +44,7 @@ const Skeleton = ({
   };
 
   const skeletons = Array.from({ length: count }, (_, index) => (
-    <motion.div
+    <m.div
       key={index}
       className={`bg-dark-700 animate-pulse ${getVariantStyles()} ${className}`}
       style={skeletonStyle}

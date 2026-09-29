@@ -7,9 +7,10 @@ Handles product catalog operations (chairs, categories, finishes, upholstery)
 import logging
 from typing import Any, Dict, List, Optional
 
-from sqlalchemy import and_, case, cast, func, or_, select
+from sqlalchemy import and_, case, cast, func, or_, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
+from sqlalchemy.orm.attributes import set_committed_value
 from sqlalchemy.types import String
 
 from backend.core.exceptions import ResourceNotFoundError, ValidationError
@@ -33,6 +34,40 @@ from backend.utils.pagination import PaginationParams, paginate
 from backend.utils.slug import slugify
 
 logger = logging.getLogger(__name__)
+
+
+# Chair.stock_status values (lower-cased) that count as orderable from stock.
+# Excludes "Out of Stock", "Discontinued", "Pre-Order" and unknown values.
+IN_STOCK_STATUSES = ("in stock", "instock", "low stock", "available")
+
+
+def _features_include(features: Any, name: str) -> bool:
+    """True if a Chair.features JSON array contains ``name`` (case-insensitive)."""
+    if not isinstance(features, list):
+        return False
+    target = name.lower()
+    for feature in features:
+        if isinstance(feature, dict):
+            feature = feature.get("name") or feature.get("label")
+        if isinstance(feature, str) and feature.strip().lower() == target:
+            return True
+    return False
+
+
+async def _increment_view_count(db: AsyncSession, product: Chair) -> None:
+    """
+    Bump Chair.view_count with a single UPDATE, leaving updated_at untouched
+    (a view is not a content change) and without reloading the product.
+    """
+    await db.execute(
+        update(Chair)
+        .where(Chair.id == product.id)
+        .values(view_count=Chair.view_count + 1, updated_at=Chair.updated_at)
+        .execution_options(synchronize_session=False)
+    )
+    await db.commit()
+    # Reflect the new count on the loaded instance without marking it dirty
+    set_committed_value(product, "view_count", (product.view_count or 0) + 1)
 
 
 def _chair_in_category(category_id: int):
@@ -99,25 +134,6 @@ def category_child_from_subcategory(
         "icon_url": None,
         "banner_image_url": None,
     }
-
-
-def _is_model_like_query(query: str) -> bool:
-    q = (query or "").strip()
-    if not q or len(q) > 10:
-        return False
-    return all(c.isalnum() or c in ".- " for c in q)
-
-
-def _rank_by_model_match(product: Chair, query: str) -> int:
-    q = (query or "").strip().lower()
-    if not q or not product.model_number:
-        return 0
-    mn = product.model_number.lower()
-    if mn == q:
-        return 2
-    if mn.startswith(q):
-        return 1
-    return 0
 
 
 def _has_displayable_image_rank():
@@ -507,46 +523,22 @@ class ProductService:
         # isn't portable across MySQL/SQLite/Postgres, so resolve the
         # matching ids in Python and filter by Chair.id.in_(...).
         if finish_ids or upholstery_ids or color_ids:
-            option_rows = (
-                await db.execute(
-                    select(
-                        Chair.id,
-                        Chair.available_finishes,
-                        Chair.available_upholsteries,
-                        Chair.available_colors,
-                    )
-                )
-            ).all()
+            from backend.services.product_search_index import get_option_map
 
-            if finish_ids:
-                finish_id_set = set(finish_ids)
-                matching_ids = {
-                    row.id
-                    for row in option_rows
-                    if row.available_finishes
-                    and finish_id_set.intersection(row.available_finishes)
-                }
-                query = query.where(Chair.id.in_(matching_ids))
-
-            if upholstery_ids:
-                upholstery_id_set = set(upholstery_ids)
-                matching_ids = {
-                    row.id
-                    for row in option_rows
-                    if row.available_upholsteries
-                    and upholstery_id_set.intersection(row.available_upholsteries)
-                }
-                query = query.where(Chair.id.in_(matching_ids))
-
-            if color_ids:
-                color_id_set = set(color_ids)
-                matching_ids = {
-                    row.id
-                    for row in option_rows
-                    if row.available_colors
-                    and color_id_set.intersection(row.available_colors)
-                }
-                query = query.where(Chair.id.in_(matching_ids))
+            option_map = await get_option_map(db)
+            for position, wanted in (
+                (0, finish_ids),
+                (1, upholstery_ids),
+                (2, color_ids),
+            ):
+                if wanted:
+                    wanted_set = set(wanted)
+                    matching_ids = {
+                        chair_id
+                        for chair_id, options in option_map.items()
+                        if not wanted_set.isdisjoint(options[position])
+                    }
+                    query = query.where(Chair.id.in_(matching_ids))
 
         # Dimension filters
         if min_seat_height is not None:
@@ -563,13 +555,26 @@ class ProductService:
 
         # Feature filters
         if is_stackable is not None:
-            query = query.where(Chair.is_stackable == is_stackable)
+            # No dedicated column: "Stackable" lives in the Chair.features JSON
+            # array. Resolve matching ids in Python (portable across dialects).
+            feature_rows = (
+                await db.execute(select(Chair.id, Chair.features))
+            ).all()
+            stackable_ids = {
+                row.id
+                for row in feature_rows
+                if _features_include(row.features, "stackable")
+            }
+            if is_stackable:
+                query = query.where(Chair.id.in_(stackable_ids))
+            else:
+                query = query.where(Chair.id.not_in(stackable_ids))
 
         if is_outdoor is not None:
-            query = query.where(Chair.is_outdoor == is_outdoor)
+            query = query.where(Chair.is_outdoor_suitable == is_outdoor)
 
         if is_ada_compliant is not None:
-            query = query.where(Chair.is_ada_compliant == is_ada_compliant)
+            query = query.where(Chair.ada_compliant == is_ada_compliant)
 
         # Lead time filter
         if max_lead_time_days is not None:
@@ -577,7 +582,9 @@ class ProductService:
 
         # Stock filter
         if in_stock_only:
-            query = query.where(Chair.stock_quantity > 0)
+            query = query.where(
+                func.lower(Chair.stock_status).in_(IN_STOCK_STATUSES)
+            )
 
         if search_query:
             search_term = f"%{search_query}%"
@@ -716,9 +723,7 @@ class ProductService:
 
         # Increment view count
         if increment_view:
-            product.view_count += 1
-            await db.commit()
-            await db.refresh(product)
+            await _increment_view_count(db, product)
 
         return product
 
@@ -740,12 +745,16 @@ class ProductService:
         Raises:
             ResourceNotFoundError: If product not found
         """
+        # model_number is not unique (variations/suffixes share it): prefer an
+        # active product, then the lowest id, for a deterministic result.
         result = await db.execute(
             select(Chair)
             .options(selectinload(Chair.category))
             .where(Chair.model_number == model_number)
+            .order_by(Chair.is_active.desc(), Chair.id.asc())
+            .limit(1)
         )
-        product = result.scalar_one_or_none()
+        product = result.scalars().first()
 
         if not product:
             raise ResourceNotFoundError(
@@ -754,9 +763,7 @@ class ProductService:
 
         # Increment view count
         if increment_view:
-            product.view_count += 1
-            await db.commit()
-            await db.refresh(product)
+            await _increment_view_count(db, product)
 
         return product
 
@@ -803,9 +810,7 @@ class ProductService:
 
         # Increment view count
         if increment_view:
-            product.view_count += 1
-            await db.commit()
-            await db.refresh(product)
+            await _increment_view_count(db, product)
 
         return product
 
@@ -814,126 +819,42 @@ class ProductService:
         db: AsyncSession, search_query: str, limit: int = 50, threshold: int = 75
     ) -> List[Chair]:
         """
-        Fuzzy search for products using YokedCache
+        Fuzzy search for products using the in-process search index
+
+        Ranking: exact model number, model number prefix, name token matches,
+        other text (description, category/family names, keywords) token
+        matches, then fuzzy (typo-tolerant) matches scoring >= threshold.
 
         Args:
             db: Database session
             search_query: Search query
             limit: Maximum results
-            threshold: Minimum similarity score (0-100)
+            threshold: Minimum similarity score (0-100) for fuzzy matches
 
         Returns:
             List of matching products sorted by relevance
         """
-        from backend.services.cache_service import cache_service
+        from backend.services import product_search_index
 
-        # Try fuzzy search from cache first
-        cache_results = await cache_service.fuzzy_search(
-            query=search_query,
-            threshold=threshold,
-            max_results=limit,
-            tags=["products"],
+        index = await product_search_index.get_index(db)
+        product_ids = product_search_index.search(
+            index, search_query, limit=limit, threshold=threshold
         )
+        if not product_ids:
+            logger.info(f"Fuzzy search for '{search_query}' returned 0 results")
+            return []
 
-        # If we have cached results, fetch the full products
-        if cache_results:
-            product_ids = []
-            product_scores = []
-            for result in cache_results:
-                # Extract product ID from cache key (format: "eaglechair:product_search:123")
-                try:
-                    key_parts = result["key"].split(":")
-                    if len(key_parts) >= 3 and key_parts[1] == "product_search":
-                        product_ids.append(int(key_parts[2]))
-                        product_scores.append(result["score"])
-                except (ValueError, IndexError):
-                    continue
-
-            if product_ids:
-                query = (
-                    select(Chair)
-                    .options(selectinload(Chair.category))
-                    .where(and_(Chair.id.in_(product_ids), Chair.is_active))
-                )
-                result = await db.execute(query)
-                products = list(result.scalars().all())
-
-                product_score_map = dict(zip(product_ids, product_scores))
-                if _is_model_like_query(search_query):
-                    products.sort(
-                        key=lambda p: (
-                            -_rank_by_model_match(p, search_query),
-                            product_score_map.get(p.id, 0),
-                        ),
-                        reverse=True,
-                    )
-                else:
-                    products.sort(
-                        key=lambda p: product_score_map.get(p.id, 0), reverse=True
-                    )
-
-                logger.info(
-                    f"Fuzzy search (cached) for '{search_query}' returned {len(products)} results"
-                )
-                return products
-
-        # Fallback to database ILIKE search
-        search_term = f"%{search_query}%"
-
-        keyword_match = cast(Chair.keywords, String).ilike(search_term)
-        query = (
+        result = await db.execute(
             select(Chair)
             .options(selectinload(Chair.category))
-            .where(
-                and_(
-                    Chair.is_active,
-                    or_(
-                        Chair.name.ilike(search_term),
-                        Chair.model_number.ilike(search_term),
-                        Chair.short_description.ilike(search_term),
-                        Chair.full_description.ilike(search_term),
-                        keyword_match,
-                    ),
-                )
-            )
-            .limit(limit)
+            .where(and_(Chair.id.in_(product_ids), Chair.is_active))
         )
-
-        result = await db.execute(query)
-        products = list(result.scalars().all())
-
-        if _is_model_like_query(search_query):
-            products.sort(
-                key=lambda p: -_rank_by_model_match(p, search_query),
-            )
-
-        for product in products:
-            searchable_parts = [
-                product.name or "",
-                product.model_number or "",
-                product.short_description or "",
-                product.full_description or "",
-            ]
-            if product.category:
-                searchable_parts.append(product.category.name or "")
-            kw = product.keywords
-            if isinstance(kw, list):
-                searchable_parts.append(" ".join(str(k) for k in kw if k))
-            searchable_text = " ".join(filter(None, searchable_parts))
-
-            # Index asynchronously (don't await to avoid slowing down the response)
-            try:
-                await cache_service.index_product_for_search(
-                    product_id=product.id, searchable_text=searchable_text, ttl=3600
-                )
-            except Exception as e:
-                # Don't let cache errors affect search results
-                logger.debug(f"Failed to cache product {product.id} for search: {e}")
+        by_id = {p.id: p for p in result.scalars().all()}
+        products = [by_id[pid] for pid in product_ids if pid in by_id]
 
         logger.info(
-            f"Fuzzy search (database fallback) for '{search_query}' returned {len(products)} results"
+            f"Fuzzy search for '{search_query}' returned {len(products)} results"
         )
-
         return products
 
     # ========================================================================
@@ -1358,27 +1279,49 @@ class ProductService:
         if not source_keywords:
             return []
 
-        query = (
-            select(Chair)
-            .options(selectinload(Chair.category))
-            .where(Chair.id != product_id, Chair.is_active == True)
+        # Narrow candidates in SQL: only rows whose serialized keywords contain
+        # at least one source keyword (a superset of exact matches), and load
+        # just the columns needed for scoring instead of full ORM objects.
+        keywords_text = cast(Chair.keywords, String)
+        keyword_filter = or_(
+            *[keywords_text.ilike(f"%{kw}%") for kw in set(source_keywords)]
         )
-        result = await db.execute(query)
-        candidates = list(result.scalars().all())
+        candidate_rows = (
+            await db.execute(
+                select(Chair.id, Chair.keywords, Chair.display_order, Chair.name)
+                .where(
+                    Chair.id != product_id,
+                    Chair.is_active == True,
+                    keyword_filter,
+                )
+            )
+        ).all()
 
+        source_set = set(source_keywords)
         scored = []
-        for c in candidates:
+        for row in candidate_rows:
             c_keywords = (
-                [str(k).strip().lower() for k in c.keywords if k]
-                if isinstance(c.keywords, list)
+                [str(k).strip().lower() for k in row.keywords if k]
+                if isinstance(row.keywords, list)
                 else []
             )
-            match_count = len(set(source_keywords) & set(c_keywords))
+            match_count = len(source_set & set(c_keywords))
             if match_count > 0:
-                scored.append((c, match_count))
+                scored.append((row, match_count))
 
         scored.sort(key=lambda x: (-x[1], x[0].display_order or 0, x[0].name or ""))
-        return [c for c, _ in scored[:limit]]
+        top_ids = [row.id for row, _ in scored[:limit]]
+        if not top_ids:
+            return []
+
+        # Load full products only for the winners, preserving score order
+        result = await db.execute(
+            select(Chair)
+            .options(selectinload(Chair.category))
+            .where(Chair.id.in_(top_ids))
+        )
+        by_id = {c.id: c for c in result.scalars().all()}
+        return [by_id[cid] for cid in top_ids if cid in by_id]
 
     # ========================================================================
     # Family & Subcategory Methods (NEW)
@@ -1542,11 +1485,8 @@ class ProductService:
     @staticmethod
     async def warm_search_cache(db: AsyncSession) -> int:
         """
-        Populate the search cache with all active products
-
-        This should be called during application startup to enable
-        fast fuzzy search. Products are indexed with searchable text
-        (name, model number, descriptions) for YokedCache fuzzy matching.
+        Build this worker's in-process product search index ahead of the
+        first search request.
 
         Args:
             db: Database session
@@ -1554,52 +1494,11 @@ class ProductService:
         Returns:
             int: Number of products indexed
         """
-        from backend.services.cache_service import cache_service
-
-        logger.info("Starting product search cache warm-up...")
+        from backend.services import product_search_index
 
         try:
-            # Fetch all active products
-            query = (
-                select(Chair)
-                .where(Chair.is_active == True)
-                .options(selectinload(Chair.category))
-            )
-
-            result = await db.execute(query)
-            products = list(result.scalars().all())
-
-            indexed_count = 0
-
-            for product in products:
-                searchable_parts = [
-                    product.name or "",
-                    product.model_number or "",
-                    product.short_description or "",
-                    product.full_description or "",
-                ]
-                if product.category:
-                    searchable_parts.append(product.category.name or "")
-                kw = product.keywords
-                if isinstance(kw, list):
-                    searchable_parts.append(" ".join(str(k) for k in kw if k))
-                searchable_text = " ".join(filter(None, searchable_parts))
-
-                # Index for fuzzy search
-                success = await cache_service.index_product_for_search(
-                    product_id=product.id,
-                    searchable_text=searchable_text,
-                    ttl=3600,  # 1 hour
-                )
-
-                if success:
-                    indexed_count += 1
-
-            logger.info(
-                f"Product search cache warm-up complete: {indexed_count} products indexed"
-            )
-            return indexed_count
-
+            index = await product_search_index.get_index(db)
+            return len(index.entries)
         except Exception as e:
-            logger.error(f"Error warming search cache: {e}")
+            logger.error(f"Error warming search index: {e}")
             return 0

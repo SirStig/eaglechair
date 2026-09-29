@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { AnimatePresence, motion as Motion } from 'framer-motion';
+import { AnimatePresence, m as Motion } from 'framer-motion';
 import Button from '../ui/Button';
 import Dropdown from '../ui/Dropdown';
 import Badge from '../ui/Badge';
@@ -13,7 +13,13 @@ import { useSiteSettings } from '../../hooks/useContent';
 import productService from '../../services/productService';
 import logger from '../../utils/logger';
 import { isDesktopViewEnabled, toggleDesktopView } from '../../utils/viewMode';
-import { getProductImage } from '../../utils/apiHelpers';
+import {
+  getProductImage,
+  ensureResolvedImageUrl,
+  getImageSrcSet,
+  CATEGORY_TILE_IMAGE_SIZES,
+} from '../../utils/apiHelpers';
+import ResponsiveImage from '../ui/ResponsiveImage';
 
 const CONTEXT = 'Header';
 
@@ -49,6 +55,9 @@ const Header = ({ isMobileMenuOpen, setIsMobileMenuOpen }) => {
 
   // Search products as user types using fuzzy search
   useEffect(() => {
+    // Set when the query changes, so a slow response for an older query
+    // can't replace the results for what the user has typed since.
+    let stale = false;
     const searchProductsAsync = async () => {
       if (searchQuery.trim().length > 1) {
         try {
@@ -56,11 +65,13 @@ const Header = ({ isMobileMenuOpen, setIsMobileMenuOpen }) => {
             limit: 5,
             threshold: 60
           });
+          if (stale) return;
 
           setSearchResults(results || []);
           setShowSearchResults(true);
           logger.debug(CONTEXT, `Search for "${searchQuery}" found ${results?.length || 0} results`);
         } catch (error) {
+          if (stale) return;
           logger.error(CONTEXT, 'Error searching products', error);
           setSearchResults([]);
           setShowSearchResults(false);
@@ -72,7 +83,10 @@ const Header = ({ isMobileMenuOpen, setIsMobileMenuOpen }) => {
     };
 
     const timeoutId = setTimeout(searchProductsAsync, 300); // Debounce
-    return () => clearTimeout(timeoutId);
+    return () => {
+      stale = true;
+      clearTimeout(timeoutId);
+    };
   }, [searchQuery]);
 
   // Close search results when clicking outside
@@ -101,7 +115,15 @@ const Header = ({ isMobileMenuOpen, setIsMobileMenuOpen }) => {
             const imageUrl = category.banner_image_url || category.image;
             if (imageUrl) {
               const img = new Image();
-              img.src = imageUrl;
+              // Match CategoryTile's srcset/sizes so the preloaded candidate
+              // is the one the dropdown actually renders.
+              const resolved = ensureResolvedImageUrl(imageUrl);
+              const srcSet = getImageSrcSet(resolved);
+              if (srcSet) {
+                img.sizes = CATEGORY_TILE_IMAGE_SIZES;
+                img.srcset = srcSet;
+              }
+              img.src = resolved;
               // Mark as high priority for browser
               img.fetchPriority = 'high';
             }
@@ -350,12 +372,12 @@ const Header = ({ isMobileMenuOpen, setIsMobileMenuOpen }) => {
                           className="w-full px-4 py-3 flex items-center gap-3 hover:bg-cream-100 transition-colors text-left"
                         >
                             <span className="w-10 shrink-0 aspect-[4/5] overflow-hidden rounded bg-cream-100">
-                            <img
+                            <ResponsiveImage
                               src={getProductImage(product)}
+                              sizes="48px"
                               alt={product.name}
                               className="w-full h-full object-cover"
-                              loading={idx < 3 ? "eager" : "lazy"}
-                              fetchpriority={idx < 3 ? "high" : "auto"}
+                              priority={idx < 3}
                               onError={(e) => {
                                 e.target.onerror = null;
                                 e.target.src = '/placeholder.svg';
@@ -435,7 +457,7 @@ const Header = ({ isMobileMenuOpen, setIsMobileMenuOpen }) => {
               <Motion.div whileHover={{ scale: 1.1 }} whileTap={{ scale: 0.95 }}>
                 <Button variant="transparent" size="sm">
                   <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0z" />
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z" />
                   </svg>
                   {cartItemCount > 0 && (
                     <Badge variant="danger" size="sm" className="absolute -top-2 -right-2 min-w-[1.25rem] h-5 flex items-center justify-center">
@@ -653,7 +675,7 @@ export const MobileMenu = ({ isMobileMenuOpen, setIsMobileMenuOpen, searchQuery,
                   >
                     <span className="flex items-center gap-2">
                       <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0z" />
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z" />
                       </svg>
                       <span>Cart</span>
                     </span>

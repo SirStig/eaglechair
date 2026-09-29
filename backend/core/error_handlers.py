@@ -19,9 +19,9 @@ logger = logging.getLogger(__name__)
 
 
 def _request_context(request: Request) -> dict:
-    client_ip = request.client.host if request.client else None
-    forwarded = request.headers.get("X-Forwarded-For")
-    ip_address = forwarded.split(",")[0].strip() if forwarded else client_ip or "unknown"
+    # request.client.host already reflects trusted proxy headers (uvicorn
+    # proxy_headers + FORWARDED_ALLOW_IPS); raw X-Forwarded-For is spoofable.
+    ip_address = request.client.host if request.client else "unknown"
     return {
         "path": request.url.path,
         "method": request.method,

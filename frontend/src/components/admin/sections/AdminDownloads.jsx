@@ -1,4 +1,4 @@
-import { motion } from 'framer-motion';
+import { m } from 'framer-motion';
 import Card from '../../ui/Card';
 import { Download } from 'lucide-react';
 
@@ -29,7 +29,7 @@ const AdminDownloads = () => {
 
       <div className="space-y-6">
         {SOFTWARE.map((item, index) => (
-          <motion.div
+          <m.div
             key={item.id}
             initial={{ opacity: 0, y: 16 }}
             animate={{ opacity: 1, y: 0 }}
@@ -62,7 +62,7 @@ const AdminDownloads = () => {
                 ))}
               </div>
             </Card>
-          </motion.div>
+          </m.div>
         ))}
       </div>
     </div>

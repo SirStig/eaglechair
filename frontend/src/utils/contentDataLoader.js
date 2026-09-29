@@ -1,11 +1,13 @@
 /**
  * Content Data Dynamic Loader
- * 
- * Loads contentData.json from /data/ at runtime with cache busting
- * This prevents Vite from bundling it, allowing the backend to update it
- * without requiring a frontend rebuild.
- * 
- * Uses JSON format instead of JS exports for security (no Function constructor/eval)
+ *
+ * Loads contentData.json from /data/ at runtime. This prevents Vite from
+ * bundling it, allowing the backend to update it without a frontend rebuild.
+ *
+ * Every caller on a page shares one request: index.html starts the fetch
+ * before the bundle loads (window.__contentDataPromise) and the first
+ * loadContentData() call adopts it. The server sends no-cache + ETag, so
+ * `cache: 'no-cache'` revalidates cheaply (304) instead of re-downloading.
  */
 
 import logger from './logger';
@@ -14,6 +16,7 @@ const CONTEXT = 'ContentDataLoader';
 
 let contentCache = null;
 let contentCacheTimestamp = 0;
+let inflight = null;
 const CACHE_DURATION = 60000; // 1 minute
 
 /**
@@ -27,123 +30,52 @@ const validateContent = (content) => {
   return required.every(key => content[key] !== undefined);
 };
 
+const fetchContentData = async () => {
+  const response = await fetch('/data/contentData.json', { cache: 'no-cache' });
+  if (!response.ok) {
+    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+  }
+  return response.json();
+};
+
+const takeBootstrapPromise = () => {
+  if (typeof window === 'undefined' || !window.__contentDataPromise) return null;
+  const p = window.__contentDataPromise;
+  window.__contentDataPromise = null;
+  return p;
+};
+
 /**
- * Load contentData.json dynamically from /data/ path
- * In development: served from public/data/contentData.json
- * In production: served from root-level /data/contentData.json
- * Uses fetch with cache-busting timestamp
+ * Load contentData.json (deduplicated, cached for CACHE_DURATION).
+ * Resolves to null on failure.
  */
-export const loadContentData = async () => {
-  const now = Date.now();
-  
-  // Return cached if fresh
-  if (contentCache && (now - contentCacheTimestamp) < CACHE_DURATION) {
-    return contentCache;
+export const loadContentData = () => {
+  if (contentCache && (Date.now() - contentCacheTimestamp) < CACHE_DURATION) {
+    return Promise.resolve(contentCache);
   }
-  
-  try {
-    // Try JSON format first (new secure format)
-    const timestamp = now;
-    let response = await fetch(`/data/contentData.json?t=${timestamp}`, {
-      cache: 'no-store',
-      headers: {
-        'Cache-Control': 'no-cache, no-store, must-revalidate',
-        'Pragma': 'no-cache'
+  if (inflight) return inflight;
+
+  inflight = (async () => {
+    try {
+      let data = await (takeBootstrapPromise() || Promise.resolve(null)).catch(() => null);
+      if (!validateContent(data)) {
+        data = await fetchContentData();
       }
-    });
-    
-    // Fallback to .js for backward compatibility during migration
-    if (!response.ok) {
-      logger.debug(CONTEXT, 'contentData.json not found, trying contentData.js for backward compatibility');
-      response = await fetch(`/data/contentData.js?t=${timestamp}`, {
-        cache: 'no-store',
-        headers: {
-          'Cache-Control': 'no-cache, no-store, must-revalidate',
-          'Pragma': 'no-cache'
-        }
-      });
-      
-      if (!response.ok) {
-        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+      if (!validateContent(data)) {
+        throw new Error('Invalid content structure: missing required fields');
       }
-      
-      // Legacy JS format - parse exports (temporary during migration)
-      const jsCode = await response.text();
-      const exports = {};
-      const exportBlocks = jsCode.split(/export\s+const\s+(\w+)\s*=/);
-      
-      for (let i = 1; i < exportBlocks.length; i += 2) {
-        const varName = exportBlocks[i];
-        let varValueStr = exportBlocks[i + 1];
-        
-        let braceDepth = 0;
-        let bracketDepth = 0;
-        let inString = false;
-        let stringChar = null;
-        let endIndex = 0;
-        
-        for (let j = 0; j < varValueStr.length; j++) {
-          const char = varValueStr[j];
-          const prevChar = j > 0 ? varValueStr[j - 1] : null;
-          
-          if (!inString) {
-            if (char === '{') braceDepth++;
-            else if (char === '}') braceDepth--;
-            else if (char === '[') bracketDepth++;
-            else if (char === ']') bracketDepth--;
-            else if ((char === '"' || char === "'" || char === '`') && prevChar !== '\\') {
-              inString = true;
-              stringChar = char;
-            } else if (char === ';' && braceDepth === 0 && bracketDepth === 0) {
-              endIndex = j;
-              break;
-            }
-          } else {
-            if (char === stringChar && prevChar !== '\\') {
-              inString = false;
-              stringChar = null;
-            }
-          }
-        }
-        
-        varValueStr = varValueStr.substring(0, endIndex).trim();
-        
-        try {
-          const parseValue = new Function('return (' + varValueStr + ')');
-          exports[varName] = parseValue();
-          logger.debug(CONTEXT, `Parsed ${varName} (legacy JS format)`);
-        } catch (e) {
-          logger.error(CONTEXT, `Failed to parse ${varName}:`, e);
-        }
-      }
-      
-      if (!validateContent(exports)) {
-        throw new Error('Invalid content structure');
-      }
-      
-      contentCache = exports;
-      contentCacheTimestamp = now;
-      logger.info(CONTEXT, `Loaded contentData.js (legacy format, ${Object.keys(exports).length} exports)`);
-      return exports;
+      contentCache = data;
+      contentCacheTimestamp = Date.now();
+      logger.info(CONTEXT, `Loaded contentData.json (${Object.keys(data).length} exports)`);
+      return data;
+    } catch (error) {
+      logger.error(CONTEXT, 'Failed to load /data/contentData.json:', error);
+      return null;
+    } finally {
+      inflight = null;
     }
-    
-    // JSON format (secure)
-    const jsonData = await response.json();
-    
-    if (!validateContent(jsonData)) {
-      throw new Error('Invalid content structure: missing required fields');
-    }
-    
-    contentCache = jsonData;
-    contentCacheTimestamp = now;
-    
-    logger.info(CONTEXT, `Loaded contentData.json (${Object.keys(jsonData).length} exports)`);
-    return jsonData;
-    
-  } catch (error) {
-    logger.error(CONTEXT, 'Failed to load /data/contentData.json:', error);
-    return null;
-  }
+  })();
+  return inflight;
 };
 
 /**
@@ -152,6 +84,7 @@ export const loadContentData = async () => {
 export const clearContentCache = () => {
   contentCache = null;
   contentCacheTimestamp = 0;
+  inflight = null;
   logger.info(CONTEXT, 'Content cache cleared');
 };
 

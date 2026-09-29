@@ -4,7 +4,7 @@ EagleChair Quote and Cart Models
 Models for quote requests and shopping cart (quotes only, no actual purchasing)
 """
 
-from sqlalchemy import Column, Integer, String, Text, Boolean, Float, ForeignKey, JSON, Enum as SQLEnum, UniqueConstraint
+from sqlalchemy import Column, Integer, String, Text, Boolean, Float, ForeignKey, JSON, Enum as SQLEnum, Index, UniqueConstraint
 from sqlalchemy.orm import relationship
 import enum
 
@@ -71,6 +71,11 @@ class Quote(Base):
     Cart contents are converted to quote requests
     """
     __tablename__ = "quotes"
+    __table_args__ = (
+        # Admin quote lists filter by status / company and sort by newest
+        Index("ix_quotes_status_created_at", "status", "created_at"),
+        Index("ix_quotes_company_id_created_at", "company_id", "created_at"),
+    )
     
     id = Column(Integer, primary_key=True, index=True)
     quote_number = Column(String(50), unique=True, index=True, nullable=False)

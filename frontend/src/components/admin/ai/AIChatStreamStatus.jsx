@@ -3,7 +3,7 @@
  * Shows real-time state: thinking, searching, fetching URL, calculating
  */
 
-import { motion, AnimatePresence } from 'framer-motion';
+import { m, AnimatePresence } from 'framer-motion';
 import { Search, Globe, Calculator, Brain, Loader2 } from 'lucide-react';
 
 export default function AIChatStreamStatus({ state }) {
@@ -35,7 +35,7 @@ export default function AIChatStreamStatus({ state }) {
 
   return (
     <AnimatePresence mode="wait">
-      <motion.div
+      <m.div
         key={state.type + (state.query || state.url || '')}
         initial={false}
         animate={{ opacity: 1 }}
@@ -49,7 +49,7 @@ export default function AIChatStreamStatus({ state }) {
             {labels[state.type] || 'Processing...'}
           </span>
         </div>
-      </motion.div>
+      </m.div>
     </AnimatePresence>
   );
 }

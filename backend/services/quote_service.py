@@ -33,8 +33,23 @@ from backend.models.quote import (
     QuoteStatus,
     SavedConfiguration,
 )
+from backend.utils.file_validation import (
+    PRIVATE_UPLOAD_DIR,
+    extension_for_mime,
+    is_within_directory,
+    sniff_file_type,
+)
 
 logger = logging.getLogger(__name__)
+
+# Guest quote attachment limits
+GUEST_ATTACHMENT_MAX_FILES = 5
+GUEST_ATTACHMENT_MAX_BYTES = 10 * 1024 * 1024  # 10MB per file
+GUEST_ATTACHMENT_EXTENSIONS = {".pdf", ".png", ".jpg", ".jpeg", ".webp"}
+GUEST_ATTACHMENT_MIME_TYPES = {"application/pdf", "image/png", "image/jpeg", "image/webp"}
+# Private (non-public) storage root for quote attachments; served only via admin download endpoint
+QUOTE_ATTACHMENT_DIR = PRIVATE_UPLOAD_DIR / "quotes"
+QUOTE_ATTACHMENT_URL_PREFIX = "/api/v1/admin/quotes/attachments"
 
 
 class QuoteService:
@@ -542,9 +557,15 @@ class QuoteService:
         # Verify cart ownership
         cart = await QuoteService.get_cart_with_items(db, cart_id, company_id)
         
-        # Delete all items
-        for item in cart.items:
-            db.delete(item)
+        # Delete all items (AsyncSession.delete is a coroutine; without await
+        # nothing was removed)
+        for item in list(cart.items):
+            await db.delete(item)
+        
+        cart.subtotal = 0
+        cart.estimated_tax = 0
+        cart.estimated_shipping = 0
+        cart.estimated_total = 0
         
         await db.commit()
         
@@ -794,14 +815,14 @@ class QuoteService:
         files: optional list of (filename, content_bytes, content_type).
         """
         from backend.services.email_service import EmailService
-        from backend.core.config import settings
-        from pathlib import Path as PathLib
-        import time
-        import json
+        import uuid
 
         items_data = payload.get("items") or []
         if not items_data:
             raise ValidationError("At least one item is required")
+
+        # Validate attachments before any DB writes
+        validated_files = QuoteService.validate_guest_attachments(files or [])
 
         shipping_dests = payload.get("shipping_destinations") or []
         if not shipping_dests:
@@ -909,52 +930,44 @@ class QuoteService:
         quote_request.total_amount = subtotal
         quote_request.submitted_at = datetime.utcnow().isoformat()
 
-        if files:
-            try:
-                from backend.api.v1.routes.admin.upload import get_upload_base_dir
-                upload_base = get_upload_base_dir()
-                quote_upload_dir = upload_base / "quotes" / quote_number
-                quote_upload_dir.mkdir(parents=True, exist_ok=True)
-                base_resolved = upload_base.resolve()
-                for fname, fcontent, ftype in files:
-                    safe_name = "".join(c for c in (fname or "file") if c.isalnum() or c in ".-_") or "file"
-                    ext = PathLib(safe_name).suffix or (".pdf" if "pdf" in (ftype or "") else ".bin")
-                    if not ext.startswith("."):
-                        ext = "." + ext
-                    unique_name = f"{int(time.time() * 1000)}_{safe_name}"
-                    file_path = quote_upload_dir / unique_name
-                    file_path.write_bytes(fcontent)
-                    if not str(file_path.resolve()).startswith(str(base_resolved)):
-                        raise ValidationError("Invalid upload path")
-                    url_path = f"/uploads/quotes/{quote_number}/{unique_name}"
-                    att = QuoteAttachment(
-                        quote_id=quote_request.id,
-                        file_name=fname or unique_name,
-                        file_url=url_path,
-                        file_type=ftype or "application/octet-stream",
-                        file_size_bytes=len(fcontent),
-                        attachment_type="general",
-                        uploaded_by="guest",
-                        uploaded_at=datetime.utcnow().isoformat(),
-                    )
-                    db.add(att)
-            except ImportError:
-                logger.warning("Could not save quote attachments: upload module not available")
+        if validated_files:
+            quote_upload_dir = QUOTE_ATTACHMENT_DIR / quote_number
+            if not is_within_directory(quote_upload_dir, QUOTE_ATTACHMENT_DIR):
+                raise ValidationError("Invalid upload path")
+            quote_upload_dir.mkdir(parents=True, exist_ok=True)
+            for original_name, fcontent, mime_type, ext in validated_files:
+                unique_name = f"{uuid.uuid4().hex}{ext}"
+                file_path = quote_upload_dir / unique_name
+                if not is_within_directory(file_path, QUOTE_ATTACHMENT_DIR):
+                    raise ValidationError("Invalid upload path")
+                file_path.write_bytes(fcontent)
+                att = QuoteAttachment(
+                    quote_id=quote_request.id,
+                    file_name=original_name[:255],
+                    file_url=f"{QUOTE_ATTACHMENT_URL_PREFIX}/{quote_number}/{unique_name}",
+                    file_type=mime_type,
+                    file_size_bytes=len(fcontent),
+                    attachment_type="general",
+                    uploaded_by="guest",
+                    uploaded_at=datetime.utcnow().isoformat(),
+                )
+                db.add(att)
 
         await db.commit()
         await db.refresh(quote_request)
 
+        # Emails are sent after the response (own DB session, errors logged)
         try:
             company_name = payload.get("contact_name") or payload.get("contact_email") or "Guest"
-            await EmailService.send_quote_created_email(
-                db=db,
+            EmailService.send_in_background(
+                EmailService.send_quote_created_email,
                 to_email=payload.get("contact_email", ""),
                 company_name=company_name,
                 quote_number=quote_number,
                 item_count=len(items_data),
             )
-            await EmailService.send_admin_quote_notification(
-                db=db,
+            EmailService.send_in_background(
+                EmailService.send_admin_quote_notification,
                 quote_number=quote_number,
                 company_name=company_name,
                 item_count=len(items_data),
@@ -965,6 +978,43 @@ class QuoteService:
 
         logger.info(f"Created guest quote request {quote_number} with {len(items_data)} items")
         return quote_request
+
+    @staticmethod
+    def validate_guest_attachments(files: List[tuple]) -> List[tuple]:
+        """
+        Validate guest-uploaded quote attachments.
+
+        Args:
+            files: list of (filename, content_bytes, content_type)
+
+        Returns:
+            list of (safe_original_name, content_bytes, sniffed_mime, extension)
+
+        Raises:
+            ValidationError: on too many files, oversize files, or disallowed types
+        """
+        from pathlib import Path as PathLib
+
+        if len(files) > GUEST_ATTACHMENT_MAX_FILES:
+            raise ValidationError(f"A maximum of {GUEST_ATTACHMENT_MAX_FILES} attachments is allowed")
+
+        validated = []
+        for fname, fcontent, _client_type in files:
+            if not fcontent:
+                raise ValidationError("Attachment is empty")
+            if len(fcontent) > GUEST_ATTACHMENT_MAX_BYTES:
+                raise ValidationError("Attachment exceeds the 10MB size limit")
+
+            safe_name = "".join(c for c in (fname or "file") if c.isalnum() or c in ".-_ ") or "file"
+            if PathLib(safe_name).suffix.lower() not in GUEST_ATTACHMENT_EXTENSIONS:
+                raise ValidationError("Only PDF, PNG, JPG and WEBP attachments are allowed")
+
+            mime_type = sniff_file_type(fcontent)
+            if mime_type not in GUEST_ATTACHMENT_MIME_TYPES:
+                raise ValidationError("Attachment content does not match an allowed file type")
+
+            validated.append((safe_name, fcontent, mime_type, extension_for_mime(mime_type)))
+        return validated
 
     @staticmethod
     async def get_company_quotes(

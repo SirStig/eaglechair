@@ -43,9 +43,10 @@ from sqlalchemy.orm import selectinload
 
 from backend.api.dependencies import get_current_admin, require_role
 from backend.core.config import settings
-from backend.models.company import AdminRole
+from backend.models.company import AdminRole, AdminUser
 from backend.core.security import SecurityManager
 from backend.database.base import get_db, AsyncSessionLocal
+from backend.utils.file_validation import PRIVATE_UPLOAD_DIR
 from backend.models.ai_chat import (
     AIChatSession,
     AIChatMessage,
@@ -72,17 +73,41 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
-# Upload directory for AI files
-AI_UPLOADS_DIR = Path("uploads/ai")
+# Upload directories for AI files: private (not under the public /uploads mount),
+# resolved relative to the repository rather than the process CWD
+AI_UPLOADS_DIR = PRIVATE_UPLOAD_DIR / "ai"
 AI_UPLOADS_DIR.mkdir(parents=True, exist_ok=True)
 
-TRAINING_UPLOADS_DIR = Path("uploads/ai_training")
+TRAINING_UPLOADS_DIR = PRIVATE_UPLOAD_DIR / "ai_training"
 TRAINING_UPLOADS_DIR.mkdir(parents=True, exist_ok=True)
+
+AI_UPLOAD_MAX_BYTES = 25 * 1024 * 1024  # 25MB per file
+AI_CHAT_UPLOAD_EXTENSIONS = {
+    ".pdf", ".csv", ".xlsx", ".xls", ".xlsm", ".txt", ".md", ".json",
+    ".jpg", ".jpeg", ".png", ".gif", ".webp",
+}
+AI_TRAINING_UPLOAD_EXTENSIONS = {".pdf", ".csv", ".xlsx", ".xls", ".xlsm", ".txt", ".md"}
 
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Helpers
 # ─────────────────────────────────────────────────────────────────────────────
+
+def _validated_upload_extension(filename: str, allowed: set[str]) -> str:
+    """Return the lowercased extension if allowed, otherwise raise 400."""
+    ext = Path(filename or "").suffix.lower()
+    if ext not in allowed:
+        raise HTTPException(status_code=400, detail=f"File type '{ext or 'unknown'}' is not allowed")
+    return ext
+
+
+async def _read_upload_limited(file: UploadFile) -> bytes:
+    """Read an upload, rejecting files larger than AI_UPLOAD_MAX_BYTES."""
+    content = await file.read(AI_UPLOAD_MAX_BYTES + 1)
+    if len(content) > AI_UPLOAD_MAX_BYTES:
+        raise HTTPException(status_code=413, detail="File exceeds the 25MB size limit")
+    return content
+
 
 def detect_file_type(filename: str, content_type: str = "") -> AIFileType:
     ext = Path(filename).suffix.lower()
@@ -371,10 +396,10 @@ async def upload_file_to_chat(
     session = await get_session_or_404(session_id, db, admin)
     file_type = detect_file_type(file.filename or "", file.content_type or "")
     file_id = str(uuid.uuid4())
-    ext = Path(file.filename or "file").suffix
+    ext = _validated_upload_extension(file.filename or "", AI_CHAT_UPLOAD_EXTENSIONS)
     save_path = AI_UPLOADS_DIR / f"{file_id}{ext}"
 
-    content = await file.read()
+    content = await _read_upload_limited(file)
     save_path.write_bytes(content)
 
     db_file = AIUploadedFile(
@@ -587,14 +612,14 @@ async def upload_training_document(
     description: str = Form(""),
     tags: str = Form(""),
     db: AsyncSession = Depends(get_db),
-    admin=Depends(get_current_admin),
+    admin=Depends(require_role(AdminRole.ADMIN)),
 ):
     file_type = detect_file_type(file.filename or "", file.content_type or "")
     doc_id = str(uuid.uuid4())
-    ext = Path(file.filename or "file").suffix
+    ext = _validated_upload_extension(file.filename or "", AI_TRAINING_UPLOAD_EXTENSIONS)
     save_path = TRAINING_UPLOADS_DIR / f"{doc_id}{ext}"
 
-    content = await file.read()
+    content = await _read_upload_limited(file)
     save_path.write_bytes(content)
 
     tags_list = [t.strip() for t in tags.split(",") if t.strip()] if tags else []
@@ -673,7 +698,7 @@ async def upload_training_document(
 async def upload_training_batch(
     files: list[UploadFile] = File(..., description="Multiple files; names will be derived from filenames"),
     db: AsyncSession = Depends(get_db),
-    admin=Depends(get_current_admin),
+    admin=Depends(require_role(AdminRole.ADMIN)),
 ):
     if not files or len(files) > 200:
         raise HTTPException(status_code=400, detail="Provide 1–200 files")
@@ -681,12 +706,14 @@ async def upload_training_batch(
     for file in files:
         filename = file.filename or "file"
         file_type = detect_file_type(filename, file.content_type or "")
-        ext = Path(filename).suffix
-        if ext.lower() not in (".pdf", ".csv", ".xlsx", ".xls", ".xlsm", ".txt", ".md"):
+        ext = Path(filename).suffix.lower()
+        if ext not in AI_TRAINING_UPLOAD_EXTENSIONS:
             continue
         doc_id = str(uuid.uuid4())
         save_path = TRAINING_UPLOADS_DIR / f"{doc_id}{ext}"
-        content = await file.read()
+        content = await file.read(AI_UPLOAD_MAX_BYTES + 1)
+        if len(content) > AI_UPLOAD_MAX_BYTES:
+            continue
         save_path.write_bytes(content)
         name = Path(filename).stem[:255] or filename[:255]
         doc = AITrainingDocument(
@@ -756,7 +783,7 @@ async def upload_training_batch(
 async def delete_training_doc(
     doc_id: str,
     db: AsyncSession = Depends(get_db),
-    admin=Depends(get_current_admin),
+    admin=Depends(require_role(AdminRole.ADMIN)),
 ):
     await db.execute(
         update(AITrainingDocument)
@@ -794,8 +821,20 @@ async def websocket_chat(websocket: WebSocket, session_id: str):
     """
     await websocket.accept()
 
-    # Validate session and admin token via header or query param
+    # Authenticate via the httpOnly access_token cookie (browsers) or a
+    # ?token= query param (non-browser clients)
     token = websocket.query_params.get("token", "")
+    if not token:
+        token = websocket.cookies.get("access_token", "")
+        if token:
+            # Cookie auth: block cross-site WebSocket hijacking
+            from backend.core.middleware.csrf import CSRFOriginMiddleware, normalize_origin
+
+            origin = normalize_origin(websocket.headers.get("origin"))
+            if not origin or origin not in CSRFOriginMiddleware._trusted_origins():
+                await websocket.send_json(AIStreamEvent.error("Origin not allowed"))
+                await websocket.close(code=4003)
+                return
     if not token:
         await websocket.send_json(AIStreamEvent.error("Authentication required"))
         await websocket.close(code=4001)
@@ -803,8 +842,8 @@ async def websocket_chat(websocket: WebSocket, session_id: str):
 
     try:
         payload = SecurityManager.decode_token(token)
-        if payload.get("type") != "admin":
-            raise ValueError("Not an admin token")
+        if payload.get("type") != "admin" or payload.get("token_type") != "access":
+            raise ValueError("Not an admin access token")
     except Exception:
         await websocket.send_json(AIStreamEvent.error("Invalid or expired token"))
         await websocket.close(code=4001)
@@ -822,6 +861,18 @@ async def websocket_chat(websocket: WebSocket, session_id: str):
 
     try:
         async with AsyncSessionLocal() as db:
+            ws_admin = await db.get(AdminUser, admin_id)
+            if (
+                ws_admin is None
+                or not ws_admin.is_active
+                or not SecurityManager.token_version_matches(payload, ws_admin)
+            ):
+                await websocket.send_json(AIStreamEvent.error("Invalid or expired token"))
+                await websocket.close(code=4001)
+                return
+            # Edit/agent modes can create products directly (create_product tool);
+            # same bar as the product create/apply-edit routes.
+            can_write = ws_admin.role in (AdminRole.ADMIN, AdminRole.SUPER_ADMIN)
             result = await db.execute(
                 select(AIChatSession)
                 .where(AIChatSession.id == session_id, AIChatSession.admin_user_id == admin_id)
@@ -866,6 +917,8 @@ async def websocket_chat(websocket: WebSocket, session_id: str):
             user_content = (pending_message.get("content") or "").strip()
             file_ids = pending_message.get("file_ids", [])
             mode = pending_message.get("mode", "edit")
+            if not can_write:
+                mode = "ask"
             model = pending_message.get("model", "auto")
             pending_message = None
 

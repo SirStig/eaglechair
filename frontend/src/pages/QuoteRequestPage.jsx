@@ -8,6 +8,7 @@ import { Upload, X, FileText, CheckCircle, AlertCircle, Package, Edit } from 'lu
 import Button from '../components/ui/Button';
 import Card from '../components/ui/Card';
 import Badge from '../components/ui/Badge';
+import ResponsiveImage from '../components/ui/ResponsiveImage';
 import { useCartStore } from '../store/cartStore';
 import { useAuthStore } from '../store/authStore';
 import apiClient from '../config/apiClient';
@@ -345,7 +346,7 @@ const QuoteRequestPage = () => {
                   return (
                     <div key={index} className="flex flex-col sm:flex-row gap-3 sm:gap-4 p-4 bg-cream-50 rounded-lg border border-cream-200">
                       <div className="flex-shrink-0 w-full sm:w-20 sm:aspect-[2/3] h-48 mx-auto sm:mx-0">
-                        <img src={imageUrl} alt={product.name || 'Product'} className="w-full h-full object-contain rounded-lg bg-cream-200" onError={(e) => { e.target.onerror = null; e.target.src = '/placeholder.png'; }} />
+                        <ResponsiveImage src={imageUrl} sizes="(min-width: 640px) 80px, 100vw" alt={product.name || 'Product'} className="w-full h-full object-contain rounded-lg bg-cream-200" onError={(e) => { e.target.onerror = null; e.target.src = '/placeholder.png'; }} />
                       </div>
                       <div className="flex-1 min-w-0">
                         <h3 className="font-semibold text-slate-800 mb-1 truncate">{product.name || 'Product'}</h3>

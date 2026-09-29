@@ -8,7 +8,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from backend.api.dependencies import require_role
+from backend.api.dependencies import get_current_admin, require_role
 from backend.api.v1.schemas.admin import FinishCreate, FinishUpdate
 from backend.database.base import get_db
 from backend.models.chair import Finish
@@ -21,6 +21,7 @@ router = APIRouter()
 
 @router.get("")
 async def get_finishes(
+    admin: AdminUser = Depends(get_current_admin),
     db: AsyncSession = Depends(get_db),
 ):
     """

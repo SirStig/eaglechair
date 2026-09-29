@@ -1,7 +1,8 @@
 """
 Cache Service
 
-YokedCache-based caching service with fuzzy search for improved performance
+YokedCache-based caching service for improved performance.
+Product search uses the in-process index in product_search_index.
 """
 
 import logging
@@ -10,6 +11,7 @@ from typing import Any, Dict, List, Optional
 from yokedcache import CacheConfig, YokedCache
 
 from backend.core.config import settings
+from backend.services.catalog_cache import bump_catalog_version
 
 logger = logging.getLogger(__name__)
 
@@ -186,50 +188,6 @@ class CacheService:
             logger.error(f"Cache clear error: {e}")
             return False
     
-    # Fuzzy search operations
-    async def fuzzy_search(
-        self,
-        query: str,
-        threshold: int = 75,
-        max_results: int = 50,
-        tags: Optional[List[str]] = None
-    ) -> List[Dict[str, Any]]:
-        """
-        Perform fuzzy search across cached entries
-        
-        Args:
-            query: Search query string
-            threshold: Minimum similarity score (0-100)
-            max_results: Maximum number of results to return
-            tags: Optional tags to filter search scope
-            
-        Returns:
-            List of search results with key, value, score, and matched_term
-        """
-        if not self.enabled or not self.cache:
-            return []
-        
-        try:
-            results = await self.cache.fuzzy_search(
-                query=query,
-                threshold=threshold,
-                max_results=max_results,
-                tags=set(tags) if tags else None
-            )
-            
-            return [
-                {
-                    "key": result.key,
-                    "value": result.value,
-                    "score": result.score,
-                    "matched_term": result.matched_term
-                }
-                for result in results
-            ]
-        except Exception as e:
-            logger.error(f"Fuzzy search failed for query '{query}': {e}")
-            return []
-    
     # Specialized caching methods
     
     async def cache_product(self, product_id: int, product_data: dict, ttl: int = 600) -> bool:
@@ -247,33 +205,6 @@ class CacheService:
         
         return await self.set(key, product_data, ttl, tags)
     
-    async def index_product_for_search(
-        self,
-        product_id: int,
-        searchable_text: str,
-        ttl: int = 3600
-    ) -> bool:
-        """
-        Index a product for fuzzy search by storing searchable text
-        
-        Args:
-            product_id: Product ID
-            searchable_text: Concatenated searchable fields (name, model, description)
-            ttl: Time to live in seconds (default 1 hour)
-            
-        Returns:
-            bool: Success status
-        """
-        try:
-            key = self._make_key("product_search", str(product_id))
-            tags = ["products", f"product:{product_id}"]
-            
-            # Store the searchable text for fuzzy matching
-            return await self.set(key, searchable_text, ttl=ttl, tags=tags)
-        except Exception as e:
-            logger.error(f"Error indexing product {product_id} for search: {e}")
-            return False
-    
     async def get_cached_product(self, product_id: int) -> Optional[dict]:
         """Get cached product"""
         key = self._make_key("product", str(product_id))
@@ -281,10 +212,12 @@ class CacheService:
     
     async def invalidate_product(self, product_id: int) -> bool:
         """Invalidate product cache"""
+        await bump_catalog_version()
         return await self.invalidate_tags([f"product:{product_id}", "products_list"])
     
     async def invalidate_all_products(self) -> bool:
         """Invalidate all product caches"""
+        await bump_catalog_version()
         return await self.invalidate_tags(["products", "products_list"])
     
     async def cache_products_list(
@@ -316,6 +249,7 @@ class CacheService:
     
     async def invalidate_family(self, family_id: int) -> bool:
         """Invalidate family cache"""
+        await bump_catalog_version()
         return await self.invalidate_tags([f"family:{family_id}", "products_list"])
     
     async def cache_category(self, category_id: int, category_data: dict, ttl: int = 1800) -> bool:
@@ -331,6 +265,7 @@ class CacheService:
     
     async def invalidate_category(self, category_id: int) -> bool:
         """Invalidate category cache"""
+        await bump_catalog_version()
         return await self.invalidate_tags([f"category:{category_id}", "products_list"])
     
     async def cache_categories_list(self, categories_data: List[dict], ttl: int = 1800) -> bool:

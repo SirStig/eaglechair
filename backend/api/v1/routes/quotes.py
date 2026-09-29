@@ -26,7 +26,11 @@ from backend.api.v1.schemas.quote import (
 from backend.database.base import get_db
 from backend.models.company import Company
 from backend.models.quote import QuoteStatus
-from backend.services.quote_service import QuoteService
+from backend.services.quote_service import (
+    GUEST_ATTACHMENT_MAX_BYTES,
+    GUEST_ATTACHMENT_MAX_FILES,
+    QuoteService,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -433,12 +437,19 @@ async def create_guest_quote_request(
         try:
             payload = json.loads(quote_data_str)
         except json.JSONDecodeError as e:
-            raise HTTPException(status_code=400, detail=f"Invalid quote_data JSON: {e}") from e
-        uploaded_files = form.getlist("files")
+            raise HTTPException(status_code=400, detail="Invalid quote_data JSON") from e
+        uploaded_files = [uf for uf in form.getlist("files") if hasattr(uf, "read") and uf.filename]
+        if len(uploaded_files) > GUEST_ATTACHMENT_MAX_FILES:
+            raise HTTPException(
+                status_code=400,
+                detail=f"A maximum of {GUEST_ATTACHMENT_MAX_FILES} attachments is allowed",
+            )
         for uf in uploaded_files:
-            if hasattr(uf, "read") and uf.filename:
-                content = await uf.read()
-                files_tuples.append((uf.filename, content, uf.content_type or "application/octet-stream"))
+            # Read at most one byte past the limit so oversized files are rejected without loading them fully
+            content = await uf.read(GUEST_ATTACHMENT_MAX_BYTES + 1)
+            if len(content) > GUEST_ATTACHMENT_MAX_BYTES:
+                raise HTTPException(status_code=413, detail="Attachment exceeds the 10MB size limit")
+            files_tuples.append((uf.filename, content, uf.content_type or "application/octet-stream"))
     else:
         try:
             payload = await request.json()
@@ -448,7 +459,8 @@ async def create_guest_quote_request(
     try:
         quote_data = GuestQuoteRequest(**payload)
     except Exception as e:
-        raise HTTPException(status_code=422, detail=str(e)) from e
+        logger.info(f"Invalid guest quote request: {e}")
+        raise HTTPException(status_code=422, detail="Invalid quote request data") from e
 
     payload_dict = quote_data.model_dump(mode="json")
 

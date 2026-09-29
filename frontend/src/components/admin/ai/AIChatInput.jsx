@@ -5,7 +5,7 @@
 
 import { useState, useRef, useCallback, useEffect } from 'react';
 import { createPortal } from 'react-dom';
-import { motion, AnimatePresence } from 'framer-motion';
+import { m, AnimatePresence } from 'framer-motion';
 import { Send, Paperclip, X, Loader2, Image, FileText, Table, Square, ChevronDown } from 'lucide-react';
 
 const TOOLTIP_PADDING = 8;
@@ -82,7 +82,7 @@ function Tooltip({ children, text, placement = 'top', fullWidth }) {
       {children}
       {visible && text && typeof document !== 'undefined' && createPortal(
         <AnimatePresence>
-          <motion.div
+          <m.div
             ref={tooltipRef}
             initial={{ opacity: 0, scale: 0.96 }}
             animate={{ opacity: 1, scale: 1 }}
@@ -99,7 +99,7 @@ function Tooltip({ children, text, placement = 'top', fullWidth }) {
             }}
           >
             {text}
-          </motion.div>
+          </m.div>
         </AnimatePresence>,
         document.body
       )}
@@ -136,7 +136,7 @@ function SelectDropdown({ options, value, onChange, disabled }) {
       </Tooltip>
       <AnimatePresence>
         {open && (
-          <motion.div
+          <m.div
             initial={{ opacity: 0, y: -4 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -4 }}
@@ -159,7 +159,7 @@ function SelectDropdown({ options, value, onChange, disabled }) {
                 </button>
               </Tooltip>
             ))}
-          </motion.div>
+          </m.div>
         )}
       </AnimatePresence>
     </div>

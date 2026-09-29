@@ -5,9 +5,10 @@ Public routes for browsing product catalog (chairs, categories, finishes, uphols
 """
 
 import logging
-from typing import List, Optional
+from typing import Any, List, Optional
 
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
+from sqlalchemy import update
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import attributes as sa_attributes
 
@@ -26,7 +27,12 @@ from backend.api.v1.schemas.product import (
     UpholsteryResponse,
 )
 from backend.database.base import get_db
+from backend.models.chair import Chair
 from backend.models.company import Company
+from backend.services.catalog_cache import (
+    get_cached_public_response,
+    public_json_response,
+)
 from backend.services.pricing_service import PricingService
 from backend.services.product_service import ProductService
 from backend.utils.pagination import PaginatedResponse, PaginationParams
@@ -34,6 +40,19 @@ from backend.utils.pagination import PaginatedResponse, PaginationParams
 logger = logging.getLogger(__name__)
 
 router = APIRouter(tags=["Products"])
+
+
+def _parse_id_list(raw: Optional[str], param: str) -> Optional[List[int]]:
+    """Parse a comma-separated list of integer IDs, raising 422 on bad input."""
+    if not raw:
+        return None
+    try:
+        return [int(part.strip()) for part in raw.split(",") if part.strip()] or None
+    except ValueError:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=f"{param} must be a comma-separated list of integers",
+        )
 
 
 async def _populate_customizations(
@@ -145,32 +164,23 @@ async def _apply_pricing_tiers_to_products(
     if not company or not products:
         return
     
-    # Load company's pricing tier once
-    pricing_tier_name = None
-    tier_id = getattr(company, 'pricing_tier_id', None)
-    if tier_id:
-        from sqlalchemy import select
-
-        from backend.models.company import CompanyPricing
-        tier_result = await db.execute(
-            select(CompanyPricing).where(CompanyPricing.id == tier_id)
-        )
-        tier = tier_result.scalar_one_or_none()
-        if tier:
-            pricing_tier_name = getattr(tier, 'pricing_tier_name', None)
-    
-    # Apply pricing to each product
     company_id = getattr(company, 'id', None)
     if not company_id:
         return
         
+    # Load the active tier once, then apply it to every product in memory
+    active_tier = await PricingService._get_active_company_tier(db, company_id)
+    if not active_tier:
+        return
+    pricing_tier_name = getattr(active_tier, 'pricing_tier_name', None)
+
     for product in products:
         base_price = getattr(product, 'base_price', None)
         category_id = getattr(product, 'category_id', None)
         
         if base_price and category_id:
-            tier_adjustment, tier_percentage = await PricingService._get_company_tier_adjustment(
-                db, company_id, category_id, base_price
+            tier_adjustment, tier_percentage = PricingService._compute_tier_adjustment(
+                active_tier, category_id, base_price, company_id
             )
             if tier_adjustment != 0:
                 # Set attributes on the SQLAlchemy model instance
@@ -192,6 +202,7 @@ async def _apply_pricing_tiers_to_products(
     description="Retrieve primary product categories (chairs, booths, tables, etc.) with their children"
 )
 async def get_categories(
+    request: Request,
     parent_id: Optional[int] = Query(None, description="Filter by parent category ID"),
     include_nested: bool = Query(
         False,
@@ -209,6 +220,10 @@ async def get_categories(
     returned inside their parent's `subcategories` list alongside the
     category's product subcategories, each tagged with a `type`.
     """
+    cached = await get_cached_public_response(request)
+    if cached is not None:
+        return cached
+
     logger.info(
         f"Fetching categories (parent_id={parent_id}, include_nested={include_nested})"
     )
@@ -224,7 +239,7 @@ async def get_categories(
         db=db, include_inactive=False, with_counts=True
     )
 
-    return [
+    data = [
         {
             "id": category.id,
             "name": category.name,
@@ -243,6 +258,7 @@ async def get_categories(
         }
         for category in categories
     ]
+    return await public_json_response(request, data, list[CategoryWithChildren])
 
 
 @router.get(
@@ -299,6 +315,21 @@ async def get_category_by_slug(
 # Product Endpoints
 # ============================================================================
 
+
+async def _increment_view_count(db: AsyncSession, *conditions) -> None:
+    """Track a product view when the detail response came from cache."""
+    try:
+        await db.execute(
+            update(Chair)
+            .where(*conditions)
+            .values(view_count=Chair.view_count + 1)
+        )
+        await db.commit()
+    except Exception as e:
+        await db.rollback()
+        logger.debug(f"Could not increment view count: {e}")
+
+
 @router.get(
     "/products",
     response_model=PaginatedResponse[ChairResponse],
@@ -306,6 +337,7 @@ async def get_category_by_slug(
     description="Retrieve paginated list of products with comprehensive filters"
 )
 async def get_products(
+    request: Request,
     page: int = Query(1, ge=1, description="Page number"),
     per_page: int = Query(20, ge=1, le=100, description="Items per page"),
     category_id: Optional[int] = Query(None, description="Filter by category ID"),
@@ -356,15 +388,21 @@ async def get_products(
 
     Default ordering (smart_sort=false) also deprioritizes products without images.
     """
+    # Company pricing tiers change prices, so only anonymous responses are cached
+    cacheable = company is None
+    cached = await get_cached_public_response(request, cacheable=cacheable)
+    if cached is not None:
+        return cached
+
     logger.info(
         f"Fetching products (page={page}, per_page={per_page}, "
         f"category_id={category_id}, family_id={family_id}, search='{search}')"
     )
     
     # Parse comma-separated IDs
-    finish_id_list = [int(id.strip()) for id in finish_ids.split(",")] if finish_ids else None
-    upholstery_id_list = [int(id.strip()) for id in upholstery_ids.split(",")] if upholstery_ids else None
-    color_id_list = [int(id.strip()) for id in color_ids.split(",")] if color_ids else None
+    finish_id_list = _parse_id_list(finish_ids, "finish_ids")
+    upholstery_id_list = _parse_id_list(upholstery_ids, "upholstery_ids")
+    color_id_list = _parse_id_list(color_ids, "color_ids")
     
     pagination = PaginationParams(page=page, per_page=per_page)
     
@@ -406,15 +444,17 @@ async def get_products(
         items_list = result['items'] if isinstance(result, dict) else getattr(result, 'items', [])
         if items_list:
             await _apply_pricing_tiers_to_products(db, company, items_list)
-    
-    return result
+
+    return await public_json_response(
+        request, result, PaginatedResponse[ChairResponse], cacheable=cacheable
+    )
 
 
 @router.get(
     "/products/search",
     response_model=list[ChairResponse],
     summary="Fuzzy search products",
-    description="Fuzzy search for products using YokedCache (autocomplete/typeahead)"
+    description="Fuzzy search for products (autocomplete/typeahead): exact model number, model prefix, name, text, then typo-tolerant matches"
 )
 async def search_products(
     q: str = Query(..., min_length=2, description="Search query"),
@@ -428,7 +468,7 @@ async def search_products(
     
     **Public endpoint** - No authentication required.
     
-    Uses YokedCache fuzzy search for intelligent matching and ranking.
+    Uses the in-process product search index for matching and ranking.
     Useful for autocomplete/typeahead functionality with typo tolerance.
     
     **Parameters:**
@@ -459,6 +499,7 @@ async def search_products(
     description="Retrieve detailed information about a specific product"
 )
 async def get_product(
+    request: Request,
     product_id: int,
     company: Optional[Company] = Depends(get_optional_company),
     db: AsyncSession = Depends(get_db)
@@ -470,8 +511,14 @@ async def get_product(
     
     This endpoint increments the product's view count.
     """
+    cacheable = company is None
+    cached = await get_cached_public_response(request, cacheable=cacheable)
+    if cached is not None:
+        await _increment_view_count(db, Chair.id == product_id)
+        return cached
+
     logger.info(f"Fetching product {product_id}")
-    
+
     product = await ProductService.get_product_by_id(
         db=db,
         product_id=product_id,
@@ -486,7 +533,9 @@ async def get_product(
     related = await ProductService.get_related_products(db, product.id, limit=100)
     sa_attributes.set_committed_value(product, "related_products", related)
 
-    return product
+    return await public_json_response(
+        request, product, ChairDetailResponse, cacheable=cacheable
+    )
 
 
 @router.get(
@@ -496,6 +545,7 @@ async def get_product(
     description="Retrieve detailed information about a specific product by slug"
 )
 async def get_product_by_slug(
+    request: Request,
     slug: str,
     company: Optional[Company] = Depends(get_optional_company),
     db: AsyncSession = Depends(get_db)
@@ -507,8 +557,14 @@ async def get_product_by_slug(
     
     This endpoint increments the product's view count.
     """
+    cacheable = company is None
+    cached = await get_cached_public_response(request, cacheable=cacheable)
+    if cached is not None:
+        await _increment_view_count(db, Chair.slug == slug)
+        return cached
+
     logger.info(f"Fetching product with slug '{slug}'")
-    
+
     product = await ProductService.get_product_by_slug(
         db=db,
         slug=slug,
@@ -523,7 +579,9 @@ async def get_product_by_slug(
     related = await ProductService.get_related_products(db, product.id, limit=100)
     sa_attributes.set_committed_value(product, "related_products", related)
 
-    return product
+    return await public_json_response(
+        request, product, ChairDetailResponse, cacheable=cacheable
+    )
 
 
 @router.get(
@@ -682,6 +740,7 @@ async def get_upholstery(
     description="Retrieve product families with optional filters and product counts"
 )
 async def get_families(
+    request: Request,
     category_id: Optional[int] = Query(None, description="Filter by category ID"),
     featured_only: bool = Query(False, description="Only show featured families"),
     db: AsyncSession = Depends(get_db)
@@ -693,11 +752,15 @@ async def get_families(
     
     Returns families with product counts for catalog browsing.
     """
-    logger.info(f"Fetching families (category_id={category_id}, featured_only={featured_only})")
-    
-    from sqlalchemy import func, or_, select
+    cached = await get_cached_public_response(request)
+    if cached is not None:
+        return cached
 
-    from backend.models.chair import Chair, ProductFamily, chair_secondary_families
+    logger.info(f"Fetching families (category_id={category_id}, featured_only={featured_only})")
+
+    from sqlalchemy import func, select, union
+
+    from backend.models.chair import Chair, chair_secondary_families
 
     families = await ProductService.get_families(
         db=db,
@@ -706,20 +769,39 @@ async def get_families(
         include_inactive=False
     )
 
+    # Count active products per family (primary or secondary membership) in a
+    # single grouped query instead of one COUNT per family.
+    counts: dict = {}
+    family_ids = [family.id for family in families]
+    if family_ids:
+        membership = union(
+            select(
+                Chair.id.label("chair_id"), Chair.family_id.label("family_id")
+            ).where(Chair.is_active == True, Chair.family_id.in_(family_ids)),
+            select(
+                chair_secondary_families.c.chair_id.label("chair_id"),
+                chair_secondary_families.c.family_id.label("family_id"),
+            )
+            .join(Chair, Chair.id == chair_secondary_families.c.chair_id)
+            .where(
+                Chair.is_active == True,
+                chair_secondary_families.c.family_id.in_(family_ids),
+            ),
+        ).subquery()
+        count_rows = await db.execute(
+            select(
+                membership.c.family_id,
+                func.count(func.distinct(membership.c.chair_id)),
+            ).group_by(membership.c.family_id)
+        )
+        counts = {row[0]: row[1] for row in count_rows.all()}
+
     for family in families:
-        subq = select(chair_secondary_families.c.chair_id).where(
-            chair_secondary_families.c.family_id == family.id
-        )
-        count_stmt = select(func.count(Chair.id)).where(
-            Chair.is_active == True,
-            or_(Chair.family_id == family.id, Chair.id.in_(subq)),
-        )
-        count_result = await db.execute(count_stmt)
-        family.product_count = count_result.scalar() or 0
+        family.product_count = counts.get(family.id, 0)
         family.category_name = family.category.name if family.category else None
         family.subcategory_name = family.subcategory.name if family.subcategory else None
 
-    return families
+    return await public_json_response(request, families, list[ProductFamilyResponse])
 
 
 @router.get(
@@ -832,6 +914,7 @@ async def get_family_by_slug(
     description="Get unified list of products and variations belonging to a family"
 )
 async def get_family_members(
+    request: Request,
     family_id: int,
     db: AsyncSession = Depends(get_db)
 ):
@@ -853,6 +936,10 @@ async def get_family_members(
     - `hover_images`: product images; for variations, parsed from variation.images when present
     - `lead_time_days`: product or variation override
     """
+    cached = await get_cached_public_response(request)
+    if cached is not None:
+        return cached
+
     logger.info(f"Fetching family members for family {family_id}")
 
     from sqlalchemy import or_, select
@@ -973,7 +1060,7 @@ async def get_family_members(
     for item in items:
         del item["display_order"]
 
-    return items
+    return await public_json_response(request, items, Any)
 
 
 @router.get(

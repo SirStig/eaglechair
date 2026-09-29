@@ -6,16 +6,9 @@
 const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL || '').replace(/\/+$/, '');
 const API_BASE = API_BASE_URL ? `${API_BASE_URL}/api/v1/admin/ai` : '/api/v1/admin/ai';
 
-function getAuthHeaders() {
-  const accessToken = localStorage.getItem('auth_access_token');
-  const sessionToken = localStorage.getItem('auth_session_token');
-  const adminToken = localStorage.getItem('auth_admin_token');
-  const headers = {};
-  if (accessToken) headers.Authorization = `Bearer ${accessToken}`;
-  if (sessionToken) headers['X-Session-Token'] = sessionToken;
-  if (adminToken) headers['X-Admin-Token'] = adminToken;
-  return headers;
-}
+// Admin auth is carried by httpOnly cookies (access/session/admin tokens);
+// every request must include credentials so the browser sends them.
+const WITH_CREDENTIALS = { credentials: 'include' };
 
 async function parseJsonOrThrow(res, fallbackMessage) {
   const text = await res.text();
@@ -31,7 +24,7 @@ async function parseJsonOrThrow(res, fallbackMessage) {
   }
   try {
     return JSON.parse(text);
-  } catch (e) {
+  } catch {
     throw new Error(
       fallbackMessage ||
         `Invalid JSON response (${res.status}): ${text.slice(0, 80)}...`
@@ -42,9 +35,9 @@ async function parseJsonOrThrow(res, fallbackMessage) {
 async function apiFetch(path, options = {}) {
   const res = await fetch(`${API_BASE}${path}`, {
     ...options,
+    ...WITH_CREDENTIALS,
     headers: {
       'Content-Type': 'application/json',
-      ...getAuthHeaders(),
       ...options.headers,
     },
   });
@@ -97,7 +90,7 @@ export async function uploadFileToChat(sessionId, file) {
 
   const res = await fetch(`${API_BASE}/chats/${sessionId}/upload`, {
     method: 'POST',
-    headers: getAuthHeaders(),
+    ...WITH_CREDENTIALS,
     body: formData,
   });
 
@@ -139,7 +132,7 @@ export async function uploadTrainingDoc(file, name, description = '', tags = '')
 
   const res = await fetch(`${API_BASE}/training`, {
     method: 'POST',
-    headers: getAuthHeaders(),
+    ...WITH_CREDENTIALS,
     body: formData,
   });
 
@@ -182,7 +175,7 @@ export async function uploadTrainingBatch(files, onProgress) {
     }
     const res = await fetch(`${API_BASE}/training/batch`, {
       method: 'POST',
-      headers: getAuthHeaders(),
+      ...WITH_CREDENTIALS,
       body: formData,
     });
     if (!res.ok) {
@@ -205,10 +198,6 @@ export const deleteTrainingDoc = (id) =>
 
 // ── WebSocket ─────────────────────────────────────────────────────────────
 
-export function getWebSocketToken() {
-  return localStorage.getItem('auth_access_token');
-}
-
 export async function applyEdit(edit) {
   return apiFetch('/apply-edit', {
     method: 'POST',
@@ -217,10 +206,10 @@ export async function applyEdit(edit) {
 }
 
 export function createChatWebSocket(sessionId) {
-  const token = getWebSocketToken();
+  // The WebSocket handshake carries the httpOnly access_token cookie
   const base = API_BASE_URL
     ? new URL(API_BASE_URL).origin.replace(/^http/, 'ws')
     : `${window.location.protocol === 'https:' ? 'wss:' : 'ws:'}//${window.location.host}`;
-  const url = `${base}/api/v1/admin/ai/ws/${sessionId}?token=${token}`;
+  const url = `${base}/api/v1/admin/ai/ws/${sessionId}`;
   return new WebSocket(url);
 }

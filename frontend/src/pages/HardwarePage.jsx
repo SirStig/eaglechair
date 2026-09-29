@@ -1,11 +1,12 @@
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
-import { motion } from 'framer-motion';
+import { m } from 'framer-motion';
 import { useHardware } from '../hooks/useContent';
 import SEOHead from '../components/SEOHead';
 import { SEO } from '../config/seoConfig';
 import { Wrench, BookOpen, Book, MessageSquare } from 'lucide-react';
 import LoadingSpinner from '../components/ui/LoadingSpinner';
+import ResponsiveImage from '../components/ui/ResponsiveImage';
 
 const HardwarePage = () => {
   const [searchTerm, setSearchTerm] = useState('');
@@ -101,7 +102,7 @@ const HardwarePage = () => {
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {filteredHardware.map((item, index) => (
-              <motion.div
+              <m.div
                 key={item.id}
                 layout={false}
                 initial={{ opacity: 0, y: 20 }}
@@ -112,8 +113,9 @@ const HardwarePage = () => {
               >
                 {item.image_url ? (
                   <div className="aspect-video overflow-hidden bg-slate-100">
-                    <img
+                    <ResponsiveImage
                       src={item.image_url}
+                      sizes="(min-width: 1024px) 33vw, (min-width: 768px) 50vw, 100vw"
                       alt={item.name}
                       className="w-full h-full object-contain p-4"
                     />
@@ -190,7 +192,7 @@ const HardwarePage = () => {
                     </div>
                   )}
                 </div>
-              </motion.div>
+              </m.div>
             ))}
           </div>
         )}

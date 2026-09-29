@@ -372,7 +372,7 @@ const QuoteDetailsView = ({ quoteId, onBack }) => {
             </div>
             <Button
               variant="primary"
-              onClick={() => window.open(quote.quote_pdf_url, '_blank')}
+              onClick={() => window.open(quote.quote_pdf_url, '_blank', 'noopener,noreferrer')}
             >
               Download PDF
             </Button>

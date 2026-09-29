@@ -1,5 +1,6 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { cachedFetch, deleteCacheKey } from '../utils/cache';
+import { clearContentCache } from '../utils/contentDataLoader';
 import logger from '../utils/logger';
 import * as contentService from '../services/contentService';
 
@@ -19,10 +20,15 @@ export const useContent = (apiFn, defaultData = null, cacheKey, cacheTTL = 5 * 6
   const [data, setData] = useState(defaultData);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const mountedRef = useRef(true);
+  const retryTimerRef = useRef(null);
+  const requestIdRef = useRef(0);
 
-  const fetchData = async (retryCount = 0) => {
+  const fetchData = async (retryCount = 0, requestId = ++requestIdRef.current) => {
     const maxRetries = 3;
     const retryDelay = (count) => Math.min(1000 * 2 ** count, 30000); // Exponential backoff: 1s, 2s, 4s (max 30s)
+    // Ignore results for unmounted components or superseded requests
+    const isCurrent = () => mountedRef.current && requestId === requestIdRef.current;
 
     try {
       setLoading(true);
@@ -31,7 +37,8 @@ export const useContent = (apiFn, defaultData = null, cacheKey, cacheTTL = 5 * 6
       // Fetch from API with caching
       logger.debug(CONTEXT, `Fetching from API: ${cacheKey}${retryCount > 0 ? ` (retry ${retryCount}/${maxRetries})` : ''}`);
       const result = await cachedFetch(cacheKey, apiFn, cacheTTL);
-      
+      if (!isCurrent()) return;
+
       // Use API data if available, otherwise use default data
       if (result === null || result === undefined) {
         logger.warn(CONTEXT, `API returned null for ${cacheKey}, using default content`);
@@ -40,6 +47,7 @@ export const useContent = (apiFn, defaultData = null, cacheKey, cacheTTL = 5 * 6
         setData(result);
       }
     } catch (err) {
+      if (!isCurrent()) return;
       // Retry on network errors or 5xx errors
       const isRetryable = !err.response || (err.response.status >= 500 && err.response.status < 600);
       
@@ -47,9 +55,10 @@ export const useContent = (apiFn, defaultData = null, cacheKey, cacheTTL = 5 * 6
         const delay = retryDelay(retryCount);
         logger.warn(CONTEXT, `Retrying ${cacheKey} after ${delay}ms (attempt ${retryCount + 1}/${maxRetries})`);
         
-        setTimeout(() => {
-          fetchData(retryCount + 1);
+        retryTimerRef.current = setTimeout(() => {
+          fetchData(retryCount + 1, requestId);
         }, delay);
+        // Stay in the loading state until the retries settle
         return;
       }
       
@@ -60,20 +69,25 @@ export const useContent = (apiFn, defaultData = null, cacheKey, cacheTTL = 5 * 6
         logger.warn(CONTEXT, `API error for ${cacheKey}, using default content`);
         setData(defaultData);
       }
-    } finally {
-      if (retryCount === 0) {
-        setLoading(false);
-      }
     }
+    setLoading(false);
   };
 
   useEffect(() => {
+    mountedRef.current = true;
     fetchData();
+    return () => {
+      mountedRef.current = false;
+      clearTimeout(retryTimerRef.current);
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, deps);
 
   const refetch = () => {
+    clearTimeout(retryTimerRef.current);
     deleteCacheKey(cacheKey);
+    // Admin edits re-export contentData.json; drop the in-memory copy too
+    clearContentCache();
     fetchData();
   };
 

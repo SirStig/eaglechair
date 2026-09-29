@@ -5,8 +5,12 @@ import VariationImageDisclaimer from './VariationImageDisclaimer';
 import Button from './Button';
 import { getProductHoverImages, buildProductUrl } from '../../utils/apiHelpers';
 import SwatchImage from './SwatchImage';
+import ResponsiveImage from './ResponsiveImage';
 
-const ProductCard = ({ product, onQuickView, darkMode = false, compact = false }) => {
+// Catalog grid: 2 cols (<lg), 2 cols beside a ~320px sidebar (lg), 3 cols beside ~360px (xl)
+const DEFAULT_IMAGE_SIZES = '(min-width: 1280px) 25vw, (min-width: 1024px) 36vw, 50vw';
+
+const ProductCard = ({ product, onQuickView, darkMode = false, compact = false, imageSizes = DEFAULT_IMAGE_SIZES }) => {
   const [imageLoaded, setImageLoaded] = useState(false);
   const [imageError, setImageError] = useState(false);
   const [isHovered, setIsHovered] = useState(false);
@@ -85,6 +89,8 @@ const ProductCard = ({ product, onQuickView, darkMode = false, compact = false }
           <img
             src="/placeholder.svg"
             alt={product.name}
+            loading="lazy"
+            decoding="async"
             className="w-full h-full object-contain opacity-100"
             style={{ mixBlendMode: 'multiply' }}
           />
@@ -93,9 +99,10 @@ const ProductCard = ({ product, onQuickView, darkMode = false, compact = false }
         {!imageError && (
           <div className="w-full h-full relative">
             {product.variation_id && !product.variation_has_own_image && <VariationImageDisclaimer compact />}
-            <img
+            <ResponsiveImage
               key={displayImage} // Force transition when image changes
               src={displayImage || '/placeholder.svg'}
+              sizes={imageSizes}
               alt={product.name}
               onLoad={handleImageLoad}
               onError={handleImageError}

@@ -5,6 +5,7 @@ Manages application settings using Pydantic BaseSettings for .env file integrati
 """
 
 import json
+import logging
 import os
 from functools import lru_cache
 from typing import Optional
@@ -157,6 +158,15 @@ class Settings(BaseSettings):
     ADMIN_REFRESH_TOKEN_EXPIRE_DAYS: int = 1
     ADMIN_REFRESH_TOKEN_EXPIRE_DAYS_STRONG: int = 30
 
+    # Auth cookies (httpOnly). Production frontend (joshua.eaglechair.com) and
+    # API (api.eaglechair.com) share the registrable domain eaglechair.com, so
+    # they are same-site and SameSite=Lax cookies are sent on the frontend's
+    # XHR/fetch calls. Set AUTH_COOKIE_SAMESITE=none only if the frontend is
+    # served from a different registrable domain (requires HTTPS/Secure).
+    AUTH_COOKIE_SAMESITE: str = "lax"  # "lax" | "strict" | "none"
+    AUTH_COOKIE_DOMAIN: Optional[str] = None  # None = host-only cookie (recommended)
+    AUTH_COOKIE_SECURE: Optional[bool] = None  # None = Secure in production only
+
     # Password Reset
     PASSWORD_RESET_TOKEN_EXPIRE_HOURS: int = 1  # 1 hour
     PASSWORD_MIN_LENGTH: int = 8
@@ -273,6 +283,62 @@ class Settings(BaseSettings):
     def is_production(self) -> bool:
         """Check if running in production mode"""
         return not self.DEBUG and not self.TESTING
+
+    @property
+    def is_production_environment(self) -> bool:
+        """ENVIRONMENT names production (independent of DEBUG)"""
+        return self.ENVIRONMENT.strip().lower() in ("production", "prod")
+
+    @property
+    def docs_enabled(self) -> bool:
+        """Swagger/ReDoc/OpenAPI: DEBUG only, and never when ENVIRONMENT=production"""
+        return self.DEBUG and not self.is_production_environment
+
+    @model_validator(mode="after")
+    def validate_production_environment(self):
+        """
+        Checks keyed on ENVIRONMENT=production, so DEBUG=true can't bypass them.
+
+        The public default SECRET_KEY raises (anyone could forge tokens). Other
+        misconfigurations, including a short key, only log CRITICAL so a deploy
+        doesn't take the site down.
+        """
+        if not self.is_production_environment:
+            return self
+
+        default_secret = "your-secret-key-change-this-in-production"
+        if self.SECRET_KEY == default_secret:
+            raise ValueError(
+                "ENVIRONMENT=production requires SECRET_KEY to be set; the default "
+                "value is public and would let anyone forge login tokens."
+            )
+
+        log = logging.getLogger(__name__)
+        if len(self.SECRET_KEY) < 32:
+            log.critical(
+                "ENVIRONMENT=production with a SECRET_KEY shorter than 32 characters. "
+                "Set a longer random value."
+            )
+        if self.DEBUG:
+            log.critical(
+                "ENVIRONMENT=production with DEBUG=true: API docs are disabled, but other "
+                "debug behaviour is active. Set DEBUG=false."
+            )
+        if "*" in self.ALLOWED_HOSTS:
+            log.critical(
+                "ENVIRONMENT=production with ALLOWED_HOSTS containing '*': Host header is "
+                "not validated. Set ALLOWED_HOSTS to your domain(s)."
+            )
+        local_origins = [
+            o for o in self.CORS_ORIGINS if "localhost" in o or "127.0.0.1" in o
+        ]
+        if local_origins:
+            log.critical(
+                "ENVIRONMENT=production with localhost CORS origins %s. Set CORS_ORIGINS "
+                "to your production domain(s).",
+                local_origins,
+            )
+        return self
 
     @model_validator(mode="after")
     def validate_production_settings(self):

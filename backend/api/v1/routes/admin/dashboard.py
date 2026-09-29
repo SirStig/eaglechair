@@ -44,6 +44,8 @@ async def get_dashboard_stats(
     except EagleChairException as exc:
         logger.error(f"Dashboard stats error ({exc.error_code}): {exc.message}")
         raise exc
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"Error fetching dashboard stats: {e}")
         raise HTTPException(status_code=500, detail="Failed to fetch dashboard statistics") from e
@@ -64,6 +66,8 @@ async def get_popular_products(
     try:
         products = await AnalyticsService.get_popular_products(db=db, limit=limit, days=days)
         return {"items": products}
+    except (HTTPException, EagleChairException):
+        raise
     except Exception as e:
         logger.error(f"Error fetching popular products: {e}")
         raise HTTPException(status_code=500, detail="Failed to fetch popular products") from e
@@ -82,6 +86,8 @@ async def get_category_stats(
     try:
         stats = await AnalyticsService.get_category_stats(db=db)
         return {"items": stats}
+    except (HTTPException, EagleChairException):
+        raise
     except Exception as e:
         logger.error(f"Error fetching category stats: {e}")
         raise HTTPException(status_code=500, detail="Failed to fetch category stats") from e
@@ -101,6 +107,8 @@ async def get_quote_trends(
     try:
         trends = await AnalyticsService.get_quote_trends(db=db, days=days)
         return trends
+    except (HTTPException, EagleChairException):
+        raise
     except Exception as e:
         logger.error(f"Error fetching quote trends: {e}")
         raise HTTPException(status_code=500, detail="Failed to fetch quote trends") from e
@@ -119,6 +127,8 @@ async def get_conversion_rates(
     try:
         rates = await AnalyticsService.get_conversion_rates(db=db)
         return rates
+    except (HTTPException, EagleChairException):
+        raise
     except Exception as e:
         logger.error(f"Error fetching conversion rates: {e}")
         raise HTTPException(status_code=500, detail="Failed to fetch conversion rates") from e
@@ -139,6 +149,8 @@ async def get_top_customers(
     try:
         customers = await AnalyticsService.get_top_customers(db=db, limit=limit, by=by)
         return {"items": customers}
+    except (HTTPException, EagleChairException):
+        raise
     except Exception as e:
         logger.error(f"Error fetching top customers: {e}")
         raise HTTPException(status_code=500, detail="Failed to fetch top customers") from e
@@ -157,6 +169,8 @@ async def get_average_values(
     try:
         averages = await AnalyticsService.get_average_quote_value(db=db)
         return averages
+    except (HTTPException, EagleChairException):
+        raise
     except Exception as e:
         logger.error(f"Error fetching average values: {e}")
         raise HTTPException(status_code=500, detail="Failed to fetch average values") from e

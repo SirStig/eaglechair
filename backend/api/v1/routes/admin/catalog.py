@@ -60,6 +60,14 @@ from backend.utils.static_content_exporter import export_content_after_update
 
 logger = logging.getLogger(__name__)
 
+# Raster image types accepted for catalog thumbnails (detected MIME -> saved extension)
+CATALOG_THUMBNAIL_MIME_EXTENSIONS = {
+    "image/png": ".png",
+    "image/jpeg": ".jpg",
+    "image/gif": ".gif",
+    "image/webp": ".webp",
+}
+
 router = APIRouter(tags=["Admin - Catalog"])
 
 
@@ -1418,15 +1426,22 @@ async def create_catalog(
             ALLOWED_IMAGE_EXTENSIONS,
             MAX_FILE_SIZE,
             UPLOAD_BASE_DIR,
+            detect_mime_from_content,
         )
         
         thumb_ext = Path(thumbnail.filename).suffix.lower()
-        if thumb_ext not in ALLOWED_IMAGE_EXTENSIONS:
+        if thumb_ext not in ALLOWED_IMAGE_EXTENSIONS or thumb_ext == ".svg":
             raise HTTPException(status_code=400, detail="Invalid thumbnail image type")
         
         thumb_content = await thumbnail.read()
         if len(thumb_content) > MAX_FILE_SIZE:
             raise HTTPException(status_code=400, detail="Thumbnail too large")
+        
+        # Validate by magic bytes (empty filename disables extension-based guessing); SVG is rejected
+        thumb_mime = detect_mime_from_content(thumb_content, "")
+        if thumb_mime not in CATALOG_THUMBNAIL_MIME_EXTENSIONS:
+            raise HTTPException(status_code=400, detail="Invalid thumbnail image type")
+        thumb_ext = CATALOG_THUMBNAIL_MIME_EXTENSIONS[thumb_mime]
         
         thumb_dir = UPLOAD_BASE_DIR / "images" / "catalogs"
         thumb_dir.mkdir(parents=True, exist_ok=True)
@@ -1610,15 +1625,22 @@ async def update_catalog(
             ALLOWED_IMAGE_EXTENSIONS,
             MAX_FILE_SIZE,
             UPLOAD_BASE_DIR,
+            detect_mime_from_content,
         )
         
         thumb_ext = Path(thumbnail.filename).suffix.lower()
-        if thumb_ext not in ALLOWED_IMAGE_EXTENSIONS:
+        if thumb_ext not in ALLOWED_IMAGE_EXTENSIONS or thumb_ext == ".svg":
             raise HTTPException(status_code=400, detail="Invalid thumbnail image type")
         
         thumb_content = await thumbnail.read()
         if len(thumb_content) > MAX_FILE_SIZE:
             raise HTTPException(status_code=400, detail="Thumbnail too large")
+        
+        # Validate by magic bytes (empty filename disables extension-based guessing); SVG is rejected
+        thumb_mime = detect_mime_from_content(thumb_content, "")
+        if thumb_mime not in CATALOG_THUMBNAIL_MIME_EXTENSIONS:
+            raise HTTPException(status_code=400, detail="Invalid thumbnail image type")
+        thumb_ext = CATALOG_THUMBNAIL_MIME_EXTENSIONS[thumb_mime]
         
         thumb_dir = UPLOAD_BASE_DIR / "images" / "catalogs"
         thumb_dir.mkdir(parents=True, exist_ok=True)

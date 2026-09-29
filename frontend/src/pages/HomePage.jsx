@@ -1,7 +1,7 @@
-import { useState, useMemo, useEffect, useRef } from 'react';
+import { useState, useMemo, useEffect, useRef, lazy, Suspense } from 'react';
 import { Link } from 'react-router-dom';
 // eslint-disable-next-line no-unused-vars
-import { motion } from 'framer-motion';
+import { m } from 'framer-motion';
 import { Helmet } from 'react-helmet-async';
 import Button from '../components/ui/Button';
 import HeroCarousel from '../components/ui/HeroCarousel';
@@ -9,7 +9,6 @@ import ProductCard from '../components/ui/ProductCard';
 import QuickViewModal from '../components/ui/QuickViewModal';
 import { HeroSkeleton, CardGridSkeleton } from '../components/ui/Skeleton';
 import EditableWrapper from '../components/admin/EditableWrapper';
-import EditModal from '../components/admin/EditModal';
 import ConfirmModal from '../components/ui/ConfirmModal';
 import SEOHead from '../components/SEOHead';
 import { useEditMode } from '../contexts/useEditMode';
@@ -26,13 +25,17 @@ import {
 } from '../services/contentService';
 import CategoryTile from '../components/products/CategoryTile';
 import productService from '../services/productService';
-import { resolveImageUrl } from '../utils/apiHelpers';
+import { resolveImageUrl, ensureResolvedImageUrl, getImageSrcSet } from '../utils/apiHelpers';
+import ResponsiveImage from '../components/ui/ResponsiveImage';
 import logger from '../utils/logger';
 import { invalidateCache } from '../utils/cache';
 
 const CONTEXT = 'HomePage';
 
-const DEFAULT_BANNER = '/assets/default-banner-categories.png';
+// Admin-only; fetched when edit mode is on
+const EditModal = lazy(() => import('../components/admin/EditModal'));
+
+const DEFAULT_BANNER = '/assets/default-banner-categories.webp';
 
 // Widest the product grid goes before extra categories collapse into
 // "More Categories" - matches the Products dropdown
@@ -221,10 +224,15 @@ const HomePage = () => {
     }
   }), [siteSettings, seoDescription]);
 
-  // Preload first 3 hero images for instant display
+  // Preload only the first hero image (the LCP candidate), using the same
+  // srcset/sizes HeroCarousel renders so the preload and the <img> share one
+  // download. Later slides are mounted lazily by HeroCarousel.
   const preloadImages = useMemo(() => {
     if (!slides || slides.length === 0) return [];
-    return slides.slice(0, 3).map(slide => slide.background_image_url || slide.image).filter(Boolean);
+    return slides.slice(0, 1)
+      .map(slide => ensureResolvedImageUrl(slide.background_image_url || slide.image))
+      .filter(Boolean)
+      .map(href => ({ href, srcSet: getImageSrcSet(href) }));
   }, [slides]);
 
   return (
@@ -242,13 +250,14 @@ const HomePage = () => {
       {/* Preload critical hero images */}
       {preloadImages.length > 0 && (
         <Helmet>
-          {preloadImages.map((imageUrl, idx) => (
+          {preloadImages.map(({ href, srcSet }, idx) => (
             <link
               key={`preload-hero-${idx}`}
               rel="preload"
               as="image"
-              href={imageUrl}
-              fetchpriority={idx === 0 ? "high" : idx === 1 ? "high" : "auto"}
+              href={href}
+              {...(srcSet ? { imagesrcset: srcSet, imagesizes: '100vw' } : {})}
+              fetchpriority="high"
             />
           ))}
         </Helmet>
@@ -294,13 +303,17 @@ const HomePage = () => {
             )}
 
             {/* Create Logo Modal */}
-            <EditModal
-              isOpen={isCreatingLogo}
-              onClose={() => setIsCreatingLogo(false)}
-              onSave={handleCreateClientLogo}
-              elementData={{ name: '', logo_url: '', display_order: 0 }}
-              elementType="client-logo"
-            />
+            {isEditMode && (
+              <Suspense fallback={null}>
+                <EditModal
+                  isOpen={isCreatingLogo}
+                  onClose={() => setIsCreatingLogo(false)}
+                  onSave={handleCreateClientLogo}
+                  elementData={{ name: '', logo_url: '', display_order: 0 }}
+                  elementType="client-logo"
+                />
+              </Suspense>
+            )}
 
             {/* Left fade */}
             <div className="absolute left-0 top-0 bottom-0 w-12 sm:w-16 md:w-32 bg-gradient-to-r from-dark-800 to-transparent z-10 pointer-events-none"></div>
@@ -351,6 +364,8 @@ const HomePage = () => {
                         <img
                           src={client.logoUrl || client.logo}
                           alt={client.name}
+                          loading="lazy"
+                          decoding="async"
                           className="max-h-full max-w-full object-contain transition-all duration-300"
                           style={{ filter: 'invert(1) hue-rotate(180deg) brightness(1.2) contrast(0.9)' }}
                         />
@@ -400,6 +415,8 @@ const HomePage = () => {
                         <img
                           src={client.logoUrl || client.logo}
                           alt={client.name}
+                          loading="lazy"
+                          decoding="async"
                           className="max-h-full max-w-full object-contain transition-all duration-300"
                           style={{ filter: 'invert(1) hue-rotate(180deg) brightness(1.2) contrast(0.9)' }}
                         />
@@ -420,6 +437,8 @@ const HomePage = () => {
                         <img
                           src={client.logoUrl || client.logo}
                           alt={client.name}
+                          loading="lazy"
+                          decoding="async"
                           className="max-h-full max-w-full object-contain transition-all duration-300"
                           style={{ filter: 'invert(1) hue-rotate(180deg) brightness(1.2) contrast(0.9)' }}
                         />
@@ -440,6 +459,8 @@ const HomePage = () => {
                         <img
                           src={client.logoUrl || client.logo}
                           alt={client.name}
+                          loading="lazy"
+                          decoding="async"
                           className="max-h-full max-w-full object-contain transition-all duration-300"
                           style={{ filter: 'invert(1) hue-rotate(180deg) brightness(1.2) contrast(0.9)' }}
                         />
@@ -460,6 +481,8 @@ const HomePage = () => {
                         <img
                           src={client.logoUrl || client.logo}
                           alt={client.name}
+                          loading="lazy"
+                          decoding="async"
                           className="max-h-full max-w-full object-contain transition-all duration-300"
                           style={{ filter: 'invert(1) hue-rotate(180deg) brightness(1.2) contrast(0.9)' }}
                         />
@@ -480,6 +503,8 @@ const HomePage = () => {
                         <img
                           src={client.logoUrl || client.logo}
                           alt={client.name}
+                          loading="lazy"
+                          decoding="async"
                           className="max-h-full max-w-full object-contain transition-all duration-300"
                           style={{ filter: 'invert(1) hue-rotate(180deg) brightness(1.2) contrast(0.9)' }}
                         />
@@ -500,6 +525,8 @@ const HomePage = () => {
                         <img
                           src={client.logoUrl || client.logo}
                           alt={client.name}
+                          loading="lazy"
+                          decoding="async"
                           className="max-h-full max-w-full object-contain transition-all duration-300"
                           style={{ filter: 'invert(1) hue-rotate(180deg) brightness(1.2) contrast(0.9)' }}
                         />
@@ -520,6 +547,8 @@ const HomePage = () => {
                         <img
                           src={client.logoUrl || client.logo}
                           alt={client.name}
+                          loading="lazy"
+                          decoding="async"
                           className="max-h-full max-w-full object-contain transition-all duration-300"
                           style={{ filter: 'invert(1) hue-rotate(180deg) brightness(1.2) contrast(0.9)' }}
                         />
@@ -542,7 +571,7 @@ const HomePage = () => {
       {/* Featured Products */}
       <section className="-mt-px py-12 sm:py-16 md:py-20 bg-cream-50">
         <div className="container">
-          <motion.div
+          <m.div
             initial={{ opacity: 0, y: 20 }}
             whileInView={{ opacity: 1, y: 0 }}
             viewport={{ once: true }}
@@ -552,14 +581,14 @@ const HomePage = () => {
             <p className="text-lg sm:text-xl text-slate-600">
               Explore our most popular commercial furniture solutions
             </p>
-          </motion.div>
+          </m.div>
 
           {productsLoading ? (
             <CardGridSkeleton count={4} columns={4} />
           ) : (
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 sm:gap-6 md:gap-8 lg:gap-10 px-4 sm:px-0">
               {products.map((product, index) => (
-                <motion.div
+                <m.div
                   key={product.id}
                   initial={{ opacity: 0, y: 20 }}
                   whileInView={{ opacity: 1, y: 0 }}
@@ -571,7 +600,7 @@ const HomePage = () => {
                     onQuickView={setSelectedQuickView}
                     darkMode={false}
                   />
-                </motion.div>
+                </m.div>
               ))}
             </div>
           )}
@@ -588,7 +617,7 @@ const HomePage = () => {
 
       {/* Our Products - same layout as Products dropdown (productService categories) */}
       <section className="pt-12 sm:pt-16 md:pt-20 pb-0 bg-cream-50">
-        <motion.div
+        <m.div
           initial={{ opacity: 0, y: 20 }}
           whileInView={{ opacity: 1, y: 0 }}
           viewport={{ once: true }}
@@ -596,7 +625,7 @@ const HomePage = () => {
         >
           <h2 className="text-2xl sm:text-3xl md:text-4xl font-bold mb-3 sm:mb-4 text-slate-800">Our Products</h2>
           <p className="text-lg sm:text-xl text-slate-600 max-w-2xl mx-auto">Explore our commercial seating categories</p>
-        </motion.div>
+        </m.div>
 
         {categoriesLoading ? (
           <div className="w-full flex justify-center py-16">
@@ -622,7 +651,6 @@ const HomePage = () => {
                     columns={categoryColumnCount}
                     heightClassName="h-[520px] sm:h-[500px] md:h-[550px] lg:h-[600px]"
                     backgroundClassName="bg-slate-100"
-                    eager
                     links={subcategories.slice(0, 5).map((subcat) => ({
                       key: `${subcat.type || 'subcategory'}-${subcat.id}`,
                       label: subcat.name,
@@ -642,7 +670,6 @@ const HomePage = () => {
                   columns={categoryColumnCount}
                   heightClassName="h-[520px] sm:h-[500px] md:h-[550px] lg:h-[600px]"
                   backgroundClassName="bg-slate-100"
-                  eager
                   links={overflowCategories.map((category) => ({
                     key: `category-${category.id}`,
                     label: category.name,
@@ -700,12 +727,11 @@ const HomePage = () => {
                   className="flex-shrink-0 w-full min-w-full sm:min-w-full md:min-w-[85vw] lg:min-w-[75vw] xl:min-w-[70vw] 2xl:min-w-[60vw] snap-center"
                 >
                   <div className="relative w-full h-[50vh] sm:h-[60vh] md:h-[70vh] lg:h-[75vh] xl:h-[80vh] px-2 sm:px-4">
-                    <img
+                    <ResponsiveImage
                       src={resolveImageUrl(imgUrl)}
+                      sizes="(min-width: 1536px) 60vw, (min-width: 1280px) 70vw, (min-width: 1024px) 75vw, (min-width: 768px) 85vw, 100vw"
                       alt={`Installation ${idx + 1}`}
                       className="w-full h-full object-cover rounded-lg md:rounded-xl shadow-2xl img-sharp"
-                      loading={idx < 3 ? 'eager' : 'lazy'}
-                      fetchpriority={idx < 2 ? 'high' : 'auto'}
                     />
                   </div>
                 </div>

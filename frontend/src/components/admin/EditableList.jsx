@@ -1,12 +1,14 @@
-import { useState } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
+import { useState, lazy, Suspense } from 'react';
+import { m, AnimatePresence } from 'framer-motion';
 import { useEditMode } from '../../contexts/useEditMode';
-import EditModal from './EditModal';
 import Button from '../ui/Button';
 import logger from '../../utils/logger';
 import { invalidateCache } from '../../utils/cache';
 
 const CONTEXT = 'EditableList';
+
+// Admin-only; fetched when an item is edited/created
+const EditModal = lazy(() => import('./EditModal'));
 
 /**
  * EditableList Component
@@ -203,7 +205,7 @@ const EditableList = ({
       {/* Add Button - Floats at top when in edit mode */}
       <AnimatePresence>
         {isEditMode && onCreate && (
-          <motion.div
+          <m.div
             initial={{ opacity: 0, y: -10 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -10 }}
@@ -220,7 +222,7 @@ const EditableList = ({
               </svg>
               {addButtonText}
             </Button>
-          </motion.div>
+          </m.div>
         )}
       </AnimatePresence>
 
@@ -256,7 +258,7 @@ const EditableList = ({
             {/* Edit Controls Overlay */}
             <AnimatePresence>
               {isEditMode && hoveredIndex === index && (
-                <motion.div
+                <m.div
                   initial={{ opacity: 0 }}
                   animate={{ opacity: 1 }}
                   exit={{ opacity: 0 }}
@@ -284,12 +286,12 @@ const EditableList = ({
                       </svg>
                     </button>
                   )}
-                </motion.div>
+                </m.div>
               )}
             </AnimatePresence>
 
             {/* Item Content with hover highlight */}
-            <motion.div
+            <m.div
               animate={{
                 boxShadow: isEditMode && hoveredIndex === index
                   ? '0 0 0 2px rgba(139, 115, 85, 0.4)'
@@ -299,11 +301,12 @@ const EditableList = ({
               className="rounded-lg"
             >
               {renderItem(item, index)}
-            </motion.div>
+            </m.div>
           </div>
         ))}
       </div>
 
+      <Suspense fallback={null}>
       {/* Edit Modal */}
       {editingItem && (
         <EditModal
@@ -327,6 +330,7 @@ const EditableList = ({
           elementId="new"
         />
       )}
+      </Suspense>
     </div>
   );
 };

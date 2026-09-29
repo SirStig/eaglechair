@@ -1,4 +1,4 @@
-import { motion, AnimatePresence } from 'framer-motion';
+import { m, AnimatePresence } from 'framer-motion';
 import { useLocation } from 'react-router-dom';
 import { useEditMode } from '../../contexts/useEditMode';
 
@@ -17,13 +17,13 @@ const EditModeToggle = () => {
   if (location.pathname.startsWith('/admin')) return null;
 
   return (
-    <motion.div
+    <m.div
       className="fixed top-4 left-4 z-[10000]"
       initial={{ opacity: 0, x: -100 }}
       animate={{ opacity: 1, x: 0 }}
       transition={{ duration: 0.3 }}
     >
-      <motion.button
+      <m.button
         onClick={toggleEditMode}
         className={`
           flex items-center gap-2 px-4 py-3 rounded-lg shadow-2xl font-semibold
@@ -63,12 +63,12 @@ const EditModeToggle = () => {
         <span className="text-sm">
           {isEditMode ? 'Exit Edit Mode' : 'Edit Page'}
         </span>
-      </motion.button>
+      </m.button>
 
       {/* Edit Mode Indicator */}
       <AnimatePresence>
         {isEditMode && (
-          <motion.div
+          <m.div
             initial={{ opacity: 0, y: -10 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -10 }}
@@ -81,10 +81,10 @@ const EditModeToggle = () => {
             <p className="mt-1 text-accent-100 text-[10px]">
               Click any content to edit
             </p>
-          </motion.div>
+          </m.div>
         )}
       </AnimatePresence>
-    </motion.div>
+    </m.div>
   );
 };
 

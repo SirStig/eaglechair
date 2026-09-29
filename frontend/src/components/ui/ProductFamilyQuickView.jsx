@@ -1,9 +1,10 @@
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { X, ExternalLink } from 'lucide-react';
-import { motion, AnimatePresence } from 'framer-motion';
+import { m, AnimatePresence } from 'framer-motion';
 import Button from './Button';
 import ProductCard from './ProductCard';
+import ResponsiveImage from './ResponsiveImage';
 import LoadingSpinner from './LoadingSpinner';
 import productService from '../../services/productService';
 
@@ -61,14 +62,14 @@ const ProductFamilyQuickView = ({ family, isOpen, onClose }) => {
   return (
     <AnimatePresence>
       {isOpen && (
-        <motion.div
+        <m.div
           className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm"
           onClick={handleBackdropClick}
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
         >
-          <motion.div
+          <m.div
             initial={{ opacity: 0, scale: 0.95, y: 20 }}
             animate={{ opacity: 1, scale: 1, y: 0 }}
             exit={{ opacity: 0, scale: 0.95, y: 20 }}
@@ -91,8 +92,10 @@ const ProductFamilyQuickView = ({ family, isOpen, onClose }) => {
                   {/* Banner Image - Portrait aspect */}
                   {(family.banner_image_url || family.family_image) && (
                     <div className="relative w-full aspect-[3/4] overflow-hidden bg-cream-100 rounded-lg">
-                      <img
+                      <ResponsiveImage
                         src={family.banner_image_url || family.family_image}
+                        sizes="(min-width: 1024px) 400px, 100vw"
+                        priority
                         alt={family.name}
                         className="w-full h-full object-contain"
                         style={{ mixBlendMode: 'multiply' }}
@@ -184,8 +187,8 @@ const ProductFamilyQuickView = ({ family, isOpen, onClose }) => {
                 </Link>
               </div>
             </div>
-          </motion.div>
-        </motion.div>
+          </m.div>
+        </m.div>
       )}
     </AnimatePresence>
   );

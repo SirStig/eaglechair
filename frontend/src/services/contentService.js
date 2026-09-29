@@ -39,9 +39,9 @@ const getStaticOrAPI = async (getDataFn, apiFetcher, contextMessage) => {
     const staticContent = await loadContentData();
     if (staticContent) {
       const data = getDataFn(staticContent);
-      const hasData = data !== undefined && data !== null &&
-        !(Array.isArray(data) && data.length === 0);
-      if (hasData) {
+      // An empty array is a real answer ("no slides configured"), not a
+      // reason to hit the API on every visit.
+      if (data !== undefined && data !== null) {
         logger.debug(CONTEXT, `${contextMessage} (from static file)`);
         return data;
       }
@@ -346,6 +346,29 @@ export const getCatalogs = async (catalogType = null) => {
 
 // Page Content (flexible content blocks)
 export const getPageContent = async (pageSlug, sectionKey = null) => {
+  // Serve from the static export when it has the section; the API is only
+  // needed for sections that fall back to server-side defaults.
+  if (USE_STATIC_CONTENT) {
+    try {
+      const staticContent = await loadContentData();
+      const rows = (staticContent?.pageContent || []).filter(
+        (row) => row.pageSlug === pageSlug && row.isActive !== false &&
+          (!sectionKey || row.sectionKey === sectionKey)
+      );
+      if (rows.length) {
+        const normalized = rows.map((row) => ({
+          ...row,
+          title: row.title || '',
+          subtitle: row.subtitle || '',
+          content: row.content || '',
+          ctaStyle: row.ctaStyle || '',
+        }));
+        return sectionKey && normalized.length === 1 ? normalized[0] : normalized;
+      }
+    } catch (error) {
+      logger.warn(CONTEXT, `Static page content unavailable: ${error.message}`);
+    }
+  }
   try {
     logger.debug(CONTEXT, `Fetching page content for ${pageSlug}${sectionKey ? ` section ${sectionKey}` : ''}`);
     const url = sectionKey 

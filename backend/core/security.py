@@ -5,6 +5,8 @@ Handles authentication, password hashing, JWT tokens, and security utilities
 """
 
 from datetime import datetime, timedelta
+import hashlib
+import hmac
 from typing import Any, Optional
 
 from fastapi import Depends, HTTPException, status
@@ -54,6 +56,60 @@ class SecurityManager:
         return bcrypt.checkpw(
             plain_password.encode("utf-8"), hashed_password.encode("utf-8")
         )
+
+    @staticmethod
+    def hash_token(token: str) -> str:
+        """
+        Digest a high-entropy random token (admin session/admin tokens) for storage
+
+        These tokens are 256-bit random values, so a keyed HMAC-SHA256 is
+        sufficient and avoids the cost of bcrypt on every admin request.
+
+        Args:
+            token: Plain token
+
+        Returns:
+            str: Hex HMAC-SHA256(SECRET_KEY, token)
+        """
+        return hmac.new(
+            settings.SECRET_KEY.encode("utf-8"), token.encode("utf-8"), hashlib.sha256
+        ).hexdigest()
+
+    @staticmethod
+    def is_legacy_bcrypt_hash(stored: Optional[str]) -> bool:
+        """Whether a stored token value is a (legacy) bcrypt hash"""
+        return bool(stored) and stored.startswith(("$2a$", "$2b$", "$2y$"))
+
+    @staticmethod
+    def verify_token_digest(token: str, stored: Optional[str]) -> bool:
+        """
+        Verify a plain token against its stored digest
+
+        Accepts HMAC digests and legacy bcrypt hashes (callers should upgrade
+        legacy values with hash_token() after a successful match).
+        """
+        if not token or not stored:
+            return False
+        if SecurityManager.is_legacy_bcrypt_hash(stored):
+            try:
+                return bcrypt.checkpw(token.encode("utf-8"), stored.encode("utf-8"))
+            except ValueError:
+                return False
+        return hmac.compare_digest(SecurityManager.hash_token(token), stored)
+
+    @staticmethod
+    def token_version_matches(payload: dict[str, Any], user: Any) -> bool:
+        """
+        Check a token's `tv` claim against the user's current token_version
+
+        Tokens issued before token versioning have no `tv` claim and are
+        treated as version 0, so existing sessions survive the deploy.
+        """
+        try:
+            token_version = int(payload.get("tv", 0) or 0)
+        except (TypeError, ValueError):
+            return False
+        return token_version == (getattr(user, "token_version", 0) or 0)
 
     @staticmethod
     def create_access_token(
@@ -268,6 +324,42 @@ def require_token_type(token_type: str):
 security_manager = SecurityManager()
 
 
+# Names of all httpOnly authentication cookies
+AUTH_COOKIE_NAMES = ("access_token", "refresh_token", "session_token", "admin_token")
+
+
+def auth_cookie_kwargs(is_production: bool = False) -> dict[str, Any]:
+    """
+    Common attributes for auth cookies
+
+    Production frontend (joshua.eaglechair.com) and API (api.eaglechair.com)
+    are same-site (registrable domain eaglechair.com), so SameSite=Lax is used
+    by default: the cookies are sent on the SPA's XHR/fetch calls but not on
+    cross-site subrequests. Configurable via AUTH_COOKIE_SAMESITE /
+    AUTH_COOKIE_DOMAIN / AUTH_COOKIE_SECURE. SameSite=None always forces Secure.
+    """
+    samesite = (settings.AUTH_COOKIE_SAMESITE or "lax").lower()
+    if samesite not in ("lax", "strict", "none"):
+        samesite = "lax"
+    secure = (
+        settings.AUTH_COOKIE_SECURE
+        if settings.AUTH_COOKIE_SECURE is not None
+        else is_production
+    )
+    if samesite == "none":
+        secure = True
+
+    kwargs: dict[str, Any] = {
+        "httponly": True,
+        "path": "/",
+        "samesite": samesite,
+        "secure": secure,
+    }
+    if settings.AUTH_COOKIE_DOMAIN:
+        kwargs["domain"] = settings.AUTH_COOKIE_DOMAIN
+    return kwargs
+
+
 def set_auth_cookies(
     response: Any,
     access_token: str,
@@ -287,23 +379,7 @@ def set_auth_cookies(
         admin_token: Optional admin token
         is_production: Whether running in production (enables Secure flag)
     """
-    from backend.core.config import settings
-
-    # Cookie settings
-    # Production frontend and API are hosted on different registrable domains
-    # (cross-site), so cookies need SameSite=None to be sent on cross-site
-    # requests at all - browsers require the Secure flag alongside it.
-    # In local dev (same-site/http), "lax" + no Secure keeps things working.
-    cookie_kwargs = {
-        "httponly": True,
-        "path": "/",
-    }
-
-    if is_production:
-        cookie_kwargs["secure"] = True
-        cookie_kwargs["samesite"] = "none"
-    else:
-        cookie_kwargs["samesite"] = "lax"
+    cookie_kwargs = auth_cookie_kwargs(is_production)
 
     # Decode tokens to get actual expiration times (without verification, we trust our own tokens)
     try:
@@ -350,12 +426,13 @@ def set_auth_cookies(
         **cookie_kwargs,
     )
 
-    # Set admin tokens if provided (24 hours for admin sessions)
+    # Set admin tokens if provided. They live as long as the admin refresh
+    # token so a refreshed admin session keeps its session/admin tokens.
     if session_token:
         response.set_cookie(
             key="session_token",
             value=session_token,
-            max_age=60 * 60 * 24,  # 24 hours (1 day)
+            max_age=refresh_max_age,
             **cookie_kwargs,
         )
 
@@ -363,9 +440,24 @@ def set_auth_cookies(
         response.set_cookie(
             key="admin_token",
             value=admin_token,
-            max_age=60 * 60 * 24,  # 24 hours (1 day)
+            max_age=refresh_max_age,
             **cookie_kwargs,
         )
+
+
+def tokens_for_response_body(request: Any, tokens: dict[str, Any]) -> dict[str, Any]:
+    """
+    Decide which tokens go in a JSON response body.
+
+    Requests made by a browser carry Fetch Metadata headers (Sec-Fetch-*),
+    which page scripts can neither set nor remove. Browser logins therefore
+    get their tokens only through the httpOnly cookies - nothing that an XSS
+    payload could read and exfiltrate. Non-browser API clients still receive
+    the tokens in the body for Authorization-header use.
+    """
+    if request.headers.get("Sec-Fetch-Site") or request.headers.get("Sec-Fetch-Mode"):
+        return {"token_type": tokens.get("token_type", "bearer")}
+    return tokens
 
 
 def clear_auth_cookies(response: Any, is_production: bool = False) -> None:
@@ -378,13 +470,7 @@ def clear_auth_cookies(response: Any, is_production: bool = False) -> None:
             samesite/secure attributes used in set_auth_cookies)
     """
     # Use same cookie settings as set_auth_cookies for proper clearing
-    samesite = "none" if is_production else "lax"
-    cookies_to_clear = ["access_token", "refresh_token", "session_token", "admin_token"]
+    cookie_kwargs = auth_cookie_kwargs(is_production)
 
-    for cookie_name in cookies_to_clear:
-        response.delete_cookie(
-            key=cookie_name,
-            path="/",
-            samesite=samesite,  # Match the setting used in set_auth_cookies
-            secure=is_production,
-        )
+    for cookie_name in AUTH_COOKIE_NAMES:
+        response.delete_cookie(key=cookie_name, **cookie_kwargs)

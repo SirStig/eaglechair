@@ -1,7 +1,8 @@
 import { useEffect, useRef, useState } from 'react';
-import { AnimatePresence, motion } from 'framer-motion';
+import { AnimatePresence, m } from 'framer-motion';
 import { TransformWrapper, TransformComponent } from 'react-zoom-pan-pinch';
 import VariationImageDisclaimer from './VariationImageDisclaimer';
+import ResponsiveImage from './ResponsiveImage';
 
 const ImageLightboxModal = ({ isOpen, onClose, images = [], initialIndex = 0, showDisclaimer = false }) => {
   const transformRef = useRef(null);
@@ -56,7 +57,7 @@ const ImageLightboxModal = ({ isOpen, onClose, images = [], initialIndex = 0, sh
   return (
     <AnimatePresence>
       {isOpen && (
-        <motion.div
+        <m.div
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
@@ -159,8 +160,13 @@ const ImageLightboxModal = ({ isOpen, onClose, images = [], initialIndex = 0, sh
                 wrapperClass="!w-full !h-full flex items-center justify-center"
                 contentClass="!w-full !h-full flex items-center justify-center"
               >
-                <img
+                {/* Zoomable up to 5x: show the fitted size first, then swap in full resolution */}
+                <ResponsiveImage
                   src={currentSrc}
+                  sizes="100vw"
+                  priority
+                  placeholder={false}
+                  fullResolution
                   alt=""
                   className="max-w-full max-h-[calc(100dvh-140px)] sm:max-h-[calc(100dvh-160px)] object-contain select-none"
                   draggable={false}
@@ -169,7 +175,7 @@ const ImageLightboxModal = ({ isOpen, onClose, images = [], initialIndex = 0, sh
               </TransformComponent>
             </TransformWrapper>
           </div>
-        </motion.div>
+        </m.div>
       )}
     </AnimatePresence>
   );

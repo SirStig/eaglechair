@@ -4,6 +4,7 @@ Email Service
 Handles email sending with SMTP and template management
 """
 
+import asyncio
 import logging
 import smtplib
 from datetime import datetime
@@ -12,9 +13,11 @@ from email.mime.base import MIMEBase
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any, Awaitable, Callable, Dict, List, Optional, Set
 
-from jinja2 import Environment, Template
+from jinja2 import Template
+from jinja2.sandbox import SandboxedEnvironment
+from markupsafe import Markup
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -27,6 +30,9 @@ logger = logging.getLogger(__name__)
 # Get the directory where this file is located
 BASE_DIR = Path(__file__).parent
 TEMPLATES_DIR = BASE_DIR / "email_templates"
+
+# Strong references to in-flight background email tasks (see send_in_background)
+_BACKGROUND_EMAIL_TASKS: Set["asyncio.Task[Any]"] = set()
 
 
 class EmailService:
@@ -223,6 +229,60 @@ class EmailService:
             raise ValueError(f"Failed to connect to SMTP server: {str(e)}") from e
     
     @staticmethod
+    def _send_message_blocking(msg: MIMEMultipart) -> None:
+        """Connect, authenticate and send (blocking; run via asyncio.to_thread)."""
+        server = EmailService._get_smtp_connection()
+        try:
+            server.send_message(msg)
+        finally:
+            try:
+                server.quit()
+            except Exception:
+                server.close()
+
+    @staticmethod
+    def send_in_background(
+        send: Callable[..., Awaitable[Any]], **kwargs: Any
+    ) -> Optional["asyncio.Task[Any]"]:
+        """
+        Run an EmailService.send_* coroutine without delaying the HTTP response.
+
+        The send gets its own DB session (the request's session is closed once
+        the response is sent). Failures are logged, never raised.
+
+        Usage:
+            EmailService.send_in_background(
+                EmailService.send_quote_created_email, to_email=..., ...
+            )
+        """
+        name = getattr(send, "__name__", "send_email")
+        recipient = kwargs.get("to_email", "admin")
+
+        if settings.TESTING:
+            # Tests share one DB connection per case; don't send from a
+            # detached task that would outlive the test's transaction.
+            logger.debug(f"TESTING: skipping background email {name} to {recipient}")
+            return None
+
+        async def _run() -> None:
+            from backend.database.base import AsyncSessionLocal
+
+            try:
+                async with AsyncSessionLocal() as db:
+                    sent = await send(db=db, **kwargs)
+                if sent is False:
+                    logger.error(f"Background email {name} to {recipient} was not sent")
+            except Exception as e:
+                logger.error(
+                    f"Background email {name} to {recipient} failed: {e}", exc_info=True
+                )
+
+        task = asyncio.get_running_loop().create_task(_run())
+        _BACKGROUND_EMAIL_TASKS.add(task)
+        task.add_done_callback(_BACKGROUND_EMAIL_TASKS.discard)
+        return task
+
+    @staticmethod
     async def get_template(
         db: AsyncSession,
         template_type: str
@@ -374,7 +434,7 @@ class EmailService:
             db: Database session for fetching site settings
         """
         base_template_html = EmailService._load_base_template()
-        base_template = Template(base_template_html)
+        base_template = EmailService._html_env().from_string(base_template_html)
         
         # Get site settings from database
         site_settings = await EmailService._get_site_settings(db)
@@ -484,6 +544,16 @@ class EmailService:
             return f"{frontend_url}/{url}"
     
     @staticmethod
+    def _html_env() -> SandboxedEnvironment:
+        """Sandboxed Jinja2 environment with HTML autoescaping (for email bodies)"""
+        return SandboxedEnvironment(autoescape=True)
+    
+    @staticmethod
+    def _text_env() -> SandboxedEnvironment:
+        """Sandboxed Jinja2 environment without escaping (for plain-text subjects)"""
+        return SandboxedEnvironment(autoescape=False)
+    
+    @staticmethod
     def _create_template_with_helpers(template_string: str) -> Template:
         """
         Create a Jinja2 template with helper functions available
@@ -493,8 +563,9 @@ class EmailService:
         - {{ code(value) }}
         - {{ image(url, alt) }}
         """
-        # Create Jinja2 environment with custom functions
-        env = Environment()
+        # Create sandboxed, autoescaping Jinja2 environment with custom functions.
+        # Helpers return Markup (trusted HTML) and escape all of their arguments.
+        env = EmailService._html_env()
         
         def button(url: str, text: str, style: str = 'primary') -> str:
             """Generate button HTML with absolute URL"""
@@ -504,17 +575,23 @@ class EmailService:
             style_class = 'button' if style == 'primary' else 'button button-secondary'
             bg_color = "#8b7355" if style == "primary" else "#d4c5b0"
             text_color = "#ffffff" if style == "primary" else "#2c2c2c"
-            return f'<div class="button-container"><a href="{absolute_url}" class="{style_class}" style="display: inline-block; padding: 14px 32px; background-color: {bg_color}; color: {text_color}; text-decoration: none; border-radius: 6px; font-size: 16px; font-weight: 500; max-width: 100%; box-sizing: border-box;">{text}</a></div>'
+            return Markup(
+                '<div class="button-container"><a href="{url}" class="{style_class}" style="display: inline-block; padding: 14px 32px; background-color: {bg_color}; color: {text_color}; text-decoration: none; border-radius: 6px; font-size: 16px; font-weight: 500; max-width: 100%; box-sizing: border-box;">{text}</a></div>'
+            ).format(url=absolute_url, style_class=style_class, bg_color=bg_color, text_color=text_color, text=text)
         
         def code(value: str) -> str:
             """Generate verification code HTML"""
-            return f'<div class="code-container"><div class="verification-code" style="display: inline-block; padding: 20px 40px; background-color: #f8f6f3; border: 2px dashed #d4c5b0; border-radius: 8px; font-size: 32px; font-weight: 600; letter-spacing: 8px; color: #2c2c2c; font-family: \'Courier New\', monospace;">{value}</div></div>'
+            return Markup(
+                '<div class="code-container"><div class="verification-code" style="display: inline-block; padding: 20px 40px; background-color: #f8f6f3; border: 2px dashed #d4c5b0; border-radius: 8px; font-size: 32px; font-weight: 600; letter-spacing: 8px; color: #2c2c2c; font-family: \'Courier New\', monospace;">{value}</div></div>'
+            ).format(value=value)
         
         def image(url: str, alt: str = '') -> str:
             """Generate image HTML with absolute URL"""
             # Ensure URL is absolute
             absolute_url = EmailService._ensure_absolute_url(url)
-            return f'<img src="{absolute_url}" alt="{alt}" class="content-image" style="max-width: 100%; height: auto; border-radius: 6px; margin: 20px 0; display: block;">'
+            return Markup(
+                '<img src="{url}" alt="{alt}" class="content-image" style="max-width: 100%; height: auto; border-radius: 6px; margin: 20px 0; display: block;">'
+            ).format(url=absolute_url, alt=alt)
         
         env.globals['button'] = button
         env.globals['code'] = code
@@ -553,11 +630,11 @@ class EmailService:
             db_template = await EmailService.get_template(db, template_type)
             
             if db_template:
-                subject_template = Template(str(db_template.subject))
+                subject_template = EmailService._text_env().from_string(str(db_template.subject))
                 body_template_str = str(db_template.body)
             elif template_type in EmailService.DEFAULT_TEMPLATES:
                 default = EmailService.DEFAULT_TEMPLATES[template_type]
-                subject_template = Template(default['subject'])
+                subject_template = EmailService._text_env().from_string(default['subject'])
                 body_template_str = default['body']
             else:
                 logger.error(f"Email template not found: {template_type}")
@@ -565,7 +642,7 @@ class EmailService:
             
             # Override with custom content if provided
             if custom_subject:
-                subject_template = Template(custom_subject)
+                subject_template = EmailService._text_env().from_string(custom_subject)
             if custom_body:
                 body_template_str = custom_body
             
@@ -612,18 +689,10 @@ class EmailService:
                 logger.error("SMTP not properly configured. SMTP_HOST, SMTP_USER, and SMTP_PASSWORD are required.")
                 return False
             
-            # Get authenticated SMTP connection
-            server = EmailService._get_smtp_connection()
-            
-            recipients = [to_email]
-            if cc:
-                recipients.extend(cc)
-            if bcc:
-                recipients.extend(bcc)
-            
-            server.send_message(msg)
-            server.quit()
-            
+            # Connect, authenticate and send in a worker thread so SMTP
+            # network I/O doesn't block the event loop
+            await asyncio.to_thread(EmailService._send_message_blocking, msg)
+
             # Update template usage tracking
             if db_template:
                 db_template.times_sent += 1
@@ -869,7 +938,8 @@ class EmailService:
             template_type='custom',
             context={
                 'subject': subject,
-                'body': body
+                # Admin-authored HTML body is intentionally rendered as-is
+                'body': Markup(body)
             },
             cc=cc,
             bcc=bcc,

@@ -12,8 +12,11 @@ python3 -m uvicorn backend.main:app \
   --host 0.0.0.0 \
   --port 8000 \
   --proxy-headers \
-  --forwarded-allow-ips='*' \
+  --forwarded-allow-ips="${FORWARDED_ALLOW_IPS:-*}" \
   --log-level info \
   --no-access-log \
-  --timeout-keep-alive 300 \
-  --limit-max-requests 0
+  --timeout-keep-alive 300
+# Note: don't pass --limit-max-requests 0 — uvicorn treats 0 as "exit after
+# 0 requests" and shuts the server down immediately.
+# FORWARDED_ALLOW_IPS: set to the reverse proxy's IP so clients can't spoof
+# X-Forwarded-For (rate limiting keys on the client IP).

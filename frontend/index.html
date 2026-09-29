@@ -16,7 +16,7 @@
     <!-- Apple PWA -->
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
-    <meta name="apple-mobile-web-app-title" content="EagleChair Admin" />
+    <meta name="apple-mobile-web-app-title" content="Eagle Chair" />
     
     <!-- Viewport - Optimized for mobile and all devices -->
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0, user-scalable=yes, viewport-fit=cover" />
@@ -50,15 +50,47 @@
     <!-- Theme Color -->
     <meta name="theme-color" content="#8b7355" />
     
-    <!-- Google Fonts - Preconnect for Performance -->
-    <link rel="preconnect" href="https://fonts.googleapis.com" />
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <!-- Uploaded media host (see resolveImageUrl in src/utils/apiHelpers.js) -->
+    <link rel="preconnect" href="https://joshua.eaglechair.com" />
 
     <!-- SSR: per-page meta tags are injected here by the SSR server -->
     <!--ssr-head-->
 
     <script>
-      (function(){fetch('/data/contentData.json').then(function(r){return r.json()}).then(function(d){if(!d||!d.heroSlides||!d.heroSlides.length)return;d.heroSlides.slice(0,3).forEach(function(s,i){var u=s.background_image_url||s.backgroundImageUrl||s.image;if(!u)return;var href=u.startsWith('http')?u:u.startsWith('/')?u:('/'+u);var link=document.createElement('link');link.rel='preload';link.as='image';link.href=href;if(i<2)link.setAttribute('fetchpriority','high');document.head.appendChild(link)})}).catch(function(){})})();
+      // Start loading CMS content before the JS bundle arrives. The app adopts
+      // this promise (utils/contentDataLoader.js) instead of fetching again.
+      // Also preloads the first hero slide (the LCP image) using the same
+      // responsive variants HeroCarousel requests (media_service naming).
+      (function () {
+        var p = fetch('/data/contentData.json', { cache: 'no-cache' })
+          .then(function (r) { return r.ok ? r.json() : null; })
+          .catch(function () { return null; });
+        window.__contentDataPromise = p;
+        p.then(function (d) {
+          var s = d && d.heroSlides && d.heroSlides[0];
+          var u = s && (s.background_image_url || s.backgroundImageUrl || s.image);
+          if (!u || u.indexOf('wp-content') !== -1) return;
+          if (u.indexOf('http') !== 0) {
+            u = u.charAt(0) === '/' ? u : '/uploads/' + u;
+            var local = /^(localhost|127\.|0\.0\.0\.0)/.test(location.hostname);
+            if (u.indexOf('/uploads') === 0 && !local) u = 'https://joshua.eaglechair.com' + u;
+          }
+          var link = document.createElement('link');
+          link.rel = 'preload';
+          link.as = 'image';
+          link.setAttribute('fetchpriority', 'high');
+          var m = u.split('?')[0].match(/^(.*\/uploads\/images\/.*)\.(jpe?g|png|webp)$/i);
+          if (m && !/\.(w\d+|full)$/.test(m[1])) {
+            link.setAttribute('imagesrcset', [320, 640, 1024, 1600, 2400].map(function (w) {
+              return m[1] + '.w' + w + '.webp ' + w + 'w';
+            }).join(', '));
+            link.setAttribute('imagesizes', '100vw');
+          } else {
+            link.href = u;
+          }
+          document.head.appendChild(link);
+        });
+      })();
     </script>
   </head>
   <body>

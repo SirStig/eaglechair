@@ -1,5 +1,6 @@
 import { Book } from 'lucide-react';
 import { resolveApiUrl, resolveImageUrl } from '../../utils/apiHelpers';
+import ResponsiveImage from './ResponsiveImage';
 
 const CatalogCoverImage = ({ catalog, className = 'aspect-[3/4]', imgClassName = '' }) => {
   const coverUrl = catalog.coverImageUrl || catalog.thumbnailUrl || catalog.thumbnail_url;
@@ -20,8 +21,9 @@ const CatalogCoverImage = ({ catalog, className = 'aspect-[3/4]', imgClassName =
       <div className="absolute inset-0 flex items-center justify-center bg-slate-100">
         <Book className="w-16 h-16 text-slate-400" />
       </div>
-      <img
+      <ResponsiveImage
         src={coverUrl ? resolveImageUrl(coverUrl) : resolveApiUrl(`/api/v1/content/catalogs/${catalog.id}/pdf-thumbnail`)}
+        sizes="(min-width: 1024px) 400px, (min-width: 640px) 50vw, 100vw"
         alt={catalog.title}
         className={`relative z-10 w-full h-full object-cover group-hover:scale-105 transition-transform duration-300 ${imgClassName}`}
         loading="lazy"

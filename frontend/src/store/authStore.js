@@ -1,16 +1,31 @@
 import { create } from 'zustand';
-import apiClient from '../config/apiClient';
+import apiClient, { purgeStoredTokens } from '../config/apiClient';
 import logger from '../utils/logger';
 import { safeSetItem } from '../utils/safeStorage';
 
 const AUTH_CONTEXT = 'AuthStore';
 
-// localStorage keys for token storage
-const ACCESS_TOKEN_KEY = 'auth_access_token';
-const REFRESH_TOKEN_KEY = 'auth_refresh_token';
-const SESSION_TOKEN_KEY = 'auth_session_token'; // For admin users
-const ADMIN_TOKEN_KEY = 'auth_admin_token'; // For admin users
+// Auth tokens live only in httpOnly cookies set by the backend - they are
+// never stored in (or readable from) JS. Only the non-secret user profile is
+// cached in localStorage so the UI can render immediately on reload.
 const USER_KEY = 'auth_user';
+
+const readStoredUser = () => {
+  try {
+    const raw = localStorage.getItem(USER_KEY);
+    return raw ? JSON.parse(raw) : null;
+  } catch {
+    return null;
+  }
+};
+
+const clearStoredUser = () => {
+  try {
+    localStorage.removeItem(USER_KEY);
+  } catch {
+    // Storage unavailable
+  }
+};
 
 // Helper function to validate user object
 const isValidUser = (user) => {
@@ -27,34 +42,26 @@ export const useAuthStore = create(
 
       login: async (credentials) => {
         try {
+          // Backend sets httpOnly auth cookies; the body only carries the profile
           const data = await apiClient.post('/api/v1/auth/login', credentials);
-          const accessToken = data.access_token;
-          const refreshToken = data.refresh_token;
-          const sessionToken = data.session_token;
-          const adminToken = data.admin_token;
           const user = data.user;
 
           if (!isValidUser(user)) {
             throw new Error('Invalid user data received from server');
           }
 
-          let storageOk = true;
-          if (accessToken) storageOk = safeSetItem(ACCESS_TOKEN_KEY, accessToken) && storageOk;
-          if (refreshToken) storageOk = safeSetItem(REFRESH_TOKEN_KEY, refreshToken) && storageOk;
-          if (sessionToken) storageOk = safeSetItem(SESSION_TOKEN_KEY, sessionToken) && storageOk;
-          if (adminToken) storageOk = safeSetItem(ADMIN_TOKEN_KEY, adminToken) && storageOk;
-          if (user) storageOk = safeSetItem(USER_KEY, JSON.stringify(user)) && storageOk;
+          // Only the non-secret profile is cached (for instant UI on reload)
+          const storageOk = safeSetItem(USER_KEY, JSON.stringify(user));
 
           set({ user, isAuthenticated: true });
 
           if (storageOk) {
-            logger.info(AUTH_CONTEXT, 'Login successful, tokens stored in localStorage');
+            logger.info(AUTH_CONTEXT, 'Login successful (session held in httpOnly cookies)');
           } else {
-            // Login succeeded but the browser refused to persist the session
-            // (e.g. Safari private browsing) - session won't survive a reload
-            logger.warn(AUTH_CONTEXT, 'Login successful, but session could not be saved to storage');
+            // Session cookies are set; only the cached profile could not be saved
+            logger.warn(AUTH_CONTEXT, 'Login successful, but user profile could not be cached');
           }
-          return { success: true, user, requiresSetup: data.requiresSetup, sessionPersisted: storageOk };
+          return { success: true, user, requiresSetup: data.requiresSetup, sessionPersisted: true };
         } catch (error) {
           console.error('Login error:', error);
           
@@ -95,39 +102,36 @@ export const useAuthStore = create(
         }
       },
 
-      loginWithPasskey: async () => {
+      loginWithPasskey: async (username) => {
         try {
+          if (!username || !username.trim()) {
+            return { success: false, error: 'Enter your username or email, then choose "Sign in with Passkey"' };
+          }
           const { getPasskey } = await import('../utils/passkey');
           const { getPasskeyAuthOptions, authenticateWithPasskey } = await import('../services/adminAuthService');
-          const options = await getPasskeyAuthOptions();
-          const credential = await getPasskey(options);
+          // Server stores the challenge and returns a single-use challengeId
+          const { challengeId, ...publicKeyOptions } = await getPasskeyAuthOptions(username.trim());
+          const credential = await getPasskey(publicKeyOptions);
           if (!credential) return { success: false, error: 'Passkey sign-in was cancelled' };
           const data = await authenticateWithPasskey({
-            options,
+            challengeId,
             credential
           });
-          const { access_token, refresh_token, session_token, admin_token, user } = data;
+          const { user } = data;
           if (!isValidUser(user)) throw new Error('Invalid user data');
-          let storageOk = true;
-          if (access_token) storageOk = safeSetItem(ACCESS_TOKEN_KEY, access_token) && storageOk;
-          if (refresh_token) storageOk = safeSetItem(REFRESH_TOKEN_KEY, refresh_token) && storageOk;
-          if (session_token) storageOk = safeSetItem(SESSION_TOKEN_KEY, session_token) && storageOk;
-          if (admin_token) storageOk = safeSetItem(ADMIN_TOKEN_KEY, admin_token) && storageOk;
-          if (user) storageOk = safeSetItem(USER_KEY, JSON.stringify(user)) && storageOk;
-          set({ user, isAuthenticated: true });
-          if (!storageOk) {
-            logger.warn(AUTH_CONTEXT, 'Passkey login successful, but session could not be saved to storage');
+          if (!safeSetItem(USER_KEY, JSON.stringify(user))) {
+            logger.warn(AUTH_CONTEXT, 'Passkey login successful, but user profile could not be cached');
           }
-          return { success: true, user, requiresSetup: data.requiresSetup, sessionPersisted: storageOk };
+          set({ user, isAuthenticated: true });
+          return { success: true, user, requiresSetup: data.requiresSetup, sessionPersisted: true };
         } catch (error) {
-          const msg = error.response?.data?.detail || error.message || 'Passkey sign-in failed';
+          const msg = error.data?.message || error.response?.data?.detail || error.message || 'Passkey sign-in failed';
           return { success: false, error: typeof msg === 'string' ? msg : JSON.stringify(msg) };
         }
       },
 
-      register: async (userData, cartStore = null) => {
+      register: async (userData) => {
         try {
-          // Tokens are returned in response body and stored in localStorage
           const data = await apiClient.post('/api/v1/auth/register', userData);
           
           // Backend now returns a message that email verification is required
@@ -143,35 +147,15 @@ export const useAuthStore = create(
           }
           
           // Legacy support: if user is returned (shouldn't happen with new flow)
-          const accessToken = data.access_token;
-          const refreshToken = data.refresh_token;
-          const sessionToken = data.session_token; // Admin only
-          const adminToken = data.admin_token; // Admin only
+          // Any session is carried by httpOnly cookies set by the backend
           const { user } = data;
           if (user && isValidUser(user)) {
-            // Store tokens and user in localStorage
-            let storageOk = true;
-            if (accessToken) {
-              storageOk = safeSetItem(ACCESS_TOKEN_KEY, accessToken) && storageOk;
-            }
-            if (refreshToken) {
-              storageOk = safeSetItem(REFRESH_TOKEN_KEY, refreshToken) && storageOk;
-            }
-            if (sessionToken) {
-              storageOk = safeSetItem(SESSION_TOKEN_KEY, sessionToken) && storageOk;
-            }
-            if (adminToken) {
-              storageOk = safeSetItem(ADMIN_TOKEN_KEY, adminToken) && storageOk;
-            }
-            if (user) {
-              storageOk = safeSetItem(USER_KEY, JSON.stringify(user)) && storageOk;
+            if (!safeSetItem(USER_KEY, JSON.stringify(user))) {
+              logger.warn(AUTH_CONTEXT, 'Registration successful, but user profile could not be cached');
             }
 
             set({ user, isAuthenticated: true });
-            if (!storageOk) {
-              logger.warn(AUTH_CONTEXT, 'Registration successful, but session could not be saved to storage');
-            }
-            return { success: true, user, sessionPersisted: storageOk };
+            return { success: true, user, sessionPersisted: true };
           }
           
           // Default success response
@@ -191,7 +175,7 @@ export const useAuthStore = create(
 
       logout: async (cartStore = null) => {
         try {
-          // Call backend logout endpoint (may fail if tokens are invalid, that's OK)
+          // Backend revokes all tokens and clears the httpOnly auth cookies
           await apiClient.post('/api/v1/auth/logout', {});
         } catch (error) {
           // Even if logout fails (e.g., tokens expired), clear local state anyway
@@ -201,12 +185,9 @@ export const useAuthStore = create(
           }
         }
         
-        // Clear tokens and user from localStorage
-        localStorage.removeItem(ACCESS_TOKEN_KEY);
-        localStorage.removeItem(REFRESH_TOKEN_KEY);
-        localStorage.removeItem(SESSION_TOKEN_KEY);
-        localStorage.removeItem(ADMIN_TOKEN_KEY);
-        localStorage.removeItem(USER_KEY);
+        // Clear cached user profile (and any legacy tokens) from storage
+        purgeStoredTokens();
+        clearStoredUser();
         
         // Clear local state
         set({ 
@@ -220,7 +201,7 @@ export const useAuthStore = create(
           logger.info(AUTH_CONTEXT, 'Switched to guest cart on logout');
         }
         
-        logger.info(AUTH_CONTEXT, 'Logout successful, localStorage cleared');
+        logger.info(AUTH_CONTEXT, 'Logout successful');
       },
 
       updateUser: (userData) => {
@@ -245,48 +226,17 @@ export const useAuthStore = create(
           return true;
         }
         
-        // Check if user data is valid
+        // Check if user data is valid (tokens are httpOnly cookies, not visible here)
         if (!isValidUser(user)) {
-          // Only clear if we also don't have tokens (might be a temporary state during init)
-          const accessToken = localStorage.getItem(ACCESS_TOKEN_KEY);
-          const refreshToken = localStorage.getItem(REFRESH_TOKEN_KEY);
-          
-          if (!accessToken && !refreshToken) {
-            logger.warn(AUTH_CONTEXT, 'Invalid user data and no tokens, clearing auth state');
-            // Don't call logout here - just clear state to avoid redirect loops
-            set({ 
-              user: null, 
-              isAuthenticated: false 
-            });
-            return false;
-          } else {
-            // We have tokens but invalid user - might be during initialization, don't clear yet
-            logger.debug(AUTH_CONTEXT, 'Invalid user data but tokens exist, waiting for validation');
-            return true;
-          }
+          logger.warn(AUTH_CONTEXT, 'Invalid user data, clearing auth state');
+          // Don't call logout here - just clear state to avoid redirect loops
+          set({
+            user: null,
+            isAuthenticated: false
+          });
+          return false;
         }
-        
-        // Check if tokens exist in localStorage
-        const accessToken = localStorage.getItem(ACCESS_TOKEN_KEY);
-        const refreshToken = localStorage.getItem(REFRESH_TOKEN_KEY);
-        
-        if (!accessToken && !refreshToken) {
-          // Only clear if user is also invalid
-          if (!isValidUser(user)) {
-            logger.debug(AUTH_CONTEXT, 'No tokens and invalid user, clearing auth state');
-            // Don't call logout here - just clear state to avoid redirect loops
-            set({ 
-              user: null, 
-              isAuthenticated: false 
-            });
-            return false;
-          } else {
-            // User is valid but no tokens - might be a race condition, don't clear
-            logger.debug(AUTH_CONTEXT, 'No tokens but valid user, skipping cleanup');
-            return true;
-          }
-        }
-        
+
         // Token validation is handled by the backend
         // If tokens are invalid/expired, the backend will return 401
         // and the apiClient interceptor will handle it
@@ -298,12 +248,8 @@ export const useAuthStore = create(
         try {
           set({ isInitializing: true });
 
-          const accessToken = localStorage.getItem(ACCESS_TOKEN_KEY);
-          const refreshToken = localStorage.getItem(REFRESH_TOKEN_KEY);
-          const sessionToken = localStorage.getItem(SESSION_TOKEN_KEY);
-          const adminToken = localStorage.getItem(ADMIN_TOKEN_KEY);
-          const storedUser = localStorage.getItem(USER_KEY);
-          const isAdminSession = sessionToken && adminToken;
+          // Tokens from older builds must not linger in Web Storage
+          purgeStoredTokens();
 
           const validateAndRestoreSession = async () => {
             const responseData = await apiClient.get('/api/v1/auth/me');
@@ -341,94 +287,38 @@ export const useAuthStore = create(
             return null;
           };
 
-          const tryCookieRefresh = async () => {
-            try {
-              const refreshData = await apiClient.post('/api/v1/auth/refresh', {});
-              if (refreshData.access_token) safeSetItem(ACCESS_TOKEN_KEY, refreshData.access_token);
-              if (refreshData.refresh_token) safeSetItem(REFRESH_TOKEN_KEY, refreshData.refresh_token);
-              return refreshData.access_token;
-            } catch {
-              return null;
-            }
-          };
+          // Show the cached profile while the cookie session is validated.
+          // Every login path caches the profile, so without one this browser
+          // has no session: skip /auth/me (+ refresh) for anonymous visitors.
+          const userData = readStoredUser();
+          if (!userData || !isValidUser(userData)) {
+            clearStoredUser();
+            set({ isInitializing: false, user: null, isAuthenticated: false });
+            return;
+          }
+          set({ user: userData, isAuthenticated: true, isInitializing: true });
+          logger.info(AUTH_CONTEXT, 'Restored cached user profile, validating session');
 
-          if (accessToken || refreshToken) {
-            let userData = null;
-            if (storedUser) {
-              try {
-                userData = JSON.parse(storedUser);
-              } catch (e) {
-                logger.warn(AUTH_CONTEXT, 'Failed to parse stored user data', e);
-              }
+          // /auth/me is authenticated by the httpOnly cookies. On 401 the
+          // apiClient interceptor refreshes via the refresh_token cookie and
+          // retries once, so a single call covers both cases.
+          try {
+            const restored = await validateAndRestoreSession();
+            if (restored) {
+              logger.info(AUTH_CONTEXT, `Session validated - user type: ${restored.type}`);
+              return;
             }
-            if (userData && isValidUser(userData) && (!isAdminSession || userData.type === 'admin')) {
-              set({ user: userData, isAuthenticated: true, isInitializing: true });
-              logger.info(AUTH_CONTEXT, 'Restored user from localStorage');
-            }
-            try {
-              const restored = await validateAndRestoreSession();
-              if (restored) {
-                logger.info(AUTH_CONTEXT, `Session validated - user type: ${restored.type}`);
-                return;
-              }
-            } catch (error) {
-              if (error.response?.status === 401) {
-                const newToken = refreshToken
-                  ? (await (async () => {
-                      try {
-                        const d = await apiClient.post('/api/v1/auth/refresh', {}, {
-                          headers: { Authorization: `Bearer ${refreshToken}` }
-                        });
-                        if (d.access_token) safeSetItem(ACCESS_TOKEN_KEY, d.access_token);
-                        if (d.refresh_token) safeSetItem(REFRESH_TOKEN_KEY, d.refresh_token);
-                        return d.access_token;
-                      } catch {
-                        return null;
-                      }
-                    })())
-                  : await tryCookieRefresh();
-                if (newToken) {
-                  const retried = await validateAndRestoreSession();
-                  if (retried) {
-                    logger.info(AUTH_CONTEXT, 'Session restored after token refresh');
-                    return;
-                  }
-                }
-              }
-            }
-          } else {
-            try {
-              const restored = await validateAndRestoreSession();
-              if (restored) {
-                logger.info(AUTH_CONTEXT, 'Session restored from cookies (localStorage was empty)');
-                return;
-              }
-            } catch (error) {
-              if (error.response?.status === 401) {
-                const newToken = await tryCookieRefresh();
-                if (newToken) {
-                  const retried = await validateAndRestoreSession();
-                  if (retried) {
-                    logger.info(AUTH_CONTEXT, 'Session restored from cookie refresh');
-                    return;
-                  }
-                }
-              }
-            }
+          } catch {
+            // Not signed in (or session revoked/expired)
           }
           // Clear any stale state but don't call logout() to avoid redirect loops
           // Just clear the state silently - logout() will be called by ProtectedRoute if needed
-          set({ 
+          set({
             isInitializing: false,
             user: null,
             isAuthenticated: false
           });
-          // Clear localStorage tokens if they exist but are invalid
-          localStorage.removeItem(ACCESS_TOKEN_KEY);
-          localStorage.removeItem(REFRESH_TOKEN_KEY);
-          localStorage.removeItem(SESSION_TOKEN_KEY);
-          localStorage.removeItem(ADMIN_TOKEN_KEY);
-          localStorage.removeItem(USER_KEY);
+          clearStoredUser();
         } catch (error) {
           logger.error(AUTH_CONTEXT, 'Error during auth initialization', error);
           // On error, clear state but don't call logout() to avoid redirect loops
@@ -437,12 +327,7 @@ export const useAuthStore = create(
             user: null,
             isAuthenticated: false
           });
-          // Clear localStorage tokens
-          localStorage.removeItem(ACCESS_TOKEN_KEY);
-          localStorage.removeItem(REFRESH_TOKEN_KEY);
-          localStorage.removeItem(SESSION_TOKEN_KEY);
-          localStorage.removeItem(ADMIN_TOKEN_KEY);
-          localStorage.removeItem(USER_KEY);
+          clearStoredUser();
         }
       },
     })

@@ -82,6 +82,11 @@ class RateLimitConfig:
     ADMIN_LIMITS = {
         "default": (500, 60),  # 500 requests per minute (high limit)
     }
+    
+    # Unauthenticated submission endpoints (tracked per IP + path, independent of other traffic)
+    GUEST_SUBMISSION_LIMITS = {
+        "/api/v1/quotes/request-guest": (10, 600),  # 10 guest quotes per 10 minutes
+    }
 
 
 class AdvancedRateLimiter(BaseHTTPMiddleware):
@@ -102,7 +107,14 @@ class AdvancedRateLimiter(BaseHTTPMiddleware):
         # Tracking
         self.request_history: Dict[str, deque] = defaultdict(lambda: deque(maxlen=1000))
         self.burst_tracker: Dict[str, list] = defaultdict(list)
-        
+
+        # Periodic pruning keeps tracking state bounded (see _maybe_cleanup)
+        self.cleanup_interval = kwargs.get("cleanup_interval", 60)
+        self.max_tracked_identifiers = kwargs.get("max_tracked_identifiers", 50000)
+        # Longest window any limit uses; history older than this is never read
+        self.history_retention = kwargs.get("history_retention", 900)
+        self._last_cleanup = time.time()
+
         # Burst protection - increased threshold to accommodate legitimate page loads
         # Modern SPAs make many parallel API calls (OPTIONS + GET for each endpoint)
         # A typical page load might have 10-30 parallel requests
@@ -137,7 +149,7 @@ class AdvancedRateLimiter(BaseHTTPMiddleware):
         # Get identifier (IP or user ID)
         # For auth endpoints, use endpoint-specific identifier to isolate from other traffic
         user_type = self._get_user_type(request)
-        if user_type == "auth":
+        if user_type in ("auth", "guest_submission"):
             # For auth endpoints, create endpoint-specific identifier
             # This prevents page browsing from counting against login attempts
             identifier = self._get_identifier(request, path_specific=True)
@@ -145,10 +157,11 @@ class AdvancedRateLimiter(BaseHTTPMiddleware):
             identifier = self._get_identifier(request)
         
         current_time = time.time()
-        
+        self._maybe_cleanup(current_time)
+
         # Get limits for this endpoint
         max_requests, window = self._get_rate_limit(path, user_type)
-        
+
         # Check for burst
         if self._detect_burst(identifier, current_time):
             logger.warning(f"Burst detected from {identifier}")
@@ -210,15 +223,13 @@ class AdvancedRateLimiter(BaseHTTPMiddleware):
         return base_identifier
     
     def _get_client_ip(self, request: Request) -> str:
-        """Extract client IP address"""
-        forwarded = request.headers.get("X-Forwarded-For")
-        if forwarded:
-            return forwarded.split(",")[0].strip()
+        """
+        Extract client IP address.
         
-        real_ip = request.headers.get("X-Real-IP")
-        if real_ip:
-            return real_ip
-        
+        Client-supplied X-Forwarded-For/X-Real-IP headers are NOT trusted here;
+        uvicorn/gunicorn already rewrite request.client from trusted proxies
+        (forwarded_allow_ips).
+        """
         return request.client.host if request.client else "unknown"
     
     def _get_user_type(self, request: Request) -> str:
@@ -229,13 +240,24 @@ class AdvancedRateLimiter(BaseHTTPMiddleware):
         if RouteConfig.is_admin_route(path):
             return "admin"
         
+        # Check auth endpoints BEFORE the Authorization header so that sending an
+        # arbitrary header cannot move credential endpoints (login, register, refresh,
+        # password reset) into the looser authenticated bucket
+        if "/auth/" in path:
+            has_auth_header = bool(request.headers.get("Authorization"))
+            is_credential_endpoint = "/auth/password/reset" in path or any(
+                endpoint in path for endpoint in RateLimitConfig.get_auth_limits()
+            )
+            if not has_auth_header or is_credential_endpoint:
+                return "auth"
+        
+        # Unauthenticated submission endpoints are always strictly limited
+        if path in RateLimitConfig.GUEST_SUBMISSION_LIMITS:
+            return "guest_submission"
+        
         # Check if authenticated
         if request.headers.get("Authorization"):
             return "company"
-        
-        # Check if auth endpoint
-        if "/auth/" in path:
-            return "auth"
         
         return "public"
     
@@ -258,6 +280,10 @@ class AdvancedRateLimiter(BaseHTTPMiddleware):
             # Default auth limit - also adjusted for DEBUG
             default_limit = (10, 60) if not settings.DEBUG else (100, 60)
             return default_limit
+        
+        # Guest submission endpoints
+        if user_type == "guest_submission":
+            return RateLimitConfig.GUEST_SUBMISSION_LIMITS[path]
         
         # Admin endpoints
         if user_type == "admin":
@@ -325,6 +351,41 @@ class AdvancedRateLimiter(BaseHTTPMiddleware):
         
         return len(self.request_history[identifier])
     
+    def _maybe_cleanup(self, current_time: float) -> None:
+        """Prune idle identifiers every cleanup_interval seconds or when too many are tracked."""
+        if (
+            current_time - self._last_cleanup < self.cleanup_interval
+            and len(self.request_history) <= self.max_tracked_identifiers
+            and len(self.burst_tracker) <= self.max_tracked_identifiers
+        ):
+            return
+        self.cleanup_old_data(current_time)
+
+    def cleanup_old_data(self, current_time: float = None) -> None:
+        """Drop identifiers with no recent requests and cap the number tracked."""
+        current_time = current_time or time.time()
+        self._last_cleanup = current_time
+
+        history_cutoff = current_time - self.history_retention
+        for identifier in list(self.request_history.keys()):
+            history = self.request_history[identifier]
+            if not history or history[-1] < history_cutoff:
+                del self.request_history[identifier]
+
+        burst_cutoff = current_time - self.burst_window
+        for identifier in list(self.burst_tracker.keys()):
+            timestamps = self.burst_tracker[identifier]
+            if not timestamps or timestamps[-1] <= burst_cutoff:
+                del self.burst_tracker[identifier]
+
+        # Hard cap: evict the least recently active identifiers
+        for tracker in (self.request_history, self.burst_tracker):
+            excess = len(tracker) - self.max_tracked_identifiers
+            if excess > 0:
+                oldest = sorted(tracker, key=lambda k: tracker[k][-1] if tracker[k] else 0)
+                for identifier in oldest[:excess]:
+                    del tracker[identifier]
+
     def _detect_burst(self, identifier: str, current_time: float) -> bool:
         """Detect burst traffic (too many requests in very short time)"""
         # Add current request to burst tracker

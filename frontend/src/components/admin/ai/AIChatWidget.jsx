@@ -6,7 +6,7 @@
 
 import { useRef, useEffect, useCallback, useState } from 'react';
 import { useMediaQuery } from '../../../hooks/useMediaQuery';
-import { motion, AnimatePresence } from 'framer-motion';
+import { m, AnimatePresence } from 'framer-motion';
 import { X, Maximize2, Minimize2, ChevronLeft, MessageSquare, Loader2 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useAIChat } from '../../../contexts/AIChatContext';
@@ -25,7 +25,7 @@ function WelcomeScreen({ onSuggestionClick }) {
   return (
     <div className="flex flex-col items-center justify-center h-full text-center px-4">
       <div className="w-10 h-10 sm:w-14 sm:h-14 rounded-2xl bg-dark-800 flex items-center justify-center mb-3 shadow-lg p-2">
-        <img src="/favicon.svg" alt="Eagle Chair" className="w-full h-full object-contain" />
+        <img src="/web-app-manifest-192x192.png" alt="Eagle Chair" className="w-full h-full object-contain" />
       </div>
       <h3 className="text-xs sm:text-sm font-bold text-dark-50 mb-1.5">EagleChair AI Assistant</h3>
       <p className="text-[11px] sm:text-xs text-dark-400 leading-relaxed max-w-xs">
@@ -103,7 +103,7 @@ export default function AIChatWidget() {
 
   return (
     <AnimatePresence>
-      <motion.div
+      <m.div
         key="chat-widget"
         initial={{ opacity: 0, scale: 0.95, y: 10 }}
         animate={{ opacity: 1, scale: 1, y: 0 }}
@@ -132,7 +132,7 @@ export default function AIChatWidget() {
               <ChevronLeft className={`w-4 h-4 transition-transform ${showSidebar ? '' : 'rotate-180'}`} />
             </button>
             <div className="w-7 h-7 rounded-lg bg-dark-700 flex items-center justify-center p-1">
-              <img src="/favicon.svg" alt="Eagle Chair" className="w-full h-full object-contain" />
+              <img src="/web-app-manifest-192x192.png" alt="Eagle Chair" className="w-full h-full object-contain" />
             </div>
             <div>
               <p className="text-sm font-semibold text-dark-50 leading-none">Eagle AI</p>
@@ -176,7 +176,7 @@ export default function AIChatWidget() {
           )}
           <AnimatePresence>
             {showSidebar && (
-              <motion.div
+              <m.div
                 initial={{ width: 0, opacity: 0 }}
                 animate={{ width: isMobile ? '100%' : 208, opacity: 1 }}
                 exit={{ width: 0, opacity: 0 }}
@@ -193,7 +193,7 @@ export default function AIChatWidget() {
                   onClose={isMobile ? () => setShowSidebar(false) : undefined}
                   showCloseButton={isMobile}
                 />
-              </motion.div>
+              </m.div>
             )}
           </AnimatePresence>
 
@@ -245,7 +245,7 @@ export default function AIChatWidget() {
             {isFullScreen && <div className="pb-safe flex-shrink-0" />}
           </div>
         </div>
-      </motion.div>
+      </m.div>
     </AnimatePresence>
   );
 }

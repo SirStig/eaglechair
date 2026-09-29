@@ -1,4 +1,4 @@
-import { motion } from 'framer-motion';
+import { m } from 'framer-motion';
 import { clsx } from 'clsx';
 
 const LoadingSpinner = ({ size = 'md', className, fullScreen = false }) => {
@@ -10,7 +10,7 @@ const LoadingSpinner = ({ size = 'md', className, fullScreen = false }) => {
   };
 
   const spinner = (
-    <motion.div
+    <m.div
       className={clsx(
         'border-4 border-dark-600 border-t-primary-500 rounded-full',
         sizes[size],
