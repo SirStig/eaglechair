@@ -20,6 +20,7 @@ from pathlib import Path
 from fastapi import FastAPI, Request
 from fastapi.responses import FileResponse, HTMLResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
+from starlette.exceptions import HTTPException as StarletteHTTPException
 import gunicorn.app.base
 
 from backend.api import versioning
@@ -224,10 +225,11 @@ app = FastAPI(
     title=settings.APP_NAME,
     description=settings.APP_DESCRIPTION,
     version=settings.APP_VERSION,
-    docs_url="/docs" if settings.DEBUG else None,  # SwaggerUI - dev mode only
-    redoc_url="/redoc" if settings.DEBUG else None,  # ReDoc - dev mode only
+    # docs_enabled = DEBUG and ENVIRONMENT != production
+    docs_url="/docs" if settings.docs_enabled else None,  # SwaggerUI - dev mode only
+    redoc_url="/redoc" if settings.docs_enabled else None,  # ReDoc - dev mode only
     openapi_url="/openapi.json"
-    if settings.DEBUG
+    if settings.docs_enabled
     else None,  # OpenAPI JSON - dev mode only
     lifespan=lifespan,
     # Trust proxy headers when behind reverse proxy (DreamHost)
@@ -330,7 +332,19 @@ app.include_router(
 from backend.api.v1.routes.admin.upload import UPLOAD_BASE_DIR as uploads_path  # noqa: E402
 
 uploads_path.mkdir(parents=True, exist_ok=True)
-app.mount("/uploads", StaticFiles(directory=str(uploads_path)), name="uploads")
+
+
+class _PublicUploads(StaticFiles):
+    """Public uploads, except legacy quote attachments (private; see migrate_quote_attachments)."""
+
+    async def get_response(self, path, scope):
+        first = path.replace("\\", "/").lstrip("/").split("/", 1)[0]
+        if first.lower() == "quotes":
+            raise StarletteHTTPException(status_code=404)
+        return await super().get_response(path, scope)
+
+
+app.mount("/uploads", _PublicUploads(directory=str(uploads_path)), name="uploads")
 logger.info(f"[OK] Uploads directory mounted at /uploads ({uploads_path})")
 
 # Note: /tmp directory is NOT mounted here - it's served by frontend web server
@@ -420,7 +434,7 @@ if frontend_dist_path.exists() and (frontend_dist_path / "index.html").exists():
         """Serve root-level build files, else the SPA (client-side routing)"""
         if full_path.startswith("api/"):
             return JSONResponse(content={"detail": "Not found"}, status_code=404)
-        if not settings.DEBUG and full_path in ["docs", "redoc", "openapi.json"]:
+        if not settings.docs_enabled and full_path in ["docs", "redoc", "openapi.json"]:
             return JSONResponse(content={"detail": "Not found"}, status_code=404)
 
         # Real files at the dist root (robots.txt, sitemap.xml, favicon.ico,

@@ -43,7 +43,7 @@ from sqlalchemy.orm import selectinload
 
 from backend.api.dependencies import get_current_admin, require_role
 from backend.core.config import settings
-from backend.models.company import AdminRole
+from backend.models.company import AdminRole, AdminUser
 from backend.core.security import SecurityManager
 from backend.database.base import get_db, AsyncSessionLocal
 from backend.utils.file_validation import PRIVATE_UPLOAD_DIR
@@ -612,7 +612,7 @@ async def upload_training_document(
     description: str = Form(""),
     tags: str = Form(""),
     db: AsyncSession = Depends(get_db),
-    admin=Depends(get_current_admin),
+    admin=Depends(require_role(AdminRole.ADMIN)),
 ):
     file_type = detect_file_type(file.filename or "", file.content_type or "")
     doc_id = str(uuid.uuid4())
@@ -698,7 +698,7 @@ async def upload_training_document(
 async def upload_training_batch(
     files: list[UploadFile] = File(..., description="Multiple files; names will be derived from filenames"),
     db: AsyncSession = Depends(get_db),
-    admin=Depends(get_current_admin),
+    admin=Depends(require_role(AdminRole.ADMIN)),
 ):
     if not files or len(files) > 200:
         raise HTTPException(status_code=400, detail="Provide 1–200 files")
@@ -783,7 +783,7 @@ async def upload_training_batch(
 async def delete_training_doc(
     doc_id: str,
     db: AsyncSession = Depends(get_db),
-    admin=Depends(get_current_admin),
+    admin=Depends(require_role(AdminRole.ADMIN)),
 ):
     await db.execute(
         update(AITrainingDocument)
@@ -849,6 +849,14 @@ async def websocket_chat(websocket: WebSocket, session_id: str):
 
     try:
         async with AsyncSessionLocal() as db:
+            ws_admin = await db.get(AdminUser, admin_id)
+            if ws_admin is None or not ws_admin.is_active:
+                await websocket.send_json(AIStreamEvent.error("Invalid token"))
+                await websocket.close(code=4001)
+                return
+            # Edit/agent modes can create products directly (create_product tool);
+            # same bar as the product create/apply-edit routes.
+            can_write = ws_admin.role in (AdminRole.ADMIN, AdminRole.SUPER_ADMIN)
             result = await db.execute(
                 select(AIChatSession)
                 .where(AIChatSession.id == session_id, AIChatSession.admin_user_id == admin_id)
@@ -893,6 +901,8 @@ async def websocket_chat(websocket: WebSocket, session_id: str):
             user_content = (pending_message.get("content") or "").strip()
             file_ids = pending_message.get("file_ids", [])
             mode = pending_message.get("mode", "edit")
+            if not can_write:
+                mode = "ask"
             model = pending_message.get("model", "auto")
             pending_message = None
 

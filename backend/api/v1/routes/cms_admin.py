@@ -28,7 +28,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel, Field
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from backend.api.dependencies import get_current_admin
+from backend.api.dependencies import get_current_admin, require_role
 from backend.api.v1.schemas.common import MessageResponse
 from backend.api.v1.schemas.content import (
     CompanyInfoCreate,
@@ -41,7 +41,7 @@ from backend.api.v1.schemas.content import (
 )
 from backend.core.exceptions import EagleChairException, ResourceNotFoundError
 from backend.database.base import get_db
-from backend.models.company import Company
+from backend.models.company import AdminRole, Company
 from backend.models.legal import LegalDocumentType
 from backend.services.cms_admin_service import CMSAdminService
 
@@ -288,7 +288,7 @@ class InstallationUpdate(BaseModel):
 async def update_site_settings(
     settings: SiteSettingsUpdate,
     db: AsyncSession = Depends(get_db),
-    admin: Company = Depends(get_current_admin)
+    admin: Company = Depends(require_role(AdminRole.EDITOR))
 ):
     """
     Update site settings and export to frontend static file.
@@ -339,7 +339,7 @@ async def update_site_settings(
 async def create_hero_slide(
     slide: HeroSlideCreate,
     db: AsyncSession = Depends(get_db),
-    admin: Company = Depends(get_current_admin)
+    admin: Company = Depends(require_role(AdminRole.EDITOR))
 ):
     """Create hero slide and export to static file."""
     logger.info(f"Admin {admin.id} creating hero slide: {slide.title}")
@@ -377,7 +377,7 @@ async def update_hero_slide(
     slide_id: int,
     slide: HeroSlideUpdate,
     db: AsyncSession = Depends(get_db),
-    admin: Company = Depends(get_current_admin)
+    admin: Company = Depends(require_role(AdminRole.EDITOR))
 ):
     """Update hero slide and export to static file."""
     logger.info(f"Admin {admin.id} updating hero slide {slide_id}")
@@ -416,7 +416,7 @@ async def update_hero_slide(
 async def delete_hero_slide(
     slide_id: int,
     db: AsyncSession = Depends(get_db),
-    admin: Company = Depends(get_current_admin)
+    admin: Company = Depends(require_role(AdminRole.EDITOR))
 ):
     """Delete hero slide and export to static file."""
     logger.info(f"Admin {admin.id} deleting hero slide {slide_id}")
@@ -452,7 +452,7 @@ async def delete_hero_slide(
 async def create_sales_rep(
     rep: SalesRepCreate,
     db: AsyncSession = Depends(get_db),
-    admin: Company = Depends(get_current_admin)
+    admin: Company = Depends(require_role(AdminRole.EDITOR))
 ):
     """Create sales rep and export to static file."""
     logger.info(f"Admin {admin.id} creating sales rep: {rep.name}")
@@ -490,7 +490,7 @@ async def update_sales_rep(
     rep_id: int,
     rep: SalesRepUpdate,
     db: AsyncSession = Depends(get_db),
-    admin: Company = Depends(get_current_admin)
+    admin: Company = Depends(require_role(AdminRole.EDITOR))
 ):
     """Update sales rep and export to static file."""
     logger.info(f"Admin {admin.id} updating sales rep {rep_id}")
@@ -529,7 +529,7 @@ async def update_sales_rep(
 async def delete_sales_rep(
     rep_id: int,
     db: AsyncSession = Depends(get_db),
-    admin: Company = Depends(get_current_admin)
+    admin: Company = Depends(require_role(AdminRole.EDITOR))
 ):
     """Delete sales rep and export to static file."""
     logger.info(f"Admin {admin.id} deleting sales rep {rep_id}")
@@ -565,7 +565,7 @@ async def delete_sales_rep(
 async def create_installation(
     installation: InstallationCreate,
     db: AsyncSession = Depends(get_db),
-    admin: Company = Depends(get_current_admin)
+    admin: Company = Depends(require_role(AdminRole.EDITOR))
 ):
     """Create installation entry and export to static file."""
     logger.info(f"Admin {admin.id} creating installation: {installation.project_name}")
@@ -597,7 +597,7 @@ async def update_installation(
     installation_id: int,
     installation: InstallationUpdate,
     db: AsyncSession = Depends(get_db),
-    admin: Company = Depends(get_current_admin)
+    admin: Company = Depends(require_role(AdminRole.EDITOR))
 ):
     """Update installation entry and export to static file."""
     logger.info(f"Admin {admin.id} updating installation {installation_id}")
@@ -636,7 +636,7 @@ async def update_installation(
 async def delete_installation(
     installation_id: int,
     db: AsyncSession = Depends(get_db),
-    admin: Company = Depends(get_current_admin)
+    admin: Company = Depends(require_role(AdminRole.EDITOR))
 ):
     """Delete installation entry and export to static file."""
     logger.info(f"Admin {admin.id} deleting installation {installation_id}")
@@ -673,7 +673,7 @@ async def update_page_content(
     section_key: str,
     updates: "PageContentUpdate",
     db: AsyncSession = Depends(get_db),
-    admin: Company = Depends(get_current_admin)
+    admin: Company = Depends(require_role(AdminRole.EDITOR))
 ):
     """
     Update page content section.
@@ -722,7 +722,7 @@ async def update_page_content(
 )
 async def export_all_content(
     db: AsyncSession = Depends(get_db),
-    admin: Company = Depends(get_current_admin)
+    admin: Company = Depends(require_role(AdminRole.EDITOR))
 ):
     """
     Manually export all CMS content to static files.
@@ -770,7 +770,7 @@ async def export_all_content(
 async def create_feature(
     feature: FeatureCreate,
     db: AsyncSession = Depends(get_db),
-    admin: Company = Depends(get_current_admin)
+    admin: Company = Depends(require_role(AdminRole.EDITOR))
 ):
     """Create feature and export to static file."""
     logger.info(f"Admin {admin.id} creating feature: {feature.title}")
@@ -802,7 +802,7 @@ async def update_feature(
     feature_id: int,
     feature: FeatureUpdate,
     db: AsyncSession = Depends(get_db),
-    admin: Company = Depends(get_current_admin)
+    admin: Company = Depends(require_role(AdminRole.EDITOR))
 ):
     """Update feature and export to static file."""
     logger.info(f"Admin {admin.id} updating feature {feature_id}")
@@ -841,7 +841,7 @@ async def update_feature(
 async def delete_feature(
     feature_id: int,
     db: AsyncSession = Depends(get_db),
-    admin: Company = Depends(get_current_admin)
+    admin: Company = Depends(require_role(AdminRole.EDITOR))
 ):
     """Delete feature and export to static file."""
     logger.info(f"Admin {admin.id} deleting feature {feature_id}")
@@ -877,7 +877,7 @@ async def delete_feature(
 async def create_client_logo(
     logo: ClientLogoCreate,
     db: AsyncSession = Depends(get_db),
-    admin: Company = Depends(get_current_admin)
+    admin: Company = Depends(require_role(AdminRole.EDITOR))
 ):
     """Create client logo and export to static file."""
     logger.info(f"Admin {admin.id} creating client logo: {logo.name}")
@@ -909,7 +909,7 @@ async def update_client_logo(
     logo_id: int,
     logo: ClientLogoUpdate,
     db: AsyncSession = Depends(get_db),
-    admin: Company = Depends(get_current_admin)
+    admin: Company = Depends(require_role(AdminRole.EDITOR))
 ):
     """Update client logo and export to static file."""
     logger.info(f"Admin {admin.id} updating client logo {logo_id}")
@@ -948,7 +948,7 @@ async def update_client_logo(
 async def delete_client_logo(
     logo_id: int,
     db: AsyncSession = Depends(get_db),
-    admin: Company = Depends(get_current_admin)
+    admin: Company = Depends(require_role(AdminRole.EDITOR))
 ):
     """Delete client logo and export to static file."""
     logger.info(f"Admin {admin.id} deleting client logo {logo_id}")
@@ -984,7 +984,7 @@ async def delete_client_logo(
 async def create_team_member(
     member: TeamMemberCreate,
     db: AsyncSession = Depends(get_db),
-    admin: Company = Depends(get_current_admin)
+    admin: Company = Depends(require_role(AdminRole.EDITOR))
 ):
     """Create team member and export to static file."""
     logger.info(f"Admin {admin.id} creating team member: {member.name}")
@@ -1016,7 +1016,7 @@ async def update_team_member(
     member_id: int,
     member: TeamMemberUpdate,
     db: AsyncSession = Depends(get_db),
-    admin: Company = Depends(get_current_admin)
+    admin: Company = Depends(require_role(AdminRole.EDITOR))
 ):
     """Update team member and export to static file."""
     logger.info(f"Admin {admin.id} updating team member {member_id}")
@@ -1055,7 +1055,7 @@ async def update_team_member(
 async def delete_team_member(
     member_id: int,
     db: AsyncSession = Depends(get_db),
-    admin: Company = Depends(get_current_admin)
+    admin: Company = Depends(require_role(AdminRole.EDITOR))
 ):
     """Delete team member and export to static file."""
     logger.info(f"Admin {admin.id} deleting team member {member_id}")
@@ -1091,7 +1091,7 @@ async def delete_team_member(
 async def create_company_value(
     value: CompanyValueCreate,
     db: AsyncSession = Depends(get_db),
-    admin: Company = Depends(get_current_admin)
+    admin: Company = Depends(require_role(AdminRole.EDITOR))
 ):
     """Create company value and export to static file."""
     logger.info(f"Admin {admin.id} creating company value: {value.title}")
@@ -1123,7 +1123,7 @@ async def update_company_value(
     value_id: int,
     value: CompanyValueUpdate,
     db: AsyncSession = Depends(get_db),
-    admin: Company = Depends(get_current_admin)
+    admin: Company = Depends(require_role(AdminRole.EDITOR))
 ):
     """Update company value and export to static file."""
     logger.info(f"Admin {admin.id} updating company value {value_id}")
@@ -1162,7 +1162,7 @@ async def update_company_value(
 async def delete_company_value(
     value_id: int,
     db: AsyncSession = Depends(get_db),
-    admin: Company = Depends(get_current_admin)
+    admin: Company = Depends(require_role(AdminRole.EDITOR))
 ):
     """Delete company value and export to static file."""
     logger.info(f"Admin {admin.id} deleting company value {value_id}")
@@ -1198,7 +1198,7 @@ async def delete_company_value(
 async def create_company_milestone(
     milestone: CompanyMilestoneCreate,
     db: AsyncSession = Depends(get_db),
-    admin: Company = Depends(get_current_admin)
+    admin: Company = Depends(require_role(AdminRole.EDITOR))
 ):
     """Create company milestone and export to static file."""
     logger.info(f"Admin {admin.id} creating company milestone: {milestone.title}")
@@ -1230,7 +1230,7 @@ async def update_company_milestone(
     milestone_id: int,
     milestone: CompanyMilestoneUpdate,
     db: AsyncSession = Depends(get_db),
-    admin: Company = Depends(get_current_admin)
+    admin: Company = Depends(require_role(AdminRole.EDITOR))
 ):
     """Update company milestone and export to static file."""
     logger.info(f"Admin {admin.id} updating company milestone {milestone_id}")
@@ -1269,7 +1269,7 @@ async def update_company_milestone(
 async def delete_company_milestone(
     milestone_id: int,
     db: AsyncSession = Depends(get_db),
-    admin: Company = Depends(get_current_admin)
+    admin: Company = Depends(require_role(AdminRole.EDITOR))
 ):
     """Delete company milestone and export to static file."""
     logger.info(f"Admin {admin.id} deleting company milestone {milestone_id}")
@@ -1305,7 +1305,7 @@ async def delete_company_milestone(
 async def create_contact_location(
     location: ContactLocationCreate,
     db: AsyncSession = Depends(get_db),
-    admin: Company = Depends(get_current_admin)
+    admin: Company = Depends(require_role(AdminRole.EDITOR))
 ):
     """Create contact location and export to static file."""
     logger.info(f"Admin {admin.id} creating contact location: {location.location_name}")
@@ -1337,7 +1337,7 @@ async def update_contact_location(
     location_id: int,
     location: ContactLocationUpdate,
     db: AsyncSession = Depends(get_db),
-    admin: Company = Depends(get_current_admin)
+    admin: Company = Depends(require_role(AdminRole.EDITOR))
 ):
     """Update contact location and export to static file."""
     logger.info(f"Admin {admin.id} updating contact location {location_id}")
@@ -1376,7 +1376,7 @@ async def update_contact_location(
 async def delete_contact_location(
     location_id: int,
     db: AsyncSession = Depends(get_db),
-    admin: Company = Depends(get_current_admin)
+    admin: Company = Depends(require_role(AdminRole.EDITOR))
 ):
     """Delete contact location and export to static file."""
     logger.info(f"Admin {admin.id} deleting contact location {location_id}")
@@ -1412,7 +1412,7 @@ async def delete_contact_location(
 async def create_company_info(
     info: CompanyInfoCreate,
     db: AsyncSession = Depends(get_db),
-    admin: Company = Depends(get_current_admin)
+    admin: Company = Depends(require_role(AdminRole.EDITOR))
 ):
     """Create company info section and export to static file."""
     logger.info(f"Admin {admin.id} creating company info: {info.section_key}")
@@ -1444,7 +1444,7 @@ async def update_company_info(
     info_id: int,
     info: CompanyInfoUpdate,
     db: AsyncSession = Depends(get_db),
-    admin: Company = Depends(get_current_admin)
+    admin: Company = Depends(require_role(AdminRole.EDITOR))
 ):
     """Update company info section and export to static file."""
     logger.info(f"Admin {admin.id} updating company info {info_id}")
@@ -1483,7 +1483,7 @@ async def update_company_info(
 async def delete_company_info(
     info_id: int,
     db: AsyncSession = Depends(get_db),
-    admin: Company = Depends(get_current_admin)
+    admin: Company = Depends(require_role(AdminRole.EDITOR))
 ):
     """Delete company info section and export to static file."""
     logger.info(f"Admin {admin.id} deleting company info {info_id}")
@@ -1588,7 +1588,7 @@ async def admin_get_legal_documents(
 )
 async def admin_create_legal_document(
     data: LegalDocumentCreate,
-    admin: Company = Depends(get_current_admin),
+    admin: Company = Depends(require_role(AdminRole.EDITOR)),
     db: AsyncSession = Depends(get_db)
 ):
     """
@@ -1649,7 +1649,7 @@ async def admin_create_legal_document(
 async def admin_update_legal_document(
     document_id: int,
     data: LegalDocumentUpdate,
-    admin: Company = Depends(get_current_admin),
+    admin: Company = Depends(require_role(AdminRole.EDITOR)),
     db: AsyncSession = Depends(get_db)
 ):
     """
@@ -1691,7 +1691,7 @@ async def admin_update_legal_document(
 )
 async def admin_delete_legal_document(
     document_id: int,
-    admin: Company = Depends(get_current_admin),
+    admin: Company = Depends(require_role(AdminRole.EDITOR)),
     db: AsyncSession = Depends(get_db)
 ):
     """
@@ -1746,7 +1746,7 @@ async def admin_get_warranties(
 )
 async def admin_create_warranty(
     data: WarrantyCreate,
-    admin: Company = Depends(get_current_admin),
+    admin: Company = Depends(require_role(AdminRole.EDITOR)),
     db: AsyncSession = Depends(get_db)
 ):
     """
@@ -1795,7 +1795,7 @@ async def admin_create_warranty(
 async def admin_update_warranty(
     warranty_id: int,
     data: WarrantyUpdate,
-    admin: Company = Depends(get_current_admin),
+    admin: Company = Depends(require_role(AdminRole.EDITOR)),
     db: AsyncSession = Depends(get_db)
 ):
     """
@@ -1836,7 +1836,7 @@ async def admin_update_warranty(
 )
 async def admin_delete_warranty(
     warranty_id: int,
-    admin: Company = Depends(get_current_admin),
+    admin: Company = Depends(require_role(AdminRole.EDITOR)),
     db: AsyncSession = Depends(get_db)
 ):
     """

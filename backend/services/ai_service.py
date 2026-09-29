@@ -106,39 +106,47 @@ def _is_public_ip(ip: ipaddress._BaseAddress) -> bool:
     )
 
 
-def _validate_fetch_url(url: str) -> Optional[str]:
+def _resolve_fetch_url(url: str) -> tuple[Optional[str], Optional[str]]:
     """
     Validate a URL for server-side fetching (SSRF protection).
 
-    Returns an error message if the URL is not allowed, otherwise None.
+    Returns (error, None) if the URL is not allowed, otherwise (None, ip) where
+    ip is a validated public address the request must be pinned to.
     """
     try:
         parsed = urlparse(url)
         port = parsed.port
     except ValueError:
-        return "Invalid URL"
+        return "Invalid URL", None
     if parsed.scheme not in ("http", "https"):
-        return "Only http and https URLs are allowed"
+        return "Only http and https URLs are allowed", None
     host = parsed.hostname
     if not host:
-        return "URL has no host"
+        return "URL has no host", None
     if parsed.username or parsed.password:
-        return "URLs with credentials are not allowed"
+        return "URLs with credentials are not allowed", None
     port = port or (443 if parsed.scheme == "https" else 80)
     try:
         infos = socket.getaddrinfo(host, port, proto=socket.IPPROTO_TCP)
     except (socket.gaierror, UnicodeError):
-        return "Could not resolve host"
+        return "Could not resolve host", None
     if not infos:
-        return "Could not resolve host"
+        return "Could not resolve host", None
+    ips = []
     for info in infos:
         try:
             ip = ipaddress.ip_address(info[4][0].split("%")[0])
         except ValueError:
-            return "Invalid host address"
+            return "Invalid host address", None
         if not _is_public_ip(ip):
-            return "URL resolves to a non-public address"
-    return None
+            return "URL resolves to a non-public address", None
+        ips.append(ip)
+    return None, str(ips[0])
+
+
+def _validate_fetch_url(url: str) -> Optional[str]:
+    """Return an error message if the URL is not allowed for fetching, else None."""
+    return _resolve_fetch_url(url)[0]
 
 
 def fetch_webpage(url: str, max_chars: int = 8000) -> dict:
@@ -149,18 +157,29 @@ def fetch_webpage(url: str, max_chars: int = 8000) -> dict:
             "Accept": "text/html,application/xhtml+xml",
         }
         current_url = url
-        with httpx.Client(timeout=15, follow_redirects=False) as client:
+        # trust_env=False: connect directly to the pinned IP, never via an env proxy
+        with httpx.Client(timeout=15, follow_redirects=False, trust_env=False) as client:
             # Follow redirects manually so every hop is re-validated
             for _ in range(FETCH_MAX_REDIRECTS + 1):
-                error = _validate_fetch_url(current_url)
+                error, pinned_ip = _resolve_fetch_url(current_url)
                 if error:
                     return {"url": url, "content": "", "error": error}
-                with client.stream("GET", current_url, headers=headers) as resp:
+                # Connect to the IP we validated (no second DNS lookup, so no
+                # rebinding), sending the original Host header and, for https,
+                # SNI + certificate hostname verification against the original host.
+                target = httpx.URL(current_url)
+                host = target.raw_host.decode("ascii")
+                with client.stream(
+                    "GET",
+                    target.copy_with(host=pinned_ip),
+                    headers={**headers, "Host": target.netloc.decode("ascii")},
+                    extensions={"sni_hostname": host} if target.scheme == "https" else None,
+                ) as resp:
                     if resp.is_redirect:
                         location = resp.headers.get("location")
                         if not location:
                             return {"url": url, "content": "", "error": "Redirect without location"}
-                        current_url = urljoin(str(resp.url), location)
+                        current_url = urljoin(current_url, location)
                         continue
                     resp.raise_for_status()
                     body = bytearray()

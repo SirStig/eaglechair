@@ -309,8 +309,8 @@ class TestAIFetchWebpage:
         requested = []
 
         def handler(request: httpx.Request) -> httpx.Response:
-            requested.append(str(request.url))
-            if request.url.host == "public.example":
+            requested.append(f"http://{request.headers['host']}{request.url.raw_path.decode()}")
+            if request.headers["host"] == "public.example":
                 return httpx.Response(302, headers={"location": "http://internal.example/secret"})
             return httpx.Response(200, text="secret", headers={"content-type": "text/plain"})
 
@@ -348,6 +348,42 @@ class TestAIFetchWebpage:
         result = ai_service.fetch_webpage("http://public.example/", max_chars=10 ** 9)
         assert "error" not in result
         assert len(result["content"]) <= ai_service.FETCH_MAX_BYTES
+
+    def test_dns_rebinding_is_blocked(self, monkeypatch):
+        """The connection goes to the IP that was validated, not a re-resolved one."""
+        from backend.services import ai_service
+
+        answers = iter(["93.184.216.34", "127.0.0.1", "127.0.0.1"])
+        lookups = []
+
+        def rebinding_getaddrinfo(host, port, *args, **kwargs):
+            ip = next(answers)  # public first, then rebinds to loopback
+            lookups.append((host, ip))
+            return [(2, 1, 6, "", (ip, port))]
+
+        requests = []
+
+        def handler(request: httpx.Request) -> httpx.Response:
+            requests.append(request)
+            return httpx.Response(200, text="public page", headers={"content-type": "text/plain"})
+
+        real_client = httpx.Client
+        monkeypatch.setattr(ai_service.socket, "getaddrinfo", rebinding_getaddrinfo)
+        monkeypatch.setattr(
+            ai_service.httpx, "Client",
+            lambda **kwargs: real_client(transport=httpx.MockTransport(handler), **kwargs),
+        )
+
+        result = ai_service.fetch_webpage("https://rebind.example:8443/page?q=1")
+
+        assert result["content"] == "public page"
+        assert lookups == [("rebind.example", "93.184.216.34")]
+        (request,) = requests
+        assert request.url.host == "93.184.216.34"
+        assert request.url.port == 8443
+        assert request.url.raw_path == b"/page?q=1"
+        assert request.headers["host"] == "rebind.example:8443"
+        assert request.extensions["sni_hostname"] == "rebind.example"
 
 
 # ============================================================================

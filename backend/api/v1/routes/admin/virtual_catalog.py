@@ -26,10 +26,11 @@ from sqlalchemy import delete, or_, select
 from sqlalchemy.orm import Session, joinedload
 from starlette.concurrency import run_in_threadpool
 
-from backend.api.dependencies import get_current_admin
+from backend.api.dependencies import get_current_admin, require_role
 from backend.api.v1.routes.admin.upload import get_upload_base_dir
 from backend.core.config import settings
 from backend.database.base import get_db
+from backend.models.company import AdminRole
 from backend.models.chair import Chair, ProductFamily, ProductImage, ProductVariation
 from backend.models.tmp_catalog import (
     CatalogUpload,
@@ -116,7 +117,7 @@ async def upload_catalog(
     file: UploadFile = File(..., description="PDF catalog file"),
     max_pages: Optional[int] = Query(None, description="Limit parsing to N pages (for testing)"),
     db: Session = Depends(get_db),
-    admin = Depends(get_current_admin)
+    admin = Depends(require_role(AdminRole.ADMIN))
 ):
     """
     Upload a manufacturer PDF catalog for parsing
@@ -702,7 +703,7 @@ async def update_tmp_product(
     product_id: int,
     updates: dict,
     db: Session = Depends(get_db),
-    admin = Depends(get_current_admin)
+    admin = Depends(require_role(AdminRole.ADMIN))
 ):
     """
     Update a temporary product before importing
@@ -844,7 +845,7 @@ async def update_tmp_product(
 async def import_to_production(
     upload_id: str,
     db: Session = Depends(get_db),
-    admin = Depends(get_current_admin)
+    admin = Depends(require_role(AdminRole.ADMIN))
 ):
     """
     Import reviewed temporary data into production tables
@@ -1036,7 +1037,7 @@ async def import_to_production(
 async def delete_tmp_product(
     product_id: int,
     db: Session = Depends(get_db),
-    admin = Depends(get_current_admin)
+    admin = Depends(require_role(AdminRole.ADMIN))
 ):
     """
     Delete a temporary product (skip import)
@@ -1068,7 +1069,7 @@ async def delete_tmp_product(
 async def delete_upload_session(
     upload_id: str,
     db: Session = Depends(get_db),
-    admin = Depends(get_current_admin)
+    admin = Depends(require_role(AdminRole.ADMIN))
 ):
     """
     Delete an upload session and all associated data (products, families, images, files)
@@ -1176,7 +1177,7 @@ async def delete_upload_session(
 async def cleanup_expired_data(
     include_orphaned: bool = Query(True, description="Also cleanup orphaned files"),
     db: Session = Depends(get_db),
-    admin = Depends(get_current_admin)
+    admin = Depends(require_role(AdminRole.ADMIN))
 ):
     """
     Remove expired temporary data (files and database records)

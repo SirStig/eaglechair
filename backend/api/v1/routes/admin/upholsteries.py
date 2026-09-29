@@ -119,7 +119,7 @@ async def get_upholstery(
 )
 async def create_upholstery(
     upholstery_data: UpholsteryCreate,
-    admin: AdminUser = Depends(get_current_admin),
+    admin: AdminUser = Depends(require_role(AdminRole.ADMIN)),
     db: AsyncSession = Depends(get_db)
 ):
     """
@@ -154,7 +154,7 @@ class ReorderBody(BaseModel):
 )
 async def reorder_upholsteries(
     body: ReorderBody,
-    admin: AdminUser = Depends(get_current_admin),
+    admin: AdminUser = Depends(require_role(AdminRole.ADMIN)),
     db: AsyncSession = Depends(get_db),
 ):
     for item in body.order:
@@ -176,7 +176,7 @@ async def reorder_upholsteries(
 async def update_upholstery(
     upholstery_id: int,
     upholstery_data: UpholsteryUpdate,
-    admin: AdminUser = Depends(get_current_admin),
+    admin: AdminUser = Depends(require_role(AdminRole.ADMIN)),
     db: AsyncSession = Depends(get_db)
 ):
     """
