@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { AnimatePresence, motion as Motion } from 'framer-motion';
+import { AnimatePresence, m as Motion } from 'framer-motion';
 import Button from '../ui/Button';
 import Dropdown from '../ui/Dropdown';
 import Badge from '../ui/Badge';

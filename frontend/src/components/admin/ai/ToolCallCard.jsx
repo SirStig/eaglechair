@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
+import { m, AnimatePresence } from 'framer-motion';
 import { ChevronDown, ChevronRight, Wrench, Loader2 } from 'lucide-react';
 
 const TOOL_LABELS = {
@@ -33,7 +33,7 @@ export default function ToolCallCard({ name, label, args, result, status = 'done
   const isInProgress = status === 'in_progress';
 
   return (
-    <motion.div
+    <m.div
       initial={false}
       animate={{ opacity: 1 }}
       className="mt-2 p-2.5 rounded-lg bg-dark-800 border border-dark-700"
@@ -60,7 +60,7 @@ export default function ToolCallCard({ name, label, args, result, status = 'done
       </button>
       <AnimatePresence>
         {expanded && !isInProgress && (
-          <motion.div
+          <m.div
             initial={{ height: 0, opacity: 0 }}
             animate={{ height: 'auto', opacity: 1 }}
             exit={{ height: 0, opacity: 0 }}
@@ -85,9 +85,9 @@ export default function ToolCallCard({ name, label, args, result, status = 'done
                 </div>
               )}
             </div>
-          </motion.div>
+          </m.div>
         )}
       </AnimatePresence>
-    </motion.div>
+    </m.div>
   );
 }

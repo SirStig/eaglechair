@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 // eslint-disable-next-line no-unused-vars
-import { motion, AnimatePresence } from 'framer-motion';
+import { m, AnimatePresence } from 'framer-motion';
 import Button from '../ui/Button';
 import { uploadImage, previewImage } from '../../utils/imageUpload';
 import logger from '../../utils/logger';
@@ -384,7 +384,7 @@ const EditModal = ({ isOpen, onClose, onSave, elementData, elementType }) => {
     <AnimatePresence>
       <div className="fixed inset-0 z-[10001] flex items-center justify-center p-4">
         {/* Backdrop */}
-        <motion.div
+        <m.div
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
@@ -393,7 +393,7 @@ const EditModal = ({ isOpen, onClose, onSave, elementData, elementType }) => {
         />
 
         {/* Modal */}
-        <motion.div
+        <m.div
           initial={{ opacity: 0, scale: 0.95, y: 20 }}
           animate={{ opacity: 1, scale: 1, y: 0 }}
           exit={{ opacity: 0, scale: 0.95, y: 20 }}
@@ -450,7 +450,7 @@ const EditModal = ({ isOpen, onClose, onSave, elementData, elementType }) => {
               {loading ? 'Saving...' : uploadingImage ? 'Uploading...' : 'Save Changes'}
             </Button>
           </div>
-        </motion.div>
+        </m.div>
       </div>
     </AnimatePresence>
   );

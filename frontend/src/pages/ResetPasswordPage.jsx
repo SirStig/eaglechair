@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useNavigate, useSearchParams, Link } from 'react-router-dom';
-import { motion } from 'framer-motion';
+import { m } from 'framer-motion';
 import axios from 'axios';
 import Button from '../components/ui/Button';
 import Input from '../components/ui/Input';
@@ -77,14 +77,14 @@ const ResetPasswordPage = () => {
   if (!token) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-dark-900 via-dark-800 to-dark-900 flex items-center justify-center py-12 px-4">
-        <motion.div
+        <m.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           className="w-full max-w-md"
         >
           <div className="text-center mb-8">
             <Link to="/" className="inline-block mb-4">
-              <motion.img 
+              <m.img 
                 src={siteSettings?.logoUrl || "/assets/eagle-chair-logo.png"}
                 alt={siteSettings?.companyName || "Eagle Chair"}
                 className="h-16 w-auto mx-auto"
@@ -95,7 +95,7 @@ const ResetPasswordPage = () => {
           </div>
 
           <Card className="bg-dark-800 border-dark-700 text-center">
-            <motion.div
+            <m.div
               initial={{ scale: 0 }}
               animate={{ scale: 1 }}
               transition={{ type: "spring", duration: 0.5 }}
@@ -104,7 +104,7 @@ const ResetPasswordPage = () => {
               <svg className="w-20 h-20 mx-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
               </svg>
-            </motion.div>
+            </m.div>
             <h2 className="text-2xl sm:text-3xl font-bold mb-4 text-dark-50">Invalid Reset Link</h2>
             <p className="text-dark-200 mb-8">
               This password reset link is invalid or has expired. Reset links are only valid for 1 hour.
@@ -122,21 +122,21 @@ const ResetPasswordPage = () => {
               </Link>
             </div>
           </Card>
-        </motion.div>
+        </m.div>
       </div>
     );
   }
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-dark-900 via-dark-800 to-dark-900 flex items-center justify-center py-12 px-4">
-      <motion.div
+      <m.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
         className="w-full max-w-md"
       >
         <div className="text-center mb-8">
           <Link to="/" className="inline-block mb-4">
-            <motion.img 
+            <m.img 
               src={siteSettings?.logoUrl || "/assets/eagle-chair-logo.png"}
               alt={siteSettings?.companyName || "Eagle Chair"}
               className="h-16 w-auto mx-auto"
@@ -152,13 +152,13 @@ const ResetPasswordPage = () => {
 
         <Card className="bg-dark-800 border-dark-700">
           {error && (
-            <motion.div
+            <m.div
               initial={{ opacity: 0, y: -10 }}
               animate={{ opacity: 1, y: 0 }}
               className="bg-red-900/30 border-2 border-red-600 text-red-300 px-4 py-3 rounded-lg mb-6"
             >
               {error}
-            </motion.div>
+            </m.div>
           )}
 
           <form onSubmit={handleSubmit} className="space-y-4">
@@ -218,7 +218,7 @@ const ResetPasswordPage = () => {
             </Link>
           </div>
         </Card>
-      </motion.div>
+      </m.div>
     </div>
   );
 };

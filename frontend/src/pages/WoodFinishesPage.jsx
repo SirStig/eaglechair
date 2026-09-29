@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
-import { motion } from 'framer-motion';
+import { m } from 'framer-motion';
 import { useFinishes } from '../hooks/useContent';
 import SEOHead from '../components/SEOHead';
 import { SEO } from '../config/seoConfig';
@@ -123,7 +123,7 @@ const WoodFinishesPage = () => {
         ) : (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
             {filteredFinishes.map((finish, index) => (
-              <motion.div
+              <m.div
                 key={finish.id}
                 layout={false}
                 initial={{ opacity: 0, y: 16 }}
@@ -195,7 +195,7 @@ const WoodFinishesPage = () => {
                     )}
                   </div>
                 </div>
-              </motion.div>
+              </m.div>
             ))}
           </div>
         )}

@@ -3,7 +3,7 @@ import { useNavigate, Link, useLocation } from 'react-router-dom';
 import SEOHead from '../components/SEOHead';
 import { SEO } from '../config/seoConfig';
 import { useForm } from 'react-hook-form';
-import { motion } from 'framer-motion';
+import { m } from 'framer-motion';
 import Button from '../components/ui/Button';
 import Input from '../components/ui/Input';
 import Card from '../components/ui/Card';
@@ -106,14 +106,14 @@ const LoginPage = () => {
   return (
     <div className="min-h-screen bg-gradient-to-br from-dark-900 via-dark-800 to-dark-900 flex items-center justify-center py-12 px-4">
       <SEOHead {...SEO.pages.login} />
-      <motion.div
+      <m.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
         className="w-full max-w-md"
       >
         <div className="text-center mb-8">
           <Link to="/" className="inline-block mb-4">
-            <motion.img 
+            <m.img 
               src={siteSettings?.logoUrl || "/assets/eagle-chair-logo.png"}
               alt={siteSettings?.companyName || "Eagle Chair"}
               className="h-16 w-auto mx-auto"
@@ -127,23 +127,23 @@ const LoginPage = () => {
 
         <Card className="bg-dark-800 border-dark-700">
           {successMessage && (
-            <motion.div
+            <m.div
               initial={{ opacity: 0, y: -10 }}
               animate={{ opacity: 1, y: 0 }}
               className="bg-green-900/30 border-2 border-green-600 text-green-300 px-4 py-3 rounded-lg mb-6"
             >
               {successMessage}
-            </motion.div>
+            </m.div>
           )}
 
           {error && (
-            <motion.div
+            <m.div
               initial={{ opacity: 0, y: -10 }}
               animate={{ opacity: 1, y: 0 }}
               className="bg-red-900/30 border-2 border-red-600 text-red-300 px-4 py-3 rounded-lg mb-6"
             >
               {error}
-            </motion.div>
+            </m.div>
           )}
 
 
@@ -230,7 +230,7 @@ const LoginPage = () => {
             Contact Support
           </Link>
         </p>
-      </motion.div>
+      </m.div>
     </div>
   );
 };

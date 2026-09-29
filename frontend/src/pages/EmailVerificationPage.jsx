@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate, useSearchParams, Link, useLocation } from 'react-router-dom';
-import { motion } from 'framer-motion';
+import { m } from 'framer-motion';
 import Button from '../components/ui/Button';
 import Card from '../components/ui/Card';
 import Input from '../components/ui/Input';
@@ -91,7 +91,7 @@ const EmailVerificationPage = () => {
   if (verifying && !error && !verified) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-dark-900 via-dark-800 to-dark-900 flex items-center justify-center py-12 px-4">
-        <motion.div
+        <m.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           className="w-full max-w-md"
@@ -103,7 +103,7 @@ const EmailVerificationPage = () => {
               <p className="text-dark-200">Please wait while we verify your email address</p>
             </div>
           </Card>
-        </motion.div>
+        </m.div>
       </div>
     );
   }
@@ -111,14 +111,14 @@ const EmailVerificationPage = () => {
   if (verified) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-dark-900 via-dark-800 to-dark-900 flex items-center justify-center py-12 px-4">
-        <motion.div
+        <m.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           className="w-full max-w-md"
         >
           <Card className="bg-dark-800 border-dark-700 text-center">
             <div className="py-12">
-              <motion.div
+              <m.div
                 initial={{ scale: 0 }}
                 animate={{ scale: 1 }}
                 transition={{ type: "spring", stiffness: 200, damping: 15 }}
@@ -127,27 +127,27 @@ const EmailVerificationPage = () => {
                 <svg className="w-10 h-10 text-green-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
                 </svg>
-              </motion.div>
+              </m.div>
               <h2 className="text-2xl font-bold mb-2 text-green-500">Email Verified!</h2>
               <p className="text-dark-200 mb-6">Your email address has been successfully verified.</p>
               <p className="text-sm text-dark-300">Redirecting to login...</p>
             </div>
           </Card>
-        </motion.div>
+        </m.div>
       </div>
     );
   }
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-dark-900 via-dark-800 to-dark-900 flex items-center justify-center py-12 px-4">
-      <motion.div
+      <m.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
         className="w-full max-w-md"
       >
         <div className="text-center mb-8">
           <Link to="/" className="inline-block mb-4">
-            <motion.img 
+            <m.img 
               src={siteSettings?.logoUrl || "/assets/eagle-chair-logo.png"}
               alt={siteSettings?.companyName || "Eagle Chair"}
               className="h-16 w-auto mx-auto"
@@ -161,17 +161,17 @@ const EmailVerificationPage = () => {
 
         <Card className="bg-dark-800 border-dark-700">
           {successMessage && (
-            <motion.div
+            <m.div
               initial={{ opacity: 0, y: -10 }}
               animate={{ opacity: 1, y: 0 }}
               className="bg-green-900/30 border-2 border-green-600 text-green-300 px-4 py-3 rounded-lg mb-6"
             >
               {successMessage}
-            </motion.div>
+            </m.div>
           )}
 
           {error && (
-            <motion.div
+            <m.div
               initial={{ opacity: 0, y: -10 }}
               animate={{ opacity: 1, y: 0 }}
               className="bg-red-900/30 border-2 border-red-600 text-red-300 px-4 py-3 rounded-lg mb-6"
@@ -185,11 +185,11 @@ const EmailVerificationPage = () => {
                   <p className="text-sm mt-1">{error}</p>
                 </div>
               </div>
-            </motion.div>
+            </m.div>
           )}
 
           {resendSuccess && (
-            <motion.div
+            <m.div
               initial={{ opacity: 0, y: -10 }}
               animate={{ opacity: 1, y: 0 }}
               className="bg-green-900/30 border-2 border-green-600 text-green-300 px-4 py-3 rounded-lg mb-6"
@@ -205,7 +205,7 @@ const EmailVerificationPage = () => {
                   </p>
                 </div>
               </div>
-            </motion.div>
+            </m.div>
           )}
 
           <form onSubmit={handleResend} className="space-y-4">
@@ -238,7 +238,7 @@ const EmailVerificationPage = () => {
             </div>
           </div>
         </Card>
-      </motion.div>
+      </m.div>
     </div>
   );
 };

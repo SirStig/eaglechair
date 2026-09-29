@@ -2,7 +2,7 @@ import { useState } from 'react';
 import SEOHead from '../components/SEOHead';
 import { SEO } from '../config/seoConfig';
 import { Link } from 'react-router-dom';
-import { motion } from 'framer-motion';
+import { m } from 'framer-motion';
 import axios from 'axios';
 import Button from '../components/ui/Button';
 import Input from '../components/ui/Input';
@@ -36,14 +36,14 @@ const ForgotPasswordPage = () => {
   if (success) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-dark-900 via-dark-800 to-dark-900 flex items-center justify-center py-12 px-4">
-        <motion.div
+        <m.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           className="w-full max-w-md"
         >
           <div className="text-center mb-8">
             <Link to="/" className="inline-block mb-4">
-              <motion.img 
+              <m.img 
                 src={siteSettings?.logoUrl || "/assets/eagle-chair-logo.png"}
                 alt={siteSettings?.companyName || "Eagle Chair"}
                 className="h-16 w-auto mx-auto"
@@ -54,7 +54,7 @@ const ForgotPasswordPage = () => {
           </div>
 
           <Card className="bg-dark-800 border-dark-700 text-center">
-            <motion.div
+            <m.div
               initial={{ scale: 0 }}
               animate={{ scale: 1 }}
               transition={{ type: "spring", duration: 0.5 }}
@@ -63,7 +63,7 @@ const ForgotPasswordPage = () => {
               <svg className="w-20 h-20 mx-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
               </svg>
-            </motion.div>
+            </m.div>
             <h2 className="text-2xl sm:text-3xl font-bold mb-4 text-dark-50">Check Your Email</h2>
             <p className="text-dark-200 mb-6">
               If an account exists with <strong className="text-primary-500">{email}</strong>, we've sent password reset instructions to that address.
@@ -77,7 +77,7 @@ const ForgotPasswordPage = () => {
               </Button>
             </Link>
           </Card>
-        </motion.div>
+        </m.div>
       </div>
     );
   }
@@ -85,14 +85,14 @@ const ForgotPasswordPage = () => {
   return (
     <div className="min-h-screen bg-gradient-to-br from-dark-900 via-dark-800 to-dark-900 flex items-center justify-center py-12 px-4">
       <SEOHead {...SEO.pages.forgotPassword} />
-      <motion.div
+      <m.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
         className="w-full max-w-md"
       >
         <div className="text-center mb-8">
           <Link to="/" className="inline-block mb-4">
-            <motion.img 
+            <m.img 
               src={siteSettings?.logoUrl || "/assets/eagle-chair-logo.png"}
               alt={siteSettings?.companyName || "Eagle Chair"}
               className="h-16 w-auto mx-auto"
@@ -108,13 +108,13 @@ const ForgotPasswordPage = () => {
 
         <Card className="bg-dark-800 border-dark-700">
           {error && (
-            <motion.div
+            <m.div
               initial={{ opacity: 0, y: -10 }}
               animate={{ opacity: 1, y: 0 }}
               className="bg-red-900/30 border-2 border-red-600 text-red-300 px-4 py-3 rounded-lg mb-6"
             >
               {error}
-            </motion.div>
+            </m.div>
           )}
 
           <form onSubmit={handleSubmit} className="space-y-4">
@@ -145,7 +145,7 @@ const ForgotPasswordPage = () => {
             </Link>
           </div>
         </Card>
-      </motion.div>
+      </m.div>
     </div>
   );
 };

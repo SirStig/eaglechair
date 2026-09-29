@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
-import { motion } from 'framer-motion';
+import { m } from 'framer-motion';
 import { useHardware } from '../hooks/useContent';
 import SEOHead from '../components/SEOHead';
 import { SEO } from '../config/seoConfig';
@@ -102,7 +102,7 @@ const HardwarePage = () => {
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {filteredHardware.map((item, index) => (
-              <motion.div
+              <m.div
                 key={item.id}
                 layout={false}
                 initial={{ opacity: 0, y: 20 }}
@@ -192,7 +192,7 @@ const HardwarePage = () => {
                     </div>
                   )}
                 </div>
-              </motion.div>
+              </m.div>
             ))}
           </div>
         )}

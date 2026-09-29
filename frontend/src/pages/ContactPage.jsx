@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import SEOHead from '../components/SEOHead';
 import { SEO } from '../config/seoConfig';
-import { motion } from 'framer-motion';
+import { m } from 'framer-motion';
 import { useForm } from 'react-hook-form';
 import Card from '../components/ui/Card';
 import Button from '../components/ui/Button';
@@ -179,23 +179,23 @@ const ContactPage = () => {
               <h2 className="text-xl sm:text-2xl font-bold mb-4 sm:mb-6 text-dark-50">Send us a Message</h2>
               
               {submitStatus === 'success' && (
-                <motion.div
+                <m.div
                   initial={{ opacity: 0, y: -10 }}
                   animate={{ opacity: 1, y: 0 }}
                   className="bg-green-50 border border-green-200 text-green-800 px-4 py-3 rounded-lg mb-6"
                 >
                   ✓ Thank you! Your message has been sent successfully. We'll get back to you soon.
-                </motion.div>
+                </m.div>
               )}
 
               {submitStatus === 'error' && (
-                <motion.div
+                <m.div
                   initial={{ opacity: 0, y: -10 }}
                   animate={{ opacity: 1, y: 0 }}
                   className="bg-red-50 border border-red-200 text-red-800 px-4 py-3 rounded-lg mb-6"
                 >
                   ✗ Oops! Something went wrong. Please try again or call us directly.
-                </motion.div>
+                </m.div>
               )}
 
               <form onSubmit={handleSubmit(onSubmit)} className="space-y-4 sm:space-y-6">
@@ -288,7 +288,7 @@ const ContactPage = () => {
               label="Contact Information"
             >
               {contactInfo.map((info, index) => (
-                <motion.div
+                <m.div
                   key={index}
                   initial={{ opacity: 0, x: 20 }}
                   animate={{ opacity: 1, x: 0 }}
@@ -310,7 +310,7 @@ const ContactPage = () => {
                       </div>
                     </div>
                   </Card>
-                </motion.div>
+                </m.div>
               ))}
             </EditableWrapper>
 

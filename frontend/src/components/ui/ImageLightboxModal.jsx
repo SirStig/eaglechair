@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { AnimatePresence, motion } from 'framer-motion';
+import { AnimatePresence, m } from 'framer-motion';
 import { TransformWrapper, TransformComponent } from 'react-zoom-pan-pinch';
 import VariationImageDisclaimer from './VariationImageDisclaimer';
 
@@ -56,7 +56,7 @@ const ImageLightboxModal = ({ isOpen, onClose, images = [], initialIndex = 0, sh
   return (
     <AnimatePresence>
       {isOpen && (
-        <motion.div
+        <m.div
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
@@ -170,7 +170,7 @@ const ImageLightboxModal = ({ isOpen, onClose, images = [], initialIndex = 0, sh
               </TransformComponent>
             </TransformWrapper>
           </div>
-        </motion.div>
+        </m.div>
       )}
     </AnimatePresence>
   );

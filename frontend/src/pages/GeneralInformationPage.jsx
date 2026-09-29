@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { motion } from 'framer-motion';
-import { loadContentData } from '../utils/contentDataLoader';
+import { m } from 'framer-motion';
+import { loadLegalDocuments } from '../utils/legalDocumentsLoader';
 import SEOHead from '../components/SEOHead';
 import { SEO } from '../config/seoConfig';
 
@@ -12,9 +12,9 @@ const GeneralInformationPage = () => {
 
   useEffect(() => {
     const loadData = async () => {
-      const content = await loadContentData();
-      if (content?.legalDocuments) {
-        setLegalDocuments(content.legalDocuments);
+      const documents = await loadLegalDocuments();
+      if (documents) {
+        setLegalDocuments(documents);
       }
       setLoading(false);
     };
@@ -58,7 +58,7 @@ const GeneralInformationPage = () => {
 
         <div className="grid grid-cols-1 lg:grid-cols-5 gap-8">
           {/* Sidebar Navigation - Not Sticky */}
-          <motion.div 
+          <m.div 
             initial={{ opacity: 0, x: -20 }}
             animate={{ opacity: 1, x: 0 }}
             className="lg:col-span-1"
@@ -81,10 +81,10 @@ const GeneralInformationPage = () => {
                 ))}
               </nav>
             </div>
-          </motion.div>
+          </m.div>
 
           {/* Main Content - Wider */}
-          <motion.div 
+          <m.div 
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             className="lg:col-span-4"
@@ -92,7 +92,7 @@ const GeneralInformationPage = () => {
 
             <div className="space-y-8">
               {documents.map((doc, index) => (
-                <motion.section
+                <m.section
                   key={doc.id}
                   id={doc.slug}
                   initial={{ opacity: 0, y: 20 }}
@@ -138,12 +138,12 @@ const GeneralInformationPage = () => {
                       <span>↑</span> Back to Top
                     </button>
                   </div>
-                </motion.section>
+                </m.section>
               ))}
             </div>
 
             {/* Footer CTA */}
-            <motion.div
+            <m.div
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               transition={{ delay: 0.3 }}
@@ -167,8 +167,8 @@ const GeneralInformationPage = () => {
                   </button>
                 </Link>
               </div>
-            </motion.div>
-          </motion.div>
+            </m.div>
+          </m.div>
         </div>
       </div>
     </div>

@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { motion } from 'framer-motion';
-import { loadContentData } from '../utils/contentDataLoader';
+import { m } from 'framer-motion';
+import { loadLegalDocuments } from '../utils/legalDocumentsLoader';
 import SEOHead from '../components/SEOHead';
 import { SEO } from '../config/seoConfig';
 
@@ -11,9 +11,9 @@ const PrivacyPolicyPage = () => {
 
   useEffect(() => {
     const loadData = async () => {
-      const content = await loadContentData();
-      if (content?.legalDocuments) {
-        setLegalDocuments(content.legalDocuments);
+      const documents = await loadLegalDocuments();
+      if (documents) {
+        setLegalDocuments(documents);
       }
       setLoading(false);
     };
@@ -43,7 +43,7 @@ const PrivacyPolicyPage = () => {
   return (
     <div className="min-h-screen bg-gradient-to-br from-dark-900 via-dark-800 to-dark-900">
       <SEOHead {...SEO.pages.privacy} />
-      <motion.div
+      <m.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
         className="max-w-[1400px] mx-auto py-12 px-4"
@@ -77,7 +77,7 @@ const PrivacyPolicyPage = () => {
             </Link>
           </div>
         </div>
-      </motion.div>
+      </m.div>
     </div>
   );
 };

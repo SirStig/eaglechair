@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect } from 'react';
 import { createPortal } from 'react-dom';
-import { AnimatePresence, motion as Motion } from 'framer-motion';
+import { AnimatePresence, m as Motion } from 'framer-motion';
 import { clsx } from 'clsx';
 
 const Dropdown = ({ 

@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { useForm } from 'react-hook-form';
-import { motion, AnimatePresence } from 'framer-motion';
+import { m, AnimatePresence } from 'framer-motion';
 import Button from '../components/ui/Button';
 import Input from '../components/ui/Input';
 import Card from '../components/ui/Card';
@@ -167,7 +167,7 @@ const RegisterPage = () => {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-dark-900 via-dark-800 to-dark-900 flex items-center justify-center py-12 px-4">
-      <motion.div
+      <m.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
         className="w-full max-w-4xl"
@@ -175,7 +175,7 @@ const RegisterPage = () => {
         {/* Header */}
         <div className="text-center mb-8">
           <Link to="/" className="inline-block mb-4">
-            <motion.img 
+            <m.img 
               src={siteSettings?.logoUrl || "/assets/eagle-chair-logo.png"}
               alt={siteSettings?.companyName || "Eagle Chair"}
               className="h-16 w-auto mx-auto"
@@ -225,7 +225,7 @@ const RegisterPage = () => {
 
         <Card className="bg-dark-800 border-dark-700">
           {error && (
-            <motion.div
+            <m.div
               initial={{ opacity: 0, y: -10 }}
               animate={{ opacity: 1, y: 0 }}
               className={`border-2 px-4 py-3 rounded-lg mb-6 ${
@@ -249,14 +249,14 @@ const RegisterPage = () => {
                   <p className="text-sm mt-1">{error}</p>
                 </div>
               </div>
-            </motion.div>
+            </m.div>
           )}
 
           <form onSubmit={handleSubmit(onSubmit)}>
             <AnimatePresence mode="wait">
               {/* Step 1: Company Information */}
               {step === 1 && (
-                <motion.div
+                <m.div
                   key="step1"
                   variants={stepVariants}
                   initial="hidden"
@@ -323,12 +323,12 @@ const RegisterPage = () => {
                     })}
                     error={errors.website?.message}
                   />
-                </motion.div>
+                </m.div>
               )}
 
               {/* Step 2: Representative Information */}
               {step === 2 && (
-                <motion.div
+                <m.div
                   key="step2"
                   variants={stepVariants}
                   initial="hidden"
@@ -398,12 +398,12 @@ const RegisterPage = () => {
                     })}
                     error={errors.rep_phone?.message}
                   />
-                </motion.div>
+                </m.div>
               )}
 
               {/* Step 3: Billing & Shipping */}
               {step === 3 && (
-                <motion.div
+                <m.div
                   key="step3"
                   variants={stepVariants}
                   initial="hidden"
@@ -485,7 +485,7 @@ const RegisterPage = () => {
                   </div>
 
                   {!sameAsBilling && (
-                    <motion.div
+                    <m.div
                       initial={{ opacity: 0, height: 0 }}
                       animate={{ opacity: 1, height: 'auto' }}
                       exit={{ opacity: 0, height: 0 }}
@@ -546,14 +546,14 @@ const RegisterPage = () => {
                         defaultValue="USA"
                         {...register('shipping_country')}
                       />
-                    </motion.div>
+                    </m.div>
                   )}
-                </motion.div>
+                </m.div>
               )}
 
               {/* Step 4: Password & Terms */}
               {step === 4 && (
-                <motion.div
+                <m.div
                   key="step4"
                   variants={stepVariants}
                   initial="hidden"
@@ -638,7 +638,7 @@ const RegisterPage = () => {
                       </span>
                     </label>
                   </div>
-                </motion.div>
+                </m.div>
               )}
             </AnimatePresence>
 
@@ -692,7 +692,7 @@ const RegisterPage = () => {
             Contact Support
           </Link>
         </p>
-      </motion.div>
+      </m.div>
     </div>
   );
 };

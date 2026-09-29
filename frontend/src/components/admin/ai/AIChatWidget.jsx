@@ -6,7 +6,7 @@
 
 import { useRef, useEffect, useCallback, useState } from 'react';
 import { useMediaQuery } from '../../../hooks/useMediaQuery';
-import { motion, AnimatePresence } from 'framer-motion';
+import { m, AnimatePresence } from 'framer-motion';
 import { X, Maximize2, Minimize2, ChevronLeft, MessageSquare, Loader2 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useAIChat } from '../../../contexts/AIChatContext';
@@ -103,7 +103,7 @@ export default function AIChatWidget() {
 
   return (
     <AnimatePresence>
-      <motion.div
+      <m.div
         key="chat-widget"
         initial={{ opacity: 0, scale: 0.95, y: 10 }}
         animate={{ opacity: 1, scale: 1, y: 0 }}
@@ -176,7 +176,7 @@ export default function AIChatWidget() {
           )}
           <AnimatePresence>
             {showSidebar && (
-              <motion.div
+              <m.div
                 initial={{ width: 0, opacity: 0 }}
                 animate={{ width: isMobile ? '100%' : 208, opacity: 1 }}
                 exit={{ width: 0, opacity: 0 }}
@@ -193,7 +193,7 @@ export default function AIChatWidget() {
                   onClose={isMobile ? () => setShowSidebar(false) : undefined}
                   showCloseButton={isMobile}
                 />
-              </motion.div>
+              </m.div>
             )}
           </AnimatePresence>
 
@@ -245,7 +245,7 @@ export default function AIChatWidget() {
             {isFullScreen && <div className="pb-safe flex-shrink-0" />}
           </div>
         </div>
-      </motion.div>
+      </m.div>
     </AnimatePresence>
   );
 }

@@ -1,12 +1,14 @@
-import { useState } from 'react';
+import { useState, lazy, Suspense } from 'react';
 import { createPortal } from 'react-dom';
-import { motion, AnimatePresence } from 'framer-motion';
+import { m, AnimatePresence } from 'framer-motion';
 import { useEditMode } from '../../contexts/useEditMode';
-import EditModal from './EditModal';
 import logger from '../../utils/logger';
 import { invalidateCache } from '../../utils/cache';
 
 const CONTEXT = 'EditableWrapper';
+
+// Admin-only; fetched when an edit is started
+const EditModal = lazy(() => import('./EditModal'));
 
 /**
  * EditableWrapper Component
@@ -124,15 +126,17 @@ const EditableWrapper = ({
 
       {/* Edit Modal via Portal - Rendered at root to avoid z-index stacking issues */}
       {showModal && createPortal(
-        <EditModal
-          isOpen={showModal}
-          onClose={handleClose}
-          onSave={handleSave}
-          elementData={data}
-          elementType={type}
-          elementId={id}
-          apiEndpoint={apiEndpoint}
-        />,
+        <Suspense fallback={null}>
+          <EditModal
+            isOpen={showModal}
+            onClose={handleClose}
+            onSave={handleSave}
+            elementData={data}
+            elementType={type}
+            elementId={id}
+            apiEndpoint={apiEndpoint}
+          />
+        </Suspense>,
         document.body
       )}
     </>

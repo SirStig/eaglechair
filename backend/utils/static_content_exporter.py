@@ -32,6 +32,10 @@ logger = logging.getLogger(__name__)
 # Redis-based lock like the one used for startup coordination in backend/main.py).
 _export_lock = asyncio.Lock()
 
+# Content key and file written separately from contentData.json (see __init__)
+LEGAL_DOCUMENTS_KEY = "legalDocuments"
+LEGAL_DOCUMENTS_FILENAME = "legalDocuments.json"
+
 
 class StaticContentExporter:
     """
@@ -76,6 +80,11 @@ class StaticContentExporter:
             logger.info(
                 f"StaticContentExporter initialized for PRODUCTION: writing to {self.frontend_path}/data"
             )
+
+        # Legal documents are large (~80% of the payload) and only used by the
+        # Terms/Privacy/General Information pages, so they live in their own file
+        # next to contentData.json instead of being downloaded on every page.
+        self.legal_file = self.data_dir / LEGAL_DOCUMENTS_FILENAME
 
         # Ensure data directory exists
         self.data_dir.mkdir(parents=True, exist_ok=True)
@@ -245,7 +254,8 @@ class StaticContentExporter:
                 - features: Why choose us features
                 - contactLocations: Contact locations
                 - pageContent: Flexible page sections
-                - legalDocuments: Legal docs, policies, warranties
+                - legalDocuments: Legal docs, policies, warranties (written to
+                  legalDocuments.json, not contentData.json)
                 - faqs: Frequently asked questions
                 - faqCategories: FAQ categories
                 - categories: Product categories with subcategories (nav dropdown)
@@ -259,6 +269,11 @@ class StaticContentExporter:
             True if successful, False otherwise
         """
         try:
+            # Legal documents go to their own file; keep them out of contentData.json
+            if LEGAL_DOCUMENTS_KEY in content_data:
+                content_data = dict(content_data)
+                self._write_legal_documents(content_data.pop(LEGAL_DOCUMENTS_KEY))
+
             # Generate JSON content with metadata
             json_content = self._generate_json_file(content_data)
 
@@ -275,6 +290,20 @@ class StaticContentExporter:
         except Exception as e:
             logger.error(f"Failed to export content: {e}", exc_info=True)
             return False
+
+    def _write_legal_documents(self, documents: List[Dict[str, Any]]):
+        """
+        Write legal documents to legalDocuments.json (atomic, same format as
+        contentData.json: the section key plus _metadata).
+
+        Args:
+            documents: List of legal document dictionaries
+        """
+        self._write_content_file(
+            self.legal_file,
+            self._generate_json_file({LEGAL_DOCUMENTS_KEY: documents}),
+        )
+        logger.info(f"Successfully exported legal documents to {self.legal_file}")
 
     def _write_content_file(self, file_path: Path, content: str):
         """
@@ -617,9 +646,19 @@ class StaticContentExporter:
         Returns:
             True if successful
         """
+        try:
+            self._write_legal_documents(documents)
+        except Exception as e:
+            logger.error(f"Failed to export legal documents: {e}", exc_info=True)
+            return False
+
+        # Rewrite contentData.json only if it still carries legal documents from
+        # before they were split out (export_all_content strips them).
         existing = self._read_existing_content()
-        existing["legalDocuments"] = documents
-        return self.export_all_content(existing)
+        if LEGAL_DOCUMENTS_KEY in existing:
+            del existing[LEGAL_DOCUMENTS_KEY]
+            return self.export_all_content(existing)
+        return True
 
     def export_faqs(self, faqs: List[Dict[str, Any]]) -> bool:
         """

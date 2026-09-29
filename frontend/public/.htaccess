@@ -24,7 +24,7 @@
 # ==================================================
 # - Vite-hashed build files (name-XXXXXXXX.js/css/...): 1 year, immutable
 # - /uploads/*: 1 year, immutable (every upload gets a unique filename)
-# - HTML, contentData.json, service worker: revalidate every time (ETag -> 304)
+# - HTML, contentData.json, legalDocuments.json, service worker: revalidate every time (ETag -> 304)
 # - Everything else (favicons, logo, non-hashed /assets images): 1 day
 # ==================================================
 <IfModule mod_headers.c>
@@ -39,7 +39,7 @@
   </FilesMatch>
 
   # HTML, CMS content and service worker must always be revalidated
-  <FilesMatch "(\.html|contentData\.json|^sw\.js|^registerSW\.js)$">
+  <FilesMatch "(\.html|contentData\.json|legalDocuments\.json|^sw\.js|^registerSW\.js)$">
     Header set Cache-Control "no-cache"
     Header unset Pragma
     Header unset Expires
