@@ -65,6 +65,9 @@
   # Never execute or serve server-side scripts from uploads
   RewriteRule ^uploads/.*\.(php[0-9]?|phtml|phar|pl|py|cgi|sh|asp|aspx|jsp|htaccess)$ - [F,NC,L]
 
+  # Legacy guest quote attachments are private (served only via the admin API)
+  RewriteRule ^uploads/quotes(/|$) - [F,NC,L]
+
   # Don't rewrite files or directories
   RewriteCond %{REQUEST_FILENAME} !-f
   RewriteCond %{REQUEST_FILENAME} !-d

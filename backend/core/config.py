@@ -5,6 +5,7 @@ Manages application settings using Pydantic BaseSettings for .env file integrati
 """
 
 import json
+import logging
 import os
 from functools import lru_cache
 from typing import Optional
@@ -273,6 +274,56 @@ class Settings(BaseSettings):
     def is_production(self) -> bool:
         """Check if running in production mode"""
         return not self.DEBUG and not self.TESTING
+
+    @property
+    def is_production_environment(self) -> bool:
+        """ENVIRONMENT names production (independent of DEBUG)"""
+        return self.ENVIRONMENT.strip().lower() in ("production", "prod")
+
+    @property
+    def docs_enabled(self) -> bool:
+        """Swagger/ReDoc/OpenAPI: DEBUG only, and never when ENVIRONMENT=production"""
+        return self.DEBUG and not self.is_production_environment
+
+    @model_validator(mode="after")
+    def validate_production_environment(self):
+        """
+        Checks keyed on ENVIRONMENT=production, so DEBUG=true can't bypass them.
+
+        A default/short SECRET_KEY raises (tokens would be forgeable). Other
+        misconfigurations only log CRITICAL so a deploy doesn't take the site down.
+        """
+        if not self.is_production_environment:
+            return self
+
+        default_secret = "your-secret-key-change-this-in-production"
+        if self.SECRET_KEY == default_secret or len(self.SECRET_KEY) < 32:
+            raise ValueError(
+                "ENVIRONMENT=production requires SECRET_KEY to be set to a non-default "
+                "value of at least 32 characters."
+            )
+
+        log = logging.getLogger(__name__)
+        if self.DEBUG:
+            log.critical(
+                "ENVIRONMENT=production with DEBUG=true: API docs are disabled, but other "
+                "debug behaviour is active. Set DEBUG=false."
+            )
+        if "*" in self.ALLOWED_HOSTS:
+            log.critical(
+                "ENVIRONMENT=production with ALLOWED_HOSTS containing '*': Host header is "
+                "not validated. Set ALLOWED_HOSTS to your domain(s)."
+            )
+        local_origins = [
+            o for o in self.CORS_ORIGINS if "localhost" in o or "127.0.0.1" in o
+        ]
+        if local_origins:
+            log.critical(
+                "ENVIRONMENT=production with localhost CORS origins %s. Set CORS_ORIGINS "
+                "to your production domain(s).",
+                local_origins,
+            )
+        return self
 
     @model_validator(mode="after")
     def validate_production_settings(self):

@@ -43,7 +43,7 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
         
         # Check if this is a SwaggerUI/ReDoc route (only in DEBUG mode)
         path = request.url.path
-        is_docs_route = settings.DEBUG and (
+        is_docs_route = settings.docs_enabled and (
             path.startswith("/docs") or 
             path.startswith("/redoc") or 
             path.startswith("/openapi.json") or
