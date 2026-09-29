@@ -202,3 +202,6 @@ frontend/.env
 frontend/.env.*
 !frontend/.env.example
 frontend/demo.env
+
+# Claude Code agent worktrees
+.claude/worktrees/
