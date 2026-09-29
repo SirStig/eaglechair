@@ -11,6 +11,7 @@ import UpholsteryEditor from './UpholsteryEditor';
 import ReorderableTable from '../ReorderableTable';
 import StatusTabs from '../StatusTabs';
 import PermanentDeleteModal from '../PermanentDeleteModal';
+import ResponsiveImage from '../../ui/ResponsiveImage';
 
 /**
  * Upholstery Management - Table Layout with Separate Editor
@@ -301,7 +302,9 @@ const UpholsteryManagement = () => {
               <>
                 <td className="px-4 py-3">
                   {upholstery.swatch_image_url ? (
-                    <img
+                    <ResponsiveImage
+                      sizes="48px"
+                      fullResolution={false}
                       src={resolveImageUrl(upholstery.swatch_image_url)}
                       alt={upholstery.name}
                       className="w-12 h-12 object-cover rounded border border-dark-600"

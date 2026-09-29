@@ -19,6 +19,7 @@ import Card from '../../ui/Card';
 import Button from '../../ui/Button';
 import apiClient from '../../../config/apiClient';
 import { resolveImageUrl } from '../../../utils/apiHelpers';
+import ResponsiveImage from '../../ui/ResponsiveImage';
 import { Edit2, Trash2, FolderTree, GripVertical, ChevronUp, ChevronDown, RotateCcw } from 'lucide-react';
 import CategoryEditor from './CategoryEditor';
 import StatusTabs from '../StatusTabs';
@@ -108,7 +109,9 @@ function SortableCategoryRow({ category, index, isExpanded, hasSubcategories, on
               </button>
             )}
             {category.icon_url ? (
-              <img 
+              <ResponsiveImage 
+                sizes="40px"
+                fullResolution={false}
                 src={resolveImageUrl(category.icon_url)} 
                 alt={category.name}
                 className="w-10 h-10 object-contain rounded-lg border border-dark-600"
@@ -183,7 +186,9 @@ function SortableCategoryRow({ category, index, isExpanded, hasSubcategories, on
           <td className="px-6 py-3">
             <div className="flex items-center gap-2 pl-8">
               {subcat.icon_url ? (
-                <img 
+                <ResponsiveImage 
+                  sizes="32px"
+                  fullResolution={false}
                   src={resolveImageUrl(subcat.icon_url)} 
                   alt={subcat.name}
                   className="w-8 h-8 object-contain rounded-lg border border-dark-600"
@@ -587,7 +592,7 @@ const CategoryManagement = () => {
                       <td className="px-3 sm:px-6 py-3 sm:py-4">
                         <div className="flex items-center gap-2">
                           {item.icon_url ? (
-                            <img src={resolveImageUrl(item.icon_url)} alt={item.name} className="w-8 h-8 object-contain rounded-lg border border-dark-600" />
+                            <ResponsiveImage sizes="32px" fullResolution={false} src={resolveImageUrl(item.icon_url)} alt={item.name} className="w-8 h-8 object-contain rounded-lg border border-dark-600" />
                           ) : (
                             <div className="w-8 h-8 bg-dark-700 rounded-lg border border-dark-600 flex items-center justify-center">
                               <FolderTree className="w-4 h-4 text-dark-500" />

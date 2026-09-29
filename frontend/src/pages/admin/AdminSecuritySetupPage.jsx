@@ -14,6 +14,22 @@ import {
 } from '../../services/adminAuthService';
 import { createPasskey, isPasskeySupported } from '../../utils/passkey';
 
+// The provisioning URI contains the TOTP secret, so the QR code is drawn in
+// the browser; it must never be sent to a third-party QR service.
+const TotpQrCode = ({ uri }) => {
+  const [dataUrl, setDataUrl] = useState(null);
+  useEffect(() => {
+    let cancelled = false;
+    import('qrcode')
+      .then(({ toDataURL }) => toDataURL(uri, { width: 200, margin: 1, errorCorrectionLevel: 'M' }))
+      .then((url) => { if (!cancelled) setDataUrl(url); })
+      .catch(() => { if (!cancelled) setDataUrl(null); });
+    return () => { cancelled = true; };
+  }, [uri]);
+  if (!dataUrl) return <div className="w-[200px] h-[200px] rounded bg-dark-700 animate-pulse" />;
+  return <img src={dataUrl} alt="QR Code" width={200} height={200} className="rounded" />;
+};
+
 const AdminSecuritySetupPage = () => {
   const navigate = useNavigate();
   const { user, isAuthenticated } = useAuthStore();
@@ -161,11 +177,7 @@ const AdminSecuritySetupPage = () => {
                   </p>
                   {mfaSecret.provisioningUri && (
                     <div className="flex justify-center py-4">
-                      <img
-                        src={`https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(mfaSecret.provisioningUri)}`}
-                        alt="QR Code"
-                        className="rounded"
-                      />
+                      <TotpQrCode uri={mfaSecret.provisioningUri} />
                     </div>
                   )}
                   <Input

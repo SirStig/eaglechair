@@ -22,6 +22,7 @@ import {
   Upload,
   Edit2
 } from 'lucide-react';
+import ResponsiveImage from '../../ui/ResponsiveImage';
 
 /**
  * Comprehensive Virtual Catalog Product Editor
@@ -741,7 +742,9 @@ const ImagesTab = ({ formData, onChange }) => {
                                      usage.includes('Hover') ? '#3b82f6' : 
                                      '#374151'
                        }}>
-                    <img
+                    <ResponsiveImage
+                      sizes="(min-width: 1024px) 25vw, (min-width: 768px) 33vw, 50vw"
+                      fullResolution={false}
                       src={resolveImageUrl(img)}
                       alt={`Product ${index + 1}`}
                       className="w-full h-48 object-contain bg-white"
@@ -824,7 +827,9 @@ const ImagesTab = ({ formData, onChange }) => {
             </label>
             {formData.primary_image_url ? (
               <div className="flex items-center gap-2">
-                <img
+                <ResponsiveImage
+                  sizes="64px"
+                  fullResolution={false}
                   src={resolveImageUrl(formData.primary_image_url)}
                   alt="Primary"
                   className="w-16 h-16 object-contain bg-white rounded border-2 border-green-500"
@@ -844,7 +849,9 @@ const ImagesTab = ({ formData, onChange }) => {
             </label>
             {formData.hover_image_url ? (
               <div className="flex items-center gap-2">
-                <img
+                <ResponsiveImage
+                  sizes="64px"
+                  fullResolution={false}
                   src={resolveImageUrl(formData.hover_image_url)}
                   alt="Hover"
                   className="w-16 h-16 object-contain bg-white rounded border-2 border-blue-500"
@@ -867,7 +874,9 @@ const ImagesTab = ({ formData, onChange }) => {
             <div className="flex flex-wrap gap-2">
               {formData.images.map((img, idx) => (
                 <div key={idx} className="relative">
-                  <img
+                  <ResponsiveImage
+                    sizes="80px"
+                    fullResolution={false}
                     src={resolveImageUrl(img)}
                     alt={`Gallery ${idx + 1}`}
                     className="w-20 h-20 object-contain bg-white rounded border-2 border-purple-500"

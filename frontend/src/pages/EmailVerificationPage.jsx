@@ -6,6 +6,7 @@ import Card from '../components/ui/Card';
 import Input from '../components/ui/Input';
 import apiClient from '../config/apiClient';
 import { useSiteSettings } from '../hooks/useContent';
+import SiteLogo from '../components/ui/SiteLogo';
 
 const EmailVerificationPage = () => {
   const navigate = useNavigate();
@@ -147,13 +148,14 @@ const EmailVerificationPage = () => {
       >
         <div className="text-center mb-8">
           <Link to="/" className="inline-block mb-4">
-            <m.img 
-              src={siteSettings?.logoUrl || "/assets/eagle-chair-logo.png"}
-              alt={siteSettings?.companyName || "Eagle Chair"}
-              className="h-16 w-auto mx-auto"
-              whileHover={{ scale: 1.05 }}
-              transition={{ type: "spring", stiffness: 300 }}
-            />
+            <m.div className="inline-block" whileHover={{ scale: 1.05 }} transition={{ type: "spring", stiffness: 300 }}>
+              <SiteLogo
+                src={siteSettings?.logoUrl}
+                alt={siteSettings?.companyName || "Eagle Chair"}
+                className="h-16 w-auto mx-auto"
+                priority
+              />
+            </m.div>
           </Link>
           <h2 className="text-3xl font-bold mb-2 text-dark-50">Verify Your Email</h2>
           <p className="text-dark-200">Enter your email to resend the verification link</p>

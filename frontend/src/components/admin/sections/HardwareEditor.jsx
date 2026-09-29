@@ -4,6 +4,7 @@ import Button from '../../ui/Button';
 import apiClient from '../../../config/apiClient';
 import { resolveImageUrl } from '../../../utils/apiHelpers';
 import { ArrowLeft, Upload, X } from 'lucide-react';
+import ResponsiveImage from '../../ui/ResponsiveImage';
 
 /**
  * Hardware Editor Component
@@ -283,7 +284,9 @@ const HardwareEditor = ({ hardware, onBack, onSave }) => {
                   </label>
                   {formData.image_url ? (
                     <div className="relative group inline-block">
-                      <img 
+                      <ResponsiveImage 
+                        sizes="192px"
+                        fullResolution={false}
                         src={resolveImageUrl(formData.image_url)} 
                         alt="Hardware"
                         className="w-48 h-32 object-cover rounded-lg border border-dark-600"
@@ -327,7 +330,9 @@ const HardwareEditor = ({ hardware, onBack, onSave }) => {
                   </label>
                   {formData.thumbnail_url ? (
                     <div className="relative group inline-block">
-                      <img 
+                      <ResponsiveImage 
+                        sizes="192px"
+                        fullResolution={false}
                         src={resolveImageUrl(formData.thumbnail_url)} 
                         alt="Thumbnail"
                         className="w-48 h-32 object-cover rounded-lg border border-dark-600"

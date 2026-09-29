@@ -10,6 +10,7 @@ import StatusTabs from '../StatusTabs';
 import PermanentDeleteModal from '../PermanentDeleteModal';
 import { useToast } from '../../../contexts/ToastContext';
 import { useAdminRefresh } from '../../../contexts/AdminRefreshContext';
+import ResponsiveImage from '../../ui/ResponsiveImage';
 
 /**
  * Color Management Component
@@ -258,7 +259,9 @@ const ColorManagement = () => {
                 <td className="px-3 sm:px-6 py-3 sm:py-4">
                   <div className="flex items-center gap-2">
                     {color.image_url ? (
-                      <img 
+                      <ResponsiveImage 
+                        sizes="40px"
+                        fullResolution={false}
                         src={resolveImageUrl(color.image_url)} 
                         alt={color.name}
                         className="w-8 h-8 sm:w-10 sm:h-10 object-cover rounded-lg border border-dark-600"
