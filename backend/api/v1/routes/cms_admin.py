@@ -39,7 +39,7 @@ from backend.api.v1.schemas.content import (
     TeamMemberCreate,
     TeamMemberUpdate,
 )
-from backend.core.exceptions import ResourceNotFoundError
+from backend.core.exceptions import EagleChairException, ResourceNotFoundError
 from backend.database.base import get_db
 from backend.models.company import Company
 from backend.models.legal import LegalDocumentType
@@ -315,6 +315,8 @@ async def update_site_settings(
             message="Site settings updated and exported successfully"
         )
         
+    except (HTTPException, EagleChairException):
+        raise
     except Exception as e:
         logger.error(f"Failed to update site settings: {e}", exc_info=True)
         raise HTTPException(
@@ -349,6 +351,8 @@ async def create_hero_slide(
             message="Hero slide created and exported successfully"
         )
         
+    except (HTTPException, EagleChairException):
+        raise
     except Exception as e:
         logger.error(f"Failed to create hero slide: {e}", exc_info=True)
         raise HTTPException(
@@ -393,6 +397,8 @@ async def update_hero_slide(
             message="Hero slide updated and exported successfully"
         )
         
+    except (HTTPException, EagleChairException):
+        raise
     except Exception as e:
         logger.error(f"Failed to update hero slide: {e}", exc_info=True)
         raise HTTPException(
@@ -422,6 +428,8 @@ async def delete_hero_slide(
             message="Hero slide deleted and exported successfully"
         )
         
+    except (HTTPException, EagleChairException):
+        raise
     except Exception as e:
         logger.error(f"Failed to delete hero slide: {e}", exc_info=True)
         raise HTTPException(
@@ -456,6 +464,8 @@ async def create_sales_rep(
             message="Sales representative created and exported successfully"
         )
         
+    except (HTTPException, EagleChairException):
+        raise
     except Exception as e:
         logger.error(f"Failed to create sales rep: {e}", exc_info=True)
         raise HTTPException(
@@ -500,6 +510,8 @@ async def update_sales_rep(
             message="Sales representative updated and exported successfully"
         )
         
+    except (HTTPException, EagleChairException):
+        raise
     except Exception as e:
         logger.error(f"Failed to update sales rep: {e}", exc_info=True)
         raise HTTPException(
@@ -529,6 +541,8 @@ async def delete_sales_rep(
             message="Sales representative deleted and exported successfully"
         )
         
+    except (HTTPException, EagleChairException):
+        raise
     except Exception as e:
         logger.error(f"Failed to delete sales rep: {e}", exc_info=True)
         raise HTTPException(
@@ -563,6 +577,8 @@ async def create_installation(
             message="Installation entry created and exported successfully"
         )
         
+    except (HTTPException, EagleChairException):
+        raise
     except Exception as e:
         logger.error(f"Failed to create installation: {e}", exc_info=True)
         raise HTTPException(
@@ -601,6 +617,8 @@ async def update_installation(
             message="Installation entry updated and exported successfully"
         )
         
+    except (HTTPException, EagleChairException):
+        raise
     except Exception as e:
         logger.error(f"Failed to update installation: {e}", exc_info=True)
         raise HTTPException(
@@ -629,6 +647,8 @@ async def delete_installation(
             message="Installation entry deleted and exported successfully"
         )
     except ResourceNotFoundError:
+        raise
+    except (HTTPException, EagleChairException):
         raise
     except Exception as e:
         logger.error(f"Failed to delete installation: {e}", exc_info=True)
@@ -680,6 +700,8 @@ async def update_page_content(
             "data": result
         }
         
+    except (HTTPException, EagleChairException):
+        raise
     except Exception as e:
         logger.error(f"Failed to update page content: {e}", exc_info=True)
         raise HTTPException(
@@ -722,6 +744,8 @@ async def export_all_content(
                 detail="Export failed - check server logs"
             )
             
+    except (HTTPException, EagleChairException):
+        raise
     except Exception as e:
         logger.error(f"Failed to export all content: {e}", exc_info=True)
         raise HTTPException(
@@ -758,6 +782,8 @@ async def create_feature(
             message="Feature created and exported successfully"
         )
         
+    except (HTTPException, EagleChairException):
+        raise
     except Exception as e:
         logger.error(f"Failed to create feature: {e}", exc_info=True)
         raise HTTPException(
@@ -796,6 +822,8 @@ async def update_feature(
             message="Feature updated and exported successfully"
         )
         
+    except (HTTPException, EagleChairException):
+        raise
     except Exception as e:
         logger.error(f"Failed to update feature: {e}", exc_info=True)
         raise HTTPException(
@@ -825,6 +853,8 @@ async def delete_feature(
             message="Feature deleted and exported successfully"
         )
         
+    except (HTTPException, EagleChairException):
+        raise
     except Exception as e:
         logger.error(f"Failed to delete feature: {e}", exc_info=True)
         raise HTTPException(
@@ -859,6 +889,8 @@ async def create_client_logo(
             message="Client logo created and exported successfully"
         )
         
+    except (HTTPException, EagleChairException):
+        raise
     except Exception as e:
         logger.error(f"Failed to create client logo: {e}", exc_info=True)
         raise HTTPException(
@@ -897,6 +929,8 @@ async def update_client_logo(
             message="Client logo updated and exported successfully"
         )
         
+    except (HTTPException, EagleChairException):
+        raise
     except Exception as e:
         logger.error(f"Failed to update client logo: {e}", exc_info=True)
         raise HTTPException(
@@ -926,6 +960,8 @@ async def delete_client_logo(
             message="Client logo deleted and exported successfully"
         )
         
+    except (HTTPException, EagleChairException):
+        raise
     except Exception as e:
         logger.error(f"Failed to delete client logo: {e}", exc_info=True)
         raise HTTPException(
@@ -960,6 +996,8 @@ async def create_team_member(
             message="Team member created and exported successfully"
         )
         
+    except (HTTPException, EagleChairException):
+        raise
     except Exception as e:
         logger.error(f"Failed to create team member: {e}", exc_info=True)
         raise HTTPException(
@@ -998,6 +1036,8 @@ async def update_team_member(
             message="Team member updated and exported successfully"
         )
         
+    except (HTTPException, EagleChairException):
+        raise
     except Exception as e:
         logger.error(f"Failed to update team member: {e}", exc_info=True)
         raise HTTPException(
@@ -1027,6 +1067,8 @@ async def delete_team_member(
             message="Team member deleted and exported successfully"
         )
         
+    except (HTTPException, EagleChairException):
+        raise
     except Exception as e:
         logger.error(f"Failed to delete team member: {e}", exc_info=True)
         raise HTTPException(
@@ -1061,6 +1103,8 @@ async def create_company_value(
             message="Company value created and exported successfully"
         )
         
+    except (HTTPException, EagleChairException):
+        raise
     except Exception as e:
         logger.error(f"Failed to create company value: {e}", exc_info=True)
         raise HTTPException(
@@ -1099,6 +1143,8 @@ async def update_company_value(
             message="Company value updated and exported successfully"
         )
         
+    except (HTTPException, EagleChairException):
+        raise
     except Exception as e:
         logger.error(f"Failed to update company value: {e}", exc_info=True)
         raise HTTPException(
@@ -1128,6 +1174,8 @@ async def delete_company_value(
             message="Company value deleted and exported successfully"
         )
         
+    except (HTTPException, EagleChairException):
+        raise
     except Exception as e:
         logger.error(f"Failed to delete company value: {e}", exc_info=True)
         raise HTTPException(
@@ -1162,6 +1210,8 @@ async def create_company_milestone(
             message="Company milestone created and exported successfully"
         )
         
+    except (HTTPException, EagleChairException):
+        raise
     except Exception as e:
         logger.error(f"Failed to create company milestone: {e}", exc_info=True)
         raise HTTPException(
@@ -1200,6 +1250,8 @@ async def update_company_milestone(
             message="Company milestone updated and exported successfully"
         )
         
+    except (HTTPException, EagleChairException):
+        raise
     except Exception as e:
         logger.error(f"Failed to update company milestone: {e}", exc_info=True)
         raise HTTPException(
@@ -1229,6 +1281,8 @@ async def delete_company_milestone(
             message="Company milestone deleted and exported successfully"
         )
         
+    except (HTTPException, EagleChairException):
+        raise
     except Exception as e:
         logger.error(f"Failed to delete company milestone: {e}", exc_info=True)
         raise HTTPException(
@@ -1263,6 +1317,8 @@ async def create_contact_location(
             message="Contact location created and exported successfully"
         )
         
+    except (HTTPException, EagleChairException):
+        raise
     except Exception as e:
         logger.error(f"Failed to create contact location: {e}", exc_info=True)
         raise HTTPException(
@@ -1301,6 +1357,8 @@ async def update_contact_location(
             message="Contact location updated and exported successfully"
         )
         
+    except (HTTPException, EagleChairException):
+        raise
     except Exception as e:
         logger.error(f"Failed to update contact location: {e}", exc_info=True)
         raise HTTPException(
@@ -1330,6 +1388,8 @@ async def delete_contact_location(
             message="Contact location deleted and exported successfully"
         )
         
+    except (HTTPException, EagleChairException):
+        raise
     except Exception as e:
         logger.error(f"Failed to delete contact location: {e}", exc_info=True)
         raise HTTPException(
@@ -1364,6 +1424,8 @@ async def create_company_info(
             message="Company info created and exported successfully"
         )
         
+    except (HTTPException, EagleChairException):
+        raise
     except Exception as e:
         logger.error(f"Failed to create company info: {e}", exc_info=True)
         raise HTTPException(
@@ -1402,6 +1464,8 @@ async def update_company_info(
             message="Company info updated and exported successfully"
         )
         
+    except (HTTPException, EagleChairException):
+        raise
     except Exception as e:
         logger.error(f"Failed to update company info: {e}", exc_info=True)
         raise HTTPException(
@@ -1431,6 +1495,8 @@ async def delete_company_info(
             message="Company info deleted and exported successfully"
         )
         
+    except (HTTPException, EagleChairException):
+        raise
     except Exception as e:
         logger.error(f"Failed to delete company info: {e}", exc_info=True)
         raise HTTPException(
@@ -1565,6 +1631,8 @@ async def admin_create_legal_document(
             "message": "Legal document created and exported successfully"
         }
         
+    except (HTTPException, EagleChairException):
+        raise
     except Exception as e:
         logger.error(f"Failed to create legal document: {e}", exc_info=True)
         raise HTTPException(
@@ -1606,6 +1674,8 @@ async def admin_update_legal_document(
             "message": "Legal document updated and exported successfully"
         }
         
+    except (HTTPException, EagleChairException):
+        raise
     except Exception as e:
         logger.error(f"Failed to update legal document: {e}", exc_info=True)
         raise HTTPException(
@@ -1638,6 +1708,8 @@ async def admin_delete_legal_document(
             message="Legal document deleted and content re-exported successfully"
         )
         
+    except (HTTPException, EagleChairException):
+        raise
     except Exception as e:
         logger.error(f"Failed to delete legal document: {e}", exc_info=True)
         raise HTTPException(
@@ -1705,6 +1777,8 @@ async def admin_create_warranty(
             "message": "Warranty created and exported successfully"
         }
         
+    except (HTTPException, EagleChairException):
+        raise
     except Exception as e:
         logger.error(f"Failed to create warranty: {e}", exc_info=True)
         raise HTTPException(
@@ -1745,6 +1819,8 @@ async def admin_update_warranty(
             "message": "Warranty updated and exported successfully"
         }
         
+    except (HTTPException, EagleChairException):
+        raise
     except Exception as e:
         logger.error(f"Failed to update warranty: {e}", exc_info=True)
         raise HTTPException(
@@ -1777,6 +1853,8 @@ async def admin_delete_warranty(
             message="Warranty deleted and content re-exported successfully"
         )
         
+    except (HTTPException, EagleChairException):
+        raise
     except Exception as e:
         logger.error(f"Failed to delete warranty: {e}", exc_info=True)
         raise HTTPException(

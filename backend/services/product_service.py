@@ -7,9 +7,10 @@ Handles product catalog operations (chairs, categories, finishes, upholstery)
 import logging
 from typing import Any, Dict, List, Optional
 
-from sqlalchemy import and_, case, cast, func, or_, select
+from sqlalchemy import and_, case, cast, func, or_, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
+from sqlalchemy.orm.attributes import set_committed_value
 from sqlalchemy.types import String
 
 from backend.core.exceptions import ResourceNotFoundError, ValidationError
@@ -33,6 +34,40 @@ from backend.utils.pagination import PaginationParams, paginate
 from backend.utils.slug import slugify
 
 logger = logging.getLogger(__name__)
+
+
+# Chair.stock_status values (lower-cased) that count as orderable from stock.
+# Excludes "Out of Stock", "Discontinued", "Pre-Order" and unknown values.
+IN_STOCK_STATUSES = ("in stock", "instock", "low stock", "available")
+
+
+def _features_include(features: Any, name: str) -> bool:
+    """True if a Chair.features JSON array contains ``name`` (case-insensitive)."""
+    if not isinstance(features, list):
+        return False
+    target = name.lower()
+    for feature in features:
+        if isinstance(feature, dict):
+            feature = feature.get("name") or feature.get("label")
+        if isinstance(feature, str) and feature.strip().lower() == target:
+            return True
+    return False
+
+
+async def _increment_view_count(db: AsyncSession, product: Chair) -> None:
+    """
+    Bump Chair.view_count with a single UPDATE, leaving updated_at untouched
+    (a view is not a content change) and without reloading the product.
+    """
+    await db.execute(
+        update(Chair)
+        .where(Chair.id == product.id)
+        .values(view_count=Chair.view_count + 1, updated_at=Chair.updated_at)
+        .execution_options(synchronize_session=False)
+    )
+    await db.commit()
+    # Reflect the new count on the loaded instance without marking it dirty
+    set_committed_value(product, "view_count", (product.view_count or 0) + 1)
 
 
 def _chair_in_category(category_id: int):
@@ -563,13 +598,26 @@ class ProductService:
 
         # Feature filters
         if is_stackable is not None:
-            query = query.where(Chair.is_stackable == is_stackable)
+            # No dedicated column: "Stackable" lives in the Chair.features JSON
+            # array. Resolve matching ids in Python (portable across dialects).
+            feature_rows = (
+                await db.execute(select(Chair.id, Chair.features))
+            ).all()
+            stackable_ids = {
+                row.id
+                for row in feature_rows
+                if _features_include(row.features, "stackable")
+            }
+            if is_stackable:
+                query = query.where(Chair.id.in_(stackable_ids))
+            else:
+                query = query.where(Chair.id.not_in(stackable_ids))
 
         if is_outdoor is not None:
-            query = query.where(Chair.is_outdoor == is_outdoor)
+            query = query.where(Chair.is_outdoor_suitable == is_outdoor)
 
         if is_ada_compliant is not None:
-            query = query.where(Chair.is_ada_compliant == is_ada_compliant)
+            query = query.where(Chair.ada_compliant == is_ada_compliant)
 
         # Lead time filter
         if max_lead_time_days is not None:
@@ -577,7 +625,9 @@ class ProductService:
 
         # Stock filter
         if in_stock_only:
-            query = query.where(Chair.stock_quantity > 0)
+            query = query.where(
+                func.lower(Chair.stock_status).in_(IN_STOCK_STATUSES)
+            )
 
         if search_query:
             search_term = f"%{search_query}%"
@@ -716,9 +766,7 @@ class ProductService:
 
         # Increment view count
         if increment_view:
-            product.view_count += 1
-            await db.commit()
-            await db.refresh(product)
+            await _increment_view_count(db, product)
 
         return product
 
@@ -740,12 +788,16 @@ class ProductService:
         Raises:
             ResourceNotFoundError: If product not found
         """
+        # model_number is not unique (variations/suffixes share it): prefer an
+        # active product, then the lowest id, for a deterministic result.
         result = await db.execute(
             select(Chair)
             .options(selectinload(Chair.category))
             .where(Chair.model_number == model_number)
+            .order_by(Chair.is_active.desc(), Chair.id.asc())
+            .limit(1)
         )
-        product = result.scalar_one_or_none()
+        product = result.scalars().first()
 
         if not product:
             raise ResourceNotFoundError(
@@ -754,9 +806,7 @@ class ProductService:
 
         # Increment view count
         if increment_view:
-            product.view_count += 1
-            await db.commit()
-            await db.refresh(product)
+            await _increment_view_count(db, product)
 
         return product
 
@@ -803,9 +853,7 @@ class ProductService:
 
         # Increment view count
         if increment_view:
-            product.view_count += 1
-            await db.commit()
-            await db.refresh(product)
+            await _increment_view_count(db, product)
 
         return product
 
@@ -1358,27 +1406,49 @@ class ProductService:
         if not source_keywords:
             return []
 
-        query = (
-            select(Chair)
-            .options(selectinload(Chair.category))
-            .where(Chair.id != product_id, Chair.is_active == True)
+        # Narrow candidates in SQL: only rows whose serialized keywords contain
+        # at least one source keyword (a superset of exact matches), and load
+        # just the columns needed for scoring instead of full ORM objects.
+        keywords_text = cast(Chair.keywords, String)
+        keyword_filter = or_(
+            *[keywords_text.ilike(f"%{kw}%") for kw in set(source_keywords)]
         )
-        result = await db.execute(query)
-        candidates = list(result.scalars().all())
+        candidate_rows = (
+            await db.execute(
+                select(Chair.id, Chair.keywords, Chair.display_order, Chair.name)
+                .where(
+                    Chair.id != product_id,
+                    Chair.is_active == True,
+                    keyword_filter,
+                )
+            )
+        ).all()
 
+        source_set = set(source_keywords)
         scored = []
-        for c in candidates:
+        for row in candidate_rows:
             c_keywords = (
-                [str(k).strip().lower() for k in c.keywords if k]
-                if isinstance(c.keywords, list)
+                [str(k).strip().lower() for k in row.keywords if k]
+                if isinstance(row.keywords, list)
                 else []
             )
-            match_count = len(set(source_keywords) & set(c_keywords))
+            match_count = len(source_set & set(c_keywords))
             if match_count > 0:
-                scored.append((c, match_count))
+                scored.append((row, match_count))
 
         scored.sort(key=lambda x: (-x[1], x[0].display_order or 0, x[0].name or ""))
-        return [c for c, _ in scored[:limit]]
+        top_ids = [row.id for row, _ in scored[:limit]]
+        if not top_ids:
+            return []
+
+        # Load full products only for the winners, preserving score order
+        result = await db.execute(
+            select(Chair)
+            .options(selectinload(Chair.category))
+            .where(Chair.id.in_(top_ids))
+        )
+        by_id = {c.id: c for c in result.scalars().all()}
+        return [by_id[cid] for cid in top_ids if cid in by_id]
 
     # ========================================================================
     # Family & Subcategory Methods (NEW)

@@ -4,7 +4,7 @@ EagleChair Product Models
 Comprehensive models for chairs, booths, tables with categories, finishes, materials, etc.
 """
 
-from sqlalchemy import JSON, Boolean, Column, Float, ForeignKey, Integer, String, Table, Text
+from sqlalchemy import JSON, Boolean, Column, Float, ForeignKey, Index, Integer, String, Table, Text
 from sqlalchemy.orm import relationship
 
 from backend.database.base import Base
@@ -53,6 +53,9 @@ class Category(Base):
     """
 
     __tablename__ = "categories"
+    __table_args__ = (
+        Index("ix_categories_is_active_display_order", "is_active", "display_order"),
+    )
 
     id = Column(Integer, primary_key=True, index=True)
     name = Column(String(255), nullable=False, index=True)
@@ -60,7 +63,7 @@ class Category(Base):
     description = Column(Text, nullable=True)
 
     # Hierarchy support
-    parent_id = Column(Integer, ForeignKey("categories.id"), nullable=True)
+    parent_id = Column(Integer, ForeignKey("categories.id"), nullable=True, index=True)
     parent = relationship("Category", remote_side=[id], backref="subcategories")
 
     # Display
@@ -94,6 +97,9 @@ class ProductSubcategory(Base):
     """
 
     __tablename__ = "product_subcategories"
+    __table_args__ = (
+        Index("ix_product_subcategories_is_active_display_order", "is_active", "display_order"),
+    )
 
     id = Column(Integer, primary_key=True, index=True)
     name = Column(String(255), nullable=False, index=True)
@@ -129,6 +135,9 @@ class ProductFamily(Base):
     """
 
     __tablename__ = "product_families"
+    __table_args__ = (
+        Index("ix_product_families_is_active_display_order", "is_active", "display_order"),
+    )
 
     id = Column(Integer, primary_key=True, index=True)
     name = Column(String(255), nullable=False, index=True)
@@ -172,6 +181,9 @@ class Finish(Base):
     """
 
     __tablename__ = "finishes"
+    __table_args__ = (
+        Index("ix_finishes_is_active_display_order", "is_active", "display_order"),
+    )
 
     id = Column(Integer, primary_key=True, index=True)
     name = Column(String(100), nullable=False, index=True)
@@ -221,6 +233,9 @@ class Upholstery(Base):
     """
 
     __tablename__ = "upholsteries"
+    __table_args__ = (
+        Index("ix_upholsteries_is_active_display_order", "is_active", "display_order"),
+    )
 
     id = Column(Integer, primary_key=True, index=True)
     name = Column(String(100), nullable=False, index=True)
@@ -294,6 +309,10 @@ class Chair(Base):
     """
 
     __tablename__ = "chairs"
+    __table_args__ = (
+        # Public catalog listing: WHERE is_active ORDER BY display_order
+        Index("ix_chairs_is_active_display_order", "is_active", "display_order"),
+    )
 
     id = Column(Integer, primary_key=True, index=True)
 
@@ -387,12 +406,12 @@ class Chair(Base):
 
     # Images (stored as JSON array with enhanced structure)
     # Structure: [{"url": "...", "type": "side|front|gallery", "order": 1, "alt": "..."}, ...]
-    images = Column(JSON, nullable=False, default="[]")
+    images = Column(JSON, nullable=False, default=list)
     primary_image_url = Column(
         String(500), nullable=True
     )  # Side view (main catalog image)
     hover_images = Column(
-        JSON, nullable=True, default="[]"
+        JSON, nullable=True, default=list
     )  # Array of hover images (Front/Detail views)
     thumbnail = Column(String(500), nullable=True)
 
@@ -501,6 +520,9 @@ class Color(Base):
     """
 
     __tablename__ = "colors"
+    __table_args__ = (
+        Index("ix_colors_is_active_display_order", "is_active", "display_order"),
+    )
 
     id = Column(Integer, primary_key=True, index=True)
     name = Column(
@@ -572,7 +594,7 @@ class ProductVariation(Base):
 
     # Images specific to this variation
     # JSON array: [{"url": "...", "type": "side|front|gallery", "order": 1}, ...]
-    images = Column(JSON, nullable=True, default="[]")
+    images = Column(JSON, nullable=True, default=list)
     primary_image_url = Column(String(500), nullable=True)
 
     # Inventory

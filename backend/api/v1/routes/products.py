@@ -7,7 +7,7 @@ Public routes for browsing product catalog (chairs, categories, finishes, uphols
 import logging
 from typing import List, Optional
 
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import attributes as sa_attributes
 
@@ -34,6 +34,19 @@ from backend.utils.pagination import PaginatedResponse, PaginationParams
 logger = logging.getLogger(__name__)
 
 router = APIRouter(tags=["Products"])
+
+
+def _parse_id_list(raw: Optional[str], param: str) -> Optional[List[int]]:
+    """Parse a comma-separated list of integer IDs, raising 422 on bad input."""
+    if not raw:
+        return None
+    try:
+        return [int(part.strip()) for part in raw.split(",") if part.strip()] or None
+    except ValueError:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=f"{param} must be a comma-separated list of integers",
+        )
 
 
 async def _populate_customizations(
@@ -145,32 +158,23 @@ async def _apply_pricing_tiers_to_products(
     if not company or not products:
         return
     
-    # Load company's pricing tier once
-    pricing_tier_name = None
-    tier_id = getattr(company, 'pricing_tier_id', None)
-    if tier_id:
-        from sqlalchemy import select
-
-        from backend.models.company import CompanyPricing
-        tier_result = await db.execute(
-            select(CompanyPricing).where(CompanyPricing.id == tier_id)
-        )
-        tier = tier_result.scalar_one_or_none()
-        if tier:
-            pricing_tier_name = getattr(tier, 'pricing_tier_name', None)
-    
-    # Apply pricing to each product
     company_id = getattr(company, 'id', None)
     if not company_id:
         return
         
+    # Load the active tier once, then apply it to every product in memory
+    active_tier = await PricingService._get_active_company_tier(db, company_id)
+    if not active_tier:
+        return
+    pricing_tier_name = getattr(active_tier, 'pricing_tier_name', None)
+
     for product in products:
         base_price = getattr(product, 'base_price', None)
         category_id = getattr(product, 'category_id', None)
         
         if base_price and category_id:
-            tier_adjustment, tier_percentage = await PricingService._get_company_tier_adjustment(
-                db, company_id, category_id, base_price
+            tier_adjustment, tier_percentage = PricingService._compute_tier_adjustment(
+                active_tier, category_id, base_price, company_id
             )
             if tier_adjustment != 0:
                 # Set attributes on the SQLAlchemy model instance
@@ -362,9 +366,9 @@ async def get_products(
     )
     
     # Parse comma-separated IDs
-    finish_id_list = [int(id.strip()) for id in finish_ids.split(",")] if finish_ids else None
-    upholstery_id_list = [int(id.strip()) for id in upholstery_ids.split(",")] if upholstery_ids else None
-    color_id_list = [int(id.strip()) for id in color_ids.split(",")] if color_ids else None
+    finish_id_list = _parse_id_list(finish_ids, "finish_ids")
+    upholstery_id_list = _parse_id_list(upholstery_ids, "upholstery_ids")
+    color_id_list = _parse_id_list(color_ids, "color_ids")
     
     pagination = PaginationParams(page=page, per_page=per_page)
     
@@ -695,9 +699,9 @@ async def get_families(
     """
     logger.info(f"Fetching families (category_id={category_id}, featured_only={featured_only})")
     
-    from sqlalchemy import func, or_, select
+    from sqlalchemy import func, select, union
 
-    from backend.models.chair import Chair, ProductFamily, chair_secondary_families
+    from backend.models.chair import Chair, chair_secondary_families
 
     families = await ProductService.get_families(
         db=db,
@@ -706,16 +710,35 @@ async def get_families(
         include_inactive=False
     )
 
+    # Count active products per family (primary or secondary membership) in a
+    # single grouped query instead of one COUNT per family.
+    counts: dict = {}
+    family_ids = [family.id for family in families]
+    if family_ids:
+        membership = union(
+            select(
+                Chair.id.label("chair_id"), Chair.family_id.label("family_id")
+            ).where(Chair.is_active == True, Chair.family_id.in_(family_ids)),
+            select(
+                chair_secondary_families.c.chair_id.label("chair_id"),
+                chair_secondary_families.c.family_id.label("family_id"),
+            )
+            .join(Chair, Chair.id == chair_secondary_families.c.chair_id)
+            .where(
+                Chair.is_active == True,
+                chair_secondary_families.c.family_id.in_(family_ids),
+            ),
+        ).subquery()
+        count_rows = await db.execute(
+            select(
+                membership.c.family_id,
+                func.count(func.distinct(membership.c.chair_id)),
+            ).group_by(membership.c.family_id)
+        )
+        counts = {row[0]: row[1] for row in count_rows.all()}
+
     for family in families:
-        subq = select(chair_secondary_families.c.chair_id).where(
-            chair_secondary_families.c.family_id == family.id
-        )
-        count_stmt = select(func.count(Chair.id)).where(
-            Chair.is_active == True,
-            or_(Chair.family_id == family.id, Chair.id.in_(subq)),
-        )
-        count_result = await db.execute(count_stmt)
-        family.product_count = count_result.scalar() or 0
+        family.product_count = counts.get(family.id, 0)
         family.category_name = family.category.name if family.category else None
         family.subcategory_name = family.subcategory.name if family.subcategory else None
 

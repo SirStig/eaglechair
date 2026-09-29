@@ -118,7 +118,7 @@ class CleanupService:
             # 5. Uploads
             stats["uploads_deleted"] = len(expired_uploads)
             for upload in expired_uploads:
-                db.delete(upload)
+                await db.delete(upload)
 
             await db.commit()
 

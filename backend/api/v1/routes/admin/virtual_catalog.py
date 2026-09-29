@@ -5,10 +5,12 @@ Admin-only endpoints for uploading and parsing manufacturer catalogs
 
 import logging
 import os
+import secrets
 import shutil
 from datetime import datetime
 from pathlib import Path
 from typing import Optional
+from urllib.parse import urlparse
 
 from fastapi import (
     APIRouter,
@@ -22,8 +24,10 @@ from fastapi import (
 )
 from sqlalchemy import delete, or_, select
 from sqlalchemy.orm import Session, joinedload
+from starlette.concurrency import run_in_threadpool
 
 from backend.api.dependencies import get_current_admin
+from backend.api.v1.routes.admin.upload import get_upload_base_dir
 from backend.core.config import settings
 from backend.database.base import get_db
 from backend.models.chair import Chair, ProductFamily, ProductImage, ProductVariation
@@ -34,6 +38,7 @@ from backend.models.tmp_catalog import (
     TmpProductImage,
     TmpProductVariation,
 )
+from backend.services import media_service
 from backend.services.cleanup_service import cleanup_service
 from backend.services.pdf_parser_service import CatalogParserService
 
@@ -49,6 +54,56 @@ TMP_IMAGES_DIR = FRONTEND_PATH / "tmp" / "images"
 # Ensure directories exist
 TMP_UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
 TMP_IMAGES_DIR.mkdir(parents=True, exist_ok=True)
+
+
+TMP_IMAGES_URL_PREFIX = "/tmp/images/"
+PRODUCT_IMAGES_SUBFOLDER = "products"
+
+
+async def _promote_tmp_image(
+    url: Optional[str], promoted: dict, created_files: list
+) -> Optional[str]:
+    """
+    Copy a parser image referenced as /tmp/images/... into the permanent
+    uploads dir (images/products/), encoding it and generating responsive
+    variants via media_service.store_image. Returns the new /uploads/... URL.
+
+    Non-tmp URLs are returned unchanged. Returns None if the tmp file is gone,
+    so no soon-to-be-broken /tmp URL is written to production rows.
+    """
+    if not url or not isinstance(url, str):
+        return url
+    url_path = urlparse(url).path
+    if not url_path.startswith(TMP_IMAGES_URL_PREFIX):
+        return url
+    if url in promoted:
+        return promoted[url]
+
+    tmp_root = TMP_IMAGES_DIR.resolve()
+    src = (TMP_IMAGES_DIR / url_path[len(TMP_IMAGES_URL_PREFIX):]).resolve()
+    if not src.is_relative_to(tmp_root) or not src.is_file():
+        logger.warning(f"Import: tmp image missing or invalid, skipping: {url}")
+        promoted[url] = None
+        return None
+
+    dest_dir = get_upload_base_dir() / "images" / PRODUCT_IMAGES_SUBFOLDER
+    stem = "".join(c for c in src.stem if c.isalnum() or c in "-_") or "image"
+    stem = f"{stem}_{int(datetime.now().timestamp())}_{secrets.token_hex(3)}"
+    content = await run_in_threadpool(src.read_bytes)
+    stored_path, _ = await run_in_threadpool(
+        media_service.store_image, content, dest_dir, stem, src.suffix.lower()
+    )
+    created_files.append(stored_path)
+
+    new_url = f"/uploads/images/{PRODUCT_IMAGES_SUBFOLDER}/{stored_path.name}"
+    promoted[url] = new_url
+    return new_url
+
+
+def _delete_promoted_images(paths: list) -> None:
+    """Remove images copied by a failed import (DB changes were rolled back)."""
+    for path in paths:
+        media_service.delete_image_files(path)
 
 
 @router.post(
@@ -126,29 +181,43 @@ async def upload_catalog(
         
         logger.info(f"Saving uploaded file {sanitized_filename} for upload {upload_id}")
         
-        # Read and validate file content
-        content = await file.read()
+        # Stream to disk in chunks, enforcing the size limit incrementally,
+        # instead of buffering the whole (up to 1GB) upload in memory.
+        CHUNK_SIZE = 1024 * 1024  # 1MB
+        file_size = 0
+        buffer = await run_in_threadpool(open, file_path, "wb")
+        try:
+            while True:
+                chunk = await file.read(CHUNK_SIZE)
+                if not chunk:
+                    break
+                
+                # Validate MIME type - must be PDF
+                if file_size == 0 and not chunk.startswith(b'%PDF'):
+                    raise HTTPException(
+                        status_code=status.HTTP_400_BAD_REQUEST,
+                        detail="File content does not match PDF format"
+                    )
+                
+                file_size += len(chunk)
+                # Validate file size
+                if file_size > MAX_PDF_SIZE:
+                    raise HTTPException(
+                        status_code=status.HTTP_400_BAD_REQUEST,
+                        detail=f"File too large. Maximum size: {MAX_PDF_SIZE / 1024 / 1024 / 1024}GB"
+                    )
+                
+                await run_in_threadpool(buffer.write, chunk)
+        finally:
+            await run_in_threadpool(buffer.close)
         
-        # Validate file size
-        if len(content) > MAX_PDF_SIZE:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail=f"File too large. Maximum size: {MAX_PDF_SIZE / 1024 / 1024 / 1024}GB"
-            )
-        
-        # Validate MIME type - must be PDF
-        if not content.startswith(b'%PDF'):
+        if file_size == 0:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="File content does not match PDF format"
             )
         
-        # Save file
-        with open(file_path, "wb") as buffer:
-            buffer.write(content)
-        
         # Update file size
-        file_size = len(content)
         upload_record.file_size = file_size
         upload_record.file_path = str(file_path)
         await db.commit()
@@ -172,8 +241,16 @@ async def upload_catalog(
             "message": "File uploaded successfully, parsing started in background. Use /upload/{upload_id}/status to check progress."
         }
     
+    except HTTPException as e:
+        # Client errors (bad content / too large): keep the 4xx status
+        file_path.unlink(missing_ok=True)
+        upload_record.status = 'failed'
+        upload_record.error_message = str(e.detail)
+        await db.commit()
+        raise
     except Exception as e:
         logger.error(f"Upload failed for {upload_id}: {e}")
+        file_path.unlink(missing_ok=True)
         upload_record.status = 'failed'
         upload_record.error_message = str(e)
         await db.commit()
@@ -820,6 +897,10 @@ async def import_to_production(
                 ),
             )
 
+    # tmp URL -> permanent URL (images shared between products are copied once)
+    promoted_images: dict = {}
+    created_image_files: list = []
+
     try:
         for tmp_family in tmp_families:
             # Create production family
@@ -866,7 +947,9 @@ async def import_to_production(
                     weight=tmp_product.weight,
                     frame_material=tmp_product.frame_material,
                     stock_status=tmp_product.stock_status,
-                    primary_image_url=tmp_product.primary_image_url,
+                    primary_image_url=await _promote_tmp_image(
+                        tmp_product.primary_image_url, promoted_images, created_image_files
+                    ),
                 )
                 db.add(product)
                 await db.flush()
@@ -890,6 +973,13 @@ async def import_to_production(
                 # Chair.primary_image_url instead (set above).
                 image_urls = tmp_product.images if isinstance(tmp_product.images, list) else []
                 for image_url in image_urls:
+                    if not image_url:
+                        continue
+                    # Copy parser output out of /tmp (which cleanup deletes)
+                    # into permanent uploads before referencing it.
+                    image_url = await _promote_tmp_image(
+                        image_url, promoted_images, created_image_files
+                    )
                     if not image_url:
                         continue
                     image = ProductImage(
@@ -926,8 +1016,13 @@ async def import_to_production(
             "imported": imported_counts
         }
 
+    except HTTPException:
+        await db.rollback()
+        _delete_promoted_images(created_image_files)
+        raise
     except Exception as e:
         await db.rollback()
+        _delete_promoted_images(created_image_files)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Import failed: {str(e)}"
@@ -1103,6 +1198,8 @@ async def cleanup_expired_data(
         
         return result
         
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"Cleanup failed: {e}", exc_info=True)
         raise HTTPException(

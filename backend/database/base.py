@@ -47,6 +47,14 @@ else:
     _async_engine_kwargs["pool_size"] = settings.DATABASE_POOL_SIZE
     _async_engine_kwargs["max_overflow"] = settings.DATABASE_MAX_OVERFLOW
 
+# MySQL (and shared hosts in front of it) drop idle connections after
+# wait_timeout; recycle pooled connections before that so workers don't hand
+# out dead connections. pool_pre_ping (above) covers any that slip through.
+_IS_MYSQL = settings.database_url_async.startswith("mysql")
+MYSQL_POOL_RECYCLE_SECONDS = 280
+if _IS_MYSQL:
+    _async_engine_kwargs["pool_recycle"] = MYSQL_POOL_RECYCLE_SECONDS
+
 # Create async engine
 engine = create_async_engine(settings.database_url_async, **_async_engine_kwargs)
 
@@ -63,10 +71,12 @@ AsyncSessionLocal = async_sessionmaker(
 # async driver prefixes to their sync equivalents:
 #   postgresql+asyncpg:// -> postgresql+psycopg2://
 #   mysql+aiomysql://     -> mysql+pymysql://
+#   sqlite+aiosqlite://   -> sqlite://
 _sync_database_url = (
     settings.database_url_async.replace("+asyncpg", "")
     .replace("postgresql://", "postgresql+psycopg2://")
     .replace("mysql+aiomysql://", "mysql+pymysql://")
+    .replace("sqlite+aiosqlite://", "sqlite://")
 )
 
 _sync_engine_kwargs = dict(
@@ -78,8 +88,12 @@ _sync_engine_kwargs = dict(
 if settings.TESTING:
     _sync_engine_kwargs["poolclass"] = NullPool
 else:
-    _sync_engine_kwargs["pool_size"] = settings.DATABASE_POOL_SIZE
-    _sync_engine_kwargs["max_overflow"] = settings.DATABASE_MAX_OVERFLOW
+    # The sync engine only serves background jobs (catalog PDF parsing) and
+    # scripts, so keep its pool small; each Gunicorn worker gets its own.
+    _sync_engine_kwargs["pool_size"] = 2
+    _sync_engine_kwargs["max_overflow"] = 3
+if _IS_MYSQL:
+    _sync_engine_kwargs["pool_recycle"] = MYSQL_POOL_RECYCLE_SECONDS
 
 # Create sync engine for background tasks (PDF parsing, etc.)
 sync_engine = create_engine(_sync_database_url, **_sync_engine_kwargs)

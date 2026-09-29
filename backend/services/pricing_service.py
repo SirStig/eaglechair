@@ -118,29 +118,60 @@ class PricingService:
         Returns:
             tuple: (adjustment_in_cents, percentage)
         """
-        # Get company with active pricing tier
+        pricing_tier = await PricingService._get_active_company_tier(db, company_id)
+        return PricingService._compute_tier_adjustment(
+            pricing_tier, product_category_id, base_price, company_id
+        )
+
+    @staticmethod
+    async def _get_active_company_tier(
+        db: AsyncSession,
+        company_id: int
+    ) -> Optional[CompanyPricing]:
+        """
+        Load the company's pricing tier if it is active and within its date range.
+
+        Returns None when no tier applies. Load once and pass to
+        _compute_tier_adjustment() when pricing many products.
+        """
         stmt = (
-            select(Company, CompanyPricing)
-            .outerjoin(CompanyPricing, Company.pricing_tier_id == CompanyPricing.id)
+            select(CompanyPricing)
+            .join(Company, Company.pricing_tier_id == CompanyPricing.id)
             .where(Company.id == company_id)
         )
         result = await db.execute(stmt)
-        row = result.first()
+        pricing_tier = result.scalars().first()
         
-        if not row or not row[1]:  # No pricing tier assigned
-            return 0, 0
-        
-        company, pricing_tier = row
+        if not pricing_tier:  # No pricing tier assigned
+            return None
         
         # Check if pricing tier is active and within date range
         today = date.today()
         if not pricing_tier.is_active:
-            return 0, 0
+            return None
         
         if pricing_tier.effective_from and pricing_tier.effective_from > today:
-            return 0, 0
+            return None
             
         if pricing_tier.expires_at and pricing_tier.expires_at < today:
+            return None
+        
+        return pricing_tier
+
+    @staticmethod
+    def _compute_tier_adjustment(
+        pricing_tier: Optional[CompanyPricing],
+        product_category_id: int,
+        base_price: int,
+        company_id: Optional[int] = None
+    ) -> tuple[int, int]:
+        """
+        Compute the tier adjustment for one product (no DB access).
+        
+        Returns:
+            tuple: (adjustment_in_cents, percentage)
+        """
+        if not pricing_tier:
             return 0, 0
         
         # Check if applies to this product category
@@ -151,9 +182,9 @@ class PricingService:
         
         # Calculate adjustment (percentage is stored as integer, e.g., 10 = 10%)
         percentage = pricing_tier.percentage_adjustment
-        adjustment = int((base_price * percentage) / 100)
+        adjustment = round((base_price * percentage) / 100)
         
-        logger.info(
+        logger.debug(
             f"Company {company_id} pricing tier '{pricing_tier.pricing_tier_name}': "
             f"{percentage}% = ${adjustment/100:.2f} on ${base_price/100:.2f}"
         )
@@ -248,11 +279,14 @@ class PricingService:
         variations_result = await db.execute(variations_stmt)
         variations = variations_result.scalars().all()
         
-        # Calculate base price with company tier
-        base_calculation = await PricingService.calculate_product_price(
-            db, product_id, company_id
-        )
-        base_final = base_calculation["final_price"]
+        # Calculate base price with company tier (product already loaded)
+        base_price = product.base_price or 0
+        base_final = base_price
+        if company_id:
+            tier_adjustment, _ = await PricingService._get_company_tier_adjustment(
+                db, company_id, product.category_id, base_price
+            )
+            base_final += tier_adjustment
         
         if not variations:
             # No variations, return single price
@@ -265,13 +299,11 @@ class PricingService:
                 "currency": "USD"
             }
         
-        # Calculate prices with each variation
+        # Calculate prices with each variation (variation price is the base
+        # final price plus its adjustment; no per-variation queries needed)
         prices = [base_final]
         for variation in variations:
-            var_calculation = await PricingService.calculate_product_price(
-                db, product_id, company_id, variation_id=variation.id
-            )
-            prices.append(var_calculation["final_price"])
+            prices.append(base_final + (variation.price_adjustment or 0))
         
         min_price = min(prices)
         max_price = max(prices)
