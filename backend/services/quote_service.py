@@ -956,17 +956,18 @@ class QuoteService:
         await db.commit()
         await db.refresh(quote_request)
 
+        # Emails are sent after the response (own DB session, errors logged)
         try:
             company_name = payload.get("contact_name") or payload.get("contact_email") or "Guest"
-            await EmailService.send_quote_created_email(
-                db=db,
+            EmailService.send_in_background(
+                EmailService.send_quote_created_email,
                 to_email=payload.get("contact_email", ""),
                 company_name=company_name,
                 quote_number=quote_number,
                 item_count=len(items_data),
             )
-            await EmailService.send_admin_quote_notification(
-                db=db,
+            EmailService.send_in_background(
+                EmailService.send_admin_quote_notification,
                 quote_number=quote_number,
                 company_name=company_name,
                 item_count=len(items_data),

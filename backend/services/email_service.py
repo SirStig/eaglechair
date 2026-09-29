@@ -4,6 +4,7 @@ Email Service
 Handles email sending with SMTP and template management
 """
 
+import asyncio
 import logging
 import smtplib
 from datetime import datetime
@@ -12,7 +13,7 @@ from email.mime.base import MIMEBase
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any, Awaitable, Callable, Dict, List, Optional, Set
 
 from jinja2 import Template
 from jinja2.sandbox import SandboxedEnvironment
@@ -29,6 +30,9 @@ logger = logging.getLogger(__name__)
 # Get the directory where this file is located
 BASE_DIR = Path(__file__).parent
 TEMPLATES_DIR = BASE_DIR / "email_templates"
+
+# Strong references to in-flight background email tasks (see send_in_background)
+_BACKGROUND_EMAIL_TASKS: Set["asyncio.Task[Any]"] = set()
 
 
 class EmailService:
@@ -224,6 +228,60 @@ class EmailService:
             logger.error(f"Unexpected error connecting to SMTP server: {e}")
             raise ValueError(f"Failed to connect to SMTP server: {str(e)}") from e
     
+    @staticmethod
+    def _send_message_blocking(msg: MIMEMultipart) -> None:
+        """Connect, authenticate and send (blocking; run via asyncio.to_thread)."""
+        server = EmailService._get_smtp_connection()
+        try:
+            server.send_message(msg)
+        finally:
+            try:
+                server.quit()
+            except Exception:
+                server.close()
+
+    @staticmethod
+    def send_in_background(
+        send: Callable[..., Awaitable[Any]], **kwargs: Any
+    ) -> Optional["asyncio.Task[Any]"]:
+        """
+        Run an EmailService.send_* coroutine without delaying the HTTP response.
+
+        The send gets its own DB session (the request's session is closed once
+        the response is sent). Failures are logged, never raised.
+
+        Usage:
+            EmailService.send_in_background(
+                EmailService.send_quote_created_email, to_email=..., ...
+            )
+        """
+        name = getattr(send, "__name__", "send_email")
+        recipient = kwargs.get("to_email", "admin")
+
+        if settings.TESTING:
+            # Tests share one DB connection per case; don't send from a
+            # detached task that would outlive the test's transaction.
+            logger.debug(f"TESTING: skipping background email {name} to {recipient}")
+            return None
+
+        async def _run() -> None:
+            from backend.database.base import AsyncSessionLocal
+
+            try:
+                async with AsyncSessionLocal() as db:
+                    sent = await send(db=db, **kwargs)
+                if sent is False:
+                    logger.error(f"Background email {name} to {recipient} was not sent")
+            except Exception as e:
+                logger.error(
+                    f"Background email {name} to {recipient} failed: {e}", exc_info=True
+                )
+
+        task = asyncio.get_running_loop().create_task(_run())
+        _BACKGROUND_EMAIL_TASKS.add(task)
+        task.add_done_callback(_BACKGROUND_EMAIL_TASKS.discard)
+        return task
+
     @staticmethod
     async def get_template(
         db: AsyncSession,
@@ -631,18 +689,10 @@ class EmailService:
                 logger.error("SMTP not properly configured. SMTP_HOST, SMTP_USER, and SMTP_PASSWORD are required.")
                 return False
             
-            # Get authenticated SMTP connection
-            server = EmailService._get_smtp_connection()
-            
-            recipients = [to_email]
-            if cc:
-                recipients.extend(cc)
-            if bcc:
-                recipients.extend(bcc)
-            
-            server.send_message(msg)
-            server.quit()
-            
+            # Connect, authenticate and send in a worker thread so SMTP
+            # network I/O doesn't block the event loop
+            await asyncio.to_thread(EmailService._send_message_blocking, msg)
+
             # Update template usage tracking
             if db_template:
                 db_template.times_sent += 1
