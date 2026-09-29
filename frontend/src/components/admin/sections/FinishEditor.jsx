@@ -4,6 +4,7 @@ import Button from '../../ui/Button';
 import apiClient from '../../../config/apiClient';
 import { resolveImageUrl } from '../../../utils/apiHelpers';
 import { ArrowLeft, Upload, X } from 'lucide-react';
+import ResponsiveImage from '../../ui/ResponsiveImage';
 
 /**
  * Finish Editor Component
@@ -273,7 +274,9 @@ const FinishEditor = ({ finish, onBack, onSave }) => {
                 </label>
                 {formData.image_url ? (
                   <div className="relative group inline-block">
-                    <img 
+                    <ResponsiveImage 
+                      sizes="192px"
+                      fullResolution={false}
                       src={resolveImageUrl(formData.image_url)} 
                       alt="Finish sample"
                       className="w-48 h-32 object-cover rounded-lg border border-dark-600"

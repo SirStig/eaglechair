@@ -10,6 +10,7 @@ import StatusTabs from '../StatusTabs';
 import PermanentDeleteModal from '../PermanentDeleteModal';
 import { useToast } from '../../../contexts/ToastContext';
 import { useAdminRefresh } from '../../../contexts/AdminRefreshContext';
+import ResponsiveImage from '../../ui/ResponsiveImage';
 
 /**
  * Finish Management - Table Layout with Separate Editor
@@ -297,7 +298,9 @@ const FinishManagement = () => {
               <>
                 <td className="px-3 sm:px-4 py-3">
                   {finish.image_url ? (
-                    <img
+                    <ResponsiveImage
+                      sizes="48px"
+                      fullResolution={false}
                       src={resolveImageUrl(finish.image_url)}
                       alt={finish.name}
                       className="w-10 h-10 sm:w-12 sm:h-12 object-cover rounded border border-dark-600"

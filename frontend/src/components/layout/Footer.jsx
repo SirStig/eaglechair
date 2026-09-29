@@ -1,6 +1,7 @@
 import { Link } from 'react-router-dom';
 import { m } from 'framer-motion';
 import { useSiteSettings } from '../../hooks/useContent';
+import SiteLogo from '../ui/SiteLogo';
 
 const Footer = () => {
   const currentYear = new Date().getFullYear();
@@ -54,21 +55,11 @@ const Footer = () => {
           <div className="lg:col-span-1 sm:col-span-2 md:col-span-1 text-center sm:text-left">
             <div className="flex flex-col items-center sm:items-start">
               {/* Logo from contentData.json */}
-              {logoUrl ? (
-                <img 
-                  src={logoUrl} 
-                  alt={companyName} 
-                  className="h-14 sm:h-16 w-auto mb-3 sm:mb-4 opacity-80"
-                  loading="lazy"
-                  decoding="async"
-                  onError={(e) => {
-                    e.target.onerror = null; // Prevent infinite loop
-                    e.target.src = '/assets/eagle-chair-logo.png';
-                  }}
-                />
-              ) : (
-                <img src="/assets/eagle-chair-logo.png" alt={companyName} className="h-14 sm:h-16 w-auto mb-3 sm:mb-4 opacity-80" loading="lazy" decoding="async" />
-              )}
+              <SiteLogo
+                src={logoUrl}
+                alt={companyName}
+                className="h-14 sm:h-16 w-auto mb-3 sm:mb-4 opacity-80"
+              />
               <p className="text-sm mb-3 sm:mb-4 text-dark-200 max-w-xs">Family-owned manufacturer since 1984.</p>
               {/* Social media links from contentData.json */}
               <div className="flex space-x-4 justify-center sm:justify-start">

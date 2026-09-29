@@ -11,17 +11,6 @@ import logger from './logger';
 const CONTEXT = 'ImageUpload';
 
 const UPLOAD_DIR = '/uploads/images';
-const COMPRESS_THRESHOLD = 500 * 1024;
-const MAX_WIDTH = 2560;
-const MAX_HEIGHT = 1440;
-const COMPRESS_QUALITY_JPEG = 0.9;
-const PRESERVE_TRANSPARENCY_TYPES = ['image/png', 'image/webp', 'image/gif'];
-
-const isCompressibleRaster = (file) => {
-  if (!file.type.startsWith('image/')) return false;
-  if (file.type === 'image/svg+xml') return false;
-  return ['image/jpeg', 'image/png', 'image/webp', 'image/gif'].includes(file.type);
-};
 
 export const uploadImage = async (file, subfolder = 'general') => {
   try {
@@ -36,17 +25,11 @@ export const uploadImage = async (file, subfolder = 'general') => {
       throw new Error('Image size must be less than 50MB');
     }
 
-    const skipCompression = subfolder === 'hero' || subfolder === 'hero-slide' || String(subfolder).startsWith('hero');
-    let payload = file;
-    let extension = file.name.split('.').pop()?.toLowerCase() || 'jpg';
-    if (!skipCompression && isCompressibleRaster(file) && file.size > COMPRESS_THRESHOLD) {
-      const preserveTransparency = PRESERVE_TRANSPARENCY_TYPES.includes(file.type);
-      const blob = await compressImage(file, MAX_WIDTH, MAX_HEIGHT, preserveTransparency ? null : COMPRESS_QUALITY_JPEG, preserveTransparency ? 'image/png' : 'image/jpeg');
-      extension = preserveTransparency ? 'png' : 'jpg';
-      const mime = preserveTransparency ? 'image/png' : 'image/jpeg';
-      payload = new File([blob], file.name.replace(/\.[^.]+$/, `.${extension}`), { type: mime });
-      logger.debug(CONTEXT, `Compressed ${(file.size / 1024).toFixed(0)}KB → ${(blob.size / 1024).toFixed(0)}KB (${extension})`);
-    }
+    // Upload the file untouched: the server keeps the full-resolution original
+    // and generates every smaller rendition (see backend media_service), so
+    // shrinking or re-encoding it here would only lose resolution and colour.
+    const payload = file;
+    const extension = file.name.split('.').pop()?.toLowerCase() || 'jpg';
 
     const timestamp = Date.now();
     const randomStr = Math.random().toString(36).substring(2, 8);

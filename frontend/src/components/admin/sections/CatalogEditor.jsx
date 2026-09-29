@@ -4,6 +4,7 @@ import Button from '../../ui/Button';
 import apiClient from '../../../config/apiClient';
 import { resolveImageUrl } from '../../../utils/apiHelpers';
 import { ArrowLeft, Upload, X, FileText } from 'lucide-react';
+import ResponsiveImage from '../../ui/ResponsiveImage';
 
 /**
  * Catalog Editor Component
@@ -355,7 +356,9 @@ const CatalogEditor = ({ catalog, onBack, onSave }) => {
                 </label>
                 {formData.thumbnail_url ? (
                   <div className="relative group inline-block">
-                    <img 
+                    <ResponsiveImage 
+                      sizes="192px"
+                      fullResolution={false}
                       src={resolveImageUrl(formData.thumbnail_url)} 
                       alt="Catalog thumbnail"
                       className="w-48 h-32 object-cover rounded-lg border border-dark-600"

@@ -12,6 +12,7 @@ import { ExternalLink, ChevronDown, ChevronUp, Paperclip, Globe, ArrowRight, Rot
 import { sanitizeStreamingMarkdown } from '../../../utils/sanitizeStreamingMarkdown';
 import SuggestedEditCard from './SuggestedEditCard';
 import ToolCallCard from './ToolCallCard';
+import ResponsiveImage from '../../ui/ResponsiveImage';
 
 function getLinkLabel(children) {
   if (typeof children === 'string') return children;
@@ -60,7 +61,10 @@ const markdownComponents = {
     if (!safe) return null;
     return (
       <a href={src} target="_blank" rel="noopener noreferrer" className="inline-block my-2">
-        <img
+        <ResponsiveImage
+          sizes="400px"
+          fullResolution={false}
+          placeholder={false}
           src={src}
           alt={alt || ''}
           loading="lazy"

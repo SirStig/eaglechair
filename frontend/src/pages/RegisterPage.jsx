@@ -8,6 +8,7 @@ import Card from '../components/ui/Card';
 import { useAuthStore } from '../store/authStore';
 import { useCartStore } from '../store/cartStore';
 import { useSiteSettings } from '../hooks/useContent';
+import SiteLogo from '../components/ui/SiteLogo';
 
 const RegisterPage = () => {
   const navigate = useNavigate();
@@ -175,13 +176,14 @@ const RegisterPage = () => {
         {/* Header */}
         <div className="text-center mb-8">
           <Link to="/" className="inline-block mb-4">
-            <m.img 
-              src={siteSettings?.logoUrl || "/assets/eagle-chair-logo.png"}
-              alt={siteSettings?.companyName || "Eagle Chair"}
-              className="h-16 w-auto mx-auto"
-              whileHover={{ scale: 1.05 }}
-              transition={{ type: "spring", stiffness: 300 }}
-            />
+            <m.div className="inline-block" whileHover={{ scale: 1.05 }} transition={{ type: "spring", stiffness: 300 }}>
+              <SiteLogo
+                src={siteSettings?.logoUrl}
+                alt={siteSettings?.companyName || "Eagle Chair"}
+                className="h-16 w-auto mx-auto"
+                priority
+              />
+            </m.div>
           </Link>
           <h1 className="text-2xl sm:text-3xl font-bold mb-2 text-dark-50">Create Your Account</h1>
           <p className="text-dark-200">Join {siteSettings?.companyName || "Eagle Chair"} for exclusive trade pricing and services</p>

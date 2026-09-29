@@ -7,6 +7,7 @@ import { getSiteSettingsAdmin, updateSiteSettings } from '../../services/content
 import { uploadImage } from '../../utils/imageUpload';
 import { useToast } from '../../contexts/ToastContext';
 import logger from '../../utils/logger';
+import ResponsiveImage from '../ui/ResponsiveImage';
 
 const CONTEXT = 'SiteSettingsManager';
 
@@ -152,7 +153,7 @@ const SiteSettingsManager = () => {
                 </label>
                 {formData.logo_url && (
                   <div className="mb-2 p-4 bg-dark-700 rounded-lg">
-                    <img src={formData.logo_url} alt="Logo" className="h-12 object-contain" />
+                    <ResponsiveImage sizes="240px" fullResolution={false} placeholder={false} src={formData.logo_url} alt="Logo" className="h-12 object-contain" />
                   </div>
                 )}
                 <label className="cursor-pointer">
@@ -175,7 +176,7 @@ const SiteSettingsManager = () => {
                 </label>
                 {formData.logo_dark_url && (
                   <div className="mb-2 p-4 bg-dark-700 rounded-lg">
-                    <img src={formData.logo_dark_url} alt="Dark Logo" className="h-12 object-contain" />
+                    <ResponsiveImage sizes="240px" fullResolution={false} placeholder={false} src={formData.logo_dark_url} alt="Dark Logo" className="h-12 object-contain" />
                   </div>
                 )}
                 <label className="cursor-pointer">

@@ -3,11 +3,33 @@ import { Link } from 'react-router-dom';
 import { m as Motion, AnimatePresence } from 'framer-motion';
 import productService from '../../services/productService';
 import logger from '../../utils/logger';
+import ResponsiveImage from '../ui/ResponsiveImage';
+import { ensureResolvedImageUrl, getImageSrcSet } from '../../utils/apiHelpers';
 
 const CONTEXT = 'MobileProductsMenu';
 
 // Fallback image for categories without banner_image_url
-const DEFAULT_BANNER = 'https://images.unsplash.com/photo-1617104678098-de229db51175?w=400&h=300&fit=crop';
+const DEFAULT_BANNER = '/assets/default-banner-categories-640.webp';
+
+// The tile image sits under a 60% black overlay, so it deliberately asks for
+// less than the full tile width: phones get the 640px rendition (1024px on
+// tablets) instead of 1600px+.
+const TILE_IMAGE_SIZES = '50vw';
+
+// Fetch the tile renditions ahead of time (same srcset/sizes as the tiles, so
+// the browser reuses them) once the mobile menu is open.
+const warmTileImages = (categories) => {
+  categories.forEach((category) => {
+    const resolved = ensureResolvedImageUrl(category.banner_image_url);
+    const srcSet = resolved && getImageSrcSet(resolved);
+    if (!srcSet) return;
+    const img = new Image();
+    img.fetchPriority = 'low';
+    img.sizes = TILE_IMAGE_SIZES;
+    img.srcset = srcSet;
+    img.src = resolved;
+  });
+};
 
 /**
  * Mobile Products Menu Component
@@ -21,6 +43,19 @@ const MobileProductsMenu = ({ isOpen, onNavigate }) => {
   useEffect(() => {
     loadCategoriesAndSubcategories();
   }, []);
+
+  // This component only mounts when the mobile menu opens: start loading the
+  // category images now so they're ready when "Products" is expanded.
+  useEffect(() => {
+    if (categories.length === 0) return undefined;
+    const warm = () => warmTileImages(categories);
+    if ('requestIdleCallback' in window) {
+      const id = window.requestIdleCallback(warm, { timeout: 1500 });
+      return () => window.cancelIdleCallback(id);
+    }
+    const id = setTimeout(warm, 300);
+    return () => clearTimeout(id);
+  }, [categories]);
 
   const loadCategoriesAndSubcategories = async () => {
     try {
@@ -105,10 +140,15 @@ const MobileProductsMenu = ({ isOpen, onNavigate }) => {
               return (
                 <div key={category.id} className="relative">
                   {/* Category Image Background */}
-                  <div 
-                    className="relative h-56 bg-cover bg-center overflow-hidden rounded-lg"
-                    style={{ backgroundImage: `url(${bannerImage})` }}
-                  >
+                  <div className="relative h-56 overflow-hidden rounded-lg bg-dark-800">
+                    <ResponsiveImage
+                      src={bannerImage}
+                      sizes={TILE_IMAGE_SIZES}
+                      fullResolution={false}
+                      alt=""
+                      aria-hidden="true"
+                      className="absolute inset-0 w-full h-full object-cover object-center"
+                    />
                     <div className="absolute inset-0 bg-black/60" />
                     <div 
                       className="absolute inset-0 pointer-events-none z-[5]"

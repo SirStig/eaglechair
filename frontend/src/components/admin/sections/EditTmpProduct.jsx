@@ -5,6 +5,7 @@ import Card from '../../ui/Card';
 import Button from '../../ui/Button';
 import { resolveImageUrl } from '../../../utils/apiHelpers';
 import virtualCatalogService from '../../../services/virtualCatalogService';
+import ResponsiveImage from '../../ui/ResponsiveImage';
 
 /**
  * Edit Temporary Product
@@ -441,7 +442,9 @@ const EditTmpProduct = () => {
               {Array.isArray(product?.images) && product.images.length > 0 ? (
                 product.images.map((img, index) => (
                   <div key={index} className="rounded-lg bg-dark-800 overflow-hidden">
-                    <img
+                    <ResponsiveImage
+                      sizes="(min-width: 1024px) 360px, 100vw"
+                      fullResolution={false}
                       src={resolveImageUrl(img)}
                       alt={`${product.name} - ${index + 1}`}
                       className="w-full h-48 object-contain"

@@ -10,6 +10,7 @@ import StatusTabs from '../StatusTabs';
 import PermanentDeleteModal from '../PermanentDeleteModal';
 import { useToast } from '../../../contexts/ToastContext';
 import { useAdminRefresh } from '../../../contexts/AdminRefreshContext';
+import ResponsiveImage from '../../ui/ResponsiveImage';
 
 /**
  * Laminate Management - Table Layout
@@ -248,7 +249,9 @@ const LaminateManagement = () => {
               <>
                 <td className="px-4 py-3">
                   {laminate.swatch_image_url ? (
-                    <img
+                    <ResponsiveImage
+                      sizes="48px"
+                      fullResolution={false}
                       src={resolveImageUrl(laminate.swatch_image_url)}
                       alt={laminate.pattern_name}
                       className="w-12 h-12 object-cover rounded border border-dark-600"

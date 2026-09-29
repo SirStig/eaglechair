@@ -11,6 +11,7 @@ import StatusTabs from '../StatusTabs';
 import PermanentDeleteModal from '../PermanentDeleteModal';
 import { useToast } from '../../../contexts/ToastContext';
 import { useAdminRefresh } from '../../../contexts/AdminRefreshContext';
+import ResponsiveImage from '../../ui/ResponsiveImage';
 
 /**
  * Product Family Management with Full CRUD
@@ -427,7 +428,9 @@ const FamilyManagement = () => {
                 </td>
                 <td className="px-3 sm:px-4 py-3 sm:py-4">
                   {family.family_image ? (
-                    <img
+                    <ResponsiveImage
+                      sizes="64px"
+                      fullResolution={false}
                       src={resolveImageUrl(family.family_image)}
                       alt={family.name}
                       className="w-12 h-12 sm:w-16 sm:h-16 object-contain bg-dark-700 rounded-lg border border-dark-600"
