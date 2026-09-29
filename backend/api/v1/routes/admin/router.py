@@ -4,7 +4,7 @@ Admin Router
 Aggregates all admin route modules
 """
 
-from fastapi import APIRouter
+from fastapi import APIRouter, Depends, Request
 
 from backend.api.v1.routes.admin import (
     ai_chat,
@@ -25,7 +25,31 @@ from backend.api.v1.routes.admin import (
     virtual_catalog,
 )
 
-router = APIRouter(prefix="/admin", tags=["Admin"])
+from backend.services.catalog_cache import bump_catalog_version
+
+# Admin sections whose writes never change public catalog data
+_NON_CATALOG_SECTIONS = ("/companies", "/quotes", "/dashboard", "/emails", "/ai")
+
+
+async def _bump_catalog_version_after_write(request: Request):
+    """
+    After a successful admin write to catalog data, bump the catalog version
+    so the public response cache, search index and option map refresh.
+    """
+    yield
+    if request.method in ("GET", "HEAD", "OPTIONS"):
+        return
+    path = request.url.path
+    section = path.split("/admin", 1)[-1]
+    if not section.startswith(_NON_CATALOG_SECTIONS):
+        await bump_catalog_version()
+
+
+router = APIRouter(
+    prefix="/admin",
+    tags=["Admin"],
+    dependencies=[Depends(_bump_catalog_version_after_write)],
+)
 
 # Include admin route modules
 router.include_router(products.router, prefix="/products", tags=["Admin - Products"])

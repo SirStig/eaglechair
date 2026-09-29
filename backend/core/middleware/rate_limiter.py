@@ -102,7 +102,14 @@ class AdvancedRateLimiter(BaseHTTPMiddleware):
         # Tracking
         self.request_history: Dict[str, deque] = defaultdict(lambda: deque(maxlen=1000))
         self.burst_tracker: Dict[str, list] = defaultdict(list)
-        
+
+        # Periodic pruning keeps tracking state bounded (see _maybe_cleanup)
+        self.cleanup_interval = kwargs.get("cleanup_interval", 60)
+        self.max_tracked_identifiers = kwargs.get("max_tracked_identifiers", 50000)
+        # Longest window any limit uses; history older than this is never read
+        self.history_retention = kwargs.get("history_retention", 900)
+        self._last_cleanup = time.time()
+
         # Burst protection - increased threshold to accommodate legitimate page loads
         # Modern SPAs make many parallel API calls (OPTIONS + GET for each endpoint)
         # A typical page load might have 10-30 parallel requests
@@ -145,10 +152,11 @@ class AdvancedRateLimiter(BaseHTTPMiddleware):
             identifier = self._get_identifier(request)
         
         current_time = time.time()
-        
+        self._maybe_cleanup(current_time)
+
         # Get limits for this endpoint
         max_requests, window = self._get_rate_limit(path, user_type)
-        
+
         # Check for burst
         if self._detect_burst(identifier, current_time):
             logger.warning(f"Burst detected from {identifier}")
@@ -325,6 +333,41 @@ class AdvancedRateLimiter(BaseHTTPMiddleware):
         
         return len(self.request_history[identifier])
     
+    def _maybe_cleanup(self, current_time: float) -> None:
+        """Prune idle identifiers every cleanup_interval seconds or when too many are tracked."""
+        if (
+            current_time - self._last_cleanup < self.cleanup_interval
+            and len(self.request_history) <= self.max_tracked_identifiers
+            and len(self.burst_tracker) <= self.max_tracked_identifiers
+        ):
+            return
+        self.cleanup_old_data(current_time)
+
+    def cleanup_old_data(self, current_time: float = None) -> None:
+        """Drop identifiers with no recent requests and cap the number tracked."""
+        current_time = current_time or time.time()
+        self._last_cleanup = current_time
+
+        history_cutoff = current_time - self.history_retention
+        for identifier in list(self.request_history.keys()):
+            history = self.request_history[identifier]
+            if not history or history[-1] < history_cutoff:
+                del self.request_history[identifier]
+
+        burst_cutoff = current_time - self.burst_window
+        for identifier in list(self.burst_tracker.keys()):
+            timestamps = self.burst_tracker[identifier]
+            if not timestamps or timestamps[-1] <= burst_cutoff:
+                del self.burst_tracker[identifier]
+
+        # Hard cap: evict the least recently active identifiers
+        for tracker in (self.request_history, self.burst_tracker):
+            excess = len(tracker) - self.max_tracked_identifiers
+            if excess > 0:
+                oldest = sorted(tracker, key=lambda k: tracker[k][-1] if tracker[k] else 0)
+                for identifier in oldest[:excess]:
+                    del tracker[identifier]
+
     def _detect_burst(self, identifier: str, current_time: float) -> bool:
         """Detect burst traffic (too many requests in very short time)"""
         # Add current request to burst tracker

@@ -1036,9 +1036,10 @@ class AdminService:
                             }
                         )
 
+                # Sent after the response (own DB session, errors logged)
                 if items_data:
-                    await EmailService.send_quote_detailed_email(
-                        db=db,
+                    EmailService.send_in_background(
+                        EmailService.send_quote_detailed_email,
                         to_email=to_email,
                         company_name=company_name,
                         quote_number=quote_for_email.quote_number,
@@ -1055,8 +1056,8 @@ class AdminService:
                         quote_url=quote_url,
                     )
                 else:
-                    await EmailService.send_quote_updated_email(
-                        db=db,
+                    EmailService.send_in_background(
+                        EmailService.send_quote_updated_email,
                         to_email=to_email,
                         company_name=company_name,
                         quote_number=quote_for_email.quote_number,
@@ -1066,7 +1067,7 @@ class AdminService:
                         quoted_lead_time=quote_for_email.quoted_lead_time,
                         quote_url=quote_url,
                     )
-                logger.info(f"Quote update email sent to {to_email}")
+                logger.info(f"Quote update email queued for {to_email}")
         except Exception as e:
             logger.error(f"Failed to send quote update email: {e}", exc_info=True)
             # Don't fail the update if email fails

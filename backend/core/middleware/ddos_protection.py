@@ -47,7 +47,12 @@ class DDoSProtectionMiddleware(BaseHTTPMiddleware):
         self.request_counts: Dict[str, deque] = defaultdict(lambda: deque(maxlen=1000))
         self.banned_ips: Dict[str, float] = {}  # IP: ban_until_timestamp
         self.suspicious_ips: Set[str] = set()
-        
+
+        # Periodic pruning keeps tracking state bounded (see _maybe_cleanup)
+        self.cleanup_interval = kwargs.get("cleanup_interval", 60)
+        self.max_tracked_ips = kwargs.get("max_tracked_ips", 50000)
+        self._last_cleanup = time.time()
+
         # Attack patterns
         self.attack_patterns = [
             "union select",
@@ -69,7 +74,8 @@ class DDoSProtectionMiddleware(BaseHTTPMiddleware):
         
         client_ip = self._get_client_ip(request)
         current_time = time.time()
-        
+        self._maybe_cleanup(current_time)
+
         # Check if IP is banned
         if self._is_banned(client_ip, current_time):
             security_logger.log_suspicious_activity(
@@ -217,10 +223,21 @@ class DDoSProtectionMiddleware(BaseHTTPMiddleware):
         
         return False
     
+    def _maybe_cleanup(self, current_time: float) -> None:
+        """Run cleanup_old_data every cleanup_interval seconds or when too many IPs are tracked."""
+        if (
+            current_time - self._last_cleanup < self.cleanup_interval
+            and len(self.request_counts) <= self.max_tracked_ips
+            and len(self.banned_ips) <= self.max_tracked_ips
+        ):
+            return
+        self.cleanup_old_data()
+
     def cleanup_old_data(self):
-        """Cleanup old tracking data (call periodically)"""
+        """Cleanup old tracking data (called periodically from dispatch)"""
         current_time = time.time()
-        
+        self._last_cleanup = current_time
+
         # Remove expired bans
         expired_ips = [ip for ip, ban_time in self.banned_ips.items() if current_time >= ban_time]
         for ip in expired_ips:
@@ -236,4 +253,20 @@ class DDoSProtectionMiddleware(BaseHTTPMiddleware):
             
             if not self.request_counts[ip]:
                 del self.request_counts[ip]
+
+        # Hard caps: evict the least recently active IPs / soonest-expiring bans
+        excess = len(self.request_counts) - self.max_tracked_ips
+        if excess > 0:
+            oldest = sorted(self.request_counts, key=lambda k: self.request_counts[k][-1])
+            for ip in oldest[:excess]:
+                del self.request_counts[ip]
+        excess = len(self.banned_ips) - self.max_tracked_ips
+        if excess > 0:
+            for ip in sorted(self.banned_ips, key=self.banned_ips.get)[:excess]:
+                del self.banned_ips[ip]
+
+        # Suspicious marks only matter while an IP is active or banned
+        self.suspicious_ips.intersection_update(
+            set(self.request_counts) | set(self.banned_ips)
+        )
 
