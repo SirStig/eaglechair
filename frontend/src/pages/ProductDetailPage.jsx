@@ -1,13 +1,12 @@
-import { useState, useEffect, useRef, useMemo } from 'react';
+import { useState, useEffect, useRef, useMemo, lazy, Suspense } from 'react';
 import { useParams, useNavigate, Link, useSearchParams } from 'react-router-dom';
-import { AnimatePresence, motion } from 'framer-motion';
+import { AnimatePresence, m } from 'framer-motion';
 import Button from '../components/ui/Button';
 import Tag from '../components/ui/Tag';
 import LoadingSpinner from '../components/ui/LoadingSpinner';
 import ProductCard from '../components/ui/ProductCard';
 import ProductCarousel from '../components/ui/ProductCarousel';
 import QuickViewModal from '../components/ui/QuickViewModal';
-import ImageLightboxModal from '../components/ui/ImageLightboxModal';
 import VariationImageDisclaimer from '../components/ui/VariationImageDisclaimer';
 import EditableWrapper from '../components/admin/EditableWrapper';
 import SEOHead from '../components/SEOHead';
@@ -24,6 +23,9 @@ import { useToast } from '../contexts/ToastContext';
 import logger from '../utils/logger';
 
 const CONTEXT = 'ProductDetailPage';
+
+// Zoom lightbox (react-zoom-pan-pinch) is fetched the first time it's opened
+const ImageLightboxModal = lazy(() => import('../components/ui/ImageLightboxModal'));
 
 const ProductDetailPage = () => {
   const { id, categorySlug, subcategorySlug, productSlug } = useParams();
@@ -404,14 +406,14 @@ const ProductDetailPage = () => {
       {/* Success Message */}
       <AnimatePresence>
         {showSuccessMessage && (
-          <motion.div
+          <m.div
             initial={{ opacity: 0, y: -50 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -50 }}
             className="fixed top-20 right-4 z-50 bg-green-600 text-white px-6 py-3 rounded-lg shadow-lg"
           >
             Added to cart successfully!
-          </motion.div>
+          </m.div>
         )}
       </AnimatePresence>
 
@@ -1243,13 +1245,17 @@ const ProductDetailPage = () => {
         onClose={() => setQuickViewProduct(null)}
       />
 
-      <ImageLightboxModal
-        isOpen={lightboxOpen}
-        onClose={() => setLightboxOpen(false)}
-        images={lightboxImages}
-        initialIndex={lightboxInitialIndex}
-        showDisclaimer={isShowingBaseImageForVariation}
-      />
+      {lightboxImages.length > 0 && (
+        <Suspense fallback={null}>
+          <ImageLightboxModal
+            isOpen={lightboxOpen}
+            onClose={() => setLightboxOpen(false)}
+            images={lightboxImages}
+            initialIndex={lightboxInitialIndex}
+            showDisclaimer={isShowingBaseImageForVariation}
+          />
+        </Suspense>
+      )}
     </div>
   );
 };

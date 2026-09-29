@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
-import { motion } from 'framer-motion';
+import { m } from 'framer-motion';
 import { useCatalogs } from '../hooks/useContent';
 import SEOHead from '../components/SEOHead';
 import { SEO } from '../config/seoConfig';
@@ -105,7 +105,7 @@ const VirtualCatalogsPage = () => {
         ) : (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6">
             {filteredCatalogs.map((catalog, index) => (
-              <motion.div
+              <m.div
                 key={catalog.id}
                 layout={false}
                 initial={{ opacity: 0, y: 20 }}
@@ -180,7 +180,7 @@ const VirtualCatalogsPage = () => {
                     </div>
                   )}
                 </div>
-              </motion.div>
+              </m.div>
             ))}
           </div>
         )}

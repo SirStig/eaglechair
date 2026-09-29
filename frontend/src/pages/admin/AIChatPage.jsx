@@ -7,7 +7,7 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
 import { useMediaQuery } from '../../hooks/useMediaQuery';
 import { useNavigate, useParams, useLocation } from 'react-router-dom';
-import { motion, AnimatePresence } from 'framer-motion';
+import { m, AnimatePresence } from 'framer-motion';
 import {
   ArrowLeft,
   Brain,
@@ -297,7 +297,7 @@ function TrainingPanel({ onClose, showClose }) {
       {/* Upload form */}
       <AnimatePresence>
         {showUpload && (
-          <motion.div
+          <m.div
             initial={{ height: 0, opacity: 0 }}
             animate={{ height: 'auto', opacity: 1 }}
             exit={{ height: 0, opacity: 0 }}
@@ -397,7 +397,7 @@ function TrainingPanel({ onClose, showClose }) {
                 </button>
               </div>
             </div>
-          </motion.div>
+          </m.div>
         )}
       </AnimatePresence>
 
@@ -451,7 +451,7 @@ function TrainingPanel({ onClose, showClose }) {
               {/* Expanded: summary and key facts */}
               <AnimatePresence>
                 {expanded[doc.id] && doc.status === 'completed' && (
-                  <motion.div
+                  <m.div
                     initial={{ height: 0, opacity: 0 }}
                     animate={{ height: 'auto', opacity: 1 }}
                     exit={{ height: 0, opacity: 0 }}
@@ -491,7 +491,7 @@ function TrainingPanel({ onClose, showClose }) {
                         </div>
                       )}
                     </div>
-                  </motion.div>
+                  </m.div>
                 )}
               </AnimatePresence>
             </div>
@@ -607,7 +607,7 @@ export default function AIChatPage() {
       )}
       <AnimatePresence>
         {showSidebar && (
-          <motion.div
+          <m.div
             initial={{ width: 0 }}
             animate={{ width: isMobile ? '100%' : 224 }}
             exit={{ width: 0 }}
@@ -630,7 +630,7 @@ export default function AIChatPage() {
               onClose={isMobile ? () => setShowSidebar(false) : undefined}
               showCloseButton={isMobile}
             />
-          </motion.div>
+          </m.div>
         )}
       </AnimatePresence>
 
@@ -783,7 +783,7 @@ export default function AIChatPage() {
           )}
           <AnimatePresence>
             {rightPanel && (
-              <motion.div
+              <m.div
                 initial={{ width: 0, opacity: 0 }}
                 animate={{ width: isMobile ? '100%' : 320, opacity: 1 }}
                 exit={{ width: 0, opacity: 0 }}
@@ -791,7 +791,7 @@ export default function AIChatPage() {
                 className="fixed sm:relative inset-y-0 right-0 z-30 sm:z-auto flex-shrink-0 border-l border-dark-700 overflow-hidden bg-dark-900 sm:bg-transparent pt-safe sm:pt-0"
               >
                 {rightPanel === 'memory' ? <MemoryPanel onClose={() => setRightPanel(null)} showClose={isMobile} /> : <TrainingPanel onClose={() => setRightPanel(null)} showClose={isMobile} />}
-              </motion.div>
+              </m.div>
             )}
           </AnimatePresence>
         </div>

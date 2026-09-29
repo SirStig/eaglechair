@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { Link } from 'react-router-dom';
-import { motion } from 'framer-motion';
+import { m } from 'framer-motion';
 import Button from './Button';
 import EditableWrapper from '../admin/EditableWrapper';
 import ResponsiveImage from './ResponsiveImage';
@@ -70,7 +70,7 @@ const HeroCarousel = ({ slides, onUpdateSlide, refetch, loading, renderSkeleton 
               <div className="absolute inset-0 flex items-end justify-start pb-[22vh] pl-[5vw] sm:pl-[8vw] md:pl-[10vw] lg:pl-[12vw]">
                 <div className="container">
                   <div className="max-w-2xl">
-                    <motion.div
+                    <m.div
                       key={slide.id ?? index}
                       initial={{ opacity: 0, y: 24 }}
                       animate={{ opacity: 1, y: 0 }}
@@ -90,7 +90,7 @@ const HeroCarousel = ({ slides, onUpdateSlide, refetch, loading, renderSkeleton 
                           </Button>
                         </Link>
                       </div>
-                    </motion.div>
+                    </m.div>
                   </div>
                 </div>
               </div>

@@ -1,5 +1,6 @@
-import { Routes, Route, Outlet, Navigate, useLocation } from 'react-router-dom';
+import { Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { useEffect, lazy, Suspense } from 'react';
+import { LazyMotion } from 'framer-motion';
 import Layout from './components/layout/Layout';
 import ProtectedRoute from './components/ProtectedRoute';
 import ScrollToTop from './components/ScrollToTop';
@@ -7,14 +8,20 @@ import ErrorBoundary from './components/ErrorBoundary';
 import { EditModeProvider } from './contexts/EditModeContext';
 import { AdminAuthProvider } from './contexts/AdminAuthContext';
 import { ToastProvider } from './contexts/ToastContext';
-import { AIChatProvider, useAIChat } from './contexts/AIChatContext';
-import EditModeToggle from './components/admin/EditModeToggle';
-import AdminBottomNav from './components/admin/AdminBottomNav';
+import { useEditMode } from './contexts/useEditMode';
 import { useAuthStore } from './store/authStore';
 import { useCartStore } from './store/cartStore';
 import LoadingSpinner from './components/ui/LoadingSpinner';
-import { useStandalone } from './hooks/useStandalone';
-import { useMediaQuery } from './hooks/useMediaQuery';
+
+// Animation features (domAnimation) load in a separate chunk; m.* components
+// render their initial state until it arrives. The request starts as soon as
+// this module runs (in parallel with the route chunk), not after first render.
+const motionFeatures = import('./utils/motionFeatures').then((mod) => mod.default);
+const loadMotionFeatures = () => motionFeatures;
+
+// Admin-only chrome: loaded on demand so public visitors never download it
+const AdminShell = lazy(() => import('./components/admin/AdminShell'));
+const EditModeToggle = lazy(() => import('./components/admin/EditModeToggle'));
 
 // Lazy load all pages for route-based code splitting
 const HomePage = lazy(() => import('./pages/HomePage'));
@@ -70,28 +77,14 @@ function ManifestInjector() {
   return null;
 }
 
-function AdminPWAWrapper() {
-  const location = useLocation();
-  const isStandalone = useStandalone();
-  const isTabletOrSmaller = useMediaQuery('(max-width: 767px)');
-  const isAIChatPage = location.pathname.startsWith('/admin/ai');
-  const showBottomNav = isStandalone && isTabletOrSmaller && !isAIChatPage;
-  const { closeChat } = useAIChat();
-
-  useEffect(() => {
-    if (!isStandalone) return;
-    const meta = document.querySelector('meta[name="viewport"]');
-    if (!meta) return;
-    const original = meta.getAttribute('content');
-    meta.setAttribute('content', 'width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover');
-    return () => { meta.setAttribute('content', original); };
-  }, [isStandalone]);
-
+// Only fetch the edit-mode toggle chunk once an admin session is detected
+function AdminEditModeToggle() {
+  const { isAdmin } = useEditMode();
+  if (!isAdmin) return null;
   return (
-    <>
-      <Outlet />
-      {showBottomNav && <AdminBottomNav onNavigate={closeChat} />}
-    </>
+    <Suspense fallback={null}>
+      <EditModeToggle />
+    </Suspense>
   );
 }
 
@@ -112,13 +105,14 @@ function CartSync() {
 function App() {
   return (
     <ErrorBoundary>
+      <LazyMotion features={loadMotionFeatures} strict>
           <ManifestInjector />
           <CartSync />
           <AdminAuthProvider>
             <EditModeProvider>
               <ToastProvider>
                 <ScrollToTop />
-                <EditModeToggle />
+                <AdminEditModeToggle />
                 <Suspense fallback={<LoadingSpinner />}>
                   <Routes>
           {/* Public Routes */}
@@ -132,9 +126,7 @@ function App() {
             path="/admin"
             element={
               <ProtectedRoute requireAdmin={true}>
-                <AIChatProvider>
-                  <AdminPWAWrapper />
-                </AIChatProvider>
+                <AdminShell />
               </ProtectedRoute>
             }
           >
@@ -197,6 +189,7 @@ function App() {
               </ToastProvider>
             </EditModeProvider>
           </AdminAuthProvider>
+      </LazyMotion>
       </ErrorBoundary>
   );
 }

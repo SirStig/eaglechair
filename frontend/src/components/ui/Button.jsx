@@ -1,4 +1,4 @@
-import { motion } from 'framer-motion';
+import { m } from 'framer-motion';
 import { clsx } from 'clsx';
 
 const Button = ({ 
@@ -33,7 +33,7 @@ const Button = ({
   };
 
   return (
-    <motion.button
+    <m.button
       whileHover={{ scale: disabled ? 1 : 1.02 }}
       whileTap={{ scale: disabled ? 1 : 0.98 }}
       transition={{ type: 'spring', stiffness: 400, damping: 17 }}
@@ -51,7 +51,7 @@ const Button = ({
       {Icon && iconPosition === 'left' && <Icon className="mr-2 h-5 w-5" />}
       {children}
       {Icon && iconPosition === 'right' && <Icon className="ml-2 h-5 w-5" />}
-    </motion.button>
+    </m.button>
   );
 };
 

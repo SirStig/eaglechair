@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { motion } from 'framer-motion';
+import { m } from 'framer-motion';
 import Button from '../ui/Button';
 import Card from '../ui/Card';
 import EditModal from './EditModal';
@@ -135,7 +135,7 @@ const CategoriesManager = () => {
           </Card>
         ) : (
           categories.map((category) => (
-            <motion.div
+            <m.div
               key={category.id}
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
@@ -205,7 +205,7 @@ const CategoriesManager = () => {
                   </div>
                 </div>
               </Card>
-            </motion.div>
+            </m.div>
           ))
         )}
       </div>

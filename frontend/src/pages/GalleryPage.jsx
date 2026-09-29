@@ -1,6 +1,6 @@
 import { useState } from 'react';
 // eslint-disable-next-line no-unused-vars
-import { motion } from 'framer-motion';
+import { m } from 'framer-motion';
 import SEOHead from '../components/SEOHead';
 import { SEO } from '../config/seoConfig';
 import Modal from '../components/ui/Modal';
@@ -180,7 +180,7 @@ const GalleryPage = () => {
               const location = image.location;
               
               return (
-                <motion.div
+                <m.div
                   initial={{ opacity: 0, scale: 0.9 }}
                   animate={{ opacity: 1, scale: 1 }}
                   transition={{ delay: index * 0.05 }}
@@ -201,7 +201,7 @@ const GalleryPage = () => {
                       {location && <p className="text-xs text-dark-200">{location}</p>}
                     </div>
                   </div>
-                </motion.div>
+                </m.div>
               );
             }}
             className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6"

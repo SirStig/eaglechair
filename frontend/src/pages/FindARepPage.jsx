@@ -1,7 +1,7 @@
 import { useState, useCallback, useMemo } from 'react';
 import SEOHead from '../components/SEOHead';
 import { SEO } from '../config/seoConfig';
-import { motion } from 'framer-motion';
+import { m } from 'framer-motion';
 import Card from '../components/ui/Card';
 import USMapInteractive from '../components/USMapInteractive';
 import EditableWrapper from '../components/admin/EditableWrapper';
@@ -122,7 +122,7 @@ const FindARepPage = () => {
                 onSave={(newData) => handleUpdateRep(displayRep.id, newData)}
                 label={`Rep: ${displayRep.name}`}
               >
-                <motion.div
+                <m.div
                   key={displayRep.id}
                   initial={{ opacity: 0, y: 20 }}
                   animate={{ opacity: 1, y: 0 }}
@@ -182,7 +182,7 @@ const FindARepPage = () => {
                       </a>
                     </div>
                   </Card>
-                </motion.div>
+                </m.div>
               </EditableWrapper>
             ) : (
               <Card className="text-center py-12">

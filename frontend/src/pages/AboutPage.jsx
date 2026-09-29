@@ -1,5 +1,5 @@
 // eslint-disable-next-line no-unused-vars
-import { motion } from 'framer-motion';
+import { m } from 'framer-motion';
 import SEOHead from '../components/SEOHead';
 import { SEO } from '../config/seoConfig';
 import Card from '../components/ui/Card';
@@ -145,7 +145,7 @@ const AboutPage = () => {
         </div>
 
         <div className="relative container flex-1 flex items-center">
-          <motion.div
+          <m.div
             initial={{ opacity: 0, y: 30 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.8 }}
@@ -188,7 +188,7 @@ const AboutPage = () => {
                 </button>
               )}
             </EditableWrapper>
-          </motion.div>
+          </m.div>
         </div>
       </section>
 
@@ -196,7 +196,7 @@ const AboutPage = () => {
       <section className="py-12 sm:py-16 lg:py-20">
         <div className="container">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-8 sm:gap-12 items-center mb-12 sm:mb-16">
-            <motion.div
+            <m.div
               initial={{ opacity: 0, x: -30 }}
               whileInView={{ opacity: 1, x: 0 }}
               viewport={{ once: true }}
@@ -217,8 +217,8 @@ const AboutPage = () => {
                   className="w-full rounded-2xl shadow-2xl"
                 />
               </EditableWrapper>
-            </motion.div>
-            <motion.div
+            </m.div>
+            <m.div
               initial={{ opacity: 0, x: 30 }}
               whileInView={{ opacity: 1, x: 0 }}
               viewport={{ once: true }}
@@ -246,7 +246,7 @@ const AboutPage = () => {
                   </p>
                 ))}
               </EditableWrapper>
-            </motion.div>
+            </m.div>
           </div>
         </div>
       </section>
@@ -279,7 +279,7 @@ const AboutPage = () => {
                 display_order: (values || []).length
               }}
               renderItem={(value, index) => (
-                <motion.div
+                <m.div
                   key={value.id || index}
                   initial={{ opacity: 0, y: 20 }}
                   whileInView={{ opacity: 1, y: 0 }}
@@ -316,7 +316,7 @@ const AboutPage = () => {
                       <p className="text-dark-100">{value.description}</p>
                     </div>
                   </Card>
-                </motion.div>
+                </m.div>
               )}
               className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6 lg:gap-8"
             />
@@ -348,7 +348,7 @@ const AboutPage = () => {
                 display_order: (milestones || []).length
               }}
               renderItem={(milestone, index) => (
-                <motion.div
+                <m.div
                   key={milestone.id || index}
                   initial={{ opacity: 0, x: index % 2 === 0 ? -30 : 30 }}
                   whileInView={{ opacity: 1, x: 0 }}
@@ -369,7 +369,7 @@ const AboutPage = () => {
                     <h3 className="text-xl font-semibold mb-2 text-dark-50">{milestone.title}</h3>
                     <p className="text-dark-100">{milestone.description}</p>
                   </Card>
-                </motion.div>
+                </m.div>
               )}
             />
           </div>
@@ -401,7 +401,7 @@ const AboutPage = () => {
                 display_order: (team || []).length
               }}
               renderItem={(member, index) => (
-                <motion.div
+                <m.div
                   key={member.id || index}
                   initial={{ opacity: 0, y: 20 }}
                   whileInView={{ opacity: 1, y: 0 }}
@@ -420,7 +420,7 @@ const AboutPage = () => {
                     <p className="text-dark-100">{member.title || member.role}</p>
                     {member.bio && <p className="text-sm text-dark-200 mt-2">{member.bio}</p>}
                   </Card>
-                </motion.div>
+                </m.div>
               )}
               className="grid md:grid-cols-2 gap-8"
             />

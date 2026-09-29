@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
-import { motion } from 'framer-motion';
+import { m } from 'framer-motion';
 import { useUpholsteries } from '../hooks/useContent';
 import SEOHead from '../components/SEOHead';
 import { SEO } from '../config/seoConfig';
@@ -108,7 +108,7 @@ const UpholsteryPage = () => {
         ) : (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
             {filteredUpholsteries.map((upholstery, index) => (
-              <motion.div
+              <m.div
                 key={upholstery.id}
                 layout={false}
                 initial={{ opacity: 0, y: 16 }}
@@ -191,7 +191,7 @@ const UpholsteryPage = () => {
                     )}
                   </div>
                 </div>
-              </motion.div>
+              </m.div>
             ))}
           </div>
         )}

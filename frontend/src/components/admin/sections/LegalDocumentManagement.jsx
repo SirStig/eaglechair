@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo, useCallback } from 'react';
 import { FileText, Plus, Edit2, Trash2, Search, Filter, Eye, CheckCircle, XCircle } from 'lucide-react';
-import { motion, AnimatePresence } from 'framer-motion';
+import { m, AnimatePresence } from 'framer-motion';
 import EditModal from '../EditModal';
 import apiClient from '../../../config/apiClient';
 import TableSortHead, { compareValues } from '../TableSortHead';
@@ -300,7 +300,7 @@ const LegalDocumentManagement = () => {
                     </tr>
                   ) : (
                     sortedDocuments.map((doc, index) => (
-                      <motion.tr
+                      <m.tr
                         key={doc.id}
                         initial={{ opacity: 0, y: 10 }}
                         animate={{ opacity: 1, y: 0 }}
@@ -363,7 +363,7 @@ const LegalDocumentManagement = () => {
                             </button>
                           </div>
                         </td>
-                      </motion.tr>
+                      </m.tr>
                     ))
                   )}
                 </AnimatePresence>

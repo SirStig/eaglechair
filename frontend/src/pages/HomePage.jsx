@@ -1,7 +1,7 @@
-import { useState, useMemo, useEffect, useRef } from 'react';
+import { useState, useMemo, useEffect, useRef, lazy, Suspense } from 'react';
 import { Link } from 'react-router-dom';
 // eslint-disable-next-line no-unused-vars
-import { motion } from 'framer-motion';
+import { m } from 'framer-motion';
 import { Helmet } from 'react-helmet-async';
 import Button from '../components/ui/Button';
 import HeroCarousel from '../components/ui/HeroCarousel';
@@ -9,7 +9,6 @@ import ProductCard from '../components/ui/ProductCard';
 import QuickViewModal from '../components/ui/QuickViewModal';
 import { HeroSkeleton, CardGridSkeleton } from '../components/ui/Skeleton';
 import EditableWrapper from '../components/admin/EditableWrapper';
-import EditModal from '../components/admin/EditModal';
 import ConfirmModal from '../components/ui/ConfirmModal';
 import SEOHead from '../components/SEOHead';
 import { useEditMode } from '../contexts/useEditMode';
@@ -32,6 +31,9 @@ import logger from '../utils/logger';
 import { invalidateCache } from '../utils/cache';
 
 const CONTEXT = 'HomePage';
+
+// Admin-only; fetched when edit mode is on
+const EditModal = lazy(() => import('../components/admin/EditModal'));
 
 const DEFAULT_BANNER = '/assets/default-banner-categories.webp';
 
@@ -301,13 +303,17 @@ const HomePage = () => {
             )}
 
             {/* Create Logo Modal */}
-            <EditModal
-              isOpen={isCreatingLogo}
-              onClose={() => setIsCreatingLogo(false)}
-              onSave={handleCreateClientLogo}
-              elementData={{ name: '', logo_url: '', display_order: 0 }}
-              elementType="client-logo"
-            />
+            {isEditMode && (
+              <Suspense fallback={null}>
+                <EditModal
+                  isOpen={isCreatingLogo}
+                  onClose={() => setIsCreatingLogo(false)}
+                  onSave={handleCreateClientLogo}
+                  elementData={{ name: '', logo_url: '', display_order: 0 }}
+                  elementType="client-logo"
+                />
+              </Suspense>
+            )}
 
             {/* Left fade */}
             <div className="absolute left-0 top-0 bottom-0 w-12 sm:w-16 md:w-32 bg-gradient-to-r from-dark-800 to-transparent z-10 pointer-events-none"></div>
@@ -565,7 +571,7 @@ const HomePage = () => {
       {/* Featured Products */}
       <section className="-mt-px py-12 sm:py-16 md:py-20 bg-cream-50">
         <div className="container">
-          <motion.div
+          <m.div
             initial={{ opacity: 0, y: 20 }}
             whileInView={{ opacity: 1, y: 0 }}
             viewport={{ once: true }}
@@ -575,14 +581,14 @@ const HomePage = () => {
             <p className="text-lg sm:text-xl text-slate-600">
               Explore our most popular commercial furniture solutions
             </p>
-          </motion.div>
+          </m.div>
 
           {productsLoading ? (
             <CardGridSkeleton count={4} columns={4} />
           ) : (
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 sm:gap-6 md:gap-8 lg:gap-10 px-4 sm:px-0">
               {products.map((product, index) => (
-                <motion.div
+                <m.div
                   key={product.id}
                   initial={{ opacity: 0, y: 20 }}
                   whileInView={{ opacity: 1, y: 0 }}
@@ -594,7 +600,7 @@ const HomePage = () => {
                     onQuickView={setSelectedQuickView}
                     darkMode={false}
                   />
-                </motion.div>
+                </m.div>
               ))}
             </div>
           )}
@@ -611,7 +617,7 @@ const HomePage = () => {
 
       {/* Our Products - same layout as Products dropdown (productService categories) */}
       <section className="pt-12 sm:pt-16 md:pt-20 pb-0 bg-cream-50">
-        <motion.div
+        <m.div
           initial={{ opacity: 0, y: 20 }}
           whileInView={{ opacity: 1, y: 0 }}
           viewport={{ once: true }}
@@ -619,7 +625,7 @@ const HomePage = () => {
         >
           <h2 className="text-2xl sm:text-3xl md:text-4xl font-bold mb-3 sm:mb-4 text-slate-800">Our Products</h2>
           <p className="text-lg sm:text-xl text-slate-600 max-w-2xl mx-auto">Explore our commercial seating categories</p>
-        </motion.div>
+        </m.div>
 
         {categoriesLoading ? (
           <div className="w-full flex justify-center py-16">

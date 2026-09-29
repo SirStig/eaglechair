@@ -1,5 +1,5 @@
 import { useEffect } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
+import { m, AnimatePresence } from 'framer-motion';
 import { clsx } from 'clsx';
 
 const Modal = ({ 
@@ -47,7 +47,7 @@ const Modal = ({
       {isOpen && (
         <>
           {/* Overlay */}
-          <motion.div
+          <m.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
@@ -57,7 +57,7 @@ const Modal = ({
 
           {/* Modal */}
           <div className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 overflow-y-auto">
-            <motion.div
+            <m.div
               initial={{ opacity: 0, scale: 0.95, y: 20 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.95, y: 20 }}
@@ -91,7 +91,7 @@ const Modal = ({
               <div className="px-4 sm:px-6 py-4">
                 {children}
               </div>
-            </motion.div>
+            </m.div>
           </div>
         </>
       )}
