@@ -4,6 +4,7 @@ import { m, AnimatePresence } from 'framer-motion';
 import Button from '../ui/Button';
 import { uploadImage, previewImage } from '../../utils/imageUpload';
 import logger from '../../utils/logger';
+import ResponsiveImage from '../ui/ResponsiveImage';
 
 const CONTEXT = 'EditModal';
 
@@ -246,7 +247,9 @@ const EditModal = ({ isOpen, onClose, onSave, elementData, elementType }) => {
           {/* Current Image Preview */}
           {currentImage && (
             <div className="relative w-full max-w-md mx-auto bg-dark-700 rounded-lg overflow-hidden border-2 border-dark-500">
-              <img
+              <ResponsiveImage
+                sizes="448px"
+                fullResolution={false}
                 src={currentImage}
                 alt={label}
                 className="w-full h-auto max-h-64 object-contain"

@@ -4,6 +4,7 @@ import Button from '../../ui/Button';
 import apiClient from '../../../config/apiClient';
 import { resolveImageUrl } from '../../../utils/apiHelpers';
 import { ArrowLeft, Upload, X } from 'lucide-react';
+import ResponsiveImage from '../../ui/ResponsiveImage';
 
 /**
  * Color Editor Component
@@ -198,7 +199,9 @@ const ColorEditor = ({ color, onBack, onSave }) => {
                 </label>
                 {formData.image_url ? (
                   <div className="relative group inline-block">
-                    <img 
+                    <ResponsiveImage 
+                      sizes="128px"
+                      fullResolution={false}
                       src={resolveImageUrl(formData.image_url)} 
                       alt="Color swatch"
                       className="w-32 h-32 object-cover rounded-lg border border-dark-600"

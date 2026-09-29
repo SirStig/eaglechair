@@ -10,6 +10,7 @@ import TableSortHead from '../TableSortHead';
 import PaginationBar from '../PaginationBar';
 import StatusTabs from '../StatusTabs';
 import PermanentDeleteModal from '../PermanentDeleteModal';
+import ResponsiveImage from '../../ui/ResponsiveImage';
 
 /**
  * Product Catalog Management
@@ -606,7 +607,9 @@ const ProductCatalog = ({ onEdit }) => {
                     </td>
                     <td className="px-4 py-4">
                       {product.primary_image_url ? (
-                        <img
+                        <ResponsiveImage
+                          sizes="64px"
+                          fullResolution={false}
                           src={resolveImageUrl(product.primary_image_url)}
                           alt={product.name}
                           className="w-16 h-16 object-contain bg-dark-700 rounded-lg border border-dark-600"

@@ -4,6 +4,7 @@ import Button from '../../ui/Button';
 import apiClient from '../../../config/apiClient';
 import { resolveImageUrl } from '../../../utils/apiHelpers';
 import { ArrowLeft, Upload, X } from 'lucide-react';
+import ResponsiveImage from '../../ui/ResponsiveImage';
 
 /**
  * Laminate Editor Component
@@ -321,7 +322,9 @@ const LaminateEditor = ({ laminate, onBack, onSave }) => {
                   </label>
                   {formData.swatch_image_url ? (
                     <div className="relative group inline-block">
-                      <img 
+                      <ResponsiveImage 
+                        sizes="128px"
+                        fullResolution={false}
                         src={resolveImageUrl(formData.swatch_image_url)} 
                         alt="Swatch"
                         className="w-32 h-32 object-cover rounded-lg border border-dark-600"
@@ -365,7 +368,9 @@ const LaminateEditor = ({ laminate, onBack, onSave }) => {
                   </label>
                   {formData.full_image_url ? (
                     <div className="relative group inline-block">
-                      <img 
+                      <ResponsiveImage 
+                        sizes="128px"
+                        fullResolution={false}
                         src={resolveImageUrl(formData.full_image_url)} 
                         alt="Full sample"
                         className="w-32 h-32 object-cover rounded-lg border border-dark-600"

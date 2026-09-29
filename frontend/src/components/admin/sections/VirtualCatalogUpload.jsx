@@ -21,6 +21,7 @@ import ErrorBoundary from '../../common/ErrorBoundary';
 import virtualCatalogService from '../../../services/virtualCatalogService';
 import { resolveImageUrl } from '../../../utils/apiHelpers';
 import VirtualCatalogProductEditor from './VirtualCatalogProductEditor';
+import ResponsiveImage from '../../ui/ResponsiveImage';
 
 /**
  * Virtual Catalog Upload Management
@@ -659,7 +660,9 @@ const VirtualCatalogUpload = () => {
                   {/* Product Image */}
                   {product.images && Array.isArray(product.images) && product.images.length > 0 && (
                     <div className="flex-shrink-0 w-24 h-24 rounded-lg bg-white overflow-hidden">
-                      <img
+                      <ResponsiveImage
+                        sizes="96px"
+                        fullResolution={false}
                         src={resolveImageUrl(product.images[0])}
                         alt={product.name}
                         className="w-full h-full object-contain"
@@ -864,7 +867,9 @@ const VirtualCatalogUpload = () => {
                   <h4 className="font-semibold text-dark-50 mb-2">Images</h4>
                   <div className="grid grid-cols-3 gap-2">
                     {selectedProduct.images.map((img) => (
-                      <img
+                      <ResponsiveImage
+                        sizes="(min-width: 928px) 290px, 33vw"
+                        fullResolution={false}
                         key={img.id}
                         src={img.url}
                         alt="Product"

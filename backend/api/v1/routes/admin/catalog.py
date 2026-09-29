@@ -28,6 +28,7 @@ from fastapi import (
     status,
 )
 from fastapi.responses import JSONResponse
+from starlette.concurrency import run_in_threadpool
 from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -56,6 +57,7 @@ from backend.models.chair import (
 from backend.models.company import AdminRole, AdminUser
 from backend.models.content import Catalog, CatalogType, Hardware, Laminate
 from backend.utils.serializers import orm_list_to_dict_list, orm_to_dict
+from backend.services import media_service
 from backend.utils.static_content_exporter import export_content_after_update
 
 logger = logging.getLogger(__name__)
@@ -1427,6 +1429,7 @@ async def create_catalog(
             MAX_FILE_SIZE,
             UPLOAD_BASE_DIR,
             detect_mime_from_content,
+            unique_stem,
         )
         
         thumb_ext = Path(thumbnail.filename).suffix.lower()
@@ -1446,14 +1449,14 @@ async def create_catalog(
         thumb_dir = UPLOAD_BASE_DIR / "images" / "catalogs"
         thumb_dir.mkdir(parents=True, exist_ok=True)
         
-        timestamp = int(time.time())
         thumb_base_name = Path(thumbnail.filename).stem
-        thumb_base_name = "".join(c for c in thumb_base_name if c.isalnum() or c in "-_")
-        thumb_filename = f"{thumb_base_name}_{timestamp}{thumb_ext}"
-        thumb_path = thumb_dir / thumb_filename
-        
-        with open(thumb_path, "wb") as f:
-            f.write(thumb_content)
+        thumb_base_name = "".join(c for c in thumb_base_name if c.isalnum() or c in "-_") or "catalog"
+        # Keep the original and write the responsive renditions the frontend
+        # requests (CatalogCoverImage); Pillow work stays off the event loop.
+        thumb_path, _ = await run_in_threadpool(
+            media_service.store_image, thumb_content, thumb_dir, unique_stem(thumb_base_name), thumb_ext
+        )
+        thumb_filename = thumb_path.name
         
         final_thumbnail_url = f"/uploads/images/catalogs/{thumb_filename}"
         logger.info(f"Thumbnail uploaded: {final_thumbnail_url}")
@@ -1626,6 +1629,7 @@ async def update_catalog(
             MAX_FILE_SIZE,
             UPLOAD_BASE_DIR,
             detect_mime_from_content,
+            unique_stem,
         )
         
         thumb_ext = Path(thumbnail.filename).suffix.lower()
@@ -1645,14 +1649,14 @@ async def update_catalog(
         thumb_dir = UPLOAD_BASE_DIR / "images" / "catalogs"
         thumb_dir.mkdir(parents=True, exist_ok=True)
         
-        timestamp = int(time.time())
         thumb_base_name = Path(thumbnail.filename).stem
-        thumb_base_name = "".join(c for c in thumb_base_name if c.isalnum() or c in "-_")
-        thumb_filename = f"{thumb_base_name}_{timestamp}{thumb_ext}"
-        thumb_path = thumb_dir / thumb_filename
-        
-        with open(thumb_path, "wb") as f:
-            f.write(thumb_content)
+        thumb_base_name = "".join(c for c in thumb_base_name if c.isalnum() or c in "-_") or "catalog"
+        # Keep the original and write the responsive renditions the frontend
+        # requests (CatalogCoverImage); Pillow work stays off the event loop.
+        thumb_path, _ = await run_in_threadpool(
+            media_service.store_image, thumb_content, thumb_dir, unique_stem(thumb_base_name), thumb_ext
+        )
+        thumb_filename = thumb_path.name
         
         catalog.thumbnail_url = f"/uploads/images/catalogs/{thumb_filename}"
         logger.info(f"Thumbnail updated: {catalog.thumbnail_url}")

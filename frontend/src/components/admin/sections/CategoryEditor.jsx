@@ -5,6 +5,7 @@ import apiClient from '../../../config/apiClient';
 import { resolveImageUrl } from '../../../utils/apiHelpers';
 import { slugify } from '../../../utils/slugify';
 import { ArrowLeft, Upload, X } from 'lucide-react';
+import ResponsiveImage from '../../ui/ResponsiveImage';
 
 /**
  * Category Editor Component
@@ -120,7 +121,9 @@ const CategoryEditor = ({ category, categories, parentCategory, isSubcategory, o
         </label>
         {currentValue ? (
           <div className="relative group">
-            <img 
+            <ResponsiveImage 
+              sizes={isIcon ? '128px' : '(min-width: 1024px) 480px, 50vw'}
+              fullResolution={false}
               src={resolveImageUrl(currentValue)} 
               alt={label}
               className={`object-cover rounded-lg border border-dark-600 ${isIcon ? 'w-32 h-32' : 'w-full h-32'}`}

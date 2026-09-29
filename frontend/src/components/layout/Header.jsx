@@ -8,6 +8,7 @@ import { useAuthStore } from '../../store/authStore';
 import { useCartStore } from '../../store/cartStore';
 import ProductsDropdown from './ProductsDropdown';
 import MobileProductsMenu from './MobileProductsMenu';
+import SiteLogo from '../ui/SiteLogo';
 import ResourcesDropdown from './ResourcesDropdown';
 import { useSiteSettings } from '../../hooks/useContent';
 import productService from '../../services/productService';
@@ -190,29 +191,12 @@ const Header = ({ isMobileMenuOpen, setIsMobileMenuOpen }) => {
               transition={{ type: 'spring', stiffness: 400, damping: 10 }}
               className={`header-logo-wrap flex items-center gap-2 sm:gap-3 ${!showHeaderBackground ? 'drop-shadow-[0_2px_8px_rgba(0,0,0,0.6)]' : ''}`}
             >
-              {siteSettings?.logoUrl ? (
-                <img
-                  src={siteSettings.logoUrl}
-                  alt={siteSettings.companyName || 'Eagle Chair'}
-                  className={`header-logo h-12 sm:h-14 md:h-16 lg:h-16 w-auto object-contain ${!showHeaderBackground ? 'drop-shadow-[0_2px_8px_rgba(0,0,0,0.8)]' : ''}`}
-                  loading="eager"
-                  decoding="async"
-                  fetchpriority="high"
-                  onError={(e) => {
-                    e.target.onerror = null;
-                    e.target.src = '/assets/eagle-chair-logo.png';
-                  }}
-                />
-              ) : (
-                <img
-                  src="/assets/eagle-chair-logo.png"
-                  alt="Eagle Chair"
-                  className={`header-logo h-12 sm:h-14 md:h-16 lg:h-16 w-auto object-contain ${!showHeaderBackground ? 'drop-shadow-[0_2px_8px_rgba(0,0,0,0.8)]' : ''}`}
-                  loading="eager"
-                  decoding="async"
-                  fetchpriority="high"
-                />
-              )}
+              <SiteLogo
+                src={siteSettings?.logoUrl}
+                alt={siteSettings?.companyName || 'Eagle Chair'}
+                className={`header-logo h-12 sm:h-14 md:h-16 lg:h-16 w-auto object-contain ${!showHeaderBackground ? 'drop-shadow-[0_2px_8px_rgba(0,0,0,0.8)]' : ''}`}
+                priority
+              />
             </Motion.div>
           </Link>
 

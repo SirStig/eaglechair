@@ -24,6 +24,7 @@ import {
   Trash2,
 } from 'lucide-react';
 import { formatPrice } from '../../../utils/apiHelpers';
+import ResponsiveImage from '../../ui/ResponsiveImage';
 
 const AdminQuoteDetailView = ({ quoteId, onBack, onUpdated }) => {
   const [quote, setQuote] = useState(null);
@@ -802,7 +803,9 @@ const AdminQuoteDetailView = ({ quoteId, onBack, onUpdated }) => {
                         <div className="flex-1">
                           <div className="flex items-start gap-3">
                             {item.product?.primary_image_url && (
-                              <img
+                              <ResponsiveImage
+                                sizes="80px"
+                                fullResolution={false}
                                 src={item.product.primary_image_url}
                                 alt={item.product_name}
                                 className="w-20 h-20 object-cover rounded-md border border-dark-600"

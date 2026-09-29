@@ -5,6 +5,7 @@ import apiClient from '../../../config/apiClient';
 import { resolveImageUrl, resolveFileUrl } from '../../../utils/apiHelpers';
 import { slugify } from '../../../utils/slugify';
 import { ArrowLeft, FileText, Upload, X } from 'lucide-react';
+import ResponsiveImage from '../../ui/ResponsiveImage';
 
 /**
  * Product Family Editor Component
@@ -115,7 +116,9 @@ const FamilyEditor = ({ family, categories, onBack, onSave }) => {
         </label>
         {currentValue ? (
           <div className="relative group">
-            <img 
+            <ResponsiveImage 
+              sizes="(min-width: 1024px) 480px, 50vw"
+              fullResolution={false}
               src={resolveImageUrl(currentValue)} 
               alt={label}
               className={`object-cover rounded-lg border border-dark-600 ${isFamilyImage ? 'w-full h-48' : 'w-full h-32'}`}

@@ -24,6 +24,7 @@ import {
   TrendingUp,
   Package,
 } from 'lucide-react';
+import ResponsiveImage from '../../ui/ResponsiveImage';
 
 /**
  * Comprehensive Product Editor
@@ -843,7 +844,9 @@ const ProductEditor = ({ product, onBack }) => {
                   <div className="relative">
                     {formData.primary_image_url ? (
                       <div className="relative group">
-                        <img
+                        <ResponsiveImage
+                          sizes="(min-width: 768px) 33vw, 100vw"
+                          fullResolution={false}
                           src={resolveImageUrl(formData.primary_image_url)}
                           alt="Primary"
                           className="w-full h-48 object-contain bg-dark-700 rounded-lg border-2 border-primary-500"
@@ -897,7 +900,9 @@ const ProductEditor = ({ product, onBack }) => {
                   <div className="relative">
                     {formData.hover_images && formData.hover_images[0] ? (
                       <div className="relative group">
-                        <img
+                        <ResponsiveImage
+                          sizes="(min-width: 768px) 33vw, 100vw"
+                          fullResolution={false}
                           src={resolveImageUrl(formData.hover_images[0])}
                           alt="Hover 1"
                           className="w-full h-48 object-contain bg-dark-700 rounded-lg border-2 border-dark-600"
@@ -959,7 +964,9 @@ const ProductEditor = ({ product, onBack }) => {
                   <div className="relative">
                     {formData.hover_images && formData.hover_images[1] ? (
                       <div className="relative group">
-                        <img
+                        <ResponsiveImage
+                          sizes="(min-width: 768px) 33vw, 100vw"
+                          fullResolution={false}
                           src={resolveImageUrl(formData.hover_images[1])}
                           alt="Hover 2"
                           className="w-full h-48 object-contain bg-dark-700 rounded-lg border-2 border-dark-600"
@@ -1022,7 +1029,9 @@ const ProductEditor = ({ product, onBack }) => {
                   <div className="relative">
                     {formData.thumbnail ? (
                       <div className="relative group">
-                        <img
+                        <ResponsiveImage
+                          sizes="(min-width: 768px) 33vw, 100vw"
+                          fullResolution={false}
                           src={resolveImageUrl(formData.thumbnail)}
                           alt="Thumbnail"
                           className="w-full h-48 object-contain bg-dark-700 rounded-lg border-2 border-dark-600"
@@ -1077,7 +1086,9 @@ const ProductEditor = ({ product, onBack }) => {
               <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 mb-4">
                 {images.map((img, index) => (
                   <div key={index} className="relative group">
-                    <img
+                    <ResponsiveImage
+                      sizes="(min-width: 1024px) 25vw, (min-width: 768px) 33vw, 50vw"
+                      fullResolution={false}
                       src={resolveImageUrl(typeof img === 'string' ? img : img.url)}
                       alt={`Gallery ${index + 1}`}
                       className="w-full h-48 object-contain bg-dark-700 rounded-lg border-2 border-dark-600"
@@ -1153,7 +1164,9 @@ const ProductEditor = ({ product, onBack }) => {
                         <div className="relative">
                           {variation.primary_image_url ? (
                             <div className="relative group">
-                              <img
+                              <ResponsiveImage
+                                sizes="(min-width: 768px) 50vw, 100vw"
+                                fullResolution={false}
                                 src={resolveImageUrl(variation.primary_image_url)}
                                 alt={`Variation ${index + 1} Primary`}
                                 className="w-full h-40 object-contain bg-dark-700 rounded-lg border-2 border-dark-600"
@@ -1209,7 +1222,9 @@ const ProductEditor = ({ product, onBack }) => {
                             <div className="grid grid-cols-3 gap-2">
                               {variation.images.map((img, imgIndex) => (
                                 <div key={imgIndex} className="relative group">
-                                  <img
+                                  <ResponsiveImage
+                                    sizes="(min-width: 768px) 17vw, 33vw"
+                                    fullResolution={false}
                                     src={resolveImageUrl(typeof img === 'string' ? img : img.url)}
                                     alt={`Variation ${index + 1} Image ${imgIndex + 1}`}
                                     className="w-full h-20 object-contain bg-dark-700 rounded border border-dark-600"
