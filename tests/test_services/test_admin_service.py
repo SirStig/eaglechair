@@ -17,6 +17,7 @@ from tests.factories import (
     create_category,
     create_chair,
     create_quote,
+    create_quote_item,
 )
 
 
@@ -307,3 +308,29 @@ class TestAdminService:
         assert admin.role == AdminRole.MANAGER
         assert admin.is_active is True
 
+    async def test_recalculate_quote_totals_does_not_add_tax(self, db_session: AsyncSession):
+        """Recalculating after an admin edit must not apply a tax rate (quotes are 0% tax)."""
+        company = await create_company(db_session)
+        quote = await create_quote(
+            db_session, company_id=company.id, tax_amount=0, shipping_cost=500, discount_amount=0
+        )
+        await create_quote_item(db_session, quote.id, quantity=2, unit_price=1000, customization_cost=0)
+
+        updated = await AdminService.recalculate_quote_totals(db=db_session, quote_id=quote.id)
+
+        assert updated.subtotal == 2000
+        assert updated.tax_amount == 0
+        assert updated.total_amount == 2500
+
+    async def test_recalculate_quote_totals_keeps_manual_tax(self, db_session: AsyncSession):
+        """A tax amount an admin entered by hand survives recalculation."""
+        company = await create_company(db_session)
+        quote = await create_quote(
+            db_session, company_id=company.id, tax_amount=123, shipping_cost=0, discount_amount=0
+        )
+        await create_quote_item(db_session, quote.id, quantity=1, unit_price=1000, customization_cost=0)
+
+        updated = await AdminService.recalculate_quote_totals(db=db_session, quote_id=quote.id)
+
+        assert updated.tax_amount == 123
+        assert updated.total_amount == 1123

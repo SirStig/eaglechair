@@ -1099,12 +1099,10 @@ class AdminService:
         # Calculate subtotal from items
         subtotal = sum(item.line_total for item in quote.items) if quote.items else 0
 
-        # Calculate tax (default 10% if not set)
-        tax_rate = 0.10  # TODO: Make configurable
-        # Use round() instead of int() truncation - truncation systematically
-        # under-collects tax (e.g. int(1234 * 0.10) == 123 instead of 123.4 -> 123,
-        # but int(1236 * 0.10) == 123 instead of the correctly-rounded 124).
-        tax_amount = round(subtotal * tax_rate)
+        # Quotes carry no tax by default (quote creation sets 0). Keep whatever
+        # tax is on the quote (0, or an amount an admin entered by hand) rather
+        # than applying a rate.
+        tax_amount = quote.tax_amount or 0
 
         # Shipping cost and discount_amount are already set or calculated separately
         # Calculate total
