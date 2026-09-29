@@ -290,20 +290,26 @@ class Settings(BaseSettings):
         """
         Checks keyed on ENVIRONMENT=production, so DEBUG=true can't bypass them.
 
-        A default/short SECRET_KEY raises (tokens would be forgeable). Other
-        misconfigurations only log CRITICAL so a deploy doesn't take the site down.
+        The public default SECRET_KEY raises (anyone could forge tokens). Other
+        misconfigurations, including a short key, only log CRITICAL so a deploy
+        doesn't take the site down.
         """
         if not self.is_production_environment:
             return self
 
         default_secret = "your-secret-key-change-this-in-production"
-        if self.SECRET_KEY == default_secret or len(self.SECRET_KEY) < 32:
+        if self.SECRET_KEY == default_secret:
             raise ValueError(
-                "ENVIRONMENT=production requires SECRET_KEY to be set to a non-default "
-                "value of at least 32 characters."
+                "ENVIRONMENT=production requires SECRET_KEY to be set; the default "
+                "value is public and would let anyone forge login tokens."
             )
 
         log = logging.getLogger(__name__)
+        if len(self.SECRET_KEY) < 32:
+            log.critical(
+                "ENVIRONMENT=production with a SECRET_KEY shorter than 32 characters. "
+                "Set a longer random value."
+            )
         if self.DEBUG:
             log.critical(
                 "ENVIRONMENT=production with DEBUG=true: API docs are disabled, but other "

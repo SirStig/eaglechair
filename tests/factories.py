@@ -77,6 +77,12 @@ fake = Faker()
 # Company & Admin Factories
 # ============================================================================
 
+def _phone():
+    """US-style phone that fits the String(20) phone columns (Faker's can include
+    long extensions, which made tests fail at random on response validation)."""
+    return fake.numerify("###-###-####")
+
+
 def _company_shipping_keys():
     return {"shipping_address_line1", "shipping_address_line2", "shipping_city", "shipping_state", "shipping_zip", "shipping_country"}
 
@@ -94,7 +100,7 @@ async def create_company(db_session, **kwargs):
         "rep_last_name": fake.last_name(),
         "rep_title": fake.job(),
         "rep_email": f"test-{unique_id}@{fake.domain_name()}",
-        "rep_phone": fake.phone_number(),
+        "rep_phone": _phone(),
         "billing_address_line1": fake.street_address(),
         "billing_address_line2": fake.secondary_address(),
         "billing_city": fake.city(),
@@ -474,7 +480,7 @@ async def create_quote(db_session, company_id=None, **kwargs):
         "quote_number": fake.bothify(text="Q-########"),
         "contact_name": fake.name(),
         "contact_email": fake.email(),
-        "contact_phone": fake.phone_number(),
+        "contact_phone": _phone(),
         "project_name": fake.catch_phrase(),
         "project_description": fake.text(max_nb_chars=500),
         "project_type": fake.random_element(["Restaurant", "Hotel", "Office", "Retail", "Healthcare"]),
@@ -708,7 +714,7 @@ async def create_team_member(db_session, **kwargs):
         "title": fake.job(),
         "bio": fake.text(max_nb_chars=300),
         "email": fake.email(),
-        "phone": fake.phone_number(),
+        "phone": _phone(),
         "photo_url": fake.image_url(),
         "is_active": True,
         "display_order": fake.random_int(min=1, max=100),
@@ -751,7 +757,7 @@ async def create_contact_location(db_session, **kwargs):
         "state": fake.state_abbr(),
         "zip_code": fake.zipcode(),
         "country": "USA",
-        "phone": fake.phone_number(),
+        "phone": _phone(),
         "email": fake.email(),
         "business_hours": "Monday-Friday: 9AM-5PM",
         "location_type": fake.random_element(["office", "showroom", "warehouse"]),
@@ -914,7 +920,7 @@ async def create_sales_representative(db_session, **kwargs):
     defaults = {
         "name": fake.name(),
         "email": fake.email(),
-        "phone": fake.phone_number(),
+        "phone": _phone(),
         "territory_name": fake.state_abbr() + " Territory",
         "states_covered": [fake.state_abbr()],
         "title": fake.job(),
@@ -938,7 +944,7 @@ async def create_site_settings(db_session, **kwargs):
         "company_tagline": fake.sentence(nb_words=6),
         "logo_url": fake.image_url(),
         "primary_email": fake.email(),
-        "primary_phone": fake.phone_number(),
+        "primary_phone": _phone(),
         "address_line1": fake.street_address(),
         "city": fake.city(),
         "state": fake.state_abbr(),
@@ -1044,7 +1050,7 @@ async def create_feedback(db_session, **kwargs):
     defaults = {
         "name": fake.name(),
         "email": fake.email(),
-        "phone": fake.phone_number(),
+        "phone": _phone(),
         "company_name": fake.company(),
         "subject": fake.sentence(nb_words=4),
         "message": fake.text(max_nb_chars=500),

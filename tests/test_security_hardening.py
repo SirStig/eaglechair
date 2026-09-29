@@ -159,8 +159,12 @@ class TestProductionEnvironmentConfig:
     def test_production_with_debug_still_requires_secret_key(self, make_settings):
         with pytest.raises(ValueError, match="SECRET_KEY"):
             make_settings(ENVIRONMENT="production", DEBUG="true")
-        with pytest.raises(ValueError, match="SECRET_KEY"):
+
+    def test_production_with_debug_warns_on_short_secret_key(self, make_settings, caplog):
+        # Short keys are flagged loudly but don't stop the site from starting
+        with caplog.at_level(logging.CRITICAL, logger="backend.core.config"):
             make_settings(ENVIRONMENT="production", DEBUG="true", SECRET_KEY="short")
+        assert "shorter than 32" in " ".join(r.getMessage() for r in caplog.records)
 
     def test_production_with_debug_disables_docs_and_warns(self, make_settings, caplog):
         with caplog.at_level(logging.CRITICAL, logger="backend.core.config"):
