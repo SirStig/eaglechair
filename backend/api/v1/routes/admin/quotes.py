@@ -5,9 +5,11 @@ Admin-only endpoints for quote management
 """
 
 import logging
+import re
 from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi.responses import FileResponse
 from pydantic import BaseModel
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -25,13 +27,18 @@ from backend.api.v1.schemas.quote import (
 from backend.core.exceptions import ResourceNotFoundError, ValidationError
 from backend.database.base import get_db
 from backend.models.company import AdminRole, AdminUser
-from backend.models.quote import Quote, QuoteItem, QuoteShippingDestination, QuoteItemAllocation, QuoteStatus
+from backend.models.quote import Quote, QuoteAttachment, QuoteItem, QuoteShippingDestination, QuoteItemAllocation, QuoteStatus
 from backend.services.admin_service import AdminService
+from backend.services.quote_service import QUOTE_ATTACHMENT_DIR, QUOTE_ATTACHMENT_URL_PREFIX
+from backend.utils.file_validation import is_within_directory
 from backend.utils.serializers import orm_to_dict
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter(tags=["Admin - Quotes"])
+
+_QUOTE_NUMBER_RE = re.compile(r"^[A-Za-z0-9-]{1,50}$")
+_ATTACHMENT_NAME_RE = re.compile(r"^[0-9a-f]{32}\.(pdf|png|jpg|webp)$")
 
 
 @router.get(
@@ -863,3 +870,37 @@ async def replace_quote_item_allocations(
             db.add(QuoteItemAllocation(quote_item_id=item_id, quote_shipping_destination_id=a.quote_shipping_destination_id, quantity=a.quantity))
     await db.commit()
     return MessageResponse(message="Allocations updated")
+
+
+@router.get(
+    "/attachments/{quote_number}/{filename}",
+    summary="Download quote attachment (Admin)",
+    description="Download a privately stored quote attachment",
+)
+async def download_quote_attachment(
+    quote_number: str,
+    filename: str,
+    admin: AdminUser = Depends(get_current_admin),
+    db: AsyncSession = Depends(get_db),
+):
+    if not _QUOTE_NUMBER_RE.match(quote_number) or not _ATTACHMENT_NAME_RE.match(filename):
+        raise HTTPException(status_code=404, detail="Attachment not found")
+
+    file_url = f"{QUOTE_ATTACHMENT_URL_PREFIX}/{quote_number}/{filename}"
+    result = await db.execute(select(QuoteAttachment).where(QuoteAttachment.file_url == file_url))
+    attachment = result.scalars().first()
+    if not attachment:
+        raise HTTPException(status_code=404, detail="Attachment not found")
+
+    file_path = QUOTE_ATTACHMENT_DIR / quote_number / filename
+    if not is_within_directory(file_path, QUOTE_ATTACHMENT_DIR) or not file_path.is_file():
+        raise HTTPException(status_code=404, detail="Attachment not found")
+
+    download_name = "".join(c for c in (attachment.file_name or filename) if c.isalnum() or c in ".-_ ") or filename
+    return FileResponse(
+        path=file_path,
+        media_type="application/octet-stream",
+        filename=download_name,
+        content_disposition_type="attachment",
+        headers={"X-Content-Type-Options": "nosniff"},
+    )

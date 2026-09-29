@@ -14,7 +14,9 @@ from email.mime.text import MIMEText
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
-from jinja2 import Environment, Template
+from jinja2 import Template
+from jinja2.sandbox import SandboxedEnvironment
+from markupsafe import Markup
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -374,7 +376,7 @@ class EmailService:
             db: Database session for fetching site settings
         """
         base_template_html = EmailService._load_base_template()
-        base_template = Template(base_template_html)
+        base_template = EmailService._html_env().from_string(base_template_html)
         
         # Get site settings from database
         site_settings = await EmailService._get_site_settings(db)
@@ -484,6 +486,16 @@ class EmailService:
             return f"{frontend_url}/{url}"
     
     @staticmethod
+    def _html_env() -> SandboxedEnvironment:
+        """Sandboxed Jinja2 environment with HTML autoescaping (for email bodies)"""
+        return SandboxedEnvironment(autoescape=True)
+    
+    @staticmethod
+    def _text_env() -> SandboxedEnvironment:
+        """Sandboxed Jinja2 environment without escaping (for plain-text subjects)"""
+        return SandboxedEnvironment(autoescape=False)
+    
+    @staticmethod
     def _create_template_with_helpers(template_string: str) -> Template:
         """
         Create a Jinja2 template with helper functions available
@@ -493,8 +505,9 @@ class EmailService:
         - {{ code(value) }}
         - {{ image(url, alt) }}
         """
-        # Create Jinja2 environment with custom functions
-        env = Environment()
+        # Create sandboxed, autoescaping Jinja2 environment with custom functions.
+        # Helpers return Markup (trusted HTML) and escape all of their arguments.
+        env = EmailService._html_env()
         
         def button(url: str, text: str, style: str = 'primary') -> str:
             """Generate button HTML with absolute URL"""
@@ -504,17 +517,23 @@ class EmailService:
             style_class = 'button' if style == 'primary' else 'button button-secondary'
             bg_color = "#8b7355" if style == "primary" else "#d4c5b0"
             text_color = "#ffffff" if style == "primary" else "#2c2c2c"
-            return f'<div class="button-container"><a href="{absolute_url}" class="{style_class}" style="display: inline-block; padding: 14px 32px; background-color: {bg_color}; color: {text_color}; text-decoration: none; border-radius: 6px; font-size: 16px; font-weight: 500; max-width: 100%; box-sizing: border-box;">{text}</a></div>'
+            return Markup(
+                '<div class="button-container"><a href="{url}" class="{style_class}" style="display: inline-block; padding: 14px 32px; background-color: {bg_color}; color: {text_color}; text-decoration: none; border-radius: 6px; font-size: 16px; font-weight: 500; max-width: 100%; box-sizing: border-box;">{text}</a></div>'
+            ).format(url=absolute_url, style_class=style_class, bg_color=bg_color, text_color=text_color, text=text)
         
         def code(value: str) -> str:
             """Generate verification code HTML"""
-            return f'<div class="code-container"><div class="verification-code" style="display: inline-block; padding: 20px 40px; background-color: #f8f6f3; border: 2px dashed #d4c5b0; border-radius: 8px; font-size: 32px; font-weight: 600; letter-spacing: 8px; color: #2c2c2c; font-family: \'Courier New\', monospace;">{value}</div></div>'
+            return Markup(
+                '<div class="code-container"><div class="verification-code" style="display: inline-block; padding: 20px 40px; background-color: #f8f6f3; border: 2px dashed #d4c5b0; border-radius: 8px; font-size: 32px; font-weight: 600; letter-spacing: 8px; color: #2c2c2c; font-family: \'Courier New\', monospace;">{value}</div></div>'
+            ).format(value=value)
         
         def image(url: str, alt: str = '') -> str:
             """Generate image HTML with absolute URL"""
             # Ensure URL is absolute
             absolute_url = EmailService._ensure_absolute_url(url)
-            return f'<img src="{absolute_url}" alt="{alt}" class="content-image" style="max-width: 100%; height: auto; border-radius: 6px; margin: 20px 0; display: block;">'
+            return Markup(
+                '<img src="{url}" alt="{alt}" class="content-image" style="max-width: 100%; height: auto; border-radius: 6px; margin: 20px 0; display: block;">'
+            ).format(url=absolute_url, alt=alt)
         
         env.globals['button'] = button
         env.globals['code'] = code
@@ -553,11 +572,11 @@ class EmailService:
             db_template = await EmailService.get_template(db, template_type)
             
             if db_template:
-                subject_template = Template(str(db_template.subject))
+                subject_template = EmailService._text_env().from_string(str(db_template.subject))
                 body_template_str = str(db_template.body)
             elif template_type in EmailService.DEFAULT_TEMPLATES:
                 default = EmailService.DEFAULT_TEMPLATES[template_type]
-                subject_template = Template(default['subject'])
+                subject_template = EmailService._text_env().from_string(default['subject'])
                 body_template_str = default['body']
             else:
                 logger.error(f"Email template not found: {template_type}")
@@ -565,7 +584,7 @@ class EmailService:
             
             # Override with custom content if provided
             if custom_subject:
-                subject_template = Template(custom_subject)
+                subject_template = EmailService._text_env().from_string(custom_subject)
             if custom_body:
                 body_template_str = custom_body
             
@@ -869,7 +888,8 @@ class EmailService:
             template_type='custom',
             context={
                 'subject': subject,
-                'body': body
+                # Admin-authored HTML body is intentionally rendered as-is
+                'body': Markup(body)
             },
             cc=cc,
             bcc=bcc,

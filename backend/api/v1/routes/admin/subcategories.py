@@ -10,8 +10,10 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from backend.api.dependencies import get_current_admin
 from backend.database.base import get_db
 from backend.models.chair import ProductSubcategory
+from backend.models.company import AdminUser
 
 router = APIRouter()
 
@@ -19,6 +21,7 @@ router = APIRouter()
 @router.get("")
 async def get_subcategories(
     category_id: Optional[int] = Query(None, description="Filter by category ID"),
+    admin: AdminUser = Depends(get_current_admin),
     db: AsyncSession = Depends(get_db),
 ):
     """
@@ -52,6 +55,7 @@ async def get_subcategories(
 @router.get("/{subcategory_id}")
 async def get_subcategory(
     subcategory_id: int,
+    admin: AdminUser = Depends(get_current_admin),
     db: AsyncSession = Depends(get_db),
 ):
     """

@@ -5,32 +5,36 @@ Powered by Google Gemini with:
 - Full streaming via WebSockets
 - Web search via DuckDuckGo
 - File analysis (PDF, CSV, images)
-- Math tools via sympy
+- Safe arithmetic calculator
 - Persistent memory
 - RAG-style training data
 - EagleChair DB query tools
 """
 
+import ast
 import asyncio
 import io
+import ipaddress
 import json
 import logging
 import math
 import os
 import queue
+import operator
 import re
+import socket
 import threading
 import time
 import traceback
 from datetime import datetime
 from pathlib import Path
 from typing import Any, AsyncGenerator, Optional
+from urllib.parse import urljoin, urlparse
 
 import httpx
 import html2text
 import pandas as pd
 import pdfplumber
-import sympy
 from ddgs import DDGS
 from google import genai
 from google.genai import types
@@ -83,6 +87,60 @@ def web_search(query: str, max_results: int = 12) -> dict:
         return {"results": [], "count": 0, "error": str(e)}
 
 
+FETCH_MAX_REDIRECTS = 5
+FETCH_MAX_BYTES = 2 * 1024 * 1024  # 2MB response cap
+
+
+def _is_public_ip(ip: ipaddress._BaseAddress) -> bool:
+    """True only for globally routable unicast addresses."""
+    if ip.version == 6 and ip.ipv4_mapped:
+        ip = ip.ipv4_mapped
+    return not (
+        ip.is_private
+        or ip.is_loopback
+        or ip.is_link_local
+        or ip.is_reserved
+        or ip.is_multicast
+        or ip.is_unspecified
+        or not ip.is_global
+    )
+
+
+def _validate_fetch_url(url: str) -> Optional[str]:
+    """
+    Validate a URL for server-side fetching (SSRF protection).
+
+    Returns an error message if the URL is not allowed, otherwise None.
+    """
+    try:
+        parsed = urlparse(url)
+        port = parsed.port
+    except ValueError:
+        return "Invalid URL"
+    if parsed.scheme not in ("http", "https"):
+        return "Only http and https URLs are allowed"
+    host = parsed.hostname
+    if not host:
+        return "URL has no host"
+    if parsed.username or parsed.password:
+        return "URLs with credentials are not allowed"
+    port = port or (443 if parsed.scheme == "https" else 80)
+    try:
+        infos = socket.getaddrinfo(host, port, proto=socket.IPPROTO_TCP)
+    except (socket.gaierror, UnicodeError):
+        return "Could not resolve host"
+    if not infos:
+        return "Could not resolve host"
+    for info in infos:
+        try:
+            ip = ipaddress.ip_address(info[4][0].split("%")[0])
+        except ValueError:
+            return "Invalid host address"
+        if not _is_public_ip(ip):
+            return "URL resolves to a non-public address"
+    return None
+
+
 def fetch_webpage(url: str, max_chars: int = 8000) -> dict:
     """Fetch and convert a webpage to markdown for AI reading."""
     try:
@@ -90,49 +148,140 @@ def fetch_webpage(url: str, max_chars: int = 8000) -> dict:
             "User-Agent": "Mozilla/5.0 (compatible; EagleChair-AI/1.0)",
             "Accept": "text/html,application/xhtml+xml",
         }
-        with httpx.Client(timeout=15, follow_redirects=True) as client:
-            resp = client.get(url, headers=headers)
-            resp.raise_for_status()
-            content_type = resp.headers.get("content-type", "")
-            if "text/html" in content_type or "application/xhtml" in content_type:
-                h = html2text.HTML2Text()
-                h.ignore_links = False
-                h.ignore_images = True
-                h.body_width = 0
-                md = h.handle(resp.text)
-                # Compact whitespace
-                md = re.sub(r"\n{3,}", "\n\n", md)
-                return {
-                    "url": url,
-                    "content": md[:max_chars],
-                    "truncated": len(md) > max_chars,
-                }
-            else:
-                return {"url": url, "content": resp.text[:max_chars], "truncated": len(resp.text) > max_chars}
+        current_url = url
+        with httpx.Client(timeout=15, follow_redirects=False) as client:
+            # Follow redirects manually so every hop is re-validated
+            for _ in range(FETCH_MAX_REDIRECTS + 1):
+                error = _validate_fetch_url(current_url)
+                if error:
+                    return {"url": url, "content": "", "error": error}
+                with client.stream("GET", current_url, headers=headers) as resp:
+                    if resp.is_redirect:
+                        location = resp.headers.get("location")
+                        if not location:
+                            return {"url": url, "content": "", "error": "Redirect without location"}
+                        current_url = urljoin(str(resp.url), location)
+                        continue
+                    resp.raise_for_status()
+                    body = bytearray()
+                    for chunk in resp.iter_bytes():
+                        body.extend(chunk)
+                        if len(body) > FETCH_MAX_BYTES:
+                            break
+                    text = bytes(body[:FETCH_MAX_BYTES]).decode(resp.charset_encoding or "utf-8", errors="replace")
+                    content_type = resp.headers.get("content-type", "")
+                if "text/html" in content_type or "application/xhtml" in content_type:
+                    h = html2text.HTML2Text()
+                    h.ignore_links = False
+                    h.ignore_images = True
+                    h.body_width = 0
+                    md = h.handle(text)
+                    # Compact whitespace
+                    md = re.sub(r"\n{3,}", "\n\n", md)
+                    return {
+                        "url": url,
+                        "content": md[:max_chars],
+                        "truncated": len(md) > max_chars,
+                    }
+                return {"url": url, "content": text[:max_chars], "truncated": len(text) > max_chars}
+            return {"url": url, "content": "", "error": "Too many redirects"}
     except Exception as e:
         return {"url": url, "content": "", "error": str(e)}
 
 
+CALC_MAX_EXPRESSION_LENGTH = 200
+CALC_MAX_EXPONENT = 1000
+CALC_MAX_INT_BITS = 4096
+
+_CALC_BIN_OPS = {
+    ast.Add: operator.add,
+    ast.Sub: operator.sub,
+    ast.Mult: operator.mul,
+    ast.Div: operator.truediv,
+    ast.FloorDiv: operator.floordiv,
+    ast.Mod: operator.mod,
+}
+_CALC_UNARY_OPS = {ast.UAdd: operator.pos, ast.USub: operator.neg}
+_CALC_FUNCTIONS = {
+    "sqrt": math.sqrt,
+    "abs": abs,
+    "round": round,
+    "min": min,
+    "max": max,
+    "floor": math.floor,
+    "ceil": math.ceil,
+    "log": math.log,
+    "log10": math.log10,
+    "exp": math.exp,
+    "sin": math.sin,
+    "cos": math.cos,
+    "tan": math.tan,
+}
+_CALC_CONSTANTS = {"pi": math.pi, "e": math.e}
+
+
+def _calc_pow(base, exponent):
+    if abs(exponent) > CALC_MAX_EXPONENT:
+        raise ValueError("Exponent too large")
+    if (
+        isinstance(base, int)
+        and isinstance(exponent, int)
+        and exponent >= 0
+        and max(abs(base).bit_length(), 1) * exponent <= CALC_MAX_INT_BITS
+    ):
+        return base ** exponent
+    # Float power raises OverflowError instead of building huge integers
+    return math.pow(base, exponent)
+
+
+def _calc_eval(node):
+    if isinstance(node, ast.Expression):
+        return _calc_eval(node.body)
+    if isinstance(node, ast.Constant) and type(node.value) in (int, float):
+        return node.value
+    if isinstance(node, ast.BinOp):
+        left = _calc_eval(node.left)
+        right = _calc_eval(node.right)
+        if isinstance(node.op, ast.Pow):
+            return _calc_pow(left, right)
+        op = _CALC_BIN_OPS.get(type(node.op))
+        if op is None:
+            raise ValueError("Unsupported operator")
+        result = op(left, right)
+        if isinstance(result, int) and result.bit_length() > CALC_MAX_INT_BITS:
+            raise ValueError("Result too large")
+        return result
+    if isinstance(node, ast.UnaryOp) and type(node.op) in _CALC_UNARY_OPS:
+        return _CALC_UNARY_OPS[type(node.op)](_calc_eval(node.operand))
+    if isinstance(node, ast.Name) and node.id in _CALC_CONSTANTS:
+        return _CALC_CONSTANTS[node.id]
+    if (
+        isinstance(node, ast.Call)
+        and isinstance(node.func, ast.Name)
+        and node.func.id in _CALC_FUNCTIONS
+        and not node.keywords
+    ):
+        args = [_calc_eval(arg) for arg in node.args]
+        return _CALC_FUNCTIONS[node.func.id](*args)
+    raise ValueError("Unsupported expression")
+
+
 def calculate(expression: str) -> dict:
-    """Evaluate a mathematical expression using sympy for exact results."""
+    """Safely evaluate an arithmetic expression (numbers, + - * / // % ** ^, parentheses, basic math functions)."""
     try:
-        # Safe evaluation with sympy
-        expr = sympy.sympify(expression)
-        result = sympy.simplify(expr)
-        numeric = float(result.evalf()) if result.is_number else None
+        if not isinstance(expression, str) or not expression.strip():
+            raise ValueError("Expression is empty")
+        if len(expression) > CALC_MAX_EXPRESSION_LENGTH:
+            raise ValueError("Expression too long")
+        tree = ast.parse(expression.replace("^", "**"), mode="eval")
+        result = _calc_eval(tree)
         return {
             "expression": expression,
             "result": str(result),
-            "numeric": numeric,
+            "numeric": float(result),
         }
     except Exception as e:
-        # Fallback to basic eval for simple arithmetic
-        try:
-            safe_expr = re.sub(r"[^0-9+\-*/().,%^ ]", "", expression)
-            result = eval(safe_expr, {"__builtins__": {}}, {})  # noqa: S307
-            return {"expression": expression, "result": str(result), "numeric": float(result)}
-        except Exception:
-            return {"expression": expression, "error": str(e)}
+        return {"expression": expression, "error": str(e) or "Invalid expression"}
 
 
 def analyze_csv_content(content: str, max_rows: int = 50) -> dict:

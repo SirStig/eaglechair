@@ -541,6 +541,9 @@ class AuthService:
         
         # Hash and set new password
         user.hashed_password = security_manager.hash_password(new_password)
+        # Invalidate existing refresh token so other sessions must re-authenticate
+        user.refresh_token = None
+        user.refresh_token_expires = None
         await db.commit()
         
         logger.info(f"Password changed successfully for {user_type} user ID: {user_id}")

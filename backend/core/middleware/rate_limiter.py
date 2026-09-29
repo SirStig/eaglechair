@@ -82,6 +82,11 @@ class RateLimitConfig:
     ADMIN_LIMITS = {
         "default": (500, 60),  # 500 requests per minute (high limit)
     }
+    
+    # Unauthenticated submission endpoints (tracked per IP + path, independent of other traffic)
+    GUEST_SUBMISSION_LIMITS = {
+        "/api/v1/quotes/request-guest": (10, 600),  # 10 guest quotes per 10 minutes
+    }
 
 
 class AdvancedRateLimiter(BaseHTTPMiddleware):
@@ -137,7 +142,7 @@ class AdvancedRateLimiter(BaseHTTPMiddleware):
         # Get identifier (IP or user ID)
         # For auth endpoints, use endpoint-specific identifier to isolate from other traffic
         user_type = self._get_user_type(request)
-        if user_type == "auth":
+        if user_type in ("auth", "guest_submission"):
             # For auth endpoints, create endpoint-specific identifier
             # This prevents page browsing from counting against login attempts
             identifier = self._get_identifier(request, path_specific=True)
@@ -210,15 +215,13 @@ class AdvancedRateLimiter(BaseHTTPMiddleware):
         return base_identifier
     
     def _get_client_ip(self, request: Request) -> str:
-        """Extract client IP address"""
-        forwarded = request.headers.get("X-Forwarded-For")
-        if forwarded:
-            return forwarded.split(",")[0].strip()
+        """
+        Extract client IP address.
         
-        real_ip = request.headers.get("X-Real-IP")
-        if real_ip:
-            return real_ip
-        
+        Client-supplied X-Forwarded-For/X-Real-IP headers are NOT trusted here;
+        uvicorn/gunicorn already rewrite request.client from trusted proxies
+        (forwarded_allow_ips).
+        """
         return request.client.host if request.client else "unknown"
     
     def _get_user_type(self, request: Request) -> str:
@@ -229,13 +232,24 @@ class AdvancedRateLimiter(BaseHTTPMiddleware):
         if RouteConfig.is_admin_route(path):
             return "admin"
         
+        # Check auth endpoints BEFORE the Authorization header so that sending an
+        # arbitrary header cannot move credential endpoints (login, register, refresh,
+        # password reset) into the looser authenticated bucket
+        if "/auth/" in path:
+            has_auth_header = bool(request.headers.get("Authorization"))
+            is_credential_endpoint = "/auth/password/reset" in path or any(
+                endpoint in path for endpoint in RateLimitConfig.get_auth_limits()
+            )
+            if not has_auth_header or is_credential_endpoint:
+                return "auth"
+        
+        # Unauthenticated submission endpoints are always strictly limited
+        if path in RateLimitConfig.GUEST_SUBMISSION_LIMITS:
+            return "guest_submission"
+        
         # Check if authenticated
         if request.headers.get("Authorization"):
             return "company"
-        
-        # Check if auth endpoint
-        if "/auth/" in path:
-            return "auth"
         
         return "public"
     
@@ -258,6 +272,10 @@ class AdvancedRateLimiter(BaseHTTPMiddleware):
             # Default auth limit - also adjusted for DEBUG
             default_limit = (10, 60) if not settings.DEBUG else (100, 60)
             return default_limit
+        
+        # Guest submission endpoints
+        if user_type == "guest_submission":
+            return RateLimitConfig.GUEST_SUBMISSION_LIMITS[path]
         
         # Admin endpoints
         if user_type == "admin":

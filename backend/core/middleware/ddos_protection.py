@@ -132,15 +132,8 @@ class DDoSProtectionMiddleware(BaseHTTPMiddleware):
     
     def _get_client_ip(self, request: Request) -> str:
         """Extract client IP address"""
-        # Check for proxy headers
-        forwarded = request.headers.get("X-Forwarded-For")
-        if forwarded:
-            return forwarded.split(",")[0].strip()
-        
-        real_ip = request.headers.get("X-Real-IP")
-        if real_ip:
-            return real_ip
-        
+        # Proxy headers are client-controlled; uvicorn/gunicorn already set
+        # request.client from trusted proxies (forwarded_allow_ips)
         return request.client.host if request.client else "unknown"
     
     def _is_banned(self, ip: str, current_time: float) -> bool:

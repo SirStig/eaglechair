@@ -7,6 +7,10 @@ bind = f"{settings.HOST}:{settings.PORT}"
 workers = 2
 worker_class = "backend.core.worker.AsyncioUvicornWorker"
 
+# Trust X-Forwarded-For only from the reverse proxy. The uvicorn worker takes
+# this from gunicorn's setting; rate limiting keys on the resulting client IP.
+forwarded_allow_ips = settings.FORWARDED_ALLOW_IPS
+
 # Timeout and Keepalive
 timeout = 120
 keepalive = 5

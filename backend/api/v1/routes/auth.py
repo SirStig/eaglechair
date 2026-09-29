@@ -23,6 +23,7 @@ from backend.api.v1.schemas.company import (
     CompanyLoginRequest,
     CompanyRegistration,
     CompanyResponse,
+    CompanyUpdate,
     PasswordChangeRequest,
     PasswordReset,
     PasswordResetRequest,
@@ -36,6 +37,20 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter(tags=["Authentication"])
 security = HTTPBearer()
+
+# Profile fields a company may change on its own account (mirrors dashboard profile update).
+# Privileged fields (status, is_verified, pricing tier, credit, notes, tax_id, email) are excluded.
+COMPANY_SELF_EDITABLE_FIELDS = {
+    "company_name", "legal_name", "industry", "website",
+    "rep_first_name", "rep_last_name", "rep_title", "rep_phone",
+    "billing_address_line1", "billing_address_line2",
+    "billing_city", "billing_state", "billing_zip", "billing_country",
+}
+
+
+def _company_profile(company: Company) -> dict:
+    """Serialize a company to the public profile shape (no secrets, tokens or admin notes)."""
+    return {field: getattr(company, field, None) for field in CompanyResponse.model_fields}
 
 
 # ============================================================================
@@ -487,16 +502,26 @@ async def request_password_reset(
         email=reset_request.email
     )
     
-    # TODO: Send email with reset link
-    # For now, we'll log it (in production, send via email service)
     if reset_token:
-        reset_url = f"http://localhost:5173/reset-password?token={reset_token}"
-        logger.info(f"Password reset link: {reset_url}")
-        # await EmailService.send_password_reset_email(
-        #     db=db,
-        #     to_email=reset_request.email,
-        #     reset_link=reset_url
-        # )
+        from sqlalchemy import select
+
+        from backend.core.config import settings
+        from backend.services.email_service import EmailService
+
+        result = await db.execute(
+            select(Company).where(Company.rep_email == reset_request.email)
+        )
+        company = result.scalar_one_or_none()
+        reset_url = f"{settings.FRONTEND_URL}/reset-password?token={reset_token}"
+        try:
+            await EmailService.send_password_reset_email(
+                db=db,
+                to_email=reset_request.email,
+                company_name=company.company_name if company else "",
+                reset_link=reset_url
+            )
+        except Exception as e:
+            logger.error(f"Failed to send password reset email: {e}")
     
     return MessageResponse(
         message="Password reset requested",
@@ -581,7 +606,7 @@ async def get_current_user_profile(
     # Handle company token (default)
     company = await get_current_company(request, token_payload, db)
     logger.info(f"Profile retrieved for company: {company.id}")
-    return company
+    return _company_profile(company)
 
 
 @router.patch(
@@ -591,7 +616,7 @@ async def get_current_user_profile(
     description="Update profile information for currently authenticated company."
 )
 async def update_current_user_profile(
-    update_data: dict,  # TODO: Create proper update schema
+    update_data: CompanyUpdate,
     company: Company = Depends(get_current_company),
     db: AsyncSession = Depends(get_db)
 ):
@@ -602,10 +627,14 @@ async def update_current_user_profile(
     """
     logger.info(f"Profile update request for company: {company.id}")
     
-    # Update company (simplified - add proper validation)
-    for key, value in update_data.items():
-        if hasattr(company, key) and key not in ['id', 'hashed_password', 'rep_email']:
-            setattr(company, key, value)
+    # Only allow self-editable profile fields; unknown/privileged fields are ignored
+    changes = update_data.model_dump(exclude_unset=True)
+    for key, value in changes.items():
+        if key not in COMPANY_SELF_EDITABLE_FIELDS:
+            continue
+        if value is None and not Company.__table__.c[key].nullable:
+            continue
+        setattr(company, key, value)
     
     await db.commit()
     await db.refresh(company)

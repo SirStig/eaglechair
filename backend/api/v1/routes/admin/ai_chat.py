@@ -46,6 +46,7 @@ from backend.core.config import settings
 from backend.models.company import AdminRole
 from backend.core.security import SecurityManager
 from backend.database.base import get_db, AsyncSessionLocal
+from backend.utils.file_validation import PRIVATE_UPLOAD_DIR
 from backend.models.ai_chat import (
     AIChatSession,
     AIChatMessage,
@@ -72,17 +73,41 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
-# Upload directory for AI files
-AI_UPLOADS_DIR = Path("uploads/ai")
+# Upload directories for AI files: private (not under the public /uploads mount),
+# resolved relative to the repository rather than the process CWD
+AI_UPLOADS_DIR = PRIVATE_UPLOAD_DIR / "ai"
 AI_UPLOADS_DIR.mkdir(parents=True, exist_ok=True)
 
-TRAINING_UPLOADS_DIR = Path("uploads/ai_training")
+TRAINING_UPLOADS_DIR = PRIVATE_UPLOAD_DIR / "ai_training"
 TRAINING_UPLOADS_DIR.mkdir(parents=True, exist_ok=True)
+
+AI_UPLOAD_MAX_BYTES = 25 * 1024 * 1024  # 25MB per file
+AI_CHAT_UPLOAD_EXTENSIONS = {
+    ".pdf", ".csv", ".xlsx", ".xls", ".xlsm", ".txt", ".md", ".json",
+    ".jpg", ".jpeg", ".png", ".gif", ".webp",
+}
+AI_TRAINING_UPLOAD_EXTENSIONS = {".pdf", ".csv", ".xlsx", ".xls", ".xlsm", ".txt", ".md"}
 
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Helpers
 # ─────────────────────────────────────────────────────────────────────────────
+
+def _validated_upload_extension(filename: str, allowed: set[str]) -> str:
+    """Return the lowercased extension if allowed, otherwise raise 400."""
+    ext = Path(filename or "").suffix.lower()
+    if ext not in allowed:
+        raise HTTPException(status_code=400, detail=f"File type '{ext or 'unknown'}' is not allowed")
+    return ext
+
+
+async def _read_upload_limited(file: UploadFile) -> bytes:
+    """Read an upload, rejecting files larger than AI_UPLOAD_MAX_BYTES."""
+    content = await file.read(AI_UPLOAD_MAX_BYTES + 1)
+    if len(content) > AI_UPLOAD_MAX_BYTES:
+        raise HTTPException(status_code=413, detail="File exceeds the 25MB size limit")
+    return content
+
 
 def detect_file_type(filename: str, content_type: str = "") -> AIFileType:
     ext = Path(filename).suffix.lower()
@@ -371,10 +396,10 @@ async def upload_file_to_chat(
     session = await get_session_or_404(session_id, db, admin)
     file_type = detect_file_type(file.filename or "", file.content_type or "")
     file_id = str(uuid.uuid4())
-    ext = Path(file.filename or "file").suffix
+    ext = _validated_upload_extension(file.filename or "", AI_CHAT_UPLOAD_EXTENSIONS)
     save_path = AI_UPLOADS_DIR / f"{file_id}{ext}"
 
-    content = await file.read()
+    content = await _read_upload_limited(file)
     save_path.write_bytes(content)
 
     db_file = AIUploadedFile(
@@ -591,10 +616,10 @@ async def upload_training_document(
 ):
     file_type = detect_file_type(file.filename or "", file.content_type or "")
     doc_id = str(uuid.uuid4())
-    ext = Path(file.filename or "file").suffix
+    ext = _validated_upload_extension(file.filename or "", AI_TRAINING_UPLOAD_EXTENSIONS)
     save_path = TRAINING_UPLOADS_DIR / f"{doc_id}{ext}"
 
-    content = await file.read()
+    content = await _read_upload_limited(file)
     save_path.write_bytes(content)
 
     tags_list = [t.strip() for t in tags.split(",") if t.strip()] if tags else []
@@ -681,12 +706,14 @@ async def upload_training_batch(
     for file in files:
         filename = file.filename or "file"
         file_type = detect_file_type(filename, file.content_type or "")
-        ext = Path(filename).suffix
-        if ext.lower() not in (".pdf", ".csv", ".xlsx", ".xls", ".xlsm", ".txt", ".md"):
+        ext = Path(filename).suffix.lower()
+        if ext not in AI_TRAINING_UPLOAD_EXTENSIONS:
             continue
         doc_id = str(uuid.uuid4())
         save_path = TRAINING_UPLOADS_DIR / f"{doc_id}{ext}"
-        content = await file.read()
+        content = await file.read(AI_UPLOAD_MAX_BYTES + 1)
+        if len(content) > AI_UPLOAD_MAX_BYTES:
+            continue
         save_path.write_bytes(content)
         name = Path(filename).stem[:255] or filename[:255]
         doc = AITrainingDocument(

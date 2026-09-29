@@ -56,12 +56,18 @@ async def get_current_token_payload(
     
     try:
         payload = security_manager.decode_token(token)
-        return payload
     except Exception as e:
         logger.warning(f"Token validation failed: {str(e)}")
         if "expired" in str(e).lower():
             raise TokenExpiredError()
         raise InvalidTokenError()
+
+    # Only access tokens may authenticate requests (not refresh/reset/verification tokens)
+    if payload.get("token_type") != "access":
+        logger.warning("Rejected non-access token used for authentication")
+        raise InvalidTokenError("Invalid token type. Access token required.")
+
+    return payload
 
 
 async def get_current_token_and_payload(
@@ -90,12 +96,17 @@ async def get_current_token_and_payload(
     
     try:
         payload = security_manager.decode_token(token)
-        return token, payload
     except Exception as e:
         logger.warning(f"Token validation failed: {str(e)}")
         if "expired" in str(e).lower():
             raise TokenExpiredError()
         raise InvalidTokenError()
+
+    if payload.get("token_type") != "access":
+        logger.warning("Rejected non-access token used for authentication")
+        raise InvalidTokenError("Invalid token type. Access token required.")
+
+    return token, payload
 
 
 async def get_current_company(

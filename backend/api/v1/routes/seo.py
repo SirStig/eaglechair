@@ -4,6 +4,7 @@ SEO Routes
 Provides SEO-related endpoints for dynamic meta tags and sitemap generation
 """
 
+import logging
 from datetime import datetime
 from typing import List
 from fastapi import APIRouter, Depends, HTTPException
@@ -14,6 +15,8 @@ from sqlalchemy.orm import selectinload
 
 from backend.database.base import get_db
 from backend.models.chair import Chair, Category, ProductFamily
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/seo", tags=["SEO"])
 
@@ -135,7 +138,8 @@ async def get_sitemap(db: AsyncSession = Depends(get_db)):
         )
         
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Error generating sitemap: {str(e)}")
+        logger.error(f"Error generating sitemap: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Error generating sitemap")
 
 
 @router.get("/product/{product_id_or_slug}")
@@ -196,7 +200,8 @@ async def get_product_seo(
     except HTTPException:
         raise
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Error fetching product SEO: {str(e)}")
+        logger.error(f"Error fetching product SEO: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Error fetching product SEO")
 
 
 @router.get("/family/{family_slug}")
@@ -231,5 +236,6 @@ async def get_family_seo(
     except HTTPException:
         raise
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Error fetching family SEO: {str(e)}")
+        logger.error(f"Error fetching family SEO: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Error fetching family SEO")
 
