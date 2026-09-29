@@ -101,8 +101,13 @@ const Header = ({ isMobileMenuOpen, setIsMobileMenuOpen }) => {
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  // Preload top category images for Products Dropdown
+  // Preload top category images for the desktop Products dropdown. The
+  // dropdown only exists at lg+ (the nav is `hidden lg:flex`), so phones and
+  // tablets skip this entirely; on desktop it waits for idle time at low
+  // priority so it never competes with the page's own images.
   useEffect(() => {
+    if (!window.matchMedia?.('(min-width: 1024px)').matches) return undefined;
+
     const preloadCategoryImages = async () => {
       try {
         // Fetch categories (cached by service)
@@ -123,9 +128,8 @@ const Header = ({ isMobileMenuOpen, setIsMobileMenuOpen }) => {
                 img.sizes = CATEGORY_TILE_IMAGE_SIZES;
                 img.srcset = srcSet;
               }
+              img.fetchPriority = 'low';
               img.src = resolved;
-              // Mark as high priority for browser
-              img.fetchPriority = 'high';
             }
           });
         }
@@ -135,8 +139,11 @@ const Header = ({ isMobileMenuOpen, setIsMobileMenuOpen }) => {
       }
     };
 
-    const timer = setTimeout(preloadCategoryImages, 300);
-
+    if ('requestIdleCallback' in window) {
+      const id = window.requestIdleCallback(preloadCategoryImages, { timeout: 3000 });
+      return () => window.cancelIdleCallback(id);
+    }
+    const timer = setTimeout(preloadCategoryImages, 1500);
     return () => clearTimeout(timer);
   }, []);
 
