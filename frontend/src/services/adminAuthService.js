@@ -1,17 +1,20 @@
 import apiClient from '../config/apiClient';
 
-export async function getPasskeyAuthOptions() {
-  return apiClient.post('/api/v1/auth/admin/passkey/options');
+// Returns WebAuthn options plus a server-issued, single-use `challengeId`
+export async function getPasskeyAuthOptions(username) {
+  return apiClient.post('/api/v1/auth/admin/passkey/options', { username });
 }
 
-export async function authenticateWithPasskey(credential) {
-  return apiClient.post('/api/v1/auth/admin/passkey/authenticate', credential);
+// payload: { challengeId, credential }
+export async function authenticateWithPasskey(payload) {
+  return apiClient.post('/api/v1/auth/admin/passkey/authenticate', payload);
 }
 
 export async function getPasskeyRegisterOptions() {
   return apiClient.post('/api/v1/auth/admin/passkey/register/options');
 }
 
+// payload: { challengeId, credential }
 export async function registerPasskey(credential) {
   return apiClient.post('/api/v1/auth/admin/passkey/register', credential);
 }

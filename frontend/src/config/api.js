@@ -17,27 +17,19 @@ if (import.meta.env.DEV) {
 
 // Create axios instance with default config
 // Note: This file appears to be legacy - use apiClient.js instead
-// Tokens are stored in localStorage and sent via Authorization headers
+// Auth is carried by httpOnly cookies set by the backend (withCredentials)
 const api = axios.create({
   baseURL: API_BASE_URL,
   headers: {
     'Content-Type': 'application/json',
   },
   timeout: 10000, // 10 seconds
+  withCredentials: true,
 });
 
 // Request interceptor
-// Tokens are stored in localStorage and sent via Authorization header
 api.interceptors.request.use(
   (config) => {
-    // Get access token from localStorage and add to Authorization header
-    const accessToken = typeof window !== 'undefined' 
-      ? localStorage.getItem('auth_access_token') 
-      : null;
-    
-    if (accessToken) {
-      config.headers.Authorization = `Bearer ${accessToken}`;
-    }
     return config;
   },
   (error) => {

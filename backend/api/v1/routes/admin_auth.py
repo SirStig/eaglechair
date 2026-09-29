@@ -21,10 +21,21 @@ router = APIRouter(prefix="/auth/admin", tags=["Admin Auth"])
 @router.post(
     "/passkey/options",
     summary="Get passkey authentication options",
-    description="Public endpoint. Returns WebAuthn options for passkey sign-in.",
+    description=(
+        "Public endpoint. Body: {\"username\": \"<username or email>\"}. Returns WebAuthn "
+        "options for that admin plus a single-use challengeId (valid 120s) that "
+        "must be sent back to /passkey/authenticate."
+    ),
 )
-async def passkey_auth_options(db: AsyncSession = Depends(get_db)):
-    options = await PasskeyService.get_authentication_options(db)
+async def passkey_auth_options(
+    body: dict,
+    db: AsyncSession = Depends(get_db),
+):
+    username = body.get("username") if isinstance(body, dict) else None
+    if not isinstance(username, str) or not username.strip():
+        from backend.core.exceptions import InvalidInputError
+        raise InvalidInputError(field="username", reason="Enter your username or email first")
+    options = await PasskeyService.get_authentication_options(db, username)
     return options
 
 
@@ -40,7 +51,7 @@ async def passkey_authenticate(
     db: AsyncSession = Depends(get_db),
 ):
     from backend.core.config import settings
-    from backend.core.security import set_auth_cookies
+    from backend.core.security import set_auth_cookies, tokens_for_response_body
 
     admin = await PasskeyService.verify_authentication(db, credential)
     tokens = await AuthService.create_admin_tokens(
@@ -64,7 +75,7 @@ async def passkey_authenticate(
     has_passkey = result.scalars().first() is not None
     requires_setup = not (has_passkey and admin.is_2fa_enabled)
     return {
-        **tokens,
+        **tokens_for_response_body(request, tokens),
         "requiresSetup": requires_setup,
         "user": {
             "id": admin.id,

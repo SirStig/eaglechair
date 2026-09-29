@@ -157,6 +157,15 @@ class Settings(BaseSettings):
     ADMIN_REFRESH_TOKEN_EXPIRE_DAYS: int = 1
     ADMIN_REFRESH_TOKEN_EXPIRE_DAYS_STRONG: int = 30
 
+    # Auth cookies (httpOnly). Production frontend (joshua.eaglechair.com) and
+    # API (api.eaglechair.com) share the registrable domain eaglechair.com, so
+    # they are same-site and SameSite=Lax cookies are sent on the frontend's
+    # XHR/fetch calls. Set AUTH_COOKIE_SAMESITE=none only if the frontend is
+    # served from a different registrable domain (requires HTTPS/Secure).
+    AUTH_COOKIE_SAMESITE: str = "lax"  # "lax" | "strict" | "none"
+    AUTH_COOKIE_DOMAIN: Optional[str] = None  # None = host-only cookie (recommended)
+    AUTH_COOKIE_SECURE: Optional[bool] = None  # None = Secure in production only
+
     # Password Reset
     PASSWORD_RESET_TOKEN_EXPIRE_HOURS: int = 1  # 1 hour
     PASSWORD_MIN_LENGTH: int = 8

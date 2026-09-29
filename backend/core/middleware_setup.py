@@ -21,6 +21,7 @@ from backend.core.config import settings
 from backend.core.exceptions import BaseAppException
 from backend.core.logging_config import request_logger, security_logger
 from backend.core.middleware.admin_security import AdminSecurityMiddleware
+from backend.core.middleware.csrf import CSRFOriginMiddleware
 from backend.core.middleware.ddos_protection import DDoSProtectionMiddleware
 from backend.core.middleware.input_sanitizer import InputSanitizerMiddleware
 from backend.core.middleware.rate_limiter import AdvancedRateLimiter
@@ -352,6 +353,11 @@ def setup_middleware(app):
     # Route Protection (public/protected routes)
     app.add_middleware(RouteProtectionMiddleware)
     logger.info("[OK] Route protection enabled")
+
+    # CSRF: unsafe /api requests carrying auth cookies must come from a
+    # trusted Origin/Referer (added after the auth layers, so it runs first)
+    app.add_middleware(CSRFOriginMiddleware)
+    logger.info("[OK] CSRF origin verification enabled")
     
     # ========================================================================
     # Layer 4: Security Headers & Redirects

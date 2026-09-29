@@ -4,6 +4,7 @@ Authentication Service
 Handles user authentication, token generation, and password management
 """
 
+import hashlib
 import logging
 from datetime import datetime, timedelta
 from typing import Optional
@@ -11,11 +12,13 @@ from typing import Optional
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from backend.core.ephemeral_store import ephemeral_store
 from backend.core.exceptions import (
     AccountNotVerifiedError,
     AccountSuspendedError,
     InvalidCredentialsError,
     InvalidInputError,
+    RateLimitExceededError,
     ResourceAlreadyExistsError,
     ResourceNotFoundError,
 )
@@ -27,6 +30,93 @@ from backend.services.email_service import EmailService
 from backend.services.mfa_service import MFAService
 
 logger = logging.getLogger(__name__)
+
+
+class LoginAttemptLimiter:
+    """
+    Failed-login throttling.
+
+    - Per (identifier, client IP): after PAIR_MAX_FAILURES failures within
+      PAIR_WINDOW_SECONDS, that pair is blocked for PAIR_LOCK_SECONDS. This is
+      the short lockout an attacker triggers for themselves only.
+    - Per identifier (all IPs): counts failures in a rolling hour window. For
+      admins, reaching ADMIN_GLOBAL_MAX_FAILURES locks the account itself, so a
+      single attacker who knows the username cannot lock the real admin out.
+
+    Counters live in Redis (shared across workers) with in-process fallback.
+    """
+
+    PAIR_MAX_FAILURES = 5
+    PAIR_WINDOW_SECONDS = 15 * 60
+    PAIR_LOCK_SECONDS = 15 * 60
+    GLOBAL_WINDOW_SECONDS = 60 * 60
+    ADMIN_GLOBAL_MAX_FAILURES = 50
+    ADMIN_LOCK_MINUTES = 30
+
+    @staticmethod
+    def _key(kind: str, identifier: str, ip: Optional[str] = None) -> str:
+        ident = hashlib.sha256((identifier or "").strip().lower().encode("utf-8")).hexdigest()[:32]
+        if ip is None:
+            return f"login:{kind}:{ident}"
+        return f"login:{kind}:{ident}:{ip or 'unknown'}"
+
+    @classmethod
+    async def check(cls, kind: str, identifier: str, ip: Optional[str]) -> None:
+        """Raise RateLimitExceededError if this (identifier, IP) pair is blocked"""
+        if await ephemeral_store.get("lock:" + cls._key(kind, identifier, ip or "unknown")):
+            logger.warning(f"Blocked {kind} login for {identifier} from {ip}: too many failures")
+            raise RateLimitExceededError(retry_after=cls.PAIR_LOCK_SECONDS)
+
+    @classmethod
+    async def record_failure(cls, kind: str, identifier: str, ip: Optional[str]) -> int:
+        """
+        Record a failed attempt. Returns the identifier's failure count across
+        all IPs in the current hour window.
+        """
+        pair_key = cls._key(kind, identifier, ip or "unknown")
+        pair_count = await ephemeral_store.incr("fail:" + pair_key, cls.PAIR_WINDOW_SECONDS)
+        if pair_count >= cls.PAIR_MAX_FAILURES:
+            await ephemeral_store.set("lock:" + pair_key, "1", cls.PAIR_LOCK_SECONDS)
+            await ephemeral_store.delete("fail:" + pair_key)
+            logger.warning(f"{kind} login for {identifier} blocked from {ip} for {cls.PAIR_LOCK_SECONDS}s")
+        return await ephemeral_store.incr(
+            "fail:" + cls._key(kind, identifier), cls.GLOBAL_WINDOW_SECONDS
+        )
+
+    @classmethod
+    async def record_success(cls, kind: str, identifier: str, ip: Optional[str]) -> None:
+        await ephemeral_store.delete("fail:" + cls._key(kind, identifier, ip or "unknown"))
+
+
+def _company_token_data(company: Company) -> dict:
+    return {
+        "sub": str(company.id),
+        "email": company.rep_email,
+        "type": "company",
+        "company_name": company.company_name,
+        "tv": company.token_version or 0,
+    }
+
+
+def _admin_token_data(admin: AdminUser) -> dict:
+    return {
+        "sub": str(admin.id),
+        "username": admin.username,
+        "email": admin.email,
+        "role": admin.role.value,
+        "type": "admin",
+        "tv": admin.token_version or 0,
+    }
+
+
+def revoke_user_tokens(user) -> None:
+    """
+    Invalidate every JWT issued to this company/admin (bumps token_version)
+    and the stored refresh token. Caller commits.
+    """
+    user.token_version = (user.token_version or 0) + 1
+    user.refresh_token = None
+    user.refresh_token_expires = None
 
 
 class AuthService:
@@ -146,19 +236,25 @@ class AuthService:
             AccountNotVerifiedError: If account needs verification
         """
         logger.info(f"Authentication attempt for company email: {email}")
-        
+
+        # Per (email, IP) backoff after repeated failures
+        await LoginAttemptLimiter.check("company", email, ip_address)
+
         # Find company by email
         result = await db.execute(
             select(Company).where(Company.rep_email == email)
         )
         company = result.scalar_one_or_none()
-        
+
         # Verify company exists and password is correct
         if not company or not security_manager.verify_password(password, company.hashed_password):
             logger.warning(f"Failed login attempt for {email} from {ip_address}")
+            await LoginAttemptLimiter.record_failure("company", email, ip_address)
             if ip_address:
                 security_logger.log_failed_login(email, ip_address, "invalid credentials")
             raise InvalidCredentialsError()
+
+        await LoginAttemptLimiter.record_success("company", email, ip_address)
         
         # Check account status
         if not company.is_active:
@@ -171,31 +267,32 @@ class AuthService:
             logger.info(f"Login successful for unverified account: {email} - quote creation will be restricted")
         
         # Generate tokens
-        token_data = {
-            "sub": str(company.id),
-            "email": company.rep_email,
-            "type": "company",
-            "company_name": company.company_name
-        }
-        
+        tokens = await AuthService.create_company_tokens(db, company)
+
+        logger.info(f"Successful login for company: {company.company_name} (ID: {company.id})")
+
+        return company, tokens
+
+    @staticmethod
+    async def create_company_tokens(db: AsyncSession, company: Company) -> dict:
+        """Issue access + refresh tokens for a company and store the refresh token"""
+        token_data = _company_token_data(company)
+
         access_token = security_manager.create_access_token(token_data)
         refresh_token = security_manager.create_refresh_token(token_data)
-        
+
         # Store refresh token and expiration in database
-        from backend.core.config import settings
         refresh_expires = datetime.utcnow() + timedelta(days=settings.COMPANY_REFRESH_TOKEN_EXPIRE_DAYS)
         company.refresh_token = refresh_token
         company.refresh_token_expires = refresh_expires.isoformat()
         await db.commit()
-        
-        logger.info(f"Successful login for company: {company.company_name} (ID: {company.id})")
-        
-        return company, {
+
+        return {
             "access_token": access_token,
             "refresh_token": refresh_token,
             "token_type": "bearer"
         }
-    
+
     @staticmethod
     async def authenticate_admin(
         db: AsyncSession,
@@ -222,7 +319,10 @@ class AuthService:
             AccountSuspendedError: If account is locked
         """
         logger.info(f"Admin authentication attempt for username: {username}")
-        
+
+        # Short per (username, IP) lockout - only blocks the offending client
+        await LoginAttemptLimiter.check("admin", username, ip_address)
+
         # Find admin by username
         result = await db.execute(
             select(AdminUser).where(AdminUser.username == username)
@@ -242,18 +342,8 @@ class AuthService:
         
         # Verify credentials
         if not admin or not security_manager.verify_password(password, admin.hashed_password):
-            # Increment failed login attempts
-            if admin:
-                admin.failed_login_attempts += 1
-                
-                # Lock account after 5 failed attempts
-                if admin.failed_login_attempts >= 5:
-                    admin.locked_until = (datetime.utcnow() + timedelta(minutes=30)).isoformat()
-                    await db.commit()
-                    logger.warning(f"Admin account locked due to failed attempts: {username}")
-                
-                await db.commit()
-            
+            await AuthService._record_admin_failure(db, admin, username, ip_address)
+
             logger.warning(f"Failed admin login attempt for {username} from {ip_address}")
             if ip_address:
                 security_logger.log_failed_login(username, ip_address, "invalid credentials")
@@ -272,28 +362,19 @@ class AuthService:
                     reason="Two-factor authentication code is required"
                 )
             if not MFAService.verify_totp(admin.two_factor_secret, two_factor_code):
-                admin.failed_login_attempts += 1
-                if admin.failed_login_attempts >= 5:
-                    admin.locked_until = (datetime.utcnow() + timedelta(minutes=30)).isoformat()
-                await db.commit()
+                await AuthService._record_admin_failure(db, admin, username, ip_address)
                 raise InvalidCredentialsError("Invalid two-factor authentication code")
 
         strong_session = admin.is_2fa_enabled and two_factor_code
 
-        admin.failed_login_attempts = 0
+        await LoginAttemptLimiter.record_success("admin", username, ip_address)
         admin.failed_login_attempts = 0
         admin.last_login = datetime.utcnow().isoformat()
         admin.last_login_ip = ip_address
         await db.commit()
         
         # Generate tokens (including admin-specific tokens)
-        token_data = {
-            "sub": str(admin.id),
-            "username": admin.username,
-            "email": admin.email,
-            "role": admin.role.value,
-            "type": "admin"
-        }
+        token_data = _admin_token_data(admin)
         
         from backend.core.config import settings
         refresh_days = (
@@ -310,8 +391,9 @@ class AuthService:
         import secrets
         session_token = secrets.token_urlsafe(32)
         admin_token = secrets.token_urlsafe(32)
-        hashed_session_token = security_manager.hash_password(session_token)
-        hashed_admin_token = security_manager.hash_password(admin_token)
+        # High-entropy random tokens: HMAC digest (not bcrypt) keeps per-request checks cheap
+        hashed_session_token = security_manager.hash_token(session_token)
+        hashed_admin_token = security_manager.hash_token(admin_token)
         refresh_expires = datetime.utcnow() + timedelta(days=refresh_days)
         admin.session_token = hashed_session_token
         admin.admin_token = hashed_admin_token
@@ -336,6 +418,33 @@ class AuthService:
         }
 
     @staticmethod
+    async def _record_admin_failure(
+        db: AsyncSession,
+        admin: Optional[AdminUser],
+        username: str,
+        ip_address: Optional[str],
+    ) -> None:
+        """
+        Record a failed admin login (bad password or 2FA code).
+
+        The (username, IP) pair gets the short lockout; the account itself is
+        only locked once failures across all IPs reach the (much higher)
+        per-username hourly threshold.
+        """
+        global_failures = await LoginAttemptLimiter.record_failure("admin", username, ip_address)
+        if not admin:
+            return
+        admin.failed_login_attempts = (admin.failed_login_attempts or 0) + 1
+        if global_failures >= LoginAttemptLimiter.ADMIN_GLOBAL_MAX_FAILURES:
+            admin.locked_until = (
+                datetime.utcnow() + timedelta(minutes=LoginAttemptLimiter.ADMIN_LOCK_MINUTES)
+            ).isoformat()
+            logger.warning(
+                f"Admin account locked: {global_failures} failed attempts in the last hour for {username}"
+            )
+        await db.commit()
+
+    @staticmethod
     async def create_admin_tokens(
         db: AsyncSession,
         admin: AdminUser,
@@ -349,13 +458,7 @@ class AuthService:
             if strong_session
             else settings.ADMIN_REFRESH_TOKEN_EXPIRE_DAYS
         )
-        token_data = {
-            "sub": str(admin.id),
-            "username": admin.username,
-            "email": admin.email,
-            "role": admin.role.value,
-            "type": "admin"
-        }
+        token_data = _admin_token_data(admin)
         access_token = security_manager.create_access_token(token_data)
         refresh_token = security_manager.create_refresh_token(
             token_data,
@@ -363,8 +466,8 @@ class AuthService:
         )
         session_token = secrets.token_urlsafe(32)
         admin_token = secrets.token_urlsafe(32)
-        hashed_session_token = security_manager.hash_password(session_token)
-        hashed_admin_token = security_manager.hash_password(admin_token)
+        hashed_session_token = security_manager.hash_token(session_token)
+        hashed_admin_token = security_manager.hash_token(admin_token)
         admin.session_token = hashed_session_token
         admin.admin_token = hashed_admin_token
         admin.refresh_token = refresh_token
@@ -429,7 +532,12 @@ class AuthService:
         
         if not user.is_active:
             raise AccountSuspendedError()
-        
+
+        # Reject refresh tokens issued before the last logout/password change
+        if not security_manager.token_version_matches(token_payload, user):
+            logger.warning(f"Token refresh failed: Revoked refresh token for user {user_id}")
+            raise InvalidCredentialsError("Session has been revoked. Please log in again.")
+
         # Validate the refresh token matches the stored one
         if user.refresh_token != provided_refresh_token:
             logger.warning(f"Token refresh failed: Invalid refresh token for user {user_id}")
@@ -448,20 +556,9 @@ class AuthService:
         
         # Generate new tokens with updated data
         if user_type == "admin":
-            token_data = {
-                "sub": str(user.id),
-                "username": user.username,
-                "email": user.email,
-                "role": user.role.value,
-                "type": "admin"
-            }
+            token_data = _admin_token_data(user)
         else:
-            token_data = {
-                "sub": str(user.id),
-                "email": user.rep_email,
-                "type": "company",
-                "company_name": user.company_name
-            }
+            token_data = _company_token_data(user)
         
         from backend.core.config import settings
         if user_type == "admin":
@@ -541,6 +638,8 @@ class AuthService:
         
         # Hash and set new password
         user.hashed_password = security_manager.hash_password(new_password)
+        # Revoke all existing sessions (access + refresh tokens)
+        revoke_user_tokens(user)
         await db.commit()
         
         logger.info(f"Password changed successfully for {user_type} user ID: {user_id}")
@@ -657,9 +756,8 @@ class AuthService:
         company.password_reset_token = None
         company.password_reset_expires = None
         
-        # Invalidate existing refresh tokens (force re-login)
-        company.refresh_token = None
-        company.refresh_token_expires = None
+        # Invalidate existing access + refresh tokens (force re-login)
+        revoke_user_tokens(company)
         
         await db.commit()
         

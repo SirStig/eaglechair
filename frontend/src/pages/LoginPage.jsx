@@ -22,7 +22,7 @@ const LoginPage = () => {
   const [passkeyLoading, setPasskeyLoading] = useState(false);
   const hasRedirectedRef = useRef(false);
 
-  const { register, handleSubmit, formState: { errors } } = useForm();
+  const { register, handleSubmit, getValues, formState: { errors } } = useForm();
 
   const from = location.state?.from?.pathname || null;
 
@@ -84,7 +84,8 @@ const LoginPage = () => {
     setError(null);
     setPasskeyLoading(true);
     try {
-      const result = await loginWithPasskey();
+      // Passkey options are issued for a specific admin (username or email)
+      const result = await loginWithPasskey(getValues('email'));
       if (result.success) {
         const currentUser = useAuthStore.getState().user;
         const isAdmin = currentUser?.type === 'admin';

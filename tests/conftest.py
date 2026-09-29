@@ -105,8 +105,10 @@ def client(db_session: AsyncSession) -> TestClient:
         return db_session
     
     app.dependency_overrides[get_db] = override_get_db
-    
-    with TestClient(app) as test_client:
+
+    # Browsers send Origin on state-changing requests; the CSRF middleware
+    # rejects cookie-authenticated POST/PUT/PATCH/DELETE without a trusted one
+    with TestClient(app, headers={"Origin": "http://testserver"}) as test_client:
         yield test_client
     
     app.dependency_overrides.clear()
@@ -127,10 +129,23 @@ async def async_client(db_session: AsyncSession) -> AsyncGenerator[AsyncClient, 
     app.dependency_overrides[get_db] = override_get_db
     
     transport = ASGITransport(app=app)
-    async with AsyncClient(transport=transport, base_url="http://test") as ac:
+    # Same-origin Origin header, as a browser would send (see CSRF middleware)
+    async with AsyncClient(
+        transport=transport, base_url="http://test", headers={"Origin": "http://test"}
+    ) as ac:
         yield ac
     
     app.dependency_overrides.clear()
+
+
+@pytest.fixture(autouse=True)
+def reset_ephemeral_store():
+    """Clear in-process login-failure counters / WebAuthn challenges between tests"""
+    from backend.core.ephemeral_store import ephemeral_store
+
+    ephemeral_store.clear_memory()
+    yield
+    ephemeral_store.clear_memory()
 
 
 # ============================================================================

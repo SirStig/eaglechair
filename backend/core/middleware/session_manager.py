@@ -108,17 +108,14 @@ class SessionManager(BaseHTTPMiddleware):
         
         # Update session cookie if session exists
         if session:
-            is_production = not settings.DEBUG
+            from backend.core.security import auth_cookie_kwargs
+
+            # Same attributes as the auth cookies (SameSite/Secure/Domain)
             response.set_cookie(
                 key=self.session_cookie_name,
                 value=session.session_id,
-                httponly=True,
-                secure=is_production,  # HTTPS only in production
-                # Frontend and API are on different registrable domains in
-                # production, so SameSite=None is required for the cookie to
-                # be sent on cross-site requests at all.
-                samesite="none" if is_production else "lax",
-                max_age=self.session_timeout
+                max_age=self.session_timeout,
+                **auth_cookie_kwargs(not settings.DEBUG),
             )
         
         return response
