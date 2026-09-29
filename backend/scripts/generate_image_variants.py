@@ -1,10 +1,12 @@
 """
-Generate Responsive Image Variants for Existing Uploads
+Generate Responsive Image Renditions for Existing Uploads
 
-Walks <uploads>/images/** and writes the `{stem}.w{N}.webp` width variants
-(see backend/services/media_service.py) next to every JPEG/PNG/WebP. Originals
-and DB URLs are left untouched: the frontend derives variant URLs from the
-stored URL and falls back to the original if a variant is missing.
+Walks <uploads>/images/** and writes, next to every JPEG/PNG/WebP original,
+the renditions described in backend/services/media_service.py: a tiny
+placeholder (`.w32.webp`), responsive widths (`.w{N}.webp`) and a
+full-resolution WebP (`.full.webp`). Originals and DB URLs are left untouched:
+the frontend derives rendition URLs from the stored URL and falls back to the
+original if one is missing.
 
 Idempotent: a variant is only rewritten when missing or older than its source.
 
@@ -20,6 +22,7 @@ Usage (from the project root, venv active):
 import argparse
 import logging
 import os
+import re
 import sys
 from collections import defaultdict
 from concurrent.futures import ProcessPoolExecutor, as_completed
@@ -73,10 +76,10 @@ def _process(path_str: str, force: bool) -> tuple[str, int, str | None]:
 
 def prune(images_dir: Path, dry_run: bool) -> int:
     removed = 0
-    for v in images_dir.rglob("*.w*.webp"):
+    for v in images_dir.rglob("*.webp"):
         if not media_service.is_variant_path(v):
             continue
-        stem = v.name.rsplit(".w", 1)[0]
+        stem = re.sub(r"\.(w\d+|full)\.webp$", "", v.name, flags=re.IGNORECASE)
         if not any((v.parent / f"{stem}{ext}").exists() for ext in SOURCE_EXTENSIONS | {e.upper() for e in SOURCE_EXTENSIONS}):
             logger.info(f"{'[dry-run] ' if dry_run else ''}orphan variant: {v}")
             if not dry_run:

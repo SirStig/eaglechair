@@ -241,8 +241,8 @@ async def upload_image(
         if not upload_dir_resolved.is_relative_to(base_resolved):
             raise HTTPException(status_code=400, detail="Invalid upload path")
 
-        # Encode to WebP + responsive variants (SVG/GIF kept as-is). Pillow is
-        # CPU-bound, so keep it off the event loop.
+        # Keep the full-resolution original and write progressive WebP renditions
+        # (SVG/GIF kept as-is). Pillow is CPU-bound, so keep it off the event loop.
         file_path, processed_size = await run_in_threadpool(
             media_service.store_image, content, upload_dir, unique_stem(base_name), file_ext
         )

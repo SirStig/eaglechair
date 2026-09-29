@@ -162,11 +162,15 @@ export const resolveImageUrl = (imageData) => {
 };
 
 /**
- * Widths (px) of the WebP variants the backend writes next to every raster
- * upload under /uploads/images/ as `{stem}.w{N}.webp`.
- * Keep in sync with backend/services/media_service.py VARIANT_WIDTHS.
+ * Renditions the backend writes next to every raster upload under
+ * /uploads/images/ (backend/services/media_service.py — keep in sync):
+ *   `{stem}.w32.webp`      tiny placeholder, shown blurred while loading
+ *   `{stem}.w{N}.webp`     responsive widths (srcset)
+ *   `{stem}.full.webp`     full resolution (a .webp original is its own)
+ * The original upload is kept untouched at full resolution.
  */
-export const IMAGE_VARIANT_WIDTHS = [320, 640, 1024, 1600];
+export const IMAGE_VARIANT_WIDTHS = [320, 640, 1024, 1600, 2400];
+export const IMAGE_PLACEHOLDER_WIDTH = 32;
 
 /**
  * `sizes` for CategoryTile images (Products dropdown + home page grid).
@@ -179,7 +183,7 @@ export const CATEGORY_TILE_IMAGE_SIZES = '(min-width: 640px) 1024px, 100vw';
 // Master formats the backend generates variants for
 // (backend/services/media_service.py TRANSFORMABLE_EXTENSIONS).
 const VARIANT_SOURCE_EXT_RE = /\.(jpe?g|png|webp|tiff?|bmp)$/i;
-const VARIANT_URL_RE = /\.w\d+\.webp$/i;
+const VARIANT_URL_RE = /\.(w\d+|full)\.webp$/i;
 
 /**
  * Resolve an image reference only when it still needs resolving.
@@ -205,18 +209,17 @@ export const ensureResolvedImageUrl = (imageData) => {
 };
 
 /**
- * Build a srcset string for an uploaded raster image using the backend's
- * pre-generated WebP width variants.
+ * Rendition URLs for an uploaded raster image, derived from its URL.
  *
- * Returns null when variants don't apply: data:/blob: URLs, external or legacy
- * URLs (e.g. wp-content on www.eaglechair.com), /tmp/, /assets/, placeholders,
- * SVG/GIF, URLs that already point at a variant, or anything not under
- * /uploads/images/.
+ * Returns null when renditions don't apply: data:/blob: URLs, external or
+ * legacy URLs (e.g. wp-content on www.eaglechair.com), /tmp/, /assets/,
+ * placeholders, SVG/GIF, URLs that already point at a rendition, or anything
+ * not under /uploads/images/.
  *
  * @param {string|object} url - Image URL (raw or already resolved)
- * @returns {string|null} srcset value, e.g. ".../foo.w320.webp 320w, ..."
+ * @returns {{srcSet: string, placeholder: string, full: string, widths: number[]}|null}
  */
-export const getImageSrcSet = (url) => {
+export const getImageRenditions = (url) => {
   const resolved = ensureResolvedImageUrl(url);
   if (!resolved || typeof resolved !== 'string') return null;
   if (/^(data|blob):/i.test(resolved)) return null;
@@ -240,11 +243,23 @@ export const getImageSrcSet = (url) => {
   if (VARIANT_URL_RE.test(pathname)) return null;
   if (!VARIANT_SOURCE_EXT_RE.test(pathname)) return null;
 
-  const stem = pathname.replace(/\.[^./]+$/, '');
-  return IMAGE_VARIANT_WIDTHS
-    .map((w) => `${origin}${stem}.w${w}.webp ${w}w`)
-    .join(', ');
+  const base = `${origin}${pathname.replace(/\.[^./]+$/, '')}`;
+  return {
+    srcSet: IMAGE_VARIANT_WIDTHS.map((w) => `${base}.w${w}.webp ${w}w`).join(', '),
+    placeholder: `${base}.w${IMAGE_PLACEHOLDER_WIDTH}.webp`,
+    full: /\.webp$/i.test(pathname) ? `${origin}${pathname}` : `${base}.full.webp`,
+    widths: IMAGE_VARIANT_WIDTHS,
+  };
 };
+
+/**
+ * Build a srcset string for an uploaded raster image using the backend's
+ * pre-generated WebP width variants (see getImageRenditions).
+ *
+ * @param {string|object} url - Image URL (raw or already resolved)
+ * @returns {string|null} srcset value, e.g. ".../foo.w320.webp 320w, ..."
+ */
+export const getImageSrcSet = (url) => getImageRenditions(url)?.srcSet ?? null;
 
 /**
  * Get product image with fallback
@@ -627,6 +642,7 @@ export default {
   // Images
   resolveImageUrl,
   ensureResolvedImageUrl,
+  getImageRenditions,
   getImageSrcSet,
   getProductImage,
   getProductImages,

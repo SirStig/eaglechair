@@ -80,8 +80,8 @@
           link.as = 'image';
           link.setAttribute('fetchpriority', 'high');
           var m = u.split('?')[0].match(/^(.*\/uploads\/images\/.*)\.(jpe?g|png|webp)$/i);
-          if (m && !/\.w\d+$/.test(m[1])) {
-            link.setAttribute('imagesrcset', [320, 640, 1024, 1600].map(function (w) {
+          if (m && !/\.(w\d+|full)$/.test(m[1])) {
+            link.setAttribute('imagesrcset', [320, 640, 1024, 1600, 2400].map(function (w) {
               return m[1] + '.w' + w + '.webp ' + w + 'w';
             }).join(', '));
             link.setAttribute('imagesizes', '100vw');
