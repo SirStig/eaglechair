@@ -6,6 +6,7 @@ import SEOHead from '../components/SEOHead';
 import { SEO } from '../config/seoConfig';
 import { Palette, Layers, Scissors, Book } from 'lucide-react';
 import LoadingSpinner from '../components/ui/LoadingSpinner';
+import ResponsiveImage from '../components/ui/ResponsiveImage';
 
 const WoodFinishesPage = () => {
   const [searchTerm, setSearchTerm] = useState('');
@@ -133,16 +134,18 @@ const WoodFinishesPage = () => {
               >
                 {finish.swatchImageUrl ? (
                   <div className="aspect-square overflow-hidden rounded-full bg-slate-100">
-                    <img
+                    <ResponsiveImage
                       src={finish.swatchImageUrl}
+                      sizes="(min-width: 1280px) 25vw, (min-width: 1024px) 33vw, (min-width: 640px) 50vw, 100vw"
                       alt={finish.name}
                       className="w-full h-full object-cover scale-125"
                     />
                   </div>
                 ) : finish.imageUrl ? (
                   <div className="aspect-square overflow-hidden rounded-full bg-slate-100">
-                    <img
+                    <ResponsiveImage
                       src={finish.imageUrl}
+                      sizes="(min-width: 1280px) 25vw, (min-width: 1024px) 33vw, (min-width: 640px) 50vw, 100vw"
                       alt={finish.name}
                       className="w-full h-full object-cover scale-125"
                     />

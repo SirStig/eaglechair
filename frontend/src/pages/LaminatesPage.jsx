@@ -6,6 +6,7 @@ import SEOHead from '../components/SEOHead';
 import { SEO } from '../config/seoConfig';
 import { Layers, Palette, Scissors, Book } from 'lucide-react';
 import LoadingSpinner from '../components/ui/LoadingSpinner';
+import ResponsiveImage from '../components/ui/ResponsiveImage';
 
 const LaminatesPage = () => {
   const [searchTerm, setSearchTerm] = useState('');
@@ -113,16 +114,18 @@ const LaminatesPage = () => {
               >
                 {laminate.swatchImageUrl ? (
                   <div className="aspect-square overflow-hidden rounded-full bg-slate-100">
-                    <img
+                    <ResponsiveImage
                       src={laminate.swatchImageUrl}
+                      sizes="(min-width: 1280px) 25vw, (min-width: 1024px) 33vw, (min-width: 640px) 50vw, 100vw"
                       alt={laminate.patternName}
                       className="w-full h-full object-cover scale-125"
                     />
                   </div>
                 ) : laminate.fullImageUrl ? (
                   <div className="aspect-square overflow-hidden rounded-full bg-slate-100">
-                    <img
+                    <ResponsiveImage
                       src={laminate.fullImageUrl}
+                      sizes="(min-width: 1280px) 25vw, (min-width: 1024px) 33vw, (min-width: 640px) 50vw, 100vw"
                       alt={laminate.patternName}
                       className="w-full h-full object-cover scale-125"
                     />

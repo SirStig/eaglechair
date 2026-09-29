@@ -5,6 +5,7 @@ import { Link } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import Button from '../components/ui/Button';
 import Card from '../components/ui/Card';
+import ResponsiveImage from '../components/ui/ResponsiveImage';
 import { useCartStore } from '../store/cartStore';
 import { getProductImage, buildProductUrl } from '../utils/apiHelpers';
 
@@ -118,8 +119,9 @@ const CartPage = () => {
                                 </svg>
                               </div>
                             ) : (
-                              <img
+                              <ResponsiveImage
                                 src={productImage}
+                                sizes="(min-width: 640px) 128px, 112px"
                                 alt={productName}
                                 onError={() => markImageBroken(itemKey)}
                                 className="w-full h-full object-contain hover:scale-105 transition-transform duration-300"

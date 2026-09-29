@@ -11,6 +11,11 @@ worker_class = "backend.core.worker.AsyncioUvicornWorker"
 timeout = 120
 keepalive = 5
 
+# Recycle workers periodically so per-process state (in-memory rate limiter
+# history, caches) can't grow without bound
+max_requests = 1000
+max_requests_jitter = 100
+
 # Security / Performance
 preload_app = True
 reload = False

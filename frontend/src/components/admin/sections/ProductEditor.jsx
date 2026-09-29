@@ -50,7 +50,6 @@ const ProductEditor = ({ product, onBack }) => {
     category_id: null,
     subcategory_id: null,
     family_id: null,
-    secondary_family_ids: [],
     short_description: '',
     full_description: '',
     base_price: 0,

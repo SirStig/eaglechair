@@ -4,6 +4,7 @@ import { X, ExternalLink } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import Button from './Button';
 import ProductCard from './ProductCard';
+import ResponsiveImage from './ResponsiveImage';
 import LoadingSpinner from './LoadingSpinner';
 import productService from '../../services/productService';
 
@@ -91,8 +92,10 @@ const ProductFamilyQuickView = ({ family, isOpen, onClose }) => {
                   {/* Banner Image - Portrait aspect */}
                   {(family.banner_image_url || family.family_image) && (
                     <div className="relative w-full aspect-[3/4] overflow-hidden bg-cream-100 rounded-lg">
-                      <img
+                      <ResponsiveImage
                         src={family.banner_image_url || family.family_image}
+                        sizes="(min-width: 1024px) 400px, 100vw"
+                        priority
                         alt={family.name}
                         className="w-full h-full object-contain"
                         style={{ mixBlendMode: 'multiply' }}

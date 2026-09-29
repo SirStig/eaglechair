@@ -52,7 +52,7 @@ export default function FloatingAIButton() {
             transition={{ duration: 0.15 }}
             className="relative w-full h-full flex items-center justify-center p-0.5"
           >
-            <img src="/favicon.svg" alt="Eagle Chair" className="w-full h-full object-contain" />
+            <img src="/web-app-manifest-192x192.png" alt="Eagle Chair" className="w-full h-full object-contain" />
             {isStreaming && (
               <span className="absolute -top-1 -right-1 w-2.5 h-2.5 rounded-full bg-green-400 border-2 border-dark-800 animate-pulse" />
             )}

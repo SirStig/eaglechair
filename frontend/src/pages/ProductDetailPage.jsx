@@ -14,7 +14,11 @@ import SEOHead from '../components/SEOHead';
 import { useCartStore } from '../store/cartStore';
 import { updateProduct } from '../services/contentService';
 import productService from '../services/productService';
-import { getProductImages, getProductGalleryImages, resolveImageUrl, resolveFileUrl, variationHasOwnImage } from '../utils/apiHelpers';
+import { getProductImages, getProductGalleryImages, resolveImageUrl, resolveFileUrl, variationHasOwnImage, getImageSrcSet } from '../utils/apiHelpers';
+import ResponsiveImage from '../components/ui/ResponsiveImage';
+
+// Hero image column: full width below lg, half of the max-w-7xl container above.
+const HERO_IMAGE_SIZES = '(min-width: 1280px) 600px, (min-width: 1024px) 50vw, 100vw';
 import SwatchImage from '../components/ui/SwatchImage';
 import { useToast } from '../contexts/ToastContext';
 import logger from '../utils/logger';
@@ -151,6 +155,13 @@ const ProductDetailPage = () => {
       link.rel = 'preload';
       link.as = 'image';
       link.href = images[0];
+      // Preload the same srcset candidate the hero <img> will pick
+      const srcSet = getImageSrcSet(images[0]);
+      if (srcSet) {
+        link.setAttribute('imagesrcset', srcSet);
+        link.setAttribute('imagesizes', HERO_IMAGE_SIZES);
+      }
+      link.setAttribute('fetchpriority', 'high');
       document.head.appendChild(link);
 
       return () => {
@@ -441,14 +452,16 @@ const ProductDetailPage = () => {
                   onClick={() => openLightbox(carouselImages, selectedImage)}
                   className="bg-white rounded-xl overflow-hidden border border-cream-200 w-full min-h-[480px] p-4 sm:p-6 flex items-center justify-center cursor-zoom-in hover:opacity-95 transition-opacity focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2"
                 >
-                  <img
+                  {/* w-full (not w-auto): with srcset the intrinsic size depends on the
+                      chosen candidate, so size the box by CSS and let object-contain fit it. */}
+                  <ResponsiveImage
                     src={carouselImages[Math.min(selectedImage, carouselImages.length - 1)] || carouselImages[0] || images[0]}
+                    sizes={HERO_IMAGE_SIZES}
                     alt={product.name}
-                    className="max-w-full max-h-[620px] w-auto h-auto object-contain"
+                    className="max-w-full max-h-[620px] w-full h-auto object-contain"
                     style={{ mixBlendMode: 'multiply' }}
-                    loading={selectedImage === 0 ? "eager" : "lazy"}
+                    priority={selectedImage === 0}
                     fetchpriority={selectedImage === 0 ? "high" : "low"}
-                    decoding="async"
                   />
                 </button>
 
@@ -566,7 +579,7 @@ const ProductDetailPage = () => {
                       className={`w-full flex items-center gap-3 p-2.5 rounded-lg text-left transition-colors border-2 ${selectedVariation === null ? 'border-primary-500 bg-primary-50/50' : 'border-transparent bg-white hover:bg-cream-100 hover:border-cream-300'}`}
                     >
                       <div className="w-10 h-14 flex-shrink-0 rounded-md overflow-hidden bg-cream-200">
-                        <img src={resolveImageUrl(product?.primary_image_url || product?.image) || '/og-image.jpg'} alt="" className="w-full h-full object-cover" />
+                        <ResponsiveImage src={resolveImageUrl(product?.primary_image_url || product?.image) || '/og-image.jpg'} sizes="48px" alt="" className="w-full h-full object-cover" />
                       </div>
                       <div className="min-w-0 flex-1">
                         <span className="font-medium text-slate-800 block truncate">
@@ -599,7 +612,7 @@ const ProductDetailPage = () => {
                           className={`w-full flex items-center gap-3 p-2.5 rounded-lg text-left transition-colors border-2 ${isSelected ? 'border-primary-500 bg-primary-50/50' : 'border-transparent bg-white hover:bg-cream-100 hover:border-cream-300'}`}
                         >
                           <div className="w-10 h-14 flex-shrink-0 rounded-md overflow-hidden bg-cream-200 relative">
-                            <img src={thumbUrl} alt="" className="w-full h-full object-cover" />
+                            <ResponsiveImage src={thumbUrl} sizes="48px" alt="" className="w-full h-full object-cover" />
                             {!variationHasOwnImage(variation) && <VariationImageDisclaimer compact />}
                           </div>
                           <div className="min-w-0 flex-1">
@@ -765,11 +778,11 @@ const ProductDetailPage = () => {
                   onClick={() => openLightbox(galleryOnlyImages, gallerySelectedIndex)}
                   className="absolute inset-0 w-full h-full cursor-zoom-in focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2"
                 >
-                  <img
+                  <ResponsiveImage
                     src={galleryOnlyImages[gallerySelectedIndex]}
+                    sizes="(min-width: 1280px) 900px, (min-width: 1024px) calc(100vw - 300px), 100vw"
                     alt={`${product.name} gallery ${gallerySelectedIndex + 1}`}
                     className="w-full h-full object-cover block"
-                    loading="lazy"
                   />
                 </button>
               </div>
@@ -781,11 +794,11 @@ const ProductDetailPage = () => {
                     onClick={() => setGallerySelectedIndex(idx)}
                     className={`flex-shrink-0 aspect-video overflow-hidden block w-32 sm:w-40 lg:w-full text-left focus:outline-none rounded ${idx === gallerySelectedIndex ? 'opacity-100' : 'opacity-70 hover:opacity-100'}`}
                   >
-                    <img
+                    <ResponsiveImage
                       src={url}
+                      sizes="(min-width: 1280px) 224px, (min-width: 1024px) 192px, (min-width: 640px) 160px, 128px"
                       alt=""
                       className="w-full h-full object-cover block"
-                      loading="lazy"
                     />
                   </button>
                 ))}
@@ -810,14 +823,13 @@ const ProductDetailPage = () => {
                   onClick={() => openLightbox(carouselImages, customizeImageIndex)}
                   className="bg-white rounded-xl overflow-hidden border border-cream-200 w-full min-h-[280px] p-4 sm:p-6 flex items-center justify-center cursor-zoom-in hover:opacity-95 transition-opacity focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2"
                 >
-                  <img
+                  {/* Below the fold: lazy, no high priority. w-full for srcset (see hero). */}
+                  <ResponsiveImage
                     src={carouselImages[customizeImageIndex] || carouselImages[0]}
+                    sizes={HERO_IMAGE_SIZES}
                     alt={product.name}
-                    className="max-w-full max-h-[420px] w-auto h-auto object-contain"
+                    className="max-w-full max-h-[420px] w-full h-auto object-contain"
                     style={{ mixBlendMode: 'multiply' }}
-                    loading="eager"
-                    decoding="async"
-                    fetchpriority="high"
                   />
 
                   {/* 3D Coming Soon Badge */}

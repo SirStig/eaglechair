@@ -5,6 +5,7 @@ import Tag from './Tag';
 import { useCartStore } from '../../store/cartStore';
 import { getProductImages, buildProductUrl, resolveImageUrl, variationHasOwnImage } from '../../utils/apiHelpers';
 import SwatchImage from './SwatchImage';
+import ResponsiveImage from './ResponsiveImage';
 import VariationImageDisclaimer from './VariationImageDisclaimer';
 import productService from '../../services/productService';
 import logger from '../../utils/logger';
@@ -155,8 +156,10 @@ const QuickViewModal = ({ product, isOpen, onClose }) => {
                     <div className="relative inline-block w-full h-full flex items-center justify-center">
                       {isShowingBaseImageForVariation && <VariationImageDisclaimer />}
                       <div className="bg-cream-50 rounded-lg overflow-hidden border border-cream-300 flex items-center justify-center h-full">
-                        <img
+                        <ResponsiveImage
                           src={images[selectedImage]}
+                          sizes="(min-width: 768px) 560px, 100vw"
+                          priority
                           alt={product.name}
                           className="w-full h-auto object-contain"
                           style={{ maxHeight: '70vh', mixBlendMode: 'multiply' }}

@@ -5,12 +5,12 @@ import Footer from './Footer';
 import { useAuthStore } from '../../store/authStore';
 import { useCartStore } from '../../store/cartStore';
 import { initDesktopViewMode } from '../../utils/viewMode';
-import { useImagePreload } from '../../hooks/useImagePreload';
 import { loadContentData } from '../../utils/contentDataLoader';
 
 const Layout = () => {
-  useImagePreload();
-
+  // Note: no blanket image preloading here. It competed with the hero (LCP)
+  // image and fetched full-size originals that pages no longer render (they
+  // use responsive srcset variants).
   useEffect(() => {
     loadContentData();
   }, []);

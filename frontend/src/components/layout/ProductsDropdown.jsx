@@ -6,7 +6,7 @@ import logger from '../../utils/logger';
 
 const CONTEXT = 'ProductsDropdown';
 
-const DEFAULT_BANNER = '/assets/default-banner-categories.png';
+const DEFAULT_BANNER = '/assets/default-banner-categories.webp';
 
 // Widest the dropdown goes before extra categories collapse into "More Categories"
 const MAX_COLUMNS = 5;

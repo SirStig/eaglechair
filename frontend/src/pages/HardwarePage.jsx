@@ -6,6 +6,7 @@ import SEOHead from '../components/SEOHead';
 import { SEO } from '../config/seoConfig';
 import { Wrench, BookOpen, Book, MessageSquare } from 'lucide-react';
 import LoadingSpinner from '../components/ui/LoadingSpinner';
+import ResponsiveImage from '../components/ui/ResponsiveImage';
 
 const HardwarePage = () => {
   const [searchTerm, setSearchTerm] = useState('');
@@ -112,8 +113,9 @@ const HardwarePage = () => {
               >
                 {item.image_url ? (
                   <div className="aspect-video overflow-hidden bg-slate-100">
-                    <img
+                    <ResponsiveImage
                       src={item.image_url}
+                      sizes="(min-width: 1024px) 33vw, (min-width: 768px) 50vw, 100vw"
                       alt={item.name}
                       className="w-full h-full object-contain p-4"
                     />

@@ -48,7 +48,7 @@ const ProtectedRoute = ({ children, requireAdmin = false }) => {
                     user.role === 'editor';
     
     if (!isAdmin) {
-      return <Navigate to="/dashboard" replace />;
+      return <Navigate to="/" replace />;
     }
   }
 

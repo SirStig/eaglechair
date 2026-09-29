@@ -59,6 +59,8 @@ const Footer = () => {
                   src={logoUrl} 
                   alt={companyName} 
                   className="h-14 sm:h-16 w-auto mb-3 sm:mb-4 opacity-80"
+                  loading="lazy"
+                  decoding="async"
                   onError={(e) => {
                     e.target.onerror = null; // Prevent infinite loop
                     e.target.src = '/assets/eagle-chair-logo.png';

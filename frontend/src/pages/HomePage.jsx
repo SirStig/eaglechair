@@ -26,13 +26,14 @@ import {
 } from '../services/contentService';
 import CategoryTile from '../components/products/CategoryTile';
 import productService from '../services/productService';
-import { resolveImageUrl } from '../utils/apiHelpers';
+import { resolveImageUrl, ensureResolvedImageUrl, getImageSrcSet } from '../utils/apiHelpers';
+import ResponsiveImage from '../components/ui/ResponsiveImage';
 import logger from '../utils/logger';
 import { invalidateCache } from '../utils/cache';
 
 const CONTEXT = 'HomePage';
 
-const DEFAULT_BANNER = '/assets/default-banner-categories.png';
+const DEFAULT_BANNER = '/assets/default-banner-categories.webp';
 
 // Widest the product grid goes before extra categories collapse into
 // "More Categories" - matches the Products dropdown
@@ -221,10 +222,15 @@ const HomePage = () => {
     }
   }), [siteSettings, seoDescription]);
 
-  // Preload first 3 hero images for instant display
+  // Preload only the first hero image (the LCP candidate), using the same
+  // srcset/sizes HeroCarousel renders so the preload and the <img> share one
+  // download. Later slides are mounted lazily by HeroCarousel.
   const preloadImages = useMemo(() => {
     if (!slides || slides.length === 0) return [];
-    return slides.slice(0, 3).map(slide => slide.background_image_url || slide.image).filter(Boolean);
+    return slides.slice(0, 1)
+      .map(slide => ensureResolvedImageUrl(slide.background_image_url || slide.image))
+      .filter(Boolean)
+      .map(href => ({ href, srcSet: getImageSrcSet(href) }));
   }, [slides]);
 
   return (
@@ -242,13 +248,14 @@ const HomePage = () => {
       {/* Preload critical hero images */}
       {preloadImages.length > 0 && (
         <Helmet>
-          {preloadImages.map((imageUrl, idx) => (
+          {preloadImages.map(({ href, srcSet }, idx) => (
             <link
               key={`preload-hero-${idx}`}
               rel="preload"
               as="image"
-              href={imageUrl}
-              fetchpriority={idx === 0 ? "high" : idx === 1 ? "high" : "auto"}
+              href={href}
+              {...(srcSet ? { imagesrcset: srcSet, imagesizes: '100vw' } : {})}
+              fetchpriority="high"
             />
           ))}
         </Helmet>
@@ -351,6 +358,8 @@ const HomePage = () => {
                         <img
                           src={client.logoUrl || client.logo}
                           alt={client.name}
+                          loading="lazy"
+                          decoding="async"
                           className="max-h-full max-w-full object-contain transition-all duration-300"
                           style={{ filter: 'invert(1) hue-rotate(180deg) brightness(1.2) contrast(0.9)' }}
                         />
@@ -400,6 +409,8 @@ const HomePage = () => {
                         <img
                           src={client.logoUrl || client.logo}
                           alt={client.name}
+                          loading="lazy"
+                          decoding="async"
                           className="max-h-full max-w-full object-contain transition-all duration-300"
                           style={{ filter: 'invert(1) hue-rotate(180deg) brightness(1.2) contrast(0.9)' }}
                         />
@@ -420,6 +431,8 @@ const HomePage = () => {
                         <img
                           src={client.logoUrl || client.logo}
                           alt={client.name}
+                          loading="lazy"
+                          decoding="async"
                           className="max-h-full max-w-full object-contain transition-all duration-300"
                           style={{ filter: 'invert(1) hue-rotate(180deg) brightness(1.2) contrast(0.9)' }}
                         />
@@ -440,6 +453,8 @@ const HomePage = () => {
                         <img
                           src={client.logoUrl || client.logo}
                           alt={client.name}
+                          loading="lazy"
+                          decoding="async"
                           className="max-h-full max-w-full object-contain transition-all duration-300"
                           style={{ filter: 'invert(1) hue-rotate(180deg) brightness(1.2) contrast(0.9)' }}
                         />
@@ -460,6 +475,8 @@ const HomePage = () => {
                         <img
                           src={client.logoUrl || client.logo}
                           alt={client.name}
+                          loading="lazy"
+                          decoding="async"
                           className="max-h-full max-w-full object-contain transition-all duration-300"
                           style={{ filter: 'invert(1) hue-rotate(180deg) brightness(1.2) contrast(0.9)' }}
                         />
@@ -480,6 +497,8 @@ const HomePage = () => {
                         <img
                           src={client.logoUrl || client.logo}
                           alt={client.name}
+                          loading="lazy"
+                          decoding="async"
                           className="max-h-full max-w-full object-contain transition-all duration-300"
                           style={{ filter: 'invert(1) hue-rotate(180deg) brightness(1.2) contrast(0.9)' }}
                         />
@@ -500,6 +519,8 @@ const HomePage = () => {
                         <img
                           src={client.logoUrl || client.logo}
                           alt={client.name}
+                          loading="lazy"
+                          decoding="async"
                           className="max-h-full max-w-full object-contain transition-all duration-300"
                           style={{ filter: 'invert(1) hue-rotate(180deg) brightness(1.2) contrast(0.9)' }}
                         />
@@ -520,6 +541,8 @@ const HomePage = () => {
                         <img
                           src={client.logoUrl || client.logo}
                           alt={client.name}
+                          loading="lazy"
+                          decoding="async"
                           className="max-h-full max-w-full object-contain transition-all duration-300"
                           style={{ filter: 'invert(1) hue-rotate(180deg) brightness(1.2) contrast(0.9)' }}
                         />
@@ -622,7 +645,6 @@ const HomePage = () => {
                     columns={categoryColumnCount}
                     heightClassName="h-[520px] sm:h-[500px] md:h-[550px] lg:h-[600px]"
                     backgroundClassName="bg-slate-100"
-                    eager
                     links={subcategories.slice(0, 5).map((subcat) => ({
                       key: `${subcat.type || 'subcategory'}-${subcat.id}`,
                       label: subcat.name,
@@ -642,7 +664,6 @@ const HomePage = () => {
                   columns={categoryColumnCount}
                   heightClassName="h-[520px] sm:h-[500px] md:h-[550px] lg:h-[600px]"
                   backgroundClassName="bg-slate-100"
-                  eager
                   links={overflowCategories.map((category) => ({
                     key: `category-${category.id}`,
                     label: category.name,
@@ -700,12 +721,11 @@ const HomePage = () => {
                   className="flex-shrink-0 w-full min-w-full sm:min-w-full md:min-w-[85vw] lg:min-w-[75vw] xl:min-w-[70vw] 2xl:min-w-[60vw] snap-center"
                 >
                   <div className="relative w-full h-[50vh] sm:h-[60vh] md:h-[70vh] lg:h-[75vh] xl:h-[80vh] px-2 sm:px-4">
-                    <img
+                    <ResponsiveImage
                       src={resolveImageUrl(imgUrl)}
+                      sizes="(min-width: 1536px) 60vw, (min-width: 1280px) 70vw, (min-width: 1024px) 75vw, (min-width: 768px) 85vw, 100vw"
                       alt={`Installation ${idx + 1}`}
                       className="w-full h-full object-cover rounded-lg md:rounded-xl shadow-2xl img-sharp"
-                      loading={idx < 3 ? 'eager' : 'lazy'}
-                      fetchpriority={idx < 2 ? 'high' : 'auto'}
                     />
                   </div>
                 </div>

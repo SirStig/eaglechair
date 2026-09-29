@@ -162,6 +162,91 @@ export const resolveImageUrl = (imageData) => {
 };
 
 /**
+ * Widths (px) of the WebP variants the backend writes next to every raster
+ * upload under /uploads/images/ as `{stem}.w{N}.webp`.
+ * Keep in sync with backend/services/media_service.py VARIANT_WIDTHS.
+ */
+export const IMAGE_VARIANT_WIDTHS = [320, 640, 1024, 1600];
+
+/**
+ * `sizes` for CategoryTile images (Products dropdown + home page grid).
+ * The tiles are tall (500-700px) object-cover columns, so on sm+ the painted
+ * image width is driven by the tile height rather than the column width;
+ * hint ~1024px there so landscape banners stay sharp.
+ */
+export const CATEGORY_TILE_IMAGE_SIZES = '(min-width: 640px) 1024px, 100vw';
+
+// Master formats the backend generates variants for
+// (backend/services/media_service.py TRANSFORMABLE_EXTENSIONS).
+const VARIANT_SOURCE_EXT_RE = /\.(jpe?g|png|webp|tiff?|bmp)$/i;
+const VARIANT_URL_RE = /\.w\d+\.webp$/i;
+
+/**
+ * Resolve an image reference only when it still needs resolving.
+ * resolveImageUrl() is idempotent for absolute URLs, but it would mangle
+ * data:/blob: URLs and rewrite local static paths (/assets, /placeholder.svg)
+ * to the production origin, so those are passed through untouched.
+ * @param {string|object} imageData
+ * @returns {string|null}
+ */
+export const ensureResolvedImageUrl = (imageData) => {
+  if (!imageData) return null;
+  if (typeof imageData === 'string') {
+    if (/^(data|blob):/i.test(imageData)) return imageData;
+    if (
+      imageData.startsWith('/') &&
+      !imageData.startsWith('/uploads') &&
+      !imageData.includes('/wp-content/')
+    ) {
+      return imageData;
+    }
+  }
+  return resolveImageUrl(imageData);
+};
+
+/**
+ * Build a srcset string for an uploaded raster image using the backend's
+ * pre-generated WebP width variants.
+ *
+ * Returns null when variants don't apply: data:/blob: URLs, external or legacy
+ * URLs (e.g. wp-content on www.eaglechair.com), /tmp/, /assets/, placeholders,
+ * SVG/GIF, URLs that already point at a variant, or anything not under
+ * /uploads/images/.
+ *
+ * @param {string|object} url - Image URL (raw or already resolved)
+ * @returns {string|null} srcset value, e.g. ".../foo.w320.webp 320w, ..."
+ */
+export const getImageSrcSet = (url) => {
+  const resolved = ensureResolvedImageUrl(url);
+  if (!resolved || typeof resolved !== 'string') return null;
+  if (/^(data|blob):/i.test(resolved)) return null;
+
+  const isAbsolute = /^(https?:)?\/\//i.test(resolved);
+  let origin = '';
+  let pathname;
+  try {
+    // Parsing also drops query string / hash and percent-encodes spaces,
+    // which would otherwise break srcset parsing.
+    const parsed = new URL(resolved, 'http://relative.invalid');
+    pathname = parsed.pathname;
+    if (isAbsolute) {
+      origin = resolved.startsWith('//') ? `//${parsed.host}` : parsed.origin;
+    }
+  } catch {
+    return null;
+  }
+
+  if (!pathname.startsWith('/uploads/images/')) return null;
+  if (VARIANT_URL_RE.test(pathname)) return null;
+  if (!VARIANT_SOURCE_EXT_RE.test(pathname)) return null;
+
+  const stem = pathname.replace(/\.[^./]+$/, '');
+  return IMAGE_VARIANT_WIDTHS
+    .map((w) => `${origin}${stem}.w${w}.webp ${w}w`)
+    .join(', ');
+};
+
+/**
  * Get product image with fallback
  * @param {object} product - Product object from API
  * @param {number} index - Image index (default: 0 for primary)
@@ -541,6 +626,8 @@ export default {
 
   // Images
   resolveImageUrl,
+  ensureResolvedImageUrl,
+  getImageSrcSet,
   getProductImage,
   getProductImages,
   getProductHoverImages,

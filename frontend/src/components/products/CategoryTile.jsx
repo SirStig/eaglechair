@@ -1,6 +1,8 @@
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useFitText } from '../../hooks/useFitText';
+import { CATEGORY_TILE_IMAGE_SIZES } from '../../utils/apiHelpers';
+import ResponsiveImage from '../ui/ResponsiveImage';
 
 // Allow a wrap after a slash so "Booths/Banquettes" breaks as "Booths/" +
 // "Banquettes" instead of mid-word when the column is narrow.
@@ -57,8 +59,9 @@ const CategoryTile = ({
     <div className="relative group">
       <div className={`relative overflow-hidden ${heightClassName}`}>
         <Link to={href} className={`absolute inset-0 block ${backgroundClassName}`}>
-          <img
+          <ResponsiveImage
             src={imageUrl}
+            sizes={CATEGORY_TILE_IMAGE_SIZES}
             alt={title}
             className={`absolute inset-0 w-full h-full object-cover transition-all duration-150 group-hover:scale-110 ${
               loaded ? 'opacity-100' : 'opacity-0'
@@ -70,8 +73,7 @@ const CategoryTile = ({
               }
               setLoaded(true);
             }}
-            loading={eager ? 'eager' : 'lazy'}
-            fetchpriority={eager ? 'high' : 'auto'}
+            priority={eager}
           />
           <div
             className="absolute top-0 left-0 right-0 bottom-0 w-full h-full pointer-events-none"

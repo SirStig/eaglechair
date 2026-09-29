@@ -293,7 +293,7 @@ const NewAdminDashboardInner = () => {
         <div className="p-4 sm:p-6 border-b border-dark-600">
           {!sidebarCollapsed ? (
             <div className="flex items-center gap-2 sm:gap-3">
-              <img src="/favicon.svg" alt="Eagle Chair" className="w-8 h-8 sm:w-10 sm:h-10 flex-shrink-0" />
+              <img src="/web-app-manifest-192x192.png" alt="Eagle Chair" className="w-8 h-8 sm:w-10 sm:h-10 flex-shrink-0" />
               <div className="min-w-0">
                 <h1 className="text-base sm:text-lg md:text-xl font-bold text-dark-50 truncate">Eagle Chair</h1>
                 <p className="text-[10px] sm:text-xs text-dark-300">Admin Panel</p>
@@ -301,7 +301,7 @@ const NewAdminDashboardInner = () => {
             </div>
           ) : (
             <div className="flex justify-center">
-              <img src="/favicon.svg" alt="Eagle Chair" className="w-8 h-8 sm:w-10 sm:h-10" />
+              <img src="/web-app-manifest-192x192.png" alt="Eagle Chair" className="w-8 h-8 sm:w-10 sm:h-10" />
             </div>
           )}
         </div>

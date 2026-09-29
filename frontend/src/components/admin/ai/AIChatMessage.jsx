@@ -210,7 +210,7 @@ function AIChatMessage({ message, onRedo, onRetry, onEditApplied, onEditDeclined
       <div className={`flex ${isUser ? 'justify-end' : 'justify-start'} w-full min-w-0`}>
       {!isUser && (
         <div className="w-6 h-6 sm:w-7 sm:h-7 rounded-full bg-dark-700 flex items-center justify-center flex-shrink-0 mr-2 mt-0.5 p-1">
-          <img src="/favicon.svg" alt="Eagle Chair" className="w-full h-full object-contain" />
+          <img src="/web-app-manifest-192x192.png" alt="Eagle Chair" className="w-full h-full object-contain" />
         </div>
       )}
 

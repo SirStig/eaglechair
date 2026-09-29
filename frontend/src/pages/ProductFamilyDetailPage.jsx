@@ -5,6 +5,7 @@ import QuickViewModal from '../components/ui/QuickViewModal';
 import Button from '../components/ui/Button';
 import LoadingSpinner from '../components/ui/LoadingSpinner';
 import ProductCard from '../components/ui/ProductCard';
+import ResponsiveImage from '../components/ui/ResponsiveImage';
 import SEOHead from '../components/SEOHead';
 import productService from '../services/productService';
 import { resolveFileUrl, resolveImageUrl } from '../utils/apiHelpers';
@@ -149,8 +150,10 @@ const ProductFamilyDetailPage = () => {
             {/* Left Column - Family Image and Info */}
             <div className="space-y-6">
               <div className="relative w-full max-h-[min(42vh,340px)] aspect-[3/4] overflow-hidden bg-cream-100 rounded-2xl shadow-xl">
-                <img
+                <ResponsiveImage
                   src={familyImage}
+                  sizes="(min-width: 1024px) 320px, 400px"
+                  priority
                   alt={family.name}
                   className="w-full h-full object-contain"
                   style={{ mixBlendMode: 'multiply' }}
@@ -273,6 +276,7 @@ const ProductFamilyDetailPage = () => {
                         key={key}
                         product={normalized}
                         onQuickView={handleQuickView}
+                        imageSizes="(min-width: 1024px) 480px, (min-width: 640px) 50vw, 100vw"
                       />
                     );
                   })}
@@ -301,6 +305,7 @@ const ProductFamilyDetailPage = () => {
                         product={normalized}
                         onQuickView={handleQuickView}
                         compact
+                        imageSizes="(min-width: 1024px) 960px, 100vw"
                       />
                     );
                   })}

@@ -281,7 +281,7 @@ def setup_middleware(app):
     
     # GZip compression for performance
     if settings.ENABLE_COMPRESSION:
-        app.add_middleware(GZipMiddleware, minimum_size=5000)
+        app.add_middleware(GZipMiddleware, minimum_size=1000)
         logger.info("[OK] GZip compression enabled")
     
     # NOTE: CORS is intentionally NOT added here. In Starlette, each

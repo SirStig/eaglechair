@@ -1,5 +1,4 @@
 import { Routes, Route, Outlet, Navigate, useLocation } from 'react-router-dom';
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { useEffect, lazy, Suspense } from 'react';
 import Layout from './components/layout/Layout';
 import ProtectedRoute from './components/ProtectedRoute';
@@ -49,19 +48,6 @@ const LaminatesPage = lazy(() => import('./pages/LaminatesPage'));
 const UpholsteryPage = lazy(() => import('./pages/UpholsteryPage'));
 const GuidesPage = lazy(() => import('./pages/GuidesPage'));
 const SeatBackTermsPage = lazy(() => import('./pages/SeatBackTermsPage'));
-// Create a client with industry-standard retry configuration
-const queryClient = new QueryClient({
-  defaultOptions: {
-    queries: {
-      refetchOnWindowFocus: false,
-      retry: 3, // Industry standard: 3 retries
-      retryDelay: (attemptIndex) => Math.min(1000 * 2 ** attemptIndex, 30000), // Exponential backoff: 1s, 2s, 4s (max 30s)
-      staleTime: 5 * 60 * 1000, // 5 minutes
-      gcTime: 10 * 60 * 1000, // 10 minutes (renamed from cacheTime in v5)
-    },
-  },
-});
-
 function ManifestInjector() {
   const location = useLocation();
   useEffect(() => {
@@ -126,7 +112,6 @@ function CartSync() {
 function App() {
   return (
     <ErrorBoundary>
-      <QueryClientProvider client={queryClient}>
           <ManifestInjector />
           <CartSync />
           <AdminAuthProvider>
@@ -212,7 +197,6 @@ function App() {
               </ToastProvider>
             </EditModeProvider>
           </AdminAuthProvider>
-        </QueryClientProvider>
       </ErrorBoundary>
   );
 }

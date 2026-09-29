@@ -3,6 +3,7 @@ import { motion } from 'framer-motion';
 import SEOHead from '../components/SEOHead';
 import { SEO } from '../config/seoConfig';
 import Card from '../components/ui/Card';
+import ResponsiveImage from '../components/ui/ResponsiveImage';
 import EditableWrapper from '../components/admin/EditableWrapper';
 import EditableList from '../components/admin/EditableList';
 import { useEditMode } from '../contexts/useEditMode';
@@ -133,12 +134,12 @@ const AboutPage = () => {
       {/* Hero Section - extends to top, header floats above */}
       <section className="relative min-h-[500px] sm:min-h-[600px] lg:min-h-[700px] -mt-[var(--header-height)] pt-[var(--header-height)] bg-dark-900 text-white flex">
         <div className="absolute inset-0 opacity-30">
-          <img
+          <ResponsiveImage
             src={heroImage}
+            sizes="100vw"
             alt="Workshop"
             className="absolute inset-0 w-full h-full object-cover img-sharp"
-            loading="eager"
-            fetchpriority="high"
+            priority
             decoding="sync"
           />
         </div>
@@ -207,12 +208,13 @@ const AboutPage = () => {
                 onSave={(newData) => handleSaveContent('about', 'story', { ...storySection, ...newData }, refetchStory)}
                 label="Story Image"
               >
-                <img
+                {/* w-full: with srcset the intrinsic width depends on the chosen
+                    candidate, so size by the column instead. */}
+                <ResponsiveImage
                   src={storyImage}
+                  sizes="(min-width: 1280px) 600px, (min-width: 768px) 50vw, 100vw"
                   alt="Our Team"
-                  className="rounded-2xl shadow-2xl"
-                  loading="lazy"
-                  decoding="async"
+                  className="w-full rounded-2xl shadow-2xl"
                 />
               </EditableWrapper>
             </motion.div>
@@ -288,11 +290,11 @@ const AboutPage = () => {
                     {/* Value Image or Icon */}
                     {value.image_url || value.imageUrl ? (
                       <div className="w-full h-40 overflow-hidden mb-4">
-                        <img
+                        <ResponsiveImage
                           src={value.image_url || value.imageUrl}
+                          sizes="(min-width: 1024px) 25vw, (min-width: 640px) 50vw, 100vw"
                           alt={value.title}
                           className="w-full h-full object-cover"
-                          loading="lazy"
                         />
                       </div>
                     ) : (
@@ -408,11 +410,11 @@ const AboutPage = () => {
                   className="mb-6"
                 >
                   <Card className="text-center">
-                    <img
+                    <ResponsiveImage
                       src={member.photo_url || member.image}
+                      sizes="128px"
                       alt={member.name}
                       className="w-32 h-32 rounded-full mx-auto mb-4 object-cover border-4 border-primary-500"
-                      loading="lazy"
                     />
                     <h3 className="text-xl font-semibold mb-1 text-dark-50">{member.name}</h3>
                     <p className="text-dark-100">{member.title || member.role}</p>

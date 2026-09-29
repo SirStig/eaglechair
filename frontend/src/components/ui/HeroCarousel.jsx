@@ -3,6 +3,8 @@ import { Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import Button from './Button';
 import EditableWrapper from '../admin/EditableWrapper';
+import ResponsiveImage from './ResponsiveImage';
+import { ensureResolvedImageUrl } from '../../utils/apiHelpers';
 
 const SLIDE_DURATION_MS = 9000;
 const FADE_DURATION_MS = 1800;
@@ -23,9 +25,17 @@ const HeroCarousel = ({ slides, onUpdateSlide, refetch, loading, renderSkeleton 
   if (loading && renderSkeleton) return renderSkeleton();
   if (!slides?.length) return null;
 
+  const nextIndex = (currentIndex + 1) % slides.length;
+  const prevIndex = (currentIndex - 1 + slides.length) % slides.length;
+
   return (
     <div className="relative w-full h-screen h-[100dvh] overflow-hidden">
-      {slides.map((slide, index) => (
+      {slides.map((slide, index) => {
+        // Only mount the image for the first, current, upcoming and outgoing
+        // (still fading) slides, so hidden slides don't all download upfront.
+        const mountImage = index === 0 || index === currentIndex || index === nextIndex || index === prevIndex;
+        const imageSrc = slide.background_image_url || slide.image;
+        return (
         <div
           key={slide.id ?? index}
           className="absolute inset-0"
@@ -46,14 +56,15 @@ const HeroCarousel = ({ slides, onUpdateSlide, refetch, loading, renderSkeleton 
             label={`Slide ${index + 1}`}
           >
             <div className="relative w-full h-full min-h-full pt-[var(--header-height)]">
-              <img
-                src={slide.background_image_url || slide.image}
-                alt={slide.title}
-                className="absolute inset-0 w-full h-full min-w-full min-h-full object-cover object-center img-sharp"
-                loading={index === 0 ? 'eager' : 'lazy'}
-                decoding={index === 0 ? 'sync' : 'async'}
-                fetchpriority={index === 0 ? 'high' : 'auto'}
-              />
+              {mountImage && imageSrc && (
+                <ResponsiveImage
+                  src={ensureResolvedImageUrl(imageSrc)}
+                  sizes="100vw"
+                  alt={slide.title}
+                  className="absolute inset-0 w-full h-full min-w-full min-h-full object-cover object-center img-sharp"
+                  priority={index === 0}
+                />
+              )}
               <div className="absolute inset-0 bg-black/50" />
 
               <div className="absolute inset-0 flex items-end justify-start pb-[22vh] pl-[5vw] sm:pl-[8vw] md:pl-[10vw] lg:pl-[12vw]">
@@ -86,7 +97,8 @@ const HeroCarousel = ({ slides, onUpdateSlide, refetch, loading, renderSkeleton 
             </div>
           </EditableWrapper>
         </div>
-      ))}
+        );
+      })}
     </div>
   );
 };

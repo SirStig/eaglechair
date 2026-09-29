@@ -653,7 +653,7 @@ export default function AIChatPage() {
             </button>
             <div className="hidden sm:flex items-center gap-2 min-w-0">
               <div className="w-8 h-8 rounded-xl bg-dark-700 flex items-center justify-center p-1.5 flex-shrink-0">
-                <img src="/favicon.svg" alt="Eagle Chair" className="w-full h-full object-contain" />
+                <img src="/web-app-manifest-192x192.png" alt="Eagle Chair" className="w-full h-full object-contain" />
               </div>
               <div className="min-w-0">
                 <h1 className="text-sm font-bold text-dark-50 truncate">EagleChair AI</h1>
@@ -712,7 +712,7 @@ export default function AIChatPage() {
               ) : messages.length === 0 ? (
                 <div className="flex flex-col items-center justify-center h-full text-center max-w-lg mx-auto px-3 sm:px-6">
                   <div className="w-14 h-14 sm:w-16 sm:h-16 rounded-2xl bg-dark-800 flex items-center justify-center mb-4 sm:mb-5 shadow-xl p-3">
-                    <img src="/favicon.svg" alt="Eagle Chair" className="w-full h-full object-contain" />
+                    <img src="/web-app-manifest-192x192.png" alt="Eagle Chair" className="w-full h-full object-contain" />
                   </div>
                   <h2 className="text-sm sm:text-base md:text-xl font-bold text-dark-50 mb-1.5 sm:mb-3">EagleChair AI Assistant</h2>
                   <p className="text-[11px] sm:text-xs text-dark-400 leading-relaxed mb-3 sm:mb-6">

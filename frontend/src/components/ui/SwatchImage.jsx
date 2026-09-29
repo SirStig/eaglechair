@@ -1,4 +1,5 @@
 import { resolveImageUrl } from '../../utils/apiHelpers';
+import ResponsiveImage from './ResponsiveImage';
 
 const sizeClasses = {
   xs: 'w-5 h-5 sm:w-6 sm:h-6',
@@ -7,6 +8,16 @@ const sizeClasses = {
   lg: 'w-12 h-12 sm:w-14 sm:h-14',
   xl: 'w-16 h-16 sm:w-20 sm:h-20',
   card: 'aspect-square',
+};
+
+// Rendered CSS width per size (largest breakpoint), used for srcset selection
+const sizeHints = {
+  xs: '24px',
+  sm: '40px',
+  md: '48px',
+  lg: '56px',
+  xl: '80px',
+  card: '(min-width: 640px) 200px, 33vw',
 };
 
 const SwatchImage = ({
@@ -31,8 +42,9 @@ const SwatchImage = ({
       <div
         className={`overflow-hidden bg-dark-900 flex-shrink-0 ${sizeClass} ${roundedClass} ${className}`}
       >
-        <img
+        <ResponsiveImage
           src={resolvedSrc}
+          sizes={sizeHints[size] || sizeHints.md}
           alt={alt ?? name}
           className={`w-full h-full object-cover ${zoom ? 'scale-125' : ''}`}
         />

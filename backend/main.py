@@ -18,7 +18,7 @@ from contextlib import asynccontextmanager
 from pathlib import Path
 
 from fastapi import FastAPI, Request
-from fastapi.responses import HTMLResponse, JSONResponse
+from fastapi.responses import FileResponse, HTMLResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 import gunicorn.app.base
 
@@ -324,19 +324,27 @@ app.include_router(
 # Static File Serving
 # ============================================================================
 
-# Mount uploads directory for user-uploaded files (images, documents, etc.)
-uploads_path = Path(__file__).parent.parent / "uploads"
-if uploads_path.exists():
-    app.mount("/uploads", StaticFiles(directory=str(uploads_path)), name="uploads")
-    logger.info("[OK] Uploads directory mounted at /uploads")
-else:
-    # Create uploads directory if it doesn't exist
-    uploads_path.mkdir(parents=True, exist_ok=True)
-    app.mount("/uploads", StaticFiles(directory=str(uploads_path)), name="uploads")
-    logger.info("[OK] Created and mounted uploads directory at /uploads")
+# Mount uploads directory for user-uploaded files (images, documents, etc.).
+# Use the same directory the upload routes write to (FRONTEND_PATH/uploads in
+# production), otherwise files uploaded in prod are never served from here.
+from backend.api.v1.routes.admin.upload import UPLOAD_BASE_DIR as uploads_path  # noqa: E402
+
+uploads_path.mkdir(parents=True, exist_ok=True)
+app.mount("/uploads", StaticFiles(directory=str(uploads_path)), name="uploads")
+logger.info(f"[OK] Uploads directory mounted at /uploads ({uploads_path})")
 
 # Note: /tmp directory is NOT mounted here - it's served by frontend web server
 # Images are saved to FRONTEND_PATH/tmp/images/ and served via frontend
+
+@app.get("/api-docs", response_class=HTMLResponse, include_in_schema=False)
+async def root_old():
+    """
+    Welcome page for EagleChair API
+    """
+    from backend.templates.api_docs import get_api_docs_html
+
+    return get_api_docs_html()
+
 
 # ============================================================================
 # Frontend SPA Serving
@@ -368,50 +376,10 @@ if frontend_dist_path.exists() and (frontend_dist_path / "index.html").exists():
             name="assets",
         )
 
-    # Mount data directory if it exists (for contentData.js)
+    # Mount data directory (contentData.json). StaticFiles sends ETag /
+    # Last-Modified and answers conditional requests with 304; the cache
+    # middleware below marks it no-cache so CMS edits show up immediately.
     if (frontend_dist_path / "data").exists():
-        # Special handling for contentData.json/js - disable caching
-        from fastapi.responses import FileResponse
-
-        @app.get(
-            "/data/contentData.json",
-            response_class=FileResponse,
-            include_in_schema=False,
-        )
-        async def serve_content_data_json():
-            """Serve contentData.json with no-cache headers (dynamic CMS content)"""
-            content_data_file = frontend_dist_path / "data" / "contentData.json"
-            if content_data_file.exists():
-                return FileResponse(
-                    content_data_file,
-                    media_type="application/json",
-                    headers={
-                        "Cache-Control": "no-store, no-cache, must-revalidate, max-age=0",
-                        "Pragma": "no-cache",
-                        "Expires": "0",
-                    },
-                )
-            return JSONResponse(content={"detail": "Content data not found"}, status_code=404)
-
-        @app.get(
-            "/data/contentData.js", response_class=FileResponse, include_in_schema=False
-        )
-        async def serve_content_data_js():
-            """Serve contentData.js with no-cache headers (legacy format, backward compatibility)"""
-            content_data_file = frontend_dist_path / "data" / "contentData.js"
-            if content_data_file.exists():
-                return FileResponse(
-                    content_data_file,
-                    media_type="application/javascript",
-                    headers={
-                        "Cache-Control": "no-store, no-cache, must-revalidate, max-age=0",
-                        "Pragma": "no-cache",
-                        "Expires": "0",
-                    },
-                )
-            return JSONResponse(content={"detail": "Content data not found"}, status_code=404)
-
-        # Mount other data files with normal caching
         app.mount(
             "/data",
             StaticFiles(directory=str(frontend_dist_path / "data")),
@@ -419,18 +387,21 @@ if frontend_dist_path.exists() and (frontend_dist_path / "index.html").exists():
         )
         logger.info("[OK] Data directory mounted at /data")
 
-    _no_cache_headers = {
-        "Cache-Control": "no-store, no-cache, must-revalidate, max-age=0",
-        "Pragma": "no-cache",
-        "Expires": "0",
-    }
+    _no_cache_headers = {"Cache-Control": "no-cache"}
+    _index_cache: dict = {"mtime": None, "html": None}
+    _frontend_root = frontend_dist_path.resolve()
 
-    @app.get("/", response_class=HTMLResponse, include_in_schema=False)
-    async def root():
-        """Serve React SPA frontend"""
+    def _index_html() -> str:
+        index_file = frontend_dist_path / "index.html"
+        mtime = index_file.stat().st_mtime
+        if _index_cache["mtime"] != mtime:
+            _index_cache["html"] = index_file.read_text(encoding="utf-8")
+            _index_cache["mtime"] = mtime
+        return _index_cache["html"]
+
+    def _serve_index() -> HTMLResponse:
         try:
-            with open(frontend_dist_path / "index.html", "r", encoding="utf-8") as f:
-                return HTMLResponse(content=f.read(), headers=_no_cache_headers)
+            return HTMLResponse(content=_index_html(), headers=_no_cache_headers)
         except Exception as e:
             logger.error(f"Error reading index.html: {e}")
             return HTMLResponse(
@@ -439,72 +410,81 @@ if frontend_dist_path.exists() and (frontend_dist_path / "index.html").exists():
                 headers=_no_cache_headers,
             )
 
-    @app.get("/{full_path:path}", response_class=HTMLResponse, include_in_schema=False)
+    @app.get("/", response_class=HTMLResponse, include_in_schema=False)
+    async def root():
+        """Serve React SPA frontend"""
+        return _serve_index()
+
+    @app.get("/{full_path:path}", include_in_schema=False)
     async def serve_spa(full_path: str):
-        """Serve SPA for all non-API routes (enables client-side routing)"""
+        """Serve root-level build files, else the SPA (client-side routing)"""
         if full_path.startswith("api/"):
             return JSONResponse(content={"detail": "Not found"}, status_code=404)
         if not settings.DEBUG and full_path in ["docs", "redoc", "openapi.json"]:
             return JSONResponse(content={"detail": "Not found"}, status_code=404)
 
-        try:
-            with open(frontend_dist_path / "index.html", "r", encoding="utf-8") as f:
-                return HTMLResponse(content=f.read(), headers=_no_cache_headers)
-        except Exception as e:
-            logger.error(f"Error serving index.html: {e}")
-            return HTMLResponse(
-                content="<h1>Frontend not available</h1>",
-                status_code=500,
-                headers=_no_cache_headers,
-            )
+        # Real files at the dist root (robots.txt, sitemap.xml, favicon.ico,
+        # manifest.json, sw.js, ...). Only a single path segment, no dotfiles.
+        if full_path and "/" not in full_path and not full_path.startswith("."):
+            candidate = (frontend_dist_path / full_path).resolve()
+            if candidate.parent == _frontend_root and candidate.is_file() and candidate.name != "index.html":
+                return FileResponse(candidate)
+
+        return _serve_index()
 
 else:
     logger.warning(f"Frontend dist NOT found at {frontend_dist_path}")
     logger.warning("Build frontend with: cd frontend && npm run build")
 
 
+_IMMUTABLE = "public, max-age=31536000, immutable"
+# Service worker scripts must always be revalidated or updates never land.
+_SW_FILES = {"/sw.js", "/registerSW.js"}
+
+
+def _drop_legacy_cache_headers(response) -> None:
+    for name in ("pragma", "expires"):
+        if name in response.headers:
+            del response.headers[name]
+
+
 @app.middleware("http")
 async def cache_control_frontend(request: Request, call_next):
     response = await call_next(request)
     path = request.url.path
-    if path.startswith("/assets/"):
-        # Vite-hashed assets are content-addressed and never change — cache for 1 year
-        response.headers["Cache-Control"] = "public, max-age=31536000, immutable"
-        response.headers.pop("Pragma", None)
-        response.headers.pop("Expires", None)
-    elif path.startswith("/uploads/"):
-        # Uploaded files use timestamp-based filenames so the same URL always
-        # points to the same content — safe to cache aggressively
-        response.headers["Cache-Control"] = "public, max-age=31536000, immutable"
-        response.headers.pop("Pragma", None)
-        response.headers.pop("Expires", None)
-    elif path == "/":
-        response.headers["Cache-Control"] = "no-store, no-cache, must-revalidate, max-age=0"
-        response.headers["Pragma"] = "no-cache"
-        response.headers["Expires"] = "0"
+    if path.startswith("/assets/") and response.status_code == 200:
+        # Vite-hashed assets are content-addressed and never change
+        response.headers["Cache-Control"] = _IMMUTABLE
+        _drop_legacy_cache_headers(response)
+    elif path.startswith("/uploads/") and response.status_code == 200:
+        # Upload filenames are unique per upload (timestamp + random suffix)
+        response.headers["Cache-Control"] = _IMMUTABLE
+        _drop_legacy_cache_headers(response)
+        # Uploads are data: an uploaded SVG/HTML opened directly must not run
+        # script on our origin (PDFs excluded; sandbox breaks the PDF viewer).
+        if not path.lower().endswith(".pdf"):
+            response.headers["Content-Security-Policy"] = (
+                "default-src 'none'; img-src 'self' data:; style-src 'unsafe-inline'; sandbox"
+            )
+    elif path.startswith("/data/") or path in _SW_FILES:
+        # Revalidate every time; ETag makes that a cheap 304
+        response.headers["Cache-Control"] = "no-cache"
+        _drop_legacy_cache_headers(response)
     elif not (
         path.startswith("/api")
-        or path.startswith("/uploads")
         or path.startswith("/docs")
         or path.startswith("/redoc")
         or path.startswith("/openapi")
         or path == "/api-docs"
-        or path.startswith("/data/")
     ):
-        response.headers["Cache-Control"] = "no-store, no-cache, must-revalidate, max-age=0"
-        response.headers["Pragma"] = "no-cache"
-        response.headers["Expires"] = "0"
+        content_type = response.headers.get("content-type", "")
+        if content_type.startswith("text/html"):
+            response.headers["Cache-Control"] = "no-cache"
+        elif response.status_code == 200:
+            # Root-level static files (favicon, robots.txt, manifest...)
+            response.headers["Cache-Control"] = "public, max-age=86400"
+        _drop_legacy_cache_headers(response)
     return response
-
-
-@app.get("/api-docs", response_class=HTMLResponse, include_in_schema=False)
-async def root_old():
-    """
-    Welcome page for EagleChair API
-    """
-    from backend.templates.api_docs import get_api_docs_html
-
-    return get_api_docs_html()
 
 
 class StandaloneApplication(gunicorn.app.base.BaseApplication):

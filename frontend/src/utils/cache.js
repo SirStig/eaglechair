@@ -112,6 +112,8 @@ export default cache;
  * @param {number} ttl - Time to live in milliseconds
  * @returns {Promise<any>}
  */
+const inflightFetches = new Map();
+
 export const cachedFetch = async (key, fetchFn, ttl) => {
   // Check cache first
   const cached = cache.get(key);
@@ -119,10 +121,21 @@ export const cachedFetch = async (key, fetchFn, ttl) => {
     return cached;
   }
 
-  // Fetch and cache
-  const data = await fetchFn();
-  cache.set(key, data, ttl);
-  return data;
+  // Share one request between concurrent callers (e.g. Header + Footer)
+  if (inflightFetches.has(key)) {
+    return inflightFetches.get(key);
+  }
+  const promise = (async () => {
+    try {
+      const data = await fetchFn();
+      cache.set(key, data, ttl);
+      return data;
+    } finally {
+      inflightFetches.delete(key);
+    }
+  })();
+  inflightFetches.set(key, promise);
+  return promise;
 };
 
 /**
