@@ -11,7 +11,6 @@ import { ToastProvider } from './contexts/ToastContext';
 import { useEditMode } from './contexts/useEditMode';
 import { useAuthStore } from './store/authStore';
 import { useCartStore } from './store/cartStore';
-import LoadingSpinner from './components/ui/LoadingSpinner';
 
 // Animation features (domAnimation) load in a separate chunk; m.* components
 // render their initial state until it arrives. The request starts as soon as
@@ -113,7 +112,7 @@ function App() {
               <ToastProvider>
                 <ScrollToTop />
                 <AdminEditModeToggle />
-                <Suspense fallback={<LoadingSpinner />}>
+                <Suspense fallback={null}>
                   <Routes>
           {/* Public Routes */}
           <Route path="/login" element={<LoginPage />} />

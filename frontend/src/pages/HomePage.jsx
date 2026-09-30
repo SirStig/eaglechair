@@ -7,7 +7,7 @@ import Button from '../components/ui/Button';
 import HeroCarousel from '../components/ui/HeroCarousel';
 import ProductCard from '../components/ui/ProductCard';
 import QuickViewModal from '../components/ui/QuickViewModal';
-import { HeroSkeleton, CardGridSkeleton } from '../components/ui/Skeleton';
+import { CardGridSkeleton } from '../components/ui/Skeleton';
 import EditableWrapper from '../components/admin/EditableWrapper';
 import ConfirmModal from '../components/ui/ConfirmModal';
 import SEOHead from '../components/SEOHead';
@@ -269,7 +269,6 @@ const HomePage = () => {
           onUpdateSlide={handleUpdateHeroSlide}
           refetch={refetchHero}
           loading={heroLoading}
-          renderSkeleton={() => <HeroSkeleton />}
         />
       </section>
 
