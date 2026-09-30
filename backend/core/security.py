@@ -7,6 +7,7 @@ Handles authentication, password hashing, JWT tokens, and security utilities
 from datetime import datetime, timedelta
 import hashlib
 import hmac
+import time
 from typing import Any, Optional
 
 from fastapi import Depends, HTTPException, status
@@ -396,8 +397,10 @@ def set_auth_cookies(
         access_exp = access_payload.get("exp", 0)
         refresh_exp = refresh_payload.get("exp", 0)
 
-        # Current time in seconds since epoch
-        now = int(datetime.utcnow().timestamp())
+        # Current time in seconds since epoch. Not datetime.utcnow().timestamp():
+        # that reads a naive UTC time as local time, so on a non-UTC server the
+        # short-lived access cookie got Max-Age=0 and was dropped immediately.
+        now = int(time.time())
 
         # Calculate max_age in seconds (time until expiration)
         access_max_age = (

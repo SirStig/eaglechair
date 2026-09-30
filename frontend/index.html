@@ -67,6 +67,9 @@
           .catch(function () { return null; });
         window.__contentDataPromise = p;
         p.then(function (d) {
+          // Only the home page shows the hero; elsewhere this 200 KB+ download
+          // would compete with the page's own images.
+          if (location.pathname !== '/') return;
           var s = d && d.heroSlides && d.heroSlides[0];
           var u = s && (s.background_image_url || s.backgroundImageUrl || s.image);
           if (!u || u.indexOf('wp-content') !== -1) return;

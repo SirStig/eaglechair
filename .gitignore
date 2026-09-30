@@ -205,3 +205,5 @@ frontend/demo.env
 
 # Claude Code agent worktrees
 .claude/worktrees/
+.playwright-mcp/
+test.db

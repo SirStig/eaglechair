@@ -17,12 +17,17 @@ Endpoints:
   GET    /admin/ai/training           - List training documents
   POST   /admin/ai/training           - Upload training document
   DELETE /admin/ai/training/{id}      - Delete training document
+  POST   /admin/ai/ws-ticket          - One-time ticket for the WebSocket
   WS     /admin/ai/ws/{chat_id}       - WebSocket for streaming chat
 """
 
 import asyncio
+import hashlib
+import hmac
 import json
 import logging
+import secrets
+import time
 import uuid
 from datetime import datetime
 from pathlib import Path
@@ -43,6 +48,7 @@ from sqlalchemy.orm import selectinload
 
 from backend.api.dependencies import get_current_admin, require_role
 from backend.core.config import settings
+from backend.core.ephemeral_store import ephemeral_store
 from backend.models.company import AdminRole, AdminUser
 from backend.core.security import SecurityManager
 from backend.database.base import get_db, AsyncSessionLocal
@@ -795,6 +801,82 @@ async def delete_training_doc(
 
 
 # ─────────────────────────────────────────────────────────────────────────────
+# WebSocket Tickets
+# ─────────────────────────────────────────────────────────────────────────────
+
+# The WebSocket may live on a different site than the REST API (it is served
+# through a tunnel that supports WebSockets), where the browser will not send
+# our auth cookies. The page fetches a short-lived ticket over the cookie-
+# authenticated API and passes it in the WebSocket URL instead.
+WS_TICKET_TTL_SECONDS = 30
+
+
+def _ws_ticket_signature(payload: bytes) -> bytes:
+    return hmac.new(
+        settings.SECRET_KEY.encode("utf-8"), b"ai-ws-ticket:" + payload, hashlib.sha256
+    ).digest()
+
+
+def _issue_ws_ticket(admin: AdminUser, session_id: str) -> str:
+    """Signed, stateless ticket so any Gunicorn worker can verify it"""
+    from webauthn.helpers import bytes_to_base64url
+
+    payload = json.dumps(
+        {
+            "a": admin.id,
+            "s": session_id,
+            "tv": getattr(admin, "token_version", 0) or 0,
+            "exp": int(time.time()) + WS_TICKET_TTL_SECONDS,
+            "n": secrets.token_urlsafe(8),
+        },
+        separators=(",", ":"),
+    ).encode("utf-8")
+    return f"{bytes_to_base64url(payload)}.{bytes_to_base64url(_ws_ticket_signature(payload))}"
+
+
+async def _redeem_ws_ticket(ticket: str, session_id: str) -> dict | None:
+    """Verify a ticket for this chat and mark it used; None if invalid"""
+    from webauthn.helpers import base64url_to_bytes
+
+    if not ticket or len(ticket) > 1024:
+        return None
+    try:
+        payload_b64, sig_b64 = ticket.split(".", 1)
+        payload = base64url_to_bytes(payload_b64)
+        if not hmac.compare_digest(base64url_to_bytes(sig_b64), _ws_ticket_signature(payload)):
+            return None
+        record = json.loads(payload)
+        if record.get("s") != session_id or int(record["exp"]) < time.time():
+            return None
+    except Exception:
+        return None
+    # Single use (shared across workers when Redis is up, per worker otherwise)
+    if await ephemeral_store.incr(f"ai-ws-ticket:{sig_b64}", WS_TICKET_TTL_SECONDS) > 1:
+        return None
+    return record
+
+
+@router.post("/ws-ticket")
+async def create_ws_ticket(
+    body: dict,
+    db: AsyncSession = Depends(get_db),
+    admin=Depends(get_current_admin),
+):
+    """Issue a one-time ticket (valid 30s) for opening the chat WebSocket"""
+    session_id = body.get("session_id") if isinstance(body, dict) else None
+    if not isinstance(session_id, str) or not session_id:
+        raise HTTPException(status_code=400, detail="session_id is required")
+    result = await db.execute(
+        select(AIChatSession.id).where(
+            AIChatSession.id == session_id, AIChatSession.admin_user_id == admin.id
+        )
+    )
+    if result.scalar_one_or_none() is None:
+        raise HTTPException(status_code=404, detail="Chat session not found")
+    return {"ticket": _issue_ws_ticket(admin, session_id), "expires_in": WS_TICKET_TTL_SECONDS}
+
+
+# ─────────────────────────────────────────────────────────────────────────────
 # WebSocket Chat Endpoint
 # ─────────────────────────────────────────────────────────────────────────────
 
@@ -821,33 +903,44 @@ async def websocket_chat(websocket: WebSocket, session_id: str):
     """
     await websocket.accept()
 
-    # Authenticate via the httpOnly access_token cookie (browsers) or a
-    # ?token= query param (non-browser clients)
-    token = websocket.query_params.get("token", "")
-    if not token:
-        token = websocket.cookies.get("access_token", "")
-        if token:
-            # Cookie auth: block cross-site WebSocket hijacking
-            from backend.core.middleware.csrf import CSRFOriginMiddleware, normalize_origin
+    # Authenticate with, in order: a one-time ?ticket= from /ws-ticket (browsers
+    # when the WebSocket is on another site), the httpOnly access_token cookie
+    # (browsers on the same site), or a ?token= query param (non-browser clients)
+    payload = None
+    ticket = websocket.query_params.get("ticket", "")
+    if ticket:
+        record = await _redeem_ws_ticket(ticket, session_id)
+        if record is None:
+            await websocket.send_json(AIStreamEvent.error("Invalid or expired ticket"))
+            await websocket.close(code=4001)
+            return
+        payload = {"sub": str(record["a"]), "tv": record.get("tv", 0)}
+    else:
+        token = websocket.query_params.get("token", "")
+        if not token:
+            token = websocket.cookies.get("access_token", "")
+            if token:
+                # Cookie auth: block cross-site WebSocket hijacking
+                from backend.core.middleware.csrf import CSRFOriginMiddleware, normalize_origin
 
-            origin = normalize_origin(websocket.headers.get("origin"))
-            if not origin or origin not in CSRFOriginMiddleware._trusted_origins():
-                await websocket.send_json(AIStreamEvent.error("Origin not allowed"))
-                await websocket.close(code=4003)
-                return
-    if not token:
-        await websocket.send_json(AIStreamEvent.error("Authentication required"))
-        await websocket.close(code=4001)
-        return
+                origin = normalize_origin(websocket.headers.get("origin"))
+                if not origin or origin not in CSRFOriginMiddleware._trusted_origins():
+                    await websocket.send_json(AIStreamEvent.error("Origin not allowed"))
+                    await websocket.close(code=4003)
+                    return
+        if not token:
+            await websocket.send_json(AIStreamEvent.error("Authentication required"))
+            await websocket.close(code=4001)
+            return
 
-    try:
-        payload = SecurityManager.decode_token(token)
-        if payload.get("type") != "admin" or payload.get("token_type") != "access":
-            raise ValueError("Not an admin access token")
-    except Exception:
-        await websocket.send_json(AIStreamEvent.error("Invalid or expired token"))
-        await websocket.close(code=4001)
-        return
+        try:
+            payload = SecurityManager.decode_token(token)
+            if payload.get("type") != "admin" or payload.get("token_type") != "access":
+                raise ValueError("Not an admin access token")
+        except Exception:
+            await websocket.send_json(AIStreamEvent.error("Invalid or expired token"))
+            await websocket.close(code=4001)
+            return
 
     admin_id = None
     try:

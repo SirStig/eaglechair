@@ -1,4 +1,5 @@
 import logging
+from typing import Optional
 
 from fastapi import APIRouter, Depends, Request, Response
 from sqlalchemy import select
@@ -22,19 +23,17 @@ router = APIRouter(prefix="/auth/admin", tags=["Admin Auth"])
     "/passkey/options",
     summary="Get passkey authentication options",
     description=(
-        "Public endpoint. Body: {\"username\": \"<username or email>\"}. Returns WebAuthn "
-        "options for that admin plus a single-use challengeId (valid 120s) that "
-        "must be sent back to /passkey/authenticate."
+        "Public endpoint. Body: {} for usernameless sign-in, or "
+        "{\"username\": \"<username or email>\"} to limit it to that admin. Returns "
+        "WebAuthn options plus a single-use challengeId (valid 120s) that must be "
+        "sent back to /passkey/authenticate."
     ),
 )
 async def passkey_auth_options(
-    body: dict,
+    body: Optional[dict] = None,
     db: AsyncSession = Depends(get_db),
 ):
     username = body.get("username") if isinstance(body, dict) else None
-    if not isinstance(username, str) or not username.strip():
-        from backend.core.exceptions import InvalidInputError
-        raise InvalidInputError(field="username", reason="Enter your username or email first")
     options = await PasskeyService.get_authentication_options(db, username)
     return options
 

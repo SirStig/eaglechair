@@ -102,15 +102,13 @@ export const useAuthStore = create(
         }
       },
 
-      loginWithPasskey: async (username) => {
+      loginWithPasskey: async () => {
         try {
-          if (!username || !username.trim()) {
-            return { success: false, error: 'Enter your username or email, then choose "Sign in with Passkey"' };
-          }
           const { getPasskey } = await import('../utils/passkey');
           const { getPasskeyAuthOptions, authenticateWithPasskey } = await import('../services/adminAuthService');
           // Server stores the challenge and returns a single-use challengeId
-          const { challengeId, ...publicKeyOptions } = await getPasskeyAuthOptions(username.trim());
+          // Usernameless: the browser offers the passkeys saved for this site
+          const { challengeId, ...publicKeyOptions } = await getPasskeyAuthOptions();
           const credential = await getPasskey(publicKeyOptions);
           if (!credential) return { success: false, error: 'Passkey sign-in was cancelled' };
           const data = await authenticateWithPasskey({

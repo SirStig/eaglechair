@@ -2,7 +2,7 @@ import apiClient from '../config/apiClient';
 
 // Returns WebAuthn options plus a server-issued, single-use `challengeId`
 export async function getPasskeyAuthOptions(username) {
-  return apiClient.post('/api/v1/auth/admin/passkey/options', { username });
+  return apiClient.post('/api/v1/auth/admin/passkey/options', username ? { username } : {});
 }
 
 // payload: { challengeId, credential }

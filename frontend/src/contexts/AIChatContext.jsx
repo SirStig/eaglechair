@@ -17,6 +17,27 @@ import {
 
 const AIChatContext = createContext(null);
 
+const WS_OPEN_TIMEOUT_MS = 5000;
+
+// Resolve with the socket once it is open; reject on error, close or timeout
+function waitForOpen(ws) {
+  if (ws.readyState === WebSocket.OPEN) return Promise.resolve(ws);
+  return new Promise((resolve, reject) => {
+    const cleanup = () => {
+      clearTimeout(timeout);
+      ws.removeEventListener('open', onOpen);
+      ws.removeEventListener('error', onFail);
+      ws.removeEventListener('close', onFail);
+    };
+    const onOpen = () => { cleanup(); resolve(ws); };
+    const onFail = () => { cleanup(); reject(new Error('WS error')); };
+    const timeout = setTimeout(() => { cleanup(); reject(new Error('WS timeout')); }, WS_OPEN_TIMEOUT_MS);
+    ws.addEventListener('open', onOpen);
+    ws.addEventListener('error', onFail);
+    ws.addEventListener('close', onFail);
+  });
+}
+
 export function AIChatProvider({ children }) {
   // Widget visibility state
   const [isOpen, setIsOpen] = useState(false);
@@ -45,6 +66,7 @@ export function AIChatProvider({ children }) {
 
   const wsRef = useRef(null);
   const wsSessionIdRef = useRef(null);
+  const wsConnectingRef = useRef(null);
   const currentStreamIdRef = useRef(null);
   const reconnectTimer = useRef(null);
   const handleWSMessageRef = useRef(null);
@@ -443,19 +465,41 @@ export function AIChatProvider({ children }) {
     });
   }, []);
 
-  const connectWS = useCallback((sessionId) => {
+  // Resolves once the socket is open. Opening needs a ticket fetch first, so
+  // concurrent calls for the same session share one pending connection.
+  const connectWS = useCallback(async (sessionId) => {
     const ws = wsRef.current;
     if (ws && wsSessionIdRef.current === sessionId) {
-      const state = ws.readyState;
-      if (state === WebSocket.OPEN || state === WebSocket.CONNECTING) return ws;
+      if (ws.readyState === WebSocket.OPEN) return ws;
+      if (ws.readyState === WebSocket.CONNECTING) return waitForOpen(ws);
     }
+    const pending = wsConnectingRef.current;
+    if (pending && pending.sessionId === sessionId) return pending.promise;
     if (wsRef.current) {
       wsRef.current.close();
       wsRef.current = null;
       wsSessionIdRef.current = null;
     }
 
-    const newWs = createChatWebSocket(sessionId);
+    const promise = (async () => {
+      const newWs = await createChatWebSocket(sessionId);
+      if (wsConnectingRef.current?.promise !== promise) {
+        // A connection to another session started while fetching the ticket
+        newWs.close(1000);
+        throw new Error('WS superseded');
+      }
+      attachHandlers(newWs, sessionId);
+      return waitForOpen(newWs);
+    })();
+    wsConnectingRef.current = { sessionId, promise };
+    try {
+      return await promise;
+    } finally {
+      if (wsConnectingRef.current?.promise === promise) wsConnectingRef.current = null;
+    }
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const attachHandlers = (newWs, sessionId) => {
     wsRef.current = newWs;
     wsSessionIdRef.current = sessionId;
 
@@ -481,14 +525,12 @@ export function AIChatProvider({ children }) {
         forceEndStreaming('Connection lost. Reconnecting in a few seconds...');
         reconnectTimer.current = setTimeout(() => {
           if (currentSessionIdRef.current === sessionId) {
-            connectWS(sessionId);
+            connectWS(sessionId).catch((err) => console.error('WebSocket reconnect failed:', err));
           }
         }, 3000);
       }
     };
-
-    return newWs;
-  }, [forceEndStreaming]); // eslint-disable-line react-hooks/exhaustive-deps
+  };
 
   const interrupt = useCallback(() => {
     if (!wsRef.current || wsRef.current.readyState !== WebSocket.OPEN) return;
@@ -540,15 +582,10 @@ export function AIChatProvider({ children }) {
     setWebSources([]);
     lastStreamingActivityRef.current = Date.now();
 
-    let ws = wsRef.current;
+    const ws = wsRef.current;
     if (!ws || ws.readyState !== WebSocket.OPEN) {
-      ws = connectWS(sessionId);
       try {
-        await new Promise((resolve, reject) => {
-          const timeout = setTimeout(() => reject(new Error('WS timeout')), 5000);
-          ws.onopen = () => { clearTimeout(timeout); resolve(); };
-          ws.onerror = () => { clearTimeout(timeout); reject(new Error('WS error')); };
-        });
+        await connectWS(sessionId);
       } catch {
         setIsStreaming(false);
         setStreamingState(null);
@@ -735,7 +772,7 @@ export function AIChatProvider({ children }) {
 
   useEffect(() => {
     if (currentSessionId && isOpen) {
-      connectWS(currentSessionId);
+      connectWS(currentSessionId).catch((err) => console.error('WebSocket connect failed:', err));
     }
   }, [currentSessionId, isOpen, connectWS]);
 

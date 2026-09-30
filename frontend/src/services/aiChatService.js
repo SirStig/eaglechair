@@ -5,6 +5,9 @@
 
 const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL || '').replace(/\/+$/, '');
 const API_BASE = API_BASE_URL ? `${API_BASE_URL}/api/v1/admin/ai` : '/api/v1/admin/ai';
+// The WebSocket can be served from a different host than the REST API
+// (e.g. a tunnel that supports WebSockets). Defaults to the API host.
+const WS_BASE_URL = (import.meta.env.VITE_WS_BASE_URL || API_BASE_URL).replace(/\/+$/, '');
 
 // Admin auth is carried by httpOnly cookies (access/session/admin tokens);
 // every request must include credentials so the browser sends them.
@@ -205,11 +208,16 @@ export async function applyEdit(edit) {
   });
 }
 
-export function createChatWebSocket(sessionId) {
-  // The WebSocket handshake carries the httpOnly access_token cookie
-  const base = API_BASE_URL
-    ? new URL(API_BASE_URL).origin.replace(/^http/, 'ws')
+export async function createChatWebSocket(sessionId) {
+  // The WebSocket host may be on another site where auth cookies aren't
+  // sent, so authenticate with a one-time ticket from the cookie-auth API
+  const { ticket } = await apiFetch('/ws-ticket', {
+    method: 'POST',
+    body: JSON.stringify({ session_id: sessionId }),
+  });
+  const base = WS_BASE_URL
+    ? new URL(WS_BASE_URL).origin.replace(/^http/, 'ws')
     : `${window.location.protocol === 'https:' ? 'wss:' : 'ws:'}//${window.location.host}`;
-  const url = `${base}/api/v1/admin/ai/ws/${sessionId}`;
+  const url = `${base}/api/v1/admin/ai/ws/${sessionId}?ticket=${encodeURIComponent(ticket)}`;
   return new WebSocket(url);
 }

@@ -31,9 +31,11 @@ const widthFromUrl = (url) => {
 };
 
 // Load an image off-DOM and resolve once decoded (or reject on error).
-const preload = ({ src, srcSet, sizes }) => {
+const preload = ({ src, srcSet, sizes, fetchPriority }) => {
   const img = new Image();
   img.decoding = 'async';
+  // Off-DOM images always fetch at low priority unless told otherwise
+  if (fetchPriority) img.fetchPriority = fetchPriority;
   if (sizes) img.sizes = sizes;
   if (srcSet) img.srcset = srcSet;
   img.src = src;
@@ -88,7 +90,12 @@ const ResponsiveImage = ({
     let cancelled = false;
 
     const start = () => {
-      preload({ src: resolvedSrc, srcSet: renditions.srcSet, sizes })
+      preload({
+        src: resolvedSrc,
+        srcSet: renditions.srcSet,
+        sizes,
+        fetchPriority: priority ? 'high' : undefined,
+      })
         .then(() => { if (!cancelled) setStage('sized'); })
         .catch(() => { if (!cancelled) setStage('original'); });
     };

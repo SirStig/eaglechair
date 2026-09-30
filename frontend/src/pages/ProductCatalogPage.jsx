@@ -22,6 +22,14 @@ import { findCategoryById, findNestedCategoryById } from '../utils/categoryTree'
 const CONTEXT = 'ProductCatalogPage';
 const PAGE_SIZE = 25;
 
+// Card image widths measured on the live grid: 2 columns below xl (beside the
+// filter sidebar from lg), 3 at xl. Keeps retina laptops on the 640px
+// rendition instead of 1024px.
+const CATALOG_CARD_IMAGE_SIZES =
+  '(min-width: 1280px) calc((100vw - 560px) / 3), (min-width: 1024px) calc(50vw - 225px), calc(50vw - 40px)';
+// Cards that are on screen at load (one row at xl, two on smaller screens)
+const FIRST_ROW_CARDS = 4;
+
 const ProductCatalogPage = () => {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
@@ -654,9 +662,14 @@ const ProductCatalogPage = () => {
                 </div>
 
                 <div className="grid grid-cols-2 md:grid-cols-2 xl:grid-cols-3 gap-5 md:gap-6 xl:gap-8 mb-8">
-                  {products.map((product) => (
+                  {products.map((product, index) => (
                     <div key={product.id} className="h-full">
-                      <ProductCard product={product} onQuickView={handleQuickView} />
+                      <ProductCard
+                        product={product}
+                        onQuickView={handleQuickView}
+                        imageSizes={CATALOG_CARD_IMAGE_SIZES}
+                        priority={index < FIRST_ROW_CARDS}
+                      />
                     </div>
                   ))}
                 </div>

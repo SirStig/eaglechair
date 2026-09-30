@@ -3,6 +3,7 @@ import hmac
 import json
 import logging
 import secrets
+import time
 from typing import Optional
 
 from sqlalchemy import func, or_, select
@@ -46,34 +47,63 @@ def _get_origin() -> str:
     return url
 
 
-# WebAuthn challenges are stored server-side, single use, for this long
+# WebAuthn challenges are valid for this long and are single use
 CHALLENGE_TTL_SECONDS = 120
 
 
-async def _store_challenge(purpose: str, challenge: bytes, admin_id: Optional[int]) -> str:
-    """Store an issued challenge under a random id and return the id"""
-    challenge_id = secrets.token_urlsafe(32)
-    await ephemeral_store.set(
-        f"webauthn:{purpose}:{challenge_id}",
-        json.dumps({"challenge": bytes_to_base64url(challenge), "admin_id": admin_id}),
-        CHALLENGE_TTL_SECONDS,
-    )
-    return challenge_id
+def _sign(data: bytes) -> bytes:
+    return hmac.new(
+        settings.SECRET_KEY.encode("utf-8"), b"webauthn-challenge:" + data, hashlib.sha256
+    ).digest()
+
+
+async def _store_challenge(
+    purpose: str, challenge: bytes, admin_id: Optional[int], discoverable: bool = False
+) -> str:
+    """
+    Issue a signed, expiring challenge id for `challenge`.
+
+    The id carries the challenge itself and is HMAC-signed with SECRET_KEY, so
+    any Gunicorn worker can verify it without shared storage (Redis is
+    optional). `discoverable` marks a usernameless sign-in challenge: it is
+    not bound to an admin, and the returned credential identifies the admin.
+    """
+    record = {
+        "p": purpose,
+        "c": bytes_to_base64url(challenge),
+        "a": admin_id,
+        "exp": int(time.time()) + CHALLENGE_TTL_SECONDS,
+        "n": secrets.token_urlsafe(8),
+    }
+    if discoverable:
+        record["d"] = True
+    payload = json.dumps(record, separators=(",", ":")).encode("utf-8")
+    return f"{bytes_to_base64url(payload)}.{bytes_to_base64url(_sign(payload))}"
 
 
 async def _consume_challenge(purpose: str, challenge_id) -> Optional[dict]:
-    """Fetch and delete (single use) a stored challenge; None if missing/expired"""
-    if not isinstance(challenge_id, str) or not challenge_id or len(challenge_id) > 128:
-        return None
-    raw = await ephemeral_store.pop(f"webauthn:{purpose}:{challenge_id}")
-    if not raw:
+    """Verify a challenge id and mark it used; None if invalid, expired or reused"""
+    if not isinstance(challenge_id, str) or not challenge_id or len(challenge_id) > 1024:
         return None
     try:
-        record = json.loads(raw)
-        record["challenge"] = base64url_to_bytes(record["challenge"])
-        return record
+        payload_b64, sig_b64 = challenge_id.split(".", 1)
+        payload = base64url_to_bytes(payload_b64)
+        if not hmac.compare_digest(base64url_to_bytes(sig_b64), _sign(payload)):
+            return None
+        record = json.loads(payload)
+        if record.get("p") != purpose or int(record["exp"]) < time.time():
+            return None
+        challenge = base64url_to_bytes(record["c"])
     except Exception:
         return None
+    # Single use. Shared across workers when Redis is up, per worker otherwise.
+    uses = await ephemeral_store.incr(f"webauthn:used:{sig_b64}", CHALLENGE_TTL_SECONDS)
+    if uses > 1:
+        return None
+    result = {"challenge": challenge, "admin_id": record.get("a")}
+    if record.get("d"):
+        result["discoverable"] = True
+    return result
 
 
 def _decoy_credential_id(identifier: str) -> bytes:
@@ -172,26 +202,38 @@ class PasskeyService:
         return passkey
 
     @staticmethod
-    async def get_authentication_options(db: AsyncSession, username: str) -> dict:
+    async def get_authentication_options(db: AsyncSession, username: Optional[str] = None) -> dict:
         """
-        Options for signing in as `username` (username or email).
+        Options for signing in with a passkey.
 
-        Only that admin's credential ids are listed. Unknown users (and admins
-        without passkeys) get a deterministic decoy credential id so the
-        response has the same shape and does not reveal whether they exist.
+        Without `username`: usernameless (discoverable credential) sign-in. No
+        credential ids are listed, the browser offers the passkeys it holds for
+        this site, and the returned credential identifies the admin.
+
+        With `username` (username or email): only that admin's credential ids
+        are listed. Unknown users (and admins without passkeys) get a
+        deterministic decoy credential id so the response has the same shape
+        and does not reveal whether they exist.
         """
-        identifier = (username or "").strip()
-        admin = None
-        if identifier:
-            result = await db.execute(
-                select(AdminUser).where(
-                    or_(
-                        AdminUser.username == identifier,
-                        func.lower(AdminUser.email) == identifier.lower(),
-                    )
+        identifier = (username or "").strip() if isinstance(username, str) else ""
+        if not identifier:
+            options = generate_authentication_options(
+                rp_id=_get_rp_id(),
+                user_verification=UserVerificationRequirement.REQUIRED,
+                timeout=60000,
+            )
+            challenge_id = await _store_challenge("auth", options.challenge, None, discoverable=True)
+            return {**json.loads(options_to_json(options)), "challengeId": challenge_id}
+
+        result = await db.execute(
+            select(AdminUser).where(
+                or_(
+                    AdminUser.username == identifier,
+                    func.lower(AdminUser.email) == identifier.lower(),
                 )
             )
-            admin = result.scalars().first()
+        )
+        admin = result.scalars().first()
 
         credentials = []
         if admin and admin.is_active:
@@ -248,8 +290,21 @@ class PasskeyService:
             )
         )
         passkey = result.scalar_one_or_none()
-        # The passkey must belong to the admin the challenge was issued for
-        if not passkey or record.get("admin_id") is None or passkey.admin_user_id != record["admin_id"]:
+        if not passkey:
+            raise InvalidCredentialsError("Passkey not recognized")
+        if record.get("discoverable"):
+            # Usernameless sign-in: the credential identifies the admin. If the
+            # authenticator returned a user handle it must match that admin.
+            user_handle = (cred.get("response") or {}).get("userHandle")
+            if user_handle:
+                try:
+                    handle_ok = base64url_to_bytes(user_handle) == str(passkey.admin_user_id).encode("utf-8")
+                except Exception:
+                    handle_ok = False
+                if not handle_ok:
+                    raise InvalidCredentialsError("Passkey not recognized")
+        elif record.get("admin_id") is None or passkey.admin_user_id != record["admin_id"]:
+            # The passkey must belong to the admin the challenge was issued for
             raise InvalidCredentialsError("Passkey not recognized")
         try:
             verification = verify_authentication_response(

@@ -48,7 +48,13 @@ const AdminSecuritySetupPage = () => {
     }
     getSetupStatus()
       .then(setStatus)
-      .catch(() => setError('Failed to load setup status'))
+      .catch((err) => {
+        if (err?.status === 401 || err?.response?.status === 401) {
+          navigate('/login', { replace: true, state: { from: { pathname: '/admin/setup-security' } } });
+          return;
+        }
+        setError('Failed to load setup status');
+      })
       .finally(() => setLoading(false));
   }, [isAuthenticated, user, navigate]);
 
@@ -111,7 +117,24 @@ const AdminSecuritySetupPage = () => {
     navigate('/admin/dashboard', { replace: true });
   };
 
-  if (loading || !status) {
+  if (!loading && !status) {
+    return (
+      <div className="min-h-screen bg-dark-900 flex items-center justify-center px-4">
+        <div className="text-center">
+          <p className="text-red-400 mb-4">{error || 'Failed to load setup status'}</p>
+          <button
+            type="button"
+            onClick={() => navigate('/login', { replace: true })}
+            className="text-primary-400 hover:underline"
+          >
+            Back to sign in
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  if (loading) {
     return (
       <div className="min-h-screen bg-dark-900 flex items-center justify-center">
         <div className="animate-pulse text-dark-300">Loading...</div>

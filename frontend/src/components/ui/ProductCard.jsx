@@ -10,7 +10,8 @@ import ResponsiveImage from './ResponsiveImage';
 // Catalog grid: 2 cols (<lg), 2 cols beside a ~320px sidebar (lg), 3 cols beside ~360px (xl)
 const DEFAULT_IMAGE_SIZES = '(min-width: 1280px) 25vw, (min-width: 1024px) 36vw, 50vw';
 
-const ProductCard = ({ product, onQuickView, darkMode = false, compact = false, imageSizes = DEFAULT_IMAGE_SIZES }) => {
+// `priority`: load the image right away at high priority (first visible row)
+const ProductCard = ({ product, onQuickView, darkMode = false, compact = false, imageSizes = DEFAULT_IMAGE_SIZES, priority = false }) => {
   const [imageLoaded, setImageLoaded] = useState(false);
   const [imageError, setImageError] = useState(false);
   const [isHovered, setIsHovered] = useState(false);
@@ -109,9 +110,8 @@ const ProductCard = ({ product, onQuickView, darkMode = false, compact = false, 
               className={`w-full h-full object-contain transition-all duration-150 ${imageLoaded ? 'opacity-100' : 'opacity-0'
                 } ${isHovered && !hasCarousel ? 'group-hover:scale-105' : ''}`}
               style={{ mixBlendMode: 'multiply' }}
-              loading="lazy"
-              decoding="async"
-              fetchpriority="low"
+              priority={priority}
+              fetchpriority={priority ? 'high' : 'low'}
             />
 
             {/* Carousel Indicators (optional, keeping minimal for now as requested) */}

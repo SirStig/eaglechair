@@ -102,51 +102,38 @@ const Header = ({ isMobileMenuOpen, setIsMobileMenuOpen }) => {
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  // Preload top category images for the desktop Products dropdown. The
-  // dropdown only exists at lg+ (the nav is `hidden lg:flex`), so phones and
-  // tablets skip this entirely; on desktop it waits for idle time at low
-  // priority so it never competes with the page's own images.
-  useEffect(() => {
-    if (!window.matchMedia?.('(min-width: 1024px)').matches) return undefined;
-
-    const preloadCategoryImages = async () => {
-      try {
-        // Fetch categories (cached by service)
-        const categories = await productService.getCategories();
-
-        // Preload banner images for top categories (first 5)
-        // This ensures they are ready when user hovers "Products"
-        if (Array.isArray(categories)) {
-          categories.slice(0, 5).forEach(category => {
-            const imageUrl = category.banner_image_url || category.image;
-            if (imageUrl) {
-              const img = new Image();
-              // Match CategoryTile's srcset/sizes so the preloaded candidate
-              // is the one the dropdown actually renders.
-              const resolved = ensureResolvedImageUrl(imageUrl);
-              const srcSet = getImageSrcSet(resolved);
-              if (srcSet) {
-                img.sizes = CATEGORY_TILE_IMAGE_SIZES;
-                img.srcset = srcSet;
-              }
-              img.fetchPriority = 'low';
-              img.src = resolved;
-            }
-          });
+  // Preload top category images for the desktop Products dropdown once the
+  // pointer (or keyboard focus) reaches the nav. These tiles are tall
+  // object-cover columns, so on retina screens the browser picks the 2400px
+  // renditions (~1.5 MB for five) - warming them on page load starved the
+  // page's own images, so wait for a sign the user is heading for the menu.
+  const categoryImagesWarmedRef = useRef(false);
+  const warmCategoryImages = async () => {
+    if (categoryImagesWarmedRef.current) return;
+    categoryImagesWarmedRef.current = true;
+    try {
+      // Fetch categories (cached by service)
+      const categories = await productService.getCategories();
+      if (!Array.isArray(categories)) return;
+      categories.slice(0, 5).forEach(category => {
+        const imageUrl = category.banner_image_url || category.image;
+        if (!imageUrl) return;
+        const img = new Image();
+        // Match CategoryTile's srcset/sizes so the preloaded candidate
+        // is the one the dropdown actually renders.
+        const resolved = ensureResolvedImageUrl(imageUrl);
+        const srcSet = getImageSrcSet(resolved);
+        if (srcSet) {
+          img.sizes = CATEGORY_TILE_IMAGE_SIZES;
+          img.srcset = srcSet;
         }
-      } catch (error) {
-        // Non-critical, just log debug
-        logger.debug(CONTEXT, 'Failed to preload category images', error);
-      }
-    };
-
-    if ('requestIdleCallback' in window) {
-      const id = window.requestIdleCallback(preloadCategoryImages, { timeout: 3000 });
-      return () => window.cancelIdleCallback(id);
+        img.src = resolved;
+      });
+    } catch (error) {
+      // Non-critical, just log debug
+      logger.debug(CONTEXT, 'Failed to preload category images', error);
     }
-    const timer = setTimeout(preloadCategoryImages, 1500);
-    return () => clearTimeout(timer);
-  }, []);
+  };
 
   const handleSearch = (e, options = {}) => {
     e.preventDefault();
@@ -200,7 +187,11 @@ const Header = ({ isMobileMenuOpen, setIsMobileMenuOpen }) => {
             </Motion.div>
           </Link>
 
-          <nav className="header-nav hidden lg:flex items-center gap-1">
+          <nav
+            className="header-nav hidden lg:flex items-center gap-1"
+            onPointerEnter={warmCategoryImages}
+            onFocus={warmCategoryImages}
+          >
             {/* Products Dropdown */}
             <Dropdown
               trigger={(isOpen) => (

@@ -164,14 +164,75 @@ class TestPasskeyChallenges:
         assert again["allowCredentials"][0]["id"] == unknown["allowCredentials"][0]["id"]
 
     @pytest.mark.asyncio
-    async def test_options_endpoint_requires_username(self, async_client):
+    async def test_options_endpoint_username_optional(self, async_client):
         response = await async_client.post("/api/v1/auth/admin/passkey/options", json={})
-        assert 400 <= response.status_code < 500
+        assert response.status_code == 200
+        assert "challengeId" in response.json()
+        assert not response.json().get("allowCredentials")
         response = await async_client.post(
             "/api/v1/auth/admin/passkey/options", json={"username": "nobody"}
         )
         assert response.status_code == 200
         assert "challengeId" in response.json()
+
+    @pytest.mark.asyncio
+    async def test_usernameless_options_list_no_credentials(self, db_session):
+        admin = await create_admin(db_session)
+        await _add_passkey(db_session, admin, b"cred-dl-" + b"q" * 16)
+        options = await PasskeyService.get_authentication_options(db_session)
+        assert not options.get("allowCredentials")
+        record = await passkey_service._consume_challenge("auth", options["challengeId"])
+        assert record["admin_id"] is None and record["discoverable"] is True
+
+    @pytest.mark.asyncio
+    async def test_usernameless_rejects_unknown_credential(self, db_session):
+        options = await PasskeyService.get_authentication_options(db_session)
+        bogus = bytes_to_base64url(b"not-registered-" + b"w" * 16)
+        with pytest.raises(InvalidCredentialsError, match="not recognized"):
+            await PasskeyService.verify_authentication(
+                db_session,
+                {"challengeId": options["challengeId"], "credential": {"id": bogus, "rawId": bogus}},
+            )
+
+    @pytest.mark.asyncio
+    async def test_usernameless_rejects_mismatched_user_handle(self, db_session):
+        admin_a = await create_admin(db_session)
+        admin_b = await create_admin(db_session)
+        await _add_passkey(db_session, admin_a, b"cred-uh-" + b"v" * 16)
+        options = await PasskeyService.get_authentication_options(db_session)
+        a_id = bytes_to_base64url(b"cred-uh-" + b"v" * 16)
+        with pytest.raises(InvalidCredentialsError, match="not recognized"):
+            await PasskeyService.verify_authentication(
+                db_session,
+                {
+                    "challengeId": options["challengeId"],
+                    "credential": {
+                        "id": a_id,
+                        "rawId": a_id,
+                        "response": {"userHandle": bytes_to_base64url(str(admin_b.id).encode())},
+                    },
+                },
+            )
+
+    @pytest.mark.asyncio
+    async def test_usernameless_valid_credential_reaches_signature_check(self, db_session):
+        admin = await create_admin(db_session)
+        await _add_passkey(db_session, admin, b"cred-ok-" + b"u" * 16)
+        options = await PasskeyService.get_authentication_options(db_session)
+        cid = bytes_to_base64url(b"cred-ok-" + b"u" * 16)
+        # Credential and user handle match, so it fails only at signature verification
+        with pytest.raises(InvalidCredentialsError, match="could not be verified"):
+            await PasskeyService.verify_authentication(
+                db_session,
+                {
+                    "challengeId": options["challengeId"],
+                    "credential": {
+                        "id": cid,
+                        "rawId": cid,
+                        "response": {"userHandle": bytes_to_base64url(str(admin.id).encode())},
+                    },
+                },
+            )
 
     @pytest.mark.asyncio
     async def test_challenge_is_single_use(self):
@@ -181,19 +242,34 @@ class TestPasskeyChallenges:
         assert await passkey_service._consume_challenge("auth", challenge_id) is None
 
     @pytest.mark.asyncio
-    async def test_challenge_expires(self):
+    async def test_challenge_expires(self, monkeypatch):
         challenge_id = await passkey_service._store_challenge("auth", b"c", 1)
-        key = f"{KEY_PREFIX}webauthn:auth:{challenge_id}"
-        value, _ = ephemeral_store._memory[key]
-        ephemeral_store._memory[key] = (value, time.monotonic() - 1)
+        real_time = time.time
+        monkeypatch.setattr(passkey_service.time, "time", lambda: real_time() + 121)
         assert await passkey_service._consume_challenge("auth", challenge_id) is None
 
     @pytest.mark.asyncio
-    async def test_challenge_ttl_is_120s(self):
-        before = time.monotonic()
+    async def test_challenge_valid_within_120s(self, monkeypatch):
         challenge_id = await passkey_service._store_challenge("register", b"c", 1)
-        _, expires_at = ephemeral_store._memory[f"{KEY_PREFIX}webauthn:register:{challenge_id}"]
-        assert 119 <= expires_at - before <= 121
+        real_time = time.time
+        monkeypatch.setattr(passkey_service.time, "time", lambda: real_time() + 110)
+        assert await passkey_service._consume_challenge("register", challenge_id) is not None
+
+    @pytest.mark.asyncio
+    async def test_challenge_verifies_without_shared_storage(self):
+        # Issued by one worker, consumed by another with an empty store
+        challenge_id = await passkey_service._store_challenge("auth", b"xyz", 3)
+        ephemeral_store.clear_memory()
+        record = await passkey_service._consume_challenge("auth", challenge_id)
+        assert record == {"challenge": b"xyz", "admin_id": 3}
+
+    @pytest.mark.asyncio
+    async def test_tampered_or_wrong_purpose_challenge_rejected(self):
+        challenge_id = await passkey_service._store_challenge("auth", b"c", 1)
+        payload, sig = challenge_id.split(".")
+        forged = bytes_to_base64url(b'{"p":"auth","c":"AAAA","a":2,"exp":9999999999}')
+        assert await passkey_service._consume_challenge("auth", f"{forged}.{sig}") is None
+        assert await passkey_service._consume_challenge("register", challenge_id) is None
 
     @pytest.mark.asyncio
     async def test_client_supplied_challenge_is_ignored(self, db_session):
