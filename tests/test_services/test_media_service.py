@@ -115,3 +115,68 @@ def test_is_variant_path():
     assert media_service.is_variant_path("a/b/foo.full.webp")
     assert not media_service.is_variant_path("a/b/foo.webp")
     assert not media_service.is_variant_path("a/b/foo.w640.jpg")
+
+
+# ---------------------------------------------------------------------------
+# rendition_urls (URLs returned by the API next to image fields)
+# ---------------------------------------------------------------------------
+
+
+def test_rendition_urls_for_jpeg_upload():
+    r = media_service.rendition_urls("/uploads/images/products/chair_1712_ab12cd.jpg")
+    base = "/uploads/images/products/chair_1712_ab12cd"
+    assert r["original"] == f"{base}.jpg"
+    assert r["placeholder"] == f"{base}.w32.webp"
+    assert r["sizes"] == [
+        {"width": w, "url": f"{base}.w{w}.webp"} for w in media_service.VARIANT_WIDTHS
+    ]
+    assert r["full"] == f"{base}.full.webp"
+
+
+def test_rendition_urls_match_the_files_written(tmp_path):
+    """The URL rule and the files store_image writes must agree."""
+    uploads = tmp_path / "uploads" / "images" / "products"
+    path, _ = media_service.store_image(_jpeg_bytes(), uploads, "chair", ".jpg")
+    r = media_service.rendition_urls("/uploads/images/products/chair.jpg")
+    urls = [r["placeholder"], r["full"], *(s["url"] for s in r["sizes"])]
+    for url in urls:
+        assert (uploads / url.rsplit("/", 1)[1]).exists(), url
+
+
+def test_rendition_urls_webp_original_is_its_own_full():
+    r = media_service.rendition_urls("/uploads/images/families/photo.webp")
+    assert r["full"] == "/uploads/images/families/photo.webp"
+    assert r["placeholder"] == "/uploads/images/families/photo.w32.webp"
+
+
+def test_rendition_urls_keep_absolute_origin_and_drop_query():
+    r = media_service.rendition_urls("https://cdn.example.com/uploads/images/p/a.PNG?v=3#x")
+    assert r["original"] == "https://cdn.example.com/uploads/images/p/a.PNG?v=3#x"
+    assert r["placeholder"] == "https://cdn.example.com/uploads/images/p/a.w32.webp"
+    assert r["full"] == "https://cdn.example.com/uploads/images/p/a.full.webp"
+
+
+@pytest.mark.parametrize(
+    "url",
+    [
+        "/uploads/images/icons/logo.svg",
+        "/uploads/images/p/anim.gif",
+        "https://www.eaglechair.com/wp-content/uploads/2020/01/chair.jpg",
+        "/assets/hero.jpg",
+        "/uploads/images/p/chair.w640.webp",
+        "/uploads/images/p/chair.full.webp",
+        "/uploads/images/p/no_extension",
+    ],
+)
+def test_rendition_urls_without_renditions_return_original_only(url):
+    assert media_service.rendition_urls(url) == {
+        "original": url,
+        "placeholder": None,
+        "sizes": [],
+        "full": None,
+    }
+
+
+@pytest.mark.parametrize("url", [None, ""])
+def test_rendition_urls_empty(url):
+    assert media_service.rendition_urls(url) is None

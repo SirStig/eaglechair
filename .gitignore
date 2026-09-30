@@ -207,3 +207,5 @@ frontend/demo.env
 .claude/worktrees/
 .playwright-mcp/
 test.db
+
+test.db-journal

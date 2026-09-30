@@ -11,6 +11,11 @@ from typing import Any, List, Optional, Union
 from pydantic import BaseModel, Field, computed_field, field_validator, model_validator
 
 from backend.api.v1.schemas.common import TimestampSchema
+from backend.api.v1.schemas.media import (
+    ImageRenditions,
+    image_renditions,
+    image_renditions_list,
+)
 from backend.core.config import settings
 
 # ============================================================================
@@ -63,6 +68,16 @@ class CategoryResponse(CategoryBase, TimestampSchema):
     class Config:
         from_attributes = True
 
+    @computed_field
+    @property
+    def icon_renditions(self) -> Optional[ImageRenditions]:
+        return image_renditions(self.icon_url)
+
+    @computed_field
+    @property
+    def banner_image_renditions(self) -> Optional[ImageRenditions]:
+        return image_renditions(self.banner_image_url)
+
 
 class CategoryChildAdminResponse(CategoryResponse):
     """
@@ -108,6 +123,16 @@ class CategoryChildResponse(BaseModel):
 
     class Config:
         from_attributes = True
+
+    @computed_field
+    @property
+    def icon_renditions(self) -> Optional[ImageRenditions]:
+        return image_renditions(self.icon_url)
+
+    @computed_field
+    @property
+    def banner_image_renditions(self) -> Optional[ImageRenditions]:
+        return image_renditions(self.banner_image_url)
 
 
 class CategoryWithChildren(CategoryResponse):
@@ -175,6 +200,16 @@ class ProductFamilyResponse(ProductFamilyBase, TimestampSchema):
     class Config:
         from_attributes = True
 
+    @computed_field
+    @property
+    def family_image_renditions(self) -> Optional[ImageRenditions]:
+        return image_renditions(self.family_image)
+
+    @computed_field
+    @property
+    def banner_image_renditions(self) -> Optional[ImageRenditions]:
+        return image_renditions(self.banner_image_url)
+
 
 # ============================================================================
 # Color Schemas
@@ -200,6 +235,11 @@ class ColorResponse(ColorBase, TimestampSchema):
 
     class Config:
         from_attributes = True
+
+    @computed_field
+    @property
+    def image_renditions(self) -> Optional[ImageRenditions]:
+        return image_renditions(self.image_url)
 
 
 # ============================================================================
@@ -254,6 +294,11 @@ class FinishResponse(FinishBase, TimestampSchema):
 
     class Config:
         from_attributes = True
+
+    @computed_field
+    @property
+    def image_renditions(self) -> Optional[ImageRenditions]:
+        return image_renditions(self.image_url)
 
 
 # ============================================================================
@@ -320,6 +365,16 @@ class UpholsteryResponse(UpholsteryBase, TimestampSchema):
 
     class Config:
         from_attributes = True
+
+    @computed_field
+    @property
+    def image_renditions(self) -> Optional[ImageRenditions]:
+        return image_renditions(self.image_url)
+
+    @computed_field
+    @property
+    def swatch_image_renditions(self) -> Optional[ImageRenditions]:
+        return image_renditions(self.swatch_image_url)
 
 
 # ============================================================================
@@ -569,6 +624,28 @@ class ChairResponse(ChairBase, TimestampSchema):
     def image_base_url(self) -> str:
         """Get the configured base URL for images"""
         return settings.IMAGE_BASE_URL
+
+    # Progressive renditions for the image fields above (see schemas/media.py);
+    # the list fields are index-aligned with `images` / `hover_images`.
+    @computed_field
+    @property
+    def primary_image_renditions(self) -> Optional[ImageRenditions]:
+        return image_renditions(self.primary_image or self.primary_image_url)
+
+    @computed_field
+    @property
+    def images_renditions(self) -> list[Optional[ImageRenditions]]:
+        return image_renditions_list(self.images)
+
+    @computed_field
+    @property
+    def hover_images_renditions(self) -> list[Optional[ImageRenditions]]:
+        return image_renditions_list(self.hover_images)
+
+    @computed_field
+    @property
+    def thumbnail_renditions(self) -> Optional[ImageRenditions]:
+        return image_renditions(self.thumbnail)
 
 
 class ChairDetailResponse(ChairResponse):

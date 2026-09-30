@@ -29,6 +29,7 @@ from backend.api.v1.schemas.product import (
 from backend.database.base import get_db
 from backend.models.chair import Chair
 from backend.models.company import Company
+from backend.services.media_service import rendition_urls
 from backend.services.catalog_cache import (
     get_cached_public_response,
     public_json_response,
@@ -1056,9 +1057,14 @@ async def get_family_members(
     # Sort by display_order then name
     items.sort(key=lambda x: (x["display_order"] or 0, x["name"] or ""))
 
-    # Strip internal sort key
+    # Strip internal sort key; add progressive image renditions (schemas/media.py)
     for item in items:
         del item["display_order"]
+        item["primary_image_renditions"] = rendition_urls(item["primary_image_url"])
+        item["hover_images_renditions"] = [
+            rendition_urls(img.get("url") if isinstance(img, dict) else img)
+            for img in item["hover_images"] or []
+        ]
 
     return await public_json_response(request, items, Any)
 
@@ -1194,6 +1200,7 @@ async def get_product_variations(
             var_dict["families"] = [{"id": f.id, "name": f.name, "slug": f.slug} for f in variation.families]
         else:
             var_dict["families"] = []
+        var_dict["primary_image_renditions"] = rendition_urls(var_dict.get("primary_image_url"))
         serialized_variations.append(var_dict)
     
     return {

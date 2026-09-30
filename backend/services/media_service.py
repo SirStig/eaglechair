@@ -26,6 +26,7 @@ import io
 import logging
 import re
 from pathlib import Path
+from urllib.parse import urlsplit
 
 from PIL import Image, ImageCms, ImageOps
 
@@ -217,6 +218,43 @@ def encode_master(content: bytes, max_dimension: int = 2400) -> bytes:
     if img.width > max_dimension or img.height > max_dimension:
         img.thumbnail((max_dimension, max_dimension), Image.LANCZOS)
     return _encode(img, FULL_QUALITY)
+
+
+def rendition_urls(url: str | None) -> dict | None:
+    """
+    Rendition URLs for a stored image URL, following the naming rule above.
+
+    Returns {"original", "placeholder", "sizes": [{"width", "url"}], "full"},
+    with placeholder/full None and sizes empty when the URL has no renditions
+    (not under /uploads/images/, SVG/GIF, legacy or external URLs, or already
+    a rendition). Returns None for an empty URL. Rendition URLs keep the
+    original's form: relative stays relative, an absolute URL keeps its origin.
+    Pure string work (no disk access), so it is safe to call per response.
+    """
+    if not url or not isinstance(url, str):
+        return None
+    no_renditions = {"original": url, "placeholder": None, "sizes": [], "full": None}
+
+    # Drops any query string / fragment, which would break the suffixes
+    parts = urlsplit(url.strip())
+    path = parts.path
+    if not path.startswith("/uploads/images/") or is_variant_path(path):
+        return no_renditions
+    stem, dot, ext = path.rpartition(".")
+    if not dot or "/" in ext or f".{ext.lower()}" not in TRANSFORMABLE_EXTENSIONS:
+        return no_renditions
+
+    if parts.scheme:
+        origin = f"{parts.scheme}://{parts.netloc}"
+    else:
+        origin = f"//{parts.netloc}" if parts.netloc else ""
+    base = f"{origin}{stem}"
+    return {
+        "original": url,
+        "placeholder": f"{base}.w{PLACEHOLDER_WIDTH}.webp",
+        "sizes": [{"width": w, "url": f"{base}.w{w}.webp"} for w in VARIANT_WIDTHS],
+        "full": f"{origin}{path}" if ext.lower() == "webp" else f"{base}{FULL_SUFFIX}",
+    }
 
 
 def delete_image_files(master: Path) -> None:
