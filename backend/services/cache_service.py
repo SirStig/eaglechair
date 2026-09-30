@@ -279,63 +279,6 @@ class CacheService:
         key = self._make_key("categories", "all")
         return await self.get(key)
     
-    async def cache_faq_list(self, category_id: Optional[int], faqs_data: List[dict], ttl: int = 900) -> bool:
-        """Cache FAQ list"""
-        key_suffix = f"cat_{category_id}" if category_id else "all"
-        key = self._make_key("faqs", key_suffix)
-        tags = ["faqs"]
-        return await self.set(key, faqs_data, ttl, tags)
-    
-    async def get_cached_faq_list(self, category_id: Optional[int] = None) -> Optional[List[dict]]:
-        """Get cached FAQ list"""
-        key_suffix = f"cat_{category_id}" if category_id else "all"
-        key = self._make_key("faqs", key_suffix)
-        return await self.get(key)
-    
-    async def cache_company_info(self, info_data: dict, ttl: int = 3600) -> bool:
-        """Cache company info"""
-        key = self._make_key("company_info", "main")
-        tags = ["company_info"]
-        return await self.set(key, info_data, ttl, tags)
-    
-    async def get_cached_company_info(self) -> Optional[dict]:
-        """Get cached company info"""
-        key = self._make_key("company_info", "main")
-        return await self.get(key)
-    
-    async def cache_team_members(self, team_data: List[dict], ttl: int = 1800) -> bool:
-        """Cache team members"""
-        key = self._make_key("team", "all")
-        tags = ["team"]
-        return await self.set(key, team_data, ttl, tags)
-    
-    async def get_cached_team_members(self) -> Optional[List[dict]]:
-        """Get cached team members"""
-        key = self._make_key("team", "all")
-        return await self.get(key)
-    
-    async def cache_contact_locations(self, locations_data: List[dict], ttl: int = 1800) -> bool:
-        """Cache contact locations"""
-        key = self._make_key("locations", "all")
-        tags = ["locations"]
-        return await self.set(key, locations_data, ttl, tags)
-    
-    async def get_cached_contact_locations(self) -> Optional[List[dict]]:
-        """Get cached contact locations"""
-        key = self._make_key("locations", "all")
-        return await self.get(key)
-    
-    async def cache_catalogs(self, catalogs_data: List[dict], ttl: int = 900) -> bool:
-        """Cache catalogs list"""
-        key = self._make_key("catalogs", "all")
-        tags = ["catalogs"]
-        return await self.set(key, catalogs_data, ttl, tags)
-    
-    async def get_cached_catalogs(self) -> Optional[List[dict]]:
-        """Get cached catalogs"""
-        key = self._make_key("catalogs", "all")
-        return await self.get(key)
-    
     async def cache_session(
         self,
         session_token: str,
@@ -386,11 +329,6 @@ class CacheService:
         """Get cached dashboard stats"""
         key = self._make_key("stats", "dashboard")
         return await self.get(key)
-    
-    async def invalidate_content_caches(self) -> None:
-        """Invalidate all content-related caches"""
-        await self.invalidate_tags(["faqs", "team", "locations", "catalogs", "company_info"])
-        logger.info("Content caches invalidated")
     
     async def health_check(self) -> Dict[str, Any]:
         """Check cache health and get statistics"""

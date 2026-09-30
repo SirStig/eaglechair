@@ -5,11 +5,13 @@ import Button from './Button';
 import EditableWrapper from '../admin/EditableWrapper';
 import ResponsiveImage from './ResponsiveImage';
 import { ensureResolvedImageUrl } from '../../utils/apiHelpers';
+import { safeHref } from '../../utils/safeUrl';
 
 const SLIDE_DURATION_MS = 9000;
 const FADE_DURATION_MS = 1800;
+const CTA_VARIANTS = new Set(['primary', 'secondary', 'outline']);
 
-const HeroCarousel = ({ slides, onUpdateSlide, refetch, loading, renderSkeleton }) => {
+const HeroCarousel = ({ slides, onUpdateSlide, loading, renderSkeleton }) => {
   const [currentIndex, setCurrentIndex] = useState(0);
 
   const goNext = useCallback(() => {
@@ -35,6 +37,13 @@ const HeroCarousel = ({ slides, onUpdateSlide, refetch, loading, renderSkeleton 
         // (still fading) slides, so hidden slides don't all download upfront.
         const mountImage = index === 0 || index === currentIndex || index === nextIndex || index === prevIndex;
         const imageSrc = slide.background_image_url || slide.image;
+        // CMS links only render when they pass the URL policy
+        const ctaText = slide.cta_text || slide.ctaText || slide.cta;
+        const ctaLink = safeHref(slide.cta_link || slide.ctaLink);
+        const ctaStyle = slide.cta_style || slide.ctaStyle;
+        const ctaVariant = CTA_VARIANTS.has(ctaStyle) ? ctaStyle : 'primary';
+        const secondaryText = slide.secondary_cta_text || slide.secondaryCtaText;
+        const secondaryLink = safeHref(slide.secondary_cta_link || slide.secondaryCtaLink);
         return (
         <div
           key={slide.id ?? index}
@@ -51,9 +60,8 @@ const HeroCarousel = ({ slides, onUpdateSlide, refetch, loading, renderSkeleton 
             type="hero-slide"
             data={slide}
             onSave={(newData) => onUpdateSlide(slide.id, newData)}
-            refetch={refetch}
-            cacheKey="hero-slides"
             label={`Slide ${index + 1}`}
+            className="w-full h-full"
           >
             <div className="relative w-full h-full min-h-full pt-[var(--header-height)]">
               {mountImage && imageSrc && (
@@ -83,12 +91,21 @@ const HeroCarousel = ({ slides, onUpdateSlide, refetch, loading, renderSkeleton 
                       <p className="text-sm sm:text-base md:text-lg lg:text-xl text-white/95 leading-relaxed tracking-wide max-w-xl [text-shadow:0_0_12px_rgba(0,0,0,0.9),0_0_4px_rgba(0,0,0,0.8),0_1px_3px_rgba(0,0,0,0.9)]">
                         {slide.subtitle}
                       </p>
-                      <div className="flex justify-start mt-5 sm:mt-6">
-                        <Link to={slide.cta_link || slide.ctaLink || '#'}>
-                          <Button size="lg" variant="primary" className="px-8 sm:px-10 py-3.5 text-base">
-                            {slide.cta_text || slide.ctaText || slide.cta}
-                          </Button>
-                        </Link>
+                      <div className="flex flex-wrap justify-start gap-3 mt-5 sm:mt-6">
+                        {ctaText && (
+                          <Link to={ctaLink || '#'}>
+                            <Button size="lg" variant={ctaVariant} className="px-8 sm:px-10 py-3.5 text-base">
+                              {ctaText}
+                            </Button>
+                          </Link>
+                        )}
+                        {secondaryText && secondaryLink && (
+                          <Link to={secondaryLink}>
+                            <Button size="lg" variant="outline" className="px-8 sm:px-10 py-3.5 text-base">
+                              {secondaryText}
+                            </Button>
+                          </Link>
+                        )}
                       </div>
                     </m.div>
                   </div>

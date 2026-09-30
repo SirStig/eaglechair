@@ -21,7 +21,69 @@ const CONTEXT = 'ContentService';
  */
 
 // Check if we should use static content (can be disabled via env var)
-const USE_STATIC_CONTENT = import.meta.env.VITE_USE_STATIC_CONTENT !== 'false';
+export const USE_STATIC_CONTENT = import.meta.env.VITE_USE_STATIC_CONTENT !== 'false';
+
+const installationTypeFilter = (filters = {}) =>
+  filters.project_type || filters.projectType || filters.category || null;
+
+/**
+ * Pure selectors over contentData.json. Shared by the async getters below and
+ * by useContent(), which uses them to render synchronously when the content
+ * is already in memory (SSR payload / earlier load) - so server and client
+ * render the same markup with no loading flash.
+ *
+ * Returning undefined/null means "not in the static export - ask the API".
+ */
+export const staticSelectors = {
+  siteSettings: (content) => content.siteSettings,
+  companyInfo: (content) => content.companyInfo,
+  teamMembers: (content) => content.teamMembers,
+  companyValues: (content) => content.companyValues,
+  companyMilestones: (content) => content.companyMilestones,
+  heroSlides: (content) => content.heroSlides,
+  features: (content, featureType = 'general') => {
+    const features = content.features || [];
+    return features.filter((f) => f.featureType === featureType);
+  },
+  clientLogos: (content) => content.clientLogos,
+  salesReps: (content) => content.salesReps,
+  repByState: (content, stateCode) => content.getRepByState?.(stateCode),
+  installations: (content, filters = {}) => {
+    const images = content.galleryImages;
+    const projectType = installationTypeFilter(filters);
+    if (!Array.isArray(images) || !projectType) return images;
+    return images.filter((img) => (img.category || img.projectType || img.project_type) === projectType);
+  },
+  contactLocations: (content) => content.contactLocations,
+  finishes: (content) => content.finishes || [],
+  upholsteries: (content) => content.upholsteries || [],
+  laminates: (content) => content.laminates || [],
+  hardware: (content) => content.hardware || [],
+  catalogs: (content, catalogType = null) => {
+    const catalogs = content.catalogs || [];
+    if (catalogType) {
+      return catalogs.filter(c => c.catalogType === catalogType);
+    }
+    return catalogs;
+  },
+  // Only sections present in the export; others fall back to the API,
+  // which serves server-side defaults.
+  pageContent: (content, pageSlug, sectionKey = null) => {
+    const rows = (content.pageContent || []).filter(
+      (row) => row.pageSlug === pageSlug && row.isActive !== false &&
+        (!sectionKey || row.sectionKey === sectionKey)
+    );
+    if (!rows.length) return undefined;
+    const normalized = rows.map((row) => ({
+      ...row,
+      title: row.title || '',
+      subtitle: row.subtitle || '',
+      content: row.content || '',
+      ctaStyle: row.ctaStyle || '',
+    }));
+    return sectionKey && normalized.length === 1 ? normalized[0] : normalized;
+  },
+};
 
 /**
  * Helper to get static content with API fallback
@@ -58,7 +120,7 @@ const getStaticOrAPI = async (getDataFn, apiFetcher, contextMessage) => {
 // Site Settings
 export const getSiteSettings = async () => {
   return getStaticOrAPI(
-    (content) => content.siteSettings,
+    staticSelectors.siteSettings,
     async () => {
       const response = await api.get('/api/v1/content/site-settings');
       return response;
@@ -67,52 +129,10 @@ export const getSiteSettings = async () => {
   );
 };
 
-// Site Settings (Admin - always fetch from DB)
-export const getSiteSettingsAdmin = async () => {
-  logger.info(CONTEXT, 'Fetching site settings (admin)');
-  const response = await api.get('/api/v1/content/site-settings');
-  
-  // Convert camelCase to snake_case for form compatibility
-  if (response) {
-    return {
-      id: response.id,
-      company_name: response.companyName,
-      company_tagline: response.companyTagline,
-      logo_url: response.logoUrl,
-      logo_dark_url: response.logoDarkUrl,
-      favicon_url: response.faviconUrl,
-      primary_email: response.primaryEmail,
-      primary_phone: response.primaryPhone,
-      sales_email: response.salesEmail,
-      sales_phone: response.salesPhone,
-      support_email: response.supportEmail,
-      support_phone: response.supportPhone,
-      address_line1: response.addressLine1,
-      address_line2: response.addressLine2,
-      city: response.city,
-      state: response.state,
-      zip_code: response.zipCode,
-      country: response.country,
-      business_hours_weekdays: response.businessHoursWeekdays,
-      business_hours_saturday: response.businessHoursSaturday,
-      business_hours_sunday: response.businessHoursSunday,
-      facebook_url: response.facebookUrl,
-      instagram_url: response.instagramUrl,
-      linkedin_url: response.linkedinUrl,
-      twitter_url: response.twitterUrl,
-      youtube_url: response.youtubeUrl,
-      meta_title: response.metaTitle,
-      meta_description: response.metaDescription,
-      meta_keywords: response.metaKeywords
-    };
-  }
-  return response;
-};
-
 // Company Info
 export const getCompanyInfo = async (sectionKey = null) => {
   return getStaticOrAPI(
-    (content) => content.companyInfo,
+    staticSelectors.companyInfo,
     async () => {
       const url = sectionKey 
         ? `/api/v1/content/company-info/${sectionKey}`
@@ -127,7 +147,7 @@ export const getCompanyInfo = async (sectionKey = null) => {
 // Team Members
 export const getTeamMembers = async () => {
   return getStaticOrAPI(
-    (content) => content.teamMembers,
+    staticSelectors.teamMembers,
     async () => {
       const response = await api.get('/api/v1/content/team-members');
       return response;
@@ -139,7 +159,7 @@ export const getTeamMembers = async () => {
 // Company Values
 export const getCompanyValues = async () => {
   return getStaticOrAPI(
-    (content) => content.companyValues,
+    staticSelectors.companyValues,
     async () => {
       const response = await api.get('/api/v1/content/company-values');
       return response;
@@ -151,7 +171,7 @@ export const getCompanyValues = async () => {
 // Company Milestones
 export const getCompanyMilestones = async () => {
   return getStaticOrAPI(
-    (content) => content.companyMilestones,
+    staticSelectors.companyMilestones,
     async () => {
       const response = await api.get('/api/v1/content/company-milestones');
       return response;
@@ -163,7 +183,7 @@ export const getCompanyMilestones = async () => {
 // Hero Slides
 export const getHeroSlides = async () => {
   return getStaticOrAPI(
-    (content) => content.heroSlides,
+    staticSelectors.heroSlides,
     async () => {
       const response = await api.get('/api/v1/content/hero-slides');
       return response;
@@ -175,10 +195,7 @@ export const getHeroSlides = async () => {
 // Features (Why Choose Us)
 export const getFeatures = async (featureType = 'general') => {
   return getStaticOrAPI(
-    (content) => {
-      const features = content.features || [];
-      return features.filter((f) => f.featureType === featureType);
-    },
+    (content) => staticSelectors.features(content, featureType),
     async () => {
       const response = await api.get(`/api/v1/content/features?type=${featureType}`);
       return response;
@@ -190,7 +207,7 @@ export const getFeatures = async (featureType = 'general') => {
 // Client Logos
 export const getClientLogos = async () => {
   return getStaticOrAPI(
-    (content) => content.clientLogos,
+    staticSelectors.clientLogos,
     async () => {
       const response = await api.get('/api/v1/content/client-logos');
       return response;
@@ -202,7 +219,7 @@ export const getClientLogos = async () => {
 // Sales Representatives
 export const getSalesReps = async () => {
   return getStaticOrAPI(
-    (content) => content.salesReps,
+    staticSelectors.salesReps,
     async () => {
       const response = await api.get('/api/v1/content/sales-reps');
       return response;
@@ -214,7 +231,7 @@ export const getSalesReps = async () => {
 // Get rep by state
 export const getRepByState = async (stateCode) => {
   return getStaticOrAPI(
-    (content) => content.getRepByState?.(stateCode),
+    (content) => staticSelectors.repByState(content, stateCode),
     async () => {
       const response = await api.get(`/api/v1/content/sales-reps/state/${stateCode}`);
       return response;
@@ -226,10 +243,12 @@ export const getRepByState = async (stateCode) => {
 // Installation Gallery
 export const getInstallations = async (filters = {}) => {
   return getStaticOrAPI(
-    (content) => content.galleryImages,
+    (content) => staticSelectors.installations(content, filters),
     async () => {
-      const params = new URLSearchParams(filters).toString();
-      const response = await api.get(`/api/v1/content/installations${params ? `?${params}` : ''}`);
+      // GET /content/installations (cms_content) only filters by project_type
+      const projectType = installationTypeFilter(filters);
+      const params = projectType ? { project_type: projectType } : undefined;
+      const response = await api.get('/api/v1/content/installations', { params });
       return response;
     },
     'Fetching installations'
@@ -239,9 +258,9 @@ export const getInstallations = async (filters = {}) => {
 // Contact Locations
 export const getContactLocations = async () => {
   return getStaticOrAPI(
-    (content) => content.contactLocations,
+    staticSelectors.contactLocations,
     async () => {
-      const response = await api.get('/api/v1/content/contact-locations');
+      const response = await api.get('/api/v1/content/contact/locations');
       return response;
     },
     'Fetching contact locations'
@@ -278,7 +297,7 @@ export const getFAQCategories = async () => {
 // Finishes
 export const getFinishes = async () => {
   return getStaticOrAPI(
-    (content) => content.finishes || [],
+    staticSelectors.finishes,
     async () => {
       const response = await api.get('/api/v1/finishes');
       return Array.isArray(response) ? response : [];
@@ -290,7 +309,7 @@ export const getFinishes = async () => {
 // Upholsteries
 export const getUpholsteries = async () => {
   return getStaticOrAPI(
-    (content) => content.upholsteries || [],
+    staticSelectors.upholsteries,
     async () => {
       const response = await api.get('/api/v1/upholsteries');
       return Array.isArray(response) ? response : [];
@@ -302,7 +321,7 @@ export const getUpholsteries = async () => {
 // Laminates
 export const getLaminates = async () => {
   return getStaticOrAPI(
-    (content) => content.laminates || [],
+    staticSelectors.laminates,
     async () => {
       const response = await api.get('/api/v1/content/laminates');
       return Array.isArray(response) ? response : [];
@@ -314,7 +333,7 @@ export const getLaminates = async () => {
 // Hardware
 export const getHardware = async () => {
   return getStaticOrAPI(
-    (content) => content.hardware || [],
+    staticSelectors.hardware,
     async () => {
       const response = await api.get('/api/v1/content/hardware');
       return Array.isArray(response) ? response : [];
@@ -326,13 +345,7 @@ export const getHardware = async () => {
 // Catalogs/Resources
 export const getCatalogs = async (catalogType = null) => {
   return getStaticOrAPI(
-    (content) => {
-      const catalogs = content.catalogs || [];
-      if (catalogType) {
-        return catalogs.filter(c => c.catalogType === catalogType);
-      }
-      return catalogs;
-    },
+    (content) => staticSelectors.catalogs(content, catalogType),
     async () => {
       const url = catalogType
         ? `/api/v1/content/catalogs?type=${catalogType}`
@@ -351,20 +364,8 @@ export const getPageContent = async (pageSlug, sectionKey = null) => {
   if (USE_STATIC_CONTENT) {
     try {
       const staticContent = await loadContentData();
-      const rows = (staticContent?.pageContent || []).filter(
-        (row) => row.pageSlug === pageSlug && row.isActive !== false &&
-          (!sectionKey || row.sectionKey === sectionKey)
-      );
-      if (rows.length) {
-        const normalized = rows.map((row) => ({
-          ...row,
-          title: row.title || '',
-          subtitle: row.subtitle || '',
-          content: row.content || '',
-          ctaStyle: row.ctaStyle || '',
-        }));
-        return sectionKey && normalized.length === 1 ? normalized[0] : normalized;
-      }
+      const section = staticContent ? staticSelectors.pageContent(staticContent, pageSlug, sectionKey) : undefined;
+      if (section !== undefined) return section;
     } catch (error) {
       logger.warn(CONTEXT, `Static page content unavailable: ${error.message}`);
     }
@@ -408,445 +409,6 @@ export const getFeaturedProducts = async (limit = 4) => {
   }
 };
 
-// ==================== UPDATE OPERATIONS ====================
-
-const pageContentPayloadToApi = (updates) => {
-  const map = {
-    imageUrl: 'image_url',
-    videoUrl: 'video_url',
-    ctaText: 'cta_text',
-    ctaLink: 'cta_link',
-    ctaStyle: 'cta_style',
-    displayOrder: 'display_order',
-    isActive: 'is_active',
-    pageSlug: 'page_slug',
-    sectionKey: 'section_key',
-    extraData: 'extra_data'
-  };
-  const out = {};
-  Object.keys(updates).forEach(k => {
-    const apiKey = map[k] || k;
-    if (apiKey !== 'page_slug' && apiKey !== 'section_key') out[apiKey] = updates[k];
-  });
-  return out;
-};
-
-export const updatePageContent = async (pageSlug, sectionKey, updates) => {
-  try {
-    logger.info(CONTEXT, `Updating page content (${pageSlug}/${sectionKey})`);
-    const payload = pageContentPayloadToApi(updates);
-    const response = await api.patch(`/api/v1/cms-admin/page-content/${pageSlug}/${sectionKey}`, payload);
-    return response;
-  } catch (error) {
-    logger.error(CONTEXT, 'Error updating page content', error);
-    throw error;
-  }
-};
-
-// Update Site Settings
-export const updateSiteSettings = async (updates) => {
-  try {
-    logger.info(CONTEXT, 'Updating site settings');
-    
-    // Backend expects snake_case, form data is already in snake_case, send as-is
-    const response = await api.patch('/api/v1/cms-admin/site-settings', updates);
-    return response;
-  } catch (error) {
-    logger.error(CONTEXT, 'Error updating site settings', error);
-    throw error;
-  }
-};
-
-// Update Company Info
-export const updateCompanyInfo = async (id, updates) => {
-  try {
-    logger.info(CONTEXT, `Updating company info ${id}`);
-    const response = await api.patch(`/api/v1/cms-admin/company-info/${id}`, updates);
-    return response;
-  } catch (error) {
-    logger.error(CONTEXT, 'Error updating company info', error);
-    throw error;
-  }
-};
-
-// Update Team Member
-export const updateTeamMember = async (id, updates) => {
-  try {
-    logger.info(CONTEXT, `Updating team member ${id}`);
-    const response = await api.patch(`/api/v1/cms-admin/team-members/${id}`, updates);
-    return response;
-  } catch (error) {
-    logger.error(CONTEXT, 'Error updating team member', error);
-    throw error;
-  }
-};
-
-const heroSlidePayloadToApi = (updates) => {
-  const out = { ...updates };
-  if (out.image !== undefined) {
-    out.background_image_url = out.image;
-    delete out.image;
-  }
-  const map = {
-    ctaText: 'cta_text',
-    ctaLink: 'cta_link',
-    ctaStyle: 'cta_style',
-    displayOrder: 'display_order',
-    isActive: 'is_active',
-    secondaryCtaText: 'secondary_cta_text',
-    secondaryCtaLink: 'secondary_cta_link',
-    secondaryCtaStyle: 'secondary_cta_style'
-  };
-  Object.keys(map).forEach(k => {
-    if (out[k] !== undefined) {
-      out[map[k]] = out[k];
-      delete out[k];
-    }
-  });
-  return out;
-};
-
-export const updateHeroSlide = async (id, updates) => {
-  try {
-    logger.info(CONTEXT, `Updating hero slide ${id}`);
-    const payload = heroSlidePayloadToApi(updates);
-    const response = await api.patch(`/api/v1/cms-admin/hero-slides/${id}`, payload);
-    return response;
-  } catch (error) {
-    logger.error(CONTEXT, 'Error updating hero slide', error);
-    throw error;
-  }
-};
-
-// Update Feature
-export const updateFeature = async (id, updates) => {
-  try {
-    logger.info(CONTEXT, `Updating feature ${id}`);
-    const response = await api.patch(`/api/v1/cms-admin/features/${id}`, updates);
-    return response;
-  } catch (error) {
-    logger.error(CONTEXT, 'Error updating feature', error);
-    throw error;
-  }
-};
-
-// Update Client Logo
-export const updateClientLogo = async (id, updates) => {
-  try {
-    logger.info(CONTEXT, `Updating client logo ${id}`);
-    const response = await api.patch(`/api/v1/cms-admin/client-logos/${id}`, updates);
-    return response;
-  } catch (error) {
-    logger.error(CONTEXT, 'Error updating client logo', error);
-    throw error;
-  }
-};
-
-// Update Sales Rep
-export const updateSalesRep = async (id, updates) => {
-  try {
-    logger.info(CONTEXT, `Updating sales rep ${id}`);
-    const response = await api.patch(`/api/v1/cms-admin/sales-reps/${id}`, updates);
-    return response;
-  } catch (error) {
-    logger.error(CONTEXT, 'Error updating sales rep', error);
-    throw error;
-  }
-};
-
-// Update Installation
-export const updateInstallation = async (id, updates) => {
-  try {
-    logger.info(CONTEXT, `Updating installation ${id}`);
-    const response = await api.put(`/api/v1/cms-admin/gallery/${id}`, updates);
-    return response;
-  } catch (error) {
-    logger.error(CONTEXT, 'Error updating installation', error);
-    throw error;
-  }
-};
-
-// Update Contact Location
-export const updateContactLocation = async (id, updates) => {
-  try {
-    logger.info(CONTEXT, `Updating contact location ${id}`);
-    const response = await api.patch(`/api/v1/cms-admin/contact-locations/${id}`, updates);
-    return response;
-  } catch (error) {
-    logger.error(CONTEXT, 'Error updating contact location', error);
-    throw error;
-  }
-};
-
-// Update Company Value
-export const updateCompanyValue = async (id, updates) => {
-  try {
-    logger.info(CONTEXT, `Updating company value ${id}`);
-    const response = await api.patch(`/api/v1/cms-admin/company-values/${id}`, updates);
-    return response;
-  } catch (error) {
-    logger.error(CONTEXT, 'Error updating company value', error);
-    throw error;
-  }
-};
-
-// Update Company Milestone
-export const updateCompanyMilestone = async (id, updates) => {
-  try {
-    logger.info(CONTEXT, `Updating company milestone ${id}`);
-    const response = await api.patch(`/api/v1/cms-admin/company-milestones/${id}`, updates);
-    return response;
-  } catch (error) {
-    logger.error(CONTEXT, 'Error updating company milestone', error);
-    throw error;
-  }
-};
-
-// ==================== CREATE OPERATIONS ====================
-
-// Create Team Member
-export const createTeamMember = async (data) => {
-  try {
-    logger.info(CONTEXT, 'Creating team member');
-    const response = await api.post('/api/v1/cms-admin/team-members', data);
-    return response;
-  } catch (error) {
-    logger.error(CONTEXT, 'Error creating team member', error);
-    throw error;
-  }
-};
-
-// Create Hero Slide
-export const createHeroSlide = async (data) => {
-  try {
-    logger.info(CONTEXT, 'Creating hero slide');
-    const payload = heroSlidePayloadToApi(data);
-    const response = await api.post('/api/v1/cms-admin/hero-slides', payload);
-    return response;
-  } catch (error) {
-    logger.error(CONTEXT, 'Error creating hero slide', error);
-    throw error;
-  }
-};
-
-// Create Feature
-export const createFeature = async (data) => {
-  try {
-    logger.info(CONTEXT, 'Creating feature');
-    const response = await api.post('/api/v1/cms-admin/features', data);
-    return response;
-  } catch (error) {
-    logger.error(CONTEXT, 'Error creating feature', error);
-    throw error;
-  }
-};
-
-// Create Client Logo
-export const createClientLogo = async (data) => {
-  try {
-    logger.info(CONTEXT, 'Creating client logo');
-    const response = await api.post('/api/v1/cms-admin/client-logos', data);
-    return response;
-  } catch (error) {
-    logger.error(CONTEXT, 'Error creating client logo', error);
-    throw error;
-  }
-};
-
-// Create Sales Rep
-export const createSalesRep = async (data) => {
-  try {
-    logger.info(CONTEXT, 'Creating sales rep');
-    const response = await api.post('/api/v1/cms-admin/sales-reps', data);
-    return response;
-  } catch (error) {
-    logger.error(CONTEXT, 'Error creating sales rep', error);
-    throw error;
-  }
-};
-
-// Create Installation
-export const createInstallation = async (data) => {
-  try {
-    logger.info(CONTEXT, 'Creating installation');
-    const response = await api.post('/api/v1/cms-admin/gallery', data);
-    return response;
-  } catch (error) {
-    logger.error(CONTEXT, 'Error creating installation', error);
-    throw error;
-  }
-};
-
-// Create Contact Location
-export const createContactLocation = async (data) => {
-  try {
-    logger.info(CONTEXT, 'Creating contact location');
-    const response = await api.post('/api/v1/cms-admin/contact-locations', data);
-    return response;
-  } catch (error) {
-    logger.error(CONTEXT, 'Error creating contact location', error);
-    throw error;
-  }
-};
-
-// Create Company Value
-export const createCompanyValue = async (data) => {
-  try {
-    logger.info(CONTEXT, 'Creating company value');
-    const response = await api.post('/api/v1/cms-admin/company-values', data);
-    return response;
-  } catch (error) {
-    logger.error(CONTEXT, 'Error creating company value', error);
-    throw error;
-  }
-};
-
-// Create Company Milestone
-export const createCompanyMilestone = async (data) => {
-  try {
-    logger.info(CONTEXT, 'Creating company milestone');
-    const response = await api.post('/api/v1/cms-admin/company-milestones', data);
-    return response;
-  } catch (error) {
-    logger.error(CONTEXT, 'Error creating company milestone', error);
-    throw error;
-  }
-};
-
-// Create Company Info Section
-export const createCompanyInfo = async (data) => {
-  try {
-    logger.info(CONTEXT, 'Creating company info');
-    const response = await api.post('/api/v1/cms-admin/company-info', data);
-    return response;
-  } catch (error) {
-    logger.error(CONTEXT, 'Error creating company info', error);
-    throw error;
-  }
-};
-
-// ==================== DELETE OPERATIONS ====================
-
-// Delete Team Member
-export const deleteTeamMember = async (id) => {
-  try {
-    logger.info(CONTEXT, `Deleting team member ${id}`);
-    const response = await api.delete(`/api/v1/cms-admin/team-members/${id}`);
-    return response;
-  } catch (error) {
-    logger.error(CONTEXT, 'Error deleting team member', error);
-    throw error;
-  }
-};
-
-// Delete Hero Slide
-export const deleteHeroSlide = async (id) => {
-  try {
-    logger.info(CONTEXT, `Deleting hero slide ${id}`);
-    const response = await api.delete(`/api/v1/cms-admin/hero-slides/${id}`);
-    return response;
-  } catch (error) {
-    logger.error(CONTEXT, 'Error deleting hero slide', error);
-    throw error;
-  }
-};
-
-// Delete Feature
-export const deleteFeature = async (id) => {
-  try {
-    logger.info(CONTEXT, `Deleting feature ${id}`);
-    const response = await api.delete(`/api/v1/cms-admin/features/${id}`);
-    return response;
-  } catch (error) {
-    logger.error(CONTEXT, 'Error deleting feature', error);
-    throw error;
-  }
-};
-
-// Delete Client Logo
-export const deleteClientLogo = async (id) => {
-  try {
-    logger.info(CONTEXT, `Deleting client logo ${id}`);
-    const response = await api.delete(`/api/v1/cms-admin/client-logos/${id}`);
-    return response;
-  } catch (error) {
-    logger.error(CONTEXT, 'Error deleting client logo', error);
-    throw error;
-  }
-};
-
-// Delete Sales Rep
-export const deleteSalesRep = async (id) => {
-  try {
-    logger.info(CONTEXT, `Deleting sales rep ${id}`);
-    const response = await api.delete(`/api/v1/cms-admin/sales-reps/${id}`);
-    return response;
-  } catch (error) {
-    logger.error(CONTEXT, 'Error deleting sales rep', error);
-    throw error;
-  }
-};
-
-// Delete Installation
-export const deleteInstallation = async (id) => {
-  try {
-    logger.info(CONTEXT, `Deleting installation ${id}`);
-    const response = await api.delete(`/api/v1/cms-admin/gallery/${id}`);
-    return response;
-  } catch (error) {
-    logger.error(CONTEXT, 'Error deleting installation', error);
-    throw error;
-  }
-};
-
-// Delete Contact Location
-export const deleteContactLocation = async (id) => {
-  try {
-    logger.info(CONTEXT, `Deleting contact location ${id}`);
-    const response = await api.delete(`/api/v1/cms-admin/contact-locations/${id}`);
-    return response;
-  } catch (error) {
-    logger.error(CONTEXT, 'Error deleting contact location', error);
-    throw error;
-  }
-};
-
-// Delete Company Value
-export const deleteCompanyValue = async (id) => {
-  try {
-    logger.info(CONTEXT, `Deleting company value ${id}`);
-    const response = await api.delete(`/api/v1/cms-admin/company-values/${id}`);
-    return response;
-  } catch (error) {
-    logger.error(CONTEXT, 'Error deleting company value', error);
-    throw error;
-  }
-};
-
-// Delete Company Milestone
-export const deleteCompanyMilestone = async (id) => {
-  try {
-    logger.info(CONTEXT, `Deleting company milestone ${id}`);
-    const response = await api.delete(`/api/v1/cms-admin/company-milestones/${id}`);
-    return response;
-  } catch (error) {
-    logger.error(CONTEXT, 'Error deleting company milestone', error);
-    throw error;
-  }
-};
-
-// Delete Company Info
-export const deleteCompanyInfo = async (id) => {
-  try {
-    logger.info(CONTEXT, `Deleting company info ${id}`);
-    const response = await api.delete(`/api/v1/cms-admin/company-info/${id}`);
-    return response;
-  } catch (error) {
-    logger.error(CONTEXT, 'Error deleting company info', error);
-    throw error;
-  }
-};
-
 // ==================== PRODUCT OPERATIONS ====================
 
 // Get Products
@@ -874,42 +436,6 @@ export const getProductById = async (id) => {
   }
 };
 
-// Update Product
-export const updateProduct = async (id, updates) => {
-  try {
-    logger.info(CONTEXT, `Updating product ${id}`);
-    const response = await api.patch(`/api/v1/products/${id}`, updates);
-    return response;
-  } catch (error) {
-    logger.error(CONTEXT, 'Error updating product', error);
-    throw error;
-  }
-};
-
-// Create Product
-export const createProduct = async (data) => {
-  try {
-    logger.info(CONTEXT, 'Creating product');
-    const response = await api.post('/api/v1/products', data);
-    return response;
-  } catch (error) {
-    logger.error(CONTEXT, 'Error creating product', error);
-    throw error;
-  }
-};
-
-// Delete Product
-export const deleteProduct = async (id) => {
-  try {
-    logger.info(CONTEXT, `Deleting product ${id}`);
-    const response = await api.delete(`/api/v1/products/${id}`);
-    return response;
-  } catch (error) {
-    logger.error(CONTEXT, 'Error deleting product', error);
-    throw error;
-  }
-};
-
 // Get Categories
 export const getCategories = async () => {
   try {
@@ -918,42 +444,6 @@ export const getCategories = async () => {
     return response;
   } catch (error) {
     logger.error(CONTEXT, 'Error fetching categories', error);
-    throw error;
-  }
-};
-
-// Update Category
-export const updateCategory = async (id, updates) => {
-  try {
-    logger.info(CONTEXT, `Updating category ${id}`);
-    const response = await api.patch(`/api/v1/products/categories/${id}`, updates);
-    return response;
-  } catch (error) {
-    logger.error(CONTEXT, 'Error updating category', error);
-    throw error;
-  }
-};
-
-// Create Category
-export const createCategory = async (data) => {
-  try {
-    logger.info(CONTEXT, 'Creating category');
-    const response = await api.post('/api/v1/products/categories', data);
-    return response;
-  } catch (error) {
-    logger.error(CONTEXT, 'Error creating category', error);
-    throw error;
-  }
-};
-
-// Delete Category
-export const deleteCategory = async (id) => {
-  try {
-    logger.info(CONTEXT, `Deleting category ${id}`);
-    const response = await api.delete(`/api/v1/products/categories/${id}`);
-    return response;
-  } catch (error) {
-    logger.error(CONTEXT, 'Error deleting category', error);
     throw error;
   }
 };
@@ -973,51 +463,17 @@ export default {
   getContactLocations,
   getFAQs,
   getFAQCategories,
+  getFinishes,
+  getUpholsteries,
+  getLaminates,
+  getHardware,
   getCatalogs,
   getPageContent,
   submitFeedback,
   getFeaturedProducts,
-  updatePageContent,
-  updateSiteSettings,
-  updateCompanyInfo,
-  updateTeamMember,
-  updateHeroSlide,
-  updateFeature,
-  updateClientLogo,
-  updateSalesRep,
-  updateInstallation,
-  updateContactLocation,
-  updateCompanyValue,
-  updateCompanyMilestone,
-  createTeamMember,
-  createHeroSlide,
-  createFeature,
-  createClientLogo,
-  createSalesRep,
-  createInstallation,
-  createContactLocation,
-  createCompanyValue,
-  createCompanyMilestone,
-  createCompanyInfo,
-  deleteTeamMember,
-  deleteHeroSlide,
-  deleteFeature,
-  deleteClientLogo,
-  deleteSalesRep,
-  deleteInstallation,
-  deleteContactLocation,
-  deleteCompanyValue,
-  deleteCompanyMilestone,
-  deleteCompanyInfo,
   getProducts,
   getProductById,
-  updateProduct,
-  createProduct,
-  deleteProduct,
-  getCategories,
-  updateCategory,
-  createCategory,
-  deleteCategory
+  getCategories
 };
 
 

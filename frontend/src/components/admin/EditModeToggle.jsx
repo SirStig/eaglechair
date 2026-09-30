@@ -1,13 +1,21 @@
 import { m, AnimatePresence } from 'framer-motion';
 import { useLocation } from 'react-router-dom';
 import { useEditMode } from '../../contexts/useEditMode';
+import DiscardChangesDialog from './DiscardChangesDialog';
 
 /**
  * Floating Edit Mode Toggle Button
  * Pinned to top-left corner, visible only to admins on public pages
  */
 const EditModeToggle = () => {
-  const { isAdmin, isEditMode, toggleEditMode } = useEditMode();
+  const {
+    isAdmin,
+    isEditMode,
+    toggleEditMode,
+    exitConfirmOpen,
+    confirmExitEditMode,
+    cancelExitEditMode,
+  } = useEditMode();
   const location = useLocation();
 
   // Don't render if user is not admin
@@ -24,7 +32,9 @@ const EditModeToggle = () => {
       transition={{ duration: 0.3 }}
     >
       <m.button
+        type="button"
         onClick={toggleEditMode}
+        aria-pressed={isEditMode}
         className={`
           flex items-center gap-2 px-4 py-3 rounded-lg shadow-2xl font-semibold
           transition-all duration-300 border-2
@@ -84,6 +94,16 @@ const EditModeToggle = () => {
           </m.div>
         )}
       </AnimatePresence>
+
+      {/* Turning edit mode off while an editor has unsaved changes */}
+      <DiscardChangesDialog
+        isOpen={exitConfirmOpen}
+        onConfirm={confirmExitEditMode}
+        onCancel={cancelExitEditMode}
+        title="Exit edit mode?"
+        message="An editor has unsaved changes. Exiting edit mode will discard them."
+        confirmText="Discard and exit"
+      />
     </m.div>
   );
 };

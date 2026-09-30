@@ -345,7 +345,9 @@ async def create_chair(db_session, category_id=None, subcategory_id=None, family
         "short_description": fake.text(max_nb_chars=200),
         "full_description": fake.text(max_nb_chars=500),
         "base_price": fake.random_int(min=10000, max=100000),
-        "minimum_order_quantity": fake.random_int(min=1, max=10),
+        # Deterministic: a random MOQ made cart adds of small quantities fail
+        # (422) at random; tests needing a higher MOQ pass it explicitly
+        "minimum_order_quantity": 1,
         "category_id": category_id,
         "is_active": True,
         "is_featured": False,

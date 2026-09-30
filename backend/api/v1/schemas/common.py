@@ -5,8 +5,69 @@ Shared schemas used across multiple resources
 """
 
 from datetime import datetime
-from typing import Optional
-from pydantic import BaseModel, Field
+from typing import Any, Optional
+from pydantic import BaseModel, Field, field_validator
+
+from backend.utils.validators import validate_cms_image_url, validate_cms_link
+
+
+# ============================================================================
+# CMS URL Validation
+# ============================================================================
+
+# Link fields: http(s), mailto:, tel: or a site-relative "/path"
+CMS_LINK_FIELDS = (
+    "cta_link",
+    "secondary_cta_link",
+    "website_url",
+    "linkedin_url",
+    "facebook_url",
+    "instagram_url",
+    "twitter_url",
+    "youtube_url",
+    "video_url",
+    "map_embed_url",
+)
+
+# Image fields: http(s) or a relative path such as "/uploads/images/..."
+CMS_IMAGE_FIELDS = (
+    "image_url",
+    "photo_url",
+    "logo_url",
+    "logo_dark_url",
+    "favicon_url",
+    "background_image_url",
+    "primary_image",
+)
+
+
+class CMSUrlValidationMixin(BaseModel):
+    """
+    Validates the CMS link/image fields a request schema declares.
+
+    Only for request (create/update) schemas: response schemas must not
+    reject URLs already stored in the database.
+    """
+
+    @field_validator(*CMS_LINK_FIELDS, check_fields=False)
+    @classmethod
+    def _validate_cms_link(cls, v: Any) -> Any:
+        return validate_cms_link(v) if isinstance(v, str) else v
+
+    @field_validator(*CMS_IMAGE_FIELDS, check_fields=False)
+    @classmethod
+    def _validate_cms_image(cls, v: Any) -> Any:
+        return validate_cms_image_url(v) if isinstance(v, str) else v
+
+    @field_validator("images", check_fields=False)
+    @classmethod
+    def _validate_cms_images(cls, v: Any) -> Any:
+        if isinstance(v, list):
+            for item in v:
+                url = item if isinstance(item, str) else getattr(item, "url", None)
+                if isinstance(url, str):
+                    validate_cms_image_url(url)
+        return v
 
 
 # ============================================================================
@@ -30,6 +91,16 @@ class MessageResponse(BaseModel):
     """Generic message response"""
     message: str
     detail: Optional[str] = None
+
+
+class CMSWriteResponse(MessageResponse):
+    """
+    Response for CMS admin writes.
+
+    ``exported`` is False when the database write succeeded but publishing
+    to the live site (contentData.json) failed.
+    """
+    exported: bool = True
 
 
 class SuccessResponse(BaseModel):

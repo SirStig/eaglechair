@@ -197,7 +197,8 @@ class TestChairModel:
         await db_session.commit()
         
         # Query chairs through category relationship
-        await db_session.refresh(category)
+        # Async sessions can't lazy-load; load the relationship explicitly
+        await db_session.refresh(category, attribute_names=["products"])
         assert len(category.products) == 2
     
     async def test_chair_json_fields(self, db_session: AsyncSession):

@@ -6,13 +6,15 @@ ADMIN-ONLY endpoints for managing CMS content with automatic static file export.
 This file handles CREATE, UPDATE, DELETE operations for:
 - Site settings (company info, contact, social links)
 - Hero slides (homepage carousel)
-- Sales representatives  
+- Sales representatives
 - Installation gallery images
 - Page content sections
 
 ⚡ AUTOMATIC STATIC EXPORT:
 All write operations (create/update/delete) automatically export updated content
-to frontend/src/data/contentData.js for instant client-side loading.
+to contentData.json for instant client-side loading. Every write response
+includes ``exported``: false means the change was saved but publishing it to
+the live site failed.
 
 🔒 AUTHENTICATION:
 All endpoints require admin authentication via get_current_admin dependency.
@@ -22,14 +24,14 @@ For traditional content (FAQs, catalogs, team), see content.py.
 """
 
 import logging
-from typing import List, Optional
+from typing import List
 
-from fastapi import APIRouter, Depends, HTTPException, status
-from pydantic import BaseModel, Field
+from fastapi import APIRouter, Depends, HTTPException, Path, status
+from pydantic import BaseModel, EmailStr, Field, field_validator
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from backend.api.dependencies import get_current_admin, require_role
-from backend.api.v1.schemas.common import MessageResponse
+from backend.api.v1.schemas.common import CMSUrlValidationMixin, CMSWriteResponse
 from backend.api.v1.schemas.content import (
     CompanyInfoCreate,
     CompanyInfoUpdate,
@@ -39,7 +41,7 @@ from backend.api.v1.schemas.content import (
     TeamMemberCreate,
     TeamMemberUpdate,
 )
-from backend.core.exceptions import EagleChairException, ResourceNotFoundError
+from backend.core.exceptions import EagleChairException
 from backend.database.base import get_db
 from backend.models.company import AdminRole, Company
 from backend.models.legal import LegalDocumentType
@@ -49,67 +51,110 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter(tags=["CMS Admin"], prefix="/cms-admin")
 
+# Page slugs / section keys, e.g. "home", "installation_gallery"
+SLUG_PATTERN = r"^[a-z0-9][a-z0-9_-]{0,99}$"
+
+
+# ============================================================================
+# Response helpers
+# ============================================================================
+
+def _write_response(action: str, exported: bool) -> CMSWriteResponse:
+    """
+    Build the response for a CMS write.
+
+    Args:
+        action: What was saved, e.g. "Hero slide created"
+        exported: Whether contentData.json was updated
+    """
+    if exported:
+        return CMSWriteResponse(message=f"{action} and exported successfully", exported=True)
+    return CMSWriteResponse(
+        message=(
+            f"{action}, but publishing to the live site failed. "
+            "The change is saved; try saving again or use Export All."
+        ),
+        exported=False,
+    )
+
+
+def _internal_error(action: str) -> HTTPException:
+    """Log the active exception and return a generic 500 for the client."""
+    logger.exception(f"Failed to {action}")
+    return HTTPException(
+        status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+        detail=f"Failed to {action}. Please try again later.",
+    )
+
+
+def _no_updates() -> HTTPException:
+    return HTTPException(
+        status_code=status.HTTP_400_BAD_REQUEST,
+        detail="No updates provided"
+    )
+
+
 # ============================================================================
 # Request/Response Schemas
 # ============================================================================
 
 # Features
-class FeatureCreate(BaseModel):
+class FeatureCreate(CMSUrlValidationMixin):
     """Feature creation request"""
     title: str = Field(..., max_length=255)
-    subtitle: str | None = Field(None, max_length=500)
-    description: str | None = None
+    description: str = ""
     icon: str | None = Field(None, max_length=100)
     icon_color: str | None = Field(None, max_length=50)
     image_url: str | None = Field(None, max_length=500)
-    feature_type: str = Field(default="general", max_length=100)
+    feature_type: str = Field(default="general", max_length=50)
     display_order: int = Field(default=0, ge=0)
     is_active: bool = True
 
 
-class FeatureUpdate(BaseModel):
+class FeatureUpdate(CMSUrlValidationMixin):
     """Feature update request"""
     title: str | None = Field(None, max_length=255)
-    subtitle: str | None = Field(None, max_length=500)
     description: str | None = None
     icon: str | None = Field(None, max_length=100)
     icon_color: str | None = Field(None, max_length=50)
     image_url: str | None = Field(None, max_length=500)
-    feature_type: str | None = Field(None, max_length=100)
+    feature_type: str | None = Field(None, max_length=50)
     display_order: int | None = Field(None, ge=0)
     is_active: bool | None = None
 
 
 # Client Logos
-class ClientLogoCreate(BaseModel):
+class ClientLogoCreate(CMSUrlValidationMixin):
     """Client logo creation request"""
     name: str = Field(..., max_length=255)
     logo_url: str = Field(..., max_length=500)
     website_url: str | None = Field(None, max_length=500)
     display_order: int = Field(default=0, ge=0)
+    is_active: bool = True
 
 
-class ClientLogoUpdate(BaseModel):
+class ClientLogoUpdate(CMSUrlValidationMixin):
     """Client logo update request"""
     name: str | None = Field(None, max_length=255)
     logo_url: str | None = Field(None, max_length=500)
     website_url: str | None = Field(None, max_length=500)
     display_order: int | None = Field(None, ge=0)
+    is_active: bool | None = None
 
 
 # Company Values
-class CompanyValueCreate(BaseModel):
+class CompanyValueCreate(CMSUrlValidationMixin):
     """Company value creation request"""
     title: str = Field(..., max_length=255)
     subtitle: str | None = Field(None, max_length=500)
-    description: str | None = None
+    description: str = ""
     icon: str | None = Field(None, max_length=100)
     image_url: str | None = Field(None, max_length=500)
     display_order: int = Field(default=0, ge=0)
     is_active: bool = True
 
 
-class CompanyValueUpdate(BaseModel):
+class CompanyValueUpdate(CMSUrlValidationMixin):
     """Company value update request"""
     title: str | None = Field(None, max_length=255)
     subtitle: str | None = Field(None, max_length=500)
@@ -121,19 +166,19 @@ class CompanyValueUpdate(BaseModel):
 
 
 # Company Milestones
-class CompanyMilestoneCreate(BaseModel):
+class CompanyMilestoneCreate(CMSUrlValidationMixin):
     """Company milestone creation request"""
-    year: str = Field(..., max_length=20)
+    year: str = Field(..., max_length=10)  # e.g. "1984", "1990s"
     title: str = Field(..., max_length=255)
-    description: str | None = None
+    description: str = ""
     image_url: str | None = Field(None, max_length=500)
     display_order: int = Field(default=0, ge=0)
     is_active: bool = True
 
 
-class CompanyMilestoneUpdate(BaseModel):
+class CompanyMilestoneUpdate(CMSUrlValidationMixin):
     """Company milestone update request"""
-    year: str | None = Field(None, max_length=20)
+    year: str | None = Field(None, max_length=10)
     title: str | None = Field(None, max_length=255)
     description: str | None = None
     image_url: str | None = Field(None, max_length=500)
@@ -141,35 +186,48 @@ class CompanyMilestoneUpdate(BaseModel):
     is_active: bool | None = None
 
 
-# Site Settings
-class SiteSettingsUpdate(BaseModel):
-    """Site settings update request"""
-    company_name: str | None = None
-    company_tagline: str | None = None
-    logo_url: str | None = None
-    primary_email: str | None = None
-    primary_phone: str | None = None
-    sales_email: str | None = None
-    sales_phone: str | None = None
-    support_email: str | None = None
-    support_phone: str | None = None
-    address_line1: str | None = None
-    address_line2: str | None = None
-    city: str | None = None
-    state: str | None = None
-    zip_code: str | None = None
-    country: str | None = None
-    business_hours_weekdays: str | None = None
-    business_hours_saturday: str | None = None
-    business_hours_sunday: str | None = None
-    facebook_url: str | None = None
-    instagram_url: str | None = None
-    linkedin_url: str | None = None
-    twitter_url: str | None = None
-    youtube_url: str | None = None
+# Site Settings (max lengths match the SiteSettings columns)
+class SiteSettingsUpdate(CMSUrlValidationMixin):
+    """Site settings update request. Send null (or "" for emails) to clear a field."""
+    company_name: str | None = Field(None, max_length=255)
+    company_tagline: str | None = Field(None, max_length=500)
+    logo_url: str | None = Field(None, max_length=500)
+    logo_dark_url: str | None = Field(None, max_length=500)
+    favicon_url: str | None = Field(None, max_length=500)
+    primary_email: EmailStr | None = Field(None, max_length=255)
+    primary_phone: str | None = Field(None, max_length=20)
+    sales_email: EmailStr | None = Field(None, max_length=255)
+    sales_phone: str | None = Field(None, max_length=20)
+    support_email: EmailStr | None = Field(None, max_length=255)
+    support_phone: str | None = Field(None, max_length=20)
+    address_line1: str | None = Field(None, max_length=255)
+    address_line2: str | None = Field(None, max_length=255)
+    city: str | None = Field(None, max_length=100)
+    state: str | None = Field(None, max_length=50)
+    zip_code: str | None = Field(None, max_length=20)
+    country: str | None = Field(None, max_length=100)
+    business_hours_weekdays: str | None = Field(None, max_length=255)
+    business_hours_saturday: str | None = Field(None, max_length=255)
+    business_hours_sunday: str | None = Field(None, max_length=255)
+    facebook_url: str | None = Field(None, max_length=500)
+    instagram_url: str | None = Field(None, max_length=500)
+    linkedin_url: str | None = Field(None, max_length=500)
+    twitter_url: str | None = Field(None, max_length=500)
+    youtube_url: str | None = Field(None, max_length=500)
+    meta_title: str | None = Field(None, max_length=255)
+    meta_description: str | None = None
+    meta_keywords: str | None = None
+
+    @field_validator("primary_email", "sales_email", "support_email", mode="before")
+    @classmethod
+    def _blank_email_to_none(cls, v):
+        # An emptied form field clears the email instead of failing validation
+        if isinstance(v, str) and not v.strip():
+            return None
+        return v
 
 
-class HeroSlideCreate(BaseModel):
+class HeroSlideCreate(CMSUrlValidationMixin):
     """Hero slide creation request"""
     title: str = Field(..., max_length=500)
     subtitle: str | None = Field(None, max_length=1000)
@@ -183,7 +241,7 @@ class HeroSlideCreate(BaseModel):
     is_active: bool = True
 
 
-class HeroSlideUpdate(BaseModel):
+class HeroSlideUpdate(CMSUrlValidationMixin):
     """Hero slide update request"""
     title: str | None = Field(None, max_length=500)
     subtitle: str | None = Field(None, max_length=1000)
@@ -197,13 +255,13 @@ class HeroSlideUpdate(BaseModel):
     is_active: bool | None = None
 
 
-class SalesRepCreate(BaseModel):
+class SalesRepCreate(CMSUrlValidationMixin):
     """Sales representative creation request"""
     name: str = Field(..., max_length=255)
     email: str = Field(..., max_length=255)
     phone: str = Field(..., max_length=20)
     territory_name: str = Field(..., max_length=255, alias='territoryName')
-    states_covered: List[str] = Field(..., min_items=1, alias='statesCovered')
+    states_covered: List[str] = Field(..., min_length=1, alias='statesCovered')
     title: str | None = Field(None, max_length=100)
     photo_url: str | None = Field(None, max_length=500, alias='photoUrl')
     bio: str | None = None
@@ -212,12 +270,12 @@ class SalesRepCreate(BaseModel):
     linkedin_url: str | None = Field(None, max_length=500, alias='linkedinUrl')
     display_order: int = Field(default=0, ge=0, alias='displayOrder')
     is_active: bool = Field(default=True, alias='isActive')
-    
+
     class Config:
         populate_by_name = True  # Accept both snake_case and camelCase
 
 
-class SalesRepUpdate(BaseModel):
+class SalesRepUpdate(CMSUrlValidationMixin):
     """Sales representative update request"""
     name: str | None = Field(None, max_length=255)
     email: str | None = Field(None, max_length=255)
@@ -232,28 +290,28 @@ class SalesRepUpdate(BaseModel):
     linkedin_url: str | None = Field(None, max_length=500, alias='linkedinUrl')
     display_order: int | None = Field(None, ge=0, alias='displayOrder')
     is_active: bool | None = Field(None, alias='isActive')
-    
+
     class Config:
         populate_by_name = True  # Accept both snake_case and camelCase
 
 
-class InstallationCreate(BaseModel):
+class InstallationCreate(CMSUrlValidationMixin):
     """Installation/gallery entry creation request"""
     project_name: str = Field(..., max_length=255)
-    images: List[str] = Field(..., min_items=1)
+    images: List[str] = Field(..., min_length=1)
     client_name: str | None = Field(None, max_length=255)
     location: str | None = Field(None, max_length=255)
     project_type: str | None = Field(None, max_length=100)
     description: str | None = None
     primary_image: str | None = Field(None, max_length=500)
-    products_used: str | None = None  # JSON string
+    products_used: str | None = Field(None, max_length=1000)  # JSON string
     completion_date: str | None = Field(None, max_length=50)
     display_order: int = Field(default=0, ge=0)
     is_active: bool = True
     is_featured: bool = False
 
 
-class InstallationUpdate(BaseModel):
+class InstallationUpdate(CMSUrlValidationMixin):
     """Installation/gallery entry update request"""
     project_name: str | None = Field(None, max_length=255)
     images: List[str] | None = None
@@ -262,7 +320,7 @@ class InstallationUpdate(BaseModel):
     project_type: str | None = Field(None, max_length=100)
     description: str | None = None
     primary_image: str | None = Field(None, max_length=500)
-    products_used: str | None = None
+    products_used: str | None = Field(None, max_length=1000)
     completion_date: str | None = Field(None, max_length=50)
     display_order: int | None = Field(None, ge=0)
     is_active: bool | None = None
@@ -275,13 +333,13 @@ class InstallationUpdate(BaseModel):
 
 @router.put(
     "/site-settings",
-    response_model=MessageResponse,
+    response_model=CMSWriteResponse,
     summary="Update site settings",
     description="Update site-wide settings (logo, contact info, etc.) and export to static file"
 )
 @router.patch(
     "/site-settings",
-    response_model=MessageResponse,
+    response_model=CMSWriteResponse,
     summary="Update site settings (PATCH)",
     description="Partially update site-wide settings and export to static file"
 )
@@ -292,37 +350,24 @@ async def update_site_settings(
 ):
     """
     Update site settings and export to frontend static file.
-    
+
     **Admin only** - Requires admin authentication.
-    
-    Updates are automatically exported to contentData.js for instant frontend loading.
+
+    Fields sent as null are cleared; fields left out are unchanged.
     """
     logger.info(f"Admin {admin.id} updating site settings")
-    
+
+    updates = settings.model_dump(exclude_unset=True)
+    if not updates:
+        raise _no_updates()
+
     try:
-        # Filter out None values
-        updates = {k: v for k, v in settings.dict().items() if v is not None}
-        
-        if not updates:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="No updates provided"
-            )
-        
-        await CMSAdminService.update_site_settings(db, **updates)
-        
-        return MessageResponse(
-            message="Site settings updated and exported successfully"
-        )
-        
+        _, exported = await CMSAdminService.update_site_settings(db, **updates)
+        return _write_response("Site settings updated", exported)
     except (HTTPException, EagleChairException):
         raise
-    except Exception as e:
-        logger.error(f"Failed to update site settings: {e}", exc_info=True)
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to update site settings: {str(e)}"
-        )
+    except Exception:
+        raise _internal_error("update site settings")
 
 
 # ============================================================================
@@ -331,7 +376,7 @@ async def update_site_settings(
 
 @router.post(
     "/hero-slides",
-    response_model=MessageResponse,
+    response_model=CMSWriteResponse,
     status_code=status.HTTP_201_CREATED,
     summary="Create hero slide",
     description="Create a new homepage hero carousel slide and export"
@@ -343,33 +388,25 @@ async def create_hero_slide(
 ):
     """Create hero slide and export to static file."""
     logger.info(f"Admin {admin.id} creating hero slide: {slide.title}")
-    
+
     try:
-        await CMSAdminService.create_hero_slide(db, **slide.dict())
-        
-        return MessageResponse(
-            message="Hero slide created and exported successfully"
-        )
-        
+        _, exported = await CMSAdminService.create_hero_slide(db, **slide.model_dump())
+        return _write_response("Hero slide created", exported)
     except (HTTPException, EagleChairException):
         raise
-    except Exception as e:
-        logger.error(f"Failed to create hero slide: {e}", exc_info=True)
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to create hero slide: {str(e)}"
-        )
+    except Exception:
+        raise _internal_error("create hero slide")
 
 
 @router.put(
     "/hero-slides/{slide_id}",
-    response_model=MessageResponse,
+    response_model=CMSWriteResponse,
     summary="Update hero slide",
     description="Update a hero slide and export"
 )
 @router.patch(
     "/hero-slides/{slide_id}",
-    response_model=MessageResponse,
+    response_model=CMSWriteResponse,
     summary="Update hero slide (PATCH)",
     description="Partially update a hero slide and export"
 )
@@ -381,35 +418,23 @@ async def update_hero_slide(
 ):
     """Update hero slide and export to static file."""
     logger.info(f"Admin {admin.id} updating hero slide {slide_id}")
-    
+
+    updates = slide.model_dump(exclude_unset=True)
+    if not updates:
+        raise _no_updates()
+
     try:
-        updates = {k: v for k, v in slide.dict().items() if v is not None}
-        
-        if not updates:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="No updates provided"
-            )
-        
-        await CMSAdminService.update_hero_slide(db, slide_id, **updates)
-        
-        return MessageResponse(
-            message="Hero slide updated and exported successfully"
-        )
-        
+        _, exported = await CMSAdminService.update_hero_slide(db, slide_id, **updates)
+        return _write_response("Hero slide updated", exported)
     except (HTTPException, EagleChairException):
         raise
-    except Exception as e:
-        logger.error(f"Failed to update hero slide: {e}", exc_info=True)
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to update hero slide: {str(e)}"
-        )
+    except Exception:
+        raise _internal_error("update hero slide")
 
 
 @router.delete(
     "/hero-slides/{slide_id}",
-    response_model=MessageResponse,
+    response_model=CMSWriteResponse,
     summary="Delete hero slide",
     description="Delete a hero slide and export"
 )
@@ -420,22 +445,14 @@ async def delete_hero_slide(
 ):
     """Delete hero slide and export to static file."""
     logger.info(f"Admin {admin.id} deleting hero slide {slide_id}")
-    
+
     try:
-        await CMSAdminService.delete_hero_slide(db, slide_id)
-        
-        return MessageResponse(
-            message="Hero slide deleted and exported successfully"
-        )
-        
+        exported = await CMSAdminService.delete_hero_slide(db, slide_id)
+        return _write_response("Hero slide deleted", exported)
     except (HTTPException, EagleChairException):
         raise
-    except Exception as e:
-        logger.error(f"Failed to delete hero slide: {e}", exc_info=True)
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to delete hero slide: {str(e)}"
-        )
+    except Exception:
+        raise _internal_error("delete hero slide")
 
 
 # ============================================================================
@@ -444,7 +461,7 @@ async def delete_hero_slide(
 
 @router.post(
     "/sales-reps",
-    response_model=MessageResponse,
+    response_model=CMSWriteResponse,
     status_code=status.HTTP_201_CREATED,
     summary="Create sales representative",
     description="Create a new sales rep and export"
@@ -456,33 +473,25 @@ async def create_sales_rep(
 ):
     """Create sales rep and export to static file."""
     logger.info(f"Admin {admin.id} creating sales rep: {rep.name}")
-    
+
     try:
-        await CMSAdminService.create_sales_rep(db, **rep.dict())
-        
-        return MessageResponse(
-            message="Sales representative created and exported successfully"
-        )
-        
+        _, exported = await CMSAdminService.create_sales_rep(db, **rep.model_dump())
+        return _write_response("Sales representative created", exported)
     except (HTTPException, EagleChairException):
         raise
-    except Exception as e:
-        logger.error(f"Failed to create sales rep: {e}", exc_info=True)
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to create sales rep: {str(e)}"
-        )
+    except Exception:
+        raise _internal_error("create sales rep")
 
 
 @router.put(
     "/sales-reps/{rep_id}",
-    response_model=MessageResponse,
+    response_model=CMSWriteResponse,
     summary="Update sales representative",
     description="Update a sales rep and export"
 )
 @router.patch(
     "/sales-reps/{rep_id}",
-    response_model=MessageResponse,
+    response_model=CMSWriteResponse,
     summary="Update sales representative (PATCH)",
     description="Partially update a sales rep and export"
 )
@@ -494,35 +503,23 @@ async def update_sales_rep(
 ):
     """Update sales rep and export to static file."""
     logger.info(f"Admin {admin.id} updating sales rep {rep_id}")
-    
+
+    updates = rep.model_dump(exclude_unset=True)
+    if not updates:
+        raise _no_updates()
+
     try:
-        updates = {k: v for k, v in rep.dict().items() if v is not None}
-        
-        if not updates:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="No updates provided"
-            )
-        
-        await CMSAdminService.update_sales_rep(db, rep_id, **updates)
-        
-        return MessageResponse(
-            message="Sales representative updated and exported successfully"
-        )
-        
+        _, exported = await CMSAdminService.update_sales_rep(db, rep_id, **updates)
+        return _write_response("Sales representative updated", exported)
     except (HTTPException, EagleChairException):
         raise
-    except Exception as e:
-        logger.error(f"Failed to update sales rep: {e}", exc_info=True)
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to update sales rep: {str(e)}"
-        )
+    except Exception:
+        raise _internal_error("update sales rep")
 
 
 @router.delete(
     "/sales-reps/{rep_id}",
-    response_model=MessageResponse,
+    response_model=CMSWriteResponse,
     summary="Delete sales representative",
     description="Delete a sales rep and export"
 )
@@ -533,22 +530,14 @@ async def delete_sales_rep(
 ):
     """Delete sales rep and export to static file."""
     logger.info(f"Admin {admin.id} deleting sales rep {rep_id}")
-    
+
     try:
-        await CMSAdminService.delete_sales_rep(db, rep_id)
-        
-        return MessageResponse(
-            message="Sales representative deleted and exported successfully"
-        )
-        
+        exported = await CMSAdminService.delete_sales_rep(db, rep_id)
+        return _write_response("Sales representative deleted", exported)
     except (HTTPException, EagleChairException):
         raise
-    except Exception as e:
-        logger.error(f"Failed to delete sales rep: {e}", exc_info=True)
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to delete sales rep: {str(e)}"
-        )
+    except Exception:
+        raise _internal_error("delete sales rep")
 
 
 # ============================================================================
@@ -557,7 +546,7 @@ async def delete_sales_rep(
 
 @router.post(
     "/gallery",
-    response_model=MessageResponse,
+    response_model=CMSWriteResponse,
     status_code=status.HTTP_201_CREATED,
     summary="Create gallery/installation entry",
     description="Create a new installation showcase entry and export"
@@ -569,27 +558,21 @@ async def create_installation(
 ):
     """Create installation entry and export to static file."""
     logger.info(f"Admin {admin.id} creating installation: {installation.project_name}")
-    
+
     try:
-        await CMSAdminService.create_installation(db, **installation.dict())
-        
-        return MessageResponse(
-            message="Installation entry created and exported successfully"
+        _, exported = await CMSAdminService.create_installation(
+            db, **installation.model_dump()
         )
-        
+        return _write_response("Installation entry created", exported)
     except (HTTPException, EagleChairException):
         raise
-    except Exception as e:
-        logger.error(f"Failed to create installation: {e}", exc_info=True)
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to create installation: {str(e)}"
-        )
+    except Exception:
+        raise _internal_error("create installation")
 
 
 @router.put(
     "/gallery/{installation_id}",
-    response_model=MessageResponse,
+    response_model=CMSWriteResponse,
     summary="Update gallery/installation entry",
     description="Update an installation entry and export"
 )
@@ -601,35 +584,25 @@ async def update_installation(
 ):
     """Update installation entry and export to static file."""
     logger.info(f"Admin {admin.id} updating installation {installation_id}")
-    
+
+    updates = installation.model_dump(exclude_unset=True)
+    if not updates:
+        raise _no_updates()
+
     try:
-        updates = {k: v for k, v in installation.dict().items() if v is not None}
-        
-        if not updates:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="No updates provided"
-            )
-        
-        await CMSAdminService.update_installation(db, installation_id, **updates)
-        
-        return MessageResponse(
-            message="Installation entry updated and exported successfully"
+        _, exported = await CMSAdminService.update_installation(
+            db, installation_id, **updates
         )
-        
+        return _write_response("Installation entry updated", exported)
     except (HTTPException, EagleChairException):
         raise
-    except Exception as e:
-        logger.error(f"Failed to update installation: {e}", exc_info=True)
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to update installation: {str(e)}"
-        )
+    except Exception:
+        raise _internal_error("update installation")
 
 
 @router.delete(
     "/gallery/{installation_id}",
-    response_model=MessageResponse,
+    response_model=CMSWriteResponse,
     summary="Delete gallery/installation entry",
     description="Delete an installation entry and export"
 )
@@ -640,22 +613,14 @@ async def delete_installation(
 ):
     """Delete installation entry and export to static file."""
     logger.info(f"Admin {admin.id} deleting installation {installation_id}")
-    
+
     try:
-        await CMSAdminService.delete_installation(db, installation_id)
-        return MessageResponse(
-            message="Installation entry deleted and exported successfully"
-        )
-    except ResourceNotFoundError:
-        raise
+        exported = await CMSAdminService.delete_installation(db, installation_id)
+        return _write_response("Installation entry deleted", exported)
     except (HTTPException, EagleChairException):
         raise
-    except Exception as e:
-        logger.error(f"Failed to delete installation: {e}", exc_info=True)
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to delete installation: {str(e)}"
-        )
+    except Exception:
+        raise _internal_error("delete installation")
 
 
 # ============================================================================
@@ -669,45 +634,38 @@ async def delete_installation(
     description="Update a specific page content section"
 )
 async def update_page_content(
-    page_slug: str,
-    section_key: str,
-    updates: "PageContentUpdate",
+    updates: PageContentUpdate,
+    page_slug: str = Path(..., pattern=SLUG_PATTERN),
+    section_key: str = Path(..., pattern=SLUG_PATTERN),
     db: AsyncSession = Depends(get_db),
     admin: Company = Depends(require_role(AdminRole.EDITOR))
 ):
     """
     Update page content section.
-    
-    Automatically exports to static files after update.
+
+    Automatically exports to static files after update. Fields sent as null
+    are cleared; fields left out are unchanged.
     """
     logger.info(f"Admin {admin.id} updating page content: {page_slug}/{section_key}")
-    
+
     try:
-        # Convert updates to dict and filter out None values
-        update_data = updates.model_dump(exclude_unset=True)
-        
-        # Update page content
-        result = await CMSAdminService.update_page_content(
+        result, exported = await CMSAdminService.update_page_content(
             db=db,
             page_slug=page_slug,
             section_key=section_key,
-            **update_data
+            **updates.model_dump(exclude_unset=True)
         )
-        
+        response = _write_response("Page content updated", exported)
         return {
             "success": True,
-            "message": "Page content updated successfully",
+            "message": response.message,
+            "exported": response.exported,
             "data": result
         }
-        
     except (HTTPException, EagleChairException):
         raise
-    except Exception as e:
-        logger.error(f"Failed to update page content: {e}", exc_info=True)
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to update page content: {str(e)}"
-        )
+    except Exception:
+        raise _internal_error("update page content")
 
 
 # ============================================================================
@@ -716,7 +674,7 @@ async def update_page_content(
 
 @router.post(
     "/export-all",
-    response_model=MessageResponse,
+    response_model=CMSWriteResponse,
     summary="Export all CMS content",
     description="Manually trigger export of all CMS content to static files"
 )
@@ -726,34 +684,22 @@ async def export_all_content(
 ):
     """
     Manually export all CMS content to static files.
-    
+
     Useful for initial setup or fixing corrupted files.
     """
     logger.info(f"Admin {admin.id} triggering full content export")
-    
+
     try:
-        success = await CMSAdminService.export_all_static_content(db)
-        
-        if success:
-            return MessageResponse(
-                message="All CMS content exported successfully"
-            )
-        else:
-            raise HTTPException(
-                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail="Export failed - check server logs"
-            )
-            
-    except (HTTPException, EagleChairException):
-        raise
-    except Exception as e:
-        logger.error(f"Failed to export all content: {e}", exc_info=True)
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to export content: {str(e)}"
-        )
+        exported = await CMSAdminService.export_all_static_content(db)
+    except Exception:
+        raise _internal_error("export content")
 
-
+    if exported:
+        return CMSWriteResponse(message="All CMS content exported successfully", exported=True)
+    return CMSWriteResponse(
+        message="Publishing to the live site failed. Check the server logs and try again.",
+        exported=False,
+    )
 
 
 # ============================================================================
@@ -762,7 +708,7 @@ async def export_all_content(
 
 @router.post(
     "/features",
-    response_model=MessageResponse,
+    response_model=CMSWriteResponse,
     status_code=status.HTTP_201_CREATED,
     summary="Create feature",
     description="Create a new feature (Why Choose Us) and export"
@@ -774,27 +720,19 @@ async def create_feature(
 ):
     """Create feature and export to static file."""
     logger.info(f"Admin {admin.id} creating feature: {feature.title}")
-    
+
     try:
-        await CMSAdminService.create_feature(db, **feature.dict())
-        
-        return MessageResponse(
-            message="Feature created and exported successfully"
-        )
-        
+        _, exported = await CMSAdminService.create_feature(db, **feature.model_dump())
+        return _write_response("Feature created", exported)
     except (HTTPException, EagleChairException):
         raise
-    except Exception as e:
-        logger.error(f"Failed to create feature: {e}", exc_info=True)
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to create feature: {str(e)}"
-        )
+    except Exception:
+        raise _internal_error("create feature")
 
 
 @router.patch(
     "/features/{feature_id}",
-    response_model=MessageResponse,
+    response_model=CMSWriteResponse,
     summary="Update feature",
     description="Update a feature and export"
 )
@@ -806,35 +744,23 @@ async def update_feature(
 ):
     """Update feature and export to static file."""
     logger.info(f"Admin {admin.id} updating feature {feature_id}")
-    
+
+    updates = feature.model_dump(exclude_unset=True)
+    if not updates:
+        raise _no_updates()
+
     try:
-        updates = {k: v for k, v in feature.dict().items() if v is not None}
-        
-        if not updates:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="No updates provided"
-            )
-        
-        await CMSAdminService.update_feature(db, feature_id, **updates)
-        
-        return MessageResponse(
-            message="Feature updated and exported successfully"
-        )
-        
+        _, exported = await CMSAdminService.update_feature(db, feature_id, **updates)
+        return _write_response("Feature updated", exported)
     except (HTTPException, EagleChairException):
         raise
-    except Exception as e:
-        logger.error(f"Failed to update feature: {e}", exc_info=True)
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to update feature: {str(e)}"
-        )
+    except Exception:
+        raise _internal_error("update feature")
 
 
 @router.delete(
     "/features/{feature_id}",
-    response_model=MessageResponse,
+    response_model=CMSWriteResponse,
     summary="Delete feature",
     description="Delete a feature and export"
 )
@@ -845,22 +771,14 @@ async def delete_feature(
 ):
     """Delete feature and export to static file."""
     logger.info(f"Admin {admin.id} deleting feature {feature_id}")
-    
+
     try:
-        await CMSAdminService.delete_feature(db, feature_id)
-        
-        return MessageResponse(
-            message="Feature deleted and exported successfully"
-        )
-        
+        exported = await CMSAdminService.delete_feature(db, feature_id)
+        return _write_response("Feature deleted", exported)
     except (HTTPException, EagleChairException):
         raise
-    except Exception as e:
-        logger.error(f"Failed to delete feature: {e}", exc_info=True)
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to delete feature: {str(e)}"
-        )
+    except Exception:
+        raise _internal_error("delete feature")
 
 
 # ============================================================================
@@ -869,7 +787,7 @@ async def delete_feature(
 
 @router.post(
     "/client-logos",
-    response_model=MessageResponse,
+    response_model=CMSWriteResponse,
     status_code=status.HTTP_201_CREATED,
     summary="Create client logo",
     description="Create a new client logo and export"
@@ -881,27 +799,19 @@ async def create_client_logo(
 ):
     """Create client logo and export to static file."""
     logger.info(f"Admin {admin.id} creating client logo: {logo.name}")
-    
+
     try:
-        await CMSAdminService.create_client_logo(db, **logo.dict())
-        
-        return MessageResponse(
-            message="Client logo created and exported successfully"
-        )
-        
+        _, exported = await CMSAdminService.create_client_logo(db, **logo.model_dump())
+        return _write_response("Client logo created", exported)
     except (HTTPException, EagleChairException):
         raise
-    except Exception as e:
-        logger.error(f"Failed to create client logo: {e}", exc_info=True)
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to create client logo: {str(e)}"
-        )
+    except Exception:
+        raise _internal_error("create client logo")
 
 
 @router.patch(
     "/client-logos/{logo_id}",
-    response_model=MessageResponse,
+    response_model=CMSWriteResponse,
     summary="Update client logo",
     description="Update a client logo and export"
 )
@@ -913,35 +823,23 @@ async def update_client_logo(
 ):
     """Update client logo and export to static file."""
     logger.info(f"Admin {admin.id} updating client logo {logo_id}")
-    
+
+    updates = logo.model_dump(exclude_unset=True)
+    if not updates:
+        raise _no_updates()
+
     try:
-        updates = {k: v for k, v in logo.dict().items() if v is not None}
-        
-        if not updates:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="No updates provided"
-            )
-        
-        await CMSAdminService.update_client_logo(db, logo_id, **updates)
-        
-        return MessageResponse(
-            message="Client logo updated and exported successfully"
-        )
-        
+        _, exported = await CMSAdminService.update_client_logo(db, logo_id, **updates)
+        return _write_response("Client logo updated", exported)
     except (HTTPException, EagleChairException):
         raise
-    except Exception as e:
-        logger.error(f"Failed to update client logo: {e}", exc_info=True)
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to update client logo: {str(e)}"
-        )
+    except Exception:
+        raise _internal_error("update client logo")
 
 
 @router.delete(
     "/client-logos/{logo_id}",
-    response_model=MessageResponse,
+    response_model=CMSWriteResponse,
     summary="Delete client logo",
     description="Delete a client logo and export"
 )
@@ -952,22 +850,14 @@ async def delete_client_logo(
 ):
     """Delete client logo and export to static file."""
     logger.info(f"Admin {admin.id} deleting client logo {logo_id}")
-    
+
     try:
-        await CMSAdminService.delete_client_logo(db, logo_id)
-        
-        return MessageResponse(
-            message="Client logo deleted and exported successfully"
-        )
-        
+        exported = await CMSAdminService.delete_client_logo(db, logo_id)
+        return _write_response("Client logo deleted", exported)
     except (HTTPException, EagleChairException):
         raise
-    except Exception as e:
-        logger.error(f"Failed to delete client logo: {e}", exc_info=True)
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to delete client logo: {str(e)}"
-        )
+    except Exception:
+        raise _internal_error("delete client logo")
 
 
 # ============================================================================
@@ -976,7 +866,7 @@ async def delete_client_logo(
 
 @router.post(
     "/team-members",
-    response_model=MessageResponse,
+    response_model=CMSWriteResponse,
     status_code=status.HTTP_201_CREATED,
     summary="Create team member",
     description="Create a new team member and export"
@@ -988,27 +878,19 @@ async def create_team_member(
 ):
     """Create team member and export to static file."""
     logger.info(f"Admin {admin.id} creating team member: {member.name}")
-    
+
     try:
-        await CMSAdminService.create_team_member(db, **member.dict())
-        
-        return MessageResponse(
-            message="Team member created and exported successfully"
-        )
-        
+        _, exported = await CMSAdminService.create_team_member(db, **member.model_dump())
+        return _write_response("Team member created", exported)
     except (HTTPException, EagleChairException):
         raise
-    except Exception as e:
-        logger.error(f"Failed to create team member: {e}", exc_info=True)
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to create team member: {str(e)}"
-        )
+    except Exception:
+        raise _internal_error("create team member")
 
 
 @router.patch(
     "/team-members/{member_id}",
-    response_model=MessageResponse,
+    response_model=CMSWriteResponse,
     summary="Update team member",
     description="Update a team member and export"
 )
@@ -1020,35 +902,23 @@ async def update_team_member(
 ):
     """Update team member and export to static file."""
     logger.info(f"Admin {admin.id} updating team member {member_id}")
-    
+
+    updates = member.model_dump(exclude_unset=True)
+    if not updates:
+        raise _no_updates()
+
     try:
-        updates = {k: v for k, v in member.dict().items() if v is not None}
-        
-        if not updates:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="No updates provided"
-            )
-        
-        await CMSAdminService.update_team_member(db, member_id, **updates)
-        
-        return MessageResponse(
-            message="Team member updated and exported successfully"
-        )
-        
+        _, exported = await CMSAdminService.update_team_member(db, member_id, **updates)
+        return _write_response("Team member updated", exported)
     except (HTTPException, EagleChairException):
         raise
-    except Exception as e:
-        logger.error(f"Failed to update team member: {e}", exc_info=True)
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to update team member: {str(e)}"
-        )
+    except Exception:
+        raise _internal_error("update team member")
 
 
 @router.delete(
     "/team-members/{member_id}",
-    response_model=MessageResponse,
+    response_model=CMSWriteResponse,
     summary="Delete team member",
     description="Delete a team member and export"
 )
@@ -1059,22 +929,14 @@ async def delete_team_member(
 ):
     """Delete team member and export to static file."""
     logger.info(f"Admin {admin.id} deleting team member {member_id}")
-    
+
     try:
-        await CMSAdminService.delete_team_member(db, member_id)
-        
-        return MessageResponse(
-            message="Team member deleted and exported successfully"
-        )
-        
+        exported = await CMSAdminService.delete_team_member(db, member_id)
+        return _write_response("Team member deleted", exported)
     except (HTTPException, EagleChairException):
         raise
-    except Exception as e:
-        logger.error(f"Failed to delete team member: {e}", exc_info=True)
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to delete team member: {str(e)}"
-        )
+    except Exception:
+        raise _internal_error("delete team member")
 
 
 # ============================================================================
@@ -1083,7 +945,7 @@ async def delete_team_member(
 
 @router.post(
     "/company-values",
-    response_model=MessageResponse,
+    response_model=CMSWriteResponse,
     status_code=status.HTTP_201_CREATED,
     summary="Create company value",
     description="Create a new company value and export"
@@ -1095,27 +957,19 @@ async def create_company_value(
 ):
     """Create company value and export to static file."""
     logger.info(f"Admin {admin.id} creating company value: {value.title}")
-    
+
     try:
-        await CMSAdminService.create_company_value(db, **value.dict())
-        
-        return MessageResponse(
-            message="Company value created and exported successfully"
-        )
-        
+        _, exported = await CMSAdminService.create_company_value(db, **value.model_dump())
+        return _write_response("Company value created", exported)
     except (HTTPException, EagleChairException):
         raise
-    except Exception as e:
-        logger.error(f"Failed to create company value: {e}", exc_info=True)
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to create company value: {str(e)}"
-        )
+    except Exception:
+        raise _internal_error("create company value")
 
 
 @router.patch(
     "/company-values/{value_id}",
-    response_model=MessageResponse,
+    response_model=CMSWriteResponse,
     summary="Update company value",
     description="Update a company value and export"
 )
@@ -1127,35 +981,23 @@ async def update_company_value(
 ):
     """Update company value and export to static file."""
     logger.info(f"Admin {admin.id} updating company value {value_id}")
-    
+
+    updates = value.model_dump(exclude_unset=True)
+    if not updates:
+        raise _no_updates()
+
     try:
-        updates = {k: v for k, v in value.dict().items() if v is not None}
-        
-        if not updates:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="No updates provided"
-            )
-        
-        await CMSAdminService.update_company_value(db, value_id, **updates)
-        
-        return MessageResponse(
-            message="Company value updated and exported successfully"
-        )
-        
+        _, exported = await CMSAdminService.update_company_value(db, value_id, **updates)
+        return _write_response("Company value updated", exported)
     except (HTTPException, EagleChairException):
         raise
-    except Exception as e:
-        logger.error(f"Failed to update company value: {e}", exc_info=True)
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to update company value: {str(e)}"
-        )
+    except Exception:
+        raise _internal_error("update company value")
 
 
 @router.delete(
     "/company-values/{value_id}",
-    response_model=MessageResponse,
+    response_model=CMSWriteResponse,
     summary="Delete company value",
     description="Delete a company value and export"
 )
@@ -1166,22 +1008,14 @@ async def delete_company_value(
 ):
     """Delete company value and export to static file."""
     logger.info(f"Admin {admin.id} deleting company value {value_id}")
-    
+
     try:
-        await CMSAdminService.delete_company_value(db, value_id)
-        
-        return MessageResponse(
-            message="Company value deleted and exported successfully"
-        )
-        
+        exported = await CMSAdminService.delete_company_value(db, value_id)
+        return _write_response("Company value deleted", exported)
     except (HTTPException, EagleChairException):
         raise
-    except Exception as e:
-        logger.error(f"Failed to delete company value: {e}", exc_info=True)
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to delete company value: {str(e)}"
-        )
+    except Exception:
+        raise _internal_error("delete company value")
 
 
 # ============================================================================
@@ -1190,7 +1024,7 @@ async def delete_company_value(
 
 @router.post(
     "/company-milestones",
-    response_model=MessageResponse,
+    response_model=CMSWriteResponse,
     status_code=status.HTTP_201_CREATED,
     summary="Create company milestone",
     description="Create a new company milestone and export"
@@ -1202,27 +1036,21 @@ async def create_company_milestone(
 ):
     """Create company milestone and export to static file."""
     logger.info(f"Admin {admin.id} creating company milestone: {milestone.title}")
-    
+
     try:
-        await CMSAdminService.create_company_milestone(db, **milestone.dict())
-        
-        return MessageResponse(
-            message="Company milestone created and exported successfully"
+        _, exported = await CMSAdminService.create_company_milestone(
+            db, **milestone.model_dump()
         )
-        
+        return _write_response("Company milestone created", exported)
     except (HTTPException, EagleChairException):
         raise
-    except Exception as e:
-        logger.error(f"Failed to create company milestone: {e}", exc_info=True)
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to create company milestone: {str(e)}"
-        )
+    except Exception:
+        raise _internal_error("create company milestone")
 
 
 @router.patch(
     "/company-milestones/{milestone_id}",
-    response_model=MessageResponse,
+    response_model=CMSWriteResponse,
     summary="Update company milestone",
     description="Update a company milestone and export"
 )
@@ -1234,35 +1062,25 @@ async def update_company_milestone(
 ):
     """Update company milestone and export to static file."""
     logger.info(f"Admin {admin.id} updating company milestone {milestone_id}")
-    
+
+    updates = milestone.model_dump(exclude_unset=True)
+    if not updates:
+        raise _no_updates()
+
     try:
-        updates = {k: v for k, v in milestone.dict().items() if v is not None}
-        
-        if not updates:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="No updates provided"
-            )
-        
-        await CMSAdminService.update_company_milestone(db, milestone_id, **updates)
-        
-        return MessageResponse(
-            message="Company milestone updated and exported successfully"
+        _, exported = await CMSAdminService.update_company_milestone(
+            db, milestone_id, **updates
         )
-        
+        return _write_response("Company milestone updated", exported)
     except (HTTPException, EagleChairException):
         raise
-    except Exception as e:
-        logger.error(f"Failed to update company milestone: {e}", exc_info=True)
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to update company milestone: {str(e)}"
-        )
+    except Exception:
+        raise _internal_error("update company milestone")
 
 
 @router.delete(
     "/company-milestones/{milestone_id}",
-    response_model=MessageResponse,
+    response_model=CMSWriteResponse,
     summary="Delete company milestone",
     description="Delete a company milestone and export"
 )
@@ -1273,31 +1091,23 @@ async def delete_company_milestone(
 ):
     """Delete company milestone and export to static file."""
     logger.info(f"Admin {admin.id} deleting company milestone {milestone_id}")
-    
+
     try:
-        await CMSAdminService.delete_company_milestone(db, milestone_id)
-        
-        return MessageResponse(
-            message="Company milestone deleted and exported successfully"
-        )
-        
+        exported = await CMSAdminService.delete_company_milestone(db, milestone_id)
+        return _write_response("Company milestone deleted", exported)
     except (HTTPException, EagleChairException):
         raise
-    except Exception as e:
-        logger.error(f"Failed to delete company milestone: {e}", exc_info=True)
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to delete company milestone: {str(e)}"
-        )
+    except Exception:
+        raise _internal_error("delete company milestone")
 
 
 # ============================================================================
-# Contact Locations Endpoints  
+# Contact Locations Endpoints
 # ============================================================================
 
 @router.post(
     "/contact-locations",
-    response_model=MessageResponse,
+    response_model=CMSWriteResponse,
     status_code=status.HTTP_201_CREATED,
     summary="Create contact location",
     description="Create a new contact location and export"
@@ -1309,27 +1119,21 @@ async def create_contact_location(
 ):
     """Create contact location and export to static file."""
     logger.info(f"Admin {admin.id} creating contact location: {location.location_name}")
-    
+
     try:
-        await CMSAdminService.create_contact_location(db, **location.dict())
-        
-        return MessageResponse(
-            message="Contact location created and exported successfully"
+        _, exported = await CMSAdminService.create_contact_location(
+            db, **location.model_dump()
         )
-        
+        return _write_response("Contact location created", exported)
     except (HTTPException, EagleChairException):
         raise
-    except Exception as e:
-        logger.error(f"Failed to create contact location: {e}", exc_info=True)
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to create contact location: {str(e)}"
-        )
+    except Exception:
+        raise _internal_error("create contact location")
 
 
 @router.patch(
     "/contact-locations/{location_id}",
-    response_model=MessageResponse,
+    response_model=CMSWriteResponse,
     summary="Update contact location",
     description="Update a contact location and export"
 )
@@ -1341,35 +1145,25 @@ async def update_contact_location(
 ):
     """Update contact location and export to static file."""
     logger.info(f"Admin {admin.id} updating contact location {location_id}")
-    
+
+    updates = location.model_dump(exclude_unset=True)
+    if not updates:
+        raise _no_updates()
+
     try:
-        updates = {k: v for k, v in location.dict().items() if v is not None}
-        
-        if not updates:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="No updates provided"
-            )
-        
-        await CMSAdminService.update_contact_location(db, location_id, **updates)
-        
-        return MessageResponse(
-            message="Contact location updated and exported successfully"
+        _, exported = await CMSAdminService.update_contact_location(
+            db, location_id, **updates
         )
-        
+        return _write_response("Contact location updated", exported)
     except (HTTPException, EagleChairException):
         raise
-    except Exception as e:
-        logger.error(f"Failed to update contact location: {e}", exc_info=True)
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to update contact location: {str(e)}"
-        )
+    except Exception:
+        raise _internal_error("update contact location")
 
 
 @router.delete(
     "/contact-locations/{location_id}",
-    response_model=MessageResponse,
+    response_model=CMSWriteResponse,
     summary="Delete contact location",
     description="Delete a contact location and export"
 )
@@ -1380,22 +1174,14 @@ async def delete_contact_location(
 ):
     """Delete contact location and export to static file."""
     logger.info(f"Admin {admin.id} deleting contact location {location_id}")
-    
+
     try:
-        await CMSAdminService.delete_contact_location(db, location_id)
-        
-        return MessageResponse(
-            message="Contact location deleted and exported successfully"
-        )
-        
+        exported = await CMSAdminService.delete_contact_location(db, location_id)
+        return _write_response("Contact location deleted", exported)
     except (HTTPException, EagleChairException):
         raise
-    except Exception as e:
-        logger.error(f"Failed to delete contact location: {e}", exc_info=True)
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to delete contact location: {str(e)}"
-        )
+    except Exception:
+        raise _internal_error("delete contact location")
 
 
 # ============================================================================
@@ -1404,7 +1190,7 @@ async def delete_contact_location(
 
 @router.post(
     "/company-info",
-    response_model=MessageResponse,
+    response_model=CMSWriteResponse,
     status_code=status.HTTP_201_CREATED,
     summary="Create company info section",
     description="Create a new company info section and export"
@@ -1416,27 +1202,19 @@ async def create_company_info(
 ):
     """Create company info section and export to static file."""
     logger.info(f"Admin {admin.id} creating company info: {info.section_key}")
-    
+
     try:
-        await CMSAdminService.create_company_info(db, **info.dict())
-        
-        return MessageResponse(
-            message="Company info created and exported successfully"
-        )
-        
+        _, exported = await CMSAdminService.create_company_info(db, **info.model_dump())
+        return _write_response("Company info created", exported)
     except (HTTPException, EagleChairException):
         raise
-    except Exception as e:
-        logger.error(f"Failed to create company info: {e}", exc_info=True)
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to create company info: {str(e)}"
-        )
+    except Exception:
+        raise _internal_error("create company info")
 
 
 @router.patch(
     "/company-info/{info_id}",
-    response_model=MessageResponse,
+    response_model=CMSWriteResponse,
     summary="Update company info section",
     description="Update a company info section and export"
 )
@@ -1448,35 +1226,23 @@ async def update_company_info(
 ):
     """Update company info section and export to static file."""
     logger.info(f"Admin {admin.id} updating company info {info_id}")
-    
+
+    updates = info.model_dump(exclude_unset=True)
+    if not updates:
+        raise _no_updates()
+
     try:
-        updates = {k: v for k, v in info.dict().items() if v is not None}
-        
-        if not updates:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="No updates provided"
-            )
-        
-        await CMSAdminService.update_company_info(db, info_id, **updates)
-        
-        return MessageResponse(
-            message="Company info updated and exported successfully"
-        )
-        
+        _, exported = await CMSAdminService.update_company_info(db, info_id, **updates)
+        return _write_response("Company info updated", exported)
     except (HTTPException, EagleChairException):
         raise
-    except Exception as e:
-        logger.error(f"Failed to update company info: {e}", exc_info=True)
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to update company info: {str(e)}"
-        )
+    except Exception:
+        raise _internal_error("update company info")
 
 
 @router.delete(
     "/company-info/{info_id}",
-    response_model=MessageResponse,
+    response_model=CMSWriteResponse,
     summary="Delete company info section",
     description="Delete a company info section and export"
 )
@@ -1487,22 +1253,14 @@ async def delete_company_info(
 ):
     """Delete company info section and export to static file."""
     logger.info(f"Admin {admin.id} deleting company info {info_id}")
-    
+
     try:
-        await CMSAdminService.delete_company_info(db, info_id)
-        
-        return MessageResponse(
-            message="Company info deleted and exported successfully"
-        )
-        
+        exported = await CMSAdminService.delete_company_info(db, info_id)
+        return _write_response("Company info deleted", exported)
     except (HTTPException, EagleChairException):
         raise
-    except Exception as e:
-        logger.error(f"Failed to delete company info: {e}", exc_info=True)
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to delete company info: {str(e)}"
-        )
+    except Exception:
+        raise _internal_error("delete company info")
 
 
 # ============================================================================
@@ -1517,7 +1275,7 @@ class LegalDocumentCreate(BaseModel):
     short_description: str | None = Field(None, description="Brief description")
     slug: str = Field(..., max_length=255, description="URL-friendly slug")
     version: str = Field(default="1.0", max_length=20)
-    effective_date: str | None = None
+    effective_date: str | None = Field(None, max_length=50)
     meta_title: str | None = Field(None, max_length=255)
     meta_description: str | None = None
     display_order: int = Field(default=0, ge=0)
@@ -1531,7 +1289,7 @@ class LegalDocumentUpdate(BaseModel):
     short_description: str | None = None
     slug: str | None = Field(None, max_length=255)
     version: str | None = Field(None, max_length=20)
-    effective_date: str | None = None
+    effective_date: str | None = Field(None, max_length=50)
     meta_title: str | None = Field(None, max_length=255)
     meta_description: str | None = None
     display_order: int | None = Field(None, ge=0)
@@ -1575,7 +1333,7 @@ async def admin_get_legal_documents(
 ):
     """Get all legal documents. Admin only."""
     logger.info(f"Admin {admin.id} fetching all legal documents")
-    
+
     result = await CMSAdminService.get_all_legal_documents(db)
     return result
 
@@ -1593,22 +1351,22 @@ async def admin_create_legal_document(
 ):
     """
     Create a new legal document.
-    
-    **Admin only** - Automatically exports to static JS file.
+
+    **Admin only** - Automatically exports to the static legal documents file.
     """
     logger.info(f"Admin {admin.id} creating legal document: {data.title}")
-    
+
+    # Validate document type
     try:
-        # Validate document type
-        try:
-            doc_type = LegalDocumentType(data.document_type)
-        except ValueError:
-            raise HTTPException(
-                status_code=400,
-                detail=f"Invalid document type. Must be one of: {', '.join([t.value for t in LegalDocumentType])}"
-            )
-        
-        document = await CMSAdminService.create_legal_document(
+        doc_type = LegalDocumentType(data.document_type)
+    except ValueError:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Invalid document type. Must be one of: {', '.join([t.value for t in LegalDocumentType])}"
+        )
+
+    try:
+        document, exported = await CMSAdminService.create_legal_document(
             db=db,
             document_type=doc_type,
             title=data.title,
@@ -1622,23 +1380,20 @@ async def admin_create_legal_document(
             display_order=data.display_order,
             is_active=data.is_active
         )
-        
-        return {
-            "id": document.id,
-            "documentType": document.document_type.value,
-            "title": document.title,
-            "slug": document.slug,
-            "message": "Legal document created and exported successfully"
-        }
-        
     except (HTTPException, EagleChairException):
         raise
-    except Exception as e:
-        logger.error(f"Failed to create legal document: {e}", exc_info=True)
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=str(e)
-        )
+    except Exception:
+        raise _internal_error("create legal document")
+
+    response = _write_response("Legal document created", exported)
+    return {
+        "id": document.id,
+        "documentType": document.document_type.value,
+        "title": document.title,
+        "slug": document.slug,
+        "message": response.message,
+        "exported": response.exported,
+    }
 
 
 @router.put(
@@ -1654,38 +1409,36 @@ async def admin_update_legal_document(
 ):
     """
     Update a legal document.
-    
-    **Admin only** - Automatically re-exports to static JS file.
+
+    **Admin only** - Automatically re-exports to the static legal documents file.
     """
     logger.info(f"Admin {admin.id} updating legal document {document_id}")
-    
+
     try:
-        document = await CMSAdminService.update_legal_document(
+        document, exported = await CMSAdminService.update_legal_document(
             db=db,
             document_id=document_id,
             **data.model_dump(exclude_unset=True)
         )
-        
-        return {
-            "id": document.id,
-            "documentType": document.document_type.value,
-            "title": document.title,
-            "slug": document.slug,
-            "message": "Legal document updated and exported successfully"
-        }
-        
     except (HTTPException, EagleChairException):
         raise
-    except Exception as e:
-        logger.error(f"Failed to update legal document: {e}", exc_info=True)
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=str(e)
-        )
+    except Exception:
+        raise _internal_error("update legal document")
+
+    response = _write_response("Legal document updated", exported)
+    return {
+        "id": document.id,
+        "documentType": document.document_type.value,
+        "title": document.title,
+        "slug": document.slug,
+        "message": response.message,
+        "exported": response.exported,
+    }
 
 
 @router.delete(
     "/legal-documents/{document_id}",
+    response_model=CMSWriteResponse,
     summary="Delete legal document (Admin)",
     description="Delete a legal document and re-export"
 )
@@ -1696,26 +1449,18 @@ async def admin_delete_legal_document(
 ):
     """
     Delete a legal document.
-    
-    **Admin only** - Automatically re-exports to static JS file.
+
+    **Admin only** - Automatically re-exports to the static legal documents file.
     """
     logger.info(f"Admin {admin.id} deleting legal document {document_id}")
-    
+
     try:
-        await CMSAdminService.delete_legal_document(db=db, document_id=document_id)
-        
-        return MessageResponse(
-            message="Legal document deleted and content re-exported successfully"
-        )
-        
+        exported = await CMSAdminService.delete_legal_document(db=db, document_id=document_id)
+        return _write_response("Legal document deleted", exported)
     except (HTTPException, EagleChairException):
         raise
-    except Exception as e:
-        logger.error(f"Failed to delete legal document: {e}", exc_info=True)
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=str(e)
-        )
+    except Exception:
+        raise _internal_error("delete legal document")
 
 
 # ============================================================================
@@ -1733,7 +1478,7 @@ async def admin_get_warranties(
 ):
     """Get all warranties. Admin only."""
     logger.info(f"Admin {admin.id} fetching all warranties")
-    
+
     result = await CMSAdminService.get_all_warranties(db)
     return result
 
@@ -1751,13 +1496,13 @@ async def admin_create_warranty(
 ):
     """
     Create a new warranty.
-    
-    **Admin only** - Automatically exports to static JS file.
+
+    **Admin only** - Automatically exports to static file.
     """
     logger.info(f"Admin {admin.id} creating warranty: {data.title}")
-    
+
     try:
-        warranty = await CMSAdminService.create_warranty(
+        warranty, exported = await CMSAdminService.create_warranty(
             db=db,
             warranty_type=data.warranty_type,
             title=data.title,
@@ -1769,22 +1514,19 @@ async def admin_create_warranty(
             display_order=data.display_order,
             is_active=data.is_active
         )
-        
-        return {
-            "id": warranty.id,
-            "warrantyType": warranty.warranty_type,
-            "title": warranty.title,
-            "message": "Warranty created and exported successfully"
-        }
-        
     except (HTTPException, EagleChairException):
         raise
-    except Exception as e:
-        logger.error(f"Failed to create warranty: {e}", exc_info=True)
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=str(e)
-        )
+    except Exception:
+        raise _internal_error("create warranty")
+
+    response = _write_response("Warranty created", exported)
+    return {
+        "id": warranty.id,
+        "warrantyType": warranty.warranty_type,
+        "title": warranty.title,
+        "message": response.message,
+        "exported": response.exported,
+    }
 
 
 @router.put(
@@ -1800,37 +1542,35 @@ async def admin_update_warranty(
 ):
     """
     Update a warranty.
-    
-    **Admin only** - Automatically re-exports to static JS file.
+
+    **Admin only** - Automatically re-exports to static file.
     """
     logger.info(f"Admin {admin.id} updating warranty {warranty_id}")
-    
+
     try:
-        warranty = await CMSAdminService.update_warranty(
+        warranty, exported = await CMSAdminService.update_warranty(
             db=db,
             warranty_id=warranty_id,
             **data.model_dump(exclude_unset=True)
         )
-        
-        return {
-            "id": warranty.id,
-            "warrantyType": warranty.warranty_type,
-            "title": warranty.title,
-            "message": "Warranty updated and exported successfully"
-        }
-        
     except (HTTPException, EagleChairException):
         raise
-    except Exception as e:
-        logger.error(f"Failed to update warranty: {e}", exc_info=True)
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=str(e)
-        )
+    except Exception:
+        raise _internal_error("update warranty")
+
+    response = _write_response("Warranty updated", exported)
+    return {
+        "id": warranty.id,
+        "warrantyType": warranty.warranty_type,
+        "title": warranty.title,
+        "message": response.message,
+        "exported": response.exported,
+    }
 
 
 @router.delete(
     "/warranties/{warranty_id}",
+    response_model=CMSWriteResponse,
     summary="Delete warranty (Admin)",
     description="Delete warranty and re-export"
 )
@@ -1841,23 +1581,15 @@ async def admin_delete_warranty(
 ):
     """
     Delete a warranty.
-    
-    **Admin only** - Automatically re-exports to static JS file.
+
+    **Admin only** - Automatically re-exports to static file.
     """
     logger.info(f"Admin {admin.id} deleting warranty {warranty_id}")
-    
+
     try:
-        await CMSAdminService.delete_warranty(db=db, warranty_id=warranty_id)
-        
-        return MessageResponse(
-            message="Warranty deleted and content re-exported successfully"
-        )
-        
+        exported = await CMSAdminService.delete_warranty(db=db, warranty_id=warranty_id)
+        return _write_response("Warranty deleted", exported)
     except (HTTPException, EagleChairException):
         raise
-    except Exception as e:
-        logger.error(f"Failed to delete warranty: {e}", exc_info=True)
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=str(e)
-        )
+    except Exception:
+        raise _internal_error("delete warranty")

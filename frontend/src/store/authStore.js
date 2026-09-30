@@ -38,7 +38,10 @@ export const useAuthStore = create(
   (set, get) => ({
       user: null,
       isAuthenticated: false,
-      isInitializing: false,
+      // True until initAuth() has checked the session. The server render and
+      // the client's first (hydration) render both see this logged-out,
+      // initializing shape; the cached profile is applied after mount.
+      isInitializing: true,
 
       login: async (credentials) => {
         try {
@@ -331,11 +334,16 @@ export const useAuthStore = create(
     })
 );
 
-// Initialize auth on app load
-if (typeof window !== 'undefined') {
+// Initialize auth once, after the app has mounted (see AuthInit in App.jsx).
+// Running it at module load would apply the cached profile before
+// hydrateRoot, so the first client render would differ from the SSR HTML.
+let authInitStarted = false;
+export const startAuthInit = () => {
+  if (authInitStarted || typeof window === 'undefined') return;
+  authInitStarted = true;
   useAuthStore.getState().initAuth().catch(err => {
     console.error('Failed to initialize auth:', err);
   });
-}
+};
 
 

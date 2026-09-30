@@ -3,12 +3,12 @@ import { m } from 'framer-motion';
 import Button from '../ui/Button';
 import Card from '../ui/Card';
 import EditModal from './EditModal';
+import { getCategories } from '../../services/contentService';
 import {
-  getCategories,
   updateCategory,
   createCategory,
   deleteCategory
-} from '../../services/contentService';
+} from '../../services/cmsAdminService';
 import logger from '../../utils/logger';
 
 const CONTEXT = 'CategoriesManager';

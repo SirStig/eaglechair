@@ -56,6 +56,7 @@ class TestAdminWriteRoles:
 
         async def _update_team_member(db, member_id, **updates):
             calls.append((member_id, updates))
+            return None, True  # (member, exported)
 
         monkeypatch.setattr(CMSAdminService, "update_team_member", staticmethod(_update_team_member))
         return calls

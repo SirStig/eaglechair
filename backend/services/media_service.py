@@ -27,6 +27,7 @@ import logging
 import re
 from pathlib import Path
 from urllib.parse import urlsplit
+from urllib.parse import urlparse
 
 from PIL import Image, ImageCms, ImageOps
 
@@ -255,6 +256,44 @@ def rendition_urls(url: str | None) -> dict | None:
         "sizes": [{"width": w, "url": f"{base}.w{w}.webp"} for w in VARIANT_WIDTHS],
         "full": f"{origin}{path}" if ext.lower() == "webp" else f"{base}{FULL_SUFFIX}",
     }
+
+
+def resolve_uploaded_image_path(
+    raw_url: str, base_dir: Path, allow_absolute_urls: bool = True
+) -> Path | None:
+    """
+    Map an image URL to its file under ``base_dir``/images, or None.
+
+    Accepts "/uploads/images/..." (and, when ``allow_absolute_urls``, an
+    http(s) URL whose path is /uploads/images/...). Anything that resolves
+    outside ``base_dir``/images (traversal, other folders) returns None.
+    """
+    raw = (raw_url or "").strip()
+    if not raw:
+        return None
+    if raw.startswith(("http://", "https://")):
+        if not allow_absolute_urls:
+            return None
+        try:
+            url_path = (urlparse(raw).path or "").lstrip("/")
+        except ValueError:
+            return None
+    else:
+        url_path = raw.lstrip("/")
+    if not url_path.startswith("uploads/"):
+        return None
+    relative_path = url_path.replace("uploads/", "", 1)
+    try:
+        base_resolved = base_dir.resolve()
+        file_path = (base_dir / relative_path).resolve()
+        if not file_path.is_relative_to(base_resolved):
+            return None
+        parts = file_path.relative_to(base_resolved).parts
+    except (ValueError, OSError):
+        return None
+    if len(parts) < 2 or parts[0] != "images":
+        return None
+    return file_path
 
 
 def delete_image_files(master: Path) -> None:

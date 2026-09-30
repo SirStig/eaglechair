@@ -1,53 +1,89 @@
 """
 Static Content Exporter
 
-Exports CMS content from database to JavaScript files for instant frontend loading.
-This provides performance benefits by eliminating API calls for static content
-like hero images, site settings, reps, gallery images, etc.
+Exports CMS content from the database to a static JSON file
+(contentData.json) for instant frontend loading. This eliminates API calls for
+static content like hero images, site settings, reps, gallery images, etc.
 
 Handles both development and production environments.
+
+Concurrency: a partial export (one section after an admin save) is a
+read-modify-write of the shared file, so it runs under a Redis lock shared by
+every Gunicorn worker (falling back to an in-process lock if Redis is down).
+Files are written atomically (temp file + os.replace), so readers never see a
+half-written file and no separate backup copy is needed.
 """
 
 import asyncio
 import json
 import logging
 import os
+import uuid
 from datetime import datetime
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Dict, List, Optional
+from typing import TYPE_CHECKING, Any, Awaitable, Callable, Dict, List, Optional
+
+from sqlalchemy import select
+from sqlalchemy.orm import selectinload
+
+from backend.core.redis_lock import redis_lock
+from backend.models.chair import Category, Finish, Upholstery
+from backend.models.content import (
+    FAQ,
+    Catalog,
+    ClientLogo,
+    CompanyInfo,
+    CompanyMilestone,
+    CompanyValue,
+    ContactLocation,
+    FAQCategory,
+    Feature,
+    Hardware,
+    HeroSlide,
+    Installation,
+    Laminate,
+    PageContent,
+    SalesRepresentative,
+    SiteSettings,
+    TeamMember,
+)
+from backend.models.legal import LegalDocument, WarrantyInformation
+from backend.utils.serializers import parse_json_list
 
 if TYPE_CHECKING:
     from sqlalchemy.ext.asyncio import AsyncSession
 
 logger = logging.getLogger(__name__)
 
-# Guards the read-modify-write sequence in export_content_after_update() so that
-# concurrent exports (e.g. two admin saves for different content sections landing
-# in the same worker process at nearly the same time) don't race on the shared
-# contentData.json file and silently drop each other's changes.
-#
-# NOTE: This only serializes exports within a single process/event loop. It does
-# NOT protect against races between separate Gunicorn worker processes writing to
-# the same file concurrently - that would require a cross-process lock (e.g. a
-# Redis-based lock like the one used for startup coordination in backend/main.py).
+# Serializes exports within this process; the Redis lock below serializes
+# them across Gunicorn workers.
 _export_lock = asyncio.Lock()
+
+# Cross-worker lock around the contentData.json read-modify-write
+EXPORT_LOCK_KEY = "eaglechair:lock:content_export"
+EXPORT_LOCK_TTL_MS = 30_000
+# A full export queries every section, so give it more headroom
+FULL_EXPORT_LOCK_TTL_MS = 120_000
 
 # Content key and file written separately from contentData.json (see __init__)
 LEGAL_DOCUMENTS_KEY = "legalDocuments"
 LEGAL_DOCUMENTS_FILENAME = "legalDocuments.json"
 
+# Legacy backup copy, no longer written (see _remove_legacy_cache)
+LEGACY_CACHE_FILENAME = ".contentData.json"
+
 
 class StaticContentExporter:
     """
-    Exports database content to static JavaScript files in the frontend.
+    Exports database content to static JSON files in the frontend.
 
     Flow:
     1. Admin updates content in CMS
     2. Content saved to database
-    3. This exporter generates/updates JS file:
-       - Development: frontend/public/data/contentData.js (served at /data/contentData.js)
-       - Production: root-level /data/contentData.js (no public folder after build)
-    4. Frontend loads from /data/contentData.js (works in both environments)
+    3. This exporter rewrites contentData.json:
+       - Development: frontend/public/data/contentData.json (served at /data/contentData.json)
+       - Production: {FRONTEND_PATH}/data/contentData.json (no public folder after build)
+    4. Frontend loads from /data/contentData.json (works in both environments)
     """
 
     def __init__(self, frontend_path: Optional[str] = None):
@@ -67,19 +103,17 @@ class StaticContentExporter:
             # Development mode: Write to public/data/contentData.json
             # This is served at /data/contentData.json by Vite dev server
             self.data_dir = public_dir / "data"
-            self.content_file = self.data_dir / "contentData.json"
             logger.info(
                 "StaticContentExporter initialized for DEVELOPMENT: writing to public/data"
             )
         else:
             # Production mode: Write to {FRONTEND_PATH}/data/contentData.json
-            # FRONTEND_PATH is set via environment variable (e.g., /home/dh_wmujeb/joshua.eaglechair.com)
             # No public folder exists after build, files are at root level of frontend directory
             self.data_dir = self.frontend_path / "data"
-            self.content_file = self.data_dir / "contentData.json"
             logger.info(
                 f"StaticContentExporter initialized for PRODUCTION: writing to {self.frontend_path}/data"
             )
+        self.content_file = self.data_dir / "contentData.json"
 
         # Legal documents are large (~80% of the payload) and only used by the
         # Terms/Privacy/General Information pages, so they live in their own file
@@ -155,140 +189,86 @@ class StaticContentExporter:
         logger.warning(f"Frontend path not found, using: {frontend_dev}")
         return frontend_dev
 
-    def _json_to_js_value(self, value: Any) -> str:
-        """
-        Convert Python value to JavaScript literal.
+    # ------------------------------------------------------------------
+    # File I/O (blocking; call through asyncio.to_thread from async code)
+    # ------------------------------------------------------------------
 
-        Args:
-            value: Python value to convert
+    def load_existing_content(self) -> Optional[Dict[str, Any]]:
+        """
+        Read contentData.json without its metadata.
 
         Returns:
-            JavaScript literal as string
+            The content sections, or None if the file is missing or unreadable
+            (callers then rebuild every section instead of merging into it).
         """
-        if value is None:
-            return "null"
-        elif isinstance(value, bool):
-            return "true" if value else "false"
-        elif isinstance(value, (int, float)):
-            return str(value)
-        elif isinstance(value, str):
-            # Escape special characters
-            escaped = (
-                value.replace("\\", "\\\\").replace('"', '\\"').replace("\n", "\\n")
-            )
-            return f'"{escaped}"'
-        elif isinstance(value, list):
-            items = [self._json_to_js_value(item) for item in value]
-            return f"[{', '.join(items)}]"
-        elif isinstance(value, dict):
-            items = [
-                f"{key}: {self._json_to_js_value(val)}" for key, val in value.items()
-            ]
-            return f"{{{', '.join(items)}}}"
-        else:
-            # Fallback to JSON serialization
-            return json.dumps(value)
+        if not self.content_file.exists():
+            return None
+        try:
+            with open(self.content_file, "r", encoding="utf-8") as f:
+                data = json.load(f)
+        except Exception as e:
+            logger.warning(f"Could not read existing content file: {e}")
+            return None
+        if not isinstance(data, dict):
+            logger.warning("Existing content file is not a JSON object; ignoring it")
+            return None
+        data.pop("_metadata", None)
+        return data
 
-    def _format_js_object(self, obj: Dict[str, Any], indent: int = 2) -> str:
+    def _read_existing_content(self) -> Dict[str, Any]:
+        """Existing content sections, or an empty dict if there are none."""
+        return self.load_existing_content() or {}
+
+    def write_sections(
+        self,
+        sections: Dict[str, Any],
+        existing: Optional[Dict[str, Any]] = None,
+    ) -> None:
         """
-        Format a dictionary as a pretty JavaScript object.
+        Merge ``sections`` into ``existing`` and write the result in one pass.
+
+        Legal documents go to legalDocuments.json instead of contentData.json.
 
         Args:
-            obj: Dictionary to format
-            indent: Indentation spaces
+            sections: Content sections to write, keyed by contentData.json key
+            existing: Current contentData.json content to merge into, or None
+                to write ``sections`` as the complete file
 
-        Returns:
-            Formatted JavaScript object string
+        Raises:
+            Exception: If a file could not be written
         """
-        lines = ["{"]
-        indent_str = " " * indent
+        sections = dict(sections)
+        content = dict(existing) if existing is not None else {}
 
-        for i, (key, value) in enumerate(obj.items()):
-            # Handle nested objects and arrays with proper formatting
-            if isinstance(value, dict):
-                value_str = self._format_js_object(value, indent + 2)
-            elif (
-                isinstance(value, list)
-                and len(value) > 0
-                and isinstance(value[0], dict)
-            ):
-                # Array of objects - format nicely
-                value_str = "[\n"
-                for j, item in enumerate(value):
-                    value_str += " " * (indent + 2) + self._format_js_object(
-                        item, indent + 4
-                    )
-                    if j < len(value) - 1:
-                        value_str += ","
-                    value_str += "\n"
-                value_str += " " * indent + "]"
-            else:
-                value_str = self._json_to_js_value(value)
+        if LEGAL_DOCUMENTS_KEY in sections:
+            self._write_legal_documents(sections.pop(LEGAL_DOCUMENTS_KEY))
+            # Only legal documents changed: rewrite contentData.json only if it
+            # still carries legal documents from before they were split out.
+            if not sections and existing is not None and LEGAL_DOCUMENTS_KEY not in existing:
+                return
 
-            comma = "," if i < len(obj) - 1 else ""
-            lines.append(f"{indent_str}{key}: {value_str}{comma}")
+        content.update(sections)
+        content.pop(LEGAL_DOCUMENTS_KEY, None)
 
-        lines.append("}")
-        return "\n".join(lines)
+        self._write_content_file(self.content_file, self._generate_json_file(content))
+        self._remove_legacy_cache()
+        logger.info(f"Successfully exported content to {self.content_file}")
 
     def export_all_content(self, content_data: Dict[str, Any]) -> bool:
         """
-        Export all CMS content to contentData.json file.
-
-        This is the main method called after content updates.
-        Writes to public/data in development, root /data in production.
-
-        Uses JSON format for security (no Function constructor/eval needed).
+        Write ``content_data`` as the complete contentData.json.
 
         Args:
-            content_data: Dictionary containing all content sections:
-                - siteSettings: Site-wide settings
-                - heroSlides: Homepage hero carousel
-                - companyInfo: About us sections
-                - teamMembers: Team/leadership
-                - companyValues: Company values
-                - companyMilestones: Company timeline
-                - salesReps: Sales representative data
-                - galleryImages: Installation gallery
-                - clientLogos: Client/partner logos
-                - features: Why choose us features
-                - contactLocations: Contact locations
-                - pageContent: Flexible page sections
-                - legalDocuments: Legal docs, policies, warranties (written to
-                  legalDocuments.json, not contentData.json)
-                - faqs: Frequently asked questions
-                - faqCategories: FAQ categories
-                - categories: Product categories with subcategories (nav dropdown)
-                - catalogs: Virtual catalogs and guides
-                - finishes: Wood finish options
-                - upholsteries: Upholstery fabric options
-                - hardware: Hardware components and specs
-                - laminates: Laminate brands and patterns
+            content_data: Dictionary containing all content sections
 
         Returns:
             True if successful, False otherwise
         """
         try:
-            # Legal documents go to their own file; keep them out of contentData.json
-            if LEGAL_DOCUMENTS_KEY in content_data:
-                content_data = dict(content_data)
-                self._write_legal_documents(content_data.pop(LEGAL_DOCUMENTS_KEY))
-
-            # Generate JSON content with metadata
-            json_content = self._generate_json_file(content_data)
-
-            # Write to the correct location based on environment
-            # (already determined in __init__)
-            self._write_content_file(self.content_file, json_content)
-
-            # Update cache for easier reading
-            self._update_cache(content_data)
-
-            logger.info(f"Successfully exported content to {self.content_file}")
+            self.write_sections(content_data)
             return True
-
-        except Exception as e:
-            logger.error(f"Failed to export content: {e}", exc_info=True)
+        except Exception:
+            logger.exception("Failed to export content")
             return False
 
     def _write_legal_documents(self, documents: List[Dict[str, Any]]):
@@ -307,41 +287,34 @@ class StaticContentExporter:
 
     def _write_content_file(self, file_path: Path, content: str):
         """
-        Write content to file with atomic operation.
+        Write content to file atomically (temp file in the same directory,
+        then os.replace), so readers never see a partially written file.
 
         Args:
             file_path: Path to write to
             content: Content to write
         """
-        # Use unique temp file to avoid race conditions between workers
-        import uuid
+        temp_file = file_path.with_name(f".{file_path.name}.{uuid.uuid4().hex}.tmp")
+        try:
+            with open(temp_file, "w", encoding="utf-8") as f:
+                f.write(content)
+                f.flush()
+                os.fsync(f.fileno())
+            os.replace(temp_file, file_path)
+        finally:
+            if temp_file.exists():
+                try:
+                    temp_file.unlink()
+                except OSError:
+                    pass
 
-        temp_file = file_path.with_suffix(f".{uuid.uuid4()}.tmp")
-
-        with open(temp_file, "w", encoding="utf-8") as f:
-            f.write(content)
-
-        # Atomic rename with retry on Windows
-        max_retries = 3
-        for attempt in range(max_retries):
-            try:
-                temp_file.replace(file_path)
-                break
-            except PermissionError:
-                if attempt < max_retries - 1:
-                    import time
-
-                    time.sleep(0.1)  # Brief delay before retry
-                else:
-                    # Fallback: try deleting first then renaming
-                    try:
-                        file_path.unlink(missing_ok=True)
-                        temp_file.rename(file_path)
-                    except Exception as e:
-                        logger.error(
-                            f"Failed to write content file after {max_retries} attempts: {e}"
-                        )
-                        raise
+    def _remove_legacy_cache(self) -> None:
+        """Delete the old non-atomic backup copy that sat in the public data dir."""
+        legacy = self.data_dir / LEGACY_CACHE_FILENAME
+        try:
+            legacy.unlink(missing_ok=True)
+        except OSError as e:
+            logger.warning(f"Could not remove legacy cache file {legacy}: {e}")
 
     def _generate_json_file(self, content_data: Dict[str, Any]) -> str:
         """
@@ -368,460 +341,6 @@ class StaticContentExporter:
         # Serialize to JSON with proper formatting
         return json.dumps(json_data, indent=2, ensure_ascii=False)
 
-    def _generate_js_file(self, content_data: Dict[str, Any]) -> str:
-        """
-        Generate the complete JavaScript file content (legacy format).
-
-        This method is kept for backward compatibility during migration.
-        New exports use JSON format via _generate_json_file.
-
-        Args:
-            content_data: Content sections dictionary
-
-        Returns:
-            Complete JavaScript file content as string
-        """
-        timestamp = datetime.utcnow().isoformat()
-
-        # File header
-        lines = [
-            "/**",
-            " * Static CMS Content Data (Legacy JS Format)",
-            " * ",
-            " * AUTO-GENERATED - DO NOT EDIT MANUALLY",
-            f" * Last updated: {timestamp}",
-            " * Generated by: StaticContentExporter",
-            " * ",
-            " * NOTE: This is the legacy JS format. New format uses JSON.",
-            " * This file is kept for backward compatibility during migration.",
-            " */",
-            "",
-        ]
-
-        # Export each content section
-        sections = [
-            (
-                "siteSettings",
-                "Site Settings - Company branding, contact info, social media",
-            ),
-            ("heroSlides", "Hero Slides - Homepage carousel"),
-            ("companyInfo", "Company Information - About us sections"),
-            ("teamMembers", "Team Members - Leadership and staff"),
-            ("companyValues", "Company Values - Core values and principles"),
-            ("companyMilestones", "Company Milestones - Timeline and history"),
-            ("salesReps", "Sales Representatives - Find a rep data"),
-            ("galleryImages", "Gallery Images - Installation showcase"),
-            ("clientLogos", "Client Logos - Partner/client logos"),
-            ("features", "Features - Why choose us / benefits"),
-            ("contactLocations", "Contact Locations - Office and showroom locations"),
-            ("pageContent", "Page Content - Dynamic page sections"),
-            ("legalDocuments", "Legal Documents - Terms, policies, warranties"),
-            ("faqs", "FAQs - Frequently asked questions"),
-            ("faqCategories", "FAQ Categories - FAQ organization"),
-            ("categories", "Product Categories - Catalog nav with subcategories"),
-            ("catalogs", "Catalogs - Virtual catalogs and guides"),
-            ("finishes", "Finishes - Wood finish options and swatches"),
-            ("upholsteries", "Upholsteries - Upholstery fabric options"),
-            ("hardware", "Hardware - Hardware components and specifications"),
-            ("laminates", "Laminates - Laminate brands and patterns"),
-        ]
-
-        for key, description in sections:
-            if key in content_data:
-                lines.append(f"// {description}")
-                lines.append(
-                    f"export const {key} = {self._json_to_js_value(content_data[key])};"
-                )
-                lines.append("")
-
-        # Add helper functions
-        lines.extend(
-            [
-                "// Helper: Get site setting by key",
-                "export const getSiteSetting = (key, defaultValue = null) => {",
-                "  return siteSettings?.[key] ?? defaultValue;",
-                "};",
-                "",
-                "// Helper: Get rep by state code",
-                "export const getRepByState = (stateCode) => {",
-                "  return salesReps?.find(rep => ",
-                "    rep.states_covered?.includes(stateCode)",
-                "  ) ?? null;",
-                "};",
-                "",
-                "// Helper: Get page content by slug and section",
-                "export const getPageContent = (pageSlug, sectionKey) => {",
-                "  return pageContent?.find(content => ",
-                "    content.page_slug === pageSlug && content.section_key === sectionKey",
-                "  ) ?? null;",
-                "};",
-                "",
-                "// Content metadata",
-                "export const CONTENT_METADATA = {",
-                f"  lastUpdated: '{timestamp}',",
-                "  version: '1.0.0',",
-                "  generatedBy: 'StaticContentExporter'",
-                "};",
-            ]
-        )
-
-        return "\n".join(lines)
-
-    def export_site_settings(self, settings: Dict[str, Any]) -> bool:
-        """
-        Export site settings.
-
-        Args:
-            settings: Site settings dictionary
-
-        Returns:
-            True if successful
-        """
-        # Read existing content
-        existing = self._read_existing_content()
-        existing["siteSettings"] = settings
-        return self.export_all_content(existing)
-
-    def export_hero_slides(self, slides: List[Dict[str, Any]]) -> bool:
-        """
-        Export hero slides.
-
-        Args:
-            slides: List of hero slide dictionaries
-
-        Returns:
-            True if successful
-        """
-        existing = self._read_existing_content()
-        existing["heroSlides"] = slides
-        return self.export_all_content(existing)
-
-    def export_sales_reps(self, reps: List[Dict[str, Any]]) -> bool:
-        """
-        Export sales representatives.
-
-        Args:
-            reps: List of sales rep dictionaries
-
-        Returns:
-            True if successful
-        """
-        existing = self._read_existing_content()
-        existing["salesReps"] = reps
-        return self.export_all_content(existing)
-
-    def export_gallery_images(self, images: List[Dict[str, Any]]) -> bool:
-        """
-        Export gallery/installation images.
-
-        Args:
-            images: List of installation image dictionaries
-
-        Returns:
-            True if successful
-        """
-        existing = self._read_existing_content()
-        existing["galleryImages"] = images
-        return self.export_all_content(existing)
-
-    def export_features(self, features_list: List[Dict[str, Any]]) -> bool:
-        """
-        Export features (Why Choose Us sections).
-
-        Args:
-            features_list: List of feature dictionaries
-
-        Returns:
-            True if successful
-        """
-        existing = self._read_existing_content()
-        existing["features"] = features_list
-        return self.export_all_content(existing)
-
-    def export_company_values(self, values: List[Dict[str, Any]]) -> bool:
-        """
-        Export company values.
-
-        Args:
-            values: List of company value dictionaries
-
-        Returns:
-            True if successful
-        """
-        existing = self._read_existing_content()
-        existing["companyValues"] = values
-        return self.export_all_content(existing)
-
-    def export_company_milestones(self, milestones: List[Dict[str, Any]]) -> bool:
-        """
-        Export company milestones.
-
-        Args:
-            milestones: List of milestone dictionaries
-
-        Returns:
-            True if successful
-        """
-        existing = self._read_existing_content()
-        existing["companyMilestones"] = milestones
-        return self.export_all_content(existing)
-
-    def export_team_members(self, team: List[Dict[str, Any]]) -> bool:
-        """
-        Export team members.
-
-        Args:
-            team: List of team member dictionaries
-
-        Returns:
-            True if successful
-        """
-        existing = self._read_existing_content()
-        existing["teamMembers"] = team
-        return self.export_all_content(existing)
-
-    def export_client_logos(self, logos: List[Dict[str, Any]]) -> bool:
-        """
-        Export client logos.
-
-        Args:
-            logos: List of client logo dictionaries
-
-        Returns:
-            True if successful
-        """
-        existing = self._read_existing_content()
-        existing["clientLogos"] = logos
-        return self.export_all_content(existing)
-
-    def export_company_info(self, info: List[Dict[str, Any]]) -> bool:
-        """
-        Export company info sections.
-
-        Args:
-            info: List of company info dictionaries
-
-        Returns:
-            True if successful
-        """
-        existing = self._read_existing_content()
-        existing["companyInfo"] = info
-        return self.export_all_content(existing)
-
-    def export_contact_locations(self, locations: List[Dict[str, Any]]) -> bool:
-        """
-        Export contact locations.
-
-        Args:
-            locations: List of contact location dictionaries
-
-        Returns:
-            True if successful
-        """
-        existing = self._read_existing_content()
-        existing["contactLocations"] = locations
-        return self.export_all_content(existing)
-
-    def export_page_content(self, content: List[Dict[str, Any]]) -> bool:
-        """
-        Export page content sections.
-
-        Args:
-            content: List of page content dictionaries
-
-        Returns:
-            True if successful
-        """
-        existing = self._read_existing_content()
-        existing["pageContent"] = content
-        return self.export_all_content(existing)
-
-    def export_legal_documents(self, documents: List[Dict[str, Any]]) -> bool:
-        """
-        Export legal documents.
-
-        Args:
-            documents: List of legal document dictionaries
-
-        Returns:
-            True if successful
-        """
-        try:
-            self._write_legal_documents(documents)
-        except Exception as e:
-            logger.error(f"Failed to export legal documents: {e}", exc_info=True)
-            return False
-
-        # Rewrite contentData.json only if it still carries legal documents from
-        # before they were split out (export_all_content strips them).
-        existing = self._read_existing_content()
-        if LEGAL_DOCUMENTS_KEY in existing:
-            del existing[LEGAL_DOCUMENTS_KEY]
-            return self.export_all_content(existing)
-        return True
-
-    def export_faqs(self, faqs: List[Dict[str, Any]]) -> bool:
-        """
-        Export FAQs.
-
-        Args:
-            faqs: List of FAQ dictionaries
-
-        Returns:
-            True if successful
-        """
-        existing = self._read_existing_content()
-        existing["faqs"] = faqs
-        return self.export_all_content(existing)
-
-    def export_faq_categories(self, categories: List[Dict[str, Any]]) -> bool:
-        """
-        Export FAQ categories.
-
-        Args:
-            categories: List of FAQ category dictionaries
-
-        Returns:
-            True if successful
-        """
-        existing = self._read_existing_content()
-        existing["faqCategories"] = categories
-        return self.export_all_content(existing)
-
-    def export_categories(self, categories: List[Dict[str, Any]]) -> bool:
-        existing = self._read_existing_content()
-        existing["categories"] = categories
-        return self.export_all_content(existing)
-
-    def export_catalogs(self, catalogs: List[Dict[str, Any]]) -> bool:
-        """
-        Export catalogs and guides.
-
-        Args:
-            catalogs: List of catalog dictionaries
-
-        Returns:
-            True if successful
-        """
-        existing = self._read_existing_content()
-        existing["catalogs"] = catalogs
-        return self.export_all_content(existing)
-
-    def export_finishes(self, finishes: List[Dict[str, Any]]) -> bool:
-        """
-        Export wood finishes.
-
-        Args:
-            finishes: List of finish dictionaries
-
-        Returns:
-            True if successful
-        """
-        existing = self._read_existing_content()
-        existing["finishes"] = finishes
-        return self.export_all_content(existing)
-
-    def export_upholsteries(self, upholsteries: List[Dict[str, Any]]) -> bool:
-        """
-        Export upholstery options.
-
-        Args:
-            upholsteries: List of upholstery dictionaries
-
-        Returns:
-            True if successful
-        """
-        existing = self._read_existing_content()
-        existing["upholsteries"] = upholsteries
-        return self.export_all_content(existing)
-
-    def export_hardware(self, hardware: List[Dict[str, Any]]) -> bool:
-        """
-        Export hardware options.
-
-        Args:
-            hardware: List of hardware dictionaries
-
-        Returns:
-            True if successful
-        """
-        existing = self._read_existing_content()
-        existing["hardware"] = hardware
-        return self.export_all_content(existing)
-
-    def export_laminates(self, laminates: List[Dict[str, Any]]) -> bool:
-        """
-        Export laminate options.
-
-        Args:
-            laminates: List of laminate dictionaries
-
-        Returns:
-            True if successful
-        """
-        existing = self._read_existing_content()
-        existing["laminates"] = laminates
-        return self.export_all_content(existing)
-
-    def export_warranty_information(self, warranties: List[Dict[str, Any]]) -> bool:
-        """
-        Export warranty information.
-
-        Args:
-            warranties: List of warranty information dictionaries
-
-        Returns:
-            True if successful
-        """
-        existing = self._read_existing_content()
-        existing["warranties"] = warranties
-        return self.export_all_content(existing)
-
-    def _read_existing_content(self) -> Dict[str, Any]:
-        """
-        Read existing content file to preserve data during partial updates.
-
-        Returns:
-            Existing content dictionary or empty dict
-        """
-        # Try JSON format first
-        json_file = self.data_dir / "contentData.json"
-        if json_file.exists():
-            try:
-                with open(json_file, "r", encoding="utf-8") as f:
-                    data = json.load(f)
-                    # Remove metadata if present
-                    if "_metadata" in data:
-                        del data["_metadata"]
-                    return data
-            except Exception as e:
-                logger.warning(f"Could not read existing JSON content: {e}")
-
-        # Fallback to cache file
-        cache_file = self.data_dir / ".contentData.json"
-        if cache_file.exists():
-            try:
-                with open(cache_file, "r", encoding="utf-8") as f:
-                    return json.load(f)
-            except Exception as e:
-                logger.warning(f"Could not read cache file: {e}")
-
-        return {}
-
-    def _update_cache(self, content_data: Dict[str, Any]):
-        """
-        Update the JSON cache file for easier reading.
-
-        Args:
-            content_data: Content to cache
-        """
-        try:
-            cache_file = self.data_dir / ".contentData.json"
-            with open(cache_file, "w", encoding="utf-8") as f:
-                json.dump(content_data, f, indent=2)
-        except Exception as e:
-            logger.warning(f"Could not update cache: {e}")
-
 
 # Singleton instance
 _exporter_instance: Optional[StaticContentExporter] = None
@@ -840,680 +359,660 @@ def get_exporter() -> StaticContentExporter:
     return _exporter_instance
 
 
+# ============================================================================
+# Section builders: query the database and return one contentData.json section
+# ============================================================================
+
+
+async def _build_site_settings(db: "AsyncSession") -> Dict[str, Any]:
+    result = await db.execute(select(SiteSettings).limit(1))
+    settings = result.scalar_one_or_none()
+    if not settings:
+        return {}
+    return {
+        # Company Branding
+        "companyName": settings.company_name,
+        "companyTagline": settings.company_tagline,
+        "logoUrl": settings.logo_url,
+        "logoDarkUrl": settings.logo_dark_url,
+        "faviconUrl": settings.favicon_url,
+        # Primary Contact Info
+        "primaryEmail": settings.primary_email,
+        "primaryPhone": settings.primary_phone,
+        "salesEmail": settings.sales_email,
+        "salesPhone": settings.sales_phone,
+        "supportEmail": settings.support_email,
+        "supportPhone": settings.support_phone,
+        # Primary Address
+        "addressLine1": settings.address_line1,
+        "addressLine2": settings.address_line2,
+        "city": settings.city,
+        "state": settings.state,
+        "zipCode": settings.zip_code,
+        "country": settings.country,
+        # Business Hours
+        "businessHoursWeekdays": settings.business_hours_weekdays,
+        "businessHoursSaturday": settings.business_hours_saturday,
+        "businessHoursSunday": settings.business_hours_sunday,
+        # Social Media
+        "facebookUrl": settings.facebook_url,
+        "instagramUrl": settings.instagram_url,
+        "linkedinUrl": settings.linkedin_url,
+        "twitterUrl": settings.twitter_url,
+        "youtubeUrl": settings.youtube_url,
+        # SEO & Meta
+        "metaTitle": settings.meta_title,
+        "metaDescription": settings.meta_description,
+        "metaKeywords": settings.meta_keywords,
+        # Theme & Additional
+        "themeColors": settings.theme_colors,
+        "additionalSettings": settings.additional_settings,
+    }
+
+
+async def _build_categories(db: "AsyncSession") -> List[Dict[str, Any]]:
+    # Export the catalog nav hierarchy: only primary (top-level) categories,
+    # each with its children. Children are both product subcategories and
+    # nested categories (categories with a parent_id) — a nested category is a
+    # child and must never be exported as a primary category.
+    from backend.services.product_service import ProductService
+
+    children_by_category = await ProductService.get_category_children(
+        db=db, include_inactive=False, with_counts=False
+    )
+
+    def _child_payload(child):
+        return {
+            "id": child["id"],
+            "name": child["name"],
+            "slug": child["slug"],
+            "description": child["description"],
+            "categoryId": child["category_id"],
+            "displayOrder": child["display_order"],
+            "isActive": child["is_active"],
+            "type": child["type"],
+        }
+
+    # Fetch active top-level categories
+    result = await db.execute(
+        select(Category)
+        .where(Category.is_active == True, Category.parent_id.is_(None))
+        .order_by(Category.display_order)
+    )
+    categories = result.scalars().all()
+
+    return [
+        {
+            "id": c.id,
+            "name": c.name,
+            "slug": c.slug,
+            "description": c.description,
+            "parentId": c.parent_id,
+            "displayOrder": c.display_order,
+            "isActive": c.is_active,
+            "iconUrl": c.icon_url,
+            "bannerImageUrl": c.banner_image_url,
+            "subcategories": [
+                _child_payload(child) for child in children_by_category.get(c.id, [])
+            ],
+        }
+        for c in categories
+    ]
+
+
+async def _build_hero_slides(db: "AsyncSession") -> List[Dict[str, Any]]:
+    result = await db.execute(
+        select(HeroSlide)
+        .where(HeroSlide.is_active == True)
+        .order_by(HeroSlide.display_order, HeroSlide.id)
+    )
+    return [
+        {
+            "id": s.id,
+            "title": s.title,
+            "subtitle": s.subtitle,
+            "image": s.background_image_url,
+            "ctaText": s.cta_text,
+            "ctaLink": s.cta_link,
+            "ctaStyle": s.cta_style,
+            "secondaryCtaText": s.secondary_cta_text,
+            "secondaryCtaLink": s.secondary_cta_link,
+            "displayOrder": s.display_order,
+        }
+        for s in result.scalars().all()
+    ]
+
+
+async def _build_sales_reps(db: "AsyncSession") -> List[Dict[str, Any]]:
+    result = await db.execute(
+        select(SalesRepresentative)
+        .where(SalesRepresentative.is_active == True)
+        .order_by(
+            SalesRepresentative.display_order,
+            SalesRepresentative.territory_name,
+        )
+    )
+    return [
+        {
+            "id": r.id,
+            "name": r.name,
+            "territoryName": r.territory_name,
+            "statesCovered": r.states_covered,
+            "email": r.email,
+            "phone": r.phone,
+            "photoUrl": r.photo_url,
+            "title": r.title,
+            "bio": r.bio,
+            "mobilePhone": r.mobile_phone,
+            "fax": r.fax,
+            "linkedinUrl": r.linkedin_url,
+            "displayOrder": r.display_order,
+            "isActive": r.is_active,
+        }
+        for r in result.scalars().all()
+    ]
+
+
+async def _build_gallery_images(db: "AsyncSession") -> List[Dict[str, Any]]:
+    result = await db.execute(
+        select(Installation)
+        .where(Installation.is_active == True)
+        .order_by(Installation.display_order.desc())
+    )
+    return [
+        {
+            "id": i.id,
+            "title": i.project_name,
+            "category": i.project_type,
+            "url": i.primary_image,
+            "images": parse_json_list(i.images),
+            "description": i.description,
+            "location": i.location,
+            "clientName": i.client_name,
+        }
+        for i in result.scalars().all()
+    ]
+
+
+async def _build_features(db: "AsyncSession") -> List[Dict[str, Any]]:
+    result = await db.execute(
+        select(Feature).where(Feature.is_active == True).order_by(Feature.display_order)
+    )
+    return [
+        {
+            "id": f.id,
+            "title": f.title,
+            "description": f.description,
+            "icon": f.icon,
+            "featureType": f.feature_type,
+            "displayOrder": f.display_order,
+        }
+        for f in result.scalars().all()
+    ]
+
+
+async def _build_company_values(db: "AsyncSession") -> List[Dict[str, Any]]:
+    result = await db.execute(
+        select(CompanyValue)
+        .where(CompanyValue.is_active == True)
+        .order_by(CompanyValue.display_order)
+    )
+    return [
+        {
+            "id": v.id,
+            "title": v.title,
+            "description": v.description,
+            "icon": v.icon,
+        }
+        for v in result.scalars().all()
+    ]
+
+
+async def _build_company_milestones(db: "AsyncSession") -> List[Dict[str, Any]]:
+    result = await db.execute(
+        select(CompanyMilestone)
+        .where(CompanyMilestone.is_active == True)
+        .order_by(CompanyMilestone.display_order, CompanyMilestone.year)
+    )
+    return [
+        {
+            "id": m.id,
+            "year": m.year,
+            "title": m.title,
+            "description": m.description,
+        }
+        for m in result.scalars().all()
+    ]
+
+
+async def _build_team_members(db: "AsyncSession") -> List[Dict[str, Any]]:
+    result = await db.execute(
+        select(TeamMember)
+        .where(TeamMember.is_active == True)
+        .order_by(TeamMember.display_order)
+    )
+    return [
+        {
+            "id": m.id,
+            "name": m.name,
+            "title": m.title,
+            "bio": m.bio,
+            "email": m.email,
+            "phone": m.phone,
+            "image": m.photo_url,
+            "linkedinUrl": m.linkedin_url,
+        }
+        for m in result.scalars().all()
+    ]
+
+
+async def _build_client_logos(db: "AsyncSession") -> List[Dict[str, Any]]:
+    result = await db.execute(
+        select(ClientLogo)
+        .where(ClientLogo.is_active == True)
+        .order_by(ClientLogo.display_order)
+    )
+    return [
+        {
+            "id": l.id,
+            "name": l.name,
+            "logoUrl": l.logo_url,
+            "websiteUrl": l.website_url,
+        }
+        for l in result.scalars().all()
+    ]
+
+
+async def _build_page_content(db: "AsyncSession") -> List[Dict[str, Any]]:
+    result = await db.execute(
+        select(PageContent)
+        .where(PageContent.is_active == True)
+        .order_by(PageContent.page_slug, PageContent.display_order)
+    )
+    return [
+        {
+            "id": p.id,
+            "pageSlug": p.page_slug,
+            "sectionKey": p.section_key,
+            "title": p.title,
+            "subtitle": p.subtitle,
+            "content": p.content,
+            "imageUrl": p.image_url,
+            "videoUrl": p.video_url,
+            "ctaText": p.cta_text,
+            "ctaLink": p.cta_link,
+            "ctaStyle": p.cta_style,
+            "extraData": p.extra_data,
+            "displayOrder": p.display_order,
+            "isActive": p.is_active,
+        }
+        for p in result.scalars().all()
+    ]
+
+
+async def _build_legal_documents(db: "AsyncSession") -> List[Dict[str, Any]]:
+    result = await db.execute(
+        select(LegalDocument)
+        .where(LegalDocument.is_active == True)
+        .order_by(LegalDocument.display_order)
+    )
+    return [
+        {
+            "id": d.id,
+            "documentType": d.document_type.value,
+            "title": d.title,
+            "content": d.content,
+            "slug": d.slug,
+            "version": d.version,
+            "effectiveDate": d.effective_date,
+            "shortDescription": d.short_description,
+            "isActive": d.is_active,
+            "displayOrder": d.display_order,
+            "metaTitle": d.meta_title,
+            "metaDescription": d.meta_description,
+        }
+        for d in result.scalars().all()
+    ]
+
+
+async def _build_faqs(db: "AsyncSession") -> List[Dict[str, Any]]:
+    result = await db.execute(
+        select(FAQ)
+        .where(FAQ.is_active == True)
+        .order_by(FAQ.category_id, FAQ.display_order)
+    )
+    return [
+        {
+            "id": f.id,
+            "categoryId": f.category_id,
+            "question": f.question,
+            "answer": f.answer,
+        }
+        for f in result.scalars().all()
+    ]
+
+
+async def _build_faq_categories(db: "AsyncSession") -> List[Dict[str, Any]]:
+    result = await db.execute(
+        select(FAQCategory)
+        .where(FAQCategory.is_active == True)
+        .order_by(FAQCategory.display_order)
+    )
+    return [
+        {"id": c.id, "name": c.name, "description": c.description}
+        for c in result.scalars().all()
+    ]
+
+
+async def _build_catalogs(db: "AsyncSession") -> List[Dict[str, Any]]:
+    result = await db.execute(
+        select(Catalog)
+        .options(selectinload(Catalog.category))
+        .where(Catalog.is_active == True)
+        .order_by(Catalog.display_order)
+    )
+    return [
+        {
+            "id": c.id,
+            "title": c.title,
+            "description": c.description,
+            "catalogType": c.catalog_type.value if c.catalog_type else None,
+            "category": c.category.name if c.category_id and c.category else None,
+            "fileUrl": c.file_url,
+            "fileType": c.file_type,
+            "fileSize": c.file_size,
+            "coverImageUrl": c.thumbnail_url,
+            "version": c.version,
+            "year": c.year,
+            "pageCount": None,  # Could be added to model if needed
+            "lastUpdated": None,  # Catalog model doesn't have updated_at field
+            "isActive": c.is_active,
+            "isFeatured": c.is_featured,
+            "downloadCount": c.download_count,
+        }
+        for c in result.scalars().all()
+    ]
+
+
+async def _build_finishes(db: "AsyncSession") -> List[Dict[str, Any]]:
+    # Eagerly load the color relationship to avoid lazy loading issues
+    result = await db.execute(
+        select(Finish)
+        .options(selectinload(Finish.color))
+        .where(Finish.is_active == True)
+        .order_by(Finish.display_order, Finish.name)
+    )
+    return [
+        {
+            "id": f.id,
+            "name": f.name,
+            "finishCode": f.finish_code,
+            "description": f.description,
+            "finishType": f.finish_type,
+            "grade": f.grade if hasattr(f, "grade") else "Standard",
+            "colorHex": f.color_hex,
+            "colorFamily": f.color.name if f.color_id and f.color else None,
+            "imageUrl": f.image_url,
+            "swatchImageUrl": f.image_url,  # Use image_url as swatch if no separate swatch field
+            "isCustom": f.is_custom if hasattr(f, "is_custom") else False,
+            "isToMatch": f.is_to_match if hasattr(f, "is_to_match") else False,
+            "isActive": f.is_active,
+            "isPopular": f.is_popular if hasattr(f, "is_popular") else False,
+            "additionalCost": f.additional_cost,
+        }
+        for f in result.scalars().all()
+    ]
+
+
+async def _build_upholsteries(db: "AsyncSession") -> List[Dict[str, Any]]:
+    result = await db.execute(
+        select(Upholstery)
+        .where(Upholstery.is_active == True)
+        .order_by(Upholstery.display_order, Upholstery.name)
+    )
+    return [
+        {
+            "id": u.id,
+            "name": u.name,
+            "materialType": u.material_type,
+            "fabricType": u.material_type,  # Alias for frontend
+            "fabricCode": u.material_code,
+            "description": u.description,
+            "imageUrl": u.image_url,
+            "swatchImageUrl": u.swatch_image_url,
+            "grade": u.grade,
+            "color": u.color,
+            "colorHex": u.color_hex,
+            "isActive": u.is_active,
+            "isPopular": u.is_popular if hasattr(u, "is_popular") else False,
+            "manufacturer": u.manufacturer if hasattr(u, "manufacturer") else None,
+            "content": u.content if hasattr(u, "content") else None,
+            "durabilityRating": u.durability_rating
+            if hasattr(u, "durability_rating")
+            else None,
+        }
+        for u in result.scalars().all()
+    ]
+
+
+async def _build_hardware(db: "AsyncSession") -> List[Dict[str, Any]]:
+    result = await db.execute(
+        select(Hardware)
+        .where(Hardware.is_active == True)
+        .order_by(Hardware.display_order, Hardware.name)
+    )
+    return [
+        {
+            "id": h.id,
+            "name": h.name,
+            "description": h.description,
+            "imageUrl": h.image_url,
+            "category": h.category,
+            "modelNumber": h.model_number,
+            "sku": h.sku,
+            "material": h.material,
+            "finish": h.finish,
+            "dimensions": h.dimensions,
+            "weightCapacity": h.weight_capacity,
+            "installationNotes": h.installation_notes,
+            "isActive": h.is_active,
+            "isFeatured": h.is_featured if hasattr(h, "is_featured") else False,
+        }
+        for h in result.scalars().all()
+    ]
+
+
+async def _build_laminates(db: "AsyncSession") -> List[Dict[str, Any]]:
+    result = await db.execute(
+        select(Laminate)
+        .where(Laminate.is_active == True)
+        .order_by(Laminate.display_order, Laminate.brand, Laminate.pattern_name)
+    )
+    return [
+        {
+            "id": lam.id,
+            "patternName": lam.pattern_name,
+            "patternCode": lam.pattern_code,
+            "brand": lam.brand,
+            "description": lam.description,
+            "swatchImageUrl": lam.swatch_image_url,
+            "fullImageUrl": lam.full_image_url,
+            "colorFamily": lam.color_family,
+            "finishType": lam.finish_type,
+            "thickness": lam.thickness,
+            "grade": lam.grade,
+            "supplierName": lam.supplier_name,
+            "supplierWebsite": lam.supplier_website,
+            "isInStock": lam.is_in_stock,
+            "leadTimeDays": lam.lead_time_days,
+            "isActive": lam.is_active,
+            "isPopular": lam.is_popular,
+            "isFeatured": lam.is_featured,
+        }
+        for lam in result.scalars().all()
+    ]
+
+
+async def _build_warranties(db: "AsyncSession") -> List[Dict[str, Any]]:
+    result = await db.execute(
+        select(WarrantyInformation)
+        .where(WarrantyInformation.is_active == True)
+        .order_by(WarrantyInformation.display_order)
+    )
+    return [
+        {
+            "id": w.id,
+            "warrantyType": w.warranty_type,
+            "title": w.title,
+            "description": w.description,
+            "duration": w.duration,
+            "coverage": w.coverage,
+        }
+        for w in result.scalars().all()
+    ]
+
+
+async def _build_contact_locations(db: "AsyncSession") -> List[Dict[str, Any]]:
+    result = await db.execute(
+        select(ContactLocation)
+        .where(ContactLocation.is_active == True)
+        .order_by(ContactLocation.display_order, ContactLocation.location_name)
+    )
+    return [
+        {
+            "id": loc.id,
+            "locationName": loc.location_name,
+            "description": loc.description,
+            "addressLine1": loc.address_line1,
+            "addressLine2": loc.address_line2,
+            "city": loc.city,
+            "state": loc.state,
+            "zipCode": loc.zip_code,
+            "country": loc.country,
+            "phone": loc.phone,
+            "fax": loc.fax,
+            "email": loc.email,
+            "tollFree": loc.toll_free,
+            "businessHours": loc.business_hours,
+            "imageUrl": loc.image_url,
+            "mapEmbedUrl": loc.map_embed_url,
+            "locationType": loc.location_type,
+            "displayOrder": loc.display_order,
+            "isActive": loc.is_active,
+            "isPrimary": loc.is_primary,
+        }
+        for loc in result.scalars().all()
+    ]
+
+
+async def _build_company_info(db: "AsyncSession") -> List[Dict[str, Any]]:
+    result = await db.execute(
+        select(CompanyInfo)
+        .where(CompanyInfo.is_active == True)
+        .order_by(CompanyInfo.display_order)
+    )
+    return [
+        {
+            "id": i.id,
+            "sectionKey": i.section_key,
+            "title": i.title,
+            "content": i.content,
+            "imageUrl": i.image_url,
+            "displayOrder": i.display_order,
+            "isActive": i.is_active,
+        }
+        for i in result.scalars().all()
+    ]
+
+
+# Content type (also the contentData.json key) -> section builder.
+# Order matches the key order of a full export.
+SECTION_BUILDERS: Dict[str, Callable[["AsyncSession"], Awaitable[Any]]] = {
+    "siteSettings": _build_site_settings,
+    "heroSlides": _build_hero_slides,
+    "salesReps": _build_sales_reps,
+    "galleryImages": _build_gallery_images,
+    "pageContent": _build_page_content,
+    "features": _build_features,
+    "companyValues": _build_company_values,
+    "companyMilestones": _build_company_milestones,
+    "teamMembers": _build_team_members,
+    "clientLogos": _build_client_logos,
+    LEGAL_DOCUMENTS_KEY: _build_legal_documents,
+    "warranties": _build_warranties,
+    "faqs": _build_faqs,
+    "faqCategories": _build_faq_categories,
+    "categories": _build_categories,
+    "catalogs": _build_catalogs,
+    "finishes": _build_finishes,
+    "upholsteries": _build_upholsteries,
+    "hardware": _build_hardware,
+    "laminates": _build_laminates,
+    "contactLocations": _build_contact_locations,
+    "companyInfo": _build_company_info,
+}
+
+
+async def _build_all_sections(db: "AsyncSession") -> Dict[str, Any]:
+    return {key: await build(db) for key, build in SECTION_BUILDERS.items()}
+
+
 async def export_content_after_update(content_type: str, db: "AsyncSession") -> bool:
     """
-    Convenience function to export content after database update.
+    Re-export one content section after a database update.
 
-    This should be called after successful database commits.
-    QUERIES DATABASE to get fresh data.
+    This should be called after successful database commits. It queries the
+    database for fresh data and rewrites contentData.json under the
+    cross-worker export lock. If the file is missing or unreadable, every
+    section is rebuilt so a partial export never publishes a file that
+    contains only one section.
 
     Args:
         content_type: Type of content (siteSettings, heroSlides, salesReps, etc.)
         db: Database session (required)
 
     Returns:
-        True if export successful
+        True if the export succeeded, False otherwise (the failure is logged)
     """
-    from sqlalchemy import select
-    from sqlalchemy.orm import selectinload
-
-    from backend.models.chair import Finish, Upholstery
-    from backend.models.content import (
-        FAQ,
-        Catalog,
-        ClientLogo,
-        CompanyInfo,
-        CompanyMilestone,
-        CompanyValue,
-        ContactLocation,
-        FAQCategory,
-        Feature,
-        Hardware,
-        HeroSlide,
-        Installation,
-        Laminate,
-        PageContent,
-        SalesRepresentative,
-        SiteSettings,
-        TeamMember,
-    )
-    from backend.models.chair import (
-        Category,
-        Color,
-        CustomOption,
-        Finish,
-        ProductFamily,
-        ProductSubcategory,
-        Upholstery,
-    )
-    from backend.models.legal import LegalDocument, WarrantyInformation
+    build = SECTION_BUILDERS.get(content_type)
+    if build is None:
+        logger.warning(f"Unknown content type: {content_type}")
+        return False
 
     try:
         exporter = get_exporter()
-
-        # Database session is required (passed from calling service)
-
-        # Map content type to model and query
-        async def fetch_and_export():
-            if content_type == "siteSettings":
-                result = await db.execute(select(SiteSettings).limit(1))
-                settings = result.scalar_one_or_none()
-                data = (
-                    {
-                        # Company Branding
-                        "companyName": settings.company_name
-                        if settings
-                        else "Eagle Chair",
-                        "companyTagline": settings.company_tagline
-                        if settings
-                        else None,
-                        "logoUrl": settings.logo_url if settings else None,
-                        "logoDarkUrl": settings.logo_dark_url if settings else None,
-                        "faviconUrl": settings.favicon_url if settings else None,
-                        # Primary Contact Info
-                        "primaryEmail": settings.primary_email if settings else None,
-                        "primaryPhone": settings.primary_phone if settings else None,
-                        "salesEmail": settings.sales_email if settings else None,
-                        "salesPhone": settings.sales_phone if settings else None,
-                        "supportEmail": settings.support_email if settings else None,
-                        "supportPhone": settings.support_phone if settings else None,
-                        # Primary Address
-                        "addressLine1": settings.address_line1 if settings else None,
-                        "addressLine2": settings.address_line2 if settings else None,
-                        "city": settings.city if settings else None,
-                        "state": settings.state if settings else None,
-                        "zipCode": settings.zip_code if settings else None,
-                        "country": settings.country if settings else "USA",
-                        # Business Hours
-                        "businessHoursWeekdays": settings.business_hours_weekdays
-                        if settings
-                        else None,
-                        "businessHoursSaturday": settings.business_hours_saturday
-                        if settings
-                        else None,
-                        "businessHoursSunday": settings.business_hours_sunday
-                        if settings
-                        else None,
-                        # Social Media
-                        "facebookUrl": settings.facebook_url if settings else None,
-                        "instagramUrl": settings.instagram_url if settings else None,
-                        "linkedinUrl": settings.linkedin_url if settings else None,
-                        "twitterUrl": settings.twitter_url if settings else None,
-                        "youtubeUrl": settings.youtube_url if settings else None,
-                        # SEO & Meta
-                        "metaTitle": settings.meta_title if settings else None,
-                        "metaDescription": settings.meta_description
-                        if settings
-                        else None,
-                        "metaKeywords": settings.meta_keywords if settings else None,
-                        # Theme & Additional
-                        "themeColors": settings.theme_colors if settings else None,
-                        "additionalSettings": settings.additional_settings
-                        if settings
-                        else None,
-                    }
-                    if settings
-                    else {}
+        async with redis_lock(EXPORT_LOCK_KEY, _export_lock, ttl_ms=EXPORT_LOCK_TTL_MS):
+            existing = await asyncio.to_thread(exporter.load_existing_content)
+            if existing is None:
+                logger.warning(
+                    "contentData.json missing or unreadable; rebuilding all sections"
                 )
-                return exporter.export_site_settings(data)
-
-            elif content_type == "categories":
-                # Export the catalog nav hierarchy: only primary (top-level)
-                # categories, each with its children. Children are both
-                # product subcategories and nested categories (categories
-                # with a parent_id) — a nested category is a child and must
-                # never be exported as a primary category.
-                from backend.services.product_service import ProductService
-
-                children_by_category = await ProductService.get_category_children(
-                    db=db, include_inactive=False, with_counts=False
-                )
-
-                def _child_payload(child):
-                    return {
-                        "id": child["id"],
-                        "name": child["name"],
-                        "slug": child["slug"],
-                        "description": child["description"],
-                        "categoryId": child["category_id"],
-                        "displayOrder": child["display_order"],
-                        "isActive": child["is_active"],
-                        "type": child["type"],
-                    }
-
-                # Fetch active top-level categories
-                result = await db.execute(
-                    select(Category)
-                    .where(Category.is_active == True, Category.parent_id.is_(None))
-                    .order_by(Category.display_order)
-                )
-                categories = result.scalars().all()
-
-                data = [
-                    {
-                        "id": c.id,
-                        "name": c.name,
-                        "slug": c.slug,
-                        "description": c.description,
-                        "parentId": c.parent_id,
-                        "displayOrder": c.display_order,
-                        "isActive": c.is_active,
-                        "iconUrl": c.icon_url,
-                        "bannerImageUrl": c.banner_image_url,
-                        "subcategories": [
-                            _child_payload(child)
-                            for child in children_by_category.get(c.id, [])
-                        ],
-                    }
-                    for c in categories
-                ]
-                return exporter.export_categories(data)
-
-            elif content_type == "heroSlides":
-                result = await db.execute(
-                    select(HeroSlide)
-                    .where(HeroSlide.is_active == True)
-                    .order_by(HeroSlide.display_order, HeroSlide.id)
-                )
-                slides = result.scalars().all()
-                data = [
-                    {
-                        "id": s.id,
-                        "title": s.title,
-                        "subtitle": s.subtitle,
-                        "image": s.background_image_url,
-                        "ctaText": s.cta_text,
-                        "ctaLink": s.cta_link,
-                        "displayOrder": s.display_order,
-                    }
-                    for s in slides
-                ]
-                return exporter.export_hero_slides(data)
-
-            elif content_type == "salesReps":
-                result = await db.execute(
-                    select(SalesRepresentative)
-                    .where(SalesRepresentative.is_active == True)
-                    .order_by(
-                        SalesRepresentative.display_order,
-                        SalesRepresentative.territory_name,
-                    )
-                )
-                reps = result.scalars().all()
-                data = [
-                    {
-                        "id": r.id,
-                        "name": r.name,
-                        "territoryName": r.territory_name,
-                        "statesCovered": r.states_covered,
-                        "email": r.email,
-                        "phone": r.phone,
-                        "photoUrl": r.photo_url,
-                        "title": r.title,
-                        "bio": r.bio,
-                        "mobilePhone": r.mobile_phone,
-                        "fax": r.fax,
-                        "linkedinUrl": r.linkedin_url,
-                        "displayOrder": r.display_order,
-                        "isActive": r.is_active,
-                    }
-                    for r in reps
-                ]
-                return exporter.export_sales_reps(data)
-
-            elif content_type == "galleryImages":
-                result = await db.execute(
-                    select(Installation)
-                    .where(Installation.is_active == True)
-                    .order_by(Installation.display_order.desc())
-                )
-                installations = result.scalars().all()
-                data = [
-                    {
-                        "id": i.id,
-                        "title": i.project_name,
-                        "category": i.project_type,
-                        "url": i.primary_image,
-                        "images": i.images,
-                        "description": i.description,
-                        "location": i.location,
-                        "clientName": i.client_name,
-                    }
-                    for i in installations
-                ]
-                return exporter.export_gallery_images(data)
-
-            elif content_type == "features":
-                result = await db.execute(
-                    select(Feature)
-                    .where(Feature.is_active == True)
-                    .order_by(Feature.display_order)
-                )
-                features = result.scalars().all()
-                data = [
-                    {
-                        "id": f.id,
-                        "title": f.title,
-                        "description": f.description,
-                        "icon": f.icon,
-                        "featureType": f.feature_type,
-                        "displayOrder": f.display_order,
-                    }
-                    for f in features
-                ]
-                return exporter.export_features(data)
-
-            elif content_type == "companyValues":
-                result = await db.execute(
-                    select(CompanyValue)
-                    .where(CompanyValue.is_active == True)
-                    .order_by(CompanyValue.display_order)
-                )
-                values = result.scalars().all()
-                data = [
-                    {
-                        "id": v.id,
-                        "title": v.title,
-                        "description": v.description,
-                        "icon": v.icon,
-                    }
-                    for v in values
-                ]
-                return exporter.export_company_values(data)
-
-            elif content_type == "companyMilestones":
-                result = await db.execute(
-                    select(CompanyMilestone)
-                    .where(CompanyMilestone.is_active == True)
-                    .order_by(CompanyMilestone.year)
-                )
-                milestones = result.scalars().all()
-                data = [
-                    {
-                        "id": m.id,
-                        "year": m.year,
-                        "title": m.title,
-                        "description": m.description,
-                    }
-                    for m in milestones
-                ]
-                return exporter.export_company_milestones(data)
-
-            elif content_type == "teamMembers":
-                result = await db.execute(
-                    select(TeamMember)
-                    .where(TeamMember.is_active == True)
-                    .order_by(TeamMember.display_order)
-                )
-                members = result.scalars().all()
-                data = [
-                    {
-                        "id": m.id,
-                        "name": m.name,
-                        "title": m.title,
-                        "bio": m.bio,
-                        "email": m.email,
-                        "phone": m.phone,
-                        "image": m.photo_url,
-                        "linkedinUrl": m.linkedin_url,
-                    }
-                    for m in members
-                ]
-                return exporter.export_team_members(data)
-
-            elif content_type == "clientLogos":
-                result = await db.execute(
-                    select(ClientLogo)
-                    .where(ClientLogo.is_active == True)
-                    .order_by(ClientLogo.display_order)
-                )
-                logos = result.scalars().all()
-                data = [
-                    {
-                        "id": l.id,
-                        "name": l.name,
-                        "logoUrl": l.logo_url,
-                        "websiteUrl": l.website_url,
-                    }
-                    for l in logos
-                ]
-                return exporter.export_client_logos(data)
-
-            elif content_type == "pageContent":
-                result = await db.execute(
-                    select(PageContent)
-                    .where(PageContent.is_active == True)
-                    .order_by(PageContent.page_slug, PageContent.display_order)
-                )
-                pages = result.scalars().all()
-                data = [
-                    {
-                        "id": p.id,
-                        "pageSlug": p.page_slug,
-                        "sectionKey": p.section_key,
-                        "title": p.title,
-                        "subtitle": p.subtitle,
-                        "content": p.content,
-                        "imageUrl": p.image_url,
-                        "videoUrl": p.video_url,
-                        "ctaText": p.cta_text,
-                        "ctaLink": p.cta_link,
-                        "ctaStyle": p.cta_style,
-                        "extraData": p.extra_data,
-                        "displayOrder": p.display_order,
-                        "isActive": p.is_active,
-                    }
-                    for p in pages
-                ]
-                return exporter.export_page_content(data)
-
-            elif content_type == "legalDocuments":
-                result = await db.execute(
-                    select(LegalDocument)
-                    .where(LegalDocument.is_active == True)
-                    .order_by(LegalDocument.display_order)
-                )
-                docs = result.scalars().all()
-                data = [
-                    {
-                        "id": d.id,
-                        "documentType": d.document_type.value,
-                        "title": d.title,
-                        "content": d.content,
-                        "slug": d.slug,
-                        "version": d.version,
-                        "effectiveDate": d.effective_date,
-                        "shortDescription": d.short_description,
-                        "isActive": d.is_active,
-                        "displayOrder": d.display_order,
-                        "metaTitle": d.meta_title,
-                        "metaDescription": d.meta_description,
-                    }
-                    for d in docs
-                ]
-                return exporter.export_legal_documents(data)
-
-            elif content_type == "faqs":
-                result = await db.execute(
-                    select(FAQ)
-                    .where(FAQ.is_active == True)
-                    .order_by(FAQ.category_id, FAQ.display_order)
-                )
-                faqs = result.scalars().all()
-                data = [
-                    {
-                        "id": f.id,
-                        "categoryId": f.category_id,
-                        "question": f.question,
-                        "answer": f.answer,
-                    }
-                    for f in faqs
-                ]
-                return exporter.export_faqs(data)
-
-            elif content_type == "faqCategories":
-                result = await db.execute(
-                    select(FAQCategory)
-                    .where(FAQCategory.is_active == True)
-                    .order_by(FAQCategory.display_order)
-                )
-                categories = result.scalars().all()
-                data = [
-                    {"id": c.id, "name": c.name, "description": c.description}
-                    for c in categories
-                ]
-                return exporter.export_faq_categories(data)
-
-            elif content_type == "catalogs":
-                result = await db.execute(
-                    select(Catalog)
-                    .options(selectinload(Catalog.category))
-                    .where(Catalog.is_active == True)
-                    .order_by(Catalog.display_order)
-                )
-                catalogs = result.scalars().all()
-                data = [
-                    {
-                        "id": c.id,
-                        "title": c.title,
-                        "description": c.description,
-                        "catalogType": c.catalog_type.value if c.catalog_type else None,
-                        "category": c.category.name if c.category_id and c.category else None,
-                        "fileUrl": c.file_url,
-                        "fileType": c.file_type,
-                        "fileSize": c.file_size,
-                        "coverImageUrl": c.thumbnail_url,
-                        "version": c.version,
-                        "year": c.year,
-                        "pageCount": None,  # Could be added to model if needed
-                        "lastUpdated": None,  # Catalog model doesn't have updated_at field
-                        "isActive": c.is_active,
-                        "isFeatured": c.is_featured,
-                        "downloadCount": c.download_count,
-                    }
-                    for c in catalogs
-                ]
-                return exporter.export_catalogs(data)
-
-            elif content_type == "finishes":
-                # Eagerly load the color relationship to avoid lazy loading issues
-                result = await db.execute(
-                    select(Finish)
-                    .options(selectinload(Finish.color))
-                    .where(Finish.is_active == True)
-                    .order_by(Finish.display_order, Finish.name)
-                )
-                finishes = result.scalars().all()
-                data = [
-                    {
-                        "id": f.id,
-                        "name": f.name,
-                        "finishCode": f.finish_code,
-                        "description": f.description,
-                        "finishType": f.finish_type,
-                        "grade": f.grade if hasattr(f, "grade") else "Standard",
-                        "colorHex": f.color_hex,
-                        "colorFamily": f.color.name if f.color_id and f.color else None,
-                        "imageUrl": f.image_url,
-                        "swatchImageUrl": f.image_url,  # Use image_url as swatch if no separate swatch field
-                        "isCustom": f.is_custom if hasattr(f, "is_custom") else False,
-                        "isToMatch": f.is_to_match
-                        if hasattr(f, "is_to_match")
-                        else False,
-                        "isActive": f.is_active,
-                        "isPopular": f.is_popular
-                        if hasattr(f, "is_popular")
-                        else False,
-                        "additionalCost": f.additional_cost,
-                    }
-                    for f in finishes
-                ]
-                return exporter.export_finishes(data)
-
-            elif content_type == "upholsteries":
-                result = await db.execute(
-                    select(Upholstery)
-                    .where(Upholstery.is_active == True)
-                    .order_by(Upholstery.display_order, Upholstery.name)
-                )
-                upholsteries = result.scalars().all()
-                data = [
-                    {
-                        "id": u.id,
-                        "name": u.name,
-                        "materialType": u.material_type,
-                        "fabricType": u.material_type,  # Alias for frontend
-                        "fabricCode": u.material_code,
-                        "description": u.description,
-                        "imageUrl": u.image_url,
-                        "swatchImageUrl": u.swatch_image_url,
-                        "grade": u.grade,
-                        "color": u.color,
-                        "colorHex": u.color_hex,
-                        "isActive": u.is_active,
-                        "isPopular": u.is_popular
-                        if hasattr(u, "is_popular")
-                        else False,
-                        "manufacturer": u.manufacturer
-                        if hasattr(u, "manufacturer")
-                        else None,
-                        "content": u.content if hasattr(u, "content") else None,
-                        "durabilityRating": u.durability_rating
-                        if hasattr(u, "durability_rating")
-                        else None,
-                    }
-                    for u in upholsteries
-                ]
-                return exporter.export_upholsteries(data)
-
-            elif content_type == "hardware":
-                result = await db.execute(
-                    select(Hardware)
-                    .where(Hardware.is_active == True)
-                    .order_by(Hardware.display_order, Hardware.name)
-                )
-                hardware_items = result.scalars().all()
-                data = [
-                    {
-                        "id": h.id,
-                        "name": h.name,
-                        "description": h.description,
-                        "imageUrl": h.image_url,
-                        "category": h.category,
-                        "modelNumber": h.model_number,
-                        "sku": h.sku,
-                        "material": h.material,
-                        "finish": h.finish,
-                        "dimensions": h.dimensions,
-                        "weightCapacity": h.weight_capacity,
-                        "installationNotes": h.installation_notes,
-                        "isActive": h.is_active,
-                        "isFeatured": h.is_featured
-                        if hasattr(h, "is_featured")
-                        else False,
-                    }
-                    for h in hardware_items
-                ]
-                return exporter.export_hardware(data)
-
-            elif content_type == "laminates":
-                result = await db.execute(
-                    select(Laminate)
-                    .where(Laminate.is_active == True)
-                    .order_by(
-                        Laminate.display_order, Laminate.brand, Laminate.pattern_name
-                    )
-                )
-                laminates = result.scalars().all()
-                data = [
-                    {
-                        "id": lam.id,
-                        "patternName": lam.pattern_name,
-                        "patternCode": lam.pattern_code,
-                        "brand": lam.brand,
-                        "description": lam.description,
-                        "swatchImageUrl": lam.swatch_image_url,
-                        "fullImageUrl": lam.full_image_url,
-                        "colorFamily": lam.color_family,
-                        "finishType": lam.finish_type,
-                        "thickness": lam.thickness,
-                        "grade": lam.grade,
-                        "supplierName": lam.supplier_name,
-                        "supplierWebsite": lam.supplier_website,
-                        "isInStock": lam.is_in_stock,
-                        "leadTimeDays": lam.lead_time_days,
-                        "isActive": lam.is_active,
-                        "isPopular": lam.is_popular,
-                        "isFeatured": lam.is_featured,
-                    }
-                    for lam in laminates
-                ]
-                return exporter.export_laminates(data)
-
-            elif content_type == "warranties":
-                result = await db.execute(
-                    select(WarrantyInformation)
-                    .where(WarrantyInformation.is_active == True)
-                    .order_by(WarrantyInformation.display_order)
-                )
-                warranties = result.scalars().all()
-                data = [
-                    {
-                        "id": w.id,
-                        "warrantyType": w.warranty_type,
-                        "title": w.title,
-                        "description": w.description,
-                        "duration": w.duration,
-                        "coverage": w.coverage,
-                    }
-                    for w in warranties
-                ]
-                return exporter.export_warranty_information(data)
-
-            elif content_type == "contactLocations":
-                result = await db.execute(
-                    select(ContactLocation)
-                    .where(ContactLocation.is_active == True)
-                    .order_by(
-                        ContactLocation.display_order, ContactLocation.location_name
-                    )
-                )
-                locations = result.scalars().all()
-                data = [
-                    {
-                        "id": loc.id,
-                        "locationName": loc.location_name,
-                        "description": loc.description,
-                        "addressLine1": loc.address_line1,
-                        "addressLine2": loc.address_line2,
-                        "city": loc.city,
-                        "state": loc.state,
-                        "zipCode": loc.zip_code,
-                        "country": loc.country,
-                        "phone": loc.phone,
-                        "fax": loc.fax,
-                        "email": loc.email,
-                        "tollFree": loc.toll_free,
-                        "businessHours": loc.business_hours,
-                        "imageUrl": loc.image_url,
-                        "mapEmbedUrl": loc.map_embed_url,
-                        "locationType": loc.location_type,
-                        "displayOrder": loc.display_order,
-                        "isActive": loc.is_active,
-                        "isPrimary": loc.is_primary,
-                    }
-                    for loc in locations
-                ]
-                return exporter.export_contact_locations(data)
-
-            elif content_type == "companyInfo":
-                result = await db.execute(
-                    select(CompanyInfo)
-                    .where(CompanyInfo.is_active == True)
-                    .order_by(CompanyInfo.display_order)
-                )
-                info_sections = result.scalars().all()
-                data = [
-                    {
-                        "id": i.id,
-                        "sectionKey": i.section_key,
-                        "title": i.title,
-                        "content": i.content,
-                        "imageUrl": i.image_url,
-                        "displayOrder": i.display_order,
-                        "isActive": i.is_active,
-                    }
-                    for i in info_sections
-                ]
-                return exporter.export_company_info(data)
-
+                sections = await _build_all_sections(db)
             else:
-                logger.warning(f"Unknown content type: {content_type}")
-                return False
+                sections = {content_type: await build(db)}
+            await asyncio.to_thread(exporter.write_sections, sections, existing)
+        return True
+    except Exception:
+        logger.exception(f"Export failed for {content_type}")
+        return False
 
-        async with _export_lock:
-            return await fetch_and_export()
 
-    except Exception as e:
-        logger.error(f"Export failed for {content_type}: {e}", exc_info=True)
+async def export_all_content_types(db: "AsyncSession") -> bool:
+    """
+    Rebuild every section in memory and write contentData.json (and
+    legalDocuments.json) once.
+
+    Returns:
+        True if the export succeeded, False otherwise (the failure is logged)
+    """
+    try:
+        exporter = get_exporter()
+        async with redis_lock(
+            EXPORT_LOCK_KEY, _export_lock, ttl_ms=FULL_EXPORT_LOCK_TTL_MS
+        ):
+            sections = await _build_all_sections(db)
+            await asyncio.to_thread(exporter.write_sections, sections)
+        return True
+    except Exception:
+        logger.exception("Full content export failed")
         return False

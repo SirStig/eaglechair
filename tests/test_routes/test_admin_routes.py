@@ -25,17 +25,18 @@ class TestAdminRoutes:
     """Test cases for admin routes"""
     
     @pytest.mark.asyncio
-    async def test_get_dashboard_stats_success(self, async_client: AsyncClient, admin_token):
+    async def test_get_dashboard_stats_success(self, async_client: AsyncClient, admin_headers):
         """Test successful dashboard statistics retrieval."""
-        headers = {"Authorization": f"Bearer {admin_token}"}
+        headers = admin_headers
         
         response = await async_client.get("/api/v1/admin/dashboard/stats", headers=headers)
         
         assert response.status_code == 200
         data = response.json()
-        assert "companies" in data
-        assert "products" in data
-        assert "quotes" in data
+        # Flat counters, as consumed by the admin DashboardOverview/Analytics UI
+        assert "total_companies" in data
+        assert "total_products" in data
+        assert "total_quotes" in data
         assert "recent_quotes" in data
         assert "recent_companies" in data
     
@@ -44,12 +45,14 @@ class TestAdminRoutes:
         """Test dashboard statistics retrieval without admin token."""
         response = await async_client.get("/api/v1/admin/dashboard/stats")
         
-        assert response.status_code == 401
+        # RouteProtectionMiddleware rejects admin routes lacking the admin
+        # session/admin tokens with 403 ADMIN_ACCESS_REQUIRED
+        assert response.status_code == 403
         data = response.json()
-        assert "error" in data or "detail" in data
+        assert data["error"] == "ADMIN_ACCESS_REQUIRED"
     
     @pytest.mark.asyncio
-    async def test_get_all_products_admin_success(self, async_client: AsyncClient, admin_token, db_session: AsyncSession):
+    async def test_get_all_products_admin_success(self, async_client: AsyncClient, admin_headers, db_session: AsyncSession):
         """Test successful admin product retrieval."""
         # Create test category using factory
         category = await create_category(
@@ -82,7 +85,7 @@ class TestAdminRoutes:
             is_active=False
         )
         
-        headers = {"Authorization": f"Bearer {admin_token}"}
+        headers = admin_headers
         
         response = await async_client.get("/api/v1/admin/products", headers=headers)
         
@@ -95,7 +98,7 @@ class TestAdminRoutes:
         assert data["pages"] == 1
     
     @pytest.mark.asyncio
-    async def test_get_all_products_admin_with_filters(self, async_client: AsyncClient, admin_token, db_session: AsyncSession):
+    async def test_get_all_products_admin_with_filters(self, async_client: AsyncClient, admin_headers, db_session: AsyncSession):
         """Test admin product retrieval with filters."""
         # Create test category using factory
         category = await create_category(
@@ -132,7 +135,7 @@ class TestAdminRoutes:
         db_session.add(product2)
         await db_session.commit()
         
-        headers = {"Authorization": f"Bearer {admin_token}"}
+        headers = admin_headers
         
         # Test filter by active status
         response = await async_client.get("/api/v1/admin/products?is_active=true", headers=headers)
@@ -152,7 +155,7 @@ class TestAdminRoutes:
         assert data["total"] == 2
     
     @pytest.mark.asyncio
-    async def test_create_product_admin_success(self, async_client: AsyncClient, admin_token, db_session: AsyncSession):
+    async def test_create_product_admin_success(self, async_client: AsyncClient, admin_headers, db_session: AsyncSession):
         """Test successful admin product creation."""
         # Create test category using factory
         category = await create_category(
@@ -165,21 +168,24 @@ class TestAdminRoutes:
         
         product_data = {
             "name": "New Product",
-            "description": "New test product",
+            "slug": "new-product-np-001",
+            "short_description": "New test product",
             "model_number": "NP-001",
             "category_id": category.id,
             "base_price": 15000,
             "minimum_order_quantity": 1,
             "is_active": True,
-            "specifications": {"seat_height": "20 inches"},
+            "images": [],
             "features": ["Lumbar support"],
-            "dimensions": {"width": 24, "depth": 26, "height": 42},
+            "width": 24,
+            "depth": 26,
+            "height": 42,
+            "seat_height": 20,
             "weight": 45.5,
-            "materials": ["Leather", "Steel"],
-            "colors": ["Black", "Brown"]
+            "frame_material": "Steel"
         }
         
-        headers = {"Authorization": f"Bearer {admin_token}"}
+        headers = admin_headers
         
         response = await async_client.post("/api/v1/admin/products", json=product_data, headers=headers)
         
@@ -214,12 +220,13 @@ class TestAdminRoutes:
         
         response = await async_client.post("/api/v1/admin/products", json=product_data)
         
-        assert response.status_code == 401
+        # See test_get_dashboard_stats_unauthorized
+        assert response.status_code == 403
         data = response.json()
-        assert "error" in data or "detail" in data
+        assert data["error"] == "ADMIN_ACCESS_REQUIRED"
     
     @pytest.mark.asyncio
-    async def test_update_product_admin_success(self, async_client: AsyncClient, admin_token, db_session: AsyncSession):
+    async def test_update_product_admin_success(self, async_client: AsyncClient, admin_headers, db_session: AsyncSession):
         """Test successful admin product update."""
         # Create test category using factory
         category = await create_category(
@@ -252,19 +259,19 @@ class TestAdminRoutes:
             "base_price": 15000
         }
         
-        headers = {"Authorization": f"Bearer {admin_token}"}
+        headers = admin_headers
         
         response = await async_client.patch(f"/api/v1/admin/products/{product.id}", json=update_data, headers=headers)
         
         assert response.status_code == 200
         data = response.json()
         assert data["name"] == update_data["name"]
-        assert data["description"] == update_data["description"]
+        assert data["short_description"] == update_data["short_description"]
         assert data["base_price"] == update_data["base_price"]
         assert data["id"] == product.id
     
     @pytest.mark.asyncio
-    async def test_delete_product_admin_success(self, async_client: AsyncClient, admin_token, db_session: AsyncSession):
+    async def test_delete_product_admin_success(self, async_client: AsyncClient, admin_headers, db_session: AsyncSession):
         """Test successful admin product deletion."""
         # Create test category using factory
         category = await create_category(
@@ -291,7 +298,7 @@ class TestAdminRoutes:
         await db_session.commit()
         await db_session.refresh(product)
         
-        headers = {"Authorization": f"Bearer {admin_token}"}
+        headers = admin_headers
         
         response = await async_client.delete(f"/api/v1/admin/products/{product.id}", headers=headers)
         
@@ -304,7 +311,7 @@ class TestAdminRoutes:
         assert product.is_active == False
     
     @pytest.mark.asyncio
-    async def test_get_all_companies_admin_success(self, async_client: AsyncClient, admin_token, db_session: AsyncSession):
+    async def test_get_all_companies_admin_success(self, async_client: AsyncClient, admin_headers, db_session: AsyncSession):
         """Test successful admin company retrieval."""
         from backend.models.company import Company, CompanyStatus
         
@@ -338,7 +345,7 @@ class TestAdminRoutes:
             status=CompanyStatus.PENDING
         )
         
-        headers = {"Authorization": f"Bearer {admin_token}"}
+        headers = admin_headers
         
         response = await async_client.get("/api/v1/admin/companies", headers=headers)
         
@@ -351,7 +358,7 @@ class TestAdminRoutes:
         assert data["pages"] == 1
     
     @pytest.mark.asyncio
-    async def test_update_company_status_admin_success(self, async_client: AsyncClient, admin_token, db_session: AsyncSession):
+    async def test_update_company_status_admin_success(self, async_client: AsyncClient, admin_headers, db_session: AsyncSession):
         """Test successful admin company status update."""
         from backend.models.company import Company, CompanyStatus
         
@@ -376,7 +383,7 @@ class TestAdminRoutes:
             "admin_notes": "Approved by admin"
         }
         
-        headers = {"Authorization": f"Bearer {admin_token}"}
+        headers = admin_headers
         
         response = await async_client.patch(f"/api/v1/admin/companies/{company.id}/status", json=status_data, headers=headers)
         
@@ -386,7 +393,7 @@ class TestAdminRoutes:
         assert data["id"] == company.id
     
     @pytest.mark.asyncio
-    async def test_get_all_quotes_admin_success(self, async_client: AsyncClient, admin_token, db_session: AsyncSession):
+    async def test_get_all_quotes_admin_success(self, async_client: AsyncClient, admin_headers, db_session: AsyncSession):
         """Test successful admin quote retrieval."""
         from backend.models.company import CompanyStatus
         
@@ -438,7 +445,7 @@ class TestAdminRoutes:
             total_amount=220000
         )
         
-        headers = {"Authorization": f"Bearer {admin_token}"}
+        headers = admin_headers
         
         response = await async_client.get("/api/v1/admin/quotes", headers=headers)
         
@@ -451,7 +458,7 @@ class TestAdminRoutes:
         assert data["pages"] == 1
     
     @pytest.mark.asyncio
-    async def test_update_quote_status_admin_success(self, async_client: AsyncClient, admin_token, db_session: AsyncSession):
+    async def test_update_quote_status_admin_success(self, async_client: AsyncClient, admin_headers, db_session: AsyncSession):
         """Test successful admin quote status update."""
         from backend.models.company import CompanyStatus
         
@@ -500,7 +507,7 @@ class TestAdminRoutes:
             "admin_notes": "Reviewed by admin"
         }
         
-        headers = {"Authorization": f"Bearer {admin_token}"}
+        headers = admin_headers
         
         response = await async_client.patch(f"/api/v1/admin/quotes/{quote.id}/status", json=status_data, headers=headers)
         

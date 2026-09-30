@@ -4,6 +4,7 @@ Serialization Utilities
 Helper functions to convert SQLAlchemy ORM objects to JSON-serializable dicts
 """
 
+import json
 from datetime import date, datetime
 from enum import Enum
 from typing import Any, List, Optional
@@ -76,3 +77,25 @@ def orm_list_to_dict_list(objects: List[Any], exclude: Optional[List[str]] = Non
         List of dict representations
     """
     return [orm_to_dict(obj, exclude=exclude) for obj in objects]
+
+
+def parse_json_list(value: Any) -> list:
+    """
+    Return a JSON-array value as a list.
+
+    Older rows stored lists JSON-encoded a second time (a string such as
+    '["/a.jpg"]' inside a JSON column); decode those instead of dropping them.
+    """
+    if value is None or value == "":
+        return []
+    if isinstance(value, list):
+        return value
+    if isinstance(value, str):
+        try:
+            decoded = json.loads(value)
+        except (TypeError, ValueError):
+            return [value] if value.strip() else []
+        if isinstance(decoded, str):
+            return parse_json_list(decoded)
+        return decoded if isinstance(decoded, list) else []
+    return []

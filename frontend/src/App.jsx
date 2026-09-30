@@ -9,7 +9,7 @@ import { EditModeProvider } from './contexts/EditModeContext';
 import { AdminAuthProvider } from './contexts/AdminAuthContext';
 import { ToastProvider } from './contexts/ToastContext';
 import { useEditMode } from './contexts/useEditMode';
-import { useAuthStore } from './store/authStore';
+import { useAuthStore, startAuthInit } from './store/authStore';
 import { useCartStore } from './store/cartStore';
 
 // Animation features (domAnimation) load in a separate chunk; m.* components
@@ -87,16 +87,29 @@ function AdminEditModeToggle() {
   );
 }
 
+// Restore/validate the session after mount, never before hydration: the
+// server can't see localStorage, so the first client render must match the
+// logged-out SSR markup. Rendered inside the route Suspense boundary.
+function AuthInit() {
+  useEffect(() => {
+    startAuthInit();
+  }, []);
+  return null;
+}
+
 function CartSync() {
   const authIsAuthenticated = useAuthStore((state) => state.isAuthenticated);
+  const authIsInitializing = useAuthStore((state) => state.isInitializing);
   const cartIsAuthenticated = useCartStore((state) => state.isAuthenticated);
   const switchToGuestMode = useCartStore((state) => state.switchToGuestMode);
 
   useEffect(() => {
+    // Wait for the session check; auth starts logged-out until it finishes
+    if (authIsInitializing) return;
     if (!authIsAuthenticated && cartIsAuthenticated) {
       switchToGuestMode();
     }
-  }, [authIsAuthenticated, cartIsAuthenticated, switchToGuestMode]);
+  }, [authIsAuthenticated, authIsInitializing, cartIsAuthenticated, switchToGuestMode]);
 
   return null;
 }
@@ -113,6 +126,10 @@ function App() {
                 <ScrollToTop />
                 <AdminEditModeToggle />
                 <Suspense fallback={null}>
+                  {/* Inside the route boundary on purpose: its effect runs only
+                      after the (lazy) page has hydrated, so the auth store
+                      update can't interrupt hydration (React error #421). */}
+                  <AuthInit />
                   <Routes>
           {/* Public Routes */}
           <Route path="/login" element={<LoginPage />} />

@@ -114,6 +114,18 @@ export default cache;
  */
 const inflightFetches = new Map();
 
+// Bumped whenever a key is invalidated, so a request that was already in
+// flight can't write its (stale) result back after the invalidation.
+const keyGenerations = new Map();
+let globalGeneration = 0;
+const generationOf = (key) => `${globalGeneration}:${keyGenerations.get(key) || 0}`;
+
+const bumpKey = (key) => {
+  keyGenerations.set(key, (keyGenerations.get(key) || 0) + 1);
+  // Later callers must start a fresh request rather than join the stale one
+  inflightFetches.delete(key);
+};
+
 export const cachedFetch = async (key, fetchFn, ttl) => {
   // Check cache first
   const cached = cache.get(key);
@@ -125,13 +137,18 @@ export const cachedFetch = async (key, fetchFn, ttl) => {
   if (inflightFetches.has(key)) {
     return inflightFetches.get(key);
   }
+  const generation = generationOf(key);
   const promise = (async () => {
     try {
       const data = await fetchFn();
-      cache.set(key, data, ttl);
+      if (generationOf(key) === generation) {
+        cache.set(key, data, ttl);
+      }
       return data;
     } finally {
-      inflightFetches.delete(key);
+      if (inflightFetches.get(key) === promise) {
+        inflightFetches.delete(key);
+      }
     }
   })();
   inflightFetches.set(key, promise);
@@ -139,11 +156,16 @@ export const cachedFetch = async (key, fetchFn, ttl) => {
 };
 
 /**
- * Invalidate cache entries by pattern
- * @param {string} pattern - Pattern to match cache keys (supports wildcards)
+ * Read a cached value without fetching (null when missing/expired).
+ */
+export const peekCache = (key) => cache.get(key);
+
+/**
+ * Delete one cache key (and discard any in-flight result for it)
  * @returns {number} Number of entries invalidated
  */
 export const deleteCacheKey = (key) => {
+  bumpKey(key);
   if (cache.cache.has(key)) {
     cache.delete(key);
     return 1;
@@ -151,12 +173,20 @@ export const deleteCacheKey = (key) => {
   return 0;
 };
 
+/**
+ * Invalidate cache entries by pattern
+ * @param {string} pattern - Pattern to match cache keys (supports wildcards)
+ * @returns {number} Number of entries invalidated
+ */
 export const invalidateCache = (pattern) => {
   let count = 0;
 
   if (pattern === '*') {
+    count = cache.size();
     cache.clear();
-    return cache.size();
+    globalGeneration += 1;
+    inflightFetches.clear();
+    return count;
   }
 
   const regex = new RegExp('^' + pattern.replace(/\*/g, '.*') + '$');
@@ -167,8 +197,12 @@ export const invalidateCache = (pattern) => {
       keysToDelete.push(key);
     }
   }
+  for (const key of [...inflightFetches.keys()]) {
+    if (regex.test(key)) bumpKey(key);
+  }
 
   keysToDelete.forEach(key => {
+    bumpKey(key);
     cache.delete(key);
     count++;
   });

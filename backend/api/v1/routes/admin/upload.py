@@ -9,7 +9,6 @@ import mimetypes
 import secrets
 import time
 from pathlib import Path
-from urllib.parse import urlparse
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
 from pydantic import BaseModel
@@ -290,25 +289,9 @@ async def delete_image(
     **Admin only** - Requires admin authentication.
     """
     try:
-        raw = request.url.strip()
-        if raw.startswith(("http://", "https://")):
-            try:
-                parsed = urlparse(raw)
-                url_path = (parsed.path or "").lstrip("/")
-            except Exception:
-                url_path = raw
-        else:
-            url_path = raw.lstrip("/")
-        if not url_path.startswith("uploads/"):
-            raise HTTPException(status_code=400, detail="Invalid file path")
-        relative_path = url_path.replace("uploads/", "", 1)
-        file_path = UPLOAD_BASE_DIR / relative_path
-        try:
-            file_path = file_path.resolve()
-            base_resolved = UPLOAD_BASE_DIR.resolve()
-            if not file_path.is_relative_to(base_resolved) or not file_path.relative_to(base_resolved).parts[0] == "images":
-                raise HTTPException(status_code=400, detail="Invalid file path - outside upload directory")
-        except (ValueError, OSError):
+        url_path = request.url.strip()
+        file_path = media_service.resolve_uploaded_image_path(url_path, UPLOAD_BASE_DIR)
+        if file_path is None:
             raise HTTPException(status_code=400, detail="Invalid file path")
         if file_path.is_file():
             media_service.delete_image_files(file_path)

@@ -45,6 +45,8 @@ orjson==3.11.7
 # Database dependencies
 
 sqlalchemy==2.0.25
+# SQLAlchemy's asyncio support needs greenlet; its wheel only pulls it in on some platforms (not macOS arm64)
+greenlet==3.5.6
 
 asyncpg==0.29.0  # Keep for PostgreSQL support (local dev)
 

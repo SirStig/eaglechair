@@ -305,7 +305,7 @@ class TestAdminService:
         assert admin is not None
         assert admin.username == "newadmin"
         assert admin.email == "newadmin@test.com"
-        assert admin.role == AdminRole.MANAGER
+        assert admin.role == AdminRole.ADMIN
         assert admin.is_active is True
 
     async def test_recalculate_quote_totals_does_not_add_tax(self, db_session: AsyncSession):

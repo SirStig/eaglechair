@@ -14,26 +14,23 @@ import SEOHead from '../components/SEOHead';
 import { useEditMode } from '../contexts/useEditMode';
 import { useToast } from '../contexts/ToastContext';
 import { useHeroSlides, useClientLogos, useFeaturedProducts, usePageContent, useSiteSettings, useInstallations } from '../hooks/useContent';
-import {
-  updatePageContent,
-  updateHeroSlide,
-  updateClientLogo,
-  createHeroSlide,
-  createClientLogo,
-  deleteHeroSlide,
-  deleteClientLogo
-} from '../services/contentService';
 import CategoryTile from '../components/products/CategoryTile';
 import productService from '../services/productService';
 import { resolveImageUrl, ensureResolvedImageUrl, getImageSrcSet } from '../utils/apiHelpers';
 import ResponsiveImage from '../components/ui/ResponsiveImage';
 import logger from '../utils/logger';
-import { invalidateCache } from '../utils/cache';
+import { safeHref } from '../utils/safeUrl';
+import { isPublishFailed } from '../utils/cmsContentStore';
 
 const CONTEXT = 'HomePage';
 
 // Admin-only; fetched when edit mode is on
 const EditModal = lazy(() => import('../components/admin/EditModal'));
+// Admin-only write API; loaded on first save so public visitors never download it
+const loadCmsAdmin = () => import('../services/cmsAdminService');
+
+// The "Trusted by" client-logo strip is hidden for now
+const SHOW_CLIENT_LOGOS = false;
 
 const DEFAULT_BANNER = '/assets/default-banner-categories.webp';
 
@@ -61,27 +58,20 @@ const HomePage = () => {
   const { isEditMode } = useEditMode();
   const toast = useToast();
 
-  const { data: heroSlides, loading: heroLoading, refetch: refetchHero } = useHeroSlides();
-  const { data: clientLogos, refetch: refetchLogos } = useClientLogos();
+  const { data: heroSlides, loading: heroLoading } = useHeroSlides();
+  const { data: clientLogos } = useClientLogos();
   const { data: featuredProducts, loading: productsLoading } = useFeaturedProducts(4);
-  const { data: ctaSection, refetch: refetchCta } = usePageContent('home', 'cta');
-  const { data: installationGallerySection, refetch: refetchInstallationGallery } = usePageContent('home', 'installation_gallery');
+  const { data: ctaSection } = usePageContent('home', 'cta');
+  const { data: installationGallerySection } = usePageContent('home', 'installation_gallery');
   const { data: installations, loading: installationsLoading } = useInstallations();
 
-  // Handler for saving content updates
+  // Saves go through cmsAdminService; the API client then invalidates the
+  // shared content caches and every content hook re-fetches - no refetch here.
   const handleSaveContent = async (pageSlug, sectionKey, newData) => {
     try {
       logger.info(CONTEXT, `Saving content for ${pageSlug}/${sectionKey}`, newData);
+      const { updatePageContent } = await loadCmsAdmin();
       await updatePageContent(pageSlug, sectionKey, newData);
-
-      // Invalidate cache for this specific section
-      const cacheKey = `page-content-${pageSlug}-${sectionKey}`;
-      const invalidated = invalidateCache(cacheKey);
-      logger.debug(CONTEXT, `Invalidated ${invalidated} cache entries for ${cacheKey}`);
-
-      // Refetch the data to show updated content
-      if (pageSlug === 'home' && sectionKey === 'cta') refetchCta();
-      if (pageSlug === 'home' && sectionKey === 'installation_gallery') refetchInstallationGallery();
       logger.info(CONTEXT, 'Content saved successfully');
     } catch (error) {
       logger.error(CONTEXT, 'Failed to save content', error);
@@ -91,24 +81,9 @@ const HomePage = () => {
 
   // Hero Slides Handlers
   const handleUpdateHeroSlide = async (id, updates) => {
+    const { updateHeroSlide } = await loadCmsAdmin();
     await updateHeroSlide(id, updates);
-    invalidateCache('hero-slides');
-    refetchHero();
   };
-
-  /* eslint-disable no-unused-vars */
-  const handleCreateHeroSlide = async (newData) => {
-    await createHeroSlide(newData);
-    invalidateCache('hero-slides');
-    refetchHero();
-  };
-
-  const handleDeleteHeroSlide = async (id) => {
-    await deleteHeroSlide(id);
-    invalidateCache('hero-slides');
-    refetchHero();
-  };
-  /* eslint-enable no-unused-vars */
 
   useEffect(() => {
     const loadCategories = async () => {
@@ -140,32 +115,20 @@ const HomePage = () => {
 
   // Client Logos Handlers
   const handleUpdateClientLogo = async (id, updates) => {
+    const { updateClientLogo } = await loadCmsAdmin();
     await updateClientLogo(id, updates);
-    invalidateCache('client-logos');
-    refetchLogos();
   };
 
   const handleCreateClientLogo = async (newData) => {
     try {
+      const { createClientLogo } = await loadCmsAdmin();
       await createClientLogo(newData);
-      const invalidated = invalidateCache('client-logos');
-      logger.debug(CONTEXT, `Invalidated ${invalidated} cache entries for client-logos`);
-      await refetchLogos();
       setIsCreatingLogo(false);
     } catch (error) {
       logger.error(CONTEXT, 'Failed to create client logo', error);
       throw error;
     }
   };
-
-  /* eslint-disable no-unused-vars */
-  const handleDeleteClientLogo = async (id) => {
-    await deleteClientLogo(id);
-    const invalidated = invalidateCache('client-logos');
-    logger.debug(CONTEXT, `Invalidated ${invalidated} cache entries for client-logos`);
-    refetchLogos();
-  };
-  /* eslint-enable no-unused-vars */
 
   const slides = useMemo(() => heroSlides || [], [heroSlides]);
   const clients = clientLogos || [];
@@ -190,10 +153,13 @@ const HomePage = () => {
   // CTA section content - use hardcoded fallback
   const ctaTitle = ctaSection?.title || "Ready to Furnish Your Space?";
   const ctaContent = ctaSection?.content || "Get a custom quote for your restaurant or hospitality project. Our team is ready to help you create the perfect atmosphere.";
-  const ctaPrimaryText = ctaSection?.cta_text || "Request a Quote";
-  const ctaPrimaryLink = ctaSection?.cta_link || "/quote-request";
-  const ctaSecondaryText = ctaSection?.secondary_cta_text || "Find a Rep";
-  const ctaSecondaryLink = ctaSection?.secondary_cta_link || "/find-a-rep";
+  const ctaPrimaryText = ctaSection?.ctaText || ctaSection?.cta_text || "Request a Quote";
+  const ctaPrimaryLinkRaw = ctaSection?.ctaLink || ctaSection?.cta_link || "/quote-request";
+  const ctaSecondaryText = ctaSection?.secondaryCtaText || ctaSection?.secondary_cta_text || "Find a Rep";
+  const ctaSecondaryLinkRaw = ctaSection?.secondaryCtaLink || ctaSection?.secondary_cta_link || "/find-a-rep";
+  // CMS links only render when they pass the URL policy
+  const ctaPrimaryLink = safeHref(ctaPrimaryLinkRaw, '/quote-request');
+  const ctaSecondaryLink = safeHref(ctaSecondaryLinkRaw, '/find-a-rep');
 
   // SEO data
   const { data: siteSettings } = useSiteSettings();
@@ -267,13 +233,12 @@ const HomePage = () => {
         <HeroCarousel
           slides={slides}
           onUpdateSlide={handleUpdateHeroSlide}
-          refetch={refetchHero}
           loading={heroLoading}
         />
       </section>
 
 
-      {false && (
+      {SHOW_CLIENT_LOGOS && (
       <>
       {/* Trusted By - Infinite Scrolling Logos */}
       <section className="py-6 sm:py-8 md:py-10 lg:py-8 bg-dark-800 overflow-hidden">
@@ -353,8 +318,6 @@ const HomePage = () => {
                     type="client-logo"
                     data={client}
                     onSave={(newData) => handleUpdateClientLogo(client.id, newData)}
-                    refetch={refetchLogos}
-                    cacheKey="client-logos"
                     label={`Logo: ${client.name}`}
                     className={`flex-shrink-0 px-3 sm:px-6 md:px-8 mx-1 sm:mx-2 md:mx-4 ${isEditMode ? 'inline-block' : ''}`}
                   >
@@ -385,10 +348,13 @@ const HomePage = () => {
                               message: `Are you sure you want to delete ${client.name}? This action cannot be undone.`,
                               onConfirm: async () => {
                                 try {
-                                  await deleteClientLogo(client.id);
-                                  refetchLogos();
-                                  toast.success(`${client.name} deleted successfully`);
-                                } catch (err) {
+                                  const { deleteClientLogo } = await loadCmsAdmin();
+                                  const result = await deleteClientLogo(client.id);
+                                  // exported:false already shows a warning toast
+                                  if (!isPublishFailed(result)) {
+                                    toast.success(`${client.name} deleted successfully`);
+                                  }
+                                } catch {
                                   toast.error('Failed to delete client logo');
                                 }
                               }
@@ -690,8 +656,6 @@ const HomePage = () => {
             type="text"
             data={{ title: installationGalleryTitle }}
             onSave={(newData) => handleSaveContent('home', 'installation_gallery', { ...installationGallerySection, ...newData })}
-            refetch={refetchInstallationGallery}
-            cacheKey="page-content-home-installation_gallery"
             label="Installation Gallery Title"
           >
             <h2 className="text-2xl sm:text-3xl md:text-4xl font-bold mb-3 sm:mb-4 text-slate-800">{installationGalleryTitle}</h2>
@@ -701,8 +665,6 @@ const HomePage = () => {
             type="textarea"
             data={{ content: installationGallerySubtitle }}
             onSave={(newData) => handleSaveContent('home', 'installation_gallery', { ...installationGallerySection, ...newData })}
-            refetch={refetchInstallationGallery}
-            cacheKey="page-content-home-installation_gallery"
             label="Installation Gallery Subtitle"
           >
             <p className="text-lg sm:text-xl text-slate-600 max-w-2xl mx-auto">{installationGallerySubtitle}</p>
@@ -781,8 +743,6 @@ const HomePage = () => {
               type="text"
               data={{ title: ctaTitle }}
               onSave={(newData) => handleSaveContent('home', 'cta', { ...ctaSection, ...newData })}
-              refetch={refetchCta}
-              cacheKey="page-content-home-cta"
               label="CTA Title"
             >
               <h2 className="text-2xl sm:text-3xl md:text-4xl font-bold mb-4 sm:mb-6 text-slate-800">
@@ -795,8 +755,6 @@ const HomePage = () => {
               type="textarea"
               data={{ content: ctaContent }}
               onSave={(newData) => handleSaveContent('home', 'cta', { ...ctaSection, ...newData })}
-              refetch={refetchCta}
-              cacheKey="page-content-home-cta"
               label="CTA Content"
             >
               <p className="text-lg sm:text-xl mb-6 sm:mb-8 text-slate-600 leading-relaxed">
@@ -809,13 +767,11 @@ const HomePage = () => {
               type="object"
               data={{
                 cta_text: ctaPrimaryText,
-                cta_link: ctaPrimaryLink,
+                cta_link: ctaPrimaryLinkRaw,
                 secondary_cta_text: ctaSecondaryText,
-                secondary_cta_link: ctaSecondaryLink
+                secondary_cta_link: ctaSecondaryLinkRaw
               }}
               onSave={(newData) => handleSaveContent('home', 'cta', { ...ctaSection, ...newData })}
-              refetch={refetchCta}
-              cacheKey="page-content-home-cta"
               label="CTA Buttons"
             >
               <div className="flex flex-col sm:flex-row gap-3 sm:gap-4 justify-center px-4 sm:px-0">

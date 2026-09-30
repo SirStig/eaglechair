@@ -11,7 +11,6 @@ import VariationImageDisclaimer from '../components/ui/VariationImageDisclaimer'
 import EditableWrapper from '../components/admin/EditableWrapper';
 import SEOHead from '../components/SEOHead';
 import { useCartStore } from '../store/cartStore';
-import { updateProduct } from '../services/contentService';
 import productService from '../services/productService';
 import { getProductImages, getProductGalleryImages, resolveImageUrl, resolveFileUrl, variationHasOwnImage, getImageSrcSet } from '../utils/apiHelpers';
 import ResponsiveImage from '../components/ui/ResponsiveImage';
@@ -358,6 +357,8 @@ const ProductDetailPage = () => {
   const handleUpdateProduct = async (updates) => {
     try {
       logger.info(CONTEXT, `Updating product ${product.id}`);
+      // Admin-only write API; loaded on demand so public visitors never download it
+      const { updateProduct } = await import('../services/cmsAdminService');
       await updateProduct(product.id, updates);
       // Reload product
       loadProduct();

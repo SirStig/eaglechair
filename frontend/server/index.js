@@ -9,6 +9,7 @@
  *   npm run build:server   → dist/server/entry-server.js
  */
 
+/* global process */
 import express from 'express';
 import fs from 'fs';
 import path from 'path';
@@ -26,6 +27,53 @@ const PASSTHROUGH_PREFIXES = ['/api/', '/uploads/', '/data/', '/assets/'];
 
 function isPassthrough(url) {
   return PASSTHROUGH_PREFIXES.some((p) => url.startsWith(p));
+}
+
+// ── CMS content for SSR ──
+// The backend (re)exports contentData.json into the built dist/data folder;
+// in dev Vite serves it from public/data. CONTENT_DATA_PATH overrides both.
+const CONTENT_DATA_PATH = process.env.CONTENT_DATA_PATH ||
+  path.resolve(ROOT, isProduction ? 'dist/data/contentData.json' : 'public/data/contentData.json');
+
+// Same shape check as src/utils/contentDataLoader.js - the client only adopts
+// the embedded payload when it passes, so the server must agree.
+const REQUIRED_CONTENT_KEYS = ['siteSettings', 'heroSlides', 'salesReps'];
+
+let contentFileCache = { mtimeMs: -1, size: -1, data: null };
+
+/**
+ * Read contentData.json, re-parsing only when the file's mtime/size change.
+ * A half-written file (backend export in progress) keeps the last good copy.
+ */
+function loadInitialContent() {
+  try {
+    const stat = fs.statSync(CONTENT_DATA_PATH);
+    if (stat.mtimeMs !== contentFileCache.mtimeMs || stat.size !== contentFileCache.size) {
+      const data = JSON.parse(fs.readFileSync(CONTENT_DATA_PATH, 'utf-8'));
+      const valid = data && typeof data === 'object' &&
+        REQUIRED_CONTENT_KEYS.every((key) => data[key] !== undefined);
+      contentFileCache = { mtimeMs: stat.mtimeMs, size: stat.size, data: valid ? data : null };
+    }
+  } catch (err) {
+    if (err.code === 'ENOENT') {
+      contentFileCache = { mtimeMs: -1, size: -1, data: null };
+    } else {
+      console.warn('[SSR] Could not read contentData.json:', err.message);
+    }
+  }
+  return contentFileCache.data;
+}
+
+/**
+ * Serialize for an inline <script>. Escaping "<" prevents "</script>" (or
+ * "<!--") inside CMS text from breaking out of the script element; U+2028/9
+ * are escaped for older JS parsers.
+ */
+function serializeForScript(value) {
+  return JSON.stringify(value)
+    .replace(/</g, '\\u003c')
+    .replace(/\u2028/g, '\\u2028')
+    .replace(/\u2029/g, '\\u2029');
 }
 
 async function createServer() {
@@ -87,8 +135,12 @@ async function createServer() {
         render = productionRender;
       }
 
+      // CMS content is rendered into the HTML and handed to the client, so
+      // hydration starts from the same data (no loading flash / mismatch)
+      const initialContent = loadInitialContent();
+
       // Render the React tree and collect head tags from HelmetProvider
-      const { pipe, helmet } = await render(url);
+      const { pipe, helmet } = await render(url, { initialContent });
 
       const headTags = helmet
         ? [
@@ -113,9 +165,15 @@ async function createServer() {
         pipe(sink);
       });
 
+      const contentScript = initialContent
+        ? `<script>window.__INITIAL_CONTENT__=${serializeForScript(initialContent)};</script>`
+        : '';
+
+      // Use replacer functions: `$` sequences in CMS text must not be
+      // interpreted as String.replace patterns.
       let html = template
-        .replace('<!--ssr-head-->', headTags)
-        .replace('<!--ssr-outlet-->', body);
+        .replace('<!--ssr-head-->', () => headTags + contentScript)
+        .replace('<!--ssr-outlet-->', () => body);
 
       // When SSR injects a <title>, strip the static default to avoid duplicates.
       // The static default remains as fallback when SSR is bypassed (pure SPA via FastAPI).

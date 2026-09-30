@@ -7,20 +7,17 @@ import USMapInteractive from '../components/USMapInteractive';
 import EditableWrapper from '../components/admin/EditableWrapper';
 import EditableList from '../components/admin/EditableList';
 import { useSalesReps, useSiteSettings } from '../hooks/useContent';
-import {
-  updateSalesRep,
-  createSalesRep,
-  deleteSalesRep
-} from '../services/contentService';
-import { invalidateCache } from '../utils/cache';
 import logger from '../utils/logger';
 
 const CONTEXT = 'FindARepPage';
 
+// Admin-only write API; loaded on first save so public visitors never download it
+const loadCmsAdmin = () => import('../services/cmsAdminService');
+
 const FindARepPage = () => {
   const [selectedState, setSelectedState] = useState(null);
   const [hoveredState, setHoveredState] = useState(null);
-  const { data: salesReps, refetch } = useSalesReps();
+  const { data: salesReps } = useSalesReps();
   const { data: siteSettings } = useSiteSettings();
 
   // Use API data with memoization
@@ -38,9 +35,8 @@ const FindARepPage = () => {
   const handleUpdateRep = async (id, updates) => {
     try {
       logger.info(CONTEXT, `Updating sales rep ${id}`);
+      const { updateSalesRep } = await loadCmsAdmin();
       await updateSalesRep(id, updates);
-      invalidateCache('sales-reps');
-      refetch();
       logger.info(CONTEXT, 'Sales rep updated successfully');
     } catch (error) {
       logger.error(CONTEXT, 'Failed to update sales rep', error);
@@ -51,9 +47,8 @@ const FindARepPage = () => {
   const handleCreateRep = async (newData) => {
     try {
       logger.info(CONTEXT, 'Creating new sales rep');
+      const { createSalesRep } = await loadCmsAdmin();
       await createSalesRep(newData);
-      invalidateCache('sales-reps');
-      refetch();
       logger.info(CONTEXT, 'Sales rep created successfully');
     } catch (error) {
       logger.error(CONTEXT, 'Failed to create sales rep', error);
@@ -64,9 +59,8 @@ const FindARepPage = () => {
   const handleDeleteRep = async (id) => {
     try {
       logger.info(CONTEXT, `Deleting sales rep ${id}`);
+      const { deleteSalesRep } = await loadCmsAdmin();
       await deleteSalesRep(id);
-      invalidateCache('sales-reps');
-      refetch();
       logger.info(CONTEXT, 'Sales rep deleted successfully');
     } catch (error) {
       logger.error(CONTEXT, 'Failed to delete sales rep', error);

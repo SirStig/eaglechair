@@ -32,6 +32,12 @@ def load_environment_file():
         load_dotenv(fill_env, override=True)
         return
 
+    # The test suite configures everything through the process environment
+    # (tests/conftest.py). A developer's backend/.env.local (local Postgres,
+    # Redis, DEBUG, CORS, ...) must never leak into test settings.
+    if os.environ.get("TESTING", "").strip().lower() in ("1", "true", "yes"):
+        return
+
     # Preserve variables that were already set in the process environment
     # (e.g. by tests via os.environ[...] before app import) so that values
     # from .env files never clobber them, regardless of file priority order.

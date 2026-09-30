@@ -8,23 +8,27 @@ import Button from '../components/ui/Button';
 import Input from '../components/ui/Input';
 import EditableWrapper from '../components/admin/EditableWrapper';
 import { useSiteSettings, usePageContent } from '../hooks/useContent';
-import { submitFeedback, updateSiteSettings, updatePageContent } from '../services/contentService';
+import { submitFeedback } from '../services/contentService';
 import logger from '../utils/logger';
 
 const CONTEXT = 'ContactPage';
 
+// Admin-only write API; loaded on first save so public visitors never download it
+const loadCmsAdmin = () => import('../services/cmsAdminService');
+
 const ContactPage = () => {
   const [submitStatus, setSubmitStatus] = useState(null);
   const { register, handleSubmit, formState: { errors }, reset } = useForm();
-  const { data: siteSettings, refetch: refetchSettings } = useSiteSettings();
-  const { data: headerSection, refetch: refetchHeader } = usePageContent('contact', 'header');
+  const { data: siteSettings } = useSiteSettings();
+  const { data: headerSection } = usePageContent('contact', 'header');
 
-  // Handler for updating site settings
+  // Saves go through cmsAdminService; the API client then invalidates the
+  // shared content caches so every hook (incl. Header/Footer) re-fetches.
   const handleUpdateSettings = async (updates) => {
     try {
       logger.info(CONTEXT, 'Updating site settings');
+      const { updateSiteSettings } = await loadCmsAdmin();
       await updateSiteSettings(updates);
-      refetchSettings();
       logger.info(CONTEXT, 'Site settings updated successfully');
     } catch (error) {
       logger.error(CONTEXT, 'Failed to update site settings', error);
@@ -36,8 +40,8 @@ const ContactPage = () => {
   const handleUpdatePageContent = async (pageSlug, sectionKey, updates) => {
     try {
       logger.info(CONTEXT, `Updating page content for ${pageSlug}/${sectionKey}`);
+      const { updatePageContent } = await loadCmsAdmin();
       await updatePageContent(pageSlug, sectionKey, updates);
-      refetchHeader();
       logger.info(CONTEXT, 'Page content updated successfully');
     } catch (error) {
       logger.error(CONTEXT, 'Failed to update page content', error);
@@ -59,7 +63,7 @@ const ContactPage = () => {
       setSubmitStatus('success');
       reset();
       setTimeout(() => setSubmitStatus(null), 5000);
-    } catch (error) {
+    } catch {
       setSubmitStatus('error');
     }
   };

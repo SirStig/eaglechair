@@ -3,13 +3,18 @@ import { m } from 'framer-motion';
 import Button from '../ui/Button';
 import Card from '../ui/Card';
 import Input from '../ui/Input';
-import { getSiteSettingsAdmin, updateSiteSettings } from '../../services/contentService';
+import { getSiteSettingsAdmin, updateSiteSettings } from '../../services/cmsAdminService';
+import { isPublishFailed } from '../../utils/cmsContentStore';
+import { isSafeUrl, URL_POLICY_MESSAGE } from '../../utils/safeUrl';
 import { uploadImage } from '../../utils/imageUpload';
 import { useToast } from '../../contexts/ToastContext';
 import logger from '../../utils/logger';
 import ResponsiveImage from '../ui/ResponsiveImage';
 
 const CONTEXT = 'SiteSettingsManager';
+
+// Link fields validated against the shared URL policy before saving
+const URL_FIELDS = ['facebook_url', 'instagram_url', 'linkedin_url', 'twitter_url', 'youtube_url'];
 
 /**
  * SiteSettingsManager Component
@@ -27,6 +32,7 @@ const SiteSettingsManager = () => {
   const [saving, setSaving] = useState(false);
   const [uploadingLogo, setUploadingLogo] = useState(false);
   const [success, setSuccess] = useState(false);
+  const [fieldErrors, setFieldErrors] = useState({});
   const toast = useToast();
 
   // Fetch site settings from API (admin version - always gets DB data)
@@ -49,6 +55,12 @@ const SiteSettingsManager = () => {
   const handleChange = (e) => {
     const { name, value } = e.target;
     setFormData(prev => ({ ...prev, [name]: value }));
+    setFieldErrors(prev => {
+      if (!prev[name]) return prev;
+      const next = { ...prev };
+      delete next[name];
+      return next;
+    });
   };
 
   const handleLogoUpload = async (e, fieldName) => {
@@ -71,12 +83,29 @@ const SiteSettingsManager = () => {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+
+    const errors = {};
+    URL_FIELDS.forEach((field) => {
+      if (!isSafeUrl(formData[field])) errors[field] = URL_POLICY_MESSAGE;
+    });
+    setFieldErrors(errors);
+    if (Object.keys(errors).length > 0) {
+      toast.error('Please fix the highlighted links before saving.');
+      return;
+    }
     
     try {
       setSaving(true);
       logger.info(CONTEXT, 'Updating site settings');
-      await updateSiteSettings(formData);
+      // The API client clears the public content caches after this write
+      const response = await updateSiteSettings(formData);
       await fetchSettings(); // Refresh data after update
+      if (isPublishFailed(response)) {
+        // Saved to the DB but not published; the warning toast is shown
+        // globally (ToastProvider), so no success message here.
+        logger.warn(CONTEXT, 'Site settings saved but not published');
+        return;
+      }
       setSuccess(true);
       setTimeout(() => setSuccess(false), 3000);
       toast.success('Settings updated successfully');
@@ -325,6 +354,7 @@ const SiteSettingsManager = () => {
               type="url"
               value={formData.facebook_url || ''}
               onChange={handleChange}
+              error={fieldErrors.facebook_url}
             />
             <Input
               label="Instagram URL"
@@ -332,6 +362,7 @@ const SiteSettingsManager = () => {
               type="url"
               value={formData.instagram_url || ''}
               onChange={handleChange}
+              error={fieldErrors.instagram_url}
             />
             <Input
               label="LinkedIn URL"
@@ -339,6 +370,7 @@ const SiteSettingsManager = () => {
               type="url"
               value={formData.linkedin_url || ''}
               onChange={handleChange}
+              error={fieldErrors.linkedin_url}
             />
             <Input
               label="Twitter URL"
@@ -346,6 +378,7 @@ const SiteSettingsManager = () => {
               type="url"
               value={formData.twitter_url || ''}
               onChange={handleChange}
+              error={fieldErrors.twitter_url}
             />
             <Input
               label="YouTube URL"
@@ -353,6 +386,7 @@ const SiteSettingsManager = () => {
               type="url"
               value={formData.youtube_url || ''}
               onChange={handleChange}
+              error={fieldErrors.youtube_url}
             />
           </div>
         </Card>

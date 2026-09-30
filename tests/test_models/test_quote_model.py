@@ -30,11 +30,11 @@ class TestQuoteModel:
             rep_last_name="Doe",
             rep_email="john@test.com",
             rep_phone="+1234567890",
-            shipping_address_line1="123 Main St",
-            shipping_city="Test City",
-            shipping_state="TS",
-            shipping_zip="12345",
-            shipping_country="USA",
+            billing_address_line1="123 Main St",
+            billing_city="Test City",
+            billing_state="TS",
+            billing_zip="12345",
+            billing_country="USA",
             hashed_password=security_manager.hash_password("TestPassword123!"),
             status=CompanyStatus.ACTIVE
         )
@@ -78,11 +78,11 @@ class TestQuoteModel:
             rep_last_name="Doe",
             rep_email="john@test.com",
             rep_phone="+1234567890",
-            shipping_address_line1="123 Main St",
-            shipping_city="Test City",
-            shipping_state="TS",
-            shipping_zip="12345",
-            shipping_country="USA",
+            billing_address_line1="123 Main St",
+            billing_city="Test City",
+            billing_state="TS",
+            billing_zip="12345",
+            billing_country="USA",
             hashed_password=security_manager.hash_password("TestPassword123!"),
             status=CompanyStatus.ACTIVE
         )
@@ -135,11 +135,11 @@ class TestQuoteModel:
             rep_last_name="Doe",
             rep_email="john@test.com",
             rep_phone="+1234567890",
-            shipping_address_line1="123 Main St",
-            shipping_city="Test City",
-            shipping_state="TS",
-            shipping_zip="12345",
-            shipping_country="USA",
+            billing_address_line1="123 Main St",
+            billing_city="Test City",
+            billing_state="TS",
+            billing_zip="12345",
+            billing_country="USA",
             hashed_password=security_manager.hash_password("TestPassword123!"),
             status=CompanyStatus.ACTIVE
         )
@@ -169,7 +169,8 @@ class TestQuoteModel:
         await db_session.commit()
         
         # Query quotes through company relationship
-        await db_session.refresh(company)
+        # Async sessions can't lazy-load; load the relationship explicitly
+        await db_session.refresh(company, attribute_names=["quotes"])
         assert len(company.quotes) == 3
 
 
@@ -187,11 +188,11 @@ class TestQuoteItemModel:
             rep_last_name="Doe",
             rep_email="john@test.com",
             rep_phone="+1234567890",
-            shipping_address_line1="123 Main St",
-            shipping_city="Test City",
-            shipping_state="TS",
-            shipping_zip="12345",
-            shipping_country="USA",
+            billing_address_line1="123 Main St",
+            billing_city="Test City",
+            billing_state="TS",
+            billing_zip="12345",
+            billing_country="USA",
             hashed_password=security_manager.hash_password("TestPassword123!"),
             status=CompanyStatus.ACTIVE
         )
@@ -244,10 +245,13 @@ class TestQuoteItemModel:
         # Create quote item
         quote_item = QuoteItem(
             quote_id=quote.id,
-            chair_id=chair.id,
+            product_id=chair.id,
+            product_model_number=chair.model_number,
+            product_name=chair.name,
             quantity=10,
             unit_price=10000,
-            custom_notes="Custom finish required"
+            line_total=100000,
+            item_notes="Custom finish required"
         )
         
         db_session.add(quote_item)
@@ -256,7 +260,7 @@ class TestQuoteItemModel:
         
         assert quote_item.id is not None
         assert quote_item.quote_id == quote.id
-        assert quote_item.chair_id == chair.id
+        assert quote_item.product_id == chair.id
         assert quote_item.quantity == 10
         assert quote_item.unit_price == 10000
 
@@ -275,11 +279,11 @@ class TestCartModel:
             rep_last_name="Doe",
             rep_email="john@test.com",
             rep_phone="+1234567890",
-            shipping_address_line1="123 Main St",
-            shipping_city="Test City",
-            shipping_state="TS",
-            shipping_zip="12345",
-            shipping_country="USA",
+            billing_address_line1="123 Main St",
+            billing_city="Test City",
+            billing_state="TS",
+            billing_zip="12345",
+            billing_country="USA",
             hashed_password=security_manager.hash_password("TestPassword123!"),
             status=CompanyStatus.ACTIVE
         )
@@ -317,11 +321,11 @@ class TestCartItemModel:
             rep_last_name="Doe",
             rep_email="john@test.com",
             rep_phone="+1234567890",
-            shipping_address_line1="123 Main St",
-            shipping_city="Test City",
-            shipping_state="TS",
-            shipping_zip="12345",
-            shipping_country="USA",
+            billing_address_line1="123 Main St",
+            billing_city="Test City",
+            billing_state="TS",
+            billing_zip="12345",
+            billing_country="USA",
             hashed_password=security_manager.hash_password("TestPassword123!"),
             status=CompanyStatus.ACTIVE
         )
@@ -363,10 +367,11 @@ class TestCartItemModel:
         # Create cart item
         cart_item = CartItem(
             cart_id=cart.id,
-            chair_id=chair.id,
+            product_id=chair.id,
             quantity=5,
             unit_price=10000,
-            custom_notes="Special requirements"
+            line_total=50000,
+            item_notes="Special requirements"
         )
         
         db_session.add(cart_item)
@@ -375,6 +380,6 @@ class TestCartItemModel:
         
         assert cart_item.id is not None
         assert cart_item.cart_id == cart.id
-        assert cart_item.chair_id == chair.id
+        assert cart_item.product_id == chair.id
         assert cart_item.quantity == 5
 

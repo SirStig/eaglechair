@@ -11,22 +11,20 @@ Public READ-ONLY routes for CMS-managed display content:
 - Installation gallery (photo gallery with descriptions)
 - Page content (dynamic page sections)
 - Featured products
-- Static content file (contentData.js)
 
 All endpoints are public GET requests. For ADMIN operations (create, update, delete)
 with static file export, see cms_admin.py.
 
 These endpoints query the database and use default_content as fallback if database
-is empty. Admin updates automatically export to static JavaScript files for instant
-frontend loading via the cms_admin.py endpoints.
+is empty. Admin updates automatically export to static JSON files (contentData.json)
+for instant frontend loading via the cms_admin.py endpoints.
 """
 
 import logging
-from pathlib import Path
 from typing import Optional
 
 from fastapi import APIRouter, Depends, Query
-from fastapi.responses import PlainTextResponse
+from pydantic import BaseModel
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -41,7 +39,6 @@ from backend.api.v1.schemas.content import (
     PageContentItemResponse,
     SalesRepresentativeResponse,
 )
-from backend.api.v1.schemas.product import ChairResponse
 from backend.database.base import get_db
 from backend.models.chair import Chair
 from backend.models.content import (
@@ -57,6 +54,7 @@ from backend.models.content import (
 )
 from backend.models.legal import LegalDocument, ShippingPolicy, WarrantyInformation
 from backend.services.default_content_service import default_content
+from backend.utils.serializers import parse_json_list
 
 logger = logging.getLogger(__name__)
 
@@ -356,7 +354,7 @@ async def get_company_milestones(db: AsyncSession = Depends(get_db)):
     result = await db.execute(
         select(CompanyMilestone)
         .where(CompanyMilestone.is_active == True)
-        .order_by(CompanyMilestone.year, CompanyMilestone.display_order)
+        .order_by(CompanyMilestone.display_order, CompanyMilestone.year)
     )
     milestones = result.scalars().all()
     
@@ -449,7 +447,9 @@ async def get_installations(
     
     **Public endpoint** - No authentication required.
     
-    Can filter by project_type (e.g., 'restaurant', 'hotel', 'office')
+    Can filter by project_type (e.g., 'restaurant', 'hotel', 'office').
+    Returns the same shape as galleryImages in contentData.json (plus extra
+    camelCase aliases), so the frontend can use either source.
     """
     logger.info(f"Fetching installations (project_type={project_type})")
     
@@ -473,7 +473,7 @@ async def get_installations(
             "location": installation.location,
             "description": installation.description,
             "completionDate": installation.completion_date if installation.completion_date else None,
-            "images": installation.images or [],
+            "images": parse_json_list(installation.images),
             "primaryImage": installation.primary_image,
             "url": installation.primary_image,
             "clientName": installation.client_name,
@@ -577,9 +577,27 @@ async def get_page_content(
 # Featured Products
 # ============================================================================
 
+class FeaturedProductResponse(BaseModel):
+    """Featured product card (camelCase, as returned by /content/featured-products)"""
+    id: int
+    modelNumber: str
+    name: str
+    slug: Optional[str] = None
+    shortDescription: Optional[str] = None
+    basePrice: Optional[float] = None  # In cents
+    msrp: Optional[float] = None  # In cents
+    primaryImage: Optional[str] = None
+    thumbnail: Optional[str] = None
+    images: list = []
+    isFeatured: bool
+    isNew: bool
+    stockStatus: Optional[str] = None
+    categoryId: Optional[int] = None
+
+
 @router.get(
     "/featured-products",
-    response_model=list[ChairResponse],
+    response_model=list[FeaturedProductResponse],
     summary="Get featured products",
     description="Retrieve products marked as featured for homepage display"
 )
@@ -611,9 +629,9 @@ async def get_featured_products(
             "shortDescription": product.short_description,
             "basePrice": float(product.base_price) if product.base_price else None,
             "msrp": float(product.msrp) if product.msrp else None,
-            "primaryImage": product.primary_image,
+            "primaryImage": product.primary_image_url,
             "thumbnail": product.thumbnail,
-            "images": product.images,
+            "images": parse_json_list(product.images),
             "isFeatured": product.is_featured,
             "isNew": product.is_new,
             "stockStatus": product.stock_status,
@@ -637,7 +655,7 @@ async def get_legal_documents(db: AsyncSession = Depends(get_db)):
     Get all active legal documents.
     
     **Public endpoint** - No authentication required.
-    **Static export** - Data exported to contentData.js for performance.
+    **Static export** - Data exported to static JSON for performance.
     """
     logger.info("Fetching legal documents")
     
@@ -676,7 +694,7 @@ async def get_warranties(db: AsyncSession = Depends(get_db)):
     Get all active warranties.
     
     **Public endpoint** - No authentication required.
-    **Static export** - Data exported to contentData.js for performance.
+    **Static export** - Data exported to static JSON for performance.
     """
     logger.info("Fetching warranties")
     
@@ -713,7 +731,7 @@ async def get_shipping_policies(db: AsyncSession = Depends(get_db)):
     Get all active shipping policies.
     
     **Public endpoint** - No authentication required.
-    **Static export** - Data exported to contentData.js for performance.
+    **Static export** - Data exported to static JSON for performance.
     """
     logger.info("Fetching shipping policies")
     
@@ -735,80 +753,3 @@ async def get_shipping_policies(db: AsyncSession = Depends(get_db)):
         }
         for p in policies
     ]
-
-
-# ============================================================================
-# Static Content Data File (for development)
-# ============================================================================
-
-@router.get(
-    "/contentData.js",
-    response_class=PlainTextResponse,
-    summary="Get static content data file",
-    description="Serves the generated contentData.js file for development mode",
-    include_in_schema=True
-)
-async def get_content_data_file():
-    """
-    Serve the contentData.js file.
-    
-    This endpoint allows the frontend to fetch the static content file
-    in development mode via API call. In production, the file should be
-    served from the dist folder directly.
-    
-    Returns:
-        JavaScript file content with all CMS data
-    """
-    # Try to find the contentData.js file
-    base_dir = Path(__file__).resolve().parent.parent.parent.parent
-    
-    # Check dist folder first (production build)
-    dist_file = base_dir / "frontend" / "dist" / "data" / "contentData.js"
-    if dist_file.exists():
-        logger.debug(f"Serving contentData from dist: {dist_file}")
-        with open(dist_file, 'r', encoding='utf-8') as f:
-            return f.read()
-    
-    # Check src folder (development)
-    src_file = base_dir / "frontend" / "src" / "data" / "contentData.js"
-    if src_file.exists():
-        logger.debug(f"Serving contentData from src: {src_file}")
-        with open(src_file, 'r', encoding='utf-8') as f:
-            return f.read()
-    
-    # File not found - return empty default
-    logger.warning("contentData.js not found, returning empty defaults")
-    return """
-/**
- * Static CMS Content Data - Empty Defaults
- * 
- * This file has not been generated yet.
- * To populate it:
- * 1. Ensure backend is connected to database
- * 2. Access CMS admin panel and create content
- * 3. Or call POST /api/v1/cms-admin/export-all endpoint
- */
-
-export const siteSettings = null;
-export const heroSlides = [];
-export const companyInfo = [];
-export const teamMembers = [];
-export const companyValues = [];
-export const companyMilestones = [];
-export const salesReps = [];
-export const galleryImages = [];
-export const clientLogos = [];
-export const features = [];
-export const contactLocations = [];
-export const pageContent = [];
-
-export const getSiteSetting = (key, defaultValue = null) => defaultValue;
-export const getRepByState = (stateCode) => null;
-export const getPageContent = (pageSlug, sectionKey) => null;
-
-export const CONTENT_METADATA = {
-  lastUpdated: 'never',
-  version: '1.0.0',
-  generatedBy: 'Not yet generated'
-};
-"""

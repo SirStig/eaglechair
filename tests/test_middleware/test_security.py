@@ -14,12 +14,20 @@ class TestSecurityMiddleware:
     """Test cases for security middleware"""
     
     async def test_cors_headers(self, async_client: AsyncClient):
-        """Test that CORS headers are present."""
-        response = await async_client.get("/api/v1/products")
+        """Test that CORS headers are present for allowed origins only."""
+        from backend.core.config import settings
+
+        # CORS headers are only added for a cross-origin request from an
+        # allowed origin (the client's default Origin is its own, same-origin)
+        allowed_origin = settings.CORS_ORIGINS[0]
+        response = await async_client.get("/api/v1/products", headers={"Origin": allowed_origin})
         
-        # Check for CORS headers
-        assert "access-control-allow-origin" in response.headers or \
-               "Access-Control-Allow-Origin" in response.headers
+        assert response.headers.get("access-control-allow-origin") == allowed_origin
+
+        response = await async_client.get(
+            "/api/v1/products", headers={"Origin": "https://evil.example.com"}
+        )
+        assert "access-control-allow-origin" not in response.headers
     
     async def test_security_headers(self, async_client: AsyncClient):
         """Test that security headers are present."""

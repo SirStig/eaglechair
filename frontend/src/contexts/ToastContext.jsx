@@ -1,5 +1,6 @@
-import { createContext, useContext, useState, useCallback } from 'react';
+import { createContext, useContext, useState, useCallback, useEffect } from 'react';
 import { ToastContainer } from '../components/ui/Toast';
+import { CMS_PUBLISH_FAILED_EVENT, CMS_PUBLISH_FAILED_MESSAGE } from '../utils/cmsContentStore';
 
 const ToastContext = createContext(null);
 
@@ -26,6 +27,20 @@ export const ToastProvider = ({ children }) => {
     
     return id;
   }, []);
+
+  // A /cms-admin write saved to the DB but could not be published to the
+  // live site (`exported: false`). Warn once per burst of writes.
+  useEffect(() => {
+    let lastShown = 0;
+    const handlePublishFailed = (event) => {
+      const now = Date.now();
+      if (now - lastShown < 3000) return;
+      lastShown = now;
+      showToast(event?.detail?.message || CMS_PUBLISH_FAILED_MESSAGE, 'warning', 10000);
+    };
+    window.addEventListener(CMS_PUBLISH_FAILED_EVENT, handlePublishFailed);
+    return () => window.removeEventListener(CMS_PUBLISH_FAILED_EVENT, handlePublishFailed);
+  }, [showToast]);
 
   // Convenience methods for common toast types
   const toast = {

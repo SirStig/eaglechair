@@ -6,6 +6,7 @@ Integration tests for authentication routes
 
 import pytest
 from httpx import AsyncClient
+from sqlalchemy import select
 
 from backend.models.company import Company, CompanyStatus
 
@@ -16,7 +17,7 @@ class TestAuthRoutes:
     """Test cases for authentication routes"""
     
     @pytest.mark.asyncio
-    async def test_register_company_success(self, async_client: AsyncClient):
+    async def test_register_company_success(self, async_client: AsyncClient, db_session):
         """Test successful company registration."""
         company_data = {
             "company_name": "Test Company Inc",
@@ -34,14 +35,26 @@ class TestAuthRoutes:
         
         response = await async_client.post("/api/v1/auth/register", json=company_data)
         
+        # Registration no longer logs the company in: it must verify its
+        # email first, so no tokens or session are issued here
         assert response.status_code == 201
         data = response.json()
-        assert "access_token" in data
-        assert "refresh_token" in data
-        assert "user" in data
-        assert data["user"]["companyName"] == company_data["company_name"]
-        assert data["user"]["email"] == company_data["rep_email"]
-        assert data["user"]["status"] == "pending"
+        assert data["email"] == company_data["rep_email"]
+        assert data["verified"] is False
+        assert "access_token" not in data
+        assert "refresh_token" not in data
+        assert not any(
+            c.startswith(("access_token=", "refresh_token="))
+            for c in response.headers.get_list("set-cookie")
+        )
+
+        result = await db_session.execute(
+            select(Company).where(Company.rep_email == company_data["rep_email"])
+        )
+        company = result.scalar_one()
+        assert company.company_name == company_data["company_name"]
+        assert company.status == CompanyStatus.PENDING
+        assert company.is_verified is False
     
     @pytest.mark.asyncio
     async def test_register_company_duplicate_email(self, async_client: AsyncClient):

@@ -2,12 +2,13 @@ import { Link } from 'react-router-dom';
 import { m } from 'framer-motion';
 import { useSiteSettings } from '../../hooks/useContent';
 import SiteLogo from '../ui/SiteLogo';
+import { safeHref } from '../../utils/safeUrl';
 
 const Footer = () => {
   const currentYear = new Date().getFullYear();
   // siteSettings comes from contentData.json via useSiteSettings hook
   // contentData is loaded dynamically from /data/contentData.js
-  const { data: siteSettings, loading } = useSiteSettings();
+  const { data: siteSettings } = useSiteSettings();
   
   // Hardcoded footer links - static navigation links (not from contentData)
   const footerLinks = {
@@ -47,6 +48,10 @@ const Footer = () => {
   const zipCode = siteSettings?.zipCode || '';
   const primaryPhone = siteSettings?.primaryPhone || '';
   const primaryEmail = siteSettings?.primaryEmail || '';
+  // CMS links only render when they pass the URL policy
+  const facebookUrl = safeHref(siteSettings?.facebookUrl);
+  const instagramUrl = safeHref(siteSettings?.instagramUrl);
+  const linkedinUrl = safeHref(siteSettings?.linkedinUrl);
 
   return (
     <footer className="relative z-10 bg-dark-900 text-dark-100 border-t border-dark-500">
@@ -63,9 +68,9 @@ const Footer = () => {
               <p className="text-sm mb-3 sm:mb-4 text-dark-200 max-w-xs">Family-owned manufacturer since 1984.</p>
               {/* Social media links from contentData.json */}
               <div className="flex space-x-4 justify-center sm:justify-start">
-                {siteSettings?.facebookUrl && (
+                {facebookUrl && (
                   <m.a 
-                    href={siteSettings.facebookUrl} 
+                    href={facebookUrl} 
                     target="_blank" 
                     rel="noopener noreferrer" 
                     className="hover:text-primary-500" 
@@ -76,9 +81,9 @@ const Footer = () => {
                     </svg>
                   </m.a>
                 )}
-                {siteSettings?.instagramUrl && (
+                {instagramUrl && (
                   <m.a 
-                    href={siteSettings.instagramUrl} 
+                    href={instagramUrl} 
                     target="_blank" 
                     rel="noopener noreferrer" 
                     className="hover:text-primary-500" 
@@ -89,9 +94,9 @@ const Footer = () => {
                     </svg>
                   </m.a>
                 )}
-                {siteSettings?.linkedinUrl && (
+                {linkedinUrl && (
                   <m.a 
-                    href={siteSettings.linkedinUrl} 
+                    href={linkedinUrl} 
                     target="_blank" 
                     rel="noopener noreferrer" 
                     className="hover:text-primary-500" 

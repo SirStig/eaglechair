@@ -8,7 +8,7 @@ import json
 import logging
 from typing import Optional
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 from fastapi.responses import JSONResponse
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -186,7 +186,12 @@ async def get_all_products(
     return response_data
 
 
-@router.post("", summary="Create product (Admin)", description="Create a new product")
+@router.post(
+    "",
+    summary="Create product (Admin)",
+    description="Create a new product",
+    status_code=status.HTTP_201_CREATED,
+)
 async def create_product(
     product_data: ProductCreate,
     admin: AdminUser = Depends(require_role(AdminRole.ADMIN)),

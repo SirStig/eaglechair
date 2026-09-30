@@ -7,6 +7,7 @@ import { SEO } from '../config/seoConfig';
 import { Layers, Palette, Scissors, Book } from 'lucide-react';
 import LoadingSpinner from '../components/ui/LoadingSpinner';
 import ResponsiveImage from '../components/ui/ResponsiveImage';
+import { safeHref } from '../utils/safeUrl';
 
 const LaminatesPage = () => {
   const [searchTerm, setSearchTerm] = useState('');
@@ -205,9 +206,9 @@ const LaminatesPage = () => {
                 return supplier && supplier.supplierName ? (
                   <div key={brand} className="border-l-4 border-primary-500 pl-4">
                     <h3 className="font-semibold text-slate-800 mb-2">{supplier.supplierName}</h3>
-                    {supplier.supplierWebsite && (
+                    {safeHref(supplier.supplierWebsite) && (
                       <a 
-                        href={supplier.supplierWebsite}
+                        href={safeHref(supplier.supplierWebsite)}
                         target="_blank"
                         rel="noopener noreferrer"
                         className="text-sm text-primary-600 hover:text-primary-700"

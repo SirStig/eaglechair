@@ -19,6 +19,8 @@ const CACHE_DURATION = 60000; // 1 minute, same as contentDataLoader
 let cache = null;
 let cacheTimestamp = 0;
 let inflight = null;
+// Bumped by clearLegalDocumentsCache(); stale in-flight loads don't write back
+let generation = 0;
 
 const fetchLegalDocuments = async () => {
   try {
@@ -44,18 +46,30 @@ export const loadLegalDocuments = () => {
   }
   if (inflight) return inflight;
 
-  inflight = fetchLegalDocuments()
+  const startedGeneration = generation;
+  const promise = fetchLegalDocuments()
     .then((docs) => {
-      if (docs) {
+      if (docs && startedGeneration === generation) {
         cache = docs;
         cacheTimestamp = Date.now();
       }
       return docs;
     })
     .finally(() => {
-      inflight = null;
+      if (inflight === promise) inflight = null;
     });
-  return inflight;
+  inflight = promise;
+  return promise;
+};
+
+/**
+ * Drop the cached documents (called after admin CMS writes)
+ */
+export const clearLegalDocumentsCache = () => {
+  generation += 1;
+  cache = null;
+  cacheTimestamp = 0;
+  inflight = null;
 };
 
 export default loadLegalDocuments;

@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 // eslint-disable-next-line no-unused-vars
 import { m } from 'framer-motion';
 import SEOHead from '../components/SEOHead';
@@ -8,29 +8,53 @@ import ResponsiveImage from '../components/ui/ResponsiveImage';
 import EditableWrapper from '../components/admin/EditableWrapper';
 import EditableList from '../components/admin/EditableList';
 import { useInstallations } from '../hooks/useContent';
-import { 
-  updateInstallation, 
-  createInstallation, 
-  deleteInstallation 
-} from '../services/contentService';
+import { runCmsBatch } from '../utils/cmsContentStore';
 import LoadingSpinner from '../components/ui/LoadingSpinner';
 import logger from '../utils/logger';
 
 const CONTEXT = 'GalleryPage';
 
+// Admin-only write API; loaded on first save so public visitors never download it
+const loadCmsAdmin = () => import('../services/cmsAdminService');
+
+const categoryOf = (img) => img.category || img.projectType || img.project_type;
+const displayOrderOf = (img) => img.displayOrder ?? img.display_order;
+
+/**
+ * Apply a move made inside a (possibly filtered) subset to the FULL list.
+ * Only the moved item changes position relative to the others: it is placed
+ * right before the item that now follows it in the subset (or right after
+ * the one that now precedes it when it was dropped at the end).
+ */
+const applySubsetMove = (fullList, reorderedSubset, movedItem) => {
+  const rest = fullList.filter((img) => img.id !== movedItem.id);
+  const pos = reorderedSubset.findIndex((img) => img.id === movedItem.id);
+  const after = reorderedSubset[pos + 1];
+  const before = reorderedSubset[pos - 1];
+  let insertAt = rest.length;
+  if (after) {
+    insertAt = rest.findIndex((img) => img.id === after.id);
+  } else if (before) {
+    insertAt = rest.findIndex((img) => img.id === before.id) + 1;
+  }
+  if (insertAt < 0) insertAt = rest.length;
+  rest.splice(insertAt, 0, movedItem);
+  return rest;
+};
+
 const GalleryPage = () => {
   const [selectedImage, setSelectedImage] = useState(null);
   const [filter, setFilter] = useState('all');
-  const { data: installations, loading, refetch } = useInstallations();
+  const { data: installations, loading } = useInstallations();
 
   // Use API data
-  const images = installations || [];
+  const images = useMemo(() => installations || [], [installations]);
 
-  const categories = ['all', ...new Set(images.map(img => img.category || img.projectType || img.project_type).filter(Boolean))];
+  const categories = ['all', ...new Set(images.map(categoryOf).filter(Boolean))];
   
-  const filteredImages = filter === 'all' 
-    ? images 
-    : images.filter(img => (img.category || img.projectType || img.project_type) === filter);
+  const filteredImages = useMemo(() => (filter === 'all'
+    ? images
+    : images.filter(img => categoryOf(img) === filter)), [images, filter]);
 
   // Handlers for CRUD operations
   const handleUpdateInstallation = async (id, updates) => {
@@ -38,13 +62,15 @@ const GalleryPage = () => {
       logger.info(CONTEXT, `Updating installation ${id}`);
       
       // Sync primary_image with images array if primary_image changed
+      // (the static export calls the primary image `url`)
       const dataToSend = { ...updates };
-      if (updates.primary_image && (!updates.images || updates.images.length === 0)) {
-        dataToSend.images = [updates.primary_image];
+      const primaryImage = updates.primary_image || updates.url;
+      if (primaryImage && (!updates.images || updates.images.length === 0)) {
+        dataToSend.images = [primaryImage];
       }
       
+      const { updateInstallation } = await loadCmsAdmin();
       await updateInstallation(id, dataToSend);
-      refetch();
       logger.info(CONTEXT, 'Installation updated successfully');
     } catch (error) {
       logger.error(CONTEXT, 'Failed to update installation', error);
@@ -71,8 +97,8 @@ const GalleryPage = () => {
         throw new Error('At least one image is required. Please upload an image first.');
       }
       
+      const { createInstallation } = await loadCmsAdmin();
       await createInstallation(dataToSend);
-      refetch();
       logger.info(CONTEXT, 'Installation created successfully');
     } catch (error) {
       logger.error(CONTEXT, 'Failed to create installation', error);
@@ -83,8 +109,8 @@ const GalleryPage = () => {
   const handleDeleteInstallation = async (id) => {
     try {
       logger.info(CONTEXT, `Deleting installation ${id}`);
+      const { deleteInstallation } = await loadCmsAdmin();
       await deleteInstallation(id);
-      refetch();
       logger.info(CONTEXT, 'Installation deleted successfully');
     } catch (error) {
       logger.error(CONTEXT, 'Failed to delete installation', error);
@@ -92,25 +118,36 @@ const GalleryPage = () => {
     }
   };
 
-  const handleReorderInstallations = async (reorderedItems) => {
+  // The gallery is ordered by display_order DESC, so the first item gets the
+  // highest value. Orders are computed against the FULL list, so reordering
+  // inside a filtered view never collides with hidden items.
+  const handleReorderInstallations = async (reorderedItems, move) => {
+    const movedItem = move?.item;
+    const fullOrder = filter === 'all' || !movedItem
+      ? reorderedItems
+      : applySubsetMove(images, reorderedItems, movedItem);
+
+    const total = fullOrder.length;
+    const changes = fullOrder
+      .map((item, index) => ({ item, order: total - 1 - index }))
+      .filter(({ item, order }) => displayOrderOf(item) !== order);
+
+    logger.info(CONTEXT, `Reordering gallery installations (${changes.length} updates)`);
     try {
-      logger.info(CONTEXT, 'Reordering gallery installations');
-      // Update the order property for each item
-      const updatedItems = reorderedItems.map((item, index) => ({
-        ...item,
-        order: index
-      }));
-      
-      // Update each item individually with the new order
-      for (const item of updatedItems) {
-        await updateInstallation(item.id, { order: item.order });
-      }
-      
-      refetch();
+      const { updateInstallation } = await loadCmsAdmin();
+      // One invalidation (and one re-sync) for the whole batch
+      await runCmsBatch(async () => {
+        for (const { item, order } of changes) {
+          await updateInstallation(item.id, { display_order: order });
+        }
+      });
       logger.info(CONTEXT, 'Gallery installations reordered successfully');
     } catch (error) {
       logger.error(CONTEXT, 'Failed to reorder installations', error);
-      throw error;
+      // Some items may already be saved. runCmsBatch invalidated the content
+      // caches on the way out, so the list re-syncs from the server;
+      // EditableList restores the previous order meanwhile and shows a toast.
+      throw new Error(`${error?.message || 'Request failed'}. The gallery was reloaded from the server.`);
     }
   };
 

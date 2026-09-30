@@ -3,17 +3,23 @@ import { createRoot, hydrateRoot } from 'react-dom/client';
 import { BrowserRouter } from 'react-router-dom';
 import { HelmetProvider } from 'react-helmet-async';
 import App from './App';
+import InitialContentContext from './contexts/InitialContentContext';
 import './index.css';
 
 import './config/axiosConfig';
 
+// Same tree shape as entry-server. The value stays null on the client: the
+// SSR content payload (window.__INITIAL_CONTENT__) is adopted by
+// utils/contentDataLoader when it loads, which happens before hydration.
 const app = (
   <React.StrictMode>
-    <HelmetProvider>
-      <BrowserRouter>
-        <App />
-      </BrowserRouter>
-    </HelmetProvider>
+    <InitialContentContext.Provider value={null}>
+      <HelmetProvider>
+        <BrowserRouter>
+          <App />
+        </BrowserRouter>
+      </HelmetProvider>
+    </InitialContentContext.Provider>
   </React.StrictMode>
 );
 

@@ -8,32 +8,22 @@ import EditableWrapper from '../components/admin/EditableWrapper';
 import EditableList from '../components/admin/EditableList';
 import { useEditMode } from '../contexts/useEditMode';
 import { useCompanyValues, useCompanyMilestones, useTeamMembers, usePageContent } from '../hooks/useContent';
-import {
-  updatePageContent,
-  updateCompanyValue,
-  updateCompanyMilestone,
-  updateTeamMember,
-  createCompanyValue,
-  createCompanyMilestone,
-  createTeamMember,
-  deleteCompanyValue,
-  deleteCompanyMilestone,
-  deleteTeamMember
-} from '../services/contentService';
 import LoadingSpinner from '../components/ui/LoadingSpinner';
 import logger from '../utils/logger';
-import { invalidateCache } from '../utils/cache';
 
 const CONTEXT = 'AboutPage';
 
+// Admin-only write API; loaded on first save so public visitors never download it
+const loadCmsAdmin = () => import('../services/cmsAdminService');
+
 const AboutPage = () => {
   const { isEditMode } = useEditMode();
-  const { data: values, loading: valuesLoading, refetch: refetchValues } = useCompanyValues();
-  const { data: milestones, loading: milestonesLoading, refetch: refetchMilestones } = useCompanyMilestones();
-  const { data: team, loading: teamLoading, refetch: refetchTeam } = useTeamMembers();
-  const { data: heroSection, refetch: refetchHero } = usePageContent('about', 'hero');
-  const { data: storySection, refetch: refetchStory } = usePageContent('about', 'story');
-  const { data: ctaSection, refetch: refetchCta } = usePageContent('about', 'cta');
+  const { data: values, loading: valuesLoading } = useCompanyValues();
+  const { data: milestones, loading: milestonesLoading } = useCompanyMilestones();
+  const { data: team, loading: teamLoading } = useTeamMembers();
+  const { data: heroSection } = usePageContent('about', 'hero');
+  const { data: storySection } = usePageContent('about', 'story');
+  const { data: ctaSection } = usePageContent('about', 'cta');
 
   const loading = valuesLoading || milestonesLoading || teamLoading;
 
@@ -51,19 +41,14 @@ const AboutPage = () => {
   const ctaTitle = ctaSection?.title || "Ready to Work Together?";
   const ctaContent = ctaSection?.content || "Experience the Eagle Chair difference. Let's create something amazing for your business.";
 
-  // Content update handlers
-  const handleSaveContent = async (pageSlug, sectionKey, newData, refetchFn) => {
+  // Content update handlers. Saves go through cmsAdminService; the API client
+  // then invalidates the shared content caches, so every content hook on the
+  // page re-fetches - no per-call refetch or cache juggling here.
+  const handleSaveContent = async (pageSlug, sectionKey, newData) => {
     try {
       logger.info(CONTEXT, `Saving content for ${pageSlug}/${sectionKey}`);
+      const { updatePageContent } = await loadCmsAdmin();
       await updatePageContent(pageSlug, sectionKey, newData);
-
-      // Invalidate cache for this specific section
-      const cacheKey = `page-content-${pageSlug}-${sectionKey}`;
-      const invalidated = invalidateCache(cacheKey);
-      logger.debug(CONTEXT, `Invalidated ${invalidated} cache entries for ${cacheKey}`);
-
-      // Refetch to update UI
-      refetchFn();
       logger.info(CONTEXT, 'Content saved successfully');
     } catch (error) {
       logger.error(CONTEXT, 'Failed to save content', error);
@@ -71,62 +56,25 @@ const AboutPage = () => {
     }
   };
 
+  const cmsAction = (name) => async (...args) => {
+    const service = await loadCmsAdmin();
+    return service[name](...args);
+  };
+
   // Values handlers
-  const handleUpdateValue = async (id, updates) => {
-    await updateCompanyValue(id, updates);
-    invalidateCache('company-values');
-    refetchValues();
-  };
-
-  const handleCreateValue = async (newData) => {
-    await createCompanyValue(newData);
-    invalidateCache('company-values');
-    refetchValues();
-  };
-
-  const handleDeleteValue = async (id) => {
-    await deleteCompanyValue(id);
-    invalidateCache('company-values');
-    refetchValues();
-  };
+  const handleUpdateValue = cmsAction('updateCompanyValue');
+  const handleCreateValue = cmsAction('createCompanyValue');
+  const handleDeleteValue = cmsAction('deleteCompanyValue');
 
   // Milestones handlers
-  const handleUpdateMilestone = async (id, updates) => {
-    await updateCompanyMilestone(id, updates);
-    invalidateCache('company-milestones');
-    refetchMilestones();
-  };
-
-  const handleCreateMilestone = async (newData) => {
-    await createCompanyMilestone(newData);
-    invalidateCache('company-milestones');
-    refetchMilestones();
-  };
-
-  const handleDeleteMilestone = async (id) => {
-    await deleteCompanyMilestone(id);
-    invalidateCache('company-milestones');
-    refetchMilestones();
-  };
+  const handleUpdateMilestone = cmsAction('updateCompanyMilestone');
+  const handleCreateMilestone = cmsAction('createCompanyMilestone');
+  const handleDeleteMilestone = cmsAction('deleteCompanyMilestone');
 
   // Team handlers
-  const handleUpdateTeamMember = async (id, updates) => {
-    await updateTeamMember(id, updates);
-    invalidateCache('team-members');
-    refetchTeam();
-  };
-
-  const handleCreateTeamMember = async (newData) => {
-    await createTeamMember(newData);
-    invalidateCache('team-members');
-    refetchTeam();
-  };
-
-  const handleDeleteTeamMember = async (id) => {
-    await deleteTeamMember(id);
-    invalidateCache('team-members');
-    refetchTeam();
-  };
+  const handleUpdateTeamMember = cmsAction('updateTeamMember');
+  const handleCreateTeamMember = cmsAction('createTeamMember');
+  const handleDeleteTeamMember = cmsAction('deleteTeamMember');
 
   return (
     <div className="min-h-screen bg-dark-800">
@@ -155,7 +103,7 @@ const AboutPage = () => {
               id="about-hero-title"
               type="text"
               data={{ title: heroTitle }}
-              onSave={(newData) => handleSaveContent('about', 'hero', { ...heroSection, ...newData }, refetchHero)}
+              onSave={(newData) => handleSaveContent('about', 'hero', { ...heroSection, ...newData })}
               label="Hero Title"
             >
               <h1 className="text-3xl sm:text-4xl md:text-5xl lg:text-6xl font-bold mb-4 sm:mb-6">
@@ -167,7 +115,7 @@ const AboutPage = () => {
               id="about-hero-subtitle"
               type="textarea"
               data={{ subtitle: heroSubtitle }}
-              onSave={(newData) => handleSaveContent('about', 'hero', { ...heroSection, ...newData }, refetchHero)}
+              onSave={(newData) => handleSaveContent('about', 'hero', { ...heroSection, ...newData })}
               label="Hero Subtitle"
             >
               <p className="text-lg sm:text-xl lg:text-2xl">
@@ -179,7 +127,7 @@ const AboutPage = () => {
               id="about-hero-image"
               type="image"
               data={{ imageUrl: heroImage }}
-              onSave={(newData) => handleSaveContent('about', 'hero', { ...heroSection, ...newData }, refetchHero)}
+              onSave={(newData) => handleSaveContent('about', 'hero', { ...heroSection, ...newData })}
               label="Hero Background Image"
             >
               {isEditMode && (
@@ -205,7 +153,7 @@ const AboutPage = () => {
                 id="about-story-image"
                 type="image"
                 data={{ imageUrl: storyImage }}
-                onSave={(newData) => handleSaveContent('about', 'story', { ...storySection, ...newData }, refetchStory)}
+                onSave={(newData) => handleSaveContent('about', 'story', { ...storySection, ...newData })}
                 label="Story Image"
               >
                 {/* w-full: with srcset the intrinsic width depends on the chosen
@@ -227,7 +175,7 @@ const AboutPage = () => {
                 id="about-story-title"
                 type="text"
                 data={{ title: storyTitle }}
-                onSave={(newData) => handleSaveContent('about', 'story', { ...storySection, ...newData }, refetchStory)}
+                onSave={(newData) => handleSaveContent('about', 'story', { ...storySection, ...newData })}
                 label="Story Title"
               >
                 <h2 className="text-2xl sm:text-3xl font-bold mb-4 sm:mb-6 text-dark-50">{storyTitle}</h2>
@@ -237,7 +185,7 @@ const AboutPage = () => {
                 id="about-story-content"
                 type="textarea"
                 data={{ content: storyContent }}
-                onSave={(newData) => handleSaveContent('about', 'story', { ...storySection, ...newData }, refetchStory)}
+                onSave={(newData) => handleSaveContent('about', 'story', { ...storySection, ...newData })}
                 label="Story Content"
               >
                 {storyContent.split('\n\n').map((paragraph, index) => (
@@ -435,7 +383,7 @@ const AboutPage = () => {
             id="about-cta-title"
             type="text"
             data={{ title: ctaTitle }}
-            onSave={(newData) => handleSaveContent('about', 'cta', { ...ctaSection, ...newData }, refetchCta)}
+            onSave={(newData) => handleSaveContent('about', 'cta', { ...ctaSection, ...newData })}
             label="CTA Title"
           >
             <h2 className="text-4xl font-bold mb-6 text-dark-50">{ctaTitle}</h2>
@@ -445,7 +393,7 @@ const AboutPage = () => {
             id="about-cta-content"
             type="textarea"
             data={{ content: ctaContent }}
-            onSave={(newData) => handleSaveContent('about', 'cta', { ...ctaSection, ...newData }, refetchCta)}
+            onSave={(newData) => handleSaveContent('about', 'cta', { ...ctaSection, ...newData })}
             label="CTA Content"
           >
             <p className="text-xl mb-8 max-w-2xl mx-auto text-dark-100">

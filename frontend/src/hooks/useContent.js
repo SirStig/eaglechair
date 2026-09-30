@@ -1,10 +1,31 @@
-import { useState, useEffect, useRef } from 'react';
-import { cachedFetch, deleteCacheKey } from '../utils/cache';
-import { clearContentCache } from '../utils/contentDataLoader';
+import { useState, useEffect, useRef, useCallback, useContext, useSyncExternalStore } from 'react';
+import { cachedFetch, peekCache } from '../utils/cache';
+import { peekContentData, isContentFresh } from '../utils/contentDataLoader';
+import {
+  invalidateCmsContent,
+  subscribeCmsContent,
+  getCmsContentVersion,
+  trackCmsCacheKey,
+} from '../utils/cmsContentStore';
+import InitialContentContext from '../contexts/InitialContentContext';
 import logger from '../utils/logger';
 import * as contentService from '../services/contentService';
 
 const CONTEXT = 'useContent';
+const { staticSelectors, USE_STATIC_CONTENT } = contentService;
+
+const MAX_RETRIES = 3;
+const retryDelay = (count) => Math.min(1000 * 2 ** count, 30000); // Exponential backoff: 1s, 2s, 4s (max 30s)
+const getServerVersion = () => 0;
+
+// apiClient normalizes errors to { message, status, data }; fetch() failures
+// are plain Errors without a status. Retry only network errors and 5xx.
+const isRetryableError = (err) => {
+  const status = err?.status ?? err?.response?.status ?? null;
+  return status === null || status === undefined || status >= 500;
+};
+
+const sameDeps = (a, b) => a.length === b.length && a.every((v, i) => Object.is(v, b[i]));
 
 /**
  * Custom hook for fetching content from API
@@ -14,82 +35,153 @@ const CONTEXT = 'useContent';
  * @param {string} cacheKey - Cache key for API responses
  * @param {number} cacheTTL - Cache time-to-live in milliseconds (default: 5 minutes)
  * @param {Array} deps - Dependencies array for useEffect
- * @returns {Object} { data, loading, error, refetch }
+ * @param {Function} selectStatic - Optional pure selector over contentData.json.
+ *   When the content is already in memory (SSR payload, earlier load) the hook
+ *   returns it synchronously on the first render - identical on server and
+ *   client, so hydration matches and there is no loading flash.
+ * @returns {Object} { data, loading, error, refetch } - refetch() returns a
+ *   promise that resolves once fresh data has loaded.
  */
-export const useContent = (apiFn, defaultData = null, cacheKey, cacheTTL = 5 * 60 * 1000, deps = []) => {
-  const [data, setData] = useState(defaultData);
-  const [loading, setLoading] = useState(true);
+export const useContent = (apiFn, defaultData = null, cacheKey, cacheTTL = 5 * 60 * 1000, deps = [], selectStatic = null) => {
+  const ssrContent = useContext(InitialContentContext);
+  const version = useSyncExternalStore(subscribeCmsContent, getCmsContentVersion, getServerVersion);
+
+  const readSync = () => {
+    const cached = peekCache(cacheKey);
+    if (cached !== null) return cached;
+    if (!selectStatic || !USE_STATIC_CONTENT) return undefined;
+    const content = ssrContent || peekContentData();
+    if (!content) return undefined;
+    try {
+      const value = selectStatic(content);
+      return value === null ? undefined : value;
+    } catch {
+      return undefined;
+    }
+  };
+  // Synchronous data is only authoritative while its source is fresh
+  const syncIsFresh = () => peekCache(cacheKey) !== null || isContentFresh();
+
+  const [initial] = useState(readSync);
+  const [data, setData] = useState(initial !== undefined ? initial : defaultData);
+  const [loading, setLoading] = useState(initial === undefined);
   const [error, setError] = useState(null);
   const mountedRef = useRef(true);
   const retryTimerRef = useRef(null);
   const requestIdRef = useRef(0);
+  const waitersRef = useRef([]);
+  const skipFetchRef = useRef(initial !== undefined && syncIsFresh());
+  const lastVersionRef = useRef(version);
+  const lastDepsRef = useRef(deps);
+  // Whether `data` currently holds real content (not the default placeholder)
+  const hasDataRef = useRef(initial !== undefined);
 
-  const fetchData = async (retryCount = 0, requestId = ++requestIdRef.current) => {
-    const maxRetries = 3;
-    const retryDelay = (count) => Math.min(1000 * 2 ** count, 30000); // Exponential backoff: 1s, 2s, 4s (max 30s)
+  const resolveWaiters = () => {
+    const waiters = waitersRef.current;
+    waitersRef.current = [];
+    waiters.forEach((resolve) => resolve());
+  };
+
+  const fetchData = async ({ silent = false } = {}) => {
+    const requestId = ++requestIdRef.current;
     // Ignore results for unmounted components or superseded requests
     const isCurrent = () => mountedRef.current && requestId === requestIdRef.current;
 
-    try {
-      setLoading(true);
-      setError(null);
+    clearTimeout(retryTimerRef.current);
+    if (!silent) setLoading(true);
+    setError(null);
 
-      // Fetch from API with caching
-      logger.debug(CONTEXT, `Fetching from API: ${cacheKey}${retryCount > 0 ? ` (retry ${retryCount}/${maxRetries})` : ''}`);
-      const result = await cachedFetch(cacheKey, apiFn, cacheTTL);
-      if (!isCurrent()) return;
+    for (let retryCount = 0; ; retryCount++) {
+      try {
+        logger.debug(CONTEXT, `Fetching from API: ${cacheKey}${retryCount > 0 ? ` (retry ${retryCount}/${MAX_RETRIES})` : ''}`);
+        const result = await cachedFetch(cacheKey, apiFn, cacheTTL);
+        if (!isCurrent()) return;
 
-      // Use API data if available, otherwise use default data
-      if (result === null || result === undefined) {
-        logger.warn(CONTEXT, `API returned null for ${cacheKey}, using default content`);
-        setData(defaultData);
-      } else {
-        setData(result);
-      }
-    } catch (err) {
-      if (!isCurrent()) return;
-      // Retry on network errors or 5xx errors
-      const isRetryable = !err.response || (err.response.status >= 500 && err.response.status < 600);
-      
-      if (isRetryable && retryCount < maxRetries) {
-        const delay = retryDelay(retryCount);
-        logger.warn(CONTEXT, `Retrying ${cacheKey} after ${delay}ms (attempt ${retryCount + 1}/${maxRetries})`);
-        
-        retryTimerRef.current = setTimeout(() => {
-          fetchData(retryCount + 1, requestId);
-        }, delay);
-        // Stay in the loading state until the retries settle
-        return;
-      }
-      
-      logger.error(CONTEXT, `Error fetching ${cacheKey}`, err);
-      setError(err);
-      // Use default data on error if provided
-      if (defaultData !== null && defaultData !== undefined) {
-        logger.warn(CONTEXT, `API error for ${cacheKey}, using default content`);
-        setData(defaultData);
+        // Use API data if available, otherwise use default data
+        if (result === null || result === undefined) {
+          logger.warn(CONTEXT, `API returned null for ${cacheKey}, using default content`);
+          setData(defaultData);
+          hasDataRef.current = false;
+        } else {
+          setData(result);
+          hasDataRef.current = true;
+        }
+        break;
+      } catch (err) {
+        if (!isCurrent()) return;
+
+        if (isRetryableError(err) && retryCount < MAX_RETRIES) {
+          const delay = retryDelay(retryCount);
+          logger.warn(CONTEXT, `Retrying ${cacheKey} after ${delay}ms (attempt ${retryCount + 1}/${MAX_RETRIES})`);
+          // Stay in the loading state until the retries settle
+          await new Promise((resolve) => {
+            retryTimerRef.current = setTimeout(resolve, delay);
+          });
+          if (!isCurrent()) return;
+          continue;
+        }
+
+        logger.error(CONTEXT, `Error fetching ${cacheKey}`, err);
+        setError(err);
+        // Use default data on error if provided
+        if (defaultData !== null && defaultData !== undefined) {
+          logger.warn(CONTEXT, `API error for ${cacheKey}, using default content`);
+          setData(defaultData);
+        }
+        break;
       }
     }
     setLoading(false);
+    resolveWaiters();
   };
 
   useEffect(() => {
     mountedRef.current = true;
-    fetchData();
+    trackCmsCacheKey(cacheKey);
+
+    const versionChanged = lastVersionRef.current !== version;
+    const depsChanged = !sameDeps(lastDepsRef.current, deps);
+    lastVersionRef.current = version;
+    lastDepsRef.current = deps;
+
+    if (skipFetchRef.current) {
+      // First render already has fresh data (SSR payload / cache)
+      skipFetchRef.current = false;
+    } else if (versionChanged && !depsChanged) {
+      // Content was invalidated: refresh in place, keep showing current data
+      fetchData({ silent: true });
+    } else {
+      const sync = readSync();
+      if (sync !== undefined && syncIsFresh()) {
+        setData(sync);
+        hasDataRef.current = true;
+        setLoading(false);
+        setError(null);
+        resolveWaiters();
+      } else {
+        // Revalidate stale-but-shown data without flashing a loading state
+        fetchData({ silent: !depsChanged && hasDataRef.current });
+      }
+    }
+
     return () => {
       mountedRef.current = false;
       clearTimeout(retryTimerRef.current);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, deps);
+  }, [...deps, version]);
 
-  const refetch = () => {
-    clearTimeout(retryTimerRef.current);
-    deleteCacheKey(cacheKey);
-    // Admin edits re-export contentData.json; drop the in-memory copy too
-    clearContentCache();
-    fetchData();
-  };
+  // Nothing may wait forever on an unmounted instance
+  useEffect(() => () => resolveWaiters(), []);
+
+  /**
+   * Invalidate all CMS content (every hook instance re-fetches) and resolve
+   * once this instance has the fresh data.
+   */
+  const refetch = useCallback(() => new Promise((resolve) => {
+    waitersRef.current.push(resolve);
+    invalidateCmsContent();
+  }), []);
 
   return { data, loading, error, refetch };
 };
@@ -102,7 +194,9 @@ export const useSiteSettings = () => {
     contentService.getSiteSettings,
     null,
     'site-settings',
-    30 * 60 * 1000 // 30 minutes cache
+    30 * 60 * 1000, // 30 minutes cache
+    [],
+    staticSelectors.siteSettings
   );
 };
 
@@ -115,7 +209,8 @@ export const useCompanyInfo = (sectionKey = null) => {
     null,
     `company-info${sectionKey ? `-${sectionKey}` : ''}`,
     30 * 60 * 1000,
-    [sectionKey]
+    [sectionKey],
+    staticSelectors.companyInfo
   );
 };
 
@@ -127,7 +222,9 @@ export const useTeamMembers = () => {
     contentService.getTeamMembers,
     [],
     'team-members',
-    30 * 60 * 1000
+    30 * 60 * 1000,
+    [],
+    staticSelectors.teamMembers
   );
 };
 
@@ -139,7 +236,9 @@ export const useCompanyValues = () => {
     contentService.getCompanyValues,
     [],
     'company-values',
-    30 * 60 * 1000
+    30 * 60 * 1000,
+    [],
+    staticSelectors.companyValues
   );
 };
 
@@ -151,7 +250,9 @@ export const useCompanyMilestones = () => {
     contentService.getCompanyMilestones,
     [],
     'company-milestones',
-    30 * 60 * 1000
+    30 * 60 * 1000,
+    [],
+    staticSelectors.companyMilestones
   );
 };
 
@@ -163,7 +264,9 @@ export const useHeroSlides = () => {
     contentService.getHeroSlides,
     [],
     'hero-slides',
-    15 * 60 * 1000
+    15 * 60 * 1000,
+    [],
+    staticSelectors.heroSlides
   );
 };
 
@@ -176,7 +279,8 @@ export const useFeatures = (featureType = 'general') => {
     [],
     `features-${featureType}`,
     30 * 60 * 1000,
-    [featureType]
+    [featureType],
+    (content) => staticSelectors.features(content, featureType)
   );
 };
 
@@ -188,7 +292,9 @@ export const useClientLogos = () => {
     contentService.getClientLogos,
     [],
     'client-logos',
-    30 * 60 * 1000
+    30 * 60 * 1000,
+    [],
+    staticSelectors.clientLogos
   );
 };
 
@@ -200,7 +306,9 @@ export const useSalesReps = () => {
     contentService.getSalesReps,
     [],
     'sales-reps',
-    30 * 60 * 1000
+    30 * 60 * 1000,
+    [],
+    staticSelectors.salesReps
   );
 };
 
@@ -215,7 +323,8 @@ export const useInstallations = (filters = {}) => {
     [],
     `installations-${filterKey}`,
     15 * 60 * 1000,
-    [filterKey]
+    [filterKey],
+    (content) => staticSelectors.installations(content, filters)
   );
 };
 
@@ -249,7 +358,8 @@ export const usePageContent = (pageSlug, sectionKey = null) => {
     null,
     cacheKey,
     30 * 60 * 1000,
-    [pageSlug, sectionKey]
+    [pageSlug, sectionKey],
+    (content) => staticSelectors.pageContent(content, pageSlug, sectionKey)
   );
 };
 
@@ -261,7 +371,9 @@ export const useFinishes = () => {
     contentService.getFinishes,
     [],
     'finishes',
-    30 * 60 * 1000
+    30 * 60 * 1000,
+    [],
+    staticSelectors.finishes
   );
 };
 
@@ -273,7 +385,9 @@ export const useUpholsteries = () => {
     contentService.getUpholsteries,
     [],
     'upholsteries',
-    30 * 60 * 1000
+    30 * 60 * 1000,
+    [],
+    staticSelectors.upholsteries
   );
 };
 
@@ -285,7 +399,9 @@ export const useLaminates = () => {
     contentService.getLaminates,
     [],
     'laminates',
-    30 * 60 * 1000
+    30 * 60 * 1000,
+    [],
+    staticSelectors.laminates
   );
 };
 
@@ -297,7 +413,9 @@ export const useHardware = () => {
     contentService.getHardware,
     [],
     'hardware',
-    30 * 60 * 1000
+    30 * 60 * 1000,
+    [],
+    staticSelectors.hardware
   );
 };
 
@@ -310,7 +428,8 @@ export const useCatalogs = (catalogType = null) => {
     [],
     `catalogs${catalogType ? `-${catalogType}` : ''}`,
     30 * 60 * 1000,
-    [catalogType]
+    [catalogType],
+    (content) => staticSelectors.catalogs(content, catalogType)
   );
 };
 

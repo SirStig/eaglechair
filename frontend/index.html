@@ -62,9 +62,13 @@
       // Also preloads the first hero slide (the LCP image) using the same
       // responsive variants HeroCarousel requests (media_service naming).
       (function () {
-        var p = fetch('/data/contentData.json', { cache: 'no-cache' })
-          .then(function (r) { return r.ok ? r.json() : null; })
-          .catch(function () { return null; });
+        // The SSR server embeds the content (window.__INITIAL_CONTENT__);
+        // only fetch when it didn't.
+        var p = window.__INITIAL_CONTENT__
+          ? Promise.resolve(window.__INITIAL_CONTENT__)
+          : fetch('/data/contentData.json', { cache: 'no-cache' })
+            .then(function (r) { return r.ok ? r.json() : null; })
+            .catch(function () { return null; });
         window.__contentDataPromise = p;
         p.then(function (d) {
           // Only the home page shows the hero; elsewhere this 200 KB+ download

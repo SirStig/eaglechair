@@ -1,6 +1,7 @@
 /* global __BUILD_TIMESTAMP__ */
 import axios from 'axios';
 import logger from '../utils/logger';
+import { notifyAdminWrite } from '../utils/cmsContentStore';
 
 const CONTEXT = 'APIClient';
 
@@ -119,6 +120,12 @@ const processQueue = (error) => {
 // Refresh uses the httpOnly refresh_token cookie; the backend sets new cookies
 apiClient.interceptors.response.use(
   (response) => {
+    // Admin/CMS writes invalidate the public content caches in one place
+    try {
+      notifyAdminWrite(response.config, response.data);
+    } catch (err) {
+      logger.warn(CONTEXT, 'Content invalidation after write failed', err);
+    }
     return response.data;
   },
   async (error) => {
@@ -131,7 +138,7 @@ apiClient.interceptors.response.use(
           originalRequest.url?.includes('/auth/refresh') ||
           originalRequest.url?.includes('/auth/admin/login') ||
           originalRequest.url?.includes('/auth/admin/passkey/')) {
-        return Promise.reject(handleAuthError(error));
+        return handleAuthError(error); // already a rejected promise with the normalized error
       }
 
       // If already refreshing, queue this request
@@ -174,7 +181,7 @@ apiClient.interceptors.response.use(
         return apiClient(originalRequest);
       } catch {
         // Refresh failed - clear auth state
-        return Promise.reject(handleAuthError(error));
+        return handleAuthError(error); // already a rejected promise with the normalized error
       }
     }
 
@@ -200,7 +207,7 @@ apiClient.interceptors.response.use(
     }
 
     // Handle other errors
-    return Promise.reject(handleNonAuthError(error));
+    return handleNonAuthError(error); // already a rejected promise with the normalized error
   }
 );
 

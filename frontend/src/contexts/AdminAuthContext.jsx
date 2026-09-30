@@ -12,9 +12,12 @@ export const AdminAuthProvider = ({ children }) => {
   const token = useAuthStore((state) => state.token);
   const adminToken = useAuthStore((state) => state.adminToken);
   const sessionToken = useAuthStore((state) => state.sessionToken);
+  // The cached localStorage profile is shown while /auth/me validates the
+  // cookie session; admin powers (edit mode) wait for that verification.
+  const isInitializing = useAuthStore((state) => state.isInitializing);
 
   const isAdmin = () => {
-    if (!user) return false;
+    if (!user || isInitializing) return false;
     return ADMIN_ROLES.includes(user.role) || user.type === 'admin';
   };
 
@@ -60,7 +63,7 @@ export const AdminAuthProvider = ({ children }) => {
       logAdminAction,
     }),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [user, token, adminToken, sessionToken]
+    [user, token, adminToken, sessionToken, isInitializing]
   );
 
   return <AdminAuthContext.Provider value={value}>{children}</AdminAuthContext.Provider>;

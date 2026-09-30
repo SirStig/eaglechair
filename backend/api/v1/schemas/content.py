@@ -9,7 +9,8 @@ from typing import Any, Dict, List, Optional, Union
 
 from pydantic import BaseModel, EmailStr, Field, field_validator
 
-from backend.api.v1.schemas.common import TimestampSchema
+from backend.api.v1.schemas.common import CMSUrlValidationMixin, TimestampSchema
+from backend.utils.serializers import parse_json_list
 
 # ============================================================================
 # Enums
@@ -46,12 +47,12 @@ class TeamMemberBase(BaseModel):
     is_featured: bool = False
 
 
-class TeamMemberCreate(TeamMemberBase):
+class TeamMemberCreate(CMSUrlValidationMixin, TeamMemberBase):
     """Schema for creating team member"""
     pass
 
 
-class TeamMemberUpdate(BaseModel):
+class TeamMemberUpdate(CMSUrlValidationMixin):
     """Schema for updating team member"""
     name: Optional[str] = Field(None, max_length=255)
     title: Optional[str] = Field(None, max_length=255)
@@ -87,12 +88,12 @@ class CompanyInfoBase(BaseModel):
     is_active: bool = True
 
 
-class CompanyInfoCreate(CompanyInfoBase):
+class CompanyInfoCreate(CMSUrlValidationMixin, CompanyInfoBase):
     """Schema for creating company info"""
     pass
 
 
-class CompanyInfoUpdate(BaseModel):
+class CompanyInfoUpdate(CMSUrlValidationMixin):
     """Schema for updating company info"""
     title: Optional[str] = Field(None, max_length=255)
     content: Optional[str] = None
@@ -274,21 +275,19 @@ class InstallationBase(BaseModel):
     @field_validator('images', mode='before')
     @classmethod
     def validate_images(cls, v):
-        """Ensure images is always a list, even if it's an empty string or None"""
-        if v is None or v == '' or v == '[]':
-            return []
-        if isinstance(v, list):
-            return v
-        # If it's a string like '[]' or JSON, return empty list
-        return []
+        """
+        Ensure images is always a list. Legacy rows hold the list JSON-encoded
+        as a string; decode it rather than dropping the images.
+        """
+        return parse_json_list(v)
 
 
-class InstallationCreate(InstallationBase):
+class InstallationCreate(CMSUrlValidationMixin, InstallationBase):
     """Schema for creating installation"""
     pass
 
 
-class InstallationUpdate(BaseModel):
+class InstallationUpdate(CMSUrlValidationMixin):
     """Schema for updating installation"""
     project_name: Optional[str] = Field(None, max_length=255)
     client_name: Optional[str] = Field(None, max_length=255)
@@ -357,12 +356,12 @@ class ContactLocationBase(BaseModel):
     is_primary: bool = False
 
 
-class ContactLocationCreate(ContactLocationBase):
+class ContactLocationCreate(CMSUrlValidationMixin, ContactLocationBase):
     """Schema for creating contact location"""
     pass
 
 
-class ContactLocationUpdate(BaseModel):
+class ContactLocationUpdate(CMSUrlValidationMixin):
     """Schema for updating contact location"""
     location_name: Optional[str] = Field(None, max_length=255)
     description: Optional[str] = None
@@ -453,12 +452,12 @@ class PageContentBase(BaseModel):
     is_active: bool = True
 
 
-class PageContentCreate(PageContentBase):
+class PageContentCreate(CMSUrlValidationMixin, PageContentBase):
     """Schema for creating page content"""
     pass
 
 
-class PageContentUpdate(BaseModel):
+class PageContentUpdate(CMSUrlValidationMixin):
     """Schema for updating page content"""
     title: Optional[str] = Field(None, max_length=500)
     subtitle: Optional[str] = Field(None, max_length=500)
@@ -592,7 +591,7 @@ class CompanyValueResponse(BaseModel):
 class CompanyMilestoneResponse(BaseModel):
     """Schema for company milestone response"""
     id: int
-    year: Optional[int]
+    year: Optional[str]
     title: str
     description: Optional[str]
     displayOrder: int

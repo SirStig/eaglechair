@@ -102,7 +102,6 @@ class RouteConfig:
         "/api/v1/content/legal-documents",
         "/api/v1/content/warranties",
         "/api/v1/content/shipping-policies",
-        "/api/v1/content/contentData.js",
         
         # SEO routes
         "/api/v1/seo/sitemap.xml",

@@ -6,16 +6,33 @@ Global test configuration and shared fixtures
 
 import asyncio
 import os
+import sys
+from pathlib import Path
 from typing import AsyncGenerator, Generator
 
-# Set test environment variables BEFORE importing app
+# Test database URL (using SQLite for testing)
+TEST_DATABASE_URL = "sqlite+aiosqlite:///./test.db"
+
+# Set test environment variables BEFORE importing app. TESTING=true also makes
+# backend.core.config skip backend/.env* files, so a developer's .env.local
+# (local Postgres/Redis, DEBUG, CORS origins) never leaks into test settings.
 os.environ["RATE_LIMIT_ENABLED"] = "false"
 os.environ["TESTING"] = "true"
+os.environ["ENVIRONMENT"] = "test"
+os.environ["DEBUG"] = "false"
+# The app's own engine (used by the lifespan startup tasks) points at the test
+# DB, never a real one
+os.environ["DATABASE_URL"] = TEST_DATABASE_URL
+# Nothing listens on port 1: Redis-backed code paths fall back to in-process
+# behaviour instead of sharing state through a developer's live Redis
+os.environ["REDIS_URL"] = "redis://127.0.0.1:1/0"
+os.environ["ENABLE_CACHE"] = "false"
 
 import pytest
 import pytest_asyncio
 from fastapi.testclient import TestClient
 from httpx import AsyncClient
+from sqlalchemy import event
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 
 from backend.core.config import get_settings
@@ -37,10 +54,6 @@ def get_app():
     return _app
 
 
-# Test database URL (using SQLite for testing)
-TEST_DATABASE_URL = "sqlite+aiosqlite:///./test.db"
-
-
 @pytest.fixture(scope="session")
 def event_loop() -> Generator:
     """Create an instance of the default event loop for the test session."""
@@ -57,7 +70,22 @@ async def test_engine():
         echo=False,
         future=True
     )
-    
+
+    # pysqlite/aiosqlite defer BEGIN and don't support SAVEPOINT properly;
+    # take over transaction control so the per-test SAVEPOINTs in db_session
+    # work (SQLAlchemy's documented SQLite recipe)
+    @event.listens_for(engine.sync_engine, "connect")
+    def _sqlite_connect(dbapi_connection, connection_record):
+        dbapi_connection.isolation_level = None
+
+    @event.listens_for(engine.sync_engine, "begin")
+    def _sqlite_begin(conn):
+        conn.exec_driver_sql("BEGIN")
+
+    # Register every model on Base.metadata before create_all, whichever test
+    # module happens to run first
+    import backend.models  # noqa: F401
+
     # Create all tables
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
@@ -84,8 +112,10 @@ async def db_session(test_engine) -> AsyncGenerator[AsyncSession, None]:
     connection = await test_engine.connect()
     trans = await connection.begin()
     try:
-        # Bind the session to this connection
-        session = async_session(bind=connection)
+        # Bind the session to this connection. Session commit/rollback only
+        # touch a SAVEPOINT, so a test that hits an IntegrityError and rolls
+        # back can't end the outer transaction this fixture rolls back.
+        session = async_session(bind=connection, join_transaction_mode="create_savepoint")
         try:
             yield session
         finally:
@@ -139,6 +169,25 @@ async def async_client(db_session: AsyncSession) -> AsyncGenerator[AsyncClient, 
 
 
 @pytest.fixture(autouse=True)
+def static_export_dir(tmp_path_factory, monkeypatch):
+    """
+    Point the CMS static exporter at a temp dir so tests never write
+    contentData.json into the repo. Yields the frontend path used; the files
+    land in <path>/data/.
+    """
+    from backend.utils import static_content_exporter
+
+    frontend_dir = tmp_path_factory.mktemp("frontend_export")
+    monkeypatch.setattr(
+        static_content_exporter.StaticContentExporter,
+        "_resolve_frontend_path",
+        lambda self, custom_path=None: Path(custom_path) if custom_path else frontend_dir,
+    )
+    monkeypatch.setattr(static_content_exporter, "_exporter_instance", None)
+    yield frontend_dir
+
+
+@pytest.fixture(autouse=True)
 def reset_ephemeral_store():
     """Clear in-process login-failure counters / WebAuthn challenges between tests"""
     from backend.core.ephemeral_store import ephemeral_store
@@ -146,6 +195,36 @@ def reset_ephemeral_store():
     ephemeral_store.clear_memory()
     yield
     ephemeral_store.clear_memory()
+
+
+def _reset_ddos_state() -> None:
+    """Forget per-IP request history in the app's DDoS middleware."""
+    main = sys.modules.get("backend.main")
+    if main is None or main.app.middleware_stack is None:
+        return  # app not imported / stack not built yet: nothing tracked
+
+    from backend.core.middleware.ddos_protection import DDoSProtectionMiddleware
+
+    node = main.app.middleware_stack
+    while node is not None:
+        if isinstance(node, DDoSProtectionMiddleware):
+            node.request_counts.clear()
+            node.banned_ips.clear()
+            node.suspicious_ips.clear()
+        node = getattr(node, "app", None)
+
+
+@pytest.fixture(autouse=True)
+def reset_ddos_counters():
+    """
+    Every test request comes from the same client IP, and the in-process DDoS
+    middleware bans an IP after RATE_LIMIT_PER_MINUTE*2 requests a minute. The
+    middleware stays enabled (it has its own behaviour worth exercising), but
+    its per-IP history is reset per test so request counts never carry over.
+    """
+    _reset_ddos_state()
+    yield
+    _reset_ddos_state()
 
 
 # ============================================================================
@@ -224,10 +303,13 @@ async def test_company(db_session: AsyncSession):
     from backend.models.company import CompanyStatus
     from tests.factories import create_company
     
+    # An approved company that has verified its email (quote requests are
+    # refused with ACCOUNT_NOT_VERIFIED until it has)
     company = await create_company(
         db_session,
         status=CompanyStatus.ACTIVE,
-        is_active=True
+        is_active=True,
+        is_verified=True,
     )
     return company
 
@@ -270,6 +352,29 @@ async def admin_token(test_admin):
     }
     
     return security_manager.create_access_token(data=token_data)
+
+
+@pytest_asyncio.fixture
+async def admin_headers(db_session: AsyncSession, test_admin, admin_token):
+    """
+    Headers for a fully authenticated admin. Admin routes need the JWT plus
+    the per-login session and admin tokens (dual-token admin auth, enforced by
+    RouteProtectionMiddleware and get_current_admin).
+    """
+    import secrets
+
+    from backend.core.security import SecurityManager
+
+    session_token = secrets.token_urlsafe(32)
+    admin_session_token = secrets.token_urlsafe(32)
+    test_admin.session_token = SecurityManager.hash_token(session_token)
+    test_admin.admin_token = SecurityManager.hash_token(admin_session_token)
+    await db_session.commit()
+    return {
+        "Authorization": f"Bearer {admin_token}",
+        "X-Session-Token": session_token,
+        "X-Admin-Token": admin_session_token,
+    }
 
 
 @pytest_asyncio.fixture

@@ -26,11 +26,11 @@ class TestAdminWorkflow:
     async def test_admin_dashboard_workflow(
         self,
         async_client: AsyncClient,
-        admin_token: str,
+        admin_headers: dict,
         db_session: AsyncSession
     ):
         """Test admin dashboard and statistics workflow."""
-        headers = {"Authorization": f"Bearer {admin_token}"}
+        headers = admin_headers
         
         # Create test data using factories
         await create_company(
@@ -50,11 +50,11 @@ class TestAdminWorkflow:
     async def test_admin_company_management_workflow(
         self,
         async_client: AsyncClient,
-        admin_token: str,
+        admin_headers: dict,
         db_session: AsyncSession
     ):
         """Test admin company management workflow."""
-        headers = {"Authorization": f"Bearer {admin_token}"}
+        headers = admin_headers
         
         # Create pending company using factory
         company = await create_company(
@@ -103,11 +103,11 @@ class TestAdminWorkflow:
     async def test_admin_quote_management_workflow(
         self,
         async_client: AsyncClient,
-        admin_token: str,
+        admin_headers: dict,
         db_session: AsyncSession
     ):
         """Test admin quote management workflow."""
-        headers = {"Authorization": f"Bearer {admin_token}"}
+        headers = admin_headers
         
         # Create company and quote using factories
         company = await create_company(
@@ -151,11 +151,11 @@ class TestAdminWorkflow:
     async def test_admin_product_management_workflow(
         self,
         async_client: AsyncClient,
-        admin_token: str,
+        admin_headers: dict,
         db_session: AsyncSession
     ):
         """Test admin product management workflow."""
-        headers = {"Authorization": f"Bearer {admin_token}"}
+        headers = admin_headers
         
         # Create category using factory
         category = await create_category(
@@ -167,8 +167,10 @@ class TestAdminWorkflow:
         # Create product
         product_data = {
             "name": "New Executive Chair",
-            "description": "Premium executive seating",
+            "slug": "new-executive-chair-nec-001",
+            "short_description": "Premium executive seating",
             "model_number": "NEC-001",
+            "images": [],
             "category_id": category.id,
             "base_price": 60000,
             "minimum_order_quantity": 1,
@@ -186,7 +188,7 @@ class TestAdminWorkflow:
         # Update product
         update_data = {
             "base_price": 55000,
-            "description": "Updated description"
+            "short_description": "Updated description"
         }
         
         update_response = await async_client.patch(

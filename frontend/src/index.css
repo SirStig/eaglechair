@@ -567,3 +567,12 @@ input[type="number"] {
     background-color: rgba(0, 0, 0, 0.55) !important;
   }
 }
+
+/* Inline CMS editing: list item edit/delete controls are shown on hover or
+   focus; touch devices have no hover, so keep them visible there. */
+@media (hover: none) {
+  .editable-list-controls {
+    opacity: 1;
+    pointer-events: auto;
+  }
+}

@@ -14,6 +14,7 @@ A production-ready FastAPI backend with:
 import asyncio
 import logging
 import os
+import uuid
 from contextlib import asynccontextmanager
 from pathlib import Path
 
@@ -36,6 +37,156 @@ init_logging()
 logger = logging.getLogger(__name__)
 
 
+# Identifies this deploy / process start. gunicorn_conf.py uses preload_app=True,
+# so this module is imported once in the Gunicorn master before it forks: every
+# worker, including ones recycled by max_requests, shares the same ID, and a
+# restart (new master) gets a new one. EAGLECHAIR_BOOT_ID overrides it.
+BOOT_ID = os.getenv("EAGLECHAIR_BOOT_ID") or uuid.uuid4().hex
+
+STARTUP_LOCK_KEY = "eaglechair:startup_lock"
+# Long enough for a slow init; refreshed while the work runs
+STARTUP_LOCK_TTL_MS = 120_000
+STARTUP_LOCK_REFRESH_SECONDS = 30
+# Set after a successful init so later workers of this boot skip it
+STARTUP_DONE_KEY = f"eaglechair:startup_done:{BOOT_ID}"
+STARTUP_DONE_TTL_SECONDS = 30 * 24 * 3600
+
+
+async def _run_startup_tasks() -> bool:
+    """
+    One-time startup work: DB init, CMS export, cleanup of expired temp data.
+
+    Returns:
+        True if DB init and the CMS export both succeeded
+    """
+    ok = True
+
+    try:
+        await init_db()
+        logger.info("[OK] Database initialized")
+    except Exception:
+        logger.exception("❌ Database initialization failed")
+        ok = False
+
+    # Export CMS content to static files
+    try:
+        from backend.database.base import AsyncSessionLocal
+        from backend.services.cms_admin_service import CMSAdminService
+
+        async with AsyncSessionLocal() as db:
+            logger.info("📦 Exporting CMS content to static files...")
+            if await CMSAdminService.export_all_static_content(db):
+                logger.info("[OK] CMS content exported to frontend")
+            else:
+                logger.warning("[WARN] CMS content export failed")
+                ok = False
+    except Exception:
+        logger.exception("[WARN] Could not export CMS content")
+        ok = False
+
+    # Run cleanup of expired temporary catalog data
+    try:
+        from backend.services.cleanup_service import run_cleanup
+
+        logger.info("🧹 Running cleanup of expired temporary catalog data...")
+        asyncio.create_task(run_cleanup())
+        logger.info("[OK] Cleanup task started in background")
+    except Exception as e:
+        logger.warning(f"[WARN] Cleanup task failed to start: {e}")
+
+    return ok
+
+
+async def _keep_startup_lock(redis_client, token: str) -> None:
+    """Extend the startup lock while this worker holds it."""
+    from backend.core.redis_lock import refresh_lock
+
+    while True:
+        await asyncio.sleep(STARTUP_LOCK_REFRESH_SECONDS)
+        try:
+            if not await refresh_lock(
+                redis_client, STARTUP_LOCK_KEY, token, STARTUP_LOCK_TTL_MS
+            ):
+                logger.warning("[WORKER] Lost the startup lock while initializing")
+                return
+        except Exception as e:
+            logger.warning(f"[WORKER] Could not refresh startup lock: {e}")
+
+
+async def _coordinated_startup() -> None:
+    """
+    Run the one-time startup tasks in exactly one worker per boot.
+
+    Uses a Redis lock (atomic compare-and-delete release, refreshed while held)
+    and a per-boot "done" marker so workers recycled later skip the work. If
+    Redis is unavailable, runs the tasks in this worker.
+    """
+    from backend.core.redis_lock import new_lock_token, release_lock
+
+    tasks_started = False
+    redis_client = None
+    try:
+        import redis.asyncio as redis
+
+        redis_client = redis.from_url(
+            settings.REDIS_URL,
+            decode_responses=True,
+            socket_connect_timeout=2,
+            socket_timeout=5,
+        )
+
+        if await redis_client.get(STARTUP_DONE_KEY):
+            logger.info(
+                "[WORKER] Startup tasks already done for this boot - skipping"
+            )
+            return
+
+        token = new_lock_token()
+        if not await redis_client.set(
+            STARTUP_LOCK_KEY, token, nx=True, px=STARTUP_LOCK_TTL_MS
+        ):
+            logger.info(
+                "[WORKER] Startup lock held by another worker - skipping one-time initialization tasks"
+            )
+            # Give the other worker a moment on critical DB tasks before we proceed
+            await asyncio.sleep(2)
+            return
+
+        logger.info(f"[WORKER] Acquired startup lock (boot {BOOT_ID})")
+        refresher = asyncio.create_task(_keep_startup_lock(redis_client, token))
+        tasks_started = True
+        try:
+            if await _run_startup_tasks():
+                await redis_client.set(STARTUP_DONE_KEY, "1", ex=STARTUP_DONE_TTL_SECONDS)
+        finally:
+            refresher.cancel()
+            try:
+                await refresher
+            except asyncio.CancelledError:
+                pass
+            try:
+                await release_lock(redis_client, STARTUP_LOCK_KEY, token)
+                logger.info("[WORKER] Released startup lock")
+            except Exception as e:
+                logger.warning(f"[WORKER] Could not release startup lock: {e}")
+
+    except Exception as e:
+        if tasks_started:
+            logger.warning(f"[WARN] Redis error after startup tasks ran: {e}")
+        else:
+            logger.warning(
+                f"[WARN] Redis lock coordination failed, running startup tasks in this worker: {e}"
+            )
+            # Redis is down: run the full startup work (DB init and CMS export)
+            await _run_startup_tasks()
+    finally:
+        if redis_client is not None:
+            try:
+                await redis_client.aclose()
+            except Exception:
+                pass
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """
@@ -47,105 +198,8 @@ async def lifespan(app: FastAPI):
     # Startup
     logger.info("🚀 Starting EagleChair API...")
 
-    # Try to coordinate startup tasks across workers using Redis (if available)
-    # This prevents multiple workers from running DB init, CMS export, etc. simultaneously
-    try:
-        from backend.services.cache_service import cache_service
-        import redis.asyncio as redis
-        import uuid
-
-        # Unique ID for this worker
-        worker_id = str(uuid.uuid4())
-        lock_acquired = False
-
-        # Create a temporary Redis connection for the lock
-        # We can't rely on cache_service.cache being ready yet
-        redis_client = redis.from_url(settings.REDIS_URL, decode_responses=True)
-
-        try:
-            # Try to acquire a lock for startup tasks
-            # Set a timeout of 60 seconds for the lock
-            lock_key = "eaglechair:startup_lock"
-
-            # Simple distributed lock
-            # We use set(nx=True) to ensure only one worker gets the lock
-            if await redis_client.set(lock_key, worker_id, nx=True, ex=60):
-                lock_acquired = True
-                logger.info(f"[WORKER] Acquired startup lock (ID: {worker_id})")
-
-                # --- START CRITICAL SECTION ---
-
-                try:
-                    await init_db()
-                    logger.info("[OK] Database initialized")
-                except Exception as e:
-                    logger.error(f"❌ Database initialization failed: {e}")
-
-                # Export CMS content to static files
-                try:
-                    from backend.database.base import AsyncSessionLocal
-                    from backend.services.cms_admin_service import CMSAdminService
-
-                    async with AsyncSessionLocal() as db:
-                        try:
-                            logger.info("📦 Exporting CMS content to static files...")
-                            success = await CMSAdminService.export_all_static_content(
-                                db
-                            )
-                            await db.commit()
-                            if success:
-                                logger.info("[OK] CMS content exported to frontend")
-                            else:
-                                logger.warning("[WARN] CMS content export had issues")
-                        except Exception as e:
-                            await db.rollback()
-                            logger.warning(f"[WARN] Could not export CMS content: {e}")
-                except Exception as e:
-                    logger.warning(f"[WARN] CMS export setup failed: {e}")
-
-                # Run cleanup of expired temporary catalog data
-                try:
-                    from backend.services.cleanup_service import run_cleanup
-
-                    logger.info(
-                        "🧹 Running cleanup of expired temporary catalog data..."
-                    )
-                    asyncio.create_task(run_cleanup())
-                    logger.info("[OK] Cleanup task started in background")
-                except Exception as e:
-                    logger.warning(f"[WARN] Cleanup task failed to start: {e}")
-
-                # --- END CRITICAL SECTION ---
-
-            else:
-                logger.info(
-                    "[WORKER] Startup lock held by another worker - skipping one-time initialization tasks"
-                )
-                # Wait a bit to let the other worker finish critical DB tasks before we proceed
-                # This helps avoid race conditions immediately after startup
-                await asyncio.sleep(2)
-
-        finally:
-            # Release lock if we acquired it
-            if lock_acquired:
-                # Only delete if it's still our lock
-                current_value = await redis_client.get(lock_key)
-                if current_value == worker_id:
-                    await redis_client.delete(lock_key)
-                    logger.info(f"[WORKER] Released startup lock (ID: {worker_id})")
-
-            await redis_client.close()
-
-    except Exception as e:
-        logger.warning(
-            f"[WARN] Redis lock coordination failed, falling back to concurrent startup: {e}"
-        )
-        # Fallback: Run critical tasks anyway if coordination fails
-        # This handles cases where Redis is down
-        try:
-            await init_db()
-        except:
-            pass
+    # Coordinate one-time startup tasks across workers using Redis (if available)
+    await _coordinated_startup()
 
     # Cache warm-up is safe to run on all workers (idempotent-ish) or can be skipped
     # Actually, one worker warming it is enough.

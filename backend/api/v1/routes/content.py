@@ -398,30 +398,8 @@ async def get_hardware(db: AsyncSession = Depends(get_db)):
 # ============================================================================
 # Installation Guide Endpoints
 # ============================================================================
-
-@router.get(
-    "/installations",
-    response_model=list[InstallationResponse],
-    summary="Get installation guides",
-    description="Retrieve all installation guides"
-)
-async def get_installation_guides(
-    db: AsyncSession = Depends(get_db)
-):
-    """
-    Get all installation guides.
-    
-    **Public endpoint** - No authentication required.
-    """
-    logger.info("Fetching installation guides")
-    
-    guides = await ContentService.get_installation_guides(
-        db=db,
-        include_inactive=False
-    )
-    
-    return guides
-
+# The installation list (GET /installations, with project_type filter) lives in
+# cms_content.py and returns the same shape as galleryImages in contentData.json.
 
 @router.get(
     "/installations/{guide_id}",
