@@ -15,6 +15,7 @@ import productService from '../services/productService';
 import { getProductImages, getProductGalleryImages, resolveImageUrl, resolveFileUrl, variationHasOwnImage, getImageSrcSet } from '../utils/apiHelpers';
 import ResponsiveImage from '../components/ui/ResponsiveImage';
 import SpecSymbols from '../components/ui/SpecSymbols';
+import CustomizeAnything from '../components/ui/CustomizeAnything';
 import useSpecProfile from '../hooks/useSpecProfile';
 import { getSpecItems, getFeatureSymbol } from '../utils/specSymbols';
 
@@ -560,6 +561,8 @@ const ProductDetailPage = () => {
                   </div>
                 </EditableWrapper>
               )}
+
+              <CustomizeAnything className="mb-4" />
 
               {/* Customize Now Button */}
               <Button
