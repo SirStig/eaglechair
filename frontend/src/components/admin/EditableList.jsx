@@ -291,7 +291,7 @@ const EditableList = ({
                   : '0 0 0 0px rgba(139, 115, 85, 0)'
               }}
               transition={{ duration: 0.2 }}
-              className="rounded-lg"
+              className="rounded-lg h-full"
             >
               {renderItem(item, index)}
             </m.div>

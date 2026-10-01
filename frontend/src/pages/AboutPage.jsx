@@ -7,7 +7,7 @@ import ResponsiveImage from '../components/ui/ResponsiveImage';
 import EditableWrapper from '../components/admin/EditableWrapper';
 import EditableList from '../components/admin/EditableList';
 import { useEditMode } from '../contexts/useEditMode';
-import { useCompanyValues, useCompanyMilestones, useTeamMembers, usePageContent } from '../hooks/useContent';
+import { useCompanyValues, useCompanyMilestones, usePageContent } from '../hooks/useContent';
 import LoadingSpinner from '../components/ui/LoadingSpinner';
 import logger from '../utils/logger';
 
@@ -20,12 +20,11 @@ const AboutPage = () => {
   const { isEditMode } = useEditMode();
   const { data: values, loading: valuesLoading } = useCompanyValues();
   const { data: milestones, loading: milestonesLoading } = useCompanyMilestones();
-  const { data: team, loading: teamLoading } = useTeamMembers();
   const { data: heroSection } = usePageContent('about', 'hero');
   const { data: storySection } = usePageContent('about', 'story');
   const { data: ctaSection } = usePageContent('about', 'cta');
 
-  const loading = valuesLoading || milestonesLoading || teamLoading;
+  const loading = valuesLoading || milestonesLoading;
 
   // Hero content
   const heroTitle = heroSection?.title || "About Eagle Chair";
@@ -70,11 +69,6 @@ const AboutPage = () => {
   const handleUpdateMilestone = cmsAction('updateCompanyMilestone');
   const handleCreateMilestone = cmsAction('createCompanyMilestone');
   const handleDeleteMilestone = cmsAction('deleteCompanyMilestone');
-
-  // Team handlers
-  const handleUpdateTeamMember = cmsAction('updateTeamMember');
-  const handleCreateTeamMember = cmsAction('createTeamMember');
-  const handleDeleteTeamMember = cmsAction('deleteTeamMember');
 
   return (
     <div className="min-h-screen bg-dark-800">
@@ -233,6 +227,7 @@ const AboutPage = () => {
                   whileInView={{ opacity: 1, y: 0 }}
                   viewport={{ once: true }}
                   transition={{ delay: index * 0.1 }}
+                  className="h-full"
                 >
                   <Card padding="none" className="h-full overflow-hidden flex flex-col">
                     {/* Photo edge to edge; without one, a slim accent rule instead of a placeholder */}
@@ -323,73 +318,6 @@ const AboutPage = () => {
         </div>
       </section>
       )}
-
-      {/* Team Section */}
-      <section className="py-20 bg-dark-700">
-        <div className="container">
-          <div className="text-center mb-12">
-            <h2 className="text-4xl font-bold mb-4 text-dark-50">Meet Our Leadership</h2>
-            <p className="text-xl text-dark-100">The team behind Eagle Chair's success</p>
-          </div>
-          <div className="max-w-4xl mx-auto">
-            <EditableList
-              id="team-members-list"
-              items={team || []}
-              onUpdate={handleUpdateTeamMember}
-              onCreate={handleCreateTeamMember}
-              onDelete={handleDeleteTeamMember}
-              itemType="team-member"
-              label="Team Members"
-              addButtonText="Add Team Member"
-              defaultNewItem={{
-                name: 'New Member',
-                title: 'Position',
-                bio: '',
-                photo_url: '',
-                display_order: (team || []).length
-              }}
-              renderItem={(member, index) => (
-                <m.div
-                  key={member.id || index}
-                  initial={{ opacity: 0, y: 20 }}
-                  whileInView={{ opacity: 1, y: 0 }}
-                  viewport={{ once: true }}
-                  transition={{ delay: index * 0.1 }}
-                  className="mb-6"
-                >
-                  <Card className="text-center">
-                    {member.photo_url || member.image ? (
-                      <ResponsiveImage
-                        src={member.photo_url || member.image}
-                        sizes="128px"
-                        alt={member.name}
-                        className="w-32 h-32 rounded-full mx-auto mb-4 object-cover border-4 border-primary-500"
-                      />
-                    ) : (
-                      <div
-                        aria-hidden="true"
-                        className="w-32 h-32 rounded-full mx-auto mb-4 border-4 border-primary-500 bg-dark-600 flex items-center justify-center text-3xl font-semibold text-dark-50"
-                      >
-                        {(member.name || '')
-                          .split(/\s+/)
-                          .filter(Boolean)
-                          .map((part) => part[0])
-                          .slice(0, 2)
-                          .join('')
-                          .toUpperCase()}
-                      </div>
-                    )}
-                    <h3 className="text-xl font-semibold mb-1 text-dark-50">{member.name}</h3>
-                    <p className="text-dark-100">{member.title || member.role}</p>
-                    {member.bio && <p className="text-sm text-dark-200 mt-2">{member.bio}</p>}
-                  </Card>
-                </m.div>
-              )}
-              className="grid md:grid-cols-2 gap-8"
-            />
-          </div>
-        </div>
-      </section>
 
       {/* CTA Section */}
       <section className="py-20 bg-dark-900 border-y border-dark-700">
