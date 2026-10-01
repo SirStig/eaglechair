@@ -14,6 +14,7 @@ const normalizeSubcategory = (s) => ({
   product_count: s.product_count ?? s.productCount ?? 0,
   display_order: s.display_order ?? s.displayOrder,
   is_active: s.is_active ?? s.isActive,
+  spec_profile: s.spec_profile ?? s.specProfile ?? null,
 });
 
 const normalizeCategory = (c) => ({
@@ -27,6 +28,7 @@ const normalizeCategory = (c) => ({
   is_active: c.is_active ?? c.isActive,
   icon_url: c.icon_url ?? c.iconUrl,
   banner_image_url: c.banner_image_url ?? c.bannerImageUrl,
+  spec_profile: c.spec_profile ?? c.specProfile ?? null,
   subcategories: (c.subcategories || []).map(normalizeSubcategory),
 });
 

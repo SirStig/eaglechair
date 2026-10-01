@@ -251,6 +251,7 @@ async def get_categories(
             "is_active": category.is_active,
             "icon_url": category.icon_url,
             "banner_image_url": category.banner_image_url,
+            "spec_profile": category.spec_profile,
             "meta_title": category.meta_title,
             "meta_description": category.meta_description,
             "created_at": category.created_at,

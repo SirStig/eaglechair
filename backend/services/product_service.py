@@ -114,6 +114,7 @@ def category_child_from_category(category: Category, product_count: int = 0) -> 
         "product_count": product_count,
         "icon_url": category.icon_url,
         "banner_image_url": category.banner_image_url,
+        "spec_profile": category.spec_profile,
     }
 
 
@@ -133,6 +134,7 @@ def category_child_from_subcategory(
         "product_count": product_count,
         "icon_url": None,
         "banner_image_url": None,
+        "spec_profile": subcategory.spec_profile,
     }
 
 

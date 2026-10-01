@@ -6,7 +6,7 @@ Schemas for chairs, categories, finishes, and upholsteries
 
 import json
 from datetime import datetime
-from typing import Any, List, Optional, Union
+from typing import Any, List, Literal, Optional, Union
 
 from pydantic import BaseModel, Field, computed_field, field_validator, model_validator
 
@@ -22,6 +22,10 @@ from backend.core.config import settings
 # Category Schemas
 # ============================================================================
 
+# Spec symbol set shown on product pages (backend/models/chair.py SPEC_PROFILES);
+# None inherits from the parent category.
+SpecProfile = Literal["chair", "barstool", "bench", "table_base", "table", "booth"]
+
 
 class CategoryBase(BaseModel):
     """Base category schema"""
@@ -34,6 +38,7 @@ class CategoryBase(BaseModel):
     is_active: bool = True
     icon_url: Optional[str] = Field(None, max_length=500)
     banner_image_url: Optional[str] = Field(None, max_length=500)
+    spec_profile: Optional[SpecProfile] = None
     meta_title: Optional[str] = Field(None, max_length=255)
     meta_description: Optional[str] = None
 
@@ -55,6 +60,7 @@ class CategoryUpdate(BaseModel):
     is_active: Optional[bool] = None
     icon_url: Optional[str] = Field(None, max_length=500)
     banner_image_url: Optional[str] = Field(None, max_length=500)
+    spec_profile: Optional[SpecProfile] = None
     meta_title: Optional[str] = Field(None, max_length=255)
     meta_description: Optional[str] = None
 
@@ -120,6 +126,7 @@ class CategoryChildResponse(BaseModel):
     product_count: Optional[int] = 0
     icon_url: Optional[str] = None
     banner_image_url: Optional[str] = None
+    spec_profile: Optional[SpecProfile] = None
 
     class Config:
         from_attributes = True

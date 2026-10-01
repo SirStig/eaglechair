@@ -14,6 +14,9 @@ import { useCartStore } from '../store/cartStore';
 import productService from '../services/productService';
 import { getProductImages, getProductGalleryImages, resolveImageUrl, resolveFileUrl, variationHasOwnImage, getImageSrcSet } from '../utils/apiHelpers';
 import ResponsiveImage from '../components/ui/ResponsiveImage';
+import SpecSymbols from '../components/ui/SpecSymbols';
+import useSpecProfile from '../hooks/useSpecProfile';
+import { getSpecItems, getFeatureSymbol } from '../utils/specSymbols';
 
 // Hero image column: full width below lg, half of the max-w-7xl container above.
 const HERO_IMAGE_SIZES = '(min-width: 1280px) 600px, (min-width: 1024px) 50vw, 100vw';
@@ -60,6 +63,7 @@ const ProductDetailPage = () => {
   const [lightboxOpen, setLightboxOpen] = useState(false);
   const [lightboxImages, setLightboxImages] = useState([]);
   const [lightboxInitialIndex, setLightboxInitialIndex] = useState(0);
+  const specProfile = useSpecProfile(product);
 
   useEffect(() => {
     loadProduct();
@@ -653,7 +657,11 @@ const ProductDetailPage = () => {
                     <ul className="space-y-3.5 text-slate-700 text-[15px] leading-relaxed">
                       {(featuresExpanded ? product.features : product.features.slice(0, 5)).map((feature, idx) => (
                         <li key={idx} className="flex items-start gap-2">
-                          <span className="text-slate-400 mt-0.5">–</span>
+                          {getFeatureSymbol(feature) ? (
+                            <img src={getFeatureSymbol(feature)} alt="" aria-hidden="true" className="w-5 h-5 mt-0.5 flex-shrink-0 object-contain" />
+                          ) : (
+                            <span className="w-5 flex-shrink-0 text-center text-slate-400">–</span>
+                          )}
                           <span>{feature}</span>
                         </li>
                       ))}
@@ -676,51 +684,12 @@ const ProductDetailPage = () => {
               {/* Weight & Dimensions */}
               <div>
                 <h3 className="text-lg font-bold text-slate-800 mb-5">Weight & Dimensions</h3>
-                <div className="space-y-3.5 text-slate-700 text-[15px] leading-relaxed">
-                  {(() => {
-                    const v = selectedVariation;
-                    const width = (v?.width != null ? v.width : product?.width);
-                    const depth = (v?.depth != null ? v.depth : product?.depth);
-                    const height = (v?.height != null ? v.height : product?.height);
-                    const seat_width = (v?.seat_width != null ? v.seat_width : product?.seat_width);
-                    const seat_depth = (v?.seat_depth != null ? v.seat_depth : product?.seat_depth);
-                    const seat_height = (v?.seat_height != null ? v.seat_height : product?.seat_height);
-                    const arm_height = (v?.arm_height != null ? v.arm_height : product?.arm_height);
-                    const back_height = (v?.back_height != null ? v.back_height : product?.back_height);
-                    const weight = (v?.weight != null ? v.weight : product?.weight);
-                    const shipping_weight = (v?.shipping_weight != null ? v.shipping_weight : product?.shipping_weight);
-                    const upholstery_amount = (v?.upholstery_amount != null ? v.upholstery_amount : product?.upholstery_amount);
-                    const hasOverall = width != null || depth != null || height != null;
-                    const hasSeat = seat_width != null || seat_depth != null;
-                    const hasHeights = arm_height != null || back_height != null;
-                    const hasWeight = shipping_weight != null || weight != null;
-                    const hasUph = upholstery_amount != null && upholstery_amount > 0;
-                    const hasAny = hasOverall || seat_height != null || hasSeat || hasHeights || hasWeight || hasUph;
-                    return (
-                      <>
-                        {hasOverall && (
-                          <p>
-                            Overall Dimensions : {[depth != null && `${depth}" D`, width != null && `${width}" W`, height != null && `${height}" H`].filter(Boolean).join(' x ')}
-                          </p>
-                        )}
-                        {seat_height != null && <p>Seat Height : {seat_height}"</p>}
-                        {hasSeat && (
-                          <p>Seat : {[seat_width != null && `${seat_width}" W`, seat_depth != null && `${seat_depth}" D`].filter(Boolean).join(' x ')}</p>
-                        )}
-                        {hasHeights && (
-                          <p>{[arm_height != null && `Arm Height : ${arm_height}"`, back_height != null && `Back Height : ${back_height}"`].filter(Boolean).join(' · ')}</p>
-                        )}
-                        {hasWeight && (
-                          <p>Shipping Weight : {shipping_weight ?? weight} lbs</p>
-                        )}
-                        {hasUph && (
-                          <p>Upholstery : {Number(upholstery_amount) === parseInt(upholstery_amount, 10) ? upholstery_amount : Number(upholstery_amount).toFixed(1)} yd</p>
-                        )}
-                        {!hasAny && <p className="text-slate-500">—</p>}
-                      </>
-                    );
-                  })()}
-                </div>
+                {(() => {
+                  const specItems = getSpecItems(product, selectedVariation, specProfile);
+                  return specItems.length > 0
+                    ? <SpecSymbols items={specItems} />
+                    : <p className="text-slate-500 text-[15px]">—</p>;
+                })()}
               </div>
 
               {/* Certifications */}

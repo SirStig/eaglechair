@@ -205,6 +205,80 @@ async def ensure_token_version_columns(target_engine=None) -> list[str]:
     return added
 
 
+# Tables that carry a `spec_profile` column (which spec symbols product pages show)
+SPEC_PROFILE_TABLES = ("categories", "product_subcategories")
+
+# One-time defaults by slug, applied only when the column is first added so the
+# existing catalog shows spec symbols without manual setup. Admins change them
+# afterwards in the category editor.
+SPEC_PROFILE_DEFAULTS = {
+    "chairs": "chair",
+    "outdoor-chairs": "chair",
+    "barstools": "barstool",
+    "outdoor-barstools": "barstool",
+    "benches-ottomans": "bench",
+    "table-bases": "table_base",
+    "outdoor-bases": "table_base",
+    "table": "table",
+    "outdoor-tables": "table",
+    "booths-banquettes": "booth",
+}
+
+
+def _spec_profile_column_missing(sync_conn, table: str) -> bool:
+    """True if `table` exists and has no spec_profile column"""
+    from sqlalchemy import inspect
+
+    inspector = inspect(sync_conn)
+    if table not in inspector.get_table_names():
+        return False
+    return not any(col["name"] == "spec_profile" for col in inspector.get_columns(table))
+
+
+def _add_spec_profile_column(sync_conn, table: str) -> bool:
+    """
+    Add spec_profile to `table` if it exists and lacks the column, then fill
+    in SPEC_PROFILE_DEFAULTS by slug. Returns True if the column was added.
+    """
+    from sqlalchemy import text
+
+    if not _spec_profile_column_missing(sync_conn, table):
+        return False
+    quoted = sync_conn.dialect.identifier_preparer.quote(table)
+    sync_conn.execute(text(f"ALTER TABLE {quoted} ADD COLUMN spec_profile VARCHAR(32)"))
+    for slug, profile in SPEC_PROFILE_DEFAULTS.items():
+        sync_conn.execute(
+            text(f"UPDATE {quoted} SET spec_profile = :profile WHERE slug = :slug"),
+            {"profile": profile, "slug": slug},
+        )
+    return True
+
+
+async def ensure_spec_profile_columns(target_engine=None) -> list[str]:
+    """
+    Idempotently add the spec_profile column to the category tables.
+
+    Same approach as ensure_token_version_columns (create_all() does not add
+    columns to existing tables). Returns names of tables that were altered.
+    """
+    target_engine = target_engine or engine
+    added = []
+    for table in SPEC_PROFILE_TABLES:
+        try:
+            async with target_engine.begin() as conn:
+                if await conn.run_sync(_add_spec_profile_column, table):
+                    added.append(table)
+                    logger.info(f"[DB] Added spec_profile column to {table}")
+        except Exception as e:
+            # Another worker may have added it concurrently - re-check
+            async with target_engine.connect() as conn:
+                still_missing = await conn.run_sync(_spec_profile_column_missing, table)
+            if still_missing:
+                logger.error(f"[DB] Failed to add spec_profile column to {table}: {e}")
+                raise
+    return added
+
+
 async def init_db() -> None:
     """
     Initialize database - create all tables
@@ -214,6 +288,7 @@ async def init_db() -> None:
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
     await ensure_token_version_columns()
+    await ensure_spec_profile_columns()
 
 
 async def close_db() -> None:

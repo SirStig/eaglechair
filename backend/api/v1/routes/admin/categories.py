@@ -56,6 +56,7 @@ def _category_dict(category: Category, children: List[dict]) -> dict:
         "is_active": category.is_active,
         "icon_url": category.icon_url,
         "banner_image_url": category.banner_image_url,
+        "spec_profile": category.spec_profile,
         "meta_title": category.meta_title,
         "meta_description": category.meta_description,
         "created_at": category.created_at,
@@ -91,6 +92,7 @@ async def _load_category_children(db: AsyncSession, category_id: int) -> List[di
             "is_active": sub.is_active,
             "icon_url": None,  # ProductSubcategory doesn't have image fields
             "banner_image_url": None,
+            "spec_profile": sub.spec_profile,
             "meta_title": None,  # ProductSubcategory doesn't have meta fields
             "meta_description": None,
             "created_at": getattr(sub, "created_at", None),
@@ -118,6 +120,7 @@ async def _load_category_children(db: AsyncSession, category_id: int) -> List[di
             "is_active": nested.is_active,
             "icon_url": nested.icon_url,
             "banner_image_url": nested.banner_image_url,
+            "spec_profile": nested.spec_profile,
             "meta_title": nested.meta_title,
             "meta_description": nested.meta_description,
             "created_at": nested.created_at,
@@ -214,6 +217,7 @@ async def create_category(
         parent_id=category_data.parent_id,
         icon_url=category_data.icon_url,
         banner_image_url=category_data.banner_image_url,
+        spec_profile=category_data.spec_profile,
         meta_title=category_data.meta_title,
         meta_description=category_data.meta_description,
         display_order=category_data.display_order,
@@ -421,6 +425,7 @@ async def reorder_categories(
         "is_active": category.is_active,
         "icon_url": category.icon_url,
         "banner_image_url": category.banner_image_url,
+        "spec_profile": category.spec_profile,
         "meta_title": category.meta_title,
         "meta_description": category.meta_description,
     }

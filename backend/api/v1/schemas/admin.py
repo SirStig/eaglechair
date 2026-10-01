@@ -8,6 +8,7 @@ from typing import Any, Dict, List, Optional
 
 from pydantic import BaseModel, EmailStr, Field
 
+from backend.api.v1.schemas.product import SpecProfile
 from backend.models.company import CompanyStatus
 from backend.models.quote import QuoteStatus
 
@@ -517,6 +518,9 @@ class SubcategoryCreate(BaseModel):
     description: Optional[str] = Field(None, description="Subcategory description")
     display_order: int = Field(0, ge=0, description="Display order")
     is_active: bool = Field(True, description="Is active")
+    spec_profile: Optional[SpecProfile] = Field(
+        None, description="Spec symbol set; null inherits from the category"
+    )
 
 
 class SubcategoryUpdate(BaseModel):
@@ -532,6 +536,9 @@ class SubcategoryUpdate(BaseModel):
     description: Optional[str] = Field(None, description="Subcategory description")
     display_order: Optional[int] = Field(None, ge=0, description="Display order")
     is_active: Optional[bool] = Field(None, description="Is active")
+    spec_profile: Optional[SpecProfile] = Field(
+        None, description="Spec symbol set; null inherits from the category"
+    )
 
 
 # ============================================================================

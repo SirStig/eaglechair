@@ -431,6 +431,7 @@ async def _build_categories(db: "AsyncSession") -> List[Dict[str, Any]]:
             "displayOrder": child["display_order"],
             "isActive": child["is_active"],
             "type": child["type"],
+            "specProfile": child.get("spec_profile"),
         }
 
     # Fetch active top-level categories
@@ -452,6 +453,7 @@ async def _build_categories(db: "AsyncSession") -> List[Dict[str, Any]]:
             "isActive": c.is_active,
             "iconUrl": c.icon_url,
             "bannerImageUrl": c.banner_image_url,
+            "specProfile": c.spec_profile,
             "subcategories": [
                 _child_payload(child) for child in children_by_category.get(c.id, [])
             ],

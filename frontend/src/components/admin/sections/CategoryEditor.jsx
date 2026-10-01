@@ -6,6 +6,7 @@ import { resolveImageUrl } from '../../../utils/apiHelpers';
 import { slugify } from '../../../utils/slugify';
 import { ArrowLeft, Upload, X } from 'lucide-react';
 import ResponsiveImage from '../../ui/ResponsiveImage';
+import { SPEC_PROFILES } from '../../../utils/specSymbols';
 
 /**
  * Category Editor Component
@@ -22,6 +23,7 @@ const CategoryEditor = ({ category, categories, parentCategory, isSubcategory, o
         description: category?.description || '',
         display_order: category?.display_order ?? 0,
         is_active: category?.is_active !== false,
+        spec_profile: category?.spec_profile || null,
         category_id: (parentCategory?.id != null ? parentCategory.id : category?.category_id) ?? null
       };
     }
@@ -32,6 +34,7 @@ const CategoryEditor = ({ category, categories, parentCategory, isSubcategory, o
       parent_id: category?.parent_id || null,
       icon_url: category?.icon_url || '',
       banner_image_url: category?.banner_image_url || '',
+      spec_profile: category?.spec_profile || null,
       meta_title: category?.meta_title || '',
       meta_description: category?.meta_description || '',
       display_order: category?.display_order || 0,
@@ -183,7 +186,8 @@ const CategoryEditor = ({ category, categories, parentCategory, isSubcategory, o
           category_id: categoryId,
           description: formData.description || null,
           display_order: formData.display_order ?? 0,
-          is_active: formData.is_active !== false
+          is_active: formData.is_active !== false,
+          spec_profile: formData.spec_profile || null
         };
         if (category?.id) {
           await apiClient.put(`/api/v1/admin/catalog/subcategories/${category.id}`, payload);
@@ -383,6 +387,26 @@ const CategoryEditor = ({ category, categories, parentCategory, isSubcategory, o
                     className="w-full px-4 py-2 bg-dark-700 border border-dark-600 rounded-lg text-dark-50 focus:border-primary-500 focus:ring-1 focus:ring-primary-500 outline-none transition-all"
                     min="0"
                   />
+                </div>
+                <div className="col-span-2">
+                  <label className="block text-sm font-medium text-dark-200 mb-2">
+                    Spec Symbols
+                  </label>
+                  <select
+                    value={formData.spec_profile || ''}
+                    onChange={(e) => handleChange('spec_profile', e.target.value || null)}
+                    className="w-full px-4 py-2 bg-dark-700 border border-dark-600 rounded-lg text-dark-50 focus:border-primary-500 focus:ring-1 focus:ring-primary-500 outline-none transition-all"
+                  >
+                    <option value="">
+                      {subcategoryMode || formData.parent_id ? 'Inherit from parent category' : 'None (text labels only)'}
+                    </option>
+                    {SPEC_PROFILES.map((profile) => (
+                      <option key={profile.value} value={profile.value}>{profile.label}</option>
+                    ))}
+                  </select>
+                  <p className="mt-1 text-xs text-dark-300">
+                    Which catalog dimension symbols product pages show for products in this {subcategoryMode ? 'subcategory' : 'category'}.
+                  </p>
                 </div>
               </div>
 

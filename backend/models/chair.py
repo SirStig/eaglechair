@@ -47,6 +47,11 @@ chair_subcategories = Table(
 )
 
 
+# Spec symbol sets for product pages, assigned per category/subcategory.
+# Keep in sync with SPEC_PROFILES in frontend/src/utils/specSymbols.js.
+SPEC_PROFILES = ("chair", "barstool", "bench", "table_base", "table", "booth")
+
+
 class Category(Base):
     """
     Product categories (e.g., Chairs, Booths, Tables, Bar Stools)
@@ -71,6 +76,10 @@ class Category(Base):
     is_active = Column(Boolean, default=True, nullable=False)
     icon_url = Column(String(500), nullable=True)
     banner_image_url = Column(String(500), nullable=True)
+
+    # Which catalog spec symbols product pages show (see SPEC_PROFILES);
+    # NULL inherits from the parent category
+    spec_profile = Column(String(32), nullable=True)
 
     # SEO
     meta_title = Column(String(255), nullable=True)
@@ -115,6 +124,9 @@ class ProductSubcategory(Base):
     # Display
     display_order = Column(Integer, default=0, nullable=False)
     is_active = Column(Boolean, default=True, nullable=False)
+
+    # Overrides the category's spec_profile; NULL inherits it
+    spec_profile = Column(String(32), nullable=True)
 
     def __repr__(self) -> str:
         try:

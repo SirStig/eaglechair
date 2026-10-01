@@ -7,6 +7,9 @@ import { getProductImages, buildProductUrl, resolveImageUrl, variationHasOwnImag
 import SwatchImage from './SwatchImage';
 import ResponsiveImage from './ResponsiveImage';
 import VariationImageDisclaimer from './VariationImageDisclaimer';
+import SpecSymbols from './SpecSymbols';
+import useSpecProfile from '../../hooks/useSpecProfile';
+import { getSpecItems, getFeatureSymbol } from '../../utils/specSymbols';
 import productService from '../../services/productService';
 import logger from '../../utils/logger';
 
@@ -22,6 +25,7 @@ const QuickViewModal = ({ product, isOpen, onClose }) => {
   const [variations, setVariations] = useState([]);
   const [selectedVariation, setSelectedVariation] = useState(null);
   const [loadingVariations, setLoadingVariations] = useState(false);
+  const specProfile = useSpecProfile(product);
 
   useEffect(() => {
     if (product) {
@@ -229,30 +233,12 @@ const QuickViewModal = ({ product, isOpen, onClose }) => {
                         {/* Dimensions */}
                         <div>
                           <h4 className="font-semibold text-slate-800 mb-2">Dimensions</h4>
-                          <div className="space-y-1 text-slate-600">
-                            {(() => {
-                              const v = selectedVariation;
-                              const width = (v?.width != null ? v.width : product?.width);
-                              const depth = (v?.depth != null ? v.depth : product?.depth);
-                              const height = (v?.height != null ? v.height : product?.height);
-                              const upholstery_amount = (v?.upholstery_amount != null ? v.upholstery_amount : product?.upholstery_amount);
-                              const weight = (v?.weight != null ? v.weight : product?.weight);
-                              const shipping_weight = (v?.shipping_weight != null ? v.shipping_weight : product?.shipping_weight);
-                              return (
-                                <>
-                                  {width != null && <p>W: {width}"</p>}
-                                  {depth != null && <p>D: {depth}"</p>}
-                                  {height != null && <p>H: {height}"</p>}
-                                  {(shipping_weight != null || weight != null) && (
-                                    <p>Weight: {shipping_weight ?? weight} lbs</p>
-                                  )}
-                                  {upholstery_amount != null && upholstery_amount > 0 && (
-                                    <p>Upholstery: {Number(upholstery_amount) === parseInt(upholstery_amount, 10) ? upholstery_amount : Number(upholstery_amount).toFixed(1)} yd</p>
-                                  )}
-                                </>
-                              );
-                            })()}
-                          </div>
+                          {(() => {
+                            const specItems = getSpecItems(product, selectedVariation, specProfile);
+                            return specItems.length > 0
+                              ? <SpecSymbols items={specItems} size="sm" />
+                              : <p className="text-slate-500">—</p>;
+                          })()}
                         </div>
 
                         {/* Features */}
@@ -262,7 +248,11 @@ const QuickViewModal = ({ product, isOpen, onClose }) => {
                             <ul className="space-y-1 text-slate-600">
                               {product.features.slice(0, 3).map((feature, idx) => (
                                 <li key={idx} className="flex items-start">
-                                  <span className="text-primary-500 mr-1">•</span>
+                                  {getFeatureSymbol(feature) ? (
+                                    <img src={getFeatureSymbol(feature)} alt="" aria-hidden="true" className="w-4 h-4 mr-1 flex-shrink-0 object-contain" />
+                                  ) : (
+                                    <span className="text-primary-500 mr-1">•</span>
+                                  )}
                                   <span className="line-clamp-1">{feature}</span>
                                 </li>
                               ))}
