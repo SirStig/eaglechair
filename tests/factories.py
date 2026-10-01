@@ -52,6 +52,7 @@ from backend.models.content import (
     SalesRepresentative,
     SiteSettings,
     TeamMember,
+    Testimonial,
 )
 from backend.models.legal import (
     LegalDocument,
@@ -879,6 +880,25 @@ async def create_client_logo(db_session, **kwargs):
     await db_session.commit()
     await db_session.refresh(logo)
     return logo
+
+
+async def create_testimonial(db_session, **kwargs):
+    """Create a Testimonial instance."""
+    defaults = {
+        "quote": fake.text(max_nb_chars=200),
+        "author_name": fake.name(),
+        "author_title": fake.job(),
+        "company_name": fake.company(),
+        "location": f"{fake.city()}, {fake.state_abbr()}",
+        "display_order": fake.random_int(min=1, max=20),
+        "is_active": True,
+    }
+    defaults.update(kwargs)
+    testimonial = Testimonial(**defaults)
+    db_session.add(testimonial)
+    await db_session.commit()
+    await db_session.refresh(testimonial)
+    return testimonial
 
 
 async def create_company_value(db_session, **kwargs):

@@ -272,7 +272,8 @@ const AboutPage = () => {
         </div>
       </section>
 
-      {/* Timeline Section */}
+      {/* Timeline Section - hidden from visitors while there are no milestones */}
+      {(isEditMode || milestones?.length > 0) && (
       <section className="py-12 sm:py-16 lg:py-20 bg-dark-800">
         <div className="container">
           <div className="text-center mb-8 sm:mb-12">
@@ -323,6 +324,7 @@ const AboutPage = () => {
           </div>
         </div>
       </section>
+      )}
 
       {/* Team Section */}
       <section className="py-20 bg-dark-700">

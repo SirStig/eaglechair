@@ -344,6 +344,28 @@ class ClientLogo(Base):
         return f"<ClientLogo(id={self.id}, name={self.name})>"
 
 
+class Testimonial(Base):
+    """
+    Client testimonials for the homepage "What Our Clients Say" section
+    """
+    __tablename__ = "testimonials"
+
+    id = Column(Integer, primary_key=True, index=True)
+    quote = Column(Text, nullable=False)
+    author_name = Column(String(255), nullable=False)
+    author_title = Column(String(255), nullable=True)  # e.g., "Owner", "Director of Operations"
+    company_name = Column(String(255), nullable=True)  # e.g., "The Grand Hotel"
+    location = Column(String(255), nullable=True)  # e.g., "Chicago, IL"
+    photo_url = Column(String(500), nullable=True)  # Headshot or company logo
+
+    # Display
+    display_order = Column(Integer, default=0, nullable=False)
+    is_active = Column(Boolean, default=True, nullable=False)
+
+    def __repr__(self) -> str:
+        return f"<Testimonial(id={self.id}, author={self.author_name})>"
+
+
 class Feature(Base):
     """
     Features/Benefits for "Why Choose Us" sections

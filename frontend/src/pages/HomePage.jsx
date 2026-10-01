@@ -13,7 +13,8 @@ import ConfirmModal from '../components/ui/ConfirmModal';
 import SEOHead from '../components/SEOHead';
 import { useEditMode } from '../contexts/useEditMode';
 import { useToast } from '../contexts/ToastContext';
-import { useHeroSlides, useClientLogos, useFeaturedProducts, usePageContent, useSiteSettings, useInstallations } from '../hooks/useContent';
+import EditableList from '../components/admin/EditableList';
+import { useHeroSlides, useClientLogos, useFeaturedProducts, usePageContent, useSiteSettings, useInstallations, useTestimonials } from '../hooks/useContent';
 import CategoryTile from '../components/products/CategoryTile';
 import productService from '../services/productService';
 import { resolveImageUrl, ensureResolvedImageUrl, getImageSrcSet } from '../utils/apiHelpers';
@@ -64,6 +65,8 @@ const HomePage = () => {
   const { data: ctaSection } = usePageContent('home', 'cta');
   const { data: installationGallerySection } = usePageContent('home', 'installation_gallery');
   const { data: installations, loading: installationsLoading } = useInstallations();
+  const { data: testimonials } = useTestimonials();
+  const { data: testimonialsSection } = usePageContent('home', 'testimonials');
 
   // Saves go through cmsAdminService; the API client then invalidates the
   // shared content caches and every content hook re-fetches - no refetch here.
@@ -129,6 +132,26 @@ const HomePage = () => {
       throw error;
     }
   };
+
+  // Testimonials Handlers
+  const handleUpdateTestimonial = async (id, updates) => {
+    const { updateTestimonial } = await loadCmsAdmin();
+    await updateTestimonial(id, updates);
+  };
+
+  const handleCreateTestimonial = async (newData) => {
+    const { createTestimonial } = await loadCmsAdmin();
+    await createTestimonial(newData);
+  };
+
+  const handleDeleteTestimonial = async (id) => {
+    const { deleteTestimonial } = await loadCmsAdmin();
+    await deleteTestimonial(id);
+  };
+
+  const testimonialList = testimonials || [];
+  const testimonialsTitle = testimonialsSection?.title || 'What Our Clients Say';
+  const testimonialsSubtitle = testimonialsSection?.subtitle || testimonialsSection?.content || 'Trusted by restaurants, hotels and hospitality venues across the country';
 
   const slides = useMemo(() => heroSlides || [], [heroSlides]);
   const clients = clientLogos || [];
@@ -733,6 +756,83 @@ const HomePage = () => {
           </Link>
         </div>
       </section>
+
+      {/* Testimonials - hidden from visitors while there are none */}
+      {(isEditMode || testimonialList.length > 0) && (
+        <section className="py-12 sm:py-16 md:py-20 bg-cream-50 border-t border-cream-200">
+          <div className="container">
+            <div className="text-center mb-8 sm:mb-12 px-4">
+              <EditableWrapper
+                id="home-testimonials-title"
+                type="text"
+                data={{ title: testimonialsTitle }}
+                onSave={(newData) => handleSaveContent('home', 'testimonials', { ...testimonialsSection, ...newData })}
+                label="Testimonials Title"
+              >
+                <h2 className="text-2xl sm:text-3xl md:text-4xl font-bold mb-3 sm:mb-4 text-slate-800">{testimonialsTitle}</h2>
+              </EditableWrapper>
+              <EditableWrapper
+                id="home-testimonials-subtitle"
+                type="textarea"
+                data={{ content: testimonialsSubtitle }}
+                onSave={(newData) => handleSaveContent('home', 'testimonials', { ...testimonialsSection, ...newData })}
+                label="Testimonials Subtitle"
+              >
+                <p className="text-lg sm:text-xl text-slate-600 max-w-2xl mx-auto">{testimonialsSubtitle}</p>
+              </EditableWrapper>
+            </div>
+
+            <EditableList
+              items={testimonialList}
+              onUpdate={handleUpdateTestimonial}
+              onCreate={handleCreateTestimonial}
+              onDelete={handleDeleteTestimonial}
+              itemType="testimonial"
+              addButtonText="Add Testimonial"
+              defaultNewItem={{ displayOrder: testimonialList.length }}
+              className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 sm:gap-8 px-4 sm:px-0"
+              renderItem={(testimonial, index) => (
+                <m.figure
+                  initial={{ opacity: 0, y: 20 }}
+                  whileInView={{ opacity: 1, y: 0 }}
+                  viewport={{ once: true }}
+                  transition={{ delay: index * 0.1 }}
+                  className="h-full flex flex-col bg-white rounded-xl border border-cream-200 shadow-sm p-6 sm:p-8"
+                >
+                  <svg className="w-8 h-8 text-primary-500/60 mb-4 flex-shrink-0" fill="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                    <path d="M9.983 3v7.391c0 5.704-3.731 9.57-8.983 10.609l-.995-2.151c2.432-.917 3.995-3.638 3.995-5.849h-4v-10h9.983zm14.017 0v7.391c0 5.704-3.748 9.571-9 10.609l-.996-2.151c2.433-.917 3.996-3.638 3.996-5.849h-3.983v-10h9.983z" />
+                  </svg>
+                  <blockquote className="flex-1 text-slate-700 text-base sm:text-lg leading-relaxed whitespace-pre-line">
+                    {testimonial.quote}
+                  </blockquote>
+                  <figcaption className="mt-6 flex items-center gap-4">
+                    {testimonial.photoUrl && (
+                      <img
+                        src={resolveImageUrl(testimonial.photoUrl)}
+                        alt=""
+                        loading="lazy"
+                        decoding="async"
+                        className="w-12 h-12 rounded-full object-cover bg-cream-100 flex-shrink-0"
+                      />
+                    )}
+                    <div className="min-w-0">
+                      <div className="font-semibold text-slate-800">{testimonial.authorName}</div>
+                      {(testimonial.authorTitle || testimonial.companyName) && (
+                        <div className="text-sm text-slate-600">
+                          {[testimonial.authorTitle, testimonial.companyName].filter(Boolean).join(', ')}
+                        </div>
+                      )}
+                      {testimonial.location && (
+                        <div className="text-sm text-slate-500">{testimonial.location}</div>
+                      )}
+                    </div>
+                  </figcaption>
+                </m.figure>
+              )}
+            />
+          </div>
+        </section>
+      )}
 
       {/* CTA Section */}
       <section className="py-12 sm:py-16 md:py-20 bg-cream-50 border-t-2 border-primary-500/30">

@@ -572,6 +572,22 @@ class ClientLogoResponse(BaseModel):
 
 
 # ============================================================================
+# Testimonial Schemas
+# ============================================================================
+
+class TestimonialResponse(BaseModel):
+    """Schema for testimonial response"""
+    id: int
+    quote: str
+    authorName: str
+    authorTitle: Optional[str]
+    companyName: Optional[str]
+    location: Optional[str]
+    photoUrl: Optional[str]
+    displayOrder: int
+
+
+# ============================================================================
 # Company Value Schemas
 # ============================================================================
 

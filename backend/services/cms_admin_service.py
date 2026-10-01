@@ -29,6 +29,7 @@ from backend.models.content import (
     SalesRepresentative,
     SiteSettings,
     TeamMember,
+    Testimonial,
 )
 from backend.models.legal import (
     LegalDocument,
@@ -53,6 +54,7 @@ _IMAGE_FIELDS: Dict[type, Tuple[str, ...]] = {
     HeroSlide: ("background_image_url",),
     TeamMember: ("photo_url",),
     ClientLogo: ("logo_url",),
+    Testimonial: ("photo_url",),
     Installation: ("primary_image", "images"),
     Feature: ("image_url",),
     CompanyValue: ("image_url",),
@@ -595,6 +597,41 @@ class CMSAdminService:
             db, ClientLogo, logo_id, "Client Logo", 'clientLogos'
         )
         logger.info(f"Deleted client logo {logo_id}")
+        return exported
+
+    # ========================================================================
+    # Testimonials
+    # ========================================================================
+
+    @staticmethod
+    async def create_testimonial(db: AsyncSession, **fields) -> Tuple[Testimonial, bool]:
+        """Create testimonial and export."""
+        testimonial, exported = await CMSAdminService._create(
+            db, Testimonial, 'testimonials', fields
+        )
+        logger.info(f"Created testimonial from: {testimonial.author_name}")
+        return testimonial, exported
+
+    @staticmethod
+    async def update_testimonial(
+        db: AsyncSession,
+        testimonial_id: int,
+        **updates
+    ) -> Tuple[Testimonial, bool]:
+        """Update testimonial and export."""
+        testimonial, exported = await CMSAdminService._update(
+            db, Testimonial, testimonial_id, "Testimonial", 'testimonials', updates
+        )
+        logger.info(f"Updated testimonial {testimonial_id}")
+        return testimonial, exported
+
+    @staticmethod
+    async def delete_testimonial(db: AsyncSession, testimonial_id: int) -> bool:
+        """Delete testimonial and export."""
+        exported = await CMSAdminService._delete(
+            db, Testimonial, testimonial_id, "Testimonial", 'testimonials'
+        )
+        logger.info(f"Deleted testimonial {testimonial_id}")
         return exported
 
     # ========================================================================

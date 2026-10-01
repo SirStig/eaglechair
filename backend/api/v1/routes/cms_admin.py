@@ -7,6 +7,7 @@ This file handles CREATE, UPDATE, DELETE operations for:
 - Site settings (company info, contact, social links)
 - Hero slides (homepage carousel)
 - Sales representatives
+- Testimonials
 - Installation gallery images
 - Page content sections
 
@@ -138,6 +139,31 @@ class ClientLogoUpdate(CMSUrlValidationMixin):
     name: str | None = Field(None, max_length=255)
     logo_url: str | None = Field(None, max_length=500)
     website_url: str | None = Field(None, max_length=500)
+    display_order: int | None = Field(None, ge=0)
+    is_active: bool | None = None
+
+
+# Testimonials
+class TestimonialCreate(CMSUrlValidationMixin):
+    """Testimonial creation request"""
+    quote: str = Field(..., min_length=1)
+    author_name: str = Field(..., min_length=1, max_length=255)
+    author_title: str | None = Field(None, max_length=255)
+    company_name: str | None = Field(None, max_length=255)
+    location: str | None = Field(None, max_length=255)
+    photo_url: str | None = Field(None, max_length=500)
+    display_order: int = Field(default=0, ge=0)
+    is_active: bool = True
+
+
+class TestimonialUpdate(CMSUrlValidationMixin):
+    """Testimonial update request"""
+    quote: str | None = Field(None, min_length=1)
+    author_name: str | None = Field(None, min_length=1, max_length=255)
+    author_title: str | None = Field(None, max_length=255)
+    company_name: str | None = Field(None, max_length=255)
+    location: str | None = Field(None, max_length=255)
+    photo_url: str | None = Field(None, max_length=500)
     display_order: int | None = Field(None, ge=0)
     is_active: bool | None = None
 
@@ -858,6 +884,85 @@ async def delete_client_logo(
         raise
     except Exception:
         raise _internal_error("delete client logo")
+
+
+# ============================================================================
+# Testimonials Endpoints
+# ============================================================================
+
+@router.post(
+    "/testimonials",
+    response_model=CMSWriteResponse,
+    status_code=status.HTTP_201_CREATED,
+    summary="Create testimonial",
+    description="Create a new client testimonial and export"
+)
+async def create_testimonial(
+    testimonial: TestimonialCreate,
+    db: AsyncSession = Depends(get_db),
+    admin: Company = Depends(require_role(AdminRole.EDITOR))
+):
+    """Create testimonial and export to static file."""
+    logger.info(f"Admin {admin.id} creating testimonial from: {testimonial.author_name}")
+
+    try:
+        _, exported = await CMSAdminService.create_testimonial(db, **testimonial.model_dump())
+        return _write_response("Testimonial created", exported)
+    except (HTTPException, EagleChairException):
+        raise
+    except Exception:
+        raise _internal_error("create testimonial")
+
+
+@router.patch(
+    "/testimonials/{testimonial_id}",
+    response_model=CMSWriteResponse,
+    summary="Update testimonial",
+    description="Update a client testimonial and export"
+)
+async def update_testimonial(
+    testimonial_id: int,
+    testimonial: TestimonialUpdate,
+    db: AsyncSession = Depends(get_db),
+    admin: Company = Depends(require_role(AdminRole.EDITOR))
+):
+    """Update testimonial and export to static file."""
+    logger.info(f"Admin {admin.id} updating testimonial {testimonial_id}")
+
+    updates = testimonial.model_dump(exclude_unset=True)
+    if not updates:
+        raise _no_updates()
+
+    try:
+        _, exported = await CMSAdminService.update_testimonial(db, testimonial_id, **updates)
+        return _write_response("Testimonial updated", exported)
+    except (HTTPException, EagleChairException):
+        raise
+    except Exception:
+        raise _internal_error("update testimonial")
+
+
+@router.delete(
+    "/testimonials/{testimonial_id}",
+    response_model=CMSWriteResponse,
+    summary="Delete testimonial",
+    description="Delete a client testimonial and export"
+)
+async def delete_testimonial(
+    testimonial_id: int,
+    db: AsyncSession = Depends(get_db),
+    admin: Company = Depends(require_role(AdminRole.EDITOR))
+):
+    """Delete testimonial and export to static file."""
+    logger.info(f"Admin {admin.id} deleting testimonial {testimonial_id}")
+
+    try:
+        exported = await CMSAdminService.delete_testimonial(db, testimonial_id)
+        return _write_response("Testimonial deleted", exported)
+    except (HTTPException, EagleChairException):
+        raise
+    except Exception:
+        raise _internal_error("delete testimonial")
 
 
 # ============================================================================

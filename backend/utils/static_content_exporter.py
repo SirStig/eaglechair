@@ -46,6 +46,7 @@ from backend.models.content import (
     SalesRepresentative,
     SiteSettings,
     TeamMember,
+    Testimonial,
 )
 from backend.models.legal import LegalDocument, WarrantyInformation
 from backend.utils.serializers import parse_json_list
@@ -625,6 +626,27 @@ async def _build_client_logos(db: "AsyncSession") -> List[Dict[str, Any]]:
     ]
 
 
+async def _build_testimonials(db: "AsyncSession") -> List[Dict[str, Any]]:
+    result = await db.execute(
+        select(Testimonial)
+        .where(Testimonial.is_active == True)
+        .order_by(Testimonial.display_order, Testimonial.id)
+    )
+    return [
+        {
+            "id": t.id,
+            "quote": t.quote,
+            "authorName": t.author_name,
+            "authorTitle": t.author_title,
+            "companyName": t.company_name,
+            "location": t.location,
+            "photoUrl": t.photo_url,
+            "displayOrder": t.display_order,
+        }
+        for t in result.scalars().all()
+    ]
+
+
 async def _build_page_content(db: "AsyncSession") -> List[Dict[str, Any]]:
     result = await db.execute(
         select(PageContent)
@@ -940,6 +962,7 @@ SECTION_BUILDERS: Dict[str, Callable[["AsyncSession"], Awaitable[Any]]] = {
     "companyMilestones": _build_company_milestones,
     "teamMembers": _build_team_members,
     "clientLogos": _build_client_logos,
+    "testimonials": _build_testimonials,
     LEGAL_DOCUMENTS_KEY: _build_legal_documents,
     "warranties": _build_warranties,
     "faqs": _build_faqs,

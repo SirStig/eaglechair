@@ -23,6 +23,7 @@ from backend.models.content import (
     HeroSlide,
     Installation,
     TeamMember,
+    Testimonial,
 )
 from backend.utils.static_content_exporter import StaticContentExporter
 from tests.factories import create_chair
@@ -111,6 +112,56 @@ class TestCMSAdminCreate:
         feature = await _get(db_session, Feature, title="Built to Last")
         for key, value in payload.items():
             assert getattr(feature, key) == value, key
+
+    @pytest.mark.asyncio
+    async def test_create_testimonial_persists_and_exports(
+        self, async_client: AsyncClient, db_session: AsyncSession, admin_headers, static_export_dir
+    ):
+        payload = {
+            "quote": "The chairs still look new after ten years of service.",
+            "author_name": "Maria Chen",
+            "author_title": "Owner",
+            "company_name": "Harbor Bistro",
+            "location": "Portland, OR",
+            "photo_url": "/uploads/images/testimonial/maria.webp",
+            "display_order": 1,
+            "is_active": True,
+        }
+        response = await async_client.post(f"{API}/testimonials", json=payload, headers=admin_headers)
+
+        assert response.status_code == 201, response.text
+        assert response.json()["exported"] is True
+        testimonial = await _get(db_session, Testimonial, author_name="Maria Chen")
+        for key, value in payload.items():
+            assert getattr(testimonial, key) == value, key
+
+        assert _exported_content(static_export_dir)["testimonials"] == [
+            {
+                "id": testimonial.id,
+                "quote": "The chairs still look new after ten years of service.",
+                "authorName": "Maria Chen",
+                "authorTitle": "Owner",
+                "companyName": "Harbor Bistro",
+                "location": "Portland, OR",
+                "photoUrl": "/uploads/images/testimonial/maria.webp",
+                "displayOrder": 1,
+            }
+        ]
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize(
+        "payload",
+        [
+            {"author_name": "No Quote"},
+            {"quote": "", "author_name": "Empty Quote"},
+            {"quote": "No author"},
+        ],
+    )
+    async def test_create_testimonial_requires_quote_and_author(
+        self, async_client: AsyncClient, admin_headers, payload
+    ):
+        response = await async_client.post(f"{API}/testimonials", json=payload, headers=admin_headers)
+        assert response.status_code == 422
 
     @pytest.mark.asyncio
     async def test_create_company_value_persists_all_fields(
@@ -373,6 +424,7 @@ class TestCMSUrlPolicy:
             ("hero-slides", {"title": "T", "background_image_url": "data:image/svg+xml;base64,AAAA"}),
             ("client-logos", {"name": "C", "logo_url": "/l.png", "website_url": "JavaScript:alert(1)"}),
             ("team-members", {"name": "N", "title": "T", "linkedin_url": " javascript:alert(1)"}),
+            ("testimonials", {"quote": "Q", "author_name": "A", "photo_url": "javascript:alert(1)"}),
         ],
     )
     async def test_unsafe_urls_rejected(

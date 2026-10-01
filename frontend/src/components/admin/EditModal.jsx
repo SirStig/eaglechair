@@ -64,6 +64,15 @@ const FIELD_SCHEMAS = {
     { key: 'secondaryCtaLink', type: 'url', label: 'Secondary CTA Link' },
     { key: 'displayOrder', type: 'number', label: 'Display Order' },
   ],
+  testimonial: [
+    { key: 'quote', type: 'textarea', label: 'Quote' },
+    { key: 'authorName', label: 'Name' },
+    { key: 'authorTitle', label: 'Job Title' },
+    { key: 'companyName', label: 'Company' },
+    { key: 'location', label: 'Location (e.g. Chicago, IL)' },
+    { key: 'photoUrl', type: 'image', label: 'Photo or Company Logo' },
+    { key: 'displayOrder', type: 'number', label: 'Display Order' },
+  ],
 };
 
 const INPUT_CLASS = 'w-full px-4 py-2 bg-dark-700 border border-dark-500 rounded-lg text-dark-50 placeholder-dark-300 focus:outline-none focus:ring-2 focus:ring-accent-500 focus:border-transparent';

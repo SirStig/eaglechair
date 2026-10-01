@@ -18,6 +18,7 @@ from tests.factories import (
     create_page_content,
     create_sales_representative,
     create_site_settings,
+    create_testimonial,
 )
 
 
@@ -69,10 +70,27 @@ class TestCMSContentRoutes:
         await create_client_logo(db_session, name="Client 2", is_active=True)
         
         response = await async_client.get("/api/v1/content/client-logos")
-        
+
         assert response.status_code == 200
         data = response.json()
         assert len(data) >= 2
+
+    @pytest.mark.asyncio
+    async def test_get_testimonials_active_only_in_order(
+        self,
+        async_client: AsyncClient,
+        db_session: AsyncSession
+    ):
+        """Only active testimonials are returned, sorted by display order."""
+        await create_testimonial(db_session, author_name="Second", display_order=2)
+        await create_testimonial(db_session, author_name="First", display_order=1)
+        await create_testimonial(db_session, author_name="Hidden", display_order=0, is_active=False)
+
+        response = await async_client.get("/api/v1/content/testimonials")
+
+        assert response.status_code == 200
+        names = [t["authorName"] for t in response.json()]
+        assert names == ["First", "Second"]
     
     @pytest.mark.asyncio
     async def test_get_company_values_success(

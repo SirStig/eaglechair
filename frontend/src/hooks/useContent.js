@@ -299,6 +299,20 @@ export const useClientLogos = () => {
 };
 
 /**
+ * Hook for client testimonials
+ */
+export const useTestimonials = () => {
+  return useContent(
+    contentService.getTestimonials,
+    [],
+    'testimonials',
+    30 * 60 * 1000,
+    [],
+    staticSelectors.testimonials
+  );
+};
+
+/**
  * Hook for sales representatives
  */
 export const useSalesReps = () => {

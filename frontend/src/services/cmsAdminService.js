@@ -147,6 +147,18 @@ export const updateClientLogo = (id, updates) =>
 export const deleteClientLogo = (id) =>
   run(`Deleting client logo ${id}`, () => api.delete(`/api/v1/cms-admin/client-logos/${id}`));
 
+// ==================== TESTIMONIALS ====================
+
+export const createTestimonial = (data) =>
+  run('Creating testimonial', () => api.post('/api/v1/cms-admin/testimonials', toApiPayload(data)));
+
+export const updateTestimonial = (id, updates) =>
+  run(`Updating testimonial ${id}`, () =>
+    api.patch(`/api/v1/cms-admin/testimonials/${id}`, toApiPayload(updates)));
+
+export const deleteTestimonial = (id) =>
+  run(`Deleting testimonial ${id}`, () => api.delete(`/api/v1/cms-admin/testimonials/${id}`));
+
 // ==================== SALES REPS ====================
 
 export const createSalesRep = (data) =>

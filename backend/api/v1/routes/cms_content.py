@@ -6,6 +6,7 @@ Public READ-ONLY routes for CMS-managed display content:
 - Site settings (company info, contact, social links)
 - Features (product/service highlights)
 - Client logos
+- Testimonials
 - Company values and milestones
 - Sales representatives (Find a Rep page)
 - Installation gallery (photo gallery with descriptions)
@@ -38,6 +39,7 @@ from backend.api.v1.schemas.content import (
     InstallationListItemResponse,
     PageContentItemResponse,
     SalesRepresentativeResponse,
+    TestimonialResponse,
 )
 from backend.database.base import get_db
 from backend.models.chair import Chair
@@ -51,6 +53,7 @@ from backend.models.content import (
     PageContent,
     SalesRepresentative,
     SiteSettings,
+    Testimonial,
 )
 from backend.models.legal import LegalDocument, ShippingPolicy, WarrantyInformation
 from backend.services.default_content_service import default_content
@@ -277,6 +280,46 @@ async def get_client_logos(db: AsyncSession = Depends(get_db)):
             "displayOrder": logo.display_order
         }
         for logo in logos
+    ]
+
+
+# ============================================================================
+# Testimonials
+# ============================================================================
+
+@router.get(
+    "/testimonials",
+    response_model=list[TestimonialResponse],
+    summary="Get testimonials",
+    description="Retrieve client testimonials for display"
+)
+async def get_testimonials(db: AsyncSession = Depends(get_db)):
+    """
+    Get all active testimonials.
+
+    **Public endpoint** - No authentication required.
+    """
+    logger.info("Fetching testimonials")
+
+    result = await db.execute(
+        select(Testimonial)
+        .where(Testimonial.is_active == True)
+        .order_by(Testimonial.display_order, Testimonial.id)
+    )
+    testimonials = result.scalars().all()
+
+    return [
+        {
+            "id": t.id,
+            "quote": t.quote,
+            "authorName": t.author_name,
+            "authorTitle": t.author_title,
+            "companyName": t.company_name,
+            "location": t.location,
+            "photoUrl": t.photo_url,
+            "displayOrder": t.display_order
+        }
+        for t in testimonials
     ]
 
 

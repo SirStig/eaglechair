@@ -46,6 +46,7 @@ export const staticSelectors = {
     return features.filter((f) => f.featureType === featureType);
   },
   clientLogos: (content) => content.clientLogos,
+  testimonials: (content) => content.testimonials,
   salesReps: (content) => content.salesReps,
   repByState: (content, stateCode) => content.getRepByState?.(stateCode),
   installations: (content, filters = {}) => {
@@ -213,6 +214,18 @@ export const getClientLogos = async () => {
       return response;
     },
     'Fetching client logos'
+  );
+};
+
+// Testimonials
+export const getTestimonials = async () => {
+  return getStaticOrAPI(
+    staticSelectors.testimonials,
+    async () => {
+      const response = await api.get('/api/v1/content/testimonials');
+      return response;
+    },
+    'Fetching testimonials'
   );
 };
 
@@ -457,6 +470,7 @@ export default {
   getHeroSlides,
   getFeatures,
   getClientLogos,
+  getTestimonials,
   getSalesReps,
   getRepByState,
   getInstallations,
