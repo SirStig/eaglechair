@@ -219,7 +219,7 @@ class DefaultContentService:
                 "name": "Katarina Kac-Statton",
                 "title": "Co-Owner & Operations Director",
                 "bio": "Leading Eagle Chair's operations with a focus on quality and customer satisfaction.",
-                "photoUrl": "/team/katarina.jpg",
+                "photoUrl": None,
                 "displayOrder": 1,
                 "isFeatured": True
             },
@@ -228,7 +228,7 @@ class DefaultContentService:
                 "name": "Maximilian Kac",
                 "title": "Co-Owner & Sales Director",
                 "bio": "Overseeing sales and client relationships, ensuring every customer receives exceptional service.",
-                "photoUrl": "/team/maximilian.jpg",
+                "photoUrl": None,
                 "displayOrder": 2,
                 "isFeatured": True
             }

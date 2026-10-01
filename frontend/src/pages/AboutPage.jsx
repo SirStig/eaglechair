@@ -234,10 +234,10 @@ const AboutPage = () => {
                   viewport={{ once: true }}
                   transition={{ delay: index * 0.1 }}
                 >
-                  <Card className="text-center h-full overflow-hidden">
-                    {/* Value Image or Icon */}
+                  <Card padding="none" className="h-full overflow-hidden flex flex-col">
+                    {/* Photo edge to edge; without one, a slim accent rule instead of a placeholder */}
                     {value.image_url || value.imageUrl ? (
-                      <div className="w-full h-40 overflow-hidden mb-4">
+                      <div className="aspect-[16/10] overflow-hidden">
                         <ResponsiveImage
                           src={value.image_url || value.imageUrl}
                           sizes="(min-width: 1024px) 25vw, (min-width: 640px) 50vw, 100vw"
@@ -246,22 +246,20 @@ const AboutPage = () => {
                         />
                       </div>
                     ) : (
-                      <div className="w-16 h-16 bg-primary-900 border-2 border-primary-500 rounded-lg flex items-center justify-center mx-auto mb-4 mt-4">
-                        {value.icon ? (
-                          <span className="text-2xl">{value.icon}</span>
-                        ) : (
-                          <div className="w-8 h-8 bg-primary-500 rounded"></div>
-                        )}
-                      </div>
+                      <div className="h-1 bg-primary-500" />
                     )}
 
-                    {/* Value Content */}
-                    <div className="px-4 pb-4">
-                      <h3 className="text-xl font-semibold mb-1 text-dark-50">{value.title}</h3>
+                    <div className="p-5 sm:p-6 flex-1">
                       {value.subtitle && (
-                        <p className="text-sm text-primary-400 mb-2">{value.subtitle}</p>
+                        <p className="text-xs font-semibold uppercase tracking-wider text-primary-400 mb-2">
+                          {value.subtitle}
+                        </p>
                       )}
-                      <p className="text-dark-100">{value.description}</p>
+                      <h3 className="text-xl font-semibold mb-2 text-dark-50">
+                        {value.icon && <span className="mr-2">{value.icon}</span>}
+                        {value.title}
+                      </h3>
+                      <p className="text-dark-100 leading-relaxed">{value.description}</p>
                     </div>
                   </Card>
                 </m.div>
@@ -360,12 +358,27 @@ const AboutPage = () => {
                   className="mb-6"
                 >
                   <Card className="text-center">
-                    <ResponsiveImage
-                      src={member.photo_url || member.image}
-                      sizes="128px"
-                      alt={member.name}
-                      className="w-32 h-32 rounded-full mx-auto mb-4 object-cover border-4 border-primary-500"
-                    />
+                    {member.photo_url || member.image ? (
+                      <ResponsiveImage
+                        src={member.photo_url || member.image}
+                        sizes="128px"
+                        alt={member.name}
+                        className="w-32 h-32 rounded-full mx-auto mb-4 object-cover border-4 border-primary-500"
+                      />
+                    ) : (
+                      <div
+                        aria-hidden="true"
+                        className="w-32 h-32 rounded-full mx-auto mb-4 border-4 border-primary-500 bg-dark-600 flex items-center justify-center text-3xl font-semibold text-dark-50"
+                      >
+                        {(member.name || '')
+                          .split(/\s+/)
+                          .filter(Boolean)
+                          .map((part) => part[0])
+                          .slice(0, 2)
+                          .join('')
+                          .toUpperCase()}
+                      </div>
+                    )}
                     <h3 className="text-xl font-semibold mb-1 text-dark-50">{member.name}</h3>
                     <p className="text-dark-100">{member.title || member.role}</p>
                     {member.bio && <p className="text-sm text-dark-200 mt-2">{member.bio}</p>}

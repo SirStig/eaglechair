@@ -564,8 +564,10 @@ async def _build_company_values(db: "AsyncSession") -> List[Dict[str, Any]]:
         {
             "id": v.id,
             "title": v.title,
+            "subtitle": v.subtitle,
             "description": v.description,
             "icon": v.icon,
+            "imageUrl": v.image_url,
         }
         for v in result.scalars().all()
     ]
