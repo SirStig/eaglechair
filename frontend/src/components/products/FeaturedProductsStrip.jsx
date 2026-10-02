@@ -18,7 +18,7 @@ const shuffle = (items) => {
 
 /**
  * Edge-to-edge, horizontally scrolling row of featured products.
- * Touch/trackpad users swipe; mouse users can wheel, drag, or use the arrows (md+).
+ * Touch/trackpad users swipe; mouse users can drag or use the arrows (md+).
  * Order is shuffled on each visit, after mount so SSR hydration still matches.
  */
 const FeaturedProductsStrip = ({ products, onQuickView }) => {
@@ -50,15 +50,12 @@ const FeaturedProductsStrip = ({ products, onQuickView }) => {
     };
   }, [updateArrows, ordered.length]);
 
-  // Mouse support: the wheel scrolls the row sideways and click-drag pans it.
-  // Snap is paused while either is moving the row, otherwise it would pull
-  // every small wheel step back to the same card; it resumes once idle.
+  // Mouse support: click-drag pans the row. Snap is paused while dragging,
+  // otherwise it would fight the drag; it resumes once idle.
   useEffect(() => {
     const el = trackRef.current;
     if (!el) return undefined;
 
-    let target = el.scrollLeft;
-    let frame = 0;
     let idleTimer = 0;
     let drag = null;
     let suppressClick = false;
@@ -71,35 +68,8 @@ const FeaturedProductsStrip = ({ products, onQuickView }) => {
       }, 180);
     };
 
-    const animate = () => {
-      const diff = target - el.scrollLeft;
-      if (Math.abs(diff) < 1) {
-        el.scrollLeft = target;
-        frame = 0;
-        return;
-      }
-      el.scrollLeft += diff * 0.25;
-      frame = requestAnimationFrame(animate);
-    };
-
-    const onWheel = (e) => {
-      // Trackpad sideways swipes already scroll natively.
-      if (Math.abs(e.deltaX) >= Math.abs(e.deltaY)) return;
-      const max = el.scrollWidth - el.clientWidth;
-      const from = frame ? target : el.scrollLeft;
-      // At either end, let the page scroll on instead of trapping the wheel.
-      if ((e.deltaY < 0 && from <= 0) || (e.deltaY > 0 && from >= max - 1)) return;
-      e.preventDefault();
-      const step = e.deltaMode === 1 ? e.deltaY * 40 : e.deltaY;
-      target = Math.max(0, Math.min(max, from + step));
-      pauseSnap();
-      if (!frame) frame = requestAnimationFrame(animate);
-    };
-
     const onPointerDown = (e) => {
       if (e.pointerType !== 'mouse' || e.button !== 0) return;
-      cancelAnimationFrame(frame);
-      frame = 0;
       drag = { x: e.clientX, left: el.scrollLeft, moved: false };
     };
 
@@ -136,7 +106,6 @@ const FeaturedProductsStrip = ({ products, onQuickView }) => {
 
     const onDragStart = (e) => e.preventDefault();
 
-    el.addEventListener('wheel', onWheel, { passive: false });
     el.addEventListener('pointerdown', onPointerDown);
     el.addEventListener('pointermove', onPointerMove);
     el.addEventListener('pointerup', onPointerUp);
@@ -144,9 +113,7 @@ const FeaturedProductsStrip = ({ products, onQuickView }) => {
     el.addEventListener('click', onClickCapture, true);
     el.addEventListener('dragstart', onDragStart);
     return () => {
-      cancelAnimationFrame(frame);
       clearTimeout(idleTimer);
-      el.removeEventListener('wheel', onWheel);
       el.removeEventListener('pointerdown', onPointerDown);
       el.removeEventListener('pointermove', onPointerMove);
       el.removeEventListener('pointerup', onPointerUp);
