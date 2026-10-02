@@ -1,246 +1,55 @@
-import { useState } from 'react';
 import { Link } from 'react-router-dom';
-import { m } from 'framer-motion';
+import { Book } from 'lucide-react';
 import { useCatalogs } from '../hooks/useContent';
-import SEOHead from '../components/SEOHead';
 import { SEO } from '../config/seoConfig';
-import { Book, Palette, Scissors, BookOpen, Eye, Download } from 'lucide-react';
-import LoadingSpinner from '../components/ui/LoadingSpinner';
-import PDFViewerModal from '../components/ui/PDFViewerModal';
-import CatalogCoverImage from '../components/ui/CatalogCoverImage';
-import { formatFileSize, resolveFileUrl } from '../utils/apiHelpers';
+import KnowledgePageLayout from '../components/knowledge/KnowledgePageLayout';
+import DocumentList from '../components/knowledge/DocumentList';
+import { CATALOG_PAGE_TYPES, filterByTypes, getCatalogType } from '../utils/catalogTypes';
 
 const VirtualCatalogsPage = () => {
-  const [searchTerm, setSearchTerm] = useState('');
-  const [selectedCategory, setSelectedCategory] = useState('all');
-  const [viewingPdf, setViewingPdf] = useState(null);
   const { data: catalogs = [], loading } = useCatalogs();
 
-  // Get catalogs data
-  const catalogsData = catalogs || [];
-
-  // Extract unique categories
-  const categories = ['all', ...new Set(catalogsData.map(cat => cat.catalogType || cat.category).filter(Boolean))];
-
-  // Filter catalogs
-  const filteredCatalogs = catalogsData.filter(catalog => {
-    const matchesSearch = catalog.title?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         catalog.description?.toLowerCase().includes(searchTerm.toLowerCase());
-    const matchesCategory = selectedCategory === 'all' || (catalog.catalogType || catalog.category) === selectedCategory;
-    return matchesSearch && matchesCategory && catalog.isActive !== false;
-  });
-
-  if (loading) {
-    return (
-      <div className="min-h-screen bg-gradient-to-br from-cream-50 to-cream-100 flex items-center justify-center">
-        <LoadingSpinner />
-      </div>
-    );
-  }
+  // Catalogs and brochures only — line sheets live in the spec library, guides on the guides page.
+  const documents = filterByTypes(catalogs, CATALOG_PAGE_TYPES);
+  const fullCatalogs = documents.filter((d) => getCatalogType(d) === 'full_catalog');
+  const priceLists = documents.filter((d) => getCatalogType(d) === 'price_list');
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-cream-50 to-cream-100">
-      <SEOHead {...SEO.pages.virtualCatalogs} />
-      <div className="bg-cream-50/80 border-b border-cream-200 sticky top-[80px] z-40 backdrop-blur-sm">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
-          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-            <div>
-              <Link to="/" className="text-primary-500 hover:text-primary-600 text-sm mb-2 inline-block">
-                ← Back to Home
-              </Link>
-              <h1 className="text-2xl sm:text-3xl md:text-4xl font-bold text-slate-800">Virtual Catalogs</h1>
-              <p className="text-slate-600 mt-2">Download product catalogs, line sheets, and guides</p>
-            </div>
-          </div>
+    <KnowledgePageLayout
+      pageKey="catalogs"
+      seo={SEO.pages.virtualCatalogs}
+      title="Catalogs"
+      subtitle="Our full catalogs and collection brochures. Looking for a single model? Its line sheet and spec sheet are in Spec Sheets & Drawings."
+      loading={loading}
+    >
+      {documents.length === 0 ? (
+        <div className="text-center py-16">
+          <Book className="w-16 h-16 text-slate-400 mx-auto mb-4" aria-hidden />
+          <h2 className="text-xl font-semibold text-slate-700 mb-2">No catalogs available</h2>
+          <p className="text-slate-500">Check back soon for downloadable catalogs.</p>
         </div>
-      </div>
-
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        <div className="bg-white rounded-lg p-6 border border-cream-200 mb-8">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div>
-              <label className="block text-sm font-medium text-slate-700 mb-2">
-                Search Catalogs
-              </label>
-              <input
-                type="text"
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                placeholder="Search by name or description..."
-                className="w-full px-4 py-2 bg-white border border-slate-300 rounded-lg text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
-              />
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-slate-700 mb-2">
-                Category
-              </label>
-              <select
-                value={selectedCategory}
-                onChange={(e) => setSelectedCategory(e.target.value)}
-                className="w-full px-4 py-2 bg-white border border-slate-300 rounded-lg text-slate-800 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
-              >
-                {categories.map(cat => (
-                  <option key={cat} value={cat}>
-                    {cat === 'all' ? 'All Categories' : cat}
-                  </option>
-                ))}
-              </select>
-            </div>
-          </div>
+      ) : (
+        <div className="space-y-12">
+          {fullCatalogs.length > 0 && (
+            <section>
+              <DocumentList documents={fullCatalogs} variant="cards" />
+            </section>
+          )}
+          {priceLists.length > 0 && (
+            <section>
+              <h2 className="text-2xl font-bold text-slate-800 mb-4">Price Lists</h2>
+              <DocumentList documents={priceLists} />
+            </section>
+          )}
+          <p className="text-sm text-slate-600">
+            Need a single collection?{' '}
+            <Link to="/resources/spec-sheets" className="text-primary-600 hover:text-primary-700 font-medium">
+              Browse line sheets by name →
+            </Link>
+          </p>
         </div>
-
-        {filteredCatalogs.length === 0 ? (
-          <div className="text-center py-16">
-            <Book className="w-16 h-16 text-slate-400 mx-auto mb-4" />
-            <h3 className="text-xl font-semibold text-slate-700 mb-2">
-              {searchTerm || selectedCategory !== 'all' ? 'No catalogs found' : 'No catalogs available'}
-            </h3>
-            <p className="text-slate-500">
-              {searchTerm || selectedCategory !== 'all' 
-                ? 'Try adjusting your search or filters' 
-                : 'Check back soon for downloadable catalogs'}
-            </p>
-          </div>
-        ) : (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6">
-            {filteredCatalogs.map((catalog, index) => (
-              <m.div
-                key={catalog.id}
-                layout={false}
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: index * 0.1, duration: 0.35, ease: 'easeOut' }}
-                style={{ backfaceVisibility: 'hidden' }}
-                className="bg-white rounded-lg border border-cream-200 overflow-hidden hover:border-primary-500 transition-colors duration-300 group"
-              >
-                <CatalogCoverImage catalog={catalog} imgClassName="group-hover:scale-105" />
-
-                <div className="p-6">
-                  {(catalog.catalogType || catalog.category) && (
-                    <div className="text-xs font-semibold text-primary-600 uppercase tracking-wide mb-2">
-                      {catalog.catalogType || catalog.category}
-                    </div>
-                  )}
-                  
-                  <h3 className="text-xl font-bold text-slate-800 mb-2 group-hover:text-primary-600 transition-colors">
-                    {catalog.title}
-                  </h3>
-                  
-                  {catalog.description && (
-                    <p className="text-slate-600 text-sm mb-4 line-clamp-3">
-                      {catalog.description}
-                    </p>
-                  )}
-
-                  <div className="flex flex-wrap gap-3 text-xs text-slate-500 mb-4">
-                    {(catalog.fileSize || catalog.file_size) && (
-                      <span>Size: {formatFileSize(catalog.fileSize || catalog.file_size)}</span>
-                    )}
-                    {catalog.pageCount && (
-                      <span>{catalog.pageCount} pages</span>
-                    )}
-                    {catalog.version && (
-                      <span>v{catalog.version}</span>
-                    )}
-                    {catalog.year && (
-                      <span>{catalog.year}</span>
-                    )}
-                  </div>
-
-                  {(catalog.fileUrl || catalog.file_url) && (
-                    <div className="flex gap-2">
-                      {catalog.fileType === 'PDF' || catalog.fileType === 'pdf' || ((catalog.fileUrl || catalog.file_url)?.toLowerCase().endsWith('.pdf')) ? (
-                        <button
-                          onClick={() => setViewingPdf({
-                            url: catalog.fileUrl || catalog.file_url,
-                            name: catalog.title,
-                            type: catalog.fileType || 'PDF'
-                          })}
-                          className="flex-1 flex items-center justify-center gap-2 px-4 py-2 bg-primary-600 hover:bg-primary-500 text-white font-medium rounded-lg transition-colors"
-                        >
-                          <Eye className="w-4 h-4" />
-                          View PDF
-                        </button>
-                      ) : null}
-                      <a
-                        href={resolveFileUrl(catalog.fileUrl || catalog.file_url)}
-                        download
-                        className="flex-1 flex items-center justify-center gap-2 px-4 py-2 bg-slate-200 hover:bg-slate-300 text-slate-800 font-medium rounded-lg transition-colors"
-                      >
-                        <Download className="w-4 h-4" />
-                        Download
-                      </a>
-                    </div>
-                  )}
-
-                  {catalog.downloadCount !== undefined && (
-                    <div className="text-xs text-slate-500 mt-3">
-                      {catalog.downloadCount} downloads
-                    </div>
-                  )}
-                </div>
-              </m.div>
-            ))}
-          </div>
-        )}
-
-        <div className="mt-16 pt-8 border-t border-cream-200">
-          <h2 className="text-2xl font-bold text-slate-800 mb-6">Related Resources</h2>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <Link
-              to="/resources/woodfinishes"
-              className="bg-white border border-cream-200 rounded-lg p-6 hover:border-primary-500 transition-colors group"
-            >
-              <Palette className="w-8 h-8 text-primary-500 mb-3" />
-              <h3 className="text-lg font-semibold text-slate-800 mb-2 group-hover:text-primary-600">
-                Wood Finishes
-              </h3>
-              <p className="text-slate-500 text-sm">
-                Browse available wood finish options and colors
-              </p>
-            </Link>
-
-            <Link
-              to="/resources/upholstery"
-              className="bg-white border border-cream-200 rounded-lg p-6 hover:border-primary-500 transition-colors group"
-            >
-              <Scissors className="w-8 h-8 text-primary-500 mb-3" />
-              <h3 className="text-lg font-semibold text-slate-800 mb-2 group-hover:text-primary-600">
-                Upholstery Fabrics
-              </h3>
-              <p className="text-slate-500 text-sm">
-                View our upholstery fabric selections
-              </p>
-            </Link>
-
-            <Link
-              to="/resources/guides"
-              className="bg-white border border-cream-200 rounded-lg p-6 hover:border-primary-500 transition-colors group"
-            >
-              <BookOpen className="w-8 h-8 text-primary-500 mb-3" />
-              <h3 className="text-lg font-semibold text-slate-800 mb-2 group-hover:text-primary-600">
-                Guides & Instructions
-              </h3>
-              <p className="text-slate-500 text-sm">
-                Installation guides, care instructions, and more
-              </p>
-            </Link>
-          </div>
-        </div>
-      </div>
-
-      {/* PDF Viewer Modal */}
-      {viewingPdf && (
-        <PDFViewerModal
-          isOpen={!!viewingPdf}
-          onClose={() => setViewingPdf(null)}
-          fileUrl={viewingPdf.url}
-          fileName={viewingPdf.name}
-          fileType={viewingPdf.type}
-        />
       )}
-    </div>
+    </KnowledgePageLayout>
   );
 };
 

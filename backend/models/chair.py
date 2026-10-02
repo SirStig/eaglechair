@@ -255,6 +255,7 @@ class Upholstery(Base):
     material_type = Column(
         String(50), nullable=False
     )  # e.g., "Vinyl", "Fabric", "Leather"
+    manufacturer = Column(String(100), nullable=True)  # e.g., "Naugahyde", "Boltaflex"
     description = Column(Text, nullable=True)
 
     # Grade System

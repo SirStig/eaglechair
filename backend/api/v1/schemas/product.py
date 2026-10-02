@@ -319,6 +319,7 @@ class UpholsteryBase(BaseModel):
     name: str = Field(..., max_length=100)
     material_code: Optional[str] = Field(None, max_length=50)
     material_type: str = Field(..., max_length=50)
+    manufacturer: Optional[str] = Field(None, max_length=100)
     description: Optional[str] = None
     color: Optional[str] = Field(None, max_length=50)
     color_hex: Optional[str] = Field(None, max_length=7)
@@ -348,6 +349,7 @@ class UpholsteryUpdate(BaseModel):
     name: Optional[str] = Field(None, max_length=100)
     material_code: Optional[str] = Field(None, max_length=50)
     material_type: Optional[str] = Field(None, max_length=50)
+    manufacturer: Optional[str] = Field(None, max_length=100)
     description: Optional[str] = None
     color: Optional[str] = Field(None, max_length=50)
     color_hex: Optional[str] = Field(None, max_length=7)

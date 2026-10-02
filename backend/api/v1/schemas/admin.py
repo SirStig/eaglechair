@@ -615,6 +615,7 @@ class UpholsteryCreate(BaseModel):
     material_type: str = Field(
         ..., max_length=50, description="Material type (e.g., Vinyl, Fabric, Leather)"
     )
+    manufacturer: Optional[str] = Field(None, max_length=100, description="Mill / brand")
     description: Optional[str] = Field(None, description="Upholstery description")
     grade: Optional[str] = Field(
         None, max_length=20, description="Grade (A, B, C, Premium, Luxury)"
@@ -663,6 +664,7 @@ class UpholsteryUpdate(BaseModel):
     material_type: Optional[str] = Field(
         None, max_length=50, description="Material type"
     )
+    manufacturer: Optional[str] = Field(None, max_length=100, description="Mill / brand")
     description: Optional[str] = Field(None, description="Upholstery description")
     grade: Optional[str] = Field(None, max_length=20, description="Grade")
     color_id: Optional[int] = Field(None, description="Color reference ID")

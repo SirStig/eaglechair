@@ -812,6 +812,13 @@ async def _build_upholsteries(db: "AsyncSession") -> List[Dict[str, Any]]:
             "isActive": u.is_active,
             "isPopular": u.is_popular if hasattr(u, "is_popular") else False,
             "manufacturer": u.manufacturer if hasattr(u, "manufacturer") else None,
+            "pattern": u.pattern,
+            "textureDescription": u.texture_description,
+            "isCom": u.is_com,
+            "comRequirements": u.com_requirements,
+            "flameRating": u.flame_rating,
+            "cleanability": u.cleanability,
+            "displayOrder": u.display_order,
             "content": u.content if hasattr(u, "content") else None,
             "durabilityRating": u.durability_rating
             if hasattr(u, "durability_rating")
@@ -841,6 +848,10 @@ async def _build_hardware(db: "AsyncSession") -> List[Dict[str, Any]]:
             "dimensions": h.dimensions,
             "weightCapacity": h.weight_capacity,
             "installationNotes": h.installation_notes,
+            "compatibleWith": h.compatible_with,
+            "thumbnailUrl": h.thumbnail_url,
+            "additionalImages": h.additional_images or [],
+            "displayOrder": h.display_order,
             "isActive": h.is_active,
             "isFeatured": h.is_featured if hasattr(h, "is_featured") else False,
         }
@@ -874,6 +885,9 @@ async def _build_laminates(db: "AsyncSession") -> List[Dict[str, Any]]:
             "isActive": lam.is_active,
             "isPopular": lam.is_popular,
             "isFeatured": lam.is_featured,
+            "recommendedFor": lam.recommended_for,
+            "careInstructions": lam.care_instructions,
+            "displayOrder": lam.display_order,
         }
         for lam in result.scalars().all()
     ]

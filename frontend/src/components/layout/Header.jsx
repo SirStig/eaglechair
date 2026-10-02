@@ -8,6 +8,7 @@ import { useAuthStore } from '../../store/authStore';
 import { useCartStore } from '../../store/cartStore';
 import ProductsDropdown from './ProductsDropdown';
 import MobileProductsMenu from './MobileProductsMenu';
+import { PRODUCT_KNOWLEDGE_PAGES } from '../../config/productKnowledge';
 import SiteLogo from '../ui/SiteLogo';
 import ResourcesDropdown from './ResourcesDropdown';
 import { useSiteSettings } from '../../hooks/useContent';
@@ -492,6 +493,7 @@ export default Header;
 export const MobileMenu = ({ isMobileMenuOpen, setIsMobileMenuOpen, searchQuery, setSearchQuery, handleSearch, user, logout, cartItemCount }) => {
   const [isProductsOpen, setIsProductsOpen] = useState(false);
   const [isConnectOpen, setIsConnectOpen] = useState(false);
+  const [isKnowledgeOpen, setIsKnowledgeOpen] = useState(false);
   const [desktopViewEnabled, setDesktopViewEnabled] = useState(isDesktopViewEnabled());
 
   const handleToggleDesktopView = () => {
@@ -583,9 +585,44 @@ export const MobileMenu = ({ isMobileMenuOpen, setIsMobileMenuOpen, searchQuery,
                   <Link to="/about" onClick={() => setIsMobileMenuOpen(false)} className="py-2 hover:text-primary-400 transition-colors">
                     About Us
                   </Link>
-                  <Link to="/virtual-catalogs" onClick={() => setIsMobileMenuOpen(false)} className="py-2 hover:text-primary-400 transition-colors">
-                    Product Knowledge
-                  </Link>
+                  {/* Product Knowledge Dropdown */}
+                  <div>
+                    <button
+                      onClick={() => setIsKnowledgeOpen(!isKnowledgeOpen)}
+                      aria-expanded={isKnowledgeOpen}
+                      className="flex items-center justify-between w-full py-2 hover:text-primary-400 transition-colors"
+                    >
+                      <span>Product Knowledge</span>
+                      <Motion.svg
+                        className="h-4 w-4"
+                        fill="none"
+                        viewBox="0 0 24 24"
+                        stroke="currentColor"
+                        animate={{ rotate: isKnowledgeOpen ? 180 : 0 }}
+                        transition={{ duration: 0.3 }}
+                      >
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                      </Motion.svg>
+                    </button>
+
+                    <AnimatePresence>
+                      {isKnowledgeOpen && (
+                        <Motion.div
+                          initial={{ height: 0, opacity: 0 }}
+                          animate={{ height: 'auto', opacity: 1 }}
+                          exit={{ height: 0, opacity: 0 }}
+                          transition={{ duration: 0.3 }}
+                          className="overflow-hidden ml-4 mt-2 space-y-2"
+                        >
+                          {PRODUCT_KNOWLEDGE_PAGES.map((p) => (
+                            <Link key={p.key} to={p.path} onClick={() => setIsMobileMenuOpen(false)} className="block py-2 text-sm hover:text-primary-400 transition-colors">
+                              {p.name}
+                            </Link>
+                          ))}
+                        </Motion.div>
+                      )}
+                    </AnimatePresence>
+                  </div>
 
                   {/* Sales & Support Dropdown */}
                   <div>

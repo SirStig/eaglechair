@@ -1,272 +1,101 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { m } from 'framer-motion';
+import { Layers } from 'lucide-react';
 import { useLaminates } from '../hooks/useContent';
-import SEOHead from '../components/SEOHead';
 import { SEO } from '../config/seoConfig';
-import { Layers, Palette, Scissors, Book } from 'lucide-react';
-import LoadingSpinner from '../components/ui/LoadingSpinner';
-import ResponsiveImage from '../components/ui/ResponsiveImage';
-import ImagePlaceholder from '../components/ui/ImagePlaceholder';
+import KnowledgePageLayout from '../components/knowledge/KnowledgePageLayout';
+import SwatchCard from '../components/knowledge/SwatchCard';
 import { safeHref } from '../utils/safeUrl';
 
 const LaminatesPage = () => {
-  const [searchTerm, setSearchTerm] = useState('');
-  const [selectedBrand, setSelectedBrand] = useState('all');
   const { data: laminates = [], loading } = useLaminates();
+  const [query, setQuery] = useState('');
 
-  const laminatesData = laminates || [];
-
-  // Extract unique brands
-  const brands = ['all', ...new Set(laminatesData.map(l => l.brand).filter(Boolean))];
-
-  // Filter laminates
-  const filteredLaminates = laminatesData.filter(laminate => {
-    const matchesSearch = laminate.patternName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         laminate.patternCode?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         laminate.description?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         laminate.colorFamily?.toLowerCase().includes(searchTerm.toLowerCase());
-    const matchesBrand = selectedBrand === 'all' || laminate.brand === selectedBrand;
-    return matchesSearch && matchesBrand && laminate.isActive !== false;
-  });
-
-  if (loading) {
-    return (
-      <div className="min-h-screen bg-gradient-to-br from-cream-50 to-cream-100 flex items-center justify-center">
-        <LoadingSpinner />
-      </div>
-    );
-  }
+  const groups = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    const map = new Map();
+    (laminates || [])
+      .filter((l) => l.isActive !== false)
+      .filter(
+        (l) =>
+          !q ||
+          [l.patternName, l.patternCode, l.brand, l.colorFamily, l.description]
+            .filter(Boolean)
+            .some((v) => v.toLowerCase().includes(q))
+      )
+      .forEach((l) => {
+        const brand = l.brand || 'Other';
+        if (!map.has(brand)) map.set(brand, []);
+        map.get(brand).push(l);
+      });
+    return [...map.entries()];
+  }, [laminates, query]);
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-cream-50 to-cream-100">
-      <SEOHead {...SEO.pages.laminates} />
-      <div className="bg-cream-50/80 border-b border-cream-200 sticky top-[80px] z-40 backdrop-blur-sm">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
-          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-            <div>
-              <Link to="/" className="text-primary-500 hover:text-primary-600 text-sm mb-2 inline-block">
-                ← Back to Home
-              </Link>
-              <h1 className="text-3xl md:text-4xl font-bold text-slate-800">Laminates</h1>
-              <p className="text-slate-600 mt-2">Browse laminate brands and patterns</p>
-            </div>
-          </div>
+    <KnowledgePageLayout
+      pageKey="laminates"
+      seo={SEO.pages.laminates}
+      subtitle="Laminates for table tops, grouped by brand. Ask us if you need a pattern that isn't listed."
+      loading={loading}
+      toolbar={
+        <label className="block">
+          <span className="sr-only">Search laminates</span>
+          <input
+            type="search"
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            placeholder="Search by pattern name, code or brand…"
+            className="w-full px-4 py-2 bg-white border border-slate-300 rounded-lg text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
+          />
+        </label>
+      }
+    >
+      {groups.length === 0 ? (
+        <div className="text-center py-16">
+          <Layers className="w-16 h-16 text-slate-400 mx-auto mb-4" aria-hidden />
+          <h2 className="text-xl font-semibold text-slate-700">{query ? 'No laminates found' : 'No laminates listed yet'}</h2>
         </div>
-      </div>
-
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        <div className="bg-white rounded-lg p-6 border border-cream-200 mb-8">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div>
-              <label className="block text-sm font-medium text-slate-700 mb-2">
-                Search Laminates
-              </label>
-              <input
-                type="text"
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                placeholder="Search by pattern, code, color, or description..."
-                className="w-full px-4 py-2 bg-white border border-slate-300 rounded-lg text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
-              />
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-slate-700 mb-2">
-                Brand
-              </label>
-              <select
-                value={selectedBrand}
-                onChange={(e) => setSelectedBrand(e.target.value)}
-                className="w-full px-4 py-2 bg-white border border-slate-300 rounded-lg text-slate-800 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
-              >
-                {brands.map(brand => (
-                  <option key={brand} value={brand}>
-                    {brand === 'all' ? 'All Brands' : brand}
-                  </option>
-                ))}
-              </select>
-            </div>
-          </div>
-        </div>
-
-        {filteredLaminates.length === 0 ? (
-          <div className="text-center py-16">
-            <Layers className="w-16 h-16 text-slate-400 mx-auto mb-4" />
-            <h3 className="text-xl font-semibold text-slate-700 mb-2">
-              {searchTerm || selectedBrand !== 'all' ? 'No laminates found' : 'No laminates available'}
-            </h3>
-            <p className="text-slate-500">
-              {searchTerm || selectedBrand !== 'all' 
-                ? 'Try adjusting your search or filters' 
-                : 'Check back soon for laminate options'}
-            </p>
-          </div>
-        ) : (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-            {filteredLaminates.map((laminate, index) => (
-              <m.div
-                key={laminate.id}
-                layout={false}
-                initial={{ opacity: 0, y: 16 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: index * 0.05, duration: 0.35, ease: 'easeOut' }}
-                style={{ backfaceVisibility: 'hidden' }}
-                className="bg-white rounded-lg border border-cream-200 overflow-hidden hover:border-primary-500 transition-[border-color,box-shadow] duration-300 hover:shadow-xl hover:shadow-primary-500/10"
-              >
-                {laminate.swatchImageUrl ? (
-                  <div className="aspect-square overflow-hidden rounded-full bg-slate-100">
-                    <ResponsiveImage
-                      src={laminate.swatchImageUrl}
-                      sizes="(min-width: 1280px) 25vw, (min-width: 1024px) 33vw, (min-width: 640px) 50vw, 100vw"
-                      alt={laminate.patternName}
-                      className="w-full h-full object-cover scale-125"
-                    />
-                  </div>
-                ) : laminate.fullImageUrl ? (
-                  <div className="aspect-square overflow-hidden rounded-full bg-slate-100">
-                    <ResponsiveImage
-                      src={laminate.fullImageUrl}
-                      sizes="(min-width: 1280px) 25vw, (min-width: 1024px) 33vw, (min-width: 640px) 50vw, 100vw"
-                      alt={laminate.patternName}
-                      className="w-full h-full object-cover scale-125"
-                    />
-                  </div>
-                ) : (
-                  <ImagePlaceholder kind="laminate" label="Swatch coming soon" title={laminate.patternName} className="aspect-square rounded-full" />
-                )}
-
-                <div className="p-4">
-                  {laminate.brand && (
-                    <div className="text-xs font-semibold text-primary-600 uppercase tracking-wide mb-2">
-                      {laminate.brand}
-                    </div>
+      ) : (
+        <div className="space-y-12">
+          {groups.map(([brand, items]) => {
+            const site = safeHref(items.find((l) => l.supplierWebsite)?.supplierWebsite);
+            return (
+              <section key={brand}>
+                <div className="flex flex-wrap items-baseline justify-between gap-2 mb-4">
+                  <h2 className="text-2xl font-bold text-slate-800">{brand}</h2>
+                  {site && (
+                    <a href={site} target="_blank" rel="noopener noreferrer" className="text-sm text-primary-600 hover:text-primary-700">
+                      Full {brand} range →
+                    </a>
                   )}
-                  
-                  <h3 className="text-lg font-bold text-slate-800 mb-1">
-                    {laminate.patternName}
-                  </h3>
-                  
-                  {laminate.patternCode && (
-                    <div className="text-xs font-mono text-slate-500 mb-2">
-                      {laminate.patternCode}
-                    </div>
-                  )}
-
-                  {laminate.colorFamily && (
-                    <div className="text-xs text-slate-500 mb-2">
-                      {laminate.colorFamily}
-                    </div>
-                  )}
-
-                  {laminate.description && (
-                    <p className="text-sm text-slate-600 line-clamp-2 mb-3">
-                      {laminate.description}
-                    </p>
-                  )}
-
-                  {(laminate.finishType || laminate.thickness || laminate.grade) && (
-                    <div className="text-xs text-slate-500 mb-3 space-y-1">
-                      {laminate.finishType && <div>Finish: {laminate.finishType}</div>}
-                      {laminate.thickness && <div>Thickness: {laminate.thickness}</div>}
-                      {laminate.grade && <div>Grade: {laminate.grade}</div>}
-                    </div>
-                  )}
-
-                  <div className="flex flex-wrap gap-2">
-                    {laminate.isPopular && (
-                      <span className="px-2 py-1 text-xs bg-primary-600 text-white rounded">
-                        Popular
-                      </span>
-                    )}
-                    {laminate.isInStock && (
-                      <span className="px-2 py-1 text-xs bg-green-600 text-white rounded">
-                        In Stock
-                      </span>
-                    )}
-                    {!laminate.isInStock && laminate.leadTimeDays && (
-                      <span className="px-2 py-1 text-xs bg-yellow-600 text-white rounded">
-                        {laminate.leadTimeDays} days
-                      </span>
-                    )}
-                  </div>
                 </div>
-              </m.div>
-            ))}
-          </div>
-        )}
-
-        {filteredLaminates.length > 0 && (
-          <div className="mt-12 bg-white rounded-lg border border-cream-200 p-6">
-            <h2 className="text-xl font-bold text-slate-800 mb-4">Supplier Information</h2>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-              {brands.filter(b => b !== 'all').map(brand => {
-                const supplier = filteredLaminates.find(l => l.brand === brand);
-                return supplier && supplier.supplierName ? (
-                  <div key={brand} className="border-l-4 border-primary-500 pl-4">
-                    <h3 className="font-semibold text-slate-800 mb-2">{supplier.supplierName}</h3>
-                    {safeHref(supplier.supplierWebsite) && (
-                      <a 
-                        href={safeHref(supplier.supplierWebsite)}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="text-sm text-primary-600 hover:text-primary-700"
-                      >
-                        Visit Website →
-                      </a>
-                    )}
-                  </div>
-                ) : null;
-              })}
-            </div>
-          </div>
-        )}
-
-        <div className="mt-16 pt-8 border-t border-cream-200">
-          <h2 className="text-2xl font-bold text-slate-800 mb-6">Related Resources</h2>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <Link
-              to="/resources/woodfinishes"
-              className="bg-white border border-cream-200 rounded-lg p-6 hover:border-primary-500 transition-colors group"
-            >
-              <Palette className="w-8 h-8 text-primary-500 mb-3" />
-              <h3 className="text-lg font-semibold text-slate-800 mb-2 group-hover:text-primary-600">
-                Wood Finishes
-              </h3>
-              <p className="text-slate-500 text-sm">
-                Browse available wood finish options and colors
-              </p>
-            </Link>
-
-            <Link
-              to="/resources/upholstery"
-              className="bg-white border border-cream-200 rounded-lg p-6 hover:border-primary-500 transition-colors group"
-            >
-              <Scissors className="w-8 h-8 text-primary-500 mb-3" />
-              <h3 className="text-lg font-semibold text-slate-800 mb-2 group-hover:text-primary-600">
-                Upholstery Fabrics
-              </h3>
-              <p className="text-slate-500 text-sm">
-                View our upholstery fabric selections
-              </p>
-            </Link>
-
-            <Link
-              to="/virtual-catalogs"
-              className="bg-white border border-cream-200 rounded-lg p-6 hover:border-primary-500 transition-colors group"
-            >
-              <Book className="w-8 h-8 text-primary-500 mb-3" />
-              <h3 className="text-lg font-semibold text-slate-800 mb-2 group-hover:text-primary-600">
-                Virtual Catalogs
-              </h3>
-              <p className="text-slate-500 text-sm">
-                Download product catalogs and guides
-              </p>
-            </Link>
-          </div>
+                <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 xl:grid-cols-6 gap-3 sm:gap-4">
+                  {items.map((l) => (
+                    <SwatchCard
+                      key={l.id}
+                      item={l}
+                      kind="laminate"
+                      title={l.patternName}
+                      code={l.patternCode}
+                      facts={[l.colorFamily, l.finishType, l.grade]}
+                      description={l.description}
+                      badges={[l.isPopular && 'Popular']}
+                    />
+                  ))}
+                </div>
+              </section>
+            );
+          })}
         </div>
-      </div>
-    </div>
+      )}
+
+      <p className="mt-12 text-sm text-slate-600">
+        Caring for laminate tops?{' '}
+        <Link to="/resources/guides#care" className="text-primary-600 hover:text-primary-700 font-medium">
+          See the care guides →
+        </Link>
+      </p>
+    </KnowledgePageLayout>
   );
 };
 

@@ -1,246 +1,162 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { m } from 'framer-motion';
+import { Cog } from 'lucide-react';
 import { useHardware } from '../hooks/useContent';
-import SEOHead from '../components/SEOHead';
 import { SEO } from '../config/seoConfig';
-import { Wrench, BookOpen, Book, MessageSquare } from 'lucide-react';
-import LoadingSpinner from '../components/ui/LoadingSpinner';
+import KnowledgePageLayout from '../components/knowledge/KnowledgePageLayout';
 import ResponsiveImage from '../components/ui/ResponsiveImage';
 import ImagePlaceholder from '../components/ui/ImagePlaceholder';
+import { resolveImageUrl } from '../utils/apiHelpers';
 
-const HardwarePage = () => {
-  const [searchTerm, setSearchTerm] = useState('');
-  const [selectedCategory, setSelectedCategory] = useState('all');
-  const { data: hardware = [], loading } = useHardware();
+const CATEGORY_ORDER = [
+  'Glides',
+  'Swivels',
+  'Footrings',
+  'Scuff Plates',
+  'Chair Legs',
+  'Brackets & Fasteners',
+  'Table Bases',
+  'Table Edge Profiles',
+  'Other Hardware',
+];
 
-  const hardwareData = hardware || [];
-
-  // Extract unique categories
-  const categories = ['all', ...new Set(hardwareData.map(h => h.category).filter(Boolean))];
-
-  // Filter hardware
-  const filteredHardware = hardwareData.filter(item => {
-    const matchesSearch = item.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         item.description?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         item.modelNumber?.toLowerCase().includes(searchTerm.toLowerCase());
-    const matchesCategory = selectedCategory === 'all' || item.category === selectedCategory;
-    return matchesSearch && matchesCategory && item.isActive !== false;
-  });
-
-  if (loading) {
-    return (
-      <div className="min-h-screen bg-gradient-to-br from-cream-50 to-cream-100 flex items-center justify-center">
-        <LoadingSpinner />
-      </div>
-    );
-  }
+const HardwareCard = ({ item }) => {
+  const img = item.imageUrl || item.thumbnailUrl;
+  const facts = [
+    item.material && ['Material', item.material],
+    item.finish && ['Finish', item.finish],
+    item.dimensions && ['Size', item.dimensions],
+    item.weightCapacity && ['Capacity', item.weightCapacity],
+    item.compatibleWith && ['Fits', item.compatibleWith],
+  ].filter(Boolean);
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-cream-50 to-cream-100">
-      <SEOHead {...SEO.pages.hardware} />
-      <div className="bg-cream-50/80 border-b border-cream-200 sticky top-[80px] z-40 backdrop-blur-sm">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
-          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-            <div>
-              <Link to="/" className="text-primary-500 hover:text-primary-600 text-sm mb-2 inline-block">
-                ← Back to Home
-              </Link>
-              <h1 className="text-3xl md:text-4xl font-bold text-slate-800">Hardware Components</h1>
-              <p className="text-slate-600 mt-2">Glides, casters, table bases, and fasteners</p>
-            </div>
-          </div>
+    <article className="bg-white rounded-lg border border-cream-200 overflow-hidden hover:border-primary-500 transition-colors duration-300 flex flex-col">
+      {img ? (
+        <div className="aspect-[4/3] bg-white border-b border-cream-100">
+          <ResponsiveImage
+            src={resolveImageUrl(img)}
+            sizes="(min-width: 1024px) 25vw, (min-width: 640px) 33vw, 50vw"
+            alt={item.name}
+            className="w-full h-full object-contain p-3"
+            loading="lazy"
+          />
         </div>
-      </div>
-
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        <div className="bg-white rounded-lg p-6 border border-cream-200 mb-8">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div>
-              <label className="block text-sm font-medium text-slate-700 mb-2">
-                Search Hardware
-              </label>
-              <input
-                type="text"
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                placeholder="Search by name, model number, or description..."
-                className="w-full px-4 py-2 bg-white border border-slate-300 rounded-lg text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
-              />
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-slate-700 mb-2">
-                Category
-              </label>
-              <select
-                value={selectedCategory}
-                onChange={(e) => setSelectedCategory(e.target.value)}
-                className="w-full px-4 py-2 bg-white border border-slate-300 rounded-lg text-slate-800 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
-              >
-                {categories.map(cat => (
-                  <option key={cat} value={cat}>
-                    {cat === 'all' ? 'All Categories' : cat}
-                  </option>
-                ))}
-              </select>
-            </div>
-          </div>
-        </div>
-
-        {filteredHardware.length === 0 ? (
-          <div className="text-center py-16">
-            <Wrench className="w-16 h-16 text-slate-400 mx-auto mb-4" />
-            <h3 className="text-xl font-semibold text-slate-700 mb-2">
-              {searchTerm || selectedCategory !== 'all' ? 'No hardware found' : 'No hardware available'}
-            </h3>
-            <p className="text-slate-500">
-              {searchTerm || selectedCategory !== 'all' 
-                ? 'Try adjusting your search or filters' 
-                : 'Check back soon for hardware options'}
-            </p>
-          </div>
-        ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {filteredHardware.map((item, index) => (
-              <m.div
-                key={item.id}
-                layout={false}
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: index * 0.05, duration: 0.35, ease: 'easeOut' }}
-                style={{ backfaceVisibility: 'hidden' }}
-                className="bg-white rounded-lg border border-cream-200 overflow-hidden hover:border-primary-500 transition-colors duration-300"
-              >
-                {item.image_url ? (
-                  <div className="aspect-video overflow-hidden bg-slate-100">
-                    <ResponsiveImage
-                      src={item.image_url}
-                      sizes="(min-width: 1024px) 33vw, (min-width: 768px) 50vw, 100vw"
-                      alt={item.name}
-                      className="w-full h-full object-contain p-4"
-                    />
-                  </div>
-                ) : (
-                  <ImagePlaceholder kind="metal" label="Photo coming soon" title={item.name} className="aspect-video" />
-                )}
-
-                <div className="p-6">
-                  {item.category && (
-                    <div className="text-xs font-semibold text-primary-600 uppercase tracking-wide mb-2">
-                      {item.category}
-                    </div>
-                  )}
-                  
-                  <h3 className="text-xl font-bold text-slate-800 mb-2">
-                    {item.name}
-                  </h3>
-
-                  {item.modelNumber && (
-                    <div className="text-sm font-mono text-slate-600 mb-3">
-                      Model: {item.modelNumber}
-                    </div>
-                  )}
-
-                  {item.description && (
-                    <p className="text-sm text-slate-600 mb-4 line-clamp-3">
-                      {item.description}
-                    </p>
-                  )}
-
-                  <div className="space-y-2 text-sm text-slate-500 mb-4">
-                    {item.material && (
-                      <div>
-                        <span className="font-medium text-slate-700">Material:</span> {item.material}
-                      </div>
-                    )}
-                    {item.finish && (
-                      <div>
-                        <span className="font-medium text-slate-700">Finish:</span> {item.finish}
-                      </div>
-                    )}
-                    {item.dimensions && (
-                      <div>
-                        <span className="font-medium text-slate-700">Dimensions:</span> {item.dimensions}
-                      </div>
-                    )}
-                    {item.weightCapacity && (
-                      <div>
-                        <span className="font-medium text-slate-700">Capacity:</span> {item.weightCapacity}
-                      </div>
-                    )}
-                  </div>
-
-                  <div className="flex flex-wrap gap-2">
-                    {item.isFeatured && (
-                      <span className="px-2 py-1 text-xs bg-primary-600 text-white rounded">
-                        Featured
-                      </span>
-                    )}
-                    {item.sku && (
-                      <span className="px-2 py-1 text-xs bg-slate-100 text-slate-700 rounded font-mono">
-                        SKU: {item.sku}
-                      </span>
-                    )}
-                  </div>
-
-                  {item.installationNotes && (
-                    <div className="mt-4 pt-4 border-t border-cream-200">
-                      <div className="text-xs font-medium text-slate-700 mb-1">Installation Notes:</div>
-                      <p className="text-xs text-slate-500 line-clamp-2">{item.installationNotes}</p>
-                    </div>
-                  )}
-                </div>
-              </m.div>
+      ) : (
+        <ImagePlaceholder kind="metal" label="Photo coming soon" title={item.name} className="aspect-[4/3]" />
+      )}
+      <div className="p-3 sm:p-4 flex-1">
+        <h3 className="font-semibold text-slate-800 leading-snug">{item.name}</h3>
+        {item.modelNumber && <p className="text-xs font-mono text-primary-700 mt-0.5">{item.modelNumber}</p>}
+        {item.description && <p className="text-sm text-slate-600 mt-2 line-clamp-3">{item.description}</p>}
+        {facts.length > 0 && (
+          <dl className="mt-2 text-xs text-slate-600 space-y-0.5">
+            {facts.map(([k, v]) => (
+              <div key={k}>
+                <dt className="inline font-medium text-slate-700">{k}: </dt>
+                <dd className="inline">{v}</dd>
+              </div>
             ))}
-          </div>
+          </dl>
         )}
-
-        <div className="mt-16 pt-8 border-t border-cream-200">
-          <h2 className="text-2xl font-bold text-slate-800 mb-6">Related Resources</h2>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <Link
-              to="/resources/guides"
-              className="bg-white border border-cream-200 rounded-lg p-6 hover:border-primary-500 transition-colors group"
-            >
-              <BookOpen className="w-8 h-8 text-primary-500 mb-3" />
-              <h3 className="text-lg font-semibold text-slate-800 mb-2 group-hover:text-primary-600">
-                Installation Guides
-              </h3>
-              <p className="text-slate-500 text-sm">
-                Detailed installation instructions and diagrams
-              </p>
-            </Link>
-
-            <Link
-              to="/virtual-catalogs"
-              className="bg-white border border-cream-200 rounded-lg p-6 hover:border-primary-500 transition-colors group"
-            >
-              <div className="text-3xl mb-3">📚</div>
-              <h3 className="text-lg font-semibold text-slate-800 mb-2 group-hover:text-primary-600">
-                Product Catalogs
-              </h3>
-              <p className="text-slate-500 text-sm">
-                Download complete product catalogs
-              </p>
-            </Link>
-
-            <Link
-              to="/contact"
-              className="bg-white border border-cream-200 rounded-lg p-6 hover:border-primary-500 transition-colors group"
-            >
-              <div className="text-3xl mb-3">💬</div>
-              <h3 className="text-lg font-semibold text-slate-800 mb-2 group-hover:text-primary-600">
-                Contact Us
-              </h3>
-              <p className="text-slate-500 text-sm">
-                Questions about hardware? Get in touch
-              </p>
-            </Link>
-          </div>
-        </div>
       </div>
-    </div>
+    </article>
+  );
+};
+
+const HardwarePage = () => {
+  const { data: hardware = [], loading } = useHardware();
+  const [query, setQuery] = useState('');
+  const [category, setCategory] = useState('all');
+
+  const active = useMemo(() => (hardware || []).filter((h) => h.isActive !== false), [hardware]);
+  const categories = useMemo(() => {
+    const present = new Set(active.map((h) => h.category || 'Other Hardware'));
+    return [...CATEGORY_ORDER.filter((c) => present.has(c)), ...[...present].filter((c) => !CATEGORY_ORDER.includes(c))];
+  }, [active]);
+
+  const groups = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    const matches = active.filter(
+      (h) =>
+        !q ||
+        [h.name, h.modelNumber, h.sku, h.description, h.compatibleWith]
+          .filter(Boolean)
+          .some((v) => v.toLowerCase().includes(q))
+    );
+    return categories
+      .filter((c) => category === 'all' || c === category)
+      .map((c) => [c, matches.filter((h) => (h.category || 'Other Hardware') === c)])
+      .filter(([, items]) => items.length > 0);
+  }, [active, categories, category, query]);
+
+  return (
+    <KnowledgePageLayout
+      pageKey="hardware"
+      seo={SEO.pages.hardware}
+      subtitle="Glides, swivels, footrings and other chair hardware, plus the table bases and edge profiles we build with."
+      loading={loading}
+      toolbar={
+        <div className="space-y-4">
+          <label className="block">
+            <span className="sr-only">Search hardware</span>
+            <input
+              type="search"
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              placeholder="Search by name or part number (e.g. WCG-12, T3V-22)…"
+              className="w-full px-4 py-2 bg-white border border-slate-300 rounded-lg text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
+            />
+          </label>
+          {categories.length > 1 && (
+            <div className="flex flex-wrap gap-2" role="group" aria-label="Category">
+              {['all', ...categories].map((c) => (
+                <button
+                  key={c}
+                  type="button"
+                  aria-pressed={category === c}
+                  onClick={() => setCategory(c)}
+                  className={`px-3 py-1.5 rounded-lg text-sm font-medium border transition-colors ${
+                    category === c
+                      ? 'bg-slate-800 border-slate-800 text-white'
+                      : 'bg-white border-slate-300 text-slate-700 hover:border-slate-500'
+                  }`}
+                >
+                  {c === 'all' ? 'All' : c}
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+      }
+    >
+      {groups.length === 0 ? (
+        <div className="text-center py-16">
+          <Cog className="w-16 h-16 text-slate-400 mx-auto mb-4" aria-hidden />
+          <h2 className="text-xl font-semibold text-slate-700">{query ? 'No hardware found' : 'No hardware listed yet'}</h2>
+        </div>
+      ) : (
+        <div className="space-y-12">
+          {groups.map(([cat, items]) => (
+            <section key={cat}>
+              <h2 className="text-2xl font-bold text-slate-800 mb-4">{cat}</h2>
+              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3 sm:gap-4">
+                {items.map((h) => (
+                  <HardwareCard key={h.id} item={h} />
+                ))}
+              </div>
+            </section>
+          ))}
+        </div>
+      )}
+
+      <p className="mt-12 text-sm text-slate-600">
+        Installing glides or bases?{' '}
+        <Link to="/resources/guides#installation" className="text-primary-600 hover:text-primary-700 font-medium">
+          See the installation guides →
+        </Link>
+      </p>
+    </KnowledgePageLayout>
   );
 };
 

@@ -53,6 +53,7 @@ const HardwarePage = lazy(() => import('./pages/HardwarePage'));
 const LaminatesPage = lazy(() => import('./pages/LaminatesPage'));
 const UpholsteryPage = lazy(() => import('./pages/UpholsteryPage'));
 const GuidesPage = lazy(() => import('./pages/GuidesPage'));
+const SpecSheetsPage = lazy(() => import('./pages/SpecSheetsPage'));
 const SeatBackTermsPage = lazy(() => import('./pages/SeatBackTermsPage'));
 function ManifestInjector() {
   const location = useLocation();
@@ -187,6 +188,7 @@ function App() {
           {/* Resource Pages */}
           <Route path="/virtual-catalogs" element={<VirtualCatalogsPage />} />
           <Route path="/resources/guides" element={<GuidesPage />} />
+          <Route path="/resources/spec-sheets" element={<SpecSheetsPage />} />
           <Route path="/resources/woodfinishes" element={<WoodFinishesPage />} />
           <Route path="/resources/hardware" element={<HardwarePage />} />
           <Route path="/resources/laminates" element={<LaminatesPage />} />

@@ -7,6 +7,7 @@ import CatalogEditor from './CatalogEditor';
 import ReorderableTable from '../ReorderableTable';
 import { useToast } from '../../../contexts/ToastContext';
 import { useAdminRefresh } from '../../../contexts/AdminRefreshContext';
+import { CATALOG_TYPE_OPTIONS, formatCatalogType } from '../../../utils/catalogTypes';
 
 /**
  * Catalog Management - Table Layout
@@ -133,15 +134,9 @@ const CatalogManagement = () => {
               className="w-full px-4 py-2 bg-dark-700 border border-dark-600 rounded-lg text-dark-50 focus:border-primary-500 focus:ring-1 focus:ring-primary-500 outline-none transition-all"
             >
               <option value="">All Types</option>
-              <option value="full_catalog">Full Catalog</option>
-              <option value="product_line">Product Line</option>
-              <option value="price_list">Price List</option>
-              <option value="finish_guide">Finish Guide</option>
-              <option value="upholstery_guide">Upholstery Guide</option>
-              <option value="care_guide">Care Guide</option>
-              <option value="installation_guide">Installation Guide</option>
-              <option value="specification_sheet">Specification Sheet</option>
-              <option value="other">Other</option>
+              {CATALOG_TYPE_OPTIONS.map(({ value, label }) => (
+                <option key={value} value={value}>{label}</option>
+              ))}
             </select>
           </div>
           <div className="flex-1">
@@ -215,7 +210,7 @@ const CatalogManagement = () => {
                 <td className="px-3 sm:px-4 py-3">
                   {catalog.catalog_type ? (
                     <span className="px-2 py-1 bg-primary-900/30 text-primary-400 text-xs rounded">
-                      {catalog.catalog_type}
+                      {formatCatalogType(catalog.catalog_type)}
                     </span>
                   ) : (
                     <span className="text-dark-500 text-sm">—</span>

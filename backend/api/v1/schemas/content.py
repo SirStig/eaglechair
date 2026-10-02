@@ -26,6 +26,7 @@ class CatalogTypeEnum(str, Enum):
     CARE_GUIDE = "care_guide"
     INSTALLATION_GUIDE = "installation_guide"
     SPECIFICATION_SHEET = "specification_sheet"
+    TECHNICAL_DRAWING = "technical_drawing"
     OTHER = "other"
 
 

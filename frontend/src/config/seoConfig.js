@@ -61,9 +61,9 @@ export const SEO = {
       url: '/search',
     },
     virtualCatalogs: {
-      title: 'Digital Product Catalogs | Eagle Chair',
+      title: 'Catalogs | Eagle Chair',
       description:
-        "Browse Eagle Chair's full-line digital catalogs featuring premium commercial seating for restaurants, hotels, and healthcare.",
+        "View and download Eagle Chair's full catalogs and collection brochures for commercial chairs, barstools, booths and tables.",
       keywords:
         'Eagle Chair catalog, commercial seating catalog, digital furniture catalog, product brochure',
       url: '/virtual-catalogs',
@@ -77,9 +77,9 @@ export const SEO = {
       url: '/resources/woodfinishes',
     },
     hardware: {
-      title: 'Hardware Options | Eagle Chair',
+      title: 'Hardware & Table Bases | Eagle Chair',
       description:
-        "Browse Eagle Chair's hardware options including glides, casters, and connector choices for commercial seating.",
+        'Glides, swivels, footrings and other chair hardware, plus table bases and edge profiles used on Eagle Chair products.',
       keywords:
         'chair hardware, commercial seating hardware, furniture hardware, glides, casters, Eagle Chair hardware',
       url: '/resources/hardware',
@@ -101,12 +101,20 @@ export const SEO = {
       url: '/resources/upholstery',
     },
     guides: {
-      title: 'Specification Guides | Eagle Chair',
+      title: 'Installation & Care Guides | Eagle Chair',
       description:
-        'Access Eagle Chair specification guides for commercial seating selection, product dimensions, weight capacities, and care instructions.',
+        'Booth and table layout rules of thumb, seating height guidelines, base and glide installation, care instructions and warranty from Eagle Chair.',
       keywords:
-        'commercial seating guide, specification guide, furniture specifications, Eagle Chair guides',
+        'booth layout guide, table layout, barstool spacing, installation guide, furniture care, Eagle Chair warranty',
       url: '/resources/guides',
+    },
+    specSheets: {
+      title: 'Spec Sheets & Line Drawings | Eagle Chair',
+      description:
+        'Line sheets, spec sheets and line drawings for Eagle Chair commercial chairs, barstools, booths and tables, searchable by collection or model number.',
+      keywords:
+        'chair spec sheet, line drawing, commercial seating specifications, line sheet, Eagle Chair spec sheets',
+      url: '/resources/spec-sheets',
     },
     seatBackTerms: {
       title: 'Seat & Back Terminology | Eagle Chair',

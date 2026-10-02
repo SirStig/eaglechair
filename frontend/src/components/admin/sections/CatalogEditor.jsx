@@ -5,6 +5,7 @@ import apiClient from '../../../config/apiClient';
 import { resolveImageUrl } from '../../../utils/apiHelpers';
 import { ArrowLeft, Upload, X, FileText } from 'lucide-react';
 import ResponsiveImage from '../../ui/ResponsiveImage';
+import { CATALOG_TYPE_OPTIONS } from '../../../utils/catalogTypes';
 
 /**
  * Catalog Editor Component
@@ -232,15 +233,9 @@ const CatalogEditor = ({ catalog, onBack, onSave }) => {
                     className="w-full px-4 py-2 bg-dark-700 border border-dark-600 rounded-lg text-dark-50 focus:border-primary-500 focus:ring-1 focus:ring-primary-500 outline-none transition-all"
                     required
                   >
-                    <option value="full_catalog">Full Catalog</option>
-                    <option value="product_line">Product Line</option>
-                    <option value="price_list">Price List</option>
-                    <option value="finish_guide">Finish Guide</option>
-                    <option value="upholstery_guide">Upholstery Guide</option>
-                    <option value="care_guide">Care Guide</option>
-                    <option value="installation_guide">Installation Guide</option>
-                    <option value="specification_sheet">Specification Sheet</option>
-                    <option value="other">Other</option>
+                    {CATALOG_TYPE_OPTIONS.map(({ value, label }) => (
+                      <option key={value} value={value}>{label}</option>
+                    ))}
                   </select>
                 </div>
               </div>

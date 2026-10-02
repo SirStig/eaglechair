@@ -17,7 +17,7 @@ const Footer = () => {
       { name: 'Wood Finishes', path: '/resources/woodfinishes' },
       { name: 'Upholstery', path: '/resources/upholstery' },
       { name: 'Laminates', path: '/resources/laminates' },
-      { name: 'Hardware', path: '/resources/hardware' }
+      { name: 'Hardware & Bases', path: '/resources/hardware' }
     ],
     company: [
       { name: 'About Us', path: '/about' },
@@ -26,8 +26,9 @@ const Footer = () => {
       { name: 'Gallery', path: '/gallery' }
     ],
     resources: [
-      { name: 'Virtual Catalogs', path: '/virtual-catalogs' },
-      { name: 'Guides', path: '/resources/guides' },
+      { name: 'Catalogs', path: '/virtual-catalogs' },
+      { name: 'Spec Sheets & Drawings', path: '/resources/spec-sheets' },
+      { name: 'Installation & Care', path: '/resources/guides' },
       { name: 'Request a Quote', path: '/quote-request' }
     ],
     legal: [
