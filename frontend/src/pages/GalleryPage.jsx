@@ -1,9 +1,8 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, lazy, Suspense } from 'react';
 // eslint-disable-next-line no-unused-vars
 import { m } from 'framer-motion';
 import SEOHead from '../components/SEOHead';
 import { SEO } from '../config/seoConfig';
-import Modal from '../components/ui/Modal';
 import ResponsiveImage from '../components/ui/ResponsiveImage';
 import EditableWrapper from '../components/admin/EditableWrapper';
 import EditableList from '../components/admin/EditableList';
@@ -14,11 +13,15 @@ import logger from '../utils/logger';
 
 const CONTEXT = 'GalleryPage';
 
+const ImageLightboxModal = lazy(() => import('../components/ui/ImageLightboxModal'));
+
 // Admin-only write API; loaded on first save so public visitors never download it
 const loadCmsAdmin = () => import('../services/cmsAdminService');
 
 const categoryOf = (img) => img.category || img.projectType || img.project_type;
 const displayOrderOf = (img) => img.displayOrder ?? img.display_order;
+const imageUrlOf = (img) => img.url || img.primary_image || img.primaryImage ||
+  (img.images && (typeof img.images === 'string' ? JSON.parse(img.images)[0] : img.images[0]));
 
 /**
  * Apply a move made inside a (possibly filtered) subset to the FULL list.
@@ -43,7 +46,7 @@ const applySubsetMove = (fullList, reorderedSubset, movedItem) => {
 };
 
 const GalleryPage = () => {
-  const [selectedImage, setSelectedImage] = useState(null);
+  const [lightboxIndex, setLightboxIndex] = useState(null);
   const [filter, setFilter] = useState('all');
   const { data: installations, loading } = useInstallations();
 
@@ -55,6 +58,8 @@ const GalleryPage = () => {
   const filteredImages = useMemo(() => (filter === 'all'
     ? images
     : images.filter(img => categoryOf(img) === filter)), [images, filter]);
+
+  const lightboxImages = useMemo(() => filteredImages.map(imageUrlOf), [filteredImages]);
 
   // Handlers for CRUD operations
   const handleUpdateInstallation = async (id, updates) => {
@@ -212,8 +217,7 @@ const GalleryPage = () => {
               is_featured: false
             }}
             renderItem={(image, index) => {
-              const imageUrl = image.url || image.primary_image || image.primaryImage || 
-                (image.images && (typeof image.images === 'string' ? JSON.parse(image.images)[0] : image.images[0]));
+              const imageUrl = imageUrlOf(image);
               const title = image.title || image.project_name || image.projectName;
               const category = image.category || image.project_type || image.projectType;
               const location = image.location;
@@ -224,7 +228,7 @@ const GalleryPage = () => {
                   animate={{ opacity: 1, scale: 1 }}
                   transition={{ delay: index * 0.05 }}
                   className="relative group cursor-pointer overflow-hidden rounded-xl shadow-md hover:shadow-2xl transition-shadow"
-                  onClick={() => setSelectedImage(image)}
+                  onClick={() => setLightboxIndex(Math.max(0, filteredImages.findIndex((img) => img.id === image.id)))}
                 >
                   <ResponsiveImage
                     src={imageUrl}
@@ -250,34 +254,18 @@ const GalleryPage = () => {
           />
         )}
 
-        {/* Image Modal */}
-        <Modal
-          isOpen={!!selectedImage}
-          onClose={() => setSelectedImage(null)}
-          size="lg"
-          title={selectedImage?.title || undefined}
-        >
-          {selectedImage && (
-            <div className="max-h-[70vh] overflow-auto">
-              <ResponsiveImage
-                src={selectedImage.url}
-                sizes="(min-width: 1024px) 896px, 100vw"
-                priority
-                alt={selectedImage.title || 'Eagle Chair installation'}
-                className="w-full h-auto max-h-[60vh] object-contain img-sharp rounded-lg"
-              />
-              <div className="mt-4 space-y-2">
-                {selectedImage.category && <p className="text-dark-100 font-medium">{selectedImage.category}</p>}
-                {selectedImage.location && (
-                  <p className="text-dark-200 text-sm">{selectedImage.location}</p>
-                )}
-                {selectedImage.description && (
-                  <p className="text-dark-300 text-sm">{selectedImage.description}</p>
-                )}
-              </div>
-            </div>
-          )}
-        </Modal>
+        {/* Fullscreen viewer with zoom/pan */}
+        {lightboxIndex !== null && (
+          <Suspense fallback={null}>
+            <ImageLightboxModal
+              isOpen
+              dark
+              onClose={() => setLightboxIndex(null)}
+              images={lightboxImages}
+              initialIndex={lightboxIndex}
+            />
+          </Suspense>
+        )}
 
         {/* CTA Section */}
         <div className="mt-12 sm:mt-16 bg-dark-900 border border-dark-600 rounded-2xl p-6 sm:p-8 lg:p-12 text-center">

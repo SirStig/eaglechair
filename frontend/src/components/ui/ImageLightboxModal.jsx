@@ -1,10 +1,11 @@
 import { useEffect, useRef, useState } from 'react';
+// eslint-disable-next-line no-unused-vars
 import { AnimatePresence, m } from 'framer-motion';
 import { TransformWrapper, TransformComponent } from 'react-zoom-pan-pinch';
 import VariationImageDisclaimer from './VariationImageDisclaimer';
 import ResponsiveImage from './ResponsiveImage';
 
-const ImageLightboxModal = ({ isOpen, onClose, images = [], initialIndex = 0, showDisclaimer = false }) => {
+const ImageLightboxModal = ({ isOpen, onClose, images = [], initialIndex = 0, showDisclaimer = false, dark = false }) => {
   const transformRef = useRef(null);
   const [index, setIndex] = useState(initialIndex);
 
@@ -16,10 +17,12 @@ const ImageLightboxModal = ({ isOpen, onClose, images = [], initialIndex = 0, sh
     if (!isOpen) return;
     const handleKeyDown = (e) => {
       if (e.key === 'Escape') onClose();
+      else if (e.key === 'ArrowLeft') setIndex((i) => Math.max(0, i - 1));
+      else if (e.key === 'ArrowRight') setIndex((i) => Math.min(images.length - 1, i + 1));
     };
     document.addEventListener('keydown', handleKeyDown);
     return () => document.removeEventListener('keydown', handleKeyDown);
-  }, [isOpen, onClose]);
+  }, [isOpen, onClose, images.length]);
 
   useEffect(() => {
     if (isOpen) document.body.style.overflow = 'hidden';
@@ -62,7 +65,7 @@ const ImageLightboxModal = ({ isOpen, onClose, images = [], initialIndex = 0, sh
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
           transition={{ duration: 0.2 }}
-          className="fixed inset-0 z-[100] flex items-center justify-center bg-white p-2 sm:p-4"
+          className={`fixed inset-0 z-[100] flex items-center justify-center p-2 sm:p-4 ${dark ? 'bg-black/95' : 'bg-white'}`}
           onClick={handleOverlayClick}
           role="dialog"
           aria-modal="true"
