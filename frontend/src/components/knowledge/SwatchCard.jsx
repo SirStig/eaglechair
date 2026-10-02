@@ -1,14 +1,17 @@
 import SwatchImage from '../ui/SwatchImage';
 
 /** One material swatch (finish, vinyl, laminate) with its name, code and a few facts. */
-const SwatchCard = ({ item, kind, title, code, facts = [], description, badges = [] }) => (
+const SwatchCard = ({ item, kind, title, code, facts: rawFacts = [], description, badges = [] }) => {
+  // Skip facts the title already says (e.g. pattern "Milled" on "Milled Claret Red").
+  const facts = rawFacts.filter((f) => f && !title?.toLowerCase().includes(String(f).toLowerCase()));
+  return (
   <article className="bg-white rounded-lg border border-cream-200 overflow-hidden hover:border-primary-500 transition-colors duration-300">
     <SwatchImage item={item} size="card" rounded="none" kind={kind} alt={title} className="w-full rounded-none" />
     <div className="p-3 sm:p-4">
       <h3 className="font-semibold text-slate-800 leading-snug">{title}</h3>
       {code && <p className="text-xs font-mono text-primary-700 mt-0.5">{code}</p>}
-      {facts.filter(Boolean).length > 0 && (
-        <p className="text-xs text-slate-500 mt-1">{facts.filter(Boolean).join(' · ')}</p>
+      {facts.length > 0 && (
+        <p className="text-xs text-slate-500 mt-1">{facts.join(' · ')}</p>
       )}
       {description && <p className="text-sm text-slate-600 mt-2 line-clamp-3">{description}</p>}
       {badges.filter(Boolean).length > 0 && (
@@ -22,6 +25,7 @@ const SwatchCard = ({ item, kind, title, code, facts = [], description, badges =
       )}
     </div>
   </article>
-);
+  );
+};
 
 export default SwatchCard;

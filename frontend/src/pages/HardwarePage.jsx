@@ -33,12 +33,12 @@ const HardwareCard = ({ item }) => {
   return (
     <article className="bg-white rounded-lg border border-cream-200 overflow-hidden hover:border-primary-500 transition-colors duration-300 flex flex-col">
       {img ? (
-        <div className="aspect-[4/3] bg-white border-b border-cream-100">
+        <div className="relative aspect-[4/3] overflow-hidden bg-white border-b border-cream-100">
           <ResponsiveImage
             src={resolveImageUrl(img)}
             sizes="(min-width: 1024px) 25vw, (min-width: 640px) 33vw, 50vw"
             alt={item.name}
-            className="w-full h-full object-contain p-3"
+            className="absolute inset-0 w-full h-full object-contain p-3"
             loading="lazy"
           />
         </div>

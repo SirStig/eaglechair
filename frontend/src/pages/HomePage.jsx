@@ -5,7 +5,6 @@ import { m } from 'framer-motion';
 import { Helmet } from 'react-helmet-async';
 import Button from '../components/ui/Button';
 import HeroCarousel from '../components/ui/HeroCarousel';
-import ProductCard from '../components/ui/ProductCard';
 import QuickViewModal from '../components/ui/QuickViewModal';
 import { CardGridSkeleton } from '../components/ui/Skeleton';
 import EditableWrapper from '../components/admin/EditableWrapper';
@@ -16,6 +15,7 @@ import { useToast } from '../contexts/ToastContext';
 import EditableList from '../components/admin/EditableList';
 import { useHeroSlides, useClientLogos, useFeaturedProducts, usePageContent, useSiteSettings, useInstallations, useTestimonials } from '../hooks/useContent';
 import CategoryTile from '../components/products/CategoryTile';
+import FeaturedProductsStrip from '../components/products/FeaturedProductsStrip';
 import productService from '../services/productService';
 import { resolveImageUrl, ensureResolvedImageUrl, getImageSrcSet } from '../utils/apiHelpers';
 import ResponsiveImage from '../components/ui/ResponsiveImage';
@@ -38,6 +38,7 @@ const DEFAULT_BANNER = '/assets/default-banner-categories.webp';
 // Widest the product grid goes before extra categories collapse into
 // "More Categories" - matches the Products dropdown
 const MAX_CATEGORY_COLUMNS = 5;
+const MAX_FEATURED_PRODUCTS = 20;
 
 const HomePage = () => {
   const [selectedQuickView, setSelectedQuickView] = useState(null);
@@ -61,7 +62,7 @@ const HomePage = () => {
 
   const { data: heroSlides, loading: heroLoading } = useHeroSlides();
   const { data: clientLogos } = useClientLogos();
-  const { data: featuredProducts, loading: productsLoading } = useFeaturedProducts(4);
+  const { data: featuredProducts, loading: productsLoading } = useFeaturedProducts(MAX_FEATURED_PRODUCTS);
   const { data: ctaSection } = usePageContent('home', 'cta');
   const { data: installationGallerySection } = usePageContent('home', 'installation_gallery');
   const { data: installations, loading: installationsLoading } = useInstallations();
@@ -571,28 +572,17 @@ const HomePage = () => {
             </p>
           </m.div>
 
-          {productsLoading ? (
-            <CardGridSkeleton count={4} columns={4} />
-          ) : (
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 sm:gap-6 md:gap-8 lg:gap-10 px-4 sm:px-0">
-              {products.map((product, index) => (
-                <m.div
-                  key={product.id}
-                  initial={{ opacity: 0, y: 20 }}
-                  whileInView={{ opacity: 1, y: 0 }}
-                  viewport={{ once: true }}
-                  transition={{ delay: index * 0.1 }}
-                >
-                  <ProductCard
-                    product={product}
-                    onQuickView={setSelectedQuickView}
-                    darkMode={false}
-                  />
-                </m.div>
-              ))}
-            </div>
-          )}
+        </div>
 
+        {productsLoading ? (
+          <div className="container">
+            <CardGridSkeleton count={4} columns={4} />
+          </div>
+        ) : (
+          <FeaturedProductsStrip products={products} onQuickView={setSelectedQuickView} />
+        )}
+
+        <div className="container">
           <div className="text-center mt-8 sm:mt-12 px-4 sm:px-0">
             <Link to="/products">
               <Button variant="primary" size="lg" className="w-full sm:w-auto">

@@ -16,7 +16,7 @@ const runPreload = async () => {
     const [heroSlides, categories, featuredRes] = await Promise.all([
       contentService.getHeroSlides(),
       productService.getCategories(),
-      productService.getFeaturedProducts(4)
+      productService.getFeaturedProducts(20)
     ]);
 
     const slides = Array.isArray(heroSlides) ? heroSlides : heroSlides?.data || [];
