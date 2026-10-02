@@ -40,7 +40,7 @@ const ProductCard = ({ product, onQuickView, darkMode = false, compact = false, 
       // Start cycling through images
       interval = setInterval(() => {
         setActiveImageIndex(prev => (prev + 1) % carouselImages.length);
-      }, 1200); // 1.2s interval
+      }, 700); // fast enough that angle shots read as the chair turning
     } else {
       // Reset to primary image when not hovered
       setActiveImageIndex(0);
