@@ -115,8 +115,8 @@ export const notifyAdminWrite = (config, data) => {
   if (!MUTATING_METHODS.has(method)) return;
   const url = config.url || '';
   if (!ADMIN_WRITE_PATHS.some((p) => url.includes(p))) return;
-  // Uploads and AI chat traffic don't change published content
-  if (/\/upload|\/ai\//.test(url)) return;
+  // Uploads, AI chat and Catalog Builder traffic (previews are POSTs) don't change published content
+  if (/\/upload|\/ai\/|\/catalog-builder\//.test(url)) return;
 
   if (url.includes('/cms-admin/') && isPublishFailed(data)) {
     notifyPublishFailed(url);

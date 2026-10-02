@@ -28,7 +28,9 @@ import {
   Menu,
   X,
   MessageSquare,
-  Download
+  Download,
+  ClipboardList,
+  BookOpen
 } from 'lucide-react';
 import { AnimatePresence, m } from 'framer-motion';
 
@@ -52,6 +54,8 @@ import SiteSettings from '../../components/admin/sections/SiteSettings';
 import Analytics from '../../components/admin/sections/Analytics';
 import EmailTemplateManagement from '../../components/admin/sections/EmailTemplateManagement';
 import AdminDownloads from '../../components/admin/sections/AdminDownloads';
+import ProductRegister from '../../components/admin/sections/ProductRegister';
+import CatalogBuilder from '../../components/admin/sections/CatalogBuilder';
 import apiClient from '../../config/apiClient';
 
 /**
@@ -79,6 +83,8 @@ const NewAdminDashboardInner = () => {
   const getActiveSectionFromPath = () => {
     const path = location.pathname;
     if (path.includes('/admin/analytics')) return 'analytics';
+    if (path.includes('/admin/catalog-builder')) return 'catalog-builder';
+    if (path.includes('/admin/register')) return 'register';
     if (path.includes('/admin/catalog')) return 'catalog';
     if (path.includes('/admin/categories')) return 'categories';
     if (path.includes('/admin/families')) return 'families';
@@ -122,6 +128,8 @@ const NewAdminDashboardInner = () => {
     let section = 'overview';
     if (path.includes('/admin/analytics')) section = 'analytics';
     else if (path.includes('/admin/resources/catalogs')) section = 'catalogs';
+    else if (path.includes('/admin/catalog-builder')) section = 'catalog-builder';
+    else if (path.includes('/admin/register')) section = 'register';
     else if (path.includes('/admin/catalog')) section = 'catalog';
     else if (path.includes('/admin/categories')) section = 'categories';
     else if (path.includes('/admin/families')) section = 'families';
@@ -166,6 +174,8 @@ const NewAdminDashboardInner = () => {
       title: 'Product Management',
       items: [
         { id: 'catalog', label: 'Product Catalog', icon: Package, path: '/admin/catalog' },
+        { id: 'register', label: 'Product Register', icon: ClipboardList, path: '/admin/register' },
+        { id: 'catalog-builder', label: 'Catalog Builder', icon: BookOpen, path: '/admin/catalog-builder' },
         { id: 'categories', label: 'Categories', icon: Tags, path: '/admin/categories' },
         { id: 'families', label: 'Product Families', icon: Users2, path: '/admin/families' },
         { id: 'colors', label: 'Colors', icon: Droplet, path: '/admin/colors' },
@@ -239,6 +249,10 @@ const NewAdminDashboardInner = () => {
         return <LaminateManagement />;
       case 'catalogs':
         return <CatalogManagement />;
+      case 'register':
+        return <ProductRegister />;
+      case 'catalog-builder':
+        return <CatalogBuilder />;
       case 'hardware':
         return <HardwareManagement />;
       case 'companies':

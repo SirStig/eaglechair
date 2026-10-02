@@ -15,9 +15,9 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Optional
 
-from PIL import Image, ImageOps
+from PIL import Image
 
-from backend.services.media_service import resolve_uploaded_image_path
+from backend.services.media_service import _to_srgb, resolve_uploaded_image_path
 
 logger = logging.getLogger(__name__)
 
@@ -49,7 +49,7 @@ def _encode(img: Image.Image) -> bytes:
 
 def _prepare(path: Path, max_px: int) -> LoadedImage:
     with Image.open(path) as src:
-        img = ImageOps.exif_transpose(src)
+        img = _to_srgb(src)  # orientation + CMYK/ICC to sRGB, as for site renditions
         has_alpha = img.mode in ("RGBA", "LA", "PA") or (img.mode == "P" and "transparency" in img.info)
         img = img.convert("RGBA" if has_alpha else "RGB")
     if has_alpha:

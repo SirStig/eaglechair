@@ -42,7 +42,7 @@ PAGE_RECT = fitz.Rect(0, 0, PAGE_WIDTH, PAGE_HEIGHT)
 MAX_PRODUCT_ITEMS = 3
 MAX_GALLERY_ITEMS = 8
 MAX_COVER_ITEMS = 8
-TOC_ROWS_PER_PAGE = 20
+TOC_ROWS_PER_PAGE = 18  # rows of 30pt from y 160, clear of the banner at 727
 
 
 @dataclass
@@ -217,7 +217,11 @@ def _footer(page: fitz.Page, ctx: Ctx) -> None:
         _text(page, 36, 785, str(ctx.page_number), size=7.7, color=WHITE)
 
 
-def _title(page: fitz.Page, title: str, subtitle: str = "", y: float = 88) -> None:
+# Title baseline: the 66pt caps clear the logo (ends at y 39) by ~10pt
+TITLE_BASELINE = 102
+
+
+def _title(page: fitz.Page, title: str, subtitle: str = "", y: float = TITLE_BASELINE) -> None:
     """Family name in large white light oblique, optional smaller subtitle after it."""
     title = (title or "").strip()
     subtitle = (subtitle or "").strip()
@@ -267,16 +271,17 @@ def _spec_column(page: fitz.Page, product: dict, variation: Optional[dict], x: f
 # ---------------------------------------------------------------------------
 
 # Photo box and spec column (icon x, top y) per product count
+# Everything below the title starts at y >= 122.
 PRODUCT_LAYOUTS = {
-    1: [(fitz.Rect(80, 105, 560, 600), (18, 150))],
+    1: [(fitz.Rect(80, 124, 560, 600), (18, 160))],
     2: [
-        (fitz.Rect(64, 105, 330, 372), (18, 118)),
-        (fitz.Rect(300, 320, 525, 580), (531, 330)),
+        (fitz.Rect(64, 124, 330, 384), (18, 132)),
+        (fitz.Rect(300, 336, 525, 590), (531, 346)),
     ],
     3: [
-        (fitz.Rect(62, 105, 290, 335), (18, 112)),
-        (fitz.Rect(330, 105, 525, 330), (531, 112)),
-        (fitz.Rect(150, 350, 520, 585), (531, 352)),
+        (fitz.Rect(62, 124, 290, 345), (18, 128)),
+        (fitz.Rect(330, 124, 525, 345), (531, 128)),
+        (fitz.Rect(150, 362, 520, 590), (531, 366)),
     ],
 }
 
@@ -333,18 +338,19 @@ def _grid(count: int, cols: int, top: float, bottom: float, left=24, right=588, 
     return boxes
 
 
-# Staggered photo boxes like the printed "variations" sheets
+# Staggered photo boxes like the printed "variations" sheets, all below the
+# title row and leaving ~34pt under each box for its caption
 GALLERY_LAYOUTS = {
-    1: [fitz.Rect(110, 110, 500, 680)],
-    2: [fitz.Rect(30, 110, 300, 520), fitz.Rect(310, 260, 580, 680)],
-    3: [fitz.Rect(24, 110, 250, 390), fitz.Rect(360, 50, 584, 330), fitz.Rect(190, 400, 420, 680)],
-    4: [fitz.Rect(24, 110, 250, 370), fitz.Rect(360, 50, 584, 310), fitz.Rect(60, 420, 286, 690), fitz.Rect(350, 370, 584, 680)],
+    1: [fitz.Rect(110, 128, 500, 680)],
+    2: [fitz.Rect(30, 128, 300, 500), fitz.Rect(312, 300, 582, 680)],
+    3: [fitz.Rect(24, 128, 260, 380), fitz.Rect(352, 160, 584, 420), fitz.Rect(170, 440, 420, 684)],
+    4: [fitz.Rect(24, 128, 260, 370), fitz.Rect(352, 160, 584, 400), fitz.Rect(60, 440, 286, 684), fitz.Rect(352, 448, 584, 684)],
     5: [
-        fitz.Rect(20, 105, 200, 300),
-        fitz.Rect(400, 40, 580, 210),
-        fitz.Rect(214, 270, 398, 470),
-        fitz.Rect(30, 480, 210, 680),
-        fitz.Rect(400, 470, 580, 690),
+        fitz.Rect(20, 128, 200, 300),
+        fitz.Rect(400, 128, 580, 290),
+        fitz.Rect(214, 316, 398, 480),
+        fitz.Rect(30, 508, 210, 684),
+        fitz.Rect(400, 500, 580, 684),
     ],
 }
 
@@ -352,7 +358,7 @@ GALLERY_LAYOUTS = {
 def gallery_boxes(count: int) -> list[fitz.Rect]:
     if count in GALLERY_LAYOUTS:
         return GALLERY_LAYOUTS[count]
-    return _grid(count, 3 if count <= 6 else 4, top=112, bottom=716)
+    return _grid(count, 3 if count <= 6 else 4, top=128, bottom=716)
 
 
 def default_caption(product: Optional[dict], variation: Optional[dict]) -> str:
@@ -471,7 +477,7 @@ def draw_toc(page: fitz.Page, ctx: Ctx, spec: dict, entries: list[dict], first: 
     """One page of contents: title, then rows of "name ..... page" with model numbers."""
     _chrome(page, ctx, "bg_gallery")
     _title(page, spec.get("title") or "Contents", "" if first else "continued")
-    y = 140
+    y = 160
     for entry in entries:
         number = str(entry["page"])
         name_width = _text(page, 40, y, entry["title"], role="bold", size=13, max_width=400)

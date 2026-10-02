@@ -1,73 +1,60 @@
 {
-  "siteSettings": {
-    "companyName": "Eagle Chair",
-    "companyTagline": "Premium Commercial Furniture Since 1984",
-    "logoUrl": "/assets/eagle-chair-logo.png",
-    "logoDarkUrl": null,
-    "faviconUrl": null,
-    "primaryEmail": "info@eaglechair.com",
-    "primaryPhone": "(713) 555-0100",
-    "salesEmail": "sales@eaglechair.com",
-    "salesPhone": "(713) 555-0101",
-    "supportEmail": "support@eaglechair.com",
-    "supportPhone": "(713) 555-0102",
-    "addressLine1": "gsgsg",
-    "addressLine2": "Suite 100",
-    "city": "Houston",
-    "state": "TX",
-    "zipCode": "77001",
-    "country": "USA",
-    "businessHoursWeekdays": "Monday - Friday: 8:00 AM - 5:00 PM CST",
-    "businessHoursSaturday": "Saturday: By Appointment Only",
-    "businessHoursSunday": "Sunday: Closed",
-    "facebookUrl": "https://facebook.com/eaglechair",
-    "instagramUrl": "https://instagram.com/eaglechair",
-    "linkedinUrl": "https://linkedin.com/company/eaglechair",
-    "twitterUrl": null,
-    "youtubeUrl": null,
-    "metaTitle": null,
-    "metaDescription": null,
-    "metaKeywords": null,
-    "themeColors": null,
-    "additionalSettings": null
-  },
+  "siteSettings": {},
   "heroSlides": [],
   "salesReps": [],
-  "galleryImages": [],
+  "galleryImages": [
+    {
+      "id": 1,
+      "title": "Paesano's",
+      "category": "Restaurant",
+      "url": "/uploads/images/catalog-dev/install_3506-4506.jpg",
+      "images": [
+        "/uploads/images/catalog-dev/install_3506-4506.jpg",
+        "/uploads/images/catalog-dev/install_3703-4703.jpg"
+      ],
+      "description": null,
+      "location": "San Antonio, TX",
+      "clientName": null
+    }
+  ],
   "pageContent": [],
   "features": [],
   "companyValues": [],
   "companyMilestones": [],
   "teamMembers": [],
   "clientLogos": [],
+  "testimonials": [],
+  "warranties": [],
+  "faqs": [],
+  "faqCategories": [],
   "categories": [
     {
       "id": 1,
       "name": "Chairs",
       "slug": "chairs",
-      "description": "Modern imagine sit book anyone.\nLot green red head real wrong. Short perhaps guy ahead. Avoid word season according indeed.\nWestern measure skill. New chair everything group standard.",
+      "description": null,
       "parentId": null,
-      "displayOrder": 44,
+      "displayOrder": 0,
       "isActive": true,
       "iconUrl": null,
       "bannerImageUrl": null,
-      "subcategories": [
-        {
-          "id": 2,
-          "name": "Wood Chairs",
-          "slug": "wood-chairs",
-          "description": "Again similar south conference experience community. Pick before as majority read.",
-          "categoryId": 1,
-          "displayOrder": 64,
-          "isActive": true,
-          "type": "category"
-        }
-      ]
+      "specProfile": "chair",
+      "subcategories": []
+    },
+    {
+      "id": 2,
+      "name": "Barstools",
+      "slug": "barstools",
+      "description": null,
+      "parentId": null,
+      "displayOrder": 0,
+      "isActive": true,
+      "iconUrl": null,
+      "bannerImageUrl": null,
+      "specProfile": "barstool",
+      "subcategories": []
     }
   ],
-  "warranties": [],
-  "faqs": [],
-  "faqCategories": [],
   "catalogs": [],
   "finishes": [],
   "upholsteries": [],
@@ -76,7 +63,7 @@
   "contactLocations": [],
   "companyInfo": [],
   "_metadata": {
-    "lastUpdated": "2026-09-30T19:58:12.701949",
+    "lastUpdated": "2026-10-02T14:19:29.714221",
     "version": "1.0.0",
     "generatedBy": "StaticContentExporter"
   }

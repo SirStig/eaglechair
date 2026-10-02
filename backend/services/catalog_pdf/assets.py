@@ -37,7 +37,6 @@ PAGE_WIDTH, PAGE_HEIGHT = 612.0, 792.0
 # Catalog colors
 INK = (0x22 / 255, 0x1F / 255, 0x1F / 255)  # body text #221f1f
 WHITE = (1.0, 1.0, 1.0)
-TEAL = (0.2638, 0.6305, 0.6035)  # spec icon accent
 BROWN = (0x59 / 255, 0x40 / 255, 0x3A / 255)  # cover lettering
 GREY = (0.38, 0.38, 0.40)
 
@@ -89,13 +88,14 @@ def _hex(rgb) -> str:
 
 @lru_cache(maxsize=64)
 def spec_icon_pdf(name: str) -> Optional[bytes]:
-    """A spec icon SVG as one-page PDF bytes, colored like the catalog, or None."""
+    """A spec icon SVG as one-page PDF bytes, in black, or None."""
     if not re.fullmatch(r"[a-z0-9-]+", name or ""):
         return None
     path = SPEC_ICON_DIR / f"{name}.svg"
     if not path.is_file():
         return None
     svg = path.read_text(encoding="utf-8")
-    svg = _ACCENT_RE.sub(_hex(TEAL), svg).replace("currentColor", _hex(INK))
+    # Symbols print solid black: the accent part is inked like the rest
+    svg = _ACCENT_RE.sub(_hex(INK), svg).replace("currentColor", _hex(INK))
     with fitz.open(stream=svg.encode("utf-8"), filetype="svg") as doc:
         return doc.convert_to_pdf()

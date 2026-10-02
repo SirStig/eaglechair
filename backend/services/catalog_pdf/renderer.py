@@ -192,7 +192,7 @@ p {font-size: 9.5px; margin: 0 0 3px 8px; line-height: 1.2;}
 .off {color: #a03030; font-size: 8px;}
 """
 
-_INDEX_COLUMNS = (fitz.Rect(36, 118, 300, 720), fitz.Rect(318, 118, 576, 720))
+_INDEX_COLUMNS = (fitz.Rect(36, 134, 300, 740), fitz.Rect(318, 134, 576, 740))
 
 
 def _index_html(groups: list[dict]) -> str:

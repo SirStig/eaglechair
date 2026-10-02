@@ -32,6 +32,9 @@ from backend.models.company import (
 )
 from backend.models.passkey import AdminPasskeyCredential
 
+# Catalog Builder
+from backend.models.catalog_project import CatalogProject
+
 # Product models
 from backend.models.chair import (
     Category,
@@ -125,4 +128,6 @@ __all__ = [
     "Cart",
     "CartItem",
     "SavedConfiguration",
+    # Catalog Builder
+    "CatalogProject",
 ]

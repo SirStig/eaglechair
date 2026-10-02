@@ -9,16 +9,19 @@ from fastapi import APIRouter, Depends, Request
 from backend.api.v1.routes.admin import (
     ai_chat,
     catalog,
+    catalog_builder,
     categories,
     colors,
     companies,
     dashboard,
     emails,
+    exports,
     families,
     finishes,
     pricing_tiers,
     products,
     quotes,
+    register,
     subcategories,
     upholsteries,
     upload,
@@ -27,7 +30,7 @@ from backend.api.v1.routes.admin import (
 from backend.services.catalog_cache import bump_catalog_version
 
 # Admin sections whose writes never change public catalog data
-_NON_CATALOG_SECTIONS = ("/companies", "/quotes", "/dashboard", "/emails", "/ai")
+_NON_CATALOG_SECTIONS = ("/companies", "/quotes", "/dashboard", "/emails", "/ai", "/catalog-builder", "/exports")
 
 
 async def _bump_catalog_version_after_write(request: Request):
@@ -64,5 +67,8 @@ router.include_router(catalog.router, prefix="/catalog", tags=["Admin - Catalog"
 router.include_router(categories.router, prefix="/categories", tags=["Admin - Categories"])
 router.include_router(pricing_tiers.router, prefix="/pricing-tiers", tags=["Admin - Pricing Tiers"])
 router.include_router(upload.router, prefix="/upload", tags=["Admin - Upload"])
+router.include_router(catalog_builder.router, prefix="/catalog-builder", tags=["Admin - Catalog Builder"])
+router.include_router(exports.router, prefix="/exports", tags=["Admin - Exports"])
+router.include_router(register.router, prefix="/register", tags=["Admin - Product Register"])
 router.include_router(emails.router, prefix="/emails", tags=["Admin - Email Templates"])
 router.include_router(ai_chat.router, prefix="/ai", tags=["Admin - AI Chat"])
