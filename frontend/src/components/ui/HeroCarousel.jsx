@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useCallback } from 'react';
 import { Link } from 'react-router-dom';
 import { m } from 'framer-motion';
 import Button from './Button';
@@ -18,11 +18,9 @@ const HeroCarousel = ({ slides, onUpdateSlide, loading, renderSkeleton }) => {
     setCurrentIndex((prev) => (prev + 1) % slides.length);
   }, [slides.length]);
 
-  useEffect(() => {
-    if (slides.length <= 1) return;
-    const id = setInterval(goNext, SLIDE_DURATION_MS);
-    return () => clearInterval(id);
-  }, [slides.length, goNext]);
+  // Slides advance when the active dot finishes filling (see onAnimationEnd
+  // below), so the dot and the slide change stay in sync. CSS animations
+  // also pause in background tabs, unlike timers.
 
   if (loading && renderSkeleton) return renderSkeleton();
   if (!slides?.length) return null;
@@ -116,6 +114,40 @@ const HeroCarousel = ({ slides, onUpdateSlide, loading, renderSkeleton }) => {
         </div>
         );
       })}
+
+      {slides.length > 1 && (
+        <div className="absolute bottom-[8vh] left-1/2 -translate-x-1/2 z-10 flex items-center gap-1">
+          {slides.map((slide, index) => {
+            const isActive = index === currentIndex;
+            return (
+              <button
+                key={slide.id ?? index}
+                type="button"
+                onClick={() => setCurrentIndex(index)}
+                aria-label={`Go to slide ${index + 1}`}
+                aria-current={isActive ? 'true' : undefined}
+                className="group p-2.5 -m-0.5 cursor-pointer focus:outline-none"
+              >
+                <span
+                  className={`relative block h-2.5 rounded-full overflow-hidden ring-1 ring-white/80 bg-white/15 shadow-[0_0_6px_rgba(0,0,0,0.6)] transition-[width] duration-300 group-hover:bg-white/40 group-focus-visible:ring-2 group-focus-visible:ring-white ${
+                    isActive ? 'w-10' : 'w-2.5'
+                  }`}
+                >
+                  {isActive && (
+                    <span
+                      // Re-keyed per index so the fill restarts on every slide change
+                      key={currentIndex}
+                      className="absolute inset-0 bg-white origin-left"
+                      style={{ animation: `heroDotFill ${SLIDE_DURATION_MS}ms linear forwards` }}
+                      onAnimationEnd={goNext}
+                    />
+                  )}
+                </span>
+              </button>
+            );
+          })}
+        </div>
+      )}
     </div>
   );
 };

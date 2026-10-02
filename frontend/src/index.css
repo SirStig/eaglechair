@@ -410,6 +410,16 @@ html {
   animation: progress linear forwards;
 }
 
+/* Hero carousel dot fill; its animationend advances the slide */
+@keyframes heroDotFill {
+  from {
+    transform: scaleX(0);
+  }
+  to {
+    transform: scaleX(1);
+  }
+}
+
 /* Hover lift effect for buttons */
 .hover-lift {
   -webkit-transition: transform 0.2s ease-in-out;
