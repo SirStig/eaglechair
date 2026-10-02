@@ -5,6 +5,7 @@ import Layout from './components/layout/Layout';
 import ProtectedRoute from './components/ProtectedRoute';
 import ScrollToTop from './components/ScrollToTop';
 import ErrorBoundary from './components/ErrorBoundary';
+import SEOHead from './components/SEOHead';
 import { EditModeProvider } from './contexts/EditModeContext';
 import { AdminAuthProvider } from './contexts/AdminAuthContext';
 import { ToastProvider } from './contexts/ToastContext';
@@ -215,6 +216,7 @@ function App() {
 // 404 Not Found Component
 const NotFound = () => (
   <div className="min-h-screen bg-dark-800 flex items-center justify-center">
+    <SEOHead title="Page Not Found | Eagle Chair" description="The page you're looking for doesn't exist or has been moved." noindex />
     <div className="text-center px-4">
       <h1 className="text-6xl font-bold text-dark-300 mb-4">404</h1>
       <h2 className="text-2xl font-semibold mb-2 text-dark-50">Page Not Found</h2>

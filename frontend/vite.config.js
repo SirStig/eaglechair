@@ -67,8 +67,8 @@ const escapeAttr = (value) =>
  *   src/config/seoConfig.js (data-rh: react-helmet-async replaces the tags
  *   per route; the backend's prerendered shells replace the block).
  * - Replaces __SITE_URL__ / __MEDIA_BASE_URL__ (VITE_SITE_URL / VITE_MEDIA_BASE_URL).
- * - Emits seo-pages.json: the static routes the backend prerenders
- *   (backend/services/seo_prerender.py).
+ * - Emits seo-pages.json (the static routes the backend prerenders,
+ *   backend/services/seo_prerender.py) and robots.txt.
  */
 const seoMetaPlugin = (env) => {
   const siteUrl = (env.VITE_SITE_URL || 'https://www.eaglechair.com').replace(/\/+$/, '')
@@ -110,6 +110,28 @@ const seoMetaPlugin = (env) => {
         url, title, description, noindex: Boolean(noindex),
       }))
       this.emitFile({ type: 'asset', fileName: 'seo-pages.json', source: JSON.stringify({ pages }, null, 2) })
+      // The sitemap is written next to index.html by the backend prerender job
+      this.emitFile({
+        type: 'asset',
+        fileName: 'robots.txt',
+        source: [
+          '# Eagle Chair',
+          '# Search engines, AI search/answer engines and link-preview bots are all welcome.',
+          'User-agent: *',
+          'Allow: /',
+          'Disallow: /admin',
+          'Disallow: /api/',
+          'Disallow: /cart',
+          'Disallow: /quote-request',
+          'Disallow: /login',
+          'Disallow: /forgot-password',
+          'Disallow: /reset-password',
+          'Disallow: /verify-email',
+          '',
+          `Sitemap: ${siteUrl}/sitemap.xml`,
+          '',
+        ].join('\n'),
+      })
     },
   }
 }

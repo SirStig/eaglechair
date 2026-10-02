@@ -766,7 +766,7 @@ def build_category_page(cat: dict, members: list[dict], cards: _Cards) -> PageMe
         layout, sources = "product", _member_images(members)
     eyebrow = " · ".join(x for x in (cat["parent_name"] or "Products", _plural(len(members), "model") if members else None) if x)
     image = cards.card("category", cat["slug"], layout, sources, eyebrow, name,
-                       ["Made to order for restaurants, bars and hospitality"])
+                       ["Made to order for restaurants & hospitality"])
 
     crumbs = [("Home", "/"), ("Products", "/products")]
     if cat["parent_slug"]:

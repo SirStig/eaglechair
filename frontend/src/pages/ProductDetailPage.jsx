@@ -33,7 +33,7 @@ const CONTEXT = 'ProductDetailPage';
 const ImageLightboxModal = lazy(() => import('../components/ui/ImageLightboxModal'));
 
 const ProductDetailPage = () => {
-  const { id, categorySlug, subcategorySlug, productSlug } = useParams();
+  const { id, productSlug } = useParams();
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
   const { addItem } = useCartStore();

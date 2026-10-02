@@ -18,7 +18,6 @@ import {
   resolveCatalogFilters,
   getCatalogPage,
   getCatalogLocation,
-  buildCatalogPath,
 } from '../utils/catalogUrl';
 import { findCategoryById, findNestedCategoryById } from '../utils/categoryTree';
 
@@ -403,7 +402,6 @@ const ProductCatalogPage = () => {
     category_id: activeCategory?.id || '',
   };
 
-  const catalogPath = buildCatalogPath(activeCategory?.slug, activeSubcategory?.slug);
   const productsBreadcrumbPath = getCatalogLocation(
     { ...filters, category_id: '', subcategory_id: '' },
     categories,

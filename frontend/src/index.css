@@ -517,8 +517,9 @@ input[type="number"] {
     min-width: 44px;
   }
 
-  /* Reduce motion for better performance on mobile */
-  * {
+  /* Reduce motion for better performance on mobile. The hero dot fill is
+     exempt: its animationend drives slide timing in HeroCarousel. */
+  :where(*:not(.hero-dot-fill)) {
     animation-duration: 0.5s !important;
     animation-delay: 0s !important;
   }

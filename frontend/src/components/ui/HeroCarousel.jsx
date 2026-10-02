@@ -137,7 +137,7 @@ const HeroCarousel = ({ slides, onUpdateSlide, loading, renderSkeleton }) => {
                     <span
                       // Re-keyed per index so the fill restarts on every slide change
                       key={currentIndex}
-                      className="absolute inset-0 bg-white origin-left"
+                      className="hero-dot-fill absolute inset-0 bg-white origin-left"
                       style={{ animation: `heroDotFill ${SLIDE_DURATION_MS}ms linear forwards` }}
                       onAnimationEnd={goNext}
                     />
