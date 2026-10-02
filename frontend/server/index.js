@@ -170,16 +170,16 @@ async function createServer() {
         : '';
 
       // Use replacer functions: `$` sequences in CMS text must not be
-      // interpreted as String.replace patterns.
-      let html = template
+      // interpreted as String.replace patterns. The page's Helmet tags replace
+      // the default meta block (<!--seo:start-->...<!--seo:end-->), which stays
+      // as the fallback when SSR is bypassed.
+      let html = template;
+      if (headTags) {
+        html = html.replace(/<!--seo:start-->[\s\S]*?<!--seo:end-->/, () => '');
+      }
+      html = html
         .replace('<!--ssr-head-->', () => headTags + contentScript)
         .replace('<!--ssr-outlet-->', () => body);
-
-      // When SSR injects a <title>, strip the static default to avoid duplicates.
-      // The static default remains as fallback when SSR is bypassed (pure SPA via FastAPI).
-      if (headTags && headTags.includes('<title')) {
-        html = html.replace(/<title(?! data-rh)[^>]*>[^<]*<\/title>/, '');
-      }
 
       res.status(200).set('Content-Type', 'text/html').end(html);
     } catch (err) {

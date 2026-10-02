@@ -42,12 +42,12 @@ const ConfirmModal = ({
         </div>
 
         {/* Title */}
-        <h3 className="text-xl font-bold text-slate-800 mb-3">
+        <h3 className="text-xl font-bold text-dark-50 mb-3">
           {title}
         </h3>
 
         {/* Message */}
-        <p className="text-slate-600 mb-6 leading-relaxed">
+        <p className="text-dark-100 mb-6 leading-relaxed">
           {message}
         </p>
 

@@ -5,6 +5,9 @@ import ProductCard from '../components/ui/ProductCard';
 import Button from '../components/ui/Button';
 import { CardGridSkeleton } from '../components/ui/Skeleton';
 import SEOHead from '../components/SEOHead';
+import SEO from '../config/seoConfig';
+import { shareImageUrl } from '../config/site';
+import { breadcrumbSchema, categorySeo } from '../utils/seoSchema';
 import productService from '../services/productService';
 import useDebounce from '../hooks/useDebounce';
 import logger from '../utils/logger';
@@ -435,81 +438,30 @@ const ProductCatalogPage = () => {
   const showStackableFilter = !filters.category_id || activeCategory?.name === 'Chairs';
   const showOutdoorFilter = true;
 
-  const seoTitle = useMemo(() => {
-    if (activeSubcategory?.meta_title) {
-      return activeSubcategory.meta_title;
+  // SEO: same title/description/JSON-LD as the prerendered shell (utils/seoSchema.js)
+  const seoCategory = activeSubcategory || activeCategory;
+  const seo = useMemo(() => {
+    if (!seoCategory) {
+      return {
+        ...SEO.pages.products,
+        path: '/products',
+        structuredData: breadcrumbSchema([['Home', '/'], ['Products', '/products']]),
+      };
     }
-    if (activeCategory) {
-      return activeCategory.meta_title || `${activeCategory.name} | Eagle Chair`;
-    }
-    return 'Product Catalog | Eagle Chair';
-  }, [activeCategory, activeSubcategory]);
-
-  const seoDescription = useMemo(() => {
-    if (activeSubcategory?.description) {
-      return activeSubcategory.meta_description || activeSubcategory.description.substring(0, 160);
-    }
-    if (activeCategory?.description) {
-      return activeCategory.meta_description || activeCategory.description.substring(0, 160);
-    }
-    return 'Browse our complete catalog of premium commercial seating solutions. Chairs, tables, booths, and more for restaurants, hotels, and hospitality venues.';
-  }, [activeCategory, activeSubcategory]);
-
-  const catalogSchema = useMemo(() => {
-    const breadcrumbItems = [
-      { '@type': 'ListItem', position: 1, name: 'Home', item: 'https://www.eaglechair.com/' },
-      {
-        '@type': 'ListItem',
-        position: 2,
-        name: 'Products',
-        item: 'https://www.eaglechair.com/products',
-      },
-    ];
-
-    if (activeCategory) {
-      breadcrumbItems.push({
-        '@type': 'ListItem',
-        position: 3,
-        name: activeCategory.name,
-        item: `https://www.eaglechair.com${buildCatalogPath(activeCategory.slug)}`,
-      });
-    }
-
-    if (activeSubcategory) {
-      breadcrumbItems.push({
-        '@type': 'ListItem',
-        position: breadcrumbItems.length + 1,
-        name: activeSubcategory.name,
-        item: `https://www.eaglechair.com${catalogPath}`,
-      });
-    }
-
-    return {
-      '@context': 'https://schema.org',
-      '@type': 'CollectionPage',
-      name: activeSubcategory?.name || activeCategory?.name || 'Product Catalog',
-      description: seoDescription,
-      url: `https://www.eaglechair.com${catalogPath}`,
-      breadcrumb: {
-        '@type': 'BreadcrumbList',
-        itemListElement: breadcrumbItems,
-      },
-    };
-  }, [activeCategory, activeSubcategory, catalogPath, seoDescription]);
+    return categorySeo(seoCategory, activeSubcategory ? activeCategory : null);
+  }, [seoCategory, activeSubcategory, activeCategory]);
 
   const pageTitle = activeSubcategory?.name || activeCategory?.name || 'All Products';
 
   return (
     <div className="min-h-screen py-8 bg-gradient-to-br from-cream-50 to-cream-100">
       <SEOHead
-        title={seoTitle}
-        description={seoDescription}
-        image="/og-image.jpg"
-        url={catalogPath}
-        type="website"
-        keywords={activeCategory?.meta_keywords || 'commercial seating, restaurant furniture, Eagle Chair'}
-        canonical={catalogPath}
-        structuredData={catalogSchema}
+        title={seo.title}
+        description={seo.description}
+        image={seoCategory ? shareImageUrl('category', seoCategory.slug) : undefined}
+        imageAlt={seo.imageAlt}
+        url={seo.path}
+        structuredData={seo.structuredData}
       />
       <div className="w-full px-4 sm:px-6 lg:px-8 xl:px-12 2xl:px-16">
         <nav

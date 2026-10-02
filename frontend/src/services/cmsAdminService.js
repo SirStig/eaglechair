@@ -225,7 +225,7 @@ export const deleteCompanyMilestone = (id) =>
 // ==================== PRODUCTS / CATEGORIES (inline editors) ====================
 
 export const updateProduct = (id, updates) =>
-  run(`Updating product ${id}`, () => api.patch(`/api/v1/products/${id}`, updates));
+  run(`Updating product ${id}`, () => api.patch(`/api/v1/admin/products/${id}`, updates));
 
 export const createProduct = (data) =>
   run('Creating product', () => api.post('/api/v1/products', data));

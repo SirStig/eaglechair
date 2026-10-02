@@ -8,6 +8,7 @@ import ResponsiveImage from '../ui/ResponsiveImage';
 import EditModeContext from '../../contexts/EditModeContext';
 import DiscardChangesDialog from './DiscardChangesDialog';
 import { isSafeUrl, URL_POLICY_MESSAGE } from '../../utils/safeUrl';
+import { LEGAL_DOCUMENT_TYPES } from './legalDocumentTypes';
 
 const CONTEXT = 'EditModal';
 
@@ -73,14 +74,36 @@ const FIELD_SCHEMAS = {
     { key: 'photoUrl', type: 'image', label: 'Photo or Company Logo' },
     { key: 'displayOrder', type: 'number', label: 'Display Order' },
   ],
+  'legal-document': [
+    { key: 'title', required: true },
+    { key: 'documentType', type: 'select', label: 'Document Type', options: LEGAL_DOCUMENT_TYPES, required: true },
+    { key: 'slug', label: 'URL Slug', help: 'Lowercase words separated by hyphens, e.g. warranty-policy.' },
+    { key: 'shortDescription', type: 'textarea', label: 'Short Description', rows: 2, help: 'Shown in listings and as the search snippet fallback.' },
+    { key: 'content', type: 'textarea', label: 'Content', rows: 16, mono: true, help: 'HTML or Markdown.' },
+    { key: 'version', label: 'Version' },
+    { key: 'effectiveDate', label: 'Effective Date', help: 'As it should appear on the page, e.g. January 1, 2026.' },
+    { key: 'metaTitle', label: 'SEO Title', maxLength: 60, help: 'Leave blank to use the document title.' },
+    { key: 'metaDescription', type: 'textarea', label: 'SEO Description', rows: 3, maxLength: 160 },
+    { key: 'displayOrder', type: 'number', label: 'Display Order' },
+    { key: 'isActive', type: 'boolean', label: 'Published' },
+  ],
 };
 
-const INPUT_CLASS = 'w-full px-4 py-2 bg-dark-700 border border-dark-500 rounded-lg text-dark-50 placeholder-dark-300 focus:outline-none focus:ring-2 focus:ring-accent-500 focus:border-transparent';
+// Fields that hold long-form text get a taller editor
+const LONG_TEXT_FIELDS = new Set(['content', 'full_description', 'fullDescription', 'body']);
+
+const INPUT_CLASS = 'w-full px-3.5 py-2.5 bg-dark-900 border border-dark-500 rounded-lg text-dark-50 placeholder-dark-300 transition-colors hover:border-dark-400 focus:outline-none focus:ring-2 focus:ring-primary-500/70 focus:border-primary-500';
 
 const FOCUSABLE = 'a[href], button:not([disabled]), textarea:not([disabled]), input:not([disabled]):not([type="hidden"]), select:not([disabled]), [tabindex]:not([tabindex="-1"])';
 
 const humanize = (key) =>
-  key.charAt(0).toUpperCase() + key.slice(1).replace(/([A-Z])/g, ' $1').replace(/_/g, ' ');
+  key.charAt(0).toUpperCase() + key.slice(1).replace(/([A-Z])/g, ' $1').replace(/[_-]/g, ' ');
+
+// "hero-slide" -> "Hero Slide"
+const titleCase = (value) =>
+  humanize(String(value)).replace(/\b\w/g, (c) => c.toUpperCase());
+
+const IS_MAC = typeof navigator !== 'undefined' && /Mac|iPhone|iPad/.test(navigator.platform || navigator.userAgent || '');
 
 const stableStringify = (value) => {
   try {
@@ -98,7 +121,7 @@ const stableStringify = (value) => {
  * Generic modal for editing content
  * Handles text, textarea, images, links, numbers and complex objects
  */
-const EditModal = ({ isOpen, onClose, onSave, elementData, elementType, elementId, fieldSchema }) => {
+const EditModal = ({ isOpen, onClose, onSave, elementData, elementType, elementId, fieldSchema, fieldSchemaOverrides }) => {
   const [formData, setFormData] = useState({});
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
@@ -114,12 +137,19 @@ const EditModal = ({ isOpen, onClose, onSave, elementData, elementType, elementI
   const returnFocusRef = useRef(null);
   const editorId = useId();
   const titleId = useId();
+  const handleSubmitRef = useRef(null);
+  const errorRef = useRef(null);
   const editMode = useContext(EditModeContext);
   const setEditorDirty = editMode?.setEditorDirty;
 
   elementDataRef.current = elementData;
 
-  const schema = fieldSchema || FIELD_SCHEMAS[elementType] || null;
+  // fieldSchemaOverrides patches individual fields (matched by key) of the
+  // type's schema, e.g. to pass options that depend on live data
+  const baseSchema = fieldSchema || FIELD_SCHEMAS[elementType] || null;
+  const schema = baseSchema && fieldSchemaOverrides
+    ? baseSchema.map((f) => ({ ...f, ...(fieldSchemaOverrides.find((o) => o.key === f.key) || {}) }))
+    : baseSchema;
   const schemaByKey = schema ? Object.fromEntries(schema.map((f) => [f.key, f])) : {};
 
   // Initialize the form only when the modal opens or switches to another
@@ -191,6 +221,11 @@ const EditModal = ({ isOpen, onClose, onSave, elementData, elementType, elementI
     if (!isOpen) return undefined;
     const handleKeyDown = (e) => {
       if (confirmDiscardOpen) return;
+      if ((e.metaKey || e.ctrlKey) && (e.key === 'Enter' || e.key.toLowerCase() === 's')) {
+        e.preventDefault();
+        handleSubmitRef.current?.();
+        return;
+      }
       if (e.key === 'Escape') {
         e.preventDefault();
         requestClose();
@@ -312,6 +347,10 @@ const EditModal = ({ isOpen, onClose, onSave, elementData, elementType, elementI
       if (kind === 'url' && !isSafeUrl(formData[key])) {
         errors[key] = URL_POLICY_MESSAGE;
       }
+      const value = formData[key];
+      if (schemaByKey[key]?.required && (value === undefined || value === null || String(value).trim() === '')) {
+        errors[key] = 'This field is required.';
+      }
     });
     return errors;
   };
@@ -324,6 +363,9 @@ const EditModal = ({ isOpen, onClose, onSave, elementData, elementType, elementI
     setFieldErrors(errors);
     if (Object.keys(errors).length > 0) {
       setError('Please fix the highlighted fields.');
+      requestAnimationFrame(() => {
+        dialogRef.current?.querySelector('[aria-invalid="true"]')?.focus();
+      });
       return;
     }
 
@@ -354,6 +396,7 @@ const EditModal = ({ isOpen, onClose, onSave, elementData, elementType, elementI
       setLoading(false);
     }
   };
+  handleSubmitRef.current = handleSubmit;
 
   const renderStatesField = (key, label) => {
     const statesByRegion = {
@@ -457,38 +500,52 @@ const EditModal = ({ isOpen, onClose, onSave, elementData, elementType, elementI
     );
   };
 
+  const handleImageDrop = (e, fieldName) => {
+    e.preventDefault();
+    const file = e.dataTransfer?.files?.[0];
+    if (file && file.type.startsWith('image/')) {
+      handleImageSelect({ target: { files: [file] } }, fieldName);
+    }
+  };
+
   const renderImageField = (key, label) => {
-    const currentImage = imagePreview?.[key] || formData[key];
+    const pendingPreview = imagePreview?.[key];
+    const currentImage = pendingPreview || formData[key];
+    const help = schemaByKey[key]?.help;
 
     return (
       <div key={key} className="space-y-2">
-        <span className="block text-sm font-medium text-dark-100">
-          {label}
-        </span>
+        <span className="block text-sm font-medium text-dark-50">{label}</span>
 
-        {/* Current Image Preview */}
-        {currentImage && (
-          <div className="relative w-full max-w-md mx-auto bg-dark-700 rounded-lg overflow-hidden border-2 border-dark-500">
-            <ResponsiveImage
-              sizes="448px"
-              fullResolution={false}
-              src={currentImage}
-              alt={label}
-              className="w-full h-auto max-h-64 object-contain"
-              onError={(e) => {
-                // If image fails to load, hide the preview
-                e.target.style.display = 'none';
-              }}
-            />
-            {/* Image overlay showing it's the current image */}
-            <div className="absolute top-2 left-2 px-2 py-1 bg-dark-900/80 text-dark-50 text-xs rounded">
-              Current Image
+        <div
+          onDragOver={(e) => e.preventDefault()}
+          onDrop={(e) => handleImageDrop(e, key)}
+          className="overflow-hidden rounded-lg border border-dashed border-dark-400 bg-dark-900/60"
+        >
+          {currentImage ? (
+            <div className="relative flex items-center justify-center bg-[length:16px_16px] bg-[linear-gradient(45deg,#1f1f1f_25%,transparent_25%),linear-gradient(-45deg,#1f1f1f_25%,transparent_25%),linear-gradient(45deg,transparent_75%,#1f1f1f_75%),linear-gradient(-45deg,transparent_75%,#1f1f1f_75%)]">
+              <ResponsiveImage
+                sizes="448px"
+                fullResolution={false}
+                src={currentImage}
+                alt=""
+                className="max-h-56 w-auto object-contain"
+                onError={(e) => {
+                  e.target.style.display = 'none';
+                }}
+              />
+              <span className="absolute left-2 top-2 rounded bg-dark-950/80 px-2 py-0.5 text-[11px] font-medium text-dark-50">
+                {pendingPreview ? (uploadingImage ? 'Uploading…' : 'New image') : 'Current image'}
+              </span>
             </div>
-          </div>
-        )}
+          ) : (
+            <div className="px-4 py-8 text-center text-sm text-dark-200">
+              Drop an image here, or use the button below
+            </div>
+          )}
+        </div>
 
-        {/* Upload/Replace Button */}
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           <label className="cursor-pointer rounded-lg focus-within:ring-2 focus-within:ring-accent-500">
             <input
               type="file"
@@ -498,9 +555,9 @@ const EditModal = ({ isOpen, onClose, onSave, elementData, elementType, elementI
               disabled={uploadingImage}
               aria-label={`${currentImage ? 'Replace' : 'Upload'} ${label}`}
             />
-            <div className="px-4 py-2 bg-primary-600 hover:bg-primary-700 text-dark-900 rounded-lg transition-colors border border-primary-500 text-sm font-semibold">
-              {uploadingImage ? 'Uploading...' : currentImage ? 'Replace Image' : 'Upload Image'}
-            </div>
+            <span className="inline-flex min-h-[36px] items-center rounded-lg bg-dark-600 px-3 text-sm font-medium text-dark-50 transition-colors hover:bg-dark-500">
+              {uploadingImage ? 'Uploading…' : currentImage ? 'Replace image' : 'Upload image'}
+            </span>
           </label>
           {formData[key] && (
             <button
@@ -509,24 +566,63 @@ const EditModal = ({ isOpen, onClose, onSave, elementData, elementType, elementI
                 setField(key, '');
                 setImagePreview(prev => ({ ...prev, [key]: null }));
               }}
-              className="px-4 py-2 bg-red-900/50 hover:bg-red-900/70 text-red-100 rounded-lg transition-colors border border-red-700 text-sm font-medium"
+              className="inline-flex min-h-[36px] items-center rounded-lg px-3 text-sm font-medium text-red-300 transition-colors hover:bg-red-900/30"
             >
-              Remove Image
+              Remove
             </button>
           )}
         </div>
+        {help && <p className="text-xs text-dark-200">{help}</p>}
+      </div>
+    );
+  };
+
+  // Label, help text, character counter and error message around one input
+  const FieldShell = ({ fieldKey, inputId, label, children }) => {
+    const def = schemaByKey[fieldKey] || {};
+    const fieldError = fieldErrors[fieldKey];
+    const value = formData[fieldKey];
+    const length = typeof value === 'string' ? value.length : 0;
+    return (
+      <div className="space-y-1.5">
+        <div className="flex items-baseline justify-between gap-3">
+          <label htmlFor={inputId} className="block text-sm font-medium text-dark-50">
+            {label}
+            {def.required && <span className="ml-0.5 text-red-400" aria-hidden="true">*</span>}
+          </label>
+          {def.maxLength && (
+            <span className={`text-xs tabular-nums ${length > def.maxLength ? 'text-amber-400' : 'text-dark-200'}`}>
+              {length}/{def.maxLength}
+            </span>
+          )}
+        </div>
+        {children}
+        {fieldError ? (
+          <p id={`${inputId}-error`} className="text-xs text-red-300">{fieldError}</p>
+        ) : def.help ? (
+          <p id={`${inputId}-help`} className="text-xs text-dark-200">{def.help}</p>
+        ) : null}
       </div>
     );
   };
 
   const renderField = (key) => {
     const value = initialData[key];
-    const fieldDef = schemaByKey[key];
-    const label = fieldDef?.label || humanize(key);
+    const fieldDef = schemaByKey[key] || {};
+    const label = fieldDef.label || humanize(key);
     const kind = getFieldKind(key, value);
     const inputId = `${editorId}-${key}`;
     const fieldError = fieldErrors[key];
-    const errorId = fieldError ? `${inputId}-error` : undefined;
+    const describedBy = fieldError ? `${inputId}-error` : fieldDef.help ? `${inputId}-help` : undefined;
+    const common = {
+      id: inputId,
+      name: key,
+      onChange: handleChange,
+      required: fieldDef.required || undefined,
+      'aria-invalid': fieldError ? 'true' : undefined,
+      'aria-describedby': describedBy,
+      className: `${INPUT_CLASS} ${fieldError ? '!border-red-500' : ''}`,
+    };
 
     switch (kind) {
       case 'skip':
@@ -537,126 +633,99 @@ const EditModal = ({ isOpen, onClose, onSave, elementData, elementType, elementI
         return renderImageField(key, label);
       case 'url':
         return (
-          <div key={key} className="space-y-2">
-            <label htmlFor={inputId} className="block text-sm font-medium text-dark-100">
-              {label}
-            </label>
+          <FieldShell key={key} fieldKey={key} inputId={inputId} label={label}>
             <input
-              id={inputId}
-              name={key}
+              {...common}
               type="text"
               inputMode="url"
               value={formData[key] ?? ''}
-              onChange={handleChange}
               placeholder="https://example.com or /page"
-              aria-invalid={fieldError ? 'true' : undefined}
-              aria-describedby={errorId}
-              className={`${INPUT_CLASS} ${fieldError ? 'border-red-500' : ''}`}
             />
-            {fieldError && (
-              <p id={errorId} className="text-sm text-red-300">{fieldError}</p>
-            )}
-          </div>
+          </FieldShell>
         );
       case 'select': {
-        const options = fieldDef?.options || [];
+        const options = (fieldDef.options || []).map((opt) =>
+          typeof opt === 'object' ? opt : { value: opt, label: humanize(opt) });
         const current = formData[key] ?? '';
-        const allOptions = current && !options.includes(current) ? [current, ...options] : options;
+        const allOptions = current && !options.some((o) => o.value === current)
+          ? [{ value: current, label: humanize(current) }, ...options]
+          : options;
         return (
-          <div key={key} className="space-y-2">
-            <label htmlFor={inputId} className="block text-sm font-medium text-dark-100">
-              {label}
-            </label>
-            <select
-              id={inputId}
-              name={key}
-              value={current}
-              onChange={handleChange}
-              className={INPUT_CLASS}
-            >
-              <option value="">Default</option>
+          <FieldShell key={key} fieldKey={key} inputId={inputId} label={label}>
+            <select {...common} value={current}>
+              {(!fieldDef.required || !current) && (
+                <option value="">{fieldDef.required ? 'Select…' : 'Default'}</option>
+              )}
               {allOptions.map((opt) => (
-                <option key={opt} value={opt}>{humanize(opt)}</option>
+                <option key={opt.value} value={opt.value} disabled={opt.disabled}>
+                  {opt.label}
+                </option>
               ))}
             </select>
-          </div>
+          </FieldShell>
         );
       }
       case 'boolean':
         return (
-          <div key={key} className="flex items-center gap-3">
+          <label
+            key={key}
+            htmlFor={inputId}
+            className="flex cursor-pointer items-center justify-between gap-4 rounded-lg border border-dark-600 bg-dark-700/50 px-4 py-3"
+          >
+            <span>
+              <span className="block text-sm font-medium text-dark-50">{label}</span>
+              {fieldDef.help && <span className="block text-xs text-dark-200">{fieldDef.help}</span>}
+            </span>
             <input
               id={inputId}
               name={key}
               type="checkbox"
               checked={!!formData[key]}
               onChange={handleChange}
-              className="w-5 h-5 bg-dark-700 border border-dark-500 rounded text-accent-500 focus:ring-2 focus:ring-accent-500"
+              className="h-5 w-5 flex-shrink-0 cursor-pointer accent-primary-500"
             />
-            <label htmlFor={inputId} className="text-sm font-medium text-dark-100">
-              {label}
-            </label>
-          </div>
+          </label>
         );
       case 'number':
         return (
-          <div key={key} className="space-y-2">
-            <label htmlFor={inputId} className="block text-sm font-medium text-dark-100">
-              {label}
-            </label>
-            <input
-              id={inputId}
-              name={key}
-              type="number"
-              value={formData[key] ?? ''}
-              onChange={handleChange}
-              className={INPUT_CLASS}
-            />
-          </div>
+          <FieldShell key={key} fieldKey={key} inputId={inputId} label={label}>
+            <input {...common} type="number" value={formData[key] ?? ''} className={`${common.className} sm:max-w-[10rem]`} />
+          </FieldShell>
         );
-      case 'textarea':
+      case 'textarea': {
+        const rows = fieldDef.rows || (LONG_TEXT_FIELDS.has(key) ? 12 : 4);
         return (
-          <div key={key} className="space-y-2">
-            <label htmlFor={inputId} className="block text-sm font-medium text-dark-100">
-              {label}
-            </label>
+          <FieldShell key={key} fieldKey={key} inputId={inputId} label={label}>
             <textarea
-              id={inputId}
-              name={key}
+              {...common}
               value={formData[key] ?? ''}
-              onChange={handleChange}
-              rows={6}
-              className={`${INPUT_CLASS} resize-none`}
+              rows={rows}
+              className={`${common.className} resize-y leading-relaxed ${fieldDef.mono ? 'font-mono text-sm' : ''}`}
             />
-          </div>
+          </FieldShell>
         );
+      }
       case 'text':
       default:
         return (
-          <div key={key} className="space-y-2">
-            <label htmlFor={inputId} className="block text-sm font-medium text-dark-100">
-              {label}
-            </label>
-            <input
-              id={inputId}
-              name={key}
-              type="text"
-              value={formData[key] ?? ''}
-              onChange={handleChange}
-              className={INPUT_CLASS}
-            />
-          </div>
+          <FieldShell key={key} fieldKey={key} inputId={inputId} label={label}>
+            <input {...common} type="text" value={formData[key] ?? ''} />
+          </FieldShell>
         );
     }
   };
 
   if (!isOpen) return null;
 
-  const title = `Edit ${elementType ? elementType.charAt(0).toUpperCase() + elementType.slice(1) : 'Content'}`;
+  const isNew = elementId === 'new' || (elementId === undefined && !elementData?.id);
+  const typeLabel = elementType ? titleCase(elementType) : 'Content';
+  const title = `${isNew ? 'Add' : 'Edit'} ${typeLabel}`;
+  const wide = fieldKeys.some((key) => getFieldKind(key, initialData[key]) === 'states') ||
+    fieldKeys.some((key) => (schemaByKey[key]?.rows || 0) >= 12 || LONG_TEXT_FIELDS.has(key));
 
   return (
     <AnimatePresence>
-      <div className="fixed inset-0 z-[10001] flex items-center justify-center p-4">
+      <div className="fixed inset-0 z-[10001] flex items-end justify-center sm:items-center sm:p-4">
         {/* Backdrop */}
         <m.div
           initial={{ opacity: 0 }}
@@ -674,64 +743,81 @@ const EditModal = ({ isOpen, onClose, onSave, elementData, elementType, elementI
           aria-modal="true"
           aria-labelledby={titleId}
           aria-busy={busy || undefined}
-          initial={{ opacity: 0, scale: 0.95, y: 20 }}
-          animate={{ opacity: 1, scale: 1, y: 0 }}
-          exit={{ opacity: 0, scale: 0.95, y: 20 }}
-          className="relative w-full max-w-4xl max-h-[90vh] bg-dark-800 rounded-xl shadow-2xl border border-dark-600 overflow-hidden flex flex-col"
+          initial={{ opacity: 0, y: 24 }}
+          animate={{ opacity: 1, y: 0 }}
+          exit={{ opacity: 0, y: 24 }}
+          transition={{ duration: 0.2 }}
+          className={`relative flex max-h-[92dvh] w-full flex-col overflow-hidden rounded-t-2xl border border-dark-600 bg-dark-800 shadow-2xl sm:max-h-[90vh] sm:rounded-xl ${wide ? 'sm:max-w-4xl' : 'sm:max-w-2xl'}`}
         >
           {/* Header */}
-          <div className="flex items-center justify-between px-6 py-4 border-b border-dark-600">
-            <h2 id={titleId} className="text-xl font-semibold text-dark-50">
-              {title}
-            </h2>
+          <div className="flex items-center justify-between gap-4 border-b border-dark-600 px-5 py-4 sm:px-6">
+            <div className="min-w-0">
+              <p className="text-[11px] font-semibold uppercase tracking-wider text-editor-300">
+                {isNew ? 'New content' : 'Content editor'}
+              </p>
+              <h2 id={titleId} className="truncate text-lg font-semibold text-dark-50">
+                {title}
+              </h2>
+            </div>
             <button
               type="button"
               onClick={requestClose}
               disabled={busy}
               aria-label="Close"
-              className="text-dark-300 hover:text-dark-50 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+              className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-lg text-dark-200 transition-colors hover:bg-dark-700 hover:text-dark-50 disabled:cursor-not-allowed disabled:opacity-40"
             >
-              <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
+              <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
               </svg>
             </button>
           </div>
 
           {/* Content */}
-          <form onSubmit={handleSubmit} noValidate className="flex-1 overflow-y-auto px-6 py-4 space-y-4">
+          <form onSubmit={handleSubmit} noValidate className="flex-1 space-y-5 overflow-y-auto px-5 py-5 sm:px-6">
             {fieldKeys.length > 0 ? (
               fieldKeys.map(key => renderField(key))
             ) : (
-              <div className="text-center py-8 text-dark-300">
-                No editable fields available for this {elementType}
-              </div>
-            )}
-
-            {error && (
-              <div role="alert" className="p-4 bg-red-900/20 border border-red-700 rounded-lg text-red-100 text-sm">
-                {error}
+              <div className="py-8 text-center text-dark-200">
+                There are no editable fields for this {typeLabel.toLowerCase()}.
               </div>
             )}
           </form>
 
+          {/* Error stays visible regardless of scroll position */}
+          {error && (
+            <div ref={errorRef} role="alert" className="border-t border-red-800 bg-red-950/60 px-5 py-3 text-sm text-red-100 sm:px-6">
+              {error}
+            </div>
+          )}
+
           {/* Footer */}
-          <div className="flex items-center justify-end gap-3 px-6 py-4 border-t border-dark-600 bg-dark-750">
-            <Button
-              type="button"
-              variant="outline"
-              onClick={requestClose}
-              disabled={busy}
-            >
-              Cancel
-            </Button>
-            <Button
-              type="submit"
-              variant="primary"
-              onClick={handleSubmit}
-              disabled={busy}
-            >
-              {loading ? 'Saving...' : uploadingImage ? 'Uploading...' : 'Save Changes'}
-            </Button>
+          <div className="flex items-center justify-between gap-3 border-t border-dark-600 bg-dark-750 px-5 py-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] sm:px-6">
+            <p className="hidden text-xs text-dark-200 sm:block" aria-live="polite">
+              {isDirty ? (
+                <span className="text-amber-300">Unsaved changes</span>
+              ) : (
+                <>
+                  <kbd className="rounded border border-dark-500 bg-dark-700 px-1.5 py-0.5 font-sans text-[10px]">{IS_MAC ? '⌘' : 'Ctrl'}</kbd>
+                  {' + '}
+                  <kbd className="rounded border border-dark-500 bg-dark-700 px-1.5 py-0.5 font-sans text-[10px]">Enter</kbd>
+                  {' to save'}
+                </>
+              )}
+            </p>
+            <div className="flex flex-1 items-center justify-end gap-2 sm:flex-none">
+              <Button type="button" variant="ghost" size="sm" onClick={requestClose} disabled={busy}>
+                Cancel
+              </Button>
+              <Button
+                type="submit"
+                variant="primary"
+                size="sm"
+                onClick={handleSubmit}
+                disabled={busy || (!isNew && !isDirty)}
+              >
+                {loading ? 'Saving…' : uploadingImage ? 'Uploading…' : isNew ? 'Create' : 'Save changes'}
+              </Button>
+            </div>
           </div>
         </m.div>
 

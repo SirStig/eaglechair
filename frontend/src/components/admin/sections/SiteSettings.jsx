@@ -1,12 +1,9 @@
-import Card from '../../ui/Card';
 import SiteSettingsManager from '../SiteSettingsManager';
 
-const SiteSettings = () => {
-  return (
-    <div className="p-8 space-y-6">
-      <SiteSettingsManager />
-    </div>
-  );
-};
+const SiteSettings = () => (
+  <div className="mx-auto max-w-5xl p-4 sm:p-6 lg:p-8">
+    <SiteSettingsManager />
+  </div>
+);
 
 export default SiteSettings;

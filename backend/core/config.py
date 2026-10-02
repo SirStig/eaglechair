@@ -253,6 +253,18 @@ class Settings(BaseSettings):
     # Image Configuration
     IMAGE_BASE_URL: str = "https://www.eaglechair.com"  # Base URL for product images
 
+    # SEO / sharing (keep in sync with VITE_SITE_URL / VITE_MEDIA_BASE_URL)
+    # SITE_URL is the canonical public origin used in canonicals, og:url,
+    # JSON-LD and the sitemap. MEDIA_BASE_URL is the origin that serves
+    # /uploads (share images live in /uploads/og), which can differ from
+    # SITE_URL while the new site runs on a staging host.
+    SITE_URL: str = "https://www.eaglechair.com"
+    MEDIA_BASE_URL: str = "https://joshua.eaglechair.com"
+    # Background job that writes per-page HTML shells (_seo/) and share
+    # images for crawlers that don't run JavaScript (see seo_prerender.py)
+    SEO_PRERENDER_ENABLED: bool = True
+    SEO_PRERENDER_INTERVAL_SECONDS: int = 60
+
     # Performance Configuration
     ENABLE_CACHE: bool = True
     ENABLE_COMPRESSION: bool = True

@@ -1,10 +1,11 @@
-import { defineConfig } from 'vite'
+import { defineConfig, loadEnv } from 'vite'
 import react from '@vitejs/plugin-react-swc'
 import { VitePWA } from 'vite-plugin-pwa'
 import { ViteImageOptimizer } from 'vite-plugin-image-optimizer'
 import { dirname, resolve } from 'path'
 import { fileURLToPath } from 'url'
 import fs from 'fs'
+import { SEO } from './src/config/seoConfig.js'
 
 // Get __dirname equivalent in ES modules
 const __filename = fileURLToPath(import.meta.url)
@@ -56,10 +57,68 @@ const serveUploadsDirectory = () => ({
   },
 });
 
+const escapeAttr = (value) =>
+  String(value).replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+
+/**
+ * SEO defaults in index.html, plus dist/seo-pages.json for the backend.
+ *
+ * - Fills <!--seo:start-->...<!--seo:end--> with the home page meta from
+ *   src/config/seoConfig.js (data-rh: react-helmet-async replaces the tags
+ *   per route; the backend's prerendered shells replace the block).
+ * - Replaces __SITE_URL__ / __MEDIA_BASE_URL__ (VITE_SITE_URL / VITE_MEDIA_BASE_URL).
+ * - Emits seo-pages.json: the static routes the backend prerenders
+ *   (backend/services/seo_prerender.py).
+ */
+const seoMetaPlugin = (env) => {
+  const siteUrl = (env.VITE_SITE_URL || 'https://www.eaglechair.com').replace(/\/+$/, '')
+  const mediaUrl = (env.VITE_MEDIA_BASE_URL || 'https://joshua.eaglechair.com').replace(/\/+$/, '')
+  const home = SEO.pages.home
+  const image = `${mediaUrl}/og-image.jpg`
+  const tags = [
+    `<title data-rh="true">${escapeAttr(home.title)}</title>`,
+    `<meta data-rh="true" name="description" content="${escapeAttr(home.description)}" />`,
+    '<meta data-rh="true" name="robots" content="index, follow, max-image-preview:large, max-snippet:-1" />',
+    `<link data-rh="true" rel="canonical" href="${siteUrl}/" />`,
+    '<meta data-rh="true" property="og:site_name" content="Eagle Chair" />',
+    '<meta data-rh="true" property="og:locale" content="en_US" />',
+    '<meta data-rh="true" property="og:type" content="website" />',
+    `<meta data-rh="true" property="og:title" content="${escapeAttr(home.title)}" />`,
+    `<meta data-rh="true" property="og:description" content="${escapeAttr(home.description)}" />`,
+    `<meta data-rh="true" property="og:url" content="${siteUrl}/" />`,
+    `<meta data-rh="true" property="og:image" content="${image}" />`,
+    '<meta data-rh="true" property="og:image:type" content="image/jpeg" />',
+    '<meta data-rh="true" property="og:image:width" content="1200" />',
+    '<meta data-rh="true" property="og:image:height" content="630" />',
+    '<meta data-rh="true" property="og:image:alt" content="Eagle Chair commercial restaurant seating" />',
+    '<meta data-rh="true" name="twitter:card" content="summary_large_image" />',
+    `<meta data-rh="true" name="twitter:title" content="${escapeAttr(home.title)}" />`,
+    `<meta data-rh="true" name="twitter:description" content="${escapeAttr(home.description)}" />`,
+    `<meta data-rh="true" name="twitter:image" content="${image}" />`,
+    '<meta data-rh="true" name="twitter:image:alt" content="Eagle Chair commercial restaurant seating" />',
+  ]
+  return {
+    name: 'seo-meta',
+    transformIndexHtml(html) {
+      return html
+        .replace(/<!--seo:start-->[\s\S]*?<!--seo:end-->/, `<!--seo:start-->\n    ${tags.join('\n    ')}\n    <!--seo:end-->`)
+        .replaceAll('__SITE_URL__', siteUrl)
+        .replaceAll('__MEDIA_BASE_URL__', mediaUrl)
+    },
+    generateBundle() {
+      const pages = Object.values(SEO.pages).map(({ url, title, description, noindex }) => ({
+        url, title, description, noindex: Boolean(noindex),
+      }))
+      this.emitFile({ type: 'asset', fileName: 'seo-pages.json', source: JSON.stringify({ pages }, null, 2) })
+    },
+  }
+}
+
 // https://vite.dev/config/
 export default defineConfig(({ mode, isSsrBuild }) => {
   const buildTimestamp = new Date().toISOString();
   const isProduction = mode === 'production';
+  const env = loadEnv(mode, __dirname);
   
   console.log(`\n🏗️  Building in ${mode} mode`);
   console.log(`📅 Build timestamp: ${buildTimestamp}\n`);
@@ -67,6 +126,7 @@ export default defineConfig(({ mode, isSsrBuild }) => {
   return {
     plugins: [
       react(),
+      !isSsrBuild && seoMetaPlugin(env),
       // PWA and image optimizer are client-only; skip for SSR server bundle
       !isSsrBuild && VitePWA({
         registerType: 'autoUpdate',

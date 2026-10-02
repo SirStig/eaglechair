@@ -8,8 +8,11 @@ import HeroCarousel from '../components/ui/HeroCarousel';
 import QuickViewModal from '../components/ui/QuickViewModal';
 import { CardGridSkeleton } from '../components/ui/Skeleton';
 import EditableWrapper from '../components/admin/EditableWrapper';
+import EditableSectionHeading from '../components/common/EditableSectionHeading';
 import ConfirmModal from '../components/ui/ConfirmModal';
 import SEOHead from '../components/SEOHead';
+import SEO from '../config/seoConfig';
+import { organizationSchema } from '../utils/seoSchema';
 import { useEditMode } from '../contexts/useEditMode';
 import { useToast } from '../contexts/ToastContext';
 import EditableList from '../components/admin/EditableList';
@@ -75,8 +78,9 @@ const HomePage = () => {
     try {
       logger.info(CONTEXT, `Saving content for ${pageSlug}/${sectionKey}`, newData);
       const { updatePageContent } = await loadCmsAdmin();
-      await updatePageContent(pageSlug, sectionKey, newData);
+      const result = await updatePageContent(pageSlug, sectionKey, newData);
       logger.info(CONTEXT, 'Content saved successfully');
+      return result;
     } catch (error) {
       logger.error(CONTEXT, 'Failed to save content', error);
       throw error;
@@ -179,40 +183,19 @@ const HomePage = () => {
   const ctaContent = ctaSection?.content || "Get a custom quote for your restaurant or hospitality project. Our team is ready to help you create the perfect atmosphere.";
   const ctaPrimaryText = ctaSection?.ctaText || ctaSection?.cta_text || "Request a Quote";
   const ctaPrimaryLinkRaw = ctaSection?.ctaLink || ctaSection?.cta_link || "/quote-request";
-  const ctaSecondaryText = ctaSection?.secondaryCtaText || ctaSection?.secondary_cta_text || "Find a Rep";
-  const ctaSecondaryLinkRaw = ctaSection?.secondaryCtaLink || ctaSection?.secondary_cta_link || "/find-a-rep";
+  // PageContent has a single CTA; the secondary button lives in extraData
+  const ctaExtra = ctaSection?.extraData || {};
+  const ctaSecondaryText = ctaExtra.secondaryCtaText || ctaSection?.secondaryCtaText || "Find a Rep";
+  const ctaSecondaryLinkRaw = ctaExtra.secondaryCtaLink || ctaSection?.secondaryCtaLink || "/find-a-rep";
   // CMS links only render when they pass the URL policy
   const ctaPrimaryLink = safeHref(ctaPrimaryLinkRaw, '/quote-request');
   const ctaSecondaryLink = safeHref(ctaSecondaryLinkRaw, '/find-a-rep');
 
   // SEO data
   const { data: siteSettings } = useSiteSettings();
-  const seoTitle = siteSettings?.metaTitle || 'Eagle Chair - Premium Commercial Seating Solutions';
-  const seoDescription = siteSettings?.metaDescription || 'Eagle Chair manufactures premium commercial seating for restaurants, hotels, healthcare facilities, and hospitality venues. Explore our durable, customizable furniture solutions.';
-  const seoKeywords = siteSettings?.metaKeywords || 'commercial seating, restaurant chairs, hotel furniture, healthcare seating, hospitality furniture, custom chairs, commercial furniture, Eagle Chair';
-
-  const homeSchema = useMemo(() => ({
-    "@context": "https://schema.org",
-    "@type": "Organization",
-    "name": siteSettings?.companyName || "Eagle Chair",
-    "url": "https://www.eaglechair.com",
-    "logo": siteSettings?.logoUrl ? `https://www.eaglechair.com${siteSettings.logoUrl}` : "https://www.eaglechair.com/og-image.jpg",
-    "description": seoDescription,
-    "address": {
-      "@type": "PostalAddress",
-      "streetAddress": siteSettings?.addressLine1 || "",
-      "addressLocality": siteSettings?.city || "",
-      "addressRegion": siteSettings?.state || "",
-      "postalCode": siteSettings?.zipCode || "",
-      "addressCountry": siteSettings?.country || "US"
-    },
-    "contactPoint": {
-      "@type": "ContactPoint",
-      "telephone": siteSettings?.primaryPhone || "",
-      "contactType": "Customer Service",
-      "email": siteSettings?.primaryEmail || ""
-    }
-  }), [siteSettings, seoDescription]);
+  const seoTitle = siteSettings?.metaTitle || SEO.pages.home.title;
+  const seoDescription = siteSettings?.metaDescription || SEO.pages.home.description;
+  const homeSchema = useMemo(() => organizationSchema(siteSettings || {}, seoDescription), [siteSettings, seoDescription]);
 
   // Preload only the first hero image (the LCP candidate), using the same
   // srcset/sizes HeroCarousel renders so the preload and the <img> share one
@@ -230,11 +213,7 @@ const HomePage = () => {
       <SEOHead
         title={seoTitle}
         description={seoDescription}
-        image="/og-image.jpg"
         url="/"
-        type="website"
-        keywords={seoKeywords}
-        canonical="/"
         structuredData={homeSchema}
       />
       {/* Preload critical hero images */}
@@ -566,10 +545,19 @@ const HomePage = () => {
             viewport={{ once: true }}
             className="text-center mb-8 sm:mb-12 px-4"
           >
-            <h2 className="text-2xl sm:text-3xl md:text-4xl font-bold mb-3 sm:mb-4 text-slate-800">Featured Products</h2>
-            <p className="text-lg sm:text-xl text-slate-600">
-              Explore our most popular commercial furniture solutions
-            </p>
+            <EditableSectionHeading
+              page="home"
+              section="featured_products"
+              defaultTitle="Featured Products"
+              defaultSubtitle="Explore our most popular commercial furniture solutions"
+            >
+              {({ title, subtitle }) => (
+                <>
+                  <h2 className="text-2xl sm:text-3xl md:text-4xl font-bold mb-3 sm:mb-4 text-slate-800">{title}</h2>
+                  {subtitle && <p className="text-lg sm:text-xl text-slate-600">{subtitle}</p>}
+                </>
+              )}
+            </EditableSectionHeading>
           </m.div>
 
         </div>
@@ -601,8 +589,19 @@ const HomePage = () => {
           viewport={{ once: true }}
           className="text-center mb-8 sm:mb-12 px-4"
         >
-          <h2 className="text-2xl sm:text-3xl md:text-4xl font-bold mb-3 sm:mb-4 text-slate-800">Our Products</h2>
-          <p className="text-lg sm:text-xl text-slate-600 max-w-2xl mx-auto">Explore our commercial seating categories</p>
+          <EditableSectionHeading
+            page="home"
+            section="product_categories"
+            defaultTitle="Our Products"
+            defaultSubtitle="Explore our commercial seating categories"
+          >
+            {({ title, subtitle }) => (
+              <>
+                <h2 className="text-2xl sm:text-3xl md:text-4xl font-bold mb-3 sm:mb-4 text-slate-800">{title}</h2>
+                {subtitle && <p className="text-lg sm:text-xl text-slate-600 max-w-2xl mx-auto">{subtitle}</p>}
+              </>
+            )}
+          </EditableSectionHeading>
         </m.div>
 
         {categoriesLoading ? (
@@ -861,7 +860,17 @@ const HomePage = () => {
                 secondary_cta_text: ctaSecondaryText,
                 secondary_cta_link: ctaSecondaryLinkRaw
               }}
-              onSave={(newData) => handleSaveContent('home', 'cta', { ...ctaSection, ...newData })}
+              fieldSchema={[
+                { key: 'cta_text', label: 'Primary button text' },
+                { key: 'cta_link', type: 'url', label: 'Primary button link' },
+                { key: 'secondary_cta_text', label: 'Secondary button text' },
+                { key: 'secondary_cta_link', type: 'url', label: 'Secondary button link' },
+              ]}
+              onSave={({ secondary_cta_text, secondary_cta_link, ...primary }) => handleSaveContent('home', 'cta', {
+                ...ctaSection,
+                ...primary,
+                extraData: { ...ctaExtra, secondaryCtaText: secondary_cta_text, secondaryCtaLink: secondary_cta_link },
+              })}
               label="CTA Buttons"
             >
               <div className="flex flex-col sm:flex-row gap-3 sm:gap-4 justify-center px-4 sm:px-0">

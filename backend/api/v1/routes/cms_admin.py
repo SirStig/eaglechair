@@ -1389,6 +1389,7 @@ class LegalDocumentCreate(BaseModel):
 
 class LegalDocumentUpdate(BaseModel):
     """Legal document update request"""
+    document_type: str | None = Field(None, description="Type of legal document")
     title: str | None = Field(None, max_length=255)
     content: str | None = None
     short_description: str | None = None
@@ -1470,6 +1471,14 @@ async def admin_create_legal_document(
             detail=f"Invalid document type. Must be one of: {', '.join([t.value for t in LegalDocumentType])}"
         )
 
+    # document_type is unique; without this check the IntegrityError
+    # surfaces as a generic 500
+    if await CMSAdminService.legal_document_type_taken(db, doc_type):
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="A legal document of this type already exists. Edit that document instead.",
+        )
+
     try:
         document, exported = await CMSAdminService.create_legal_document(
             db=db,
@@ -1519,11 +1528,30 @@ async def admin_update_legal_document(
     """
     logger.info(f"Admin {admin.id} updating legal document {document_id}")
 
+    updates = data.model_dump(exclude_unset=True)
+    if updates.get("document_type") is None:
+        updates.pop("document_type", None)
+    else:
+        try:
+            updates["document_type"] = LegalDocumentType(updates["document_type"])
+        except ValueError:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Invalid document type. Must be one of: {', '.join([t.value for t in LegalDocumentType])}"
+            )
+        if await CMSAdminService.legal_document_type_taken(
+            db, updates["document_type"], exclude_id=document_id
+        ):
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="Another legal document already uses this type.",
+            )
+
     try:
         document, exported = await CMSAdminService.update_legal_document(
             db=db,
             document_id=document_id,
-            **data.model_dump(exclude_unset=True)
+            **updates
         )
     except (HTTPException, EagleChairException):
         raise

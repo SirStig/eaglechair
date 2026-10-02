@@ -21,37 +21,24 @@
     <!-- Viewport - Optimized for mobile and all devices -->
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0, user-scalable=yes, viewport-fit=cover" />
     
-    <!-- Primary Meta Tags -->
-    <title>Eagle Chair - Premium Commercial Seating Solutions</title>
-    <meta name="title" content="Eagle Chair - Premium Commercial Seating Solutions" />
-    <meta name="description" content="Eagle Chair manufactures premium commercial seating for restaurants, hotels, healthcare facilities, and hospitality venues. Explore our durable, customizable furniture solutions." />
-    <meta name="keywords" content="commercial seating, restaurant chairs, hotel furniture, healthcare seating, hospitality furniture, custom chairs, commercial furniture, Eagle Chair" />
-    <meta name="author" content="Eagle Chair" />
-    <meta name="robots" content="index, follow" />
-    
-    <!-- Open Graph / Facebook -->
-    <meta property="og:type" content="website" />
-    <meta property="og:url" content="https://www.eaglechair.com/" />
-    <meta property="og:title" content="Eagle Chair - Premium Commercial Seating Solutions" />
-    <meta property="og:description" content="Premium commercial seating for restaurants, hotels, healthcare facilities, and hospitality venues." />
-    <meta property="og:image" content="https://www.eaglechair.com/og-image.jpg" />
-    <meta property="og:site_name" content="Eagle Chair" />
-    
-    <!-- Twitter -->
-    <meta property="twitter:card" content="summary_large_image" />
-    <meta property="twitter:url" content="https://www.eaglechair.com/" />
-    <meta property="twitter:title" content="Eagle Chair - Premium Commercial Seating Solutions" />
-    <meta property="twitter:description" content="Premium commercial seating for restaurants, hotels, healthcare facilities, and hospitality venues." />
-    <meta property="twitter:image" content="https://www.eaglechair.com/twitter-image.jpg" />
-    
-    <!-- Canonical URL -->
-    <link rel="canonical" href="https://www.eaglechair.com/" />
-    
+    <!-- Default page meta (home). vite.config.js (seoMetaPlugin) fills this
+         block from src/config/seoConfig.js; the backend's prerendered page
+         shells (backend/services/seo_prerender.py) replace it per page, and
+         react-helmet-async takes the data-rh tags over on the client. -->
+    <!--seo:start-->
+    <!--seo:end-->
+
+    <!-- Company and site identity on every page (same @ids as the page-level JSON-LD) -->
+    <script type="application/ld+json">
+      [{"@context":"https://schema.org","@type":"Organization","@id":"__SITE_URL__/#organization","name":"Eagle Chair","legalName":"Eagle Chair, Inc.","url":"__SITE_URL__/","logo":"__MEDIA_BASE_URL__/assets/eagle-chair-logo.png","foundingDate":"1984","address":{"@type":"PostalAddress","addressLocality":"Houston","addressRegion":"TX","addressCountry":"US"}},
+       {"@context":"https://schema.org","@type":"WebSite","@id":"__SITE_URL__/#website","name":"Eagle Chair","url":"__SITE_URL__/","publisher":{"@id":"__SITE_URL__/#organization"}}]
+    </script>
+
     <!-- Theme Color -->
     <meta name="theme-color" content="#8b7355" />
     
     <!-- Uploaded media host (see resolveImageUrl in src/utils/apiHelpers.js) -->
-    <link rel="preconnect" href="https://joshua.eaglechair.com" />
+    <link rel="preconnect" href="__MEDIA_BASE_URL__" />
 
     <!-- SSR: per-page meta tags are injected here by the SSR server -->
     <!--ssr-head-->

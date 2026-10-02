@@ -55,10 +55,10 @@ const ContactPage = () => {
         name: `${data.firstName} ${data.lastName}`,
         email: data.email,
         phone: data.phone,
-        companyName: data.company,
+        company_name: data.company,
         subject: data.subject,
         message: data.message,
-        feedbackType: data.subject
+        feedback_type: data.subject
       });
       setSubmitStatus('success');
       reset();

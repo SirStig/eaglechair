@@ -1,110 +1,106 @@
 import { useState, useEffect, useMemo, useCallback } from 'react';
-import { FileText, Plus, Edit2, Trash2, Search, Filter, Eye, CheckCircle, XCircle } from 'lucide-react';
-import { m, AnimatePresence } from 'framer-motion';
+import { FileText, Plus, Pencil, Trash2, Search, ExternalLink } from 'lucide-react';
 import EditModal from '../EditModal';
+import ConfirmModal from '../../ui/ConfirmModal';
+import Button from '../../ui/Button';
 import apiClient from '../../../config/apiClient';
+import { useToast } from '../../../contexts/ToastContext';
 import TableSortHead, { compareValues } from '../TableSortHead';
+import { LEGAL_DOCUMENT_TYPES, legalDocumentTypeLabel } from '../legalDocumentTypes';
+
+// Public pages that render a specific legal document type
+const PUBLIC_PATHS = {
+  privacy_policy: '/privacy',
+  terms: '/terms',
+};
+
+const formatDate = (iso) => {
+  if (!iso) return '—';
+  const date = new Date(iso);
+  return Number.isNaN(date.getTime())
+    ? '—'
+    : date.toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' });
+};
+
+const SORT_VALUE = {
+  title: (d) => d.title,
+  document_type: (d) => legalDocumentTypeLabel(d.documentType),
+  updated_at: (d) => d.updatedAt || '',
+  display_order: (d) => d.displayOrder ?? 0,
+  is_active: (d) => (d.isActive ? 1 : 0),
+};
 
 /**
- * Legal Document Management Section
- * 
- * Full CRUD interface for managing legal documents with:
- * - Filtering by document type
- * - Search functionality
- * - Table view with all document details
- * - Create/Edit/Delete operations
- * - Active status toggling
+ * Legal Document Management
+ *
+ * Policies, terms and conditions shown on the public legal pages. Each
+ * document type can be used once (enforced by the API).
  */
 const LegalDocumentManagement = () => {
+  const toast = useToast();
   const [documents, setDocuments] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-  const [selectedDoc, setSelectedDoc] = useState(null);
-  const [showEditModal, setShowEditModal] = useState(false);
+  const [editing, setEditing] = useState(null);
+  const [pendingDelete, setPendingDelete] = useState(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [filterType, setFilterType] = useState('all');
+  const [sortBy, setSortBy] = useState('display_order');
+  const [sortDir, setSortDir] = useState('asc');
+  const [togglingId, setTogglingId] = useState(null);
 
-  // Document type options (matches backend enum)
-  const documentTypes = [
-    { value: 'all', label: 'All Types' },
-    { value: 'price_list', label: 'Price List' },
-    { value: 'dimensions_sizes', label: 'Dimensions & Sizes' },
-    { value: 'orders', label: 'Orders' },
-    { value: 'com_col_orders', label: 'COM/COL Orders' },
-    { value: 'minimum_order', label: 'Minimum Order' },
-    { value: 'payments', label: 'Payments' },
-    { value: 'terms', label: 'Terms' },
-    { value: 'taxes', label: 'Taxes' },
-    { value: 'legal_costs', label: 'Legal Costs' },
-    { value: 'quotations', label: 'Quotations' },
-    { value: 'warranty', label: 'Warranty' },
-    { value: 'flammability', label: 'Flammability' },
-    { value: 'custom_finishes', label: 'Custom Finishes' },
-    { value: 'partial_shipments', label: 'Partial Shipments' },
-    { value: 'storage', label: 'Storage' },
-    { value: 'returns', label: 'Returns' },
-    { value: 'cancellations', label: 'Cancellations' },
-    { value: 'maintenance', label: 'Maintenance' },
-    { value: 'special_service', label: 'Special Service' },
-    { value: 'shipments_damage', label: 'Shipments & Damage' },
-    { value: 'freight_classification', label: 'Freight Classification' },
-    { value: 'ip_disclaimer', label: 'IP Disclaimer' },
-    { value: 'ip_assignment', label: 'IP Assignment' },
-    { value: 'conditions_of_sale', label: 'Conditions of Sale' },
-    { value: 'privacy_policy', label: 'Privacy Policy' },
-    { value: 'other', label: 'Other' }
-  ];
-
-  // Fetch legal documents
-  const fetchDocuments = async () => {
-    setLoading(true);
+  const fetchDocuments = useCallback(async () => {
     setError(null);
     try {
       const response = await apiClient.get('/api/v1/cms-admin/legal-documents');
       setDocuments(response || []);
     } catch (err) {
-      setError(err.message || 'Failed to fetch legal documents');
+      setError(err.message || 'Failed to load legal documents');
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
 
   useEffect(() => {
     fetchDocuments();
-  }, []);
+  }, [fetchDocuments]);
 
-  const [sortBy, setSortBy] = useState('title');
-  const [sortDir, setSortDir] = useState('asc');
-
-  const filteredDocuments = documents.filter(doc => {
-    const matchesSearch = searchTerm === '' || 
-      doc.title?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      doc.content?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      doc.slug?.toLowerCase().includes(searchTerm.toLowerCase());
-    
-    const matchesType = filterType === 'all' || doc.documentType === filterType || doc.document_type === filterType;
-    
-    return matchesSearch && matchesType;
-  });
-
-  const sortedDocuments = useMemo(() => {
-    return [...filteredDocuments].sort((a, b) => {
-      const va = sortBy === 'document_type' ? (a.documentType || a.document_type || '') : sortBy === 'display_order' ? (a.displayOrder ?? a.display_order ?? 0) : sortBy === 'is_active' ? (a.isActive ?? a.is_active ?? false) : a[sortBy];
-      const vb = sortBy === 'document_type' ? (b.documentType || b.document_type || '') : sortBy === 'display_order' ? (b.displayOrder ?? b.display_order ?? 0) : sortBy === 'is_active' ? (b.isActive ?? b.is_active ?? false) : b[sortBy];
-      return compareValues(va, vb, sortDir);
+  const visibleDocuments = useMemo(() => {
+    const term = searchTerm.trim().toLowerCase();
+    const filtered = documents.filter((doc) => {
+      const matchesSearch = !term ||
+        doc.title?.toLowerCase().includes(term) ||
+        doc.slug?.toLowerCase().includes(term) ||
+        doc.content?.toLowerCase().includes(term);
+      return matchesSearch && (filterType === 'all' || doc.documentType === filterType);
     });
-  }, [filteredDocuments, sortBy, sortDir]);
+    const value = SORT_VALUE[sortBy] || ((d) => d[sortBy]);
+    return filtered.sort((a, b) => compareValues(value(a), value(b), sortDir));
+  }, [documents, searchTerm, filterType, sortBy, sortDir]);
 
   const handleSort = useCallback((key) => {
     setSortBy(key);
     setSortDir((d) => (key === sortBy ? (d === 'asc' ? 'desc' : 'asc') : 'asc'));
   }, [sortBy]);
 
-  // Create new document
+  const usedTypes = useMemo(() => new Set(documents.map((d) => d.documentType)), [documents]);
+  const allTypesUsed = usedTypes.size >= LEGAL_DOCUMENT_TYPES.length;
+
+  // Type options: types used by other documents are disabled
+  const fieldSchemaFor = (doc) => {
+    const options = LEGAL_DOCUMENT_TYPES.map((t) => ({
+      ...t,
+      disabled: usedTypes.has(t.value) && t.value !== doc.documentType,
+      label: usedTypes.has(t.value) && t.value !== doc.documentType ? `${t.label} (in use)` : t.label,
+    }));
+    return [{ key: 'documentType', options }];
+  };
+
   const handleCreate = () => {
-    setSelectedDoc({
+    const firstFree = LEGAL_DOCUMENT_TYPES.find((t) => !usedTypes.has(t.value))?.value || '';
+    setEditing({
       title: '',
-      documentType: 'other',
+      documentType: firstFree,
       content: '',
       shortDescription: '',
       slug: '',
@@ -112,282 +108,296 @@ const LegalDocumentManagement = () => {
       effectiveDate: '',
       metaTitle: '',
       metaDescription: '',
-      displayOrder: 0,
-      isActive: true
+      displayOrder: documents.length,
+      isActive: true,
     });
-    setShowEditModal(true);
   };
 
-  // Edit existing document
   const handleEdit = (doc) => {
-    setSelectedDoc({
+    setEditing({
       id: doc.id,
-      title: doc.title,
-      documentType: doc.documentType || doc.document_type,
-      content: doc.content,
-      shortDescription: doc.shortDescription || doc.short_description || '',
-      slug: doc.slug,
+      title: doc.title || '',
+      documentType: doc.documentType,
+      content: doc.content || '',
+      shortDescription: doc.shortDescription || '',
+      slug: doc.slug || '',
       version: doc.version || '1.0',
-      effectiveDate: doc.effectiveDate || doc.effective_date || '',
-      metaTitle: doc.metaTitle || doc.meta_title || '',
-      metaDescription: doc.metaDescription || doc.meta_description || '',
-      displayOrder: doc.displayOrder || doc.display_order || 0,
-      isActive: doc.isActive !== undefined ? doc.isActive : doc.is_active !== undefined ? doc.is_active : true
+      effectiveDate: doc.effectiveDate || '',
+      metaTitle: doc.metaTitle || '',
+      metaDescription: doc.metaDescription || '',
+      displayOrder: doc.displayOrder ?? 0,
+      isActive: doc.isActive ?? true,
     });
-    setShowEditModal(true);
   };
 
-  // Save document (create or update)
-  const handleSave = async (docData) => {
+  const handleSave = async (data) => {
+    // Backend schemas expect snake_case; empty optional strings are sent as null
+    const payload = {
+      title: data.title,
+      document_type: data.documentType,
+      content: data.content,
+      short_description: data.shortDescription || null,
+      slug: data.slug || null,
+      version: data.version || '1.0',
+      effective_date: data.effectiveDate || null,
+      meta_title: data.metaTitle || null,
+      meta_description: data.metaDescription || null,
+      display_order: data.displayOrder ?? 0,
+      is_active: data.isActive ?? true,
+    };
+
+    if (!editing?.id && !payload.slug) {
+      throw new Error('A URL slug is required for new documents.');
+    }
+
+    if (editing?.id) {
+      await apiClient.put(`/api/v1/cms-admin/legal-documents/${editing.id}`, payload);
+    } else {
+      await apiClient.post('/api/v1/cms-admin/legal-documents', payload);
+    }
+    toast.success(editing?.id ? 'Document saved' : 'Document created');
+    setEditing(null);
+    await fetchDocuments();
+  };
+
+  const confirmDelete = async () => {
+    const doc = pendingDelete;
+    if (!doc) return;
     try {
-      // Backend Pydantic schemas (LegalDocumentCreate/Update) expect snake_case
-      const payload = {
-        title: docData.title,
-        document_type: docData.documentType || docData.document_type,
-        content: docData.content,
-        short_description: docData.shortDescription || docData.short_description,
-        slug: docData.slug,
-        version: docData.version,
-        effective_date: docData.effectiveDate || docData.effective_date,
-        meta_title: docData.metaTitle || docData.meta_title,
-        meta_description: docData.metaDescription || docData.meta_description,
-        display_order: docData.displayOrder ?? docData.display_order,
-        is_active: docData.isActive ?? docData.is_active,
-      };
-
-      if (docData.id) {
-        // Update existing
-        await apiClient.put(`/api/v1/cms-admin/legal-documents/${docData.id}`, payload);
-      } else {
-        // Create new
-        await apiClient.post('/api/v1/cms-admin/legal-documents', payload);
-      }
-
+      await apiClient.delete(`/api/v1/cms-admin/legal-documents/${doc.id}`);
+      toast.success(`Deleted "${doc.title}"`);
       await fetchDocuments();
-      setShowEditModal(false);
-      setSelectedDoc(null);
     } catch (err) {
-      throw new Error(err.message || 'Failed to save legal document');
+      toast.error(`Couldn't delete document: ${err.message}`);
     }
   };
 
-  // Delete document
-  const handleDelete = async (docId) => {
-    if (!confirm('Are you sure you want to delete this legal document?')) return;
-    
-    try {
-      await apiClient.delete(`/api/v1/cms-admin/legal-documents/${docId}`);
-      await fetchDocuments();
-    } catch (err) {
-      alert(`Failed to delete document: ${err.message}`);
-    }
-  };
-
-  // Toggle active status
   const handleToggleActive = async (doc) => {
+    setTogglingId(doc.id);
     try {
-      const updatedDoc = {
-        ...doc,
-        isActive: !doc.isActive,
-        // Ensure we send the right field name
-        is_active: !doc.isActive
-      };
-      
-      await apiClient.put(`/api/v1/cms-admin/legal-documents/${doc.id}`, updatedDoc);
-      await fetchDocuments();
+      await apiClient.put(`/api/v1/cms-admin/legal-documents/${doc.id}`, { is_active: !doc.isActive });
+      setDocuments((prev) => prev.map((d) => (d.id === doc.id ? { ...d, isActive: !doc.isActive } : d)));
+      toast.success(doc.isActive ? `"${doc.title}" unpublished` : `"${doc.title}" published`);
     } catch (err) {
-      alert(`Failed to toggle status: ${err.message}`);
+      toast.error(`Couldn't update status: ${err.message}`);
+    } finally {
+      setTogglingId(null);
     }
   };
+
+  const headClass = 'px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-dark-100';
 
   return (
-    <div className="p-8 space-y-6">
+    <div className="space-y-6 p-4 sm:p-6 lg:p-8">
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div className="flex items-center gap-3">
-          <div className="p-2 bg-primary-600/20 rounded-lg">
-            <FileText className="w-6 h-6 text-primary-500" />
+          <div className="rounded-lg bg-primary-500/10 p-2.5">
+            <FileText className="h-6 w-6 text-primary-500" aria-hidden="true" />
           </div>
           <div>
-            <h2 className="text-2xl font-bold text-dark-50">Legal Documents</h2>
-            <p className="text-dark-300 text-sm">
-              Manage all legal documents, policies, and terms
+            <h2 className="text-xl font-bold text-dark-50 sm:text-2xl">Legal Documents</h2>
+            <p className="text-sm text-dark-100">
+              Policies, terms and conditions published on the website
             </p>
           </div>
         </div>
-        <button
+        <Button
           onClick={handleCreate}
-          className="px-4 py-2 bg-primary-600 hover:bg-primary-700 text-white rounded-lg flex items-center gap-2 transition-colors"
+          variant="primary"
+          size="sm"
+          disabled={allTypesUsed}
+          title={allTypesUsed ? 'Every document type already has a document' : undefined}
+          className="gap-2 self-start sm:self-auto"
         >
-          <Plus className="w-4 h-4" />
-          Add Document
-        </button>
+          <Plus className="h-4 w-4" aria-hidden="true" />
+          Add document
+        </Button>
       </div>
 
-      {/* Filters and Search */}
-      <div className="bg-dark-800 border border-dark-700 rounded-lg p-4">
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          {/* Search */}
-          <div className="relative">
-            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-dark-400" />
-            <input
-              type="text"
-              placeholder="Search documents..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="w-full pl-10 pr-4 py-2 bg-dark-900 border border-dark-600 rounded-lg text-dark-50 placeholder-dark-400 focus:border-primary-500 focus:outline-none"
-            />
-          </div>
-
-          {/* Type Filter */}
-          <div className="relative">
-            <Filter className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-dark-400" />
-            <select
-              value={filterType}
-              onChange={(e) => setFilterType(e.target.value)}
-              className="w-full pl-10 pr-4 py-2 bg-dark-900 border border-dark-600 rounded-lg text-dark-50 focus:border-primary-500 focus:outline-none appearance-none cursor-pointer"
-            >
-              {documentTypes.map(type => (
-                <option key={type.value} value={type.value}>{type.label}</option>
-              ))}
-            </select>
-          </div>
+      {/* Filters */}
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+        <div className="relative flex-1">
+          <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-dark-200" aria-hidden="true" />
+          <input
+            type="search"
+            aria-label="Search documents"
+            placeholder="Search title, slug or content…"
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            className="w-full rounded-lg border border-dark-500 bg-dark-800 py-2.5 pl-10 pr-4 text-dark-50 placeholder-dark-200 focus:border-primary-500 focus:outline-none focus:ring-2 focus:ring-primary-500/50"
+          />
         </div>
-
-        {/* Results count */}
-        <div className="mt-3 text-sm text-dark-300">
-          Showing {filteredDocuments.length} of {documents.length} documents
-        </div>
+        <select
+          aria-label="Filter by type"
+          value={filterType}
+          onChange={(e) => setFilterType(e.target.value)}
+          className="rounded-lg border border-dark-500 bg-dark-800 px-3 py-2.5 text-dark-50 focus:border-primary-500 focus:outline-none focus:ring-2 focus:ring-primary-500/50 sm:w-64"
+        >
+          <option value="all">All types</option>
+          {LEGAL_DOCUMENT_TYPES.map((type) => (
+            <option key={type.value} value={type.value}>{type.label}</option>
+          ))}
+        </select>
       </div>
 
-      {/* Loading State */}
-      {loading && (
-        <div className="text-center py-12 text-dark-300">
-          Loading legal documents...
-        </div>
-      )}
-
-      {/* Error State */}
       {error && (
-        <div className="bg-red-900/20 border border-red-700 rounded-lg p-4 text-red-400">
-          {error}
+        <div role="alert" className="flex items-center justify-between gap-4 rounded-lg border border-red-800 bg-red-950/40 px-4 py-3 text-sm text-red-200">
+          <span>{error}</span>
+          <Button variant="ghost" size="xs" onClick={() => { setLoading(true); fetchDocuments(); }}>Retry</Button>
         </div>
       )}
 
-      {/* Documents Table */}
-      {!loading && !error && (
-        <div className="bg-dark-800 border border-dark-700 rounded-lg overflow-hidden">
+      {/* Table */}
+      {!error && (
+        <div className="overflow-hidden rounded-xl border border-dark-600 bg-dark-800">
           <div className="overflow-x-auto">
-            <table className="w-full">
-              <thead className="bg-dark-900 border-b border-dark-700">
+            <table className="w-full min-w-[720px]">
+              <thead className="border-b border-dark-600 bg-dark-900/60">
                 <tr>
-                  <TableSortHead label="Title" sortKey="title" activeSortBy={sortBy} sortDir={sortDir} onSort={handleSort} className="px-4 py-3 text-left text-xs font-semibold text-dark-300 uppercase tracking-wider" />
-                  <TableSortHead label="Type" sortKey="document_type" activeSortBy={sortBy} sortDir={sortDir} onSort={handleSort} className="px-4 py-3 text-left text-xs font-semibold text-dark-300 uppercase tracking-wider" />
-                  <TableSortHead label="Slug" sortKey="slug" activeSortBy={sortBy} sortDir={sortDir} onSort={handleSort} className="px-4 py-3 text-left text-xs font-semibold text-dark-300 uppercase tracking-wider" />
-                  <TableSortHead label="Version" sortKey="version" activeSortBy={sortBy} sortDir={sortDir} onSort={handleSort} className="px-4 py-3 text-left text-xs font-semibold text-dark-300 uppercase tracking-wider" />
-                  <TableSortHead label="Order" sortKey="display_order" activeSortBy={sortBy} sortDir={sortDir} onSort={handleSort} className="px-4 py-3 text-left text-xs font-semibold text-dark-300 uppercase tracking-wider" />
-                  <TableSortHead label="Status" sortKey="is_active" activeSortBy={sortBy} sortDir={sortDir} onSort={handleSort} className="px-4 py-3 text-left text-xs font-semibold text-dark-300 uppercase tracking-wider" />
-                  <th className="px-4 py-3 text-right text-xs font-semibold text-dark-300 uppercase tracking-wider">Actions</th>
+                  <TableSortHead label="Document" sortKey="title" activeSortBy={sortBy} sortDir={sortDir} onSort={handleSort} className={headClass} />
+                  <TableSortHead label="Type" sortKey="document_type" activeSortBy={sortBy} sortDir={sortDir} onSort={handleSort} className={headClass} />
+                  <th className={headClass}>Version</th>
+                  <TableSortHead label="Updated" sortKey="updated_at" activeSortBy={sortBy} sortDir={sortDir} onSort={handleSort} className={headClass} />
+                  <TableSortHead label="Status" sortKey="is_active" activeSortBy={sortBy} sortDir={sortDir} onSort={handleSort} className={headClass} />
+                  <th className={`${headClass} text-right`}><span className="sr-only">Actions</span></th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-dark-700">
-                <AnimatePresence>
-                  {sortedDocuments.length === 0 ? (
-                    <tr>
-                      <td colSpan="7" className="px-4 py-8 text-center text-dark-400">
-                        No documents found
+                {loading ? (
+                  [0, 1, 2].map((i) => (
+                    <tr key={i}>
+                      <td colSpan={6} className="px-4 py-4">
+                        <div className="h-4 w-1/2 animate-pulse rounded bg-dark-700" />
                       </td>
                     </tr>
-                  ) : (
-                    sortedDocuments.map((doc, index) => (
-                      <m.tr
-                        key={doc.id}
-                        initial={{ opacity: 0, y: 10 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        exit={{ opacity: 0, y: -10 }}
-                        transition={{ delay: index * 0.02 }}
-                        className="hover:bg-dark-750 transition-colors"
-                      >
-                        <td className="px-4 py-3 text-dark-50 font-medium">
-                          {doc.title}
-                        </td>
-                        <td className="px-4 py-3 text-dark-200 text-sm">
-                          {documentTypes.find(t => t.value === (doc.documentType || doc.document_type))?.label || doc.documentType || doc.document_type}
-                        </td>
-                        <td className="px-4 py-3 text-dark-300 text-sm font-mono">
-                          {doc.slug}
-                        </td>
-                        <td className="px-4 py-3 text-dark-300 text-sm">
-                          {doc.version}
-                        </td>
-                        <td className="px-4 py-3 text-dark-300 text-sm">
-                          {doc.displayOrder || doc.display_order || 0}
-                        </td>
+                  ))
+                ) : visibleDocuments.length === 0 ? (
+                  <tr>
+                    <td colSpan={6} className="px-4 py-12 text-center">
+                      <p className="font-medium text-dark-50">
+                        {documents.length === 0 ? 'No legal documents yet' : 'No documents match your filters'}
+                      </p>
+                      <p className="mt-1 text-sm text-dark-200">
+                        {documents.length === 0
+                          ? 'Add your privacy policy, terms and other policies.'
+                          : 'Try a different search or type.'}
+                      </p>
+                    </td>
+                  </tr>
+                ) : (
+                  visibleDocuments.map((doc) => {
+                    const publicPath = PUBLIC_PATHS[doc.documentType];
+                    return (
+                      <tr key={doc.id} className="transition-colors hover:bg-dark-750">
                         <td className="px-4 py-3">
                           <button
-                            onClick={() => handleToggleActive(doc)}
-                            className={`inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium transition-colors ${
-                              doc.isActive || doc.is_active
-                                ? 'bg-green-900/30 text-green-400 hover:bg-green-900/50'
-                                : 'bg-red-900/30 text-red-400 hover:bg-red-900/50'
-                            }`}
+                            type="button"
+                            onClick={() => handleEdit(doc)}
+                            className="text-left font-medium text-dark-50 hover:text-primary-400 focus:outline-none focus-visible:underline"
                           >
-                            {doc.isActive || doc.is_active ? (
-                              <>
-                                <CheckCircle className="w-3 h-3" />
-                                Active
-                              </>
-                            ) : (
-                              <>
-                                <XCircle className="w-3 h-3" />
-                                Inactive
-                              </>
-                            )}
+                            {doc.title}
+                          </button>
+                          <div className="mt-0.5 font-mono text-xs text-dark-200">/{doc.slug}</div>
+                        </td>
+                        <td className="px-4 py-3 text-sm text-dark-100">
+                          {legalDocumentTypeLabel(doc.documentType)}
+                        </td>
+                        <td className="px-4 py-3 text-sm text-dark-100">
+                          v{doc.version || '1.0'}
+                          {doc.effectiveDate && (
+                            <div className="text-xs text-dark-200">Effective {doc.effectiveDate}</div>
+                          )}
+                        </td>
+                        <td className="px-4 py-3 text-sm text-dark-100">{formatDate(doc.updatedAt)}</td>
+                        <td className="px-4 py-3">
+                          <button
+                            type="button"
+                            role="switch"
+                            aria-checked={!!doc.isActive}
+                            aria-label={`Published: ${doc.title}`}
+                            disabled={togglingId === doc.id}
+                            onClick={() => handleToggleActive(doc)}
+                            className="group inline-flex items-center gap-2 text-xs font-medium disabled:opacity-50"
+                          >
+                            <span className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors ${doc.isActive ? 'bg-green-600' : 'bg-dark-500'}`}>
+                              <span className={`inline-block h-4 w-4 rounded-full bg-white shadow transition-transform ${doc.isActive ? 'translate-x-4' : 'translate-x-0.5'}`} />
+                            </span>
+                            <span className={doc.isActive ? 'text-green-400' : 'text-dark-200'}>
+                              {doc.isActive ? 'Published' : 'Hidden'}
+                            </span>
                           </button>
                         </td>
-                        <td className="px-4 py-3 text-right">
-                          <div className="flex items-center justify-end gap-2">
+                        <td className="px-4 py-3">
+                          <div className="flex items-center justify-end gap-1">
+                            {publicPath && doc.isActive && (
+                              <a
+                                href={publicPath}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="rounded-md p-2 text-dark-100 transition-colors hover:bg-dark-700 hover:text-dark-50"
+                                title="View on site"
+                                aria-label={`View ${doc.title} on site`}
+                              >
+                                <ExternalLink className="h-4 w-4" aria-hidden="true" />
+                              </a>
+                            )}
                             <button
+                              type="button"
                               onClick={() => handleEdit(doc)}
-                              className="p-1.5 text-primary-400 hover:bg-primary-900/20 rounded transition-colors"
+                              className="rounded-md p-2 text-dark-100 transition-colors hover:bg-dark-700 hover:text-primary-400"
                               title="Edit"
+                              aria-label={`Edit ${doc.title}`}
                             >
-                              <Edit2 className="w-4 h-4" />
+                              <Pencil className="h-4 w-4" aria-hidden="true" />
                             </button>
                             <button
-                              onClick={() => handleDelete(doc.id)}
-                              className="p-1.5 text-red-400 hover:bg-red-900/20 rounded transition-colors"
+                              type="button"
+                              onClick={() => setPendingDelete(doc)}
+                              className="rounded-md p-2 text-dark-100 transition-colors hover:bg-red-950/60 hover:text-red-300"
                               title="Delete"
+                              aria-label={`Delete ${doc.title}`}
                             >
-                              <Trash2 className="w-4 h-4" />
+                              <Trash2 className="h-4 w-4" aria-hidden="true" />
                             </button>
                           </div>
                         </td>
-                      </m.tr>
-                    ))
-                  )}
-                </AnimatePresence>
+                      </tr>
+                    );
+                  })
+                )}
               </tbody>
             </table>
           </div>
+          {!loading && documents.length > 0 && (
+            <div className="border-t border-dark-600 px-4 py-2.5 text-xs text-dark-200">
+              Showing {visibleDocuments.length} of {documents.length} documents
+            </div>
+          )}
         </div>
       )}
 
-      {/* Edit Modal */}
-      <AnimatePresence>
-        {showEditModal && selectedDoc && (
-          <EditModal
-            isOpen={showEditModal}
-            onClose={() => {
-              setShowEditModal(false);
-              setSelectedDoc(null);
-            }}
-            onSave={handleSave}
-            elementData={selectedDoc}
-            elementType="legal-document"
-          />
-        )}
-      </AnimatePresence>
+      {editing && (
+        <EditModal
+          isOpen
+          onClose={() => setEditing(null)}
+          onSave={handleSave}
+          elementData={editing}
+          elementType="legal-document"
+          elementId={editing.id ?? 'new'}
+          fieldSchemaOverrides={fieldSchemaFor(editing)}
+        />
+      )}
+
+      <ConfirmModal
+        isOpen={!!pendingDelete}
+        onClose={() => setPendingDelete(null)}
+        onConfirm={confirmDelete}
+        title="Delete legal document?"
+        message={pendingDelete ? `"${pendingDelete.title}" will be removed from the website. This can't be undone.` : ''}
+        confirmText="Delete"
+        confirmButtonVariant="danger"
+      />
     </div>
   );
 };

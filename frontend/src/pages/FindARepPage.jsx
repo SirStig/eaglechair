@@ -5,6 +5,7 @@ import { m } from 'framer-motion';
 import Card from '../components/ui/Card';
 import USMapInteractive from '../components/USMapInteractive';
 import EditableWrapper from '../components/admin/EditableWrapper';
+import EditableSectionHeading from '../components/common/EditableSectionHeading';
 import EditableList from '../components/admin/EditableList';
 import { useSalesReps, useSiteSettings } from '../hooks/useContent';
 import logger from '../utils/logger';
@@ -155,11 +156,20 @@ const FindARepPage = () => {
       <div className="container">
         {/* Header */}
         <div className="text-center mb-12">
-          <h1 className="text-2xl sm:text-3xl md:text-4xl font-bold mb-4 text-dark-50">Find Your Sales Representative</h1>
-          <p className="text-lg text-dark-100 max-w-2xl mx-auto">
-            Click on your state to find your local Eagle Chair representative.
-            They're ready to help with product selection, quotes, and personalized service.
-          </p>
+          <EditableSectionHeading
+            page="find_a_rep"
+            section="header"
+            defaultTitle="Find Your Sales Representative"
+            defaultSubtitle="Click on your state to find your local Eagle Chair representative. They're ready to help with product selection, quotes, and personalized service."
+            label="Find a Rep page heading"
+          >
+            {({ title, subtitle }) => (
+              <>
+                <h1 className="text-2xl sm:text-3xl md:text-4xl font-bold mb-4 text-dark-50">{title}</h1>
+                {subtitle && <p className="text-lg text-dark-100 max-w-2xl mx-auto">{subtitle}</p>}
+              </>
+            )}
+          </EditableSectionHeading>
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 sm:gap-8">

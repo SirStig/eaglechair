@@ -14,6 +14,7 @@ A production-ready FastAPI backend with:
 import asyncio
 import logging
 import os
+import re
 import uuid
 from contextlib import asynccontextmanager
 from pathlib import Path
@@ -238,6 +239,14 @@ async def lifespan(app: FastAPI):
     # Start warm-up as background task (non-blocking)
     asyncio.create_task(warm_cache_background())
 
+    # Per-page HTML shells + share images for crawlers (one worker at a time;
+    # see services/seo_prerender.py)
+    seo_task = None
+    if settings.SEO_PRERENDER_ENABLED:
+        from backend.services.seo_prerender import prerender_loop
+
+        seo_task = asyncio.create_task(prerender_loop())
+
     logger.info(f"🎯 API v1 available at: {settings.API_V1_PREFIX}")
     logger.info("✨ EagleChair API is ready!")
 
@@ -245,6 +254,9 @@ async def lifespan(app: FastAPI):
 
     # Shutdown
     logger.info("🛑 Shutting down EagleChair API...")
+
+    if seo_task is not None:
+        seo_task.cancel()
 
     try:
         # Close cache connections first
@@ -445,6 +457,8 @@ if frontend_dist_path.exists() and (frontend_dist_path / "index.html").exists():
         logger.info("[OK] Data directory mounted at /data")
 
     _no_cache_headers = {"Cache-Control": "no-cache"}
+    # Slug-safe segments only: no "..", no dotfiles
+    _SHELL_PATH_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._~-]*(/[A-Za-z0-9][A-Za-z0-9._~-]*)*$")
     _index_cache: dict = {"mtime": None, "html": None}
     _frontend_root = frontend_dist_path.resolve()
 
@@ -486,6 +500,13 @@ if frontend_dist_path.exists() and (frontend_dist_path / "index.html").exists():
             candidate = (frontend_dist_path / full_path).resolve()
             if candidate.parent == _frontend_root and candidate.is_file() and candidate.name != "index.html":
                 return FileResponse(candidate)
+
+        # Prerendered page shell (services/seo_prerender.py), same rule as .htaccess
+        shell_path = full_path.strip("/")
+        if shell_path and _SHELL_PATH_RE.match(shell_path):
+            shell = _frontend_root / "_seo" / shell_path / "index.html"
+            if shell.is_file():
+                return FileResponse(shell, media_type="text/html", headers=_no_cache_headers)
 
         return _serve_index()
 

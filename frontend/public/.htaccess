@@ -49,6 +49,11 @@
     Header set Cache-Control "public, max-age=31536000, immutable"
     Header set X-Content-Type-Options "nosniff"
   </If>
+  # Share cards keep a stable name per page and are re-rendered in place
+  # (shells link them with ?v=<hash>), so they can't be immutable
+  <If "%{REQUEST_URI} =~ m#^/uploads/og/#">
+    Header set Cache-Control "public, max-age=86400"
+  </If>
   # Uploaded files are data, never active content: if someone opens an
   # uploaded SVG/HTML directly, scripts inside it can't run on our origin.
   # (PDFs excluded: a sandboxed document can't use the browser's PDF viewer.)
@@ -67,6 +72,16 @@
 
   # Legacy guest quote attachments are private (served only via the admin API)
   RewriteRule ^uploads/quotes(/|$) - [F,NC,L]
+
+  # Prerendered page shells (written by backend/services/seo_prerender.py):
+  # the same app with that page's <head> (title, description, share image,
+  # JSON-LD) for link previews and crawlers that don't run JavaScript.
+  # /_seo/ itself is never served directly.
+  RewriteCond %{THE_REQUEST} \s/+_seo(/|\s|\?) [NC]
+  RewriteRule ^ - [R=404,L]
+  RewriteCond %{REQUEST_FILENAME} !-f
+  RewriteCond %{DOCUMENT_ROOT}/_seo/$1/index.html -f
+  RewriteRule ^(?!(?:uploads|assets|data|_seo)/)(.+?)/?$ _seo/$1/index.html [L]
 
   # Don't rewrite files or directories
   RewriteCond %{REQUEST_FILENAME} !-f

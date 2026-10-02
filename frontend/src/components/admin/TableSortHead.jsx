@@ -18,7 +18,7 @@ export default function TableSortHead({ label, sortKey, activeSortBy, sortDir, o
       <button
         type="button"
         onClick={() => onSort(sortKey)}
-        className="inline-flex items-center gap-1 text-left font-medium text-dark-300 hover:text-dark-100 transition-colors"
+        className="inline-flex items-center gap-1 text-left font-medium text-dark-100 hover:text-dark-50 transition-colors"
       >
         {label}
         {isActive ? (sortDir === 'asc' ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />) : <ChevronUp className="w-4 h-4 opacity-40" />}

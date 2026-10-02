@@ -1,6 +1,9 @@
 import { useState, lazy, Suspense } from 'react';
 import { createPortal } from 'react-dom';
+import { Pencil } from 'lucide-react';
 import { useEditMode } from '../../contexts/useEditMode';
+import { useToast } from '../../contexts/ToastContext';
+import { isPublishFailed } from '../../utils/cmsContentStore';
 import logger from '../../utils/logger';
 
 const CONTEXT = 'EditableWrapper';
@@ -42,6 +45,7 @@ const EditableWrapper = ({
   className = ''
 }) => {
   const { isEditMode, editingElement, startEditing, stopEditing } = useEditMode();
+  const toast = useToast();
   const [showModal, setShowModal] = useState(false);
   const [isHovered, setIsHovered] = useState(false);
   const [isFocused, setIsFocused] = useState(false);
@@ -81,14 +85,17 @@ const EditableWrapper = ({
   const handleSave = async (newData) => {
     try {
       logger.info(CONTEXT, `Saving ${id}`, newData);
+      let result;
       if (onSave) {
-        await onSave(newData);
+        result = await onSave(newData);
       }
       if (refetch) {
         await refetch();
       }
       setShowModal(false);
       stopEditing();
+      // A save that didn't publish already raises a global warning toast
+      if (!isPublishFailed(result)) toast.success(`${displayLabel} saved`);
     } catch (error) {
       logger.error(CONTEXT, `Failed to save ${id}`, error);
       throw error;
@@ -101,11 +108,18 @@ const EditableWrapper = ({
   }
 
   const highlighted = isHovered || isFocused;
+  // Every editable region gets a faint dashed outline in edit mode so admins
+  // can see what is editable; hover/focus/active editing makes it solid.
+  const outlineClass = isEditing
+    ? 'outline outline-2 outline-editor-500'
+    : highlighted
+      ? 'outline outline-2 outline-editor-400'
+      : 'outline-dashed outline-1 outline-editor-400/50';
 
   return (
     <>
       <div
-        className={`relative ${className}`}
+        className={`relative cursor-pointer rounded-sm outline-offset-2 transition-[outline-color] duration-150 ${outlineClass} ${className}`}
         role="button"
         tabIndex={0}
         aria-label={`Edit ${displayLabel}`}
@@ -116,29 +130,16 @@ const EditableWrapper = ({
         onBlur={(e) => { if (e.target === e.currentTarget) setIsFocused(false); }}
         onMouseEnter={() => setIsHovered(true)}
         onMouseLeave={() => setIsHovered(false)}
-        style={{
-          cursor: 'pointer',
-          outline: isEditing ? '3px solid rgba(139, 115, 85, 0.8)' :
-                   highlighted ? '2px solid rgba(139, 115, 85, 0.4)' : 'none',
-          outlineOffset: '2px',
-          transition: 'outline 0.2s ease',
-        }}
       >
         {children}
 
-        {/* Edit Indicator - Bottom Left */}
         {(highlighted || isEditing) && (
           <div
-            className="absolute bottom-1 left-1 z-20 bg-accent-600 text-white px-2 py-1 rounded text-xs font-medium shadow-lg flex items-center gap-1 border border-accent-400 pointer-events-none"
+            className="pointer-events-none absolute left-1 top-1 z-20 flex items-center gap-1 rounded-md bg-editor-600 px-2 py-0.5 text-[11px] font-medium text-white shadow-md"
             aria-hidden="true"
-            style={{
-              animation: isEditing ? 'pulse 2s infinite' : 'none'
-            }}
           >
-            <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-            </svg>
-            <span>{displayLabel}</span>
+            <Pencil className="h-3 w-3" />
+            <span className="max-w-[16rem] truncate">{displayLabel}</span>
           </div>
         )}
       </div>

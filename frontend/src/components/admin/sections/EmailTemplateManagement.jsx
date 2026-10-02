@@ -1,455 +1,481 @@
-import { useState, useEffect } from 'react';
-import Card from '../../ui/Card';
+import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
+import { Mail, Pencil, Plus, Send, Power, Code2, Eye } from 'lucide-react';
 import Button from '../../ui/Button';
 import Input from '../../ui/Input';
-import apiClient from '../../../config/apiClient';
-import {
-  Mail,
-  Edit2,
-  Trash2,
-  Eye,
-  Plus,
-  CheckCircle,
-  XCircle,
-  Send,
-  FileText,
-} from 'lucide-react';
 import Modal from '../../ui/Modal';
+import ConfirmModal from '../../ui/ConfirmModal';
+import apiClient from '../../../config/apiClient';
+import { useToast } from '../../../contexts/ToastContext';
 
+const EMPTY_FORM = {
+  template_type: '',
+  name: '',
+  description: '',
+  subject: '',
+  body: '',
+  is_active: true,
+  available_variables: {},
+};
+
+const TEXTAREA_CLASS = 'w-full rounded-lg border border-dark-400 bg-dark-700 px-4 py-2.5 text-dark-50 placeholder-dark-200 focus:border-primary-500 focus:outline-none focus:ring-2 focus:ring-primary-500';
+
+// apiClient rejects with { message, status, data }; FastAPI puts details in data.detail
+const errorMessage = (err, fallback) => {
+  const detail = err?.data?.detail;
+  if (typeof detail === 'string') return detail;
+  return err?.message || fallback;
+};
+
+const formatDate = (iso) => (iso ? new Date(iso).toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' }) : null);
+
+/**
+ * Email Template Management
+ *
+ * Jinja2 templates for system emails. Deleting is a soft delete: the API
+ * deactivates the template so the built-in default is used instead.
+ */
 const EmailTemplateManagement = () => {
+  const toast = useToast();
   const [templates, setTemplates] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState(null);
   const [selectedTemplate, setSelectedTemplate] = useState(null);
-  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
-  const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
-  const [isTestModalOpen, setIsTestModalOpen] = useState(false);
+  const [editorOpen, setEditorOpen] = useState(false);
+  const [bodyView, setBodyView] = useState('code');
+  const [formData, setFormData] = useState(EMPTY_FORM);
+  const [formError, setFormError] = useState(null);
   const [saving, setSaving] = useState(false);
-  const [testing, setTesting] = useState(false);
-  const [error, setError] = useState(null);
-  const [formData, setFormData] = useState({
-    template_type: '',
-    name: '',
-    description: '',
-    subject: '',
-    body: '',
-    is_active: true,
-    available_variables: {}
-  });
+  const [pendingDeactivate, setPendingDeactivate] = useState(null);
+  const [testTemplate, setTestTemplate] = useState(null);
   const [testEmail, setTestEmail] = useState('');
   const [testContext, setTestContext] = useState('{}');
+  const [testError, setTestError] = useState(null);
+  const [testing, setTesting] = useState(false);
+  const bodyRef = useRef(null);
 
-  useEffect(() => {
-    loadTemplates();
-  }, []);
-
-  const loadTemplates = async () => {
+  const loadTemplates = useCallback(async () => {
     try {
-      setLoading(true);
+      setLoadError(null);
       const response = await apiClient.get('/api/v1/admin/emails', {
-        params: { include_inactive: true }
+        params: { include_inactive: true },
       });
       setTemplates(response.templates || []);
     } catch (err) {
-      console.error('Error loading templates:', err);
-      setError('Failed to load email templates');
+      setLoadError(errorMessage(err, 'Failed to load email templates'));
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
 
-  const handleEdit = (template) => {
+  useEffect(() => {
+    loadTemplates();
+  }, [loadTemplates]);
+
+  const sortedTemplates = useMemo(
+    () => [...templates].sort((a, b) => (b.is_active - a.is_active) || a.name.localeCompare(b.name)),
+    [templates]
+  );
+
+  const setField = (key, value) => setFormData((prev) => ({ ...prev, [key]: value }));
+
+  const openEditor = (template) => {
     setSelectedTemplate(template);
-    setFormData({
+    setFormData(template ? {
       template_type: template.template_type,
       name: template.name,
       description: template.description || '',
       subject: template.subject,
       body: template.body,
       is_active: template.is_active,
-      available_variables: template.available_variables || {}
-    });
-    setIsEditModalOpen(true);
+      available_variables: template.available_variables || {},
+    } : EMPTY_FORM);
+    setFormError(null);
+    setBodyView('code');
+    setEditorOpen(true);
   };
 
-  const handleCreate = () => {
-    setSelectedTemplate(null);
-    setFormData({
-      template_type: '',
-      name: '',
-      description: '',
-      subject: '',
-      body: '',
-      is_active: true,
-      available_variables: {}
+  const closeEditor = () => {
+    if (saving) return;
+    setEditorOpen(false);
+  };
+
+  // Insert {{ variable }} at the cursor in the body editor
+  const insertVariable = (name) => {
+    const token = `{{ ${name} }}`;
+    const el = bodyRef.current;
+    if (!el || bodyView !== 'code') {
+      setField('body', `${formData.body}${token}`);
+      return;
+    }
+    const { selectionStart = formData.body.length, selectionEnd = formData.body.length } = el;
+    const next = formData.body.slice(0, selectionStart) + token + formData.body.slice(selectionEnd);
+    setField('body', next);
+    requestAnimationFrame(() => {
+      el.focus();
+      el.setSelectionRange(selectionStart + token.length, selectionStart + token.length);
     });
-    setIsCreateModalOpen(true);
   };
 
   const handleSave = async () => {
+    const missing = ['template_type', 'name', 'subject', 'body'].filter((k) => !String(formData[k] || '').trim());
+    if (missing.length) {
+      setFormError('Type, name, subject and body are required.');
+      return;
+    }
     try {
       setSaving(true);
-      setError(null);
-
+      setFormError(null);
       const payload = {
         ...formData,
-        available_variables: typeof formData.available_variables === 'object' 
-          ? formData.available_variables 
-          : {}
+        available_variables: typeof formData.available_variables === 'object' ? formData.available_variables : {},
       };
-
       if (selectedTemplate) {
-        // Update existing
         await apiClient.patch(`/api/v1/admin/emails/${selectedTemplate.id}`, payload);
       } else {
-        // Create new
         await apiClient.post('/api/v1/admin/emails', payload);
       }
-
-      setIsEditModalOpen(false);
-      setIsCreateModalOpen(false);
+      toast.success(selectedTemplate ? 'Template saved' : 'Template created');
+      setEditorOpen(false);
       await loadTemplates();
     } catch (err) {
-      console.error('Error saving template:', err);
-      setError(err.response?.data?.detail || err.response?.data?.message || 'Failed to save template');
+      setFormError(errorMessage(err, 'Failed to save template'));
     } finally {
       setSaving(false);
     }
   };
 
-  const handleDelete = async (templateId) => {
-    if (!window.confirm('Are you sure you want to deactivate this template? It will no longer be available for use.')) {
-      return;
-    }
-
+  const confirmDeactivate = async () => {
+    const template = pendingDeactivate;
+    if (!template) return;
     try {
-      await apiClient.delete(`/api/v1/admin/emails/${templateId}`);
+      await apiClient.delete(`/api/v1/admin/emails/${template.id}`);
+      toast.success(`"${template.name}" deactivated`);
       await loadTemplates();
     } catch (err) {
-      console.error('Error deleting template:', err);
-      setError(err.response?.data?.detail || 'Failed to deactivate template');
+      toast.error(errorMessage(err, 'Failed to deactivate template'));
     }
   };
 
-  const handleTest = (template) => {
-    setSelectedTemplate(template);
+  const reactivate = async (template) => {
+    try {
+      await apiClient.patch(`/api/v1/admin/emails/${template.id}`, { is_active: true });
+      toast.success(`"${template.name}" reactivated`);
+      await loadTemplates();
+    } catch (err) {
+      toast.error(errorMessage(err, 'Failed to reactivate template'));
+    }
+  };
+
+  const openTest = (template) => {
+    // Prefill sample values for each documented variable
+    const sample = Object.fromEntries(
+      Object.keys(template.available_variables || {}).map((name) => [name, `Sample ${name.replace(/_/g, ' ')}`])
+    );
+    setTestTemplate(template);
     setTestEmail('');
-    setTestContext('{}');
-    setIsTestModalOpen(true);
+    setTestContext(JSON.stringify(sample, null, 2));
+    setTestError(null);
   };
 
   const sendTestEmail = async () => {
-    if (!testEmail) {
-      setError('Please enter a test email address');
+    let context;
+    try {
+      context = JSON.parse(testContext || '{}');
+    } catch {
+      setTestError('Sample values must be valid JSON.');
       return;
     }
-
     try {
       setTesting(true);
-      setError(null);
-
-      let contextObj = {};
-      try {
-        contextObj = JSON.parse(testContext || '{}');
-      } catch (e) {
-        setError('Invalid JSON in context field');
-        return;
-      }
-
+      setTestError(null);
       await apiClient.post('/api/v1/admin/emails/test', {
         to_email: testEmail,
-        template_type: selectedTemplate.template_type,
-        context: contextObj
+        template_type: testTemplate.template_type,
+        context,
       });
-
-      alert(`Test email sent successfully to ${testEmail}`);
-      setIsTestModalOpen(false);
+      toast.success(`Test email sent to ${testEmail}`);
+      setTestTemplate(null);
     } catch (err) {
-      console.error('Error sending test email:', err);
-      setError(err.response?.data?.detail || 'Failed to send test email');
+      setTestError(errorMessage(err, 'Failed to send test email'));
     } finally {
       setTesting(false);
     }
   };
 
-  const getStatusBadge = (isActive) => {
-    if (isActive) {
-      return (
-        <span className="px-2 py-1 rounded-full text-xs font-medium bg-green-900/30 text-green-500 flex items-center gap-1.5 w-fit">
-          <CheckCircle className="w-3.5 h-3.5" />
-          Active
-        </span>
-      );
-    }
-    return (
-      <span className="px-2 py-1 rounded-full text-xs font-medium bg-dark-600 text-dark-400 flex items-center gap-1.5 w-fit">
-        <XCircle className="w-3.5 h-3.5" />
-        Inactive
-      </span>
-    );
-  };
-
-  if (loading) {
-    return (
-      <div className="p-8 flex items-center justify-center py-12">
-        <div className="w-12 h-12 border-4 border-dark-600 border-t-accent-500 rounded-full animate-spin" />
-      </div>
-    );
-  }
+  const variables = Object.entries(formData.available_variables || {});
 
   return (
-    <div className="p-8 space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h2 className="text-2xl font-bold text-dark-50 flex items-center gap-3">
-            <Mail className="w-7 h-7 text-primary-500" />
-            Email Template Management
-          </h2>
-          <p className="text-dark-200 mt-1">Manage email templates for system notifications</p>
+    <div className="space-y-6 p-4 sm:p-6 lg:p-8">
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+        <div className="flex items-center gap-3">
+          <div className="rounded-lg bg-primary-500/10 p-2.5">
+            <Mail className="h-6 w-6 text-primary-500" aria-hidden="true" />
+          </div>
+          <div>
+            <h2 className="text-xl font-bold text-dark-50 sm:text-2xl">Email Templates</h2>
+            <p className="text-sm text-dark-100">Subjects and content of the emails the system sends</p>
+          </div>
         </div>
-        <Button onClick={handleCreate} variant="primary" className="flex items-center gap-2">
-          <Plus className="w-4 h-4" />
-          Create Template
+        <Button onClick={() => openEditor(null)} variant="primary" size="sm" className="gap-2 self-start sm:self-auto">
+          <Plus className="h-4 w-4" aria-hidden="true" />
+          New template
         </Button>
       </div>
 
-      {error && (
-        <div className="bg-red-900/30 border-2 border-red-600 text-red-300 px-4 py-3 rounded-lg">
-          {error}
+      {loadError && (
+        <div role="alert" className="flex items-center justify-between gap-4 rounded-lg border border-red-800 bg-red-950/40 px-4 py-3 text-sm text-red-200">
+          <span>{loadError}</span>
+          <Button variant="ghost" size="xs" onClick={() => { setLoading(true); loadTemplates(); }}>Retry</Button>
         </div>
       )}
 
-      <div className="grid grid-cols-1 gap-4">
-        {templates.map((template) => (
-          <Card key={template.id} className="bg-dark-800 border-dark-700">
-            <div className="flex items-start justify-between">
-              <div className="flex-1">
-                <div className="flex items-center gap-3 mb-2">
-                  <h3 className="text-lg font-semibold text-dark-50">{template.name}</h3>
-                  {getStatusBadge(template.is_active)}
-                </div>
-                <p className="text-sm text-dark-300 mb-2">
-                  <span className="font-medium">Type:</span> {template.template_type}
-                </p>
-                {template.description && (
-                  <p className="text-sm text-dark-200 mb-3">{template.description}</p>
-                )}
-                <div className="flex items-center gap-4 text-sm text-dark-400">
-                  <span className="flex items-center gap-1">
-                    <Send className="w-4 h-4" />
-                    Sent {template.times_sent || 0} times
-                  </span>
-                  {template.last_sent_at && (
-                    <span>
-                      Last sent: {new Date(template.last_sent_at).toLocaleDateString()}
-                    </span>
+      {loading ? (
+        <div className="space-y-3">
+          {[0, 1, 2].map((i) => <div key={i} className="h-24 animate-pulse rounded-xl bg-dark-800" />)}
+        </div>
+      ) : !loadError && sortedTemplates.length === 0 ? (
+        <div className="rounded-xl border border-dashed border-dark-500 px-6 py-12 text-center">
+          <p className="font-medium text-dark-50">No custom templates</p>
+          <p className="mt-1 text-sm text-dark-200">The built-in defaults are used until you create one.</p>
+        </div>
+      ) : (
+        <ul className="divide-y divide-dark-700 overflow-hidden rounded-xl border border-dark-600 bg-dark-800">
+          {sortedTemplates.map((template) => (
+            <li key={template.id} className={`flex flex-col gap-3 px-4 py-4 sm:flex-row sm:items-center sm:px-5 ${template.is_active ? '' : 'opacity-70'}`}>
+              <div className="min-w-0 flex-1">
+                <div className="flex flex-wrap items-center gap-2">
+                  <h3 className="font-semibold text-dark-50">{template.name}</h3>
+                  <code className="rounded bg-dark-700 px-1.5 py-0.5 text-[11px] text-dark-100">{template.template_type}</code>
+                  {!template.is_active && (
+                    <span className="rounded-full bg-dark-600 px-2 py-0.5 text-[11px] font-medium text-dark-100">Inactive</span>
                   )}
                 </div>
+                <p className="mt-1 truncate text-sm text-dark-100">
+                  <span className="text-dark-200">Subject:</span> {template.subject}
+                </p>
+                <p className="mt-1 text-xs text-dark-200">
+                  Sent {template.times_sent || 0} {template.times_sent === 1 ? 'time' : 'times'}
+                  {template.last_sent_at && ` · last ${formatDate(template.last_sent_at)}`}
+                </p>
               </div>
-              <div className="flex items-center gap-2 ml-4">
-                <Button
-                  variant="secondary"
-                  size="sm"
-                  onClick={() => handleTest(template)}
-                  className="flex items-center gap-1.5"
-                >
-                  <Send className="w-4 h-4" />
+              <div className="flex flex-shrink-0 items-center gap-1">
+                <Button variant="ghost" size="xs" onClick={() => openTest(template)} disabled={!template.is_active} className="gap-1.5">
+                  <Send className="h-4 w-4" aria-hidden="true" />
                   Test
                 </Button>
-                <Button
-                  variant="secondary"
-                  size="sm"
-                  onClick={() => handleEdit(template)}
-                  className="flex items-center gap-1.5"
-                >
-                  <Edit2 className="w-4 h-4" />
+                <Button variant="ghost" size="xs" onClick={() => openEditor(template)} className="gap-1.5">
+                  <Pencil className="h-4 w-4" aria-hidden="true" />
                   Edit
                 </Button>
-                <Button
-                  variant="secondary"
-                  size="sm"
-                  onClick={() => handleDelete(template.id)}
-                  className="flex items-center gap-1.5 text-red-400 hover:text-red-300"
-                >
-                  <Trash2 className="w-4 h-4" />
-                </Button>
+                {template.is_active ? (
+                  <Button variant="ghost" size="xs" onClick={() => setPendingDeactivate(template)} className="gap-1.5 hover:!text-red-300">
+                    <Power className="h-4 w-4" aria-hidden="true" />
+                    Deactivate
+                  </Button>
+                ) : (
+                  <Button variant="ghost" size="xs" onClick={() => reactivate(template)} className="gap-1.5">
+                    <Power className="h-4 w-4" aria-hidden="true" />
+                    Reactivate
+                  </Button>
+                )}
               </div>
-            </div>
-          </Card>
-        ))}
-      </div>
+            </li>
+          ))}
+        </ul>
+      )}
 
-      {/* Edit/Create Modal */}
+      {/* Edit / create */}
       <Modal
-        isOpen={isEditModalOpen || isCreateModalOpen}
-        onClose={() => {
-          setIsEditModalOpen(false);
-          setIsCreateModalOpen(false);
-          setError(null);
-        }}
-        title={selectedTemplate ? 'Edit Email Template' : 'Create Email Template'}
-        size="xl"
+        isOpen={editorOpen}
+        onClose={closeEditor}
+        title={selectedTemplate ? `Edit: ${selectedTemplate.name}` : 'New email template'}
+        size="lg"
       >
         <div className="space-y-4">
-          {error && (
-            <div className="bg-red-900/30 border-2 border-red-600 text-red-300 px-4 py-3 rounded-lg">
-              {error}
-            </div>
-          )}
-
-          <Input
-            label="Template Type"
-            value={formData.template_type}
-            onChange={(e) => setFormData({ ...formData, template_type: e.target.value })}
-            placeholder="email_verification"
-            disabled={!!selectedTemplate}
-            required
-          />
-
-          <Input
-            label="Template Name"
-            value={formData.name}
-            onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-            placeholder="Email Verification"
-            required
-          />
-
-          <div>
-            <label className="block text-sm font-medium text-dark-200 mb-2">
-              Description
-            </label>
-            <textarea
-              className="w-full px-4 py-2 bg-dark-700 border border-dark-600 rounded-lg text-dark-100 focus:outline-none focus:ring-2 focus:ring-primary-500"
-              rows="2"
-              value={formData.description}
-              onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-              placeholder="Template description"
+          <div className="grid gap-4 sm:grid-cols-2">
+            <Input
+              label="Template type"
+              value={formData.template_type}
+              onChange={(e) => setField('template_type', e.target.value)}
+              placeholder="email_verification"
+              disabled={!!selectedTemplate}
+              helperText={selectedTemplate ? 'The system looks templates up by type, so it cannot be changed.' : 'Must match the type the system sends, e.g. quote_created.'}
+              required
+            />
+            <Input
+              label="Name"
+              value={formData.name}
+              onChange={(e) => setField('name', e.target.value)}
+              placeholder="Email verification"
+              required
             />
           </div>
+
+          <Input
+            label="Description"
+            value={formData.description}
+            onChange={(e) => setField('description', e.target.value)}
+            placeholder="When this email is sent"
+          />
 
           <Input
             label="Subject"
             value={formData.subject}
-            onChange={(e) => setFormData({ ...formData, subject: e.target.value })}
-            placeholder="Email Subject Line"
+            onChange={(e) => setField('subject', e.target.value)}
+            placeholder="Your quote {{ quote_number }} is ready"
             required
           />
 
           <div>
-            <label className="block text-sm font-medium text-dark-200 mb-2">
-              Body (HTML) *
-            </label>
-            <textarea
-              className="w-full px-4 py-2 bg-dark-700 border border-dark-600 rounded-lg text-dark-100 focus:outline-none focus:ring-2 focus:ring-primary-500 font-mono text-sm"
-              rows="12"
-              value={formData.body}
-              onChange={(e) => setFormData({ ...formData, body: e.target.value })}
-              placeholder="<h1>Email Content</h1>&#10;<p>Use {{ variable_name }} for variables</p>&#10;{{ button(url, text) }}"
-              required
-            />
-            <p className="text-xs text-dark-400 mt-1">
-              Use Jinja2 syntax. Helper functions: button(url, text), code(value), image(url, alt)
+            <div className="mb-1.5 flex items-center justify-between gap-3">
+              <label htmlFor="email-template-body" className="text-sm font-medium text-dark-100">Body (HTML)</label>
+              <div className="inline-flex rounded-lg border border-dark-500 p-0.5" role="tablist" aria-label="Body view">
+                {[
+                  { value: 'code', label: 'HTML', icon: <Code2 className="h-3.5 w-3.5" aria-hidden="true" /> },
+                  { value: 'preview', label: 'Preview', icon: <Eye className="h-3.5 w-3.5" aria-hidden="true" /> },
+                ].map(({ value, label, icon }) => (
+                  <button
+                    key={value}
+                    type="button"
+                    role="tab"
+                    aria-selected={bodyView === value}
+                    onClick={() => setBodyView(value)}
+                    className={`inline-flex items-center gap-1.5 rounded-md px-2.5 py-1 text-xs font-medium transition-colors ${bodyView === value ? 'bg-dark-500 text-dark-50' : 'text-dark-200 hover:text-dark-50'}`}
+                  >
+                    {icon}
+                    {label}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {bodyView === 'code' ? (
+              <textarea
+                id="email-template-body"
+                ref={bodyRef}
+                className={`${TEXTAREA_CLASS} min-h-[18rem] resize-y font-mono text-sm leading-relaxed`}
+                value={formData.body}
+                onChange={(e) => setField('body', e.target.value)}
+                placeholder={'<h1>Hello {{ company_name }}</h1>\n<p>…</p>\n{{ button(url, "View quote") }}'}
+                spellCheck={false}
+              />
+            ) : (
+              <div className="overflow-hidden rounded-lg border border-dark-400 bg-white">
+                <iframe
+                  title="Email preview"
+                  sandbox=""
+                  srcDoc={formData.body}
+                  className="h-[18rem] w-full"
+                />
+                <p className="border-t border-gray-200 bg-gray-50 px-3 py-1.5 text-[11px] text-gray-600">
+                  Variables are shown unfilled. Send a test to see the final email.
+                </p>
+              </div>
+            )}
+
+            <p className="mt-1.5 text-xs text-dark-200">
+              Jinja2 syntax. Helpers: <code>button(url, text)</code>, <code>code(value)</code>, <code>image(url, alt)</code>.
             </p>
           </div>
 
-          <div className="flex items-center gap-2">
-            <input
-              type="checkbox"
-              id="is_active"
-              checked={formData.is_active}
-              onChange={(e) => setFormData({ ...formData, is_active: e.target.checked })}
-              className="w-4 h-4 rounded border-dark-600 text-primary-600"
-            />
-            <label htmlFor="is_active" className="text-sm text-dark-200">
-              Template is active
-            </label>
-          </div>
-
-          <div className="flex justify-end gap-3 pt-4 border-t border-dark-700">
-            <Button
-              variant="secondary"
-              onClick={() => {
-                setIsEditModalOpen(false);
-                setIsCreateModalOpen(false);
-                setError(null);
-              }}
-            >
-              Cancel
-            </Button>
-            <Button
-              variant="primary"
-              onClick={handleSave}
-              disabled={saving}
-            >
-              {saving ? 'Saving...' : selectedTemplate ? 'Update' : 'Create'}
-            </Button>
-          </div>
-        </div>
-      </Modal>
-
-      {/* Test Email Modal */}
-      <Modal
-        isOpen={isTestModalOpen}
-        onClose={() => {
-          setIsTestModalOpen(false);
-          setError(null);
-        }}
-        title={`Test Email: ${selectedTemplate?.name}`}
-      >
-        <div className="space-y-4">
-          {error && (
-            <div className="bg-red-900/30 border-2 border-red-600 text-red-300 px-4 py-3 rounded-lg">
-              {error}
+          {variables.length > 0 && (
+            <div>
+              <p className="mb-2 text-sm font-medium text-dark-100">Available variables <span className="font-normal text-dark-200">· click to insert</span></p>
+              <div className="flex flex-wrap gap-1.5">
+                {variables.map(([name, description]) => (
+                  <button
+                    key={name}
+                    type="button"
+                    onClick={() => insertVariable(name)}
+                    title={typeof description === 'string' ? description : undefined}
+                    className="rounded-md border border-dark-500 bg-dark-700 px-2 py-1 font-mono text-xs text-primary-300 transition-colors hover:border-primary-500 hover:bg-dark-600"
+                  >
+                    {`{{ ${name} }}`}
+                  </button>
+                ))}
+              </div>
             </div>
           )}
 
-          <Input
-            label="Test Email Address"
-            type="email"
-            value={testEmail}
-            onChange={(e) => setTestEmail(e.target.value)}
-            placeholder="test@example.com"
-            required
-          />
-
-          <div>
-            <label className="block text-sm font-medium text-dark-200 mb-2">
-              Template Context (JSON)
-            </label>
-            <textarea
-              className="w-full px-4 py-2 bg-dark-700 border border-dark-600 rounded-lg text-dark-100 focus:outline-none focus:ring-2 focus:ring-primary-500 font-mono text-sm"
-              rows="6"
-              value={testContext}
-              onChange={(e) => setTestContext(e.target.value)}
-              placeholder='{"company_name": "Test Company", "verification_url": "https://..."}'
+          <label className="flex cursor-pointer items-center gap-3">
+            <input
+              type="checkbox"
+              checked={formData.is_active}
+              onChange={(e) => setField('is_active', e.target.checked)}
+              className="h-4 w-4 accent-primary-500"
             />
-            <p className="text-xs text-dark-400 mt-1">
-              JSON object with variables to use in the template
-            </p>
-          </div>
+            <span className="text-sm text-dark-100">Active <span className="text-dark-200">(inactive templates fall back to the built-in default)</span></span>
+          </label>
 
-          <div className="flex justify-end gap-3 pt-4 border-t border-dark-700">
-            <Button
-              variant="secondary"
-              onClick={() => {
-                setIsTestModalOpen(false);
-                setError(null);
-              }}
-            >
-              Cancel
-            </Button>
-            <Button
-              variant="primary"
-              onClick={sendTestEmail}
-              disabled={testing || !testEmail}
-            >
-              {testing ? 'Sending...' : 'Send Test Email'}
+          {formError && (
+            <div role="alert" className="rounded-lg border border-red-800 bg-red-950/40 px-4 py-3 text-sm text-red-200">
+              {formError}
+            </div>
+          )}
+
+          <div className="flex justify-end gap-2 border-t border-dark-500 pt-4">
+            <Button variant="ghost" size="sm" onClick={closeEditor} disabled={saving}>Cancel</Button>
+            <Button variant="primary" size="sm" onClick={handleSave} disabled={saving}>
+              {saving ? 'Saving…' : selectedTemplate ? 'Save changes' : 'Create template'}
             </Button>
           </div>
         </div>
       </Modal>
+
+      {/* Test send */}
+      <Modal
+        isOpen={!!testTemplate}
+        onClose={() => !testing && setTestTemplate(null)}
+        title={`Send test: ${testTemplate?.name || ''}`}
+      >
+        <form
+          className="space-y-4"
+          onSubmit={(e) => { e.preventDefault(); sendTestEmail(); }}
+        >
+          <Input
+            label="Send to"
+            type="email"
+            value={testEmail}
+            onChange={(e) => setTestEmail(e.target.value)}
+            placeholder="you@company.com"
+            required
+          />
+          <div>
+            <label htmlFor="email-test-context" className="mb-1.5 block text-sm font-medium text-dark-100">Sample values (JSON)</label>
+            <textarea
+              id="email-test-context"
+              className={`${TEXTAREA_CLASS} resize-y font-mono text-sm`}
+              rows={8}
+              value={testContext}
+              onChange={(e) => setTestContext(e.target.value)}
+              spellCheck={false}
+            />
+          </div>
+          {testError && (
+            <div role="alert" className="rounded-lg border border-red-800 bg-red-950/40 px-4 py-3 text-sm text-red-200">
+              {testError}
+            </div>
+          )}
+          <div className="flex justify-end gap-2 border-t border-dark-500 pt-4">
+            <Button type="button" variant="ghost" size="sm" onClick={() => setTestTemplate(null)} disabled={testing}>Cancel</Button>
+            <Button type="submit" variant="primary" size="sm" disabled={testing || !testEmail}>
+              {testing ? 'Sending…' : 'Send test email'}
+            </Button>
+          </div>
+        </form>
+      </Modal>
+
+      <ConfirmModal
+        isOpen={!!pendingDeactivate}
+        onClose={() => setPendingDeactivate(null)}
+        onConfirm={confirmDeactivate}
+        title="Deactivate template?"
+        message={pendingDeactivate ? `"${pendingDeactivate.name}" will stop being used and the built-in default will be sent instead. You can reactivate it later.` : ''}
+        confirmText="Deactivate"
+        variant="warning"
+      />
     </div>
   );
 };
 
 export default EmailTemplateManagement;
-

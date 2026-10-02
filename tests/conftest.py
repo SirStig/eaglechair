@@ -27,6 +27,7 @@ os.environ["DATABASE_URL"] = TEST_DATABASE_URL
 # behaviour instead of sharing state through a developer's live Redis
 os.environ["REDIS_URL"] = "redis://127.0.0.1:1/0"
 os.environ["ENABLE_CACHE"] = "false"
+os.environ["SEO_PRERENDER_ENABLED"] = "false"
 
 import pytest
 import pytest_asyncio

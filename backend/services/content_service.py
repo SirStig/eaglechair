@@ -992,9 +992,13 @@ class ContentService:
         db: AsyncSession,
         name: str,
         email: str,
-        subject: str,
+        subject: Optional[str],
         message: str,
-        company_id: Optional[int] = None
+        phone: Optional[str] = None,
+        company_name: Optional[str] = None,
+        feedback_type: str = "general",
+        ip_address: Optional[str] = None,
+        user_agent: Optional[str] = None,
     ) -> Feedback:
         """
         Create feedback submission
@@ -1005,7 +1009,11 @@ class ContentService:
             email: Submitter email
             subject: Subject
             message: Message
-            company_id: Optional company ID if authenticated
+            phone: Optional phone number
+            company_name: Optional company name
+            feedback_type: Category of the submission
+            ip_address: Submitter IP (for spam triage)
+            user_agent: Submitter user agent
             
         Returns:
             Created feedback
@@ -1015,7 +1023,11 @@ class ContentService:
             email=email,
             subject=subject,
             message=message,
-            company_id=company_id
+            phone=phone,
+            company_name=company_name,
+            feedback_type=feedback_type or "general",
+            ip_address=ip_address,
+            user_agent=(user_agent or "")[:500] or None,
         )
         
         db.add(feedback)

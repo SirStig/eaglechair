@@ -10,6 +10,8 @@ import QuickViewModal from '../components/ui/QuickViewModal';
 import VariationImageDisclaimer from '../components/ui/VariationImageDisclaimer';
 import EditableWrapper from '../components/admin/EditableWrapper';
 import SEOHead from '../components/SEOHead';
+import { shareImageUrl } from '../config/site';
+import { productSeo } from '../utils/seoSchema';
 import { useCartStore } from '../store/cartStore';
 import productService from '../services/productService';
 import { getProductImages, getProductGalleryImages, resolveImageUrl, resolveFileUrl, variationHasOwnImage, getImageSrcSet, formatStockStatus, isInStock } from '../utils/apiHelpers';
@@ -180,57 +182,11 @@ const ProductDetailPage = () => {
   }, [product, images]);
 
 
-  // Generate SEO data
-  const seoTitle = product?.meta_title || (product ? `${product.name} | Eagle Chair` : 'Eagle Chair');
-  const seoDescription = product?.meta_description || (product?.description ? product.description.substring(0, 160) : (product ? `Shop ${product.name} from Eagle Chair. Premium commercial seating solutions.` : 'Shop Eagle Chair. Premium commercial seating solutions.'));
-  const productUrl = categorySlug && subcategorySlug && productSlug
-    ? `/products/${categorySlug}/${subcategorySlug}/${productSlug}`
-    : (product ? `/products/${product.id}` : '/products');
-  const productImage = images && images.length > 0 ? images[0] : (product?.primary_image_url || '/og-image.jpg');
-
-  // Generate structured data (JSON-LD)
-  const productSchema = useMemo(() => {
-    if (!product) return null;
-
-    const breadcrumbItems = [
-      { "@type": "ListItem", "position": 1, "name": "Home", "item": "https://www.eaglechair.com/" },
-      { "@type": "ListItem", "position": 2, "name": "Products", "item": "https://www.eaglechair.com/products" }
-    ];
-
-    if (product.category) {
-      const categoryName = typeof product.category === 'object' ? product.category.name : product.category;
-      breadcrumbItems.push({
-        "@type": "ListItem",
-        "position": breadcrumbItems.length + 1,
-        "name": categoryName,
-        "item": `https://www.eaglechair.com/products/category/${categorySlug || product.category.slug || ''}`
-      });
-    }
-
-    breadcrumbItems.push({
-      "@type": "ListItem",
-      "position": breadcrumbItems.length + 1,
-      "name": product.name,
-      "item": `https://www.eaglechair.com${productUrl}`
-    });
-
-    return {
-      "@context": "https://schema.org",
-      "@type": "Product",
-      "name": product.name,
-      "description": product.description || seoDescription,
-      "image": images && images.length > 0 ? images.map(img => `https://www.eaglechair.com${img}`) : [`https://www.eaglechair.com${productImage}`],
-      "sku": product.sku || product.model_number || product.id.toString(),
-      "brand": {
-        "@type": "Brand",
-        "name": "Eagle Chair"
-      },
-      "breadcrumb": {
-        "@type": "BreadcrumbList",
-        "itemListElement": breadcrumbItems
-      }
-    };
-  }, [product, images, productUrl, categorySlug, seoDescription, productImage]);
+  // SEO: same title/description/JSON-LD as the prerendered shell (utils/seoSchema.js)
+  const seo = useMemo(
+    () => (product ? productSeo(product, images || [], currentFamily) : null),
+    [product, images, currentFamily]
+  );
 
   const loadProduct = async () => {
     setLoading(true);
@@ -399,16 +355,17 @@ const ProductDetailPage = () => {
   return (
     <div className={`min-h-screen  ${'bg-gradient-to-br from-cream-50 to-cream-100'
       }`}>
-      <SEOHead
-        title={seoTitle}
-        description={seoDescription}
-        image={productImage}
-        url={productUrl}
-        type="product"
-        keywords={product.meta_keywords || `${product.name}, commercial seating, restaurant chairs, Eagle Chair`}
-        canonical={productUrl}
-        structuredData={productSchema}
-      />
+      {seo && (
+        <SEOHead
+          title={seo.title}
+          description={seo.description}
+          image={shareImageUrl('product', product.slug)}
+          imageAlt={seo.imageAlt}
+          url={seo.path}
+          type="product"
+          structuredData={seo.structuredData}
+        />
+      )}
       {/* Success Message */}
       <AnimatePresence>
         {showSuccessMessage && (

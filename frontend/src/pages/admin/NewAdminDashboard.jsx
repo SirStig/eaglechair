@@ -30,7 +30,8 @@ import {
   MessageSquare,
   Download,
   ClipboardList,
-  BookOpen
+  BookOpen,
+  Inbox,
 } from 'lucide-react';
 import { AnimatePresence, m } from 'framer-motion';
 
@@ -53,6 +54,7 @@ import PricingTierManagement from '../../components/admin/sections/PricingTierMa
 import SiteSettings from '../../components/admin/sections/SiteSettings';
 import Analytics from '../../components/admin/sections/Analytics';
 import EmailTemplateManagement from '../../components/admin/sections/EmailTemplateManagement';
+import InquiryManagement from '../../components/admin/sections/InquiryManagement';
 import AdminDownloads from '../../components/admin/sections/AdminDownloads';
 import ProductRegister from '../../components/admin/sections/ProductRegister';
 import CatalogBuilder from '../../components/admin/sections/CatalogBuilder';
@@ -78,6 +80,14 @@ const NewAdminDashboardInner = () => {
   const [selectedProduct, setSelectedProduct] = useState(null);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const [inquiryUnread, setInquiryUnread] = useState(0);
+
+  // Unread contact-form inquiries for the nav badge
+  useEffect(() => {
+    apiClient.get('/api/v1/admin/inquiries', { params: { page_size: 1 } })
+      .then((res) => setInquiryUnread(res?.unread || 0))
+      .catch(() => {});
+  }, []);
 
   // Determine active section from URL
   const getActiveSectionFromPath = () => {
@@ -96,6 +106,7 @@ const NewAdminDashboardInner = () => {
     if (path.includes('/admin/hardware')) return 'hardware';
     if (path.includes('/admin/companies')) return 'companies';
     if (path.includes('/admin/quotes')) return 'quotes';
+    if (path.includes('/admin/inquiries')) return 'inquiries';
     if (path.includes('/admin/pricing-tiers')) return 'pricing-tiers';
     if (path.includes('/admin/legal-documents')) return 'legal-documents';
     if (path.includes('/admin/settings')) return 'settings';
@@ -140,6 +151,7 @@ const NewAdminDashboardInner = () => {
     else if (path.includes('/admin/hardware')) section = 'hardware';
     else if (path.includes('/admin/companies')) section = 'companies';
     else if (path.includes('/admin/quotes')) section = 'quotes';
+    else if (path.includes('/admin/inquiries')) section = 'inquiries';
     else if (path.includes('/admin/pricing-tiers')) section = 'pricing-tiers';
     else if (path.includes('/admin/legal-documents')) section = 'legal-documents';
     else if (path.includes('/admin/settings')) section = 'settings';
@@ -191,6 +203,7 @@ const NewAdminDashboardInner = () => {
       title: 'Business',
       items: [
         { id: 'quotes', label: 'Quotes', icon: FileText, path: '/admin/quotes' },
+        { id: 'inquiries', label: 'Inquiries', icon: Inbox, path: '/admin/inquiries', badge: inquiryUnread },
         { id: 'pricing-tiers', label: 'Pricing Tiers', icon: DollarSign, path: '/admin/pricing-tiers' },
         { id: 'legal-documents', label: 'Legal Documents', icon: FileText, path: '/admin/legal-documents' },
       ]
@@ -259,6 +272,8 @@ const NewAdminDashboardInner = () => {
         return <CompanyManagement />;
       case 'quotes':
         return <QuoteManagement />;
+      case 'inquiries':
+        return <InquiryManagement onUnreadChange={setInquiryUnread} />;
       case 'pricing-tiers':
         return <PricingTierManagement />;
       case 'legal-documents':
@@ -345,9 +360,20 @@ const NewAdminDashboardInner = () => {
                         }
                       `}
                     >
-                      <Icon className="w-5 h-5 flex-shrink-0" />
+                      <span className="relative flex-shrink-0">
+                        <Icon className="w-5 h-5" />
+                        {item.badge > 0 && sidebarCollapsed && (
+                          <span className="absolute -right-1 -top-1 h-2 w-2 rounded-full bg-primary-500" aria-hidden="true" />
+                        )}
+                      </span>
                       {!sidebarCollapsed && (
                         <span className="font-medium text-sm">{item.label}</span>
+                      )}
+                      {item.badge > 0 && !sidebarCollapsed && (
+                        <span className="ml-auto rounded-full bg-primary-500 px-2 py-0.5 text-[11px] font-bold leading-none text-dark-900">
+                          {item.badge > 99 ? '99+' : item.badge}
+                          <span className="sr-only"> unread</span>
+                        </span>
                       )}
                     </button>
                   );

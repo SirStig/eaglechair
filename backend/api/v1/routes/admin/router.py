@@ -18,6 +18,7 @@ from backend.api.v1.routes.admin import (
     exports,
     families,
     finishes,
+    inquiries,
     pricing_tiers,
     products,
     quotes,
@@ -71,4 +72,5 @@ router.include_router(catalog_builder.router, prefix="/catalog-builder", tags=["
 router.include_router(exports.router, prefix="/exports", tags=["Admin - Exports"])
 router.include_router(register.router, prefix="/register", tags=["Admin - Product Register"])
 router.include_router(emails.router, prefix="/emails", tags=["Admin - Email Templates"])
+router.include_router(inquiries.router, prefix="/inquiries", tags=["Admin - Inquiries"])
 router.include_router(ai_chat.router, prefix="/ai", tags=["Admin - AI Chat"])

@@ -7,6 +7,8 @@ import LoadingSpinner from '../components/ui/LoadingSpinner';
 import ProductCard from '../components/ui/ProductCard';
 import ResponsiveImage from '../components/ui/ResponsiveImage';
 import SEOHead from '../components/SEOHead';
+import { shareImageUrl } from '../config/site';
+import { familySeo } from '../utils/seoSchema';
 import productService from '../services/productService';
 import { resolveFileUrl, resolveImageUrl } from '../utils/apiHelpers';
 import logger from '../utils/logger';
@@ -40,30 +42,13 @@ const ProductFamilyDetailPage = () => {
   }, [familySlug]);
 
   const productCount = products.length;
-  const seoTitle = family ? (family.meta_title || `${family.name} Product Family | Eagle Chair`) : '';
-  const seoDescription = family ? (family.meta_description || (family.description ? family.description.substring(0, 160) : `Explore the ${family.name} product family from Eagle Chair. Premium commercial seating solutions.`)) : '';
-  const familyUrl = family ? `/families/${familySlug}` : '';
-  const familyImage = family ? resolveImageUrl(family.banner_image_url || family.family_image || '/og-image.jpg') : '/og-image.jpg';
+  // Families without their own photo show their first product
+  const familyImage = family
+    ? resolveImageUrl(family.banner_image_url || family.family_image || products[0]?.primary_image_url || '/placeholder.svg')
+    : '/placeholder.svg';
 
-  const familySchema = useMemo(() => {
-    if (!family) return null;
-    return {
-      "@context": "https://schema.org",
-      "@type": "CollectionPage",
-      "name": family.name,
-      "description": family.description || seoDescription,
-      "image": `https://www.eaglechair.com${familyImage}`,
-      "url": `https://www.eaglechair.com${familyUrl}`,
-      "breadcrumb": {
-        "@type": "BreadcrumbList",
-        "itemListElement": [
-          { "@type": "ListItem", "position": 1, "name": "Home", "item": "https://www.eaglechair.com/" },
-          { "@type": "ListItem", "position": 2, "name": "Products", "item": "https://www.eaglechair.com/products" },
-          { "@type": "ListItem", "position": 3, "name": family.name, "item": `https://www.eaglechair.com${familyUrl}` }
-        ]
-      }
-    };
-  }, [family, familySlug, familyUrl, familyImage, seoDescription]);
+  // SEO: same title/description/JSON-LD as the prerendered shell (utils/seoSchema.js)
+  const seo = useMemo(() => (family ? familySeo({ ...family, slug: familySlug }, products) : null), [family, familySlug, products]);
 
   const loadFamily = async () => {
     setLoading(true);
@@ -107,14 +92,12 @@ const ProductFamilyDetailPage = () => {
   return (
     <div className="min-h-screen py-8 bg-gradient-to-br from-cream-50 to-cream-100">
       <SEOHead
-        title={seoTitle}
-        description={seoDescription}
-        image={familyImage}
-        url={familyUrl}
-        type="website"
-        keywords={`${family.name}, product family, commercial seating, Eagle Chair`}
-        canonical={familyUrl}
-        structuredData={familySchema}
+        title={seo.title}
+        description={seo.description}
+        image={shareImageUrl('family', familySlug)}
+        imageAlt={seo.imageAlt}
+        url={seo.path}
+        structuredData={seo.structuredData}
       />
       <div className="w-full px-4 sm:px-6 lg:px-8 xl:px-12 2xl:px-16">
         {/* Back Button */}

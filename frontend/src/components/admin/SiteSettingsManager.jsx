@@ -1,7 +1,6 @@
-import { useState, useEffect } from 'react';
-import { m } from 'framer-motion';
+import { useState, useEffect, useMemo, useCallback } from 'react';
+import { Building2, Phone, MapPin, Clock, Share2, Search, Upload, X } from 'lucide-react';
 import Button from '../ui/Button';
-import Card from '../ui/Card';
 import Input from '../ui/Input';
 import { getSiteSettingsAdmin, updateSiteSettings } from '../../services/cmsAdminService';
 import { isPublishFailed } from '../../utils/cmsContentStore';
@@ -16,46 +15,84 @@ const CONTEXT = 'SiteSettingsManager';
 // Link fields validated against the shared URL policy before saving
 const URL_FIELDS = ['facebook_url', 'instagram_url', 'linkedin_url', 'twitter_url', 'youtube_url'];
 
+const TEXTAREA_CLASS = 'w-full rounded-lg border border-dark-400 bg-dark-700 px-4 py-2.5 text-base text-dark-50 placeholder-dark-200 transition-all focus:border-primary-500 focus:outline-none focus:ring-2 focus:ring-primary-500';
+
+const Section = ({ icon, title, description, children }) => (
+  <section className="rounded-xl border border-dark-600 bg-dark-800">
+    <header className="flex items-start gap-3 border-b border-dark-600 px-5 py-4 sm:px-6">
+      <span className="mt-0.5 flex-shrink-0 text-primary-500 [&>svg]:h-5 [&>svg]:w-5" aria-hidden="true">{icon}</span>
+      <div>
+        <h3 className="font-semibold text-dark-50">{title}</h3>
+        {description && <p className="mt-0.5 text-sm text-dark-200">{description}</p>}
+      </div>
+    </header>
+    <div className="space-y-4 px-5 py-5 sm:px-6">{children}</div>
+  </section>
+);
+
+const CharCount = ({ value, max }) => {
+  const length = (value || '').length;
+  return (
+    <span className={`text-xs tabular-nums ${length > max ? 'text-amber-400' : 'text-dark-200'}`}>
+      {length}/{max}
+    </span>
+  );
+};
+
 /**
- * SiteSettingsManager Component
- * 
- * Admin component for managing site-wide settings including:
- * - Company information
- * - Contact details
- * - Business hours
- * - Logos and branding
- * - Social media links
+ * SiteSettingsManager
+ *
+ * Site-wide settings: branding, contact details, address, hours, social
+ * links and default SEO. Saving publishes to the public site immediately.
  */
 const SiteSettingsManager = () => {
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState(null);
   const [formData, setFormData] = useState({});
+  const [savedData, setSavedData] = useState({});
   const [saving, setSaving] = useState(false);
-  const [uploadingLogo, setUploadingLogo] = useState(false);
-  const [success, setSuccess] = useState(false);
+  const [uploading, setUploading] = useState({});
   const [fieldErrors, setFieldErrors] = useState({});
   const toast = useToast();
 
-  // Fetch site settings from API (admin version - always gets DB data)
-  const fetchSettings = async () => {
+  const fetchSettings = useCallback(async () => {
     try {
-      setLoading(true);
+      setLoadError(null);
       const data = await getSiteSettingsAdmin();
-      setFormData(data);
+      setFormData(data || {});
+      setSavedData(data || {});
     } catch (error) {
       logger.error(CONTEXT, 'Failed to fetch site settings', error);
+      setLoadError(error.message || 'Failed to load site settings');
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
 
   useEffect(() => {
     fetchSettings();
-  }, []);
+  }, [fetchSettings]);
 
-  const handleChange = (e) => {
-    const { name, value } = e.target;
-    setFormData(prev => ({ ...prev, [name]: value }));
-    setFieldErrors(prev => {
+  const isDirty = useMemo(
+    () => Object.keys({ ...formData, ...savedData }).some((key) => (formData[key] ?? '') !== (savedData[key] ?? '')),
+    [formData, savedData]
+  );
+  const isUploading = Object.values(uploading).some(Boolean);
+
+  // Warn before leaving the page with unsaved changes
+  useEffect(() => {
+    if (!isDirty) return undefined;
+    const handler = (e) => {
+      e.preventDefault();
+      e.returnValue = '';
+    };
+    window.addEventListener('beforeunload', handler);
+    return () => window.removeEventListener('beforeunload', handler);
+  }, [isDirty]);
+
+  const setField = (name, value) => {
+    setFormData((prev) => ({ ...prev, [name]: value }));
+    setFieldErrors((prev) => {
       if (!prev[name]) return prev;
       const next = { ...prev };
       delete next[name];
@@ -63,349 +100,219 @@ const SiteSettingsManager = () => {
     });
   };
 
+  const handleChange = (e) => setField(e.target.name, e.target.value);
+
+  const field = (name) => ({
+    name,
+    value: formData[name] || '',
+    onChange: handleChange,
+    error: fieldErrors[name],
+  });
+
   const handleLogoUpload = async (e, fieldName) => {
     const file = e.target.files?.[0];
+    e.target.value = '';
     if (!file) return;
-
     try {
-      setUploadingLogo(true);
+      setUploading((prev) => ({ ...prev, [fieldName]: true }));
       const url = await uploadImage(file, 'logos');
-      setFormData(prev => ({ ...prev, [fieldName]: url }));
-      logger.info(CONTEXT, `Logo uploaded: ${url}`);
-      toast.success('Logo uploaded successfully');
+      setField(fieldName, url);
     } catch (error) {
       logger.error(CONTEXT, 'Logo upload failed', error);
-      toast.error('Failed to upload logo: ' + error.message);
+      toast.error(`Logo upload failed: ${error.message}`);
     } finally {
-      setUploadingLogo(false);
+      setUploading((prev) => ({ ...prev, [fieldName]: false }));
     }
   };
 
   const handleSubmit = async (e) => {
-    e.preventDefault();
+    e?.preventDefault();
 
     const errors = {};
-    URL_FIELDS.forEach((field) => {
-      if (!isSafeUrl(formData[field])) errors[field] = URL_POLICY_MESSAGE;
+    URL_FIELDS.forEach((name) => {
+      if (!isSafeUrl(formData[name])) errors[name] = URL_POLICY_MESSAGE;
     });
     setFieldErrors(errors);
     if (Object.keys(errors).length > 0) {
       toast.error('Please fix the highlighted links before saving.');
       return;
     }
-    
+
     try {
       setSaving(true);
-      logger.info(CONTEXT, 'Updating site settings');
       // The API client clears the public content caches after this write
       const response = await updateSiteSettings(formData);
-      await fetchSettings(); // Refresh data after update
-      if (isPublishFailed(response)) {
-        // Saved to the DB but not published; the warning toast is shown
-        // globally (ToastProvider), so no success message here.
-        logger.warn(CONTEXT, 'Site settings saved but not published');
-        return;
-      }
-      setSuccess(true);
-      setTimeout(() => setSuccess(false), 3000);
-      toast.success('Settings updated successfully');
-      logger.info(CONTEXT, 'Site settings updated successfully');
+      await fetchSettings();
+      // A save that didn't publish raises a global warning toast instead
+      if (!isPublishFailed(response)) toast.success('Site settings saved and published');
     } catch (error) {
       logger.error(CONTEXT, 'Failed to update site settings', error);
-      toast.error('Failed to update settings: ' + error.message);
+      toast.error(`Couldn't save settings: ${error.message}`);
     } finally {
       setSaving(false);
     }
   };
 
+  const renderLogoField = (name, label, hint) => (
+    <div>
+      <span className="mb-1.5 block text-sm font-medium text-dark-100">{label}</span>
+      <div className={`flex h-24 items-center justify-center rounded-lg border border-dashed border-dark-500 p-4 bg-dark-900`}>
+        {formData[name] ? (
+          <ResponsiveImage sizes="240px" fullResolution={false} placeholder={false} src={formData[name]} alt="" className="max-h-14 object-contain" />
+        ) : (
+          <span className="text-sm text-dark-200">No logo uploaded</span>
+        )}
+      </div>
+      <div className="mt-2 flex items-center gap-2">
+        <label className="cursor-pointer rounded-lg focus-within:ring-2 focus-within:ring-primary-500">
+          <input
+            type="file"
+            accept="image/*"
+            onChange={(e) => handleLogoUpload(e, name)}
+            className="sr-only"
+            disabled={uploading[name]}
+            aria-label={`Upload ${label}`}
+          />
+          <span className="inline-flex min-h-[36px] items-center gap-1.5 rounded-lg bg-dark-600 px-3 text-sm font-medium text-dark-50 transition-colors hover:bg-dark-500">
+            <Upload className="h-4 w-4" aria-hidden="true" />
+            {uploading[name] ? 'Uploading…' : formData[name] ? 'Replace' : 'Upload'}
+          </span>
+        </label>
+        {formData[name] && (
+          <button
+            type="button"
+            onClick={() => setField(name, '')}
+            className="inline-flex min-h-[36px] items-center gap-1 rounded-lg px-3 text-sm text-dark-100 transition-colors hover:bg-dark-700 hover:text-red-300"
+          >
+            <X className="h-4 w-4" aria-hidden="true" />
+            Remove
+          </button>
+        )}
+      </div>
+      {hint && <p className="mt-1.5 text-xs text-dark-200">{hint}</p>}
+    </div>
+  );
+
   if (loading) {
     return (
-      <Card>
-        <div className="flex items-center justify-center py-12">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-500"></div>
-        </div>
-      </Card>
+      <div className="space-y-4">
+        {[0, 1, 2].map((i) => <div key={i} className="h-40 animate-pulse rounded-xl bg-dark-800" />)}
+      </div>
+    );
+  }
+
+  if (loadError) {
+    return (
+      <div role="alert" className="flex items-center justify-between gap-4 rounded-lg border border-red-800 bg-red-950/40 px-4 py-3 text-sm text-red-200">
+        <span>{loadError}</span>
+        <Button variant="ghost" size="xs" onClick={() => { setLoading(true); fetchSettings(); }}>Retry</Button>
+      </div>
     );
   }
 
   return (
-    <div className="space-y-6">
-      {/* Header */}
+    <form onSubmit={handleSubmit} className="space-y-6 pb-24">
       <div>
-        <h2 className="text-2xl font-bold text-dark-50">Site Settings</h2>
-        <p className="text-dark-100 mt-1">
-          Manage company information, contact details, and site-wide settings
+        <h2 className="text-xl font-bold text-dark-50 sm:text-2xl">Site Settings</h2>
+        <p className="mt-1 text-sm text-dark-100">
+          Company details shown in the header, footer and contact page. Changes go live when you save.
         </p>
       </div>
 
-      {/* Success Message */}
-      {success && (
-        <m.div
-          initial={{ opacity: 0, y: -10 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="bg-green-900/50 border border-green-500 text-green-100 px-4 py-3 rounded-lg"
-        >
-          ✓ Settings updated successfully!
-        </m.div>
-      )}
+      <Section icon={<Building2 />} title="Branding" description="Name, tagline and logos used across the site.">
+        <Input label="Company name" {...field('company_name')} />
+        <div>
+          <label htmlFor="company_tagline" className="mb-1.5 block text-sm font-medium text-dark-100">Tagline</label>
+          <textarea id="company_tagline" {...field('company_tagline')} rows={2} className={`${TEXTAREA_CLASS} resize-y`} />
+        </div>
+        <div className="grid gap-6 md:grid-cols-2">
+          {renderLogoField('logo_url', 'Main logo', 'Shown in the header and footer.')}
+          {renderLogoField('logo_dark_url', 'Alternate logo', 'Optional variant for dark backgrounds. Not currently shown on the site.')}
+        </div>
+      </Section>
 
-      <form onSubmit={handleSubmit} className="space-y-6">
-        {/* Company Branding */}
-        <Card>
-          <h3 className="text-xl font-semibold text-dark-50 mb-4">Company Branding</h3>
-          <div className="space-y-4">
-            <Input
-              label="Company Name"
-              name="company_name"
-              value={formData.company_name || ''}
-              onChange={handleChange}
-            />
-            
-            <div>
-              <label className="block text-sm font-medium text-dark-100 mb-2">
-                Company Tagline
-              </label>
-              <textarea
-                name="company_tagline"
-                value={formData.company_tagline || ''}
-                onChange={handleChange}
-                rows={2}
-                className="w-full px-4 py-2 bg-dark-700 border border-dark-500 rounded-lg text-dark-50 placeholder-dark-300 focus:outline-none focus:ring-2 focus:ring-accent-500"
-              />
-            </div>
+      <Section icon={<Phone />} title="Contact details" description="Phone numbers and inboxes customers can reach.">
+        <div className="grid gap-4 md:grid-cols-2">
+          <Input label="Main phone" type="tel" {...field('primary_phone')} />
+          <Input label="Main email" type="email" {...field('primary_email')} />
+          <Input label="Sales phone" type="tel" {...field('sales_phone')} />
+          <Input label="Sales email" type="email" {...field('sales_email')} />
+          <Input label="Support phone" type="tel" {...field('support_phone')} />
+          <Input label="Support email" type="email" {...field('support_email')} />
+        </div>
+      </Section>
 
-            {/* Logo Upload */}
-            <div className="grid md:grid-cols-2 gap-4">
-              <div>
-                <label className="block text-sm font-medium text-dark-100 mb-2">
-                  Main Logo
-                </label>
-                {formData.logo_url && (
-                  <div className="mb-2 p-4 bg-dark-700 rounded-lg">
-                    <ResponsiveImage sizes="240px" fullResolution={false} placeholder={false} src={formData.logo_url} alt="Logo" className="h-12 object-contain" />
-                  </div>
-                )}
-                <label className="cursor-pointer">
-                  <input
-                    type="file"
-                    accept="image/*"
-                    onChange={(e) => handleLogoUpload(e, 'logo_url')}
-                    className="sr-only"
-                    disabled={uploadingLogo}
-                  />
-                  <div className="px-4 py-2 bg-dark-700 hover:bg-dark-600 text-dark-50 rounded-lg transition-colors border border-dark-500 text-sm font-medium text-center">
-                    {uploadingLogo ? 'Uploading...' : 'Choose Logo'}
-                  </div>
-                </label>
-              </div>
+      <Section icon={<MapPin />} title="Address">
+        <Input label="Address line 1" {...field('address_line1')} />
+        <Input label="Address line 2" helperText="Optional" {...field('address_line2')} />
+        <div className="grid gap-4 sm:grid-cols-3">
+          <Input label="City" {...field('city')} />
+          <Input label="State" {...field('state')} />
+          <Input label="ZIP code" {...field('zip_code')} />
+        </div>
+        <Input label="Country" {...field('country')} placeholder="USA" />
+      </Section>
 
-              <div>
-                <label className="block text-sm font-medium text-dark-100 mb-2">
-                  Dark Logo (Optional)
-                </label>
-                {formData.logo_dark_url && (
-                  <div className="mb-2 p-4 bg-dark-700 rounded-lg">
-                    <ResponsiveImage sizes="240px" fullResolution={false} placeholder={false} src={formData.logo_dark_url} alt="Dark Logo" className="h-12 object-contain" />
-                  </div>
-                )}
-                <label className="cursor-pointer">
-                  <input
-                    type="file"
-                    accept="image/*"
-                    onChange={(e) => handleLogoUpload(e, 'logo_dark_url')}
-                    className="sr-only"
-                    disabled={uploadingLogo}
-                  />
-                  <div className="px-4 py-2 bg-dark-700 hover:bg-dark-600 text-dark-50 rounded-lg transition-colors border border-dark-500 text-sm font-medium text-center">
-                    {uploadingLogo ? 'Uploading...' : 'Choose Dark Logo'}
-                  </div>
-                </label>
-              </div>
-            </div>
+      <Section icon={<Clock />} title="Business hours" description="Write each line as it should appear, e.g. “Monday – Friday: 8:00 AM – 5:00 PM”.">
+        <Input label="Weekdays" placeholder="Monday – Friday: 8:00 AM – 5:00 PM" {...field('business_hours_weekdays')} />
+        <div className="grid gap-4 md:grid-cols-2">
+          <Input label="Saturday" placeholder="Saturday: Closed" {...field('business_hours_saturday')} />
+          <Input label="Sunday" placeholder="Sunday: Closed" {...field('business_hours_sunday')} />
+        </div>
+      </Section>
+
+      <Section icon={<Share2 />} title="Social media" description="Leave a field blank to hide that network.">
+        <div className="grid gap-4 md:grid-cols-2">
+          <Input label="Facebook" type="url" placeholder="https://facebook.com/…" {...field('facebook_url')} />
+          <Input label="Instagram" type="url" placeholder="https://instagram.com/…" {...field('instagram_url')} />
+          <Input label="LinkedIn" type="url" placeholder="https://linkedin.com/company/…" {...field('linkedin_url')} />
+          <Input label="X (Twitter)" type="url" placeholder="https://x.com/…" {...field('twitter_url')} />
+          <Input label="YouTube" type="url" placeholder="https://youtube.com/@…" {...field('youtube_url')} />
+        </div>
+      </Section>
+
+      <Section icon={<Search />} title="Search engines" description="Default title and description for the homepage in Google results and link previews.">
+        <div>
+          <div className="mb-1.5 flex items-baseline justify-between">
+            <label htmlFor="meta_title" className="text-sm font-medium text-dark-100">Homepage title</label>
+            <CharCount value={formData.meta_title} max={60} />
           </div>
-        </Card>
-
-        {/* Contact Information */}
-        <Card>
-          <h3 className="text-xl font-semibold text-dark-50 mb-4">Contact Information</h3>
-          <div className="grid md:grid-cols-2 gap-4">
-            <Input
-              label="Primary Phone"
-              name="primary_phone"
-              value={formData.primary_phone || ''}
-              onChange={handleChange}
-            />
-            <Input
-              label="Sales Phone"
-              name="sales_phone"
-              value={formData.sales_phone || ''}
-              onChange={handleChange}
-            />
-            <Input
-              label="Primary Email"
-              name="primary_email"
-              type="email"
-              value={formData.primary_email || ''}
-              onChange={handleChange}
-            />
-            <Input
-              label="Sales Email"
-              name="sales_email"
-              type="email"
-              value={formData.sales_email || ''}
-              onChange={handleChange}
-            />
-            <Input
-              label="Support Email"
-              name="support_email"
-              type="email"
-              value={formData.support_email || ''}
-              onChange={handleChange}
-            />
-            <Input
-              label="Support Phone"
-              name="support_phone"
-              value={formData.support_phone || ''}
-              onChange={handleChange}
-            />
+          <input id="meta_title" {...field('meta_title')} className={TEXTAREA_CLASS} />
+        </div>
+        <div>
+          <div className="mb-1.5 flex items-baseline justify-between">
+            <label htmlFor="meta_description" className="text-sm font-medium text-dark-100">Homepage description</label>
+            <CharCount value={formData.meta_description} max={160} />
           </div>
-        </Card>
+          <textarea id="meta_description" {...field('meta_description')} rows={3} className={`${TEXTAREA_CLASS} resize-y`} />
+        </div>
+        <Input label="Keywords" helperText="Comma-separated. Most search engines ignore these." {...field('meta_keywords')} />
+      </Section>
 
-        {/* Primary Address */}
-        <Card>
-          <h3 className="text-xl font-semibold text-dark-50 mb-4">Primary Address</h3>
-          <div className="space-y-4">
-            <Input
-              label="Address Line 1"
-              name="address_line1"
-              value={formData.address_line1 || ''}
-              onChange={handleChange}
-            />
-            <Input
-              label="Address Line 2 (Optional)"
-              name="address_line2"
-              value={formData.address_line2 || ''}
-              onChange={handleChange}
-            />
-            <div className="grid md:grid-cols-3 gap-4">
-              <Input
-                label="City"
-                name="city"
-                value={formData.city || ''}
-                onChange={handleChange}
-              />
-              <Input
-                label="State"
-                name="state"
-                value={formData.state || ''}
-                onChange={handleChange}
-              />
-              <Input
-                label="ZIP Code"
-                name="zip_code"
-                value={formData.zip_code || ''}
-                onChange={handleChange}
-              />
-            </div>
-            <Input
-              label="Country"
-              name="country"
-              value={formData.country || 'USA'}
-              onChange={handleChange}
-            />
-          </div>
-        </Card>
-
-        {/* Business Hours */}
-        <Card>
-          <h3 className="text-xl font-semibold text-dark-50 mb-4">Business Hours</h3>
-          <div className="space-y-4">
-            <Input
-              label="Weekdays Hours"
-              name="business_hours_weekdays"
-              placeholder="e.g., Monday - Friday: 8:00 AM - 5:00 PM"
-              value={formData.business_hours_weekdays || ''}
-              onChange={handleChange}
-            />
-            <Input
-              label="Saturday Hours"
-              name="business_hours_saturday"
-              placeholder="e.g., Saturday: 9:00 AM - 2:00 PM"
-              value={formData.business_hours_saturday || ''}
-              onChange={handleChange}
-            />
-            <Input
-              label="Sunday Hours"
-              name="business_hours_sunday"
-              placeholder="e.g., Sunday: Closed"
-              value={formData.business_hours_sunday || ''}
-              onChange={handleChange}
-            />
-          </div>
-        </Card>
-
-        {/* Social Media */}
-        <Card>
-          <h3 className="text-xl font-semibold text-dark-50 mb-4">Social Media</h3>
-          <div className="grid md:grid-cols-2 gap-4">
-            <Input
-              label="Facebook URL"
-              name="facebook_url"
-              type="url"
-              value={formData.facebook_url || ''}
-              onChange={handleChange}
-              error={fieldErrors.facebook_url}
-            />
-            <Input
-              label="Instagram URL"
-              name="instagram_url"
-              type="url"
-              value={formData.instagram_url || ''}
-              onChange={handleChange}
-              error={fieldErrors.instagram_url}
-            />
-            <Input
-              label="LinkedIn URL"
-              name="linkedin_url"
-              type="url"
-              value={formData.linkedin_url || ''}
-              onChange={handleChange}
-              error={fieldErrors.linkedin_url}
-            />
-            <Input
-              label="Twitter URL"
-              name="twitter_url"
-              type="url"
-              value={formData.twitter_url || ''}
-              onChange={handleChange}
-              error={fieldErrors.twitter_url}
-            />
-            <Input
-              label="YouTube URL"
-              name="youtube_url"
-              type="url"
-              value={formData.youtube_url || ''}
-              onChange={handleChange}
-              error={fieldErrors.youtube_url}
-            />
-          </div>
-        </Card>
-
-        {/* Save Button */}
-        <div className="flex justify-end gap-4">
-          <Button
-            type="submit"
-            variant="primary"
-            size="lg"
-            disabled={saving || uploadingLogo}
-          >
-            {saving ? 'Saving...' : 'Save Settings'}
+      {/* Save bar: sticks to the bottom of the viewport while there are changes */}
+      <div
+        className={`sticky bottom-4 z-20 flex items-center justify-between gap-3 rounded-xl border px-4 py-3 shadow-2xl backdrop-blur transition-all ${
+          isDirty ? 'border-primary-500/40 bg-dark-800/95' : 'border-dark-600 bg-dark-800/80'
+        }`}
+      >
+        <p className="text-sm" aria-live="polite">
+          {isDirty
+            ? <span className="font-medium text-amber-300">You have unsaved changes</span>
+            : <span className="text-dark-200">All changes saved</span>}
+        </p>
+        <div className="flex items-center gap-2">
+          {isDirty && (
+            <Button type="button" variant="ghost" size="sm" onClick={() => { setFormData(savedData); setFieldErrors({}); }} disabled={saving}>
+              Discard
+            </Button>
+          )}
+          <Button type="submit" variant="primary" size="sm" disabled={saving || isUploading || !isDirty}>
+            {saving ? 'Saving…' : 'Save changes'}
           </Button>
         </div>
-      </form>
-    </div>
+      </div>
+    </form>
   );
 };
 
 export default SiteSettingsManager;
-

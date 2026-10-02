@@ -147,6 +147,26 @@ class EmailService:
                 </html>
             '''
         },
+        'admin_contact_notification': {
+            'subject': 'New website inquiry: {{ subject or "General" }} from {{ name }}',
+            'body': '''
+                <html>
+                <body>
+                    <h2>New Contact Form Submission</h2>
+                    <ul>
+                        <li>Name: {{ name }}</li>
+                        <li>Email: {{ email }}</li>
+                        {% if phone %}<li>Phone: {{ phone }}</li>{% endif %}
+                        {% if company_name %}<li>Company: {{ company_name }}</li>{% endif %}
+                        <li>Subject: {{ subject or "General" }}</li>
+                    </ul>
+                    <p style="white-space: pre-wrap;">{{ message }}</p>
+                    <br>
+                    <p>EagleChair Admin System</p>
+                </body>
+                </html>
+            '''
+        },
         'company_approved': {
             'subject': 'Your EagleChair Account is Approved',
             'body': '''
@@ -862,6 +882,31 @@ class EmailService:
             }
         )
     
+    @staticmethod
+    async def send_admin_contact_notification(
+        db: AsyncSession,
+        name: str,
+        email: str,
+        message: str,
+        subject: Optional[str] = None,
+        phone: Optional[str] = None,
+        company_name: Optional[str] = None,
+    ) -> bool:
+        """Notify admins of a new contact form submission"""
+        return await EmailService.send_email(
+            db=db,
+            to_email=settings.ADMIN_EMAIL,
+            template_type='admin_contact_notification',
+            context={
+                'name': name,
+                'email': email,
+                'phone': phone,
+                'company_name': company_name,
+                'subject': subject,
+                'message': message,
+            }
+        )
+
     @staticmethod
     async def send_company_approved_email(
         db: AsyncSession,

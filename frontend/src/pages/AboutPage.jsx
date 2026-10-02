@@ -5,6 +5,7 @@ import { SEO } from '../config/seoConfig';
 import Card from '../components/ui/Card';
 import ResponsiveImage from '../components/ui/ResponsiveImage';
 import EditableWrapper from '../components/admin/EditableWrapper';
+import EditableSectionHeading from '../components/common/EditableSectionHeading';
 import EditableList from '../components/admin/EditableList';
 import { useEditMode } from '../contexts/useEditMode';
 import { useCompanyValues, useCompanyMilestones, usePageContent } from '../hooks/useContent';
@@ -197,8 +198,19 @@ const AboutPage = () => {
       <section className="py-12 sm:py-16 lg:py-20 bg-dark-700">
         <div className="container">
           <div className="text-center mb-8 sm:mb-12">
-            <h2 className="text-2xl sm:text-3xl md:text-4xl font-bold mb-3 sm:mb-4 text-dark-50">Our Values</h2>
-            <p className="text-lg sm:text-xl text-dark-100">The principles that guide everything we do</p>
+            <EditableSectionHeading
+              page="about"
+              section="values"
+              defaultTitle="Our Values"
+              defaultSubtitle="The principles that guide everything we do"
+            >
+              {({ title, subtitle }) => (
+                <>
+                  <h2 className="text-2xl sm:text-3xl md:text-4xl font-bold mb-3 sm:mb-4 text-dark-50">{title}</h2>
+                  {subtitle && <p className="text-lg sm:text-xl text-dark-100">{subtitle}</p>}
+                </>
+              )}
+            </EditableSectionHeading>
           </div>
           {loading ? (
             <div className="flex justify-center">
@@ -270,8 +282,19 @@ const AboutPage = () => {
       <section className="py-12 sm:py-16 lg:py-20 bg-dark-800">
         <div className="container">
           <div className="text-center mb-8 sm:mb-12">
-            <h2 className="text-2xl sm:text-3xl md:text-4xl font-bold mb-3 sm:mb-4 text-dark-50">Our Journey</h2>
-            <p className="text-lg sm:text-xl text-dark-100">Key milestones in our history</p>
+            <EditableSectionHeading
+              page="about"
+              section="journey"
+              defaultTitle="Our Journey"
+              defaultSubtitle="Key milestones in our history"
+            >
+              {({ title, subtitle }) => (
+                <>
+                  <h2 className="text-2xl sm:text-3xl md:text-4xl font-bold mb-3 sm:mb-4 text-dark-50">{title}</h2>
+                  {subtitle && <p className="text-lg sm:text-xl text-dark-100">{subtitle}</p>}
+                </>
+              )}
+            </EditableSectionHeading>
           </div>
           <div className="max-w-4xl mx-auto">
             <EditableList

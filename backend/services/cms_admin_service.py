@@ -792,11 +792,25 @@ class CMSAdminService:
                 "slug": doc.slug,
                 "version": doc.version,
                 "effectiveDate": doc.effective_date,
+                "metaTitle": doc.meta_title,
+                "metaDescription": doc.meta_description,
                 "displayOrder": doc.display_order,
-                "isActive": doc.is_active
+                "isActive": doc.is_active,
+                "updatedAt": doc.updated_at.isoformat() if doc.updated_at else None,
             }
             for doc in documents
         ]
+
+    @staticmethod
+    async def legal_document_type_taken(
+        db: AsyncSession, document_type: LegalDocumentType, exclude_id: int | None = None
+    ) -> bool:
+        """Whether another legal document already uses this (unique) type."""
+        query = select(LegalDocument.id).where(LegalDocument.document_type == document_type)
+        if exclude_id is not None:
+            query = query.where(LegalDocument.id != exclude_id)
+        result = await db.execute(query.limit(1))
+        return result.scalar_one_or_none() is not None
 
     @staticmethod
     async def create_legal_document(

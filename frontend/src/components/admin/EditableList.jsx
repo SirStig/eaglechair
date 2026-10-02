@@ -1,11 +1,19 @@
 import { useState, useEffect, useRef, lazy, Suspense } from 'react';
+// eslint-disable-next-line no-unused-vars
 import { m, AnimatePresence } from 'framer-motion';
+import { Pencil, Trash2, ChevronUp, ChevronDown, GripVertical, Plus } from 'lucide-react';
 import { useEditMode } from '../../contexts/useEditMode';
 import { useToast } from '../../contexts/ToastContext';
 import Button from '../ui/Button';
+import DiscardChangesDialog from './DiscardChangesDialog';
 import logger from '../../utils/logger';
 
 const CONTEXT = 'EditableList';
+
+// "hero-slide" -> "hero slide"
+const CONTROL_BUTTON = 'inline-flex h-8 w-8 items-center justify-center rounded-md text-dark-50 transition-colors hover:bg-editor-600 hover:text-white disabled:pointer-events-none disabled:opacity-30 focus:outline-none focus-visible:ring-2 focus-visible:ring-editor-400';
+
+const readable = (type) => String(type).replace(/[-_]/g, ' ');
 
 // Admin-only; fetched when an item is edited/created
 const EditModal = lazy(() => import('./EditModal'));
@@ -58,7 +66,9 @@ const EditableList = ({
   // Order shown while a reorder is being saved (null = use `items`)
   const [optimisticItems, setOptimisticItems] = useState(null);
   const [reordering, setReordering] = useState(false);
+  const [pendingDelete, setPendingDelete] = useState(null);
   const reorderingRef = useRef(false);
+  const itemLabel = readable(itemType);
 
   const canReorder = isEditMode && allowReorder && !!onReorder && !reordering;
   const displayItems = optimisticItems || items;
@@ -78,23 +88,26 @@ const EditableList = ({
     }
   };
 
-  const handleDeleteClick = async (e, item) => {
+  const handleDeleteClick = (e, item) => {
     if (isEditMode && onDelete) {
       e.stopPropagation();
       e.preventDefault();
+      setPendingDelete(item);
+    }
+  };
 
-      const confirmed = window.confirm(`Are you sure you want to delete this ${itemType}?`);
-      if (confirmed) {
-        try {
-          logger.info(CONTEXT, `Deleting ${itemType} ${item.id}`);
-          await onDelete(item.id);
-          if (refetch) await refetch();
-          logger.info(CONTEXT, `Successfully deleted ${itemType}`);
-        } catch (error) {
-          logger.error(CONTEXT, `Failed to delete ${itemType}`, error);
-          toast.error(`Failed to delete ${itemType}: ${error.message || 'Unknown error'}`);
-        }
-      }
+  const confirmDelete = async () => {
+    const item = pendingDelete;
+    setPendingDelete(null);
+    if (!item) return;
+    try {
+      logger.info(CONTEXT, `Deleting ${itemType} ${item.id}`);
+      await onDelete(item.id);
+      if (refetch) await refetch();
+      toast.success(`Deleted ${itemLabel}`);
+    } catch (error) {
+      logger.error(CONTEXT, `Failed to delete ${itemType}`, error);
+      toast.error(`Couldn't delete ${itemLabel}: ${error.message || 'Unknown error'}`);
     }
   };
 
@@ -118,37 +131,40 @@ const EditableList = ({
     setDragOverIndex(index);
   };
 
-  const handleDrop = async (e, dropIndex) => {
-    if (!canReorder || draggedIndex === null) return;
-    e.preventDefault();
-
-    const fromIndex = draggedIndex;
-    setDraggedIndex(null);
-    setDragOverIndex(null);
-    if (fromIndex === dropIndex) return;
-
+  // Moves an item and saves the new order (optimistic, rolled back on failure).
+  // toIndex is the final position of the item.
+  const moveItem = async (fromIndex, toIndex) => {
+    if (!canReorder || fromIndex === toIndex || toIndex < 0 || toIndex >= displayItems.length) return;
     const previousItems = displayItems;
     const newItems = [...previousItems];
-    const [draggedItem] = newItems.splice(fromIndex, 1);
-    // Insert at new position (adjust index if dragging from earlier position)
-    const insertIndex = fromIndex < dropIndex ? dropIndex - 1 : dropIndex;
-    newItems.splice(insertIndex, 0, draggedItem);
+    const [movedItem] = newItems.splice(fromIndex, 1);
+    newItems.splice(toIndex, 0, movedItem);
 
     setOptimisticItems(newItems);
     reorderingRef.current = true;
     setReordering(true);
     try {
-      await onReorder(newItems, { item: draggedItem, fromIndex, toIndex: insertIndex });
-      logger.info(CONTEXT, `Reordered ${itemType}`, { from: fromIndex, to: insertIndex });
+      await onReorder(newItems, { item: movedItem, fromIndex, toIndex });
+      logger.info(CONTEXT, `Reordered ${itemType}`, { from: fromIndex, to: toIndex });
     } catch (error) {
       logger.error(CONTEXT, `Failed to reorder ${itemType}`, error);
-      // Restore the order from before the drag
       setOptimisticItems(null);
       toast.error(`Couldn't save the new order: ${error?.message || 'Unknown error'}`);
     } finally {
       reorderingRef.current = false;
       setReordering(false);
     }
+  };
+
+  const handleDrop = (e, dropIndex) => {
+    if (!canReorder || draggedIndex === null) return;
+    e.preventDefault();
+    const fromIndex = draggedIndex;
+    setDraggedIndex(null);
+    setDragOverIndex(null);
+    if (fromIndex === dropIndex) return;
+    // Dropping on an item inserts before it
+    moveItem(fromIndex, fromIndex < dropIndex ? dropIndex - 1 : dropIndex);
   };
 
   const handleAddClick = () => {
@@ -169,6 +185,7 @@ const EditableList = ({
 
         await onUpdate(editingItem.id, cleanData);
         if (refetch) await refetch();
+        toast.success(`Saved ${itemLabel}`);
         logger.info(CONTEXT, `Successfully updated ${itemType}`);
       }
       setEditingItem(null);
@@ -184,6 +201,7 @@ const EditableList = ({
         logger.info(CONTEXT, `Creating new ${itemType}`);
         await onCreate(newData);
         if (refetch) await refetch();
+        toast.success(`Added ${itemLabel}`);
         logger.info(CONTEXT, `Successfully created ${itemType}`);
       }
       setShowCreateModal(false);
@@ -195,26 +213,22 @@ const EditableList = ({
 
   return (
     <div className="relative">
-      {/* Add Button - Floats at top when in edit mode */}
       <AnimatePresence>
         {isEditMode && onCreate && (
           <m.div
-            initial={{ opacity: 0, y: -10 }}
+            initial={{ opacity: 0, y: -6 }}
             animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -10 }}
+            exit={{ opacity: 0, y: -6 }}
             className="mb-4"
           >
-            <Button
+            <button
+              type="button"
               onClick={handleAddClick}
-              variant="primary"
-              size="sm"
-              className="flex items-center gap-2"
+              className="inline-flex min-h-[40px] items-center gap-2 rounded-lg border border-dashed border-editor-400/70 bg-editor-950/40 px-4 text-sm font-medium text-editor-200 transition-colors hover:border-editor-300 hover:bg-editor-900/50 hover:text-white focus:outline-none focus-visible:ring-2 focus-visible:ring-editor-400"
             >
-              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-              </svg>
+              <Plus className="h-4 w-4" aria-hidden="true" />
               {addButtonText}
-            </Button>
+            </button>
           </m.div>
         )}
       </AnimatePresence>
@@ -227,7 +241,7 @@ const EditableList = ({
             className={`group/editable relative ${
               canReorder ? 'cursor-move' : ''
             } ${
-              dragOverIndex === index ? 'border-t-4 border-accent-400' : ''
+              dragOverIndex === index ? 'before:absolute before:-top-2 before:left-0 before:right-0 before:h-1 before:rounded-full before:bg-editor-400' : ''
             } ${
               draggedIndex === index ? 'opacity-50' : ''
             }`}
@@ -239,66 +253,78 @@ const EditableList = ({
             onMouseEnter={() => setHoveredIndex(index)}
             onMouseLeave={() => setHoveredIndex(null)}
           >
-            {/* Drag Handle - Shows when in edit mode and reordering is allowed */}
-            {isEditMode && allowReorder && onReorder && (
-              <div className="absolute left-2 top-1/2 transform -translate-y-1/2 z-10 opacity-60 hover:opacity-100 transition-opacity" aria-hidden="true">
-                <svg className="w-5 h-5 text-gray-400" fill="currentColor" viewBox="0 0 24 24">
-                  <path d="M9 3h2v2H9V3zm0 4h2v2H9V7zm0 4h2v2H9v-2zm0 4h2v2H9v-2zm0 4h2v2H9v-2zm4-16h2v2h-2V3zm0 4h2v2h-2V7zm0 4h2v2h-2v-2zm0 4h2v2h-2v-2zm0 4h2v2h-2v-2z"/>
-                </svg>
-              </div>
-            )}
-
-            {/* Edit Controls Overlay: visible on hover, on keyboard focus
-                within the item, and always on touch devices (no hover). */}
-            {isEditMode && (onUpdate || onDelete) && (
+            {/* Edit controls: visible on hover, on keyboard focus within the
+                item, and always on touch devices (no hover). */}
+            {isEditMode && (onUpdate || onDelete || (allowReorder && onReorder)) && (
               <div
-                className="editable-list-controls absolute top-2 right-2 z-20 flex gap-2 opacity-0 pointer-events-none transition-opacity duration-200 group-hover/editable:opacity-100 group-hover/editable:pointer-events-auto group-focus-within/editable:opacity-100 group-focus-within/editable:pointer-events-auto"
+                className="editable-list-controls absolute right-2 top-2 z-20 flex items-center gap-0.5 rounded-lg border border-editor-500/50 bg-dark-900/95 p-0.5 opacity-0 shadow-lg backdrop-blur pointer-events-none transition-opacity duration-150 group-hover/editable:opacity-100 group-hover/editable:pointer-events-auto group-focus-within/editable:opacity-100 group-focus-within/editable:pointer-events-auto"
               >
+                {allowReorder && onReorder && (
+                  <>
+                    <span className="hidden px-1 text-dark-200 sm:inline-flex" aria-hidden="true" title="Drag to reorder">
+                      <GripVertical className="h-4 w-4" />
+                    </span>
+                    <button
+                      type="button"
+                      onClick={(e) => { e.preventDefault(); e.stopPropagation(); moveItem(index, index - 1); }}
+                      disabled={!canReorder || index === 0}
+                      className={CONTROL_BUTTON}
+                      title="Move earlier"
+                      aria-label={`Move ${itemLabel} ${index + 1} earlier`}
+                    >
+                      <ChevronUp className="h-4 w-4" aria-hidden="true" />
+                    </button>
+                    <button
+                      type="button"
+                      onClick={(e) => { e.preventDefault(); e.stopPropagation(); moveItem(index, index + 1); }}
+                      disabled={!canReorder || index === displayItems.length - 1}
+                      className={CONTROL_BUTTON}
+                      title="Move later"
+                      aria-label={`Move ${itemLabel} ${index + 1} later`}
+                    >
+                      <ChevronDown className="h-4 w-4" aria-hidden="true" />
+                    </button>
+                  </>
+                )}
                 {onUpdate && (
                   <button
                     type="button"
                     onClick={(e) => handleEditClick(e, item, index)}
-                    className="p-2 bg-accent-600 hover:bg-accent-700 text-white rounded-lg shadow-lg transition-all border border-accent-400 focus:outline-none focus-visible:ring-2 focus-visible:ring-white"
+                    className={CONTROL_BUTTON}
                     title="Edit"
-                    aria-label={`Edit ${itemType} ${index + 1}`}
+                    aria-label={`Edit ${itemLabel} ${index + 1}`}
                   >
-                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-                    </svg>
+                    <Pencil className="h-4 w-4" aria-hidden="true" />
                   </button>
                 )}
                 {onDelete && (
                   <button
                     type="button"
                     onClick={(e) => handleDeleteClick(e, item)}
-                    className="p-2 bg-red-600 hover:bg-red-700 text-white rounded-lg shadow-lg transition-all border border-red-400 focus:outline-none focus-visible:ring-2 focus-visible:ring-white"
+                    className={`${CONTROL_BUTTON} hover:!bg-red-900/60 hover:!text-red-200`}
                     title="Delete"
-                    aria-label={`Delete ${itemType} ${index + 1}`}
+                    aria-label={`Delete ${itemLabel} ${index + 1}`}
                   >
-                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                    </svg>
+                    <Trash2 className="h-4 w-4" aria-hidden="true" />
                   </button>
                 )}
               </div>
             )}
 
-            {/* Item Content with hover highlight */}
-            <m.div
-              animate={{
-                boxShadow: isEditMode && hoveredIndex === index
-                  ? '0 0 0 2px rgba(139, 115, 85, 0.4)'
-                  : '0 0 0 0px rgba(139, 115, 85, 0)'
-              }}
-              transition={{ duration: 0.2 }}
-              className="rounded-lg h-full"
+            <div
+              className={`h-full rounded-lg transition-[outline-color] duration-150 ${
+                isEditMode
+                  ? hoveredIndex === index
+                    ? 'outline outline-2 outline-offset-2 outline-editor-400'
+                    : 'outline-dashed outline-1 outline-offset-2 outline-editor-400/50'
+                  : ''
+              }`}
             >
               {renderItem(item, index)}
-            </m.div>
+            </div>
           </div>
         ))}
       </div>
-
       <Suspense fallback={null}>
       {/* Edit Modal */}
       {editingItem && (
@@ -324,6 +350,16 @@ const EditableList = ({
         />
       )}
       </Suspense>
+
+      <DiscardChangesDialog
+        isOpen={!!pendingDelete}
+        onConfirm={confirmDelete}
+        onCancel={() => setPendingDelete(null)}
+        title={`Delete this ${itemLabel}?`}
+        message="It will be removed from the live site immediately. This can't be undone."
+        confirmText="Delete"
+        cancelText="Cancel"
+      />
     </div>
   );
 };

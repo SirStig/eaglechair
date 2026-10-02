@@ -21,7 +21,7 @@ from pathlib import Path
 from typing import Optional
 
 import fitz
-from fastapi import APIRouter, Depends, Header, HTTPException, Query
+from fastapi import APIRouter, Depends, Header, HTTPException, Query, Request
 from fastapi.responses import Response
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -42,6 +42,7 @@ from backend.api.v1.schemas.content import (
 from backend.database.base import get_db
 from backend.models.company import Company
 from backend.services.content_service import ContentService
+from backend.services.email_service import EmailService
 
 logger = logging.getLogger(__name__)
 
@@ -443,6 +444,7 @@ async def get_installation_guide(
 )
 async def submit_feedback(
     feedback_data: FeedbackCreate,
+    request: Request,
     db: AsyncSession = Depends(get_db),
     company: Optional[Company] = Depends(get_optional_company)
 ):
@@ -451,17 +453,32 @@ async def submit_feedback(
     
     **Public endpoint** - Authentication optional.
     
-    If authenticated as a company, the feedback will be linked to your account.
+    Admins are notified by email (ADMIN_EMAIL).
     """
     logger.info(f"Feedback submission from {feedback_data.email}")
     
+    company_name = feedback_data.company_name or (company.company_name if company else None)
     await ContentService.create_feedback(
         db=db,
         name=feedback_data.name,
         email=feedback_data.email,
         subject=feedback_data.subject,
         message=feedback_data.message,
-        company_id=company.id if company else None
+        phone=feedback_data.phone,
+        company_name=company_name,
+        feedback_type=feedback_data.feedback_type,
+        ip_address=request.client.host if request.client else None,
+        user_agent=request.headers.get("user-agent"),
+    )
+
+    EmailService.send_in_background(
+        EmailService.send_admin_contact_notification,
+        name=feedback_data.name,
+        email=feedback_data.email,
+        message=feedback_data.message,
+        subject=feedback_data.subject,
+        phone=feedback_data.phone,
+        company_name=company_name,
     )
     
     return MessageResponse(

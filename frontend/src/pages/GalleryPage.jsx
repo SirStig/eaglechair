@@ -5,6 +5,7 @@ import SEOHead from '../components/SEOHead';
 import { SEO } from '../config/seoConfig';
 import ResponsiveImage from '../components/ui/ResponsiveImage';
 import EditableWrapper from '../components/admin/EditableWrapper';
+import EditableSectionHeading from '../components/common/EditableSectionHeading';
 import EditableList from '../components/admin/EditableList';
 import { useInstallations } from '../hooks/useContent';
 import { runCmsBatch } from '../utils/cmsContentStore';
@@ -162,11 +163,20 @@ const GalleryPage = () => {
       <div className="mx-auto px-4 sm:px-6 lg:px-8 max-w-[1800px]">
         {/* Header */}
         <div className="text-center mb-12">
-          <h1 className="text-2xl sm:text-3xl md:text-4xl font-bold mb-4 text-dark-50">Gallery</h1>
-          <p className="text-base sm:text-lg text-dark-100 max-w-2xl mx-auto px-4">
-            Explore our furniture in real commercial settings. See how Eagle Chair products 
-            transform restaurants, hotels, and hospitality spaces.
-          </p>
+          <EditableSectionHeading
+            page="gallery"
+            section="header"
+            defaultTitle="Gallery"
+            defaultSubtitle="Explore our furniture in real commercial settings. See how Eagle Chair products transform restaurants, hotels, and hospitality spaces."
+            label="Gallery page heading"
+          >
+            {({ title, subtitle }) => (
+              <>
+                <h1 className="text-2xl sm:text-3xl md:text-4xl font-bold mb-4 text-dark-50">{title}</h1>
+                {subtitle && <p className="text-base sm:text-lg text-dark-100 max-w-2xl mx-auto px-4">{subtitle}</p>}
+              </>
+            )}
+          </EditableSectionHeading>
         </div>
 
         {/* Filter Tabs - only when images carry more than one category */}
@@ -269,12 +279,20 @@ const GalleryPage = () => {
 
         {/* CTA Section */}
         <div className="mt-12 sm:mt-16 bg-dark-900 border border-dark-600 rounded-2xl p-6 sm:p-8 lg:p-12 text-center">
-          <h2 className="text-2xl sm:text-3xl font-bold mb-3 sm:mb-4 text-dark-50">
-            Ready to Transform Your Space?
-          </h2>
-          <p className="text-lg sm:text-xl mb-4 sm:mb-6 max-w-2xl mx-auto text-dark-100 px-4">
-            Let us help you create a stunning commercial environment with our premium furniture.
-          </p>
+          <EditableSectionHeading
+            page="gallery"
+            section="cta"
+            defaultTitle="Ready to Transform Your Space?"
+            defaultSubtitle="Let us help you create a stunning commercial environment with our premium furniture."
+            label="Gallery call to action"
+          >
+            {({ title, subtitle }) => (
+              <>
+                <h2 className="text-2xl sm:text-3xl font-bold mb-3 sm:mb-4 text-dark-50">{title}</h2>
+                {subtitle && <p className="text-lg sm:text-xl mb-4 sm:mb-6 max-w-2xl mx-auto text-dark-100 px-4">{subtitle}</p>}
+              </>
+            )}
+          </EditableSectionHeading>
           <div className="flex flex-col sm:flex-row gap-3 sm:gap-4 justify-center px-4">
             <a href="/quote-request" className="w-full sm:w-auto">
               <button className="w-full sm:w-auto px-6 sm:px-8 py-3 bg-dark-900 text-primary-500 rounded-lg font-semibold hover:bg-dark-800 transition-colors border-2 border-primary-500 min-h-[44px]">
