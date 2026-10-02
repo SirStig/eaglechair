@@ -17,13 +17,6 @@ from backend.core.config import settings
 # Import all models here for autogenerate support
 from backend.database.base import Base
 from backend.models import *  # Import all models
-from backend.models.tmp_catalog import (  # Import tmp catalog models
-    CatalogUpload,
-    TmpChair,
-    TmpProductFamily,
-    TmpProductImage,
-    TmpProductVariation,
-)
 
 # this is the Alembic Config object
 config = context.config

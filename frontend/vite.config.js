@@ -10,36 +10,6 @@ import fs from 'fs'
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = dirname(__filename)
 
-// Plugin to serve tmp directory (for temporary catalog images)
-const serveTmpDirectory = () => ({
-  name: 'serve-tmp-directory',
-  configureServer(server) {
-    server.middlewares.use((req, res, next) => {
-      if (req.url.startsWith('/tmp/')) {
-        const filePath = resolve(__dirname, req.url.slice(1)); // Remove leading slash
-        if (fs.existsSync(filePath)) {
-          // Determine content type
-          const ext = filePath.split('.').pop().toLowerCase();
-          const contentTypes = {
-            'png': 'image/png',
-            'jpg': 'image/jpeg',
-            'jpeg': 'image/jpeg',
-            'gif': 'image/gif',
-            'webp': 'image/webp',
-            'pdf': 'application/pdf',
-          };
-          res.setHeader('Content-Type', contentTypes[ext] || 'application/octet-stream');
-          fs.createReadStream(filePath).pipe(res);
-        } else {
-          next();
-        }
-      } else {
-        next();
-      }
-    });
-  },
-});
-
 // Plugin to serve uploads directory from root level (dev mode only)
 const serveUploadsDirectory = () => ({
   name: 'serve-uploads-directory',
@@ -147,7 +117,6 @@ export default defineConfig(({ mode, isSsrBuild }) => {
           plugins: ['preset-default'],
         },
       }),
-      !isSsrBuild && serveTmpDirectory(),
       !isSsrBuild && !isProduction && serveUploadsDirectory(),
     ].filter(Boolean), // Remove falsy values from array
     
@@ -169,9 +138,8 @@ export default defineConfig(({ mode, isSsrBuild }) => {
         // Note: /uploads proxy removed in dev mode - files are served directly via serveUploadsDirectory plugin
         // In production, the built frontend will have uploads copied to dist/uploads or served via backend
       },
-      // Serve tmp directory from frontend/tmp (for temporary catalog images)
       fs: {
-        allow: ['..'], // Allow serving files from parent directory (frontend/tmp)
+        allow: ['..'], // Allow serving files from the repo root (uploads/)
       },
     },
     

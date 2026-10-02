@@ -22,7 +22,6 @@ from backend.api.v1.routes.admin import (
     subcategories,
     upholsteries,
     upload,
-    virtual_catalog,
 )
 
 from backend.services.catalog_cache import bump_catalog_version
@@ -65,6 +64,5 @@ router.include_router(catalog.router, prefix="/catalog", tags=["Admin - Catalog"
 router.include_router(categories.router, prefix="/categories", tags=["Admin - Categories"])
 router.include_router(pricing_tiers.router, prefix="/pricing-tiers", tags=["Admin - Pricing Tiers"])
 router.include_router(upload.router, prefix="/upload", tags=["Admin - Upload"])
-router.include_router(virtual_catalog.router, prefix="/virtual-catalog", tags=["Admin - Virtual Catalog"])
 router.include_router(emails.router, prefix="/emails", tags=["Admin - Email Templates"])
 router.include_router(ai_chat.router, prefix="/ai", tags=["Admin - AI Chat"])

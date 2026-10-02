@@ -61,21 +61,3 @@ async def test_upload_route_writes_every_rendition(async_client, as_editor, tmp_
     assert url.startswith("/uploads/images/hero/")
     _assert_renditions_exist(tmp_path / url.removeprefix("/uploads/"))
 
-
-@pytest.mark.integration
-@pytest.mark.admin
-async def test_pdf_import_promotion_writes_every_rendition(tmp_path, monkeypatch):
-    from backend.api.v1.routes.admin import virtual_catalog
-
-    tmp_images = tmp_path / "tmp_images"
-    (tmp_images / "upload1").mkdir(parents=True)
-    (tmp_images / "upload1" / "chair.png").write_bytes(_png_bytes())
-    uploads = tmp_path / "uploads"
-    monkeypatch.setattr(virtual_catalog, "TMP_IMAGES_DIR", tmp_images)
-    monkeypatch.setattr(virtual_catalog, "get_upload_base_dir", lambda: uploads)
-
-    created = []
-    url = await virtual_catalog._promote_tmp_image("/tmp/images/upload1/chair.png", {}, created)
-
-    assert url.startswith("/uploads/images/products/")
-    _assert_renditions_exist(uploads / url.removeprefix("/uploads/"))

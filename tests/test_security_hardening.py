@@ -78,7 +78,6 @@ class TestAdminWriteRoles:
     @pytest.mark.asyncio
     @pytest.mark.parametrize("method,url", [
         ("delete", "/api/v1/admin/upload/image?file_url=/uploads/images/x.png"),
-        ("post", "/api/v1/admin/virtual-catalog/cleanup"),
         ("delete", "/api/v1/admin/ai/training/1"),
         ("put", "/api/v1/admin/upholsteries/1"),
         ("post", "/api/v1/cms-admin/export-all"),
@@ -90,7 +89,6 @@ class TestAdminWriteRoles:
 
     @pytest.mark.asyncio
     @pytest.mark.parametrize("method,url", [
-        ("post", "/api/v1/admin/virtual-catalog/cleanup"),
         ("put", "/api/v1/admin/upholsteries/1"),
         ("delete", "/api/v1/admin/ai/training/1"),
     ])

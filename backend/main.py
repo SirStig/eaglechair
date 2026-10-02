@@ -54,7 +54,7 @@ STARTUP_DONE_TTL_SECONDS = 30 * 24 * 3600
 
 async def _run_startup_tasks() -> bool:
     """
-    One-time startup work: DB init, CMS export, cleanup of expired temp data.
+    One-time startup work: DB init and CMS export.
 
     Returns:
         True if DB init and the CMS export both succeeded
@@ -84,15 +84,6 @@ async def _run_startup_tasks() -> bool:
         logger.exception("[WARN] Could not export CMS content")
         ok = False
 
-    # Run cleanup of expired temporary catalog data
-    try:
-        from backend.services.cleanup_service import run_cleanup
-
-        logger.info("🧹 Running cleanup of expired temporary catalog data...")
-        asyncio.create_task(run_cleanup())
-        logger.info("[OK] Cleanup task started in background")
-    except Exception as e:
-        logger.warning(f"[WARN] Cleanup task failed to start: {e}")
 
     return ok
 
@@ -401,8 +392,6 @@ class _PublicUploads(StaticFiles):
 app.mount("/uploads", _PublicUploads(directory=str(uploads_path)), name="uploads")
 logger.info(f"[OK] Uploads directory mounted at /uploads ({uploads_path})")
 
-# Note: /tmp directory is NOT mounted here - it's served by frontend web server
-# Images are saved to FRONTEND_PATH/tmp/images/ and served via frontend
 
 @app.get("/api-docs", response_class=HTMLResponse, include_in_schema=False)
 async def root_old():

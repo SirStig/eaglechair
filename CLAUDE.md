@@ -87,8 +87,7 @@ backend/
 │   ├── chair.py         # Chair, Category, Finish, Upholstery, ProductVariation, ProductFamily
 │   ├── company.py       # Company (the "user" entity — B2B, no individual users)
 │   ├── quote.py         # Quote, QuoteItem
-│   ├── content.py       # FAQ, TeamMember, Location, CMS content models
-│   └── tmp_catalog.py   # Temporary catalog upload data
+│   └── content.py       # FAQ, TeamMember, Location, CMS content models
 ├── api/v1/
 │   ├── router.py        # Aggregates all route modules
 │   └── routes/
@@ -112,7 +111,6 @@ backend/
     ├── search_service.py    # Fuzzy search (yokedcache library)
     ├── quote_service.py
     ├── pricing_service.py
-    ├── pdf_parser_service.py # Parses product PDFs (PyMuPDF + pdfplumber)
     └── email_service.py     # SMTP via python-jose + Jinja2 templates
 ```
 
