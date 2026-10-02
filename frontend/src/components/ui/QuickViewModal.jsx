@@ -7,7 +7,7 @@ import { getProductImages, buildProductUrl, resolveImageUrl, variationHasOwnImag
 import SwatchImage from './SwatchImage';
 import ResponsiveImage from './ResponsiveImage';
 import VariationImageDisclaimer from './VariationImageDisclaimer';
-import SpecSymbols from './SpecSymbols';
+import SpecSymbols, { SpecIcon } from './SpecSymbols';
 import useSpecProfile from '../../hooks/useSpecProfile';
 import { getSpecItems, getFeatureSymbol } from '../../utils/specSymbols';
 import productService from '../../services/productService';
@@ -167,6 +167,7 @@ const QuickViewModal = ({ product, isOpen, onClose }) => {
                           alt={product.name}
                           className="w-full h-auto object-contain"
                           style={{ maxHeight: '70vh', mixBlendMode: 'multiply' }}
+                          onError={(e) => { e.target.onerror = null; e.target.src = '/placeholder.svg'; }}
                         />
                       </div>
 
@@ -247,9 +248,9 @@ const QuickViewModal = ({ product, isOpen, onClose }) => {
                             <h4 className="font-semibold text-slate-800 mb-2">Features</h4>
                             <ul className="space-y-1 text-slate-600">
                               {product.features.slice(0, 3).map((feature, idx) => (
-                                <li key={idx} className="flex items-start">
+                                <li key={idx} className="group flex items-start">
                                   {getFeatureSymbol(feature) ? (
-                                    <img src={getFeatureSymbol(feature)} alt="" aria-hidden="true" className="w-4 h-4 mr-1 flex-shrink-0 object-contain" />
+                                    <SpecIcon name={getFeatureSymbol(feature)} className="w-4 h-4 mr-1 flex-shrink-0" />
                                   ) : (
                                     <span className="text-primary-500 mr-1">•</span>
                                   )}
@@ -399,7 +400,7 @@ const QuickViewModal = ({ product, isOpen, onClose }) => {
                                   className={`p-1.5 rounded-lg border-2 transition-all flex items-center gap-1.5 ${isSelected ? 'border-primary-600 bg-primary-50' : 'border-cream-300 bg-white hover:border-primary-400'}`}
                                   title={f.name}
                                 >
-                                  <SwatchImage item={f} size="sm" rounded="circle" zoom />
+                                  <SwatchImage item={f} size="sm" rounded="circle" zoom kind="wood" />
                                   <span className="text-xs truncate max-w-[60px]">{f.name}</span>
                                 </button>
                               );
@@ -426,7 +427,7 @@ const QuickViewModal = ({ product, isOpen, onClose }) => {
                                   className={`p-1.5 rounded-lg border-2 transition-all flex items-center gap-1.5 ${isSelected ? 'border-primary-600 bg-primary-50' : 'border-cream-300 bg-white hover:border-primary-400'}`}
                                   title={f.name}
                                 >
-                                  <SwatchImage item={f} size="sm" rounded="circle" zoom />
+                                  <SwatchImage item={f} size="sm" rounded="circle" zoom kind="fabric" />
                                   <span className="text-xs truncate max-w-[60px]">{f.name}</span>
                                 </button>
                               );

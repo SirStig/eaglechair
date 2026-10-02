@@ -5,7 +5,8 @@
  * Which drawings a product gets depends on its spec profile, set per category
  * or subcategory in the admin (`spec_profile`; null inherits from the parent).
  * Fields without a drawing for that profile show a short text badge instead.
- * The SVGs live in public/assets/spec-icons/.
+ * The SVGs live in src/assets/spec-icons/ and are inlined (see SpecIcon) so
+ * CSS can color them: body is currentColor, the accent is var(--spec-accent).
  */
 import { findCategoryById, findNestedCategoryById, getChildren, isNestedCategoryChild } from './categoryTree';
 
@@ -19,7 +20,11 @@ export const SPEC_PROFILES = [
   { value: 'booth', label: 'Booths' },
 ];
 
-const icon = (name) => `/assets/spec-icons/${name}.svg`;
+const SVGS = import.meta.glob('../assets/spec-icons/*.svg', { query: '?raw', import: 'default', eager: true });
+
+/** Inline SVG markup for a spec icon name. */
+export const getSpecIconSvg = (name) => SVGS[`../assets/spec-icons/${name}.svg`] || null;
+
 
 // Drawing per dimension field, per profile. Missing entries fall back to a badge.
 const PROFILE_ICONS = {
@@ -128,7 +133,7 @@ export const getSpecItems = (product, variation, profile) => {
       key: dim.key,
       label: dim.label,
       value: `${formatNumber(value)}"`,
-      icon: name ? icon(name) : null,
+      icon: name || null,
       badge: name ? null : dim.badge,
     });
   }
@@ -140,7 +145,7 @@ export const getSpecItems = (product, variation, profile) => {
       key: 'weight',
       label: shippingWeight != null ? 'Shipping Weight' : 'Weight',
       value: `${formatNumber(weight)} lbs`,
-      icon: icon('weight'),
+      icon: 'weight',
       badge: null,
     });
   }
@@ -151,7 +156,7 @@ export const getSpecItems = (product, variation, profile) => {
       key: 'upholstery_amount',
       label: 'Upholstery',
       value: `${formatNumber(yards)} yd`,
-      icon: icon('yardage'),
+      icon: 'yardage',
       badge: null,
     });
   }
@@ -159,10 +164,10 @@ export const getSpecItems = (product, variation, profile) => {
   return items;
 };
 
-/** Catalog symbol for a feature bullet (stackable, recyclable), or null. */
+/** Catalog symbol name for a feature bullet (stackable, recyclable), or null. */
 export const getFeatureSymbol = (feature) => {
   if (typeof feature !== 'string') return null;
-  if (/stack/i.test(feature)) return icon('stackable');
-  if (/recycl/i.test(feature)) return icon('recyclable');
+  if (/stack/i.test(feature)) return 'stackable';
+  if (/recycl/i.test(feature)) return 'recyclable';
   return null;
 };

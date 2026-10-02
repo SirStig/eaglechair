@@ -7,6 +7,7 @@ import { SEO } from '../config/seoConfig';
 import { Scissors, Palette, Layers, Book } from 'lucide-react';
 import LoadingSpinner from '../components/ui/LoadingSpinner';
 import ResponsiveImage from '../components/ui/ResponsiveImage';
+import ImagePlaceholder from '../components/ui/ImagePlaceholder';
 
 const UpholsteryPage = () => {
   const [searchTerm, setSearchTerm] = useState('');
@@ -136,9 +137,7 @@ const UpholsteryPage = () => {
                     />
                   </div>
                 ) : (
-                  <div className="aspect-square rounded-full bg-slate-100 flex items-center justify-center">
-                    <Scissors className="w-16 h-16 text-slate-400" />
-                  </div>
+                  <ImagePlaceholder kind="fabric" label="Swatch coming soon" title={upholstery.name} className="aspect-square rounded-full" />
                 )}
 
                 <div className="p-4">

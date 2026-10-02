@@ -14,7 +14,7 @@ import { useCartStore } from '../store/cartStore';
 import productService from '../services/productService';
 import { getProductImages, getProductGalleryImages, resolveImageUrl, resolveFileUrl, variationHasOwnImage, getImageSrcSet } from '../utils/apiHelpers';
 import ResponsiveImage from '../components/ui/ResponsiveImage';
-import SpecSymbols from '../components/ui/SpecSymbols';
+import SpecSymbols, { SpecIcon } from '../components/ui/SpecSymbols';
 import CustomOptionsNote from '../components/ui/CustomOptionsNote';
 import useSpecProfile from '../hooks/useSpecProfile';
 import { getSpecItems, getFeatureSymbol } from '../utils/specSymbols';
@@ -468,6 +468,7 @@ const ProductDetailPage = () => {
                     alt={product.name}
                     className="max-w-full max-h-[620px] w-full h-auto object-contain"
                     style={{ mixBlendMode: 'multiply' }}
+                    onError={(e) => { e.target.onerror = null; e.target.src = '/placeholder.svg'; }}
                     priority={selectedImage === 0}
                     fetchpriority={selectedImage === 0 ? "high" : "low"}
                   />
@@ -659,9 +660,9 @@ const ProductDetailPage = () => {
                   <>
                     <ul className="space-y-3.5 text-slate-700 text-[15px] leading-relaxed">
                       {(featuresExpanded ? product.features : product.features.slice(0, 5)).map((feature, idx) => (
-                        <li key={idx} className="flex items-start gap-2">
+                        <li key={idx} className="group flex items-start gap-2">
                           {getFeatureSymbol(feature) ? (
-                            <img src={getFeatureSymbol(feature)} alt="" aria-hidden="true" className="w-5 h-5 mt-0.5 flex-shrink-0 object-contain" />
+                            <SpecIcon name={getFeatureSymbol(feature)} className="w-5 h-5 mt-0.5 flex-shrink-0" />
                           ) : (
                             <span className="w-5 flex-shrink-0 text-center text-slate-400">–</span>
                           )}
@@ -985,7 +986,7 @@ const ProductDetailPage = () => {
                             : 'border-cream-300 bg-white text-slate-700 hover:border-primary-400'
                             }`}
                         >
-                          <SwatchImage item={f} size="md" rounded="circle" zoom />
+                          <SwatchImage item={f} size="md" rounded="circle" zoom kind="wood" />
                           <span className="truncate">{f.name}</span>
                         </button>
                       );
@@ -1013,7 +1014,7 @@ const ProductDetailPage = () => {
                             : 'border-cream-300 bg-white text-slate-700 hover:border-primary-400'
                             }`}
                         >
-                          <SwatchImage item={f} size="md" rounded="circle" zoom />
+                          <SwatchImage item={f} size="md" rounded="circle" zoom kind="fabric" />
                           <span className="truncate">{f.name}</span>
                         </button>
                       );

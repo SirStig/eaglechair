@@ -211,6 +211,7 @@ const ProductCard = ({ product, onQuickView, darkMode = false, compact = false, 
                     size="xs"
                     rounded="circle"
                     zoom
+                    kind={finishes.length > 0 ? 'wood' : 'neutral'}
                   />
                 );
               })}

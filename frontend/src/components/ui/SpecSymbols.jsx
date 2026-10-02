@@ -4,10 +4,27 @@
  * size="md": two-column grid, symbol beside value and label (product page).
  * size="sm": one compact line per spec (quick view).
  */
+import { getSpecIconSvg } from '../../utils/specSymbols';
+
+/**
+ * Inline catalog symbol: black, with its accent area turning mustard when the
+ * nearest `group` (or the icon itself) is hovered.
+ */
+export const SpecIcon = ({ name, className = '' }) => {
+  const svg = getSpecIconSvg(name);
+  if (!svg) return null;
+  return (
+    <span
+      aria-hidden="true"
+      className={`${className} inline-block text-black [--spec-accent:currentColor] hover:[--spec-accent:#d4a017] group-hover:[--spec-accent:#d4a017] [&>svg]:w-full [&>svg]:h-full [&_*]:transition-[fill,stroke] [&_*]:duration-200`}
+      dangerouslySetInnerHTML={{ __html: svg }}
+    />
+  );
+};
 
 const SpecMark = ({ item, className }) => (
   item.icon ? (
-    <img src={item.icon} alt="" aria-hidden="true" className={`${className} object-contain`} loading="lazy" />
+    <SpecIcon name={item.icon} className={className} />
   ) : (
     <span
       aria-hidden="true"
@@ -26,7 +43,7 @@ const SpecSymbols = ({ items, size = 'md' }) => {
     return (
       <ul className="grid grid-cols-1 sm:grid-cols-2 gap-x-2 gap-y-1.5">
         {items.map((item) => (
-          <li key={item.key} className="flex items-center gap-1 min-w-0" title={`${item.label}: ${item.value}`}>
+          <li key={item.key} className="group flex items-center gap-1 min-w-0" title={`${item.label}: ${item.value}`}>
             <SpecMark item={item} className="w-5 h-5 flex-shrink-0" />
             <span className="font-medium text-slate-700 whitespace-nowrap">
               <span className="sr-only">{item.label}: </span>
@@ -41,7 +58,7 @@ const SpecSymbols = ({ items, size = 'md' }) => {
   return (
     <dl className="grid grid-cols-2 gap-x-4 gap-y-3">
       {items.map((item) => (
-        <div key={item.key} className="flex items-center gap-2.5 min-w-0">
+        <div key={item.key} className="group flex items-center gap-2.5 min-w-0">
           <SpecMark item={item} className="w-9 h-9 flex-shrink-0" />
           <div className="min-w-0 leading-tight flex flex-col-reverse">
             <dt className="text-xs text-slate-500 truncate">{item.label}</dt>

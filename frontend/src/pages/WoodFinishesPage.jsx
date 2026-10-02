@@ -7,6 +7,7 @@ import { SEO } from '../config/seoConfig';
 import { Palette, Layers, Scissors, Book } from 'lucide-react';
 import LoadingSpinner from '../components/ui/LoadingSpinner';
 import ResponsiveImage from '../components/ui/ResponsiveImage';
+import ImagePlaceholder from '../components/ui/ImagePlaceholder';
 
 const WoodFinishesPage = () => {
   const [searchTerm, setSearchTerm] = useState('');
@@ -151,9 +152,7 @@ const WoodFinishesPage = () => {
                     />
                   </div>
                 ) : (
-                  <div className="aspect-square bg-slate-100 flex items-center justify-center rounded-full">
-                    <Palette className="w-16 h-16 text-slate-400" />
-                  </div>
+                  <ImagePlaceholder kind="wood" label="Swatch coming soon" title={finish.name} className="aspect-square rounded-full" />
                 )}
 
                 <div className="p-4">

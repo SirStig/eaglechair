@@ -7,6 +7,7 @@ import { SEO } from '../config/seoConfig';
 import { Wrench, BookOpen, Book, MessageSquare } from 'lucide-react';
 import LoadingSpinner from '../components/ui/LoadingSpinner';
 import ResponsiveImage from '../components/ui/ResponsiveImage';
+import ImagePlaceholder from '../components/ui/ImagePlaceholder';
 
 const HardwarePage = () => {
   const [searchTerm, setSearchTerm] = useState('');
@@ -121,9 +122,7 @@ const HardwarePage = () => {
                     />
                   </div>
                 ) : (
-                  <div className="aspect-video bg-slate-100 flex items-center justify-center">
-                    <Wrench className="w-16 h-16 text-slate-400" />
-                  </div>
+                  <ImagePlaceholder kind="metal" label="Photo coming soon" title={item.name} className="aspect-video" />
                 )}
 
                 <div className="p-6">

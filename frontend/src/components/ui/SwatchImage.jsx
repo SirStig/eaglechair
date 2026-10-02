@@ -1,5 +1,6 @@
 import { resolveImageUrl } from '../../utils/apiHelpers';
 import ResponsiveImage from './ResponsiveImage';
+import ImagePlaceholder from './ImagePlaceholder';
 
 const sizeClasses = {
   xs: 'w-5 h-5 sm:w-6 sm:h-6',
@@ -25,6 +26,7 @@ const SwatchImage = ({
   size = 'md',
   rounded = 'circle',
   zoom = true,
+  kind = 'neutral', // texture shown when there is no image or color: wood | fabric | laminate | metal
   className = '',
   alt,
 }) => {
@@ -63,14 +65,12 @@ const SwatchImage = ({
   }
 
   return (
-    <div
-      className={`bg-gradient-to-br from-slate-200 to-slate-400 flex items-center justify-center flex-shrink-0 border-2 border-dark-600 ${sizeClass} ${roundedClass} ${className}`}
-      title={name}
-    >
-      <span className="text-[7px] sm:text-[8px] font-bold text-white drop-shadow">
-        {name ? String(name).substring(0, 1).toUpperCase() : '?'}
-      </span>
-    </div>
+    <ImagePlaceholder
+      kind={kind}
+      label={size === 'card' ? 'Swatch coming soon' : null}
+      title={name || undefined}
+      className={`flex-shrink-0 ${sizeClass} ${roundedClass} ${className}`}
+    />
   );
 };
 
