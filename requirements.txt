@@ -124,6 +124,7 @@ faker==34.0.0  # For generating test data
 google-genai==1.64.0          # Google Gemini AI
 ddgs>=9.11.0                  # Web search for AI (renamed from duckduckgo-search)
 pandas==3.0.1                 # CSV/data analysis
+numpy>=1.26                   # Catalog PDFs: white background removal on product photos
 xlrd==2.0.1                   # Excel .xls for pandas read_excel
 openpyxl==3.1.5               # Excel .xlsx/.xlsm for pandas read_excel
 tabulate==0.10.0              # Table formatting

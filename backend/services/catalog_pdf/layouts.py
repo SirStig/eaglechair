@@ -404,7 +404,7 @@ def draw_gallery(page: fitz.Page, ctx: Ctx, spec: dict) -> None:
 
 def draw_photo(page: fitz.Page, ctx: Ctx, spec: dict) -> None:
     """Full-bleed install photo (cover-fit), optional caption."""
-    img = ctx.images.load(spec.get("image_url"))
+    img = ctx.images.load(spec.get("image_url"), cutout=False)  # keep the photo as shot
     if img is None:
         _chrome(page, ctx, "bg_gallery", logo=False)
         if ctx.preview:
