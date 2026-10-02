@@ -150,3 +150,32 @@ export const referencedIds = (pages) => {
   }));
   return { products, variations };
 };
+
+// Fields of the other pages that page numbering and the contents depend on
+const NUMBERING_FIELDS = ['id', 'type', 'title', 'toc_label', 'include_in_toc'];
+
+const pick = (obj, keys) => Object.fromEntries(keys.filter((k) => k in obj).map((k) => [k, obj[k]]));
+
+/**
+ * The smallest document that renders page `index` exactly like the full one.
+ *
+ * The page itself is sent whole; every other page only keeps what page
+ * numbering and the contents need. A contents page also needs the model
+ * numbers of the product sheets it lists. So editing text on one page doesn't
+ * change (or re-render) the preview of another, and requests stay small.
+ */
+export const previewPayload = (document, index) => {
+  const target = document.pages[index];
+  const isToc = target?.type === 'toc';
+  return {
+    settings: document.settings,
+    pages: document.pages.map((page, i) => {
+      if (i === index) return page;
+      const slim = pick(page, NUMBERING_FIELDS);
+      if (isToc && page.type === 'product') {
+        slim.items = (page.items || []).map((item) => ({ product_id: item.product_id, variation_id: item.variation_id }));
+      }
+      return slim;
+    }),
+  };
+};

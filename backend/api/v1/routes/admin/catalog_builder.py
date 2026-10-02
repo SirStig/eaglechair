@@ -215,7 +215,7 @@ async def preview_page(
     db: AsyncSession = Depends(get_db),
 ):
     """
-    Renders page ``page_index`` of an (unsaved) document. Returns the PNG as a
+    Renders page ``page_index`` of an (unsaved) document. Returns a JPEG as a
     data URL plus the photo slots (PDF points, 612 x 792 page) for the editor's
     drag handles.
     """
@@ -226,7 +226,7 @@ async def preview_page(
     images = ImageLoader(get_upload_base_dir(), PREVIEW_MAX_PX)
     preview = await run_in_threadpool(render_preview, document, data, images, body.page_index, body.dpi)
     return {
-        "image": "data:image/png;base64," + base64.b64encode(preview.png).decode("ascii"),
+        "image": "data:image/jpeg;base64," + base64.b64encode(preview.image).decode("ascii"),
         "slots": preview.slots,
         "page_number": preview.page_number,
         "physical_pages": preview.physical_pages,

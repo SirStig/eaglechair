@@ -1,9 +1,11 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { memo, useEffect, useMemo, useRef, useState } from 'react';
 import { Loader2, Minus, Move, Plus, RotateCcw } from 'lucide-react';
-import { previewPage } from '../../../../services/catalogToolsService';
-import { PAGE_HEIGHT, PAGE_WIDTH } from './pageModel';
+import { PAGE_HEIGHT, PAGE_WIDTH, previewPayload } from './pageModel';
+import { getCachedPreview, loadPreview, prefetchPreviews, previewKey } from './previewCache';
 
-const DEBOUNCE_MS = 350;
+// Debounce while typing / dragging; cached pages skip it and show at once
+const DEBOUNCE_MS = 250;
+const PREFETCH_DELAY_MS = 600;
 const pct = (value, total) => `${(value / total) * 100}%`;
 
 /**
@@ -18,37 +20,61 @@ const PagePreview = ({ document, pageIndex, selectedItem, onSelectItem, getAdjus
   const [error, setError] = useState(null);
   const [drag, setDrag] = useState(null); // {index, startX, startY, dx, dy}
   const containerRef = useRef(null);
+  const documentRef = useRef(document);
+  documentRef.current = document;
 
-  // Re-render only when the page content (or numbering) actually changes
-  const requestKey = useMemo(() => JSON.stringify(document), [document]);
+  // Only what this page's render depends on: edits elsewhere don't re-render it
+  const payload = useMemo(
+    () => (pageIndex != null && document?.pages?.[pageIndex] ? previewPayload(document, pageIndex) : null),
+    [document, pageIndex],
+  );
+  const key = useMemo(() => (payload ? previewKey(payload, pageIndex) : null), [payload, pageIndex]);
 
   useEffect(() => {
-    if (pageIndex == null || !document?.pages?.[pageIndex]) {
+    if (!key) {
       setPreview(null);
       return undefined;
     }
-    const controller = new AbortController();
+    let current = true;
+    let prefetchTimer;
+    // Once this page is showing, warm the pages either side while idle
+    const prefetchNeighbours = () => {
+      prefetchTimer = setTimeout(() => prefetchPreviews(documentRef.current, [pageIndex + 1, pageIndex - 1]), PREFETCH_DELAY_MS);
+    };
+
+    const cached = getCachedPreview(key);
+    if (cached) {
+      setPreview(cached);
+      setLoading(false);
+      setError(null);
+      prefetchNeighbours();
+      return () => clearTimeout(prefetchTimer);
+    }
+
     const timer = setTimeout(async () => {
       setLoading(true);
       setError(null);
       try {
-        const result = await previewPage(JSON.parse(requestKey), pageIndex, { signal: controller.signal });
-        setPreview(result);
-      } catch (err) {
-        if (err?.name !== 'CanceledError' && err?.code !== 'ERR_CANCELED') {
-          setError(err?.response?.data?.detail || 'Preview failed');
+        const result = await loadPreview(payload, pageIndex, key);
+        if (current) {
+          setPreview(result);
+          prefetchNeighbours();
         }
+      } catch (err) {
+        if (current) setError(err?.response?.data?.detail || 'Preview failed');
       } finally {
-        if (!controller.signal.aborted) setLoading(false);
+        if (current) setLoading(false);
       }
     }, DEBOUNCE_MS);
     return () => {
+      // A superseded request still completes and fills the cache (useful for undo)
+      current = false;
       clearTimeout(timer);
-      controller.abort();
+      clearTimeout(prefetchTimer);
     };
-    // `document` is covered by requestKey
+    // payload is covered by key
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [requestKey, pageIndex]);
+  }, [key, pageIndex]);
 
   const pointsPerPixel = () => PAGE_WIDTH / (containerRef.current?.clientWidth || PAGE_WIDTH);
 
@@ -186,4 +212,4 @@ const PagePreview = ({ document, pageIndex, selectedItem, onSelectItem, getAdjus
   );
 };
 
-export default PagePreview;
+export default memo(PagePreview);

@@ -32,7 +32,7 @@ from backend.services.catalog_pdf.assets import (
     PAGE_WIDTH,
     WHITE,
     fonts,
-    spec_icon_pdf,
+    SharedAssets,
 )
 from backend.services.catalog_pdf.images import ImageLoader, LoadedImage
 from backend.services.catalog_pdf.specs import get_spec_items
@@ -55,7 +55,7 @@ class CatalogData:
 
 @dataclass
 class Ctx:
-    template: fitz.Document
+    assets: SharedAssets
     images: ImageLoader
     data: CatalogData
     settings: dict
@@ -113,7 +113,7 @@ def _tweaks(item: dict) -> tuple[float, float, float]:
 
 
 def _layer(page: fitz.Page, ctx: Ctx, name: str, rect: fitz.Rect = PAGE_RECT, clip=None) -> None:
-    page.show_pdf_page(rect, ctx.template, LAYERS[name], clip=clip)
+    page.show_pdf_page(rect, ctx.assets.template, LAYERS[name], clip=clip)
 
 
 def _text(
@@ -250,16 +250,13 @@ def _html_box(page: fitz.Page, rect: fitz.Rect, blocks: list[tuple[str, str]], s
     page.insert_htmlbox(rect, "".join(parts), css=css, scale_low=0.5)
 
 
-def _spec_column(page: fitz.Page, product: dict, variation: Optional[dict], x: float, y: float, compact: bool) -> None:
+def _spec_column(page: fitz.Page, ctx: Ctx, product: dict, variation: Optional[dict], x: float, y: float, compact: bool) -> None:
     """Icon + value rows and the model label; x is the icon column's left edge."""
     rows = get_spec_items(product, variation, product.get("spec_profile"))
     pitch = 17.5 if compact or len(rows) > 9 else 21.7
     for row in rows:
-        icon = spec_icon_pdf(row["icon"]) if row["icon"] else None
-        if icon:
-            with fitz.open("pdf", icon) as icon_doc:
-                page.show_pdf_page(fitz.Rect(x, y, x + 18, y + 18), icon_doc, 0)
-        else:
+        drawn = bool(row["icon"]) and ctx.assets.draw_icon(page, row["icon"], fitz.Rect(x, y, x + 18, y + 18))
+        if not drawn:
             _text(page, x + 9, y + 12, row["badge"], role="bold", size=7, align="center")
         _text(page, x + 24, y + 12, row["value"], size=9)
         y += pitch
@@ -304,7 +301,7 @@ def draw_product(page: fitz.Page, ctx: Ctx, spec: dict) -> None:
         img = ctx.images.load(item_image_url(item, product, variation))
         _place_photo(page, ctx, img, box, item, index)
         if product and item.get("show_specs", True):
-            _spec_column(page, product, variation, sx, sy, compact)
+            _spec_column(page, ctx, product, variation, sx, sy, compact)
 
     emblem = EMBLEMS.get(spec.get("emblem"))
     if emblem:

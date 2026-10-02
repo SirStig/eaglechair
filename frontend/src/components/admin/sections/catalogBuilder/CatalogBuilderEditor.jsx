@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import {
   DndContext, KeyboardSensor, PointerSensor, closestCenter, useSensor, useSensors,
@@ -24,6 +24,8 @@ import {
   DEFAULT_SETTINGS, PAGE_TYPES, duplicatePage, newPage, normalizePage, pageSummary, referencedIds,
 } from './pageModel';
 
+const POINTER_SENSOR_OPTIONS = { activationConstraint: { distance: 6 } };
+const KEYBOARD_SENSOR_OPTIONS = { coordinateGetter: sortableKeyboardCoordinates };
 const AUTOSAVE_MS = 1500;
 const HISTORY_LIMIT = 80;
 const COALESCE_MS = 1000;
@@ -59,7 +61,8 @@ const useHistory = (initial) => {
   return { document: state.present, set, undo, redo, canUndo: state.past.length > 0, canRedo: state.future.length > 0 };
 };
 
-const SortablePage = ({ page, index, active, onSelect, onDuplicate, onDelete }) => {
+// Memoized: typing on one page must not re-render every row of a long catalog
+const SortablePage = memo(({ page, index, active, onSelect, onDuplicate, onDelete }) => {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: page.id });
   const Icon = PAGE_TYPES[page.type]?.icon || Layers;
   return (
@@ -87,7 +90,8 @@ const SortablePage = ({ page, index, active, onSelect, onDuplicate, onDelete }) 
       </div>
     </div>
   );
-};
+});
+SortablePage.displayName = 'SortablePage';
 
 /**
  * Catalog Builder editor: page list (drag to reorder), live server-rendered
@@ -112,10 +116,15 @@ const CatalogBuilderEditor = ({ project, onBack, onSaved }) => {
   const [familyPicker, setFamilyPicker] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [pdfUrl, setPdfUrl] = useState(null);
-  const savedRef = useRef({ name: project.name, document: JSON.stringify(initial) });
+  // Last saved state; history snapshots are immutable, so identity tells us if anything changed
+  const savedRef = useRef({ name: project.name, document: initial });
   const loadingIds = useRef(new Set());
 
   const page = pageIndex != null ? document.pages[pageIndex] : null;
+
+  // Latest values for the stable callbacks below (keeps memoized children from re-rendering)
+  const latest = useRef(null);
+  latest.current = { document, pageIndex, page };
 
   // ---- product cache: fetch any product the pages refer to that we don't have yet
   useEffect(() => {
@@ -132,7 +141,7 @@ const CatalogBuilderEditor = ({ project, onBack, onSaved }) => {
   const registerProduct = useCallback((product) => setProducts((prev) => ({ ...prev, [product.id]: product })), []);
 
   // ---- autosave
-  const dirty = name !== savedRef.current.name || JSON.stringify(document) !== savedRef.current.document;
+  const dirty = name !== savedRef.current.name || document !== savedRef.current.document;
   useEffect(() => {
     if (!dirty) return undefined;
     setSaveState('unsaved');
@@ -141,7 +150,7 @@ const CatalogBuilderEditor = ({ project, onBack, onSaved }) => {
       setSaveState('saving');
       try {
         const saved = await saveProject(project.id, snapshot);
-        savedRef.current = { name, document: JSON.stringify(document) };
+        savedRef.current = { name, document };
         setSaveState('saved');
         onSaved?.(saved);
       } catch (error) {
@@ -189,42 +198,50 @@ const CatalogBuilderEditor = ({ project, onBack, onSaved }) => {
     }
   }, [document.pages.length, pageIndex]);
 
-  // ---- page operations
-  const setPages = (updater, key) => set((doc) => ({ ...doc, pages: updater(doc.pages) }), key);
+  // ---- page operations (stable callbacks: they read the latest state from refs)
+  const setPages = useCallback(
+    (updater, key) => set((doc) => ({ ...doc, pages: updater(doc.pages) }), key),
+    [set],
+  );
 
   /** Patch the selected page; changes is a partial page or (page) => partial page. */
-  const updatePage = (changes) => {
-    if (pageIndex == null) return;
-    const pageId = document.pages[pageIndex]?.id;
+  const updatePage = useCallback((changes) => {
+    const { pageIndex: index, page: current } = latest.current;
+    if (index == null) return;
     const fields = typeof changes === 'object' ? Object.keys(changes).join(',') : 'items';
     setPages((pages) => pages.map((p, i) => {
-      if (i !== pageIndex) return p;
+      if (i !== index) return p;
       const patch = typeof changes === 'function' ? changes(p) : changes;
       return { ...p, ...patch };
-    }), `page:${pageId}:${fields}`);
-  };
+    }), `page:${current?.id}:${fields}`);
+  }, [setPages]);
 
-  const insertPages = (newPages) => {
-    const at = pageIndex == null ? document.pages.length : pageIndex + 1;
+  const insertPages = useCallback((newPages) => {
+    const { pageIndex: index, document: doc } = latest.current;
+    const at = index == null ? doc.pages.length : index + 1;
     setPages((pages) => [...pages.slice(0, at), ...newPages, ...pages.slice(at)]);
     setPageIndex(at);
     setSelectedItem(null);
-  };
+  }, [setPages]);
 
-  const addPage = (type) => insertPages([newPage(type)]);
+  const addPage = useCallback((type) => insertPages([newPage(type)]), [insertPages]);
 
-  const selectPage = (index) => {
+  const selectPage = useCallback((index) => {
     setPageIndex(index);
     setSelectedItem(null);
-  };
+  }, []);
 
   // Clicking a photo on the preview opens it in the Products tab
-  const selectItem = (index) => {
+  const selectItem = useCallback((index) => {
     setSelectedItem(index);
-    if (index != null && page?.type !== 'photo') setTab('products');
-  };
+    if (index != null && latest.current.page?.type !== 'photo') setTab('products');
+  }, []);
 
   const hasContentPages = document.pages.some((p) => p.type === 'product' || p.type === 'gallery');
+
+  // Same array while the order is unchanged: a new one re-renders every sortable row
+  const idsKey = document.pages.map((p) => p.id).join('|');
+  const pageIds = useMemo(() => (idsKey ? idsKey.split('|') : []), [idsKey]);
 
   const addFamilies = async (familyIds, includeGallery) => {
     try {
@@ -240,40 +257,43 @@ const CatalogBuilderEditor = ({ project, onBack, onSaved }) => {
     }
   };
 
-  const deletePage = (index) => {
+  const deletePage = useCallback((index) => {
     setPages((pages) => pages.filter((_, i) => i !== index));
     setSelectedItem(null);
-    if (pageIndex != null && index < pageIndex) setPageIndex(pageIndex - 1);
-  };
+    setPageIndex((current) => (current != null && index < current ? current - 1 : current));
+  }, [setPages]);
 
-  const duplicateAt = (index) => {
+  const duplicateAt = useCallback((index) => {
     setPages((pages) => [...pages.slice(0, index + 1), duplicatePage(pages[index]), ...pages.slice(index + 1)]);
     setPageIndex(index + 1);
-  };
+  }, [setPages]);
 
+  // Constant options: new ones each render would rebuild the sensors and
+  // re-render every sortable row on every keystroke
   const sensors = useSensors(
-    useSensor(PointerSensor, { activationConstraint: { distance: 6 } }),
-    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
+    useSensor(PointerSensor, POINTER_SENSOR_OPTIONS),
+    useSensor(KeyboardSensor, KEYBOARD_SENSOR_OPTIONS),
   );
 
-  const onDragEnd = ({ active, over }) => {
+  const onDragEnd = useCallback(({ active, over }) => {
     if (!over || active.id === over.id) return;
-    const ids = document.pages.map((p) => p.id);
-    const reordered = arrayMove(document.pages, ids.indexOf(active.id), ids.indexOf(over.id));
-    const selectedId = page?.id;
+    const { document: doc, page: current } = latest.current;
+    const ids = doc.pages.map((p) => p.id);
+    const reordered = arrayMove(doc.pages, ids.indexOf(active.id), ids.indexOf(over.id));
     setPages(() => reordered);
-    if (selectedId) setPageIndex(reordered.findIndex((p) => p.id === selectedId));
-  };
+    if (current) setPageIndex(reordered.findIndex((p) => p.id === current.id));
+  }, [setPages]);
 
   // ---- photo adjustments from the preview (photo pages keep them on the page itself)
-  const getAdjust = (index) => {
-    const target = page?.type === 'photo' ? page : page?.items?.[index];
+  const getAdjust = useCallback((index) => {
+    const current = latest.current.page;
+    const target = current?.type === 'photo' ? current : current?.items?.[index];
     return { dx: target?.dx || 0, dy: target?.dy || 0, scale: target?.scale || 1 };
-  };
-  const onAdjust = (index, values) => {
-    if (page?.type === 'photo') updatePage(values);
+  }, []);
+  const onAdjust = useCallback((index, values) => {
+    if (latest.current.page?.type === 'photo') updatePage(values);
     else updatePage((p) => ({ items: p.items.map((it, i) => (i === index ? { ...it, ...values } : it)) }));
-  };
+  }, [updatePage]);
 
   const setSetting = (key, value, coalesce = true) =>
     set((d) => ({ ...d, settings: { ...d.settings, [key]: value } }), coalesce ? `settings:${key}` : null);
@@ -361,7 +381,7 @@ const CatalogBuilderEditor = ({ project, onBack, onSaved }) => {
             <Plus className="w-4 h-4 mr-1" /> Add pages
           </Button>
           <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={onDragEnd}>
-            <SortableContext items={document.pages.map((p) => p.id)} strategy={verticalListSortingStrategy}>
+            <SortableContext items={pageIds} strategy={verticalListSortingStrategy}>
               <div className="space-y-1.5">
                 {document.pages.map((p, index) => (
                   <SortablePage

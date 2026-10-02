@@ -164,7 +164,8 @@ const GalleryPage = () => {
           </p>
         </div>
 
-        {/* Filter Tabs */}
+        {/* Filter Tabs - only when images carry more than one category */}
+        {categories.length > 1 && (
         <div className="flex justify-center gap-2 mb-6 sm:mb-8 flex-wrap px-4">
           {categories.map((category) => (
             <button
@@ -180,6 +181,7 @@ const GalleryPage = () => {
             </button>
           ))}
         </div>
+        )}
 
         {/* Gallery Grid */}
         {loading ? (
@@ -227,17 +229,20 @@ const GalleryPage = () => {
                   <ResponsiveImage
                     src={imageUrl}
                     sizes="(min-width: 1280px) 400px, (min-width: 1024px) 33vw, (min-width: 640px) 50vw, 100vw"
-                    alt={title}
+                    alt={title || 'Eagle Chair installation'}
                     className="w-full h-full object-cover img-sharp group-hover:scale-105 transition-transform duration-500"
                     style={{ aspectRatio: '16/10', objectFit: 'cover' }}
                   />
-                  <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/30 to-transparent opacity-0 group-hover:opacity-100 transition-opacity">
-                    <div className="absolute bottom-0 left-0 right-0 p-6 text-white">
-                      <h3 className="text-xl font-semibold mb-1 text-dark-50">{title}</h3>
-                      <p className="text-sm text-dark-100">{category}</p>
-                      {location && <p className="text-xs text-dark-200">{location}</p>}
+                  {/* Caption overlay only when there is something to say */}
+                  {(title || category || location) && (
+                    <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/30 to-transparent opacity-0 group-hover:opacity-100 transition-opacity">
+                      <div className="absolute bottom-0 left-0 right-0 p-6 text-white">
+                        {title && <h3 className="text-xl font-semibold mb-1 text-dark-50">{title}</h3>}
+                        {category && <p className="text-sm text-dark-100">{category}</p>}
+                        {location && <p className="text-xs text-dark-200">{location}</p>}
+                      </div>
                     </div>
-                  </div>
+                  )}
                 </m.div>
               );
             }}
@@ -250,7 +255,7 @@ const GalleryPage = () => {
           isOpen={!!selectedImage}
           onClose={() => setSelectedImage(null)}
           size="lg"
-          title={selectedImage?.title}
+          title={selectedImage?.title || undefined}
         >
           {selectedImage && (
             <div className="max-h-[70vh] overflow-auto">
@@ -258,11 +263,11 @@ const GalleryPage = () => {
                 src={selectedImage.url}
                 sizes="(min-width: 1024px) 896px, 100vw"
                 priority
-                alt={selectedImage.title}
+                alt={selectedImage.title || 'Eagle Chair installation'}
                 className="w-full h-auto max-h-[60vh] object-contain img-sharp rounded-lg"
               />
               <div className="mt-4 space-y-2">
-                <p className="text-dark-100 font-medium">{selectedImage.category}</p>
+                {selectedImage.category && <p className="text-dark-100 font-medium">{selectedImage.category}</p>}
                 {selectedImage.location && (
                   <p className="text-dark-200 text-sm">{selectedImage.location}</p>
                 )}

@@ -52,11 +52,6 @@ TITLE_FONT_FILES = (
 )
 
 
-def open_template() -> fitz.Document:
-    """A fresh handle on template.pdf (fitz documents are not shared across threads)."""
-    return fitz.open(TEMPLATE_PATH)
-
-
 def _title_font_file() -> Optional[Path]:
     for name in TITLE_FONT_FILES:
         path = FONT_DIR / name
@@ -99,3 +94,74 @@ def spec_icon_pdf(name: str) -> Optional[bytes]:
     svg = _ACCENT_RE.sub(_hex(INK), svg).replace("currentColor", _hex(INK))
     with fitz.open(stream=svg.encode("utf-8"), filetype="svg") as doc:
         return doc.convert_to_pdf()
+
+
+class SharedAssets:
+    """
+    Template and spec icons kept open between renders. Opening them per page
+    (and per icon row) was a large share of preview time. Only use while
+    holding the renderer's lock: fitz documents are not thread-safe.
+    """
+
+    def __init__(self):
+        self.template = fitz.open(TEMPLATE_PATH)
+        self._icon_paths: dict[str, Optional[tuple]] = {}
+
+    def icon_paths(self, name: str) -> Optional[tuple]:
+        """
+        The icon's vector paths, normalized to a unit square, or None.
+
+        Icons are drawn as plain paths (draw_icon) rather than stamped with
+        show_pdf_page, which rescans the page's resources on every call and
+        was the slowest part of a product sheet.
+        """
+        if name not in self._icon_paths:
+            pdf = spec_icon_pdf(name)
+            if pdf is None:
+                self._icon_paths[name] = None
+            else:
+                with fitz.open("pdf", pdf) as src:
+                    page = src[0]
+                    self._icon_paths[name] = (page.rect, tuple(page.get_drawings()))
+        return self._icon_paths[name]
+
+    def draw_icon(self, page: fitz.Page, name: str, rect: fitz.Rect) -> bool:
+        """Draw spec icon ``name`` into ``rect``; False if there is no such icon."""
+        icon = self.icon_paths(name)
+        if icon is None:
+            return False
+        bounds, paths = icon
+        scale = min(rect.width / bounds.width, rect.height / bounds.height)
+        matrix = fitz.Matrix(scale, 0, 0, scale, rect.x0 - bounds.x0 * scale, rect.y0 - bounds.y0 * scale)
+        shape = page.new_shape()
+        for path in paths:
+            for item in path["items"]:
+                kind = item[0]
+                if kind == "l":
+                    shape.draw_line(item[1] * matrix, item[2] * matrix)
+                elif kind == "c":
+                    shape.draw_bezier(item[1] * matrix, item[2] * matrix, item[3] * matrix, item[4] * matrix)
+                elif kind == "re":
+                    shape.draw_rect(item[1] * matrix)
+                elif kind == "qu":
+                    shape.draw_quad(item[1] * matrix)
+            shape.finish(
+                fill=path.get("fill"),
+                color=path.get("color"),
+                even_odd=path.get("even_odd") or False,
+                closePath=path.get("closePath") or False,
+                width=(path.get("width") or 0) * scale,
+            )
+        shape.commit()
+        return True
+
+
+_shared: Optional[SharedAssets] = None
+
+
+def shared_assets() -> SharedAssets:
+    """The process-wide SharedAssets (call under the renderer's lock)."""
+    global _shared
+    if _shared is None:
+        _shared = SharedAssets()
+    return _shared

@@ -124,15 +124,15 @@ class TestCatalogBuilder:
         response = await async_client.post(f"{BASE}/catalog-builder/projects", json={"name": "x"}, headers=UA)
         assert response.status_code == 403
 
-    async def test_preview_returns_png_and_photo_slots(self, async_client, as_role, lobo):
+    async def test_preview_returns_jpeg_and_photo_slots(self, async_client, as_role, lobo):
         as_role()
         response = await async_client.post(
             f"{BASE}/catalog-builder/preview", json={"document": _document(lobo), "page_index": 2}, headers=UA
         )
         assert response.status_code == 200, response.text
         body = response.json()
-        png = base64.b64decode(body["image"].split(",", 1)[1])
-        assert png.startswith(b"\x89PNG")
+        jpeg = base64.b64decode(body["image"].split(",", 1)[1])
+        assert jpeg.startswith(b"\xff\xd8")
         assert body["page_number"] == 3
         assert body["total_pages"] == 5
         # Side chair has a photo, the barstool does not

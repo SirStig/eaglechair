@@ -21,7 +21,7 @@ from typing import Optional
 
 import fitz
 
-from backend.services.catalog_pdf.assets import PAGE_HEIGHT, PAGE_WIDTH, open_template
+from backend.services.catalog_pdf.assets import PAGE_HEIGHT, PAGE_WIDTH, shared_assets
 from backend.services.catalog_pdf.images import ImageLoader
 from backend.services.catalog_pdf.layouts import (
     PAGE_RECT,
@@ -44,6 +44,8 @@ PAGE_TYPES = ("cover", "toc", "product", "gallery", "photo")
 DEFAULT_COPYRIGHT = "All Rights Reserved © Copyright Eagle Chair Inc. 1984 - {year}"
 
 _render_lock = threading.Lock()
+
+PREVIEW_JPEG_QUALITY = 85
 
 _DRAW = {
     "cover": draw_cover,
@@ -139,10 +141,9 @@ def render_pdf(document: dict, data: CatalogData, images: ImageLoader) -> bytes:
         plans, entries = plan_document(document, data)
         pages = document.get("pages") or []
         out = fitz.open()
-        with open_template() as template:
-            ctx = Ctx(template=template, images=images, data=data, settings=settings)
-            for plan in plans:
-                _draw(out, ctx, pages[plan.index], plan, entries)
+        ctx = Ctx(assets=shared_assets(), images=images, data=data, settings=settings)
+        for plan in plans:
+            _draw(out, ctx, pages[plan.index], plan, entries)
         out.set_metadata({
             "title": (settings.get("title") or "Eagle Chair Catalog"),
             "author": "Eagle Chair Inc.",
@@ -154,7 +155,7 @@ def render_pdf(document: dict, data: CatalogData, images: ImageLoader) -> bytes:
 
 @dataclass
 class Preview:
-    png: bytes
+    image: bytes  # JPEG
     slots: list
     page_number: int
     physical_pages: int
@@ -171,12 +172,12 @@ def render_preview(document: dict, data: CatalogData, images: ImageLoader, index
             raise IndexError("page index out of range")
         plan = plans[index]
         out = fitz.open()
-        with open_template() as template:
-            ctx = Ctx(template=template, images=images, data=data, settings=settings, preview=True)
-            slots = _draw(out, ctx, pages[index], plan, entries, only_first=True)
-        png = out[0].get_pixmap(dpi=dpi).tobytes("png")
+        ctx = Ctx(assets=shared_assets(), images=images, data=data, settings=settings, preview=True)
+        slots = _draw(out, ctx, pages[index], plan, entries, only_first=True)
+        # JPEG: a fraction of the size of PNG and faster to encode (the page has no transparency)
+        image = out[0].get_pixmap(dpi=dpi).tobytes("jpeg", jpg_quality=PREVIEW_JPEG_QUALITY)
         total = plans[-1].first + plans[-1].count - 1 if plans else 0
-        return Preview(png=png, slots=slots[0], page_number=plan.first, physical_pages=plan.count, total_pages=total)
+        return Preview(image=image, slots=slots[0], page_number=plan.first, physical_pages=plan.count, total_pages=total)
 
 
 # ---------------------------------------------------------------------------
@@ -236,15 +237,14 @@ def render_product_index(groups: list[dict], title: str = "Product Index", subti
         settings = resolve_settings(None)
         content = fitz.open("pdf", buffer.getvalue())
         out = fitz.open()
-        with open_template() as template:
-            ctx = Ctx(template=template, images=None, data=CatalogData(), settings=settings)
-            for i in range(len(content)):
-                page = out.new_page(width=PAGE_WIDTH, height=PAGE_HEIGHT)
-                _chrome(page, ctx, "bg_gallery")
-                _title(page, title, subtitle if i == 0 else "continued")
-                page.show_pdf_page(page.rect, content, i)
-                ctx.page_number = i + 1
-                _footer(page, ctx)
+        ctx = Ctx(assets=shared_assets(), images=None, data=CatalogData(), settings=settings)
+        for i in range(len(content)):
+            page = out.new_page(width=PAGE_WIDTH, height=PAGE_HEIGHT)
+            _chrome(page, ctx, "bg_gallery")
+            _title(page, title, subtitle if i == 0 else "continued")
+            page.show_pdf_page(page.rect, content, i)
+            ctx.page_number = i + 1
+            _footer(page, ctx)
         out.set_metadata({"title": title, "author": "Eagle Chair Inc."})
         out.subset_fonts()
         return out.tobytes(garbage=3, deflate=True)
