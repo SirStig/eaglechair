@@ -724,7 +724,7 @@ const ProductDetailPage = () => {
                       )}
                       {product.dimensional_drawing_url && (
                         <a href={resolveFileUrl(product.dimensional_drawing_url)} download className="text-slate-700 hover:text-slate-900 underline">
-                          Dimensional Drawing
+                          Line Drawing
                         </a>
                       )}
                       {product.cad_file_url && (
