@@ -6,8 +6,8 @@
  *   kind:    'wood' | 'fabric' | 'laminate' | 'metal' | 'neutral'
  *   label:   caption pill text; pass null to hide (e.g. on tiny swatches)
  *
- * Product photos use /placeholder.svg instead (portrait chair line art), since
- * they render through <img> fallbacks.
+ * Product photos use /placeholder.svg instead (a static copy of the 'neutral'
+ * texture + badge), since they render through <img> fallbacks.
  */
 
 const svgUrl = (svg) => `url("data:image/svg+xml,${encodeURIComponent(svg)}")`;

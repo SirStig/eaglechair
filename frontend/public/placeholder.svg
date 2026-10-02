@@ -1,34 +1,29 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="300" height="400" viewBox="0 0 300 400" role="img" aria-label="Image coming soon">
-  <!-- Portrait (3:4) to match product photography. Transparent so it sits on any card background. -->
+  <!-- Portrait (3:4) to match product photography. Mirrors the 'neutral' texture in
+       src/components/ui/ImagePlaceholder.jsx so <img> fallbacks match the other empty states. -->
   <defs>
-    <radialGradient id="ph-floor" cx="0.5" cy="0.5" r="0.5">
-      <stop offset="0" stop-color="#c7b299" stop-opacity="0.35"/>
-      <stop offset="1" stop-color="#c7b299" stop-opacity="0"/>
-    </radialGradient>
+    <linearGradient id="ph-bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#f5f2ed"/>
+      <stop offset="1" stop-color="#e3d9c8"/>
+    </linearGradient>
+    <pattern id="ph-lines" width="8" height="8" patternUnits="userSpaceOnUse" patternTransform="rotate(45)">
+      <rect width="1" height="8" fill="#75654f" fill-opacity="0.06"/>
+    </pattern>
+    <linearGradient id="ph-edge" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0.9" stop-color="#75654f" stop-opacity="0"/>
+      <stop offset="1" stop-color="#75654f" stop-opacity="0.14"/>
+    </linearGradient>
+    <filter id="ph-shadow" x="-20%" y="-50%" width="140%" height="200%">
+      <feDropShadow dx="0" dy="1" stdDeviation="1.5" flood-color="#75654f" flood-opacity="0.18"/>
+    </filter>
   </defs>
 
-  <!-- Floor shadow -->
-  <ellipse cx="153" cy="326" rx="88" ry="13" fill="url(#ph-floor)"/>
+  <rect width="300" height="400" fill="url(#ph-bg)"/>
+  <rect width="300" height="400" fill="url(#ph-lines)"/>
+  <rect width="300" height="400" fill="url(#ph-edge)"/>
+  <rect x="0.5" y="0.5" width="299" height="399" fill="none" stroke="#75654f" stroke-opacity="0.12"/>
 
-  <!-- Line-art side chair, 3/4 view -->
-  <g transform="translate(150 186) scale(1.22) translate(-209 -201)" fill="none" stroke="#b59d82" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round">
-    <path d="M183 206 L183 284" stroke="#d6c7b0"/>
-    <path d="M181 196 L177 98"/>
-    <path d="M263 204 L268 110"/>
-    <path d="M175 96 Q222 84 270 108"/>
-    <path d="M178 116 Q222 106 267 128"/>
-    <path d="M214 112 L216 200"/>
-    <path d="M230 116 L232 202"/>
-    <path d="M150 214 L180 192 L266 200 L240 224 Z" fill="#ede7dc" fill-opacity="0.7"/>
-    <path d="M150 214 L150 223 L240 234 L266 209 L266 200"/>
-    <path d="M240 224 L240 234"/>
-    <path d="M154 224 L154 306"/>
-    <path d="M237 234 L237 318"/>
-    <path d="M262 212 L262 292"/>
-    <path d="M154 282 L237 293"/>
-    <path d="M237 293 L262 270"/>
-  </g>
-
-  <line x1="126" y1="352" x2="174" y2="352" stroke="#d6c7b0" stroke-width="1"/>
-  <text x="150" y="372" text-anchor="middle" font-family="Inter, 'Helvetica Neue', Arial, sans-serif" font-size="11" font-weight="600" letter-spacing="2.6" fill="#9f8a6f">IMAGE COMING SOON</text>
+  <!-- Badge -->
+  <rect x="72" y="186" width="156" height="28" rx="14" fill="#ffffff" fill-opacity="0.8" filter="url(#ph-shadow)"/>
+  <text x="150" y="204" text-anchor="middle" font-family="Inter, 'Helvetica Neue', Arial, sans-serif" font-size="10" font-weight="600" letter-spacing="1.8" fill="#5e5140">IMAGE COMING SOON</text>
 </svg>
