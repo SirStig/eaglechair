@@ -224,13 +224,13 @@ class ProductCreate(BaseModel):
     )
 
     # Available Options
-    available_finishes: Optional[List[Any]] = Field(
+    available_finishes: Optional[List[int]] = Field(
         None, description="Available finish IDs (JSON array)"
     )
-    available_upholsteries: Optional[List[Any]] = Field(
+    available_upholsteries: Optional[List[int]] = Field(
         None, description="Available upholstery IDs (JSON array)"
     )
-    available_colors: Optional[List[Any]] = Field(
+    available_colors: Optional[List[int]] = Field(
         None, description="Available color IDs (JSON array)"
     )
     upholstery_amount: Optional[float] = Field(
@@ -368,13 +368,13 @@ class ProductUpdate(BaseModel):
     )
 
     # Available Options
-    available_finishes: Optional[List[Any]] = Field(
+    available_finishes: Optional[List[int]] = Field(
         None, description="Available finish IDs (JSON array)"
     )
-    available_upholsteries: Optional[List[Any]] = Field(
+    available_upholsteries: Optional[List[int]] = Field(
         None, description="Available upholstery IDs (JSON array)"
     )
-    available_colors: Optional[List[Any]] = Field(
+    available_colors: Optional[List[int]] = Field(
         None, description="Available color IDs (JSON array)"
     )
     upholstery_amount: Optional[float] = Field(

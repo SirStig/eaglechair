@@ -491,6 +491,22 @@ class ChairBase(BaseModel):
             return v
         return []
 
+    @field_validator(
+        "available_finishes", "available_upholsteries", "available_colors", mode="before"
+    )
+    @classmethod
+    def validate_option_ids(cls, v):
+        # Imported catalog rows can hold free-text descriptions here instead of
+        # IDs; drop them so one bad row doesn't 500 the whole product list.
+        if not isinstance(v, list):
+            return None
+        return [
+            int(x)
+            for x in v
+            if (isinstance(x, int) and not isinstance(x, bool))
+            or (isinstance(x, str) and x.strip().isdigit())
+        ]
+
     @field_validator("hover_images", mode="before")
     @classmethod
     def validate_hover_images(cls, v):
