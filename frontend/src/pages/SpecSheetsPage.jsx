@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react';
-import { FileText } from 'lucide-react';
+import { FileText, SearchX } from 'lucide-react';
+import EmptyResults from '../components/ui/EmptyResults';
 import { useCatalogs } from '../hooks/useContent';
 import { SEO } from '../config/seoConfig';
 import KnowledgePageLayout from '../components/knowledge/KnowledgePageLayout';
@@ -98,13 +99,11 @@ const SpecSheetsPage = () => {
       }}
     >
       {groups.length === 0 ? (
-        <div className="text-center py-16">
-          <FileText className="w-16 h-16 text-slate-400 mx-auto mb-4" aria-hidden />
-          <h2 className="text-xl font-semibold text-slate-700 mb-2">
-            {query ? 'No matching documents' : 'No documents available yet'}
-          </h2>
-          {query && <p className="text-slate-500">Try a collection name or a 4-digit model number.</p>}
-        </div>
+        <EmptyResults
+          icon={query ? SearchX : FileText}
+          title={query ? 'No matching documents' : 'No documents available yet'}
+          message={query ? 'Try a collection name or a 4-digit model number.' : undefined}
+        />
       ) : (
         <>
           {groups.length > 4 && (

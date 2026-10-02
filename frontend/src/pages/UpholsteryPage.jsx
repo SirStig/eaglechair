@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react';
-import { Spool } from 'lucide-react';
+import { Spool, SearchX } from 'lucide-react';
+import EmptyResults from '../components/ui/EmptyResults';
 import { useCatalogs, useUpholsteries } from '../hooks/useContent';
 import { SEO } from '../config/seoConfig';
 import KnowledgePageLayout from '../components/knowledge/KnowledgePageLayout';
@@ -79,10 +80,11 @@ const UpholsteryPage = () => {
       footerNote={{ title: 'Need a sample or using your own material?', text: 'Ask us for vinyl samples or yardage for customer-supplied material.', cta: 'Contact us' }}
     >
       {groups.length === 0 ? (
-        <div className="text-center py-16">
-          <Spool className="w-16 h-16 text-slate-400 mx-auto mb-4" aria-hidden />
-          <h2 className="text-xl font-semibold text-slate-700">{query ? 'No materials found' : 'No materials listed yet'}</h2>
-        </div>
+        <EmptyResults
+          icon={query ? SearchX : Spool}
+          title={query ? 'No materials found' : 'No materials listed yet'}
+          message={query ? 'Try a different material, grade, or supplier.' : undefined}
+        />
       ) : (
         <div className="space-y-12">
           {groups.map(([group, items]) => (

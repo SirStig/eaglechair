@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Layers } from 'lucide-react';
+import { Layers, SearchX } from 'lucide-react';
+import EmptyResults from '../components/ui/EmptyResults';
 import { useLaminates } from '../hooks/useContent';
 import { SEO } from '../config/seoConfig';
 import KnowledgePageLayout from '../components/knowledge/KnowledgePageLayout';
@@ -51,10 +52,11 @@ const LaminatesPage = () => {
       }
     >
       {groups.length === 0 ? (
-        <div className="text-center py-16">
-          <Layers className="w-16 h-16 text-slate-400 mx-auto mb-4" aria-hidden />
-          <h2 className="text-xl font-semibold text-slate-700">{query ? 'No laminates found' : 'No laminates listed yet'}</h2>
-        </div>
+        <EmptyResults
+          icon={query ? SearchX : Layers}
+          title={query ? 'No laminates found' : 'No laminates listed yet'}
+          message={query ? 'Try a different laminate name or code.' : undefined}
+        />
       ) : (
         <div className="space-y-12">
           {groups.map(([brand, items]) => {

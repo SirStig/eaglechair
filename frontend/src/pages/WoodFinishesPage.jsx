@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react';
-import { Palette } from 'lucide-react';
+import { Palette, SearchX } from 'lucide-react';
+import EmptyResults from '../components/ui/EmptyResults';
 import { useCatalogs, useFinishes } from '../hooks/useContent';
 import { SEO } from '../config/seoConfig';
 import KnowledgePageLayout from '../components/knowledge/KnowledgePageLayout';
@@ -53,10 +54,11 @@ const WoodFinishesPage = () => {
       footerNote={{ title: 'Want to see it in person?', text: 'Ask us for finish samples or about matching a custom finish.', cta: 'Request samples' }}
     >
       {groups.length === 0 ? (
-        <div className="text-center py-16">
-          <Palette className="w-16 h-16 text-slate-400 mx-auto mb-4" aria-hidden />
-          <h2 className="text-xl font-semibold text-slate-700">{query ? 'No finishes found' : 'No finishes available'}</h2>
-        </div>
+        <EmptyResults
+          icon={query ? SearchX : Palette}
+          title={query ? 'No finishes found' : 'No finishes available'}
+          message={query ? 'Try a finish name or code, like 14-210.' : undefined}
+        />
       ) : (
         <div className="space-y-12">
           {groups.length > 1 && (

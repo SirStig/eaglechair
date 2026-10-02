@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Cog } from 'lucide-react';
+import { Cog, SearchX } from 'lucide-react';
+import EmptyResults from '../components/ui/EmptyResults';
 import { useHardware } from '../hooks/useContent';
 import { SEO } from '../config/seoConfig';
 import KnowledgePageLayout from '../components/knowledge/KnowledgePageLayout';
@@ -131,10 +132,11 @@ const HardwarePage = () => {
       }
     >
       {groups.length === 0 ? (
-        <div className="text-center py-16">
-          <Cog className="w-16 h-16 text-slate-400 mx-auto mb-4" aria-hidden />
-          <h2 className="text-xl font-semibold text-slate-700">{query ? 'No hardware found' : 'No hardware listed yet'}</h2>
-        </div>
+        <EmptyResults
+          icon={query ? SearchX : Cog}
+          title={query ? 'No hardware found' : 'No hardware listed yet'}
+          message={query ? 'Try a different name or part number.' : undefined}
+        />
       ) : (
         <div className="space-y-12">
           {groups.map(([cat, items]) => (

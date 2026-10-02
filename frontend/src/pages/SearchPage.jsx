@@ -5,6 +5,7 @@ import { SEO } from '../config/seoConfig';
 import { Filter, X, ChevronDown, ChevronUp, ArrowUpDown, Search as SearchIcon, Grid3x3 } from 'lucide-react';
 import ProductCard from '../components/ui/ProductCard';
 import Button from '../components/ui/Button';
+import EmptyResults from '../components/ui/EmptyResults';
 import QuickViewModal from '../components/ui/QuickViewModal';
 import { CardGridSkeleton } from '../components/ui/Skeleton';
 import productService from '../services/productService';
@@ -410,39 +411,18 @@ const SearchPage = () => {
             {loading ? (
               <CardGridSkeleton count={9} columns={3} />
             ) : products.length === 0 ? (
-              <div className="bg-white rounded-xl shadow-md border border-cream-200 p-12 text-center">
-                <svg
-                  className="mx-auto h-24 w-24 text-slate-400 mb-6"
-                  fill="none"
-                  viewBox="0 0 24 24"
-                  stroke="currentColor"
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={1.5}
-                    d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
-                  />
-                </svg>
-                <h2 className="text-2xl font-bold text-slate-800 mb-2">
-                  No Results Found
-                </h2>
-                <p className="text-slate-600 mb-6">
-                  We couldn't find any products matching "{searchQuery}"
-                  {activeCategory && ` in ${activeCategory.name}`}.
-                </p>
-                <div className="flex gap-4 justify-center flex-wrap">
-                  <Button variant="primary" onClick={handleClearSearch}>
-                    Browse All Products
-                  </Button>
-                  <Button
-                    variant="outline"
-                    onClick={() => navigate('/find-a-rep')}
-                  >
-                    Contact a Rep
-                  </Button>
-                </div>
-              </div>
+              <EmptyResults
+                title={searchQuery ? `No matches for “${searchQuery}”` : 'No products found'}
+                message={activeCategory ? `Nothing in ${activeCategory.name} matched your search.` : 'We couldn’t find a product matching that search.'}
+                hints={['Check the spelling, or try a broader term', 'Search by model number (e.g. 6460) or collection name']}
+              >
+                <Button variant="primary" onClick={handleClearSearch}>
+                  Browse All Products
+                </Button>
+                <Button variant="outline" onClick={() => navigate('/find-a-rep')}>
+                  Contact a Rep
+                </Button>
+              </EmptyResults>
             ) : (
               <>
                 {/* Results Summary */}

@@ -1,8 +1,9 @@
 import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { useSearchParams, useNavigate, useParams, Link } from 'react-router-dom';
-import { Filter } from 'lucide-react';
+import { Filter, SearchX, SlidersHorizontal } from 'lucide-react';
 import ProductCard from '../components/ui/ProductCard';
 import Button from '../components/ui/Button';
+import EmptyResults from '../components/ui/EmptyResults';
 import { CardGridSkeleton } from '../components/ui/Skeleton';
 import SEOHead from '../components/SEOHead';
 import SEO from '../config/seoConfig';
@@ -581,26 +582,17 @@ const ProductCatalogPage = () => {
             {loading ? (
               <CardGridSkeleton count={9} columns={3} />
             ) : products.length === 0 ? (
-              <div className="bg-white rounded-xl shadow-md border border-cream-200 p-12 text-center">
-                <svg
-                  className="mx-auto h-24 w-24 text-slate-400 mb-4"
-                  fill="none"
-                  viewBox="0 0 24 24"
-                  stroke="currentColor"
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={2}
-                    d="M20 13V6a2 2 0 00-2-2H6a2 2 0 00-2 2v7m16 0v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5m16 0h-2.586a1 1 0 00-.707.293l-2.414 2.414a1 1 0 01-.707.293h-3.172a1 1 0 01-.707-.293l-2.414-2.414A1 1 0 006.586 13H4"
-                  />
-                </svg>
-                <h3 className="text-xl font-semibold mb-2 text-slate-800">No products found</h3>
-                <p className="text-slate-600 mb-4">Try adjusting your filters or search terms</p>
+              <EmptyResults
+                icon={filters.search ? SearchX : SlidersHorizontal}
+                title={filters.search ? `No matches for “${filters.search}”` : 'No products match these filters'}
+                message={filters.search
+                  ? 'Try a different term, a model number, or clear your filters to see everything.'
+                  : 'Try removing a filter or two to widen the results.'}
+              >
                 <Button onClick={clearFilters} variant="primary">
-                  Clear Filters
+                  Clear All Filters
                 </Button>
-              </div>
+              </EmptyResults>
             ) : (
               <>
                 <div className="mb-4 flex items-center justify-between text-sm text-slate-600">
