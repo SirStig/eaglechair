@@ -1,8 +1,35 @@
 import { useEffect, useRef, useState } from 'react';
 import logger from '../utils/logger';
 import { useSiteSettings } from '../hooks/useContent';
+import { getStateName } from '../utils/usStates';
 
 const CONTEXT = 'USMapInteractive';
+const SVG_NS = 'http://www.w3.org/2000/svg';
+const LABEL_ID = 'selected-state-label';
+
+// Stroke matches the card background so borders read as clean gaps between states
+const MAP_COLORS = {
+  house: { fill: '#4a4a4a', stroke: '#2d2d2d', strokeWidth: '1' },
+  houseHover: { fill: '#6b6b6b', stroke: '#2d2d2d', strokeWidth: '1' },
+  rep: { fill: '#9a7426', stroke: '#2d2d2d', strokeWidth: '1' },
+  territory: { fill: '#c99a33', stroke: '#2d2d2d', strokeWidth: '1' },
+  repHover: { fill: '#fbbf24', stroke: '#2d2d2d', strokeWidth: '1' },
+  selected: { fill: '#f4a52d', stroke: '#fde68a', strokeWidth: '2' },
+};
+
+// Where to anchor the name label inside a state's bounding box (fraction of width, height)
+// for shapes whose box centre falls outside the state itself
+const LABEL_ANCHORS = {
+  FL: [0.78, 0.55],
+  MI: [0.72, 0.72],
+  LA: [0.3, 0.4],
+  MD: [0.35, 0.3],
+  ID: [0.4, 0.7],
+  OK: [0.55, 0.6],
+  TX: [0.55, 0.4],
+  KY: [0.55, 0.45],
+  VA: [0.6, 0.55],
+};
 
 const USMapInteractive = ({
   selectedState,
@@ -135,46 +162,38 @@ const USMapInteractive = ({
     // Apply styles and events to each state
     stateElementsMap.forEach((elements, stateCode) => {
       const rep = getRep(stateCode);
-      const hasRep = !!rep;
+      const hasDedicatedRep = !!rep && !rep.isHouse;
+      const stateName = getStateName(stateCode);
 
       elements.forEach(element => {
-        // Set base styles
-        element.style.cursor = hasRep ? 'pointer' : 'default';
-        element.style.transition = 'fill 0.25s ease-out, stroke 0.25s ease-out, opacity 0.25s ease-out';
-        element.style.strokeWidth = '1';
-        element.style.stroke = '#525252';
+        element.style.cursor = 'pointer';
+        element.style.transition = 'fill 0.2s ease-out, stroke 0.2s ease-out';
+        element.style.strokeLinejoin = 'round';
 
         const updateStyle = () => {
           const currentSelected = selectedStateRef.current;
           const currentHovered = hoveredStateRef.current;
           const isSelected = currentSelected === stateCode;
           const isHovered = currentHovered === stateCode;
+          // Hovering or selecting one state lights up the rest of that rep's territory
+          const inActiveTerritory = hasDedicatedRep && [currentHovered, currentSelected].some(code => {
+            const activeRep = code && getRep(code);
+            return activeRep && !activeRep.isHouse && activeRep.id === rep.id;
+          });
 
-          element.style.opacity = '1';
-          if (isSelected) {
-            element.style.fill = '#f4a52d';
-            element.style.strokeWidth = '2';
-            element.style.stroke = '#d4af37';
-          } else if (isHovered && hasRep) {
-            element.style.fill = '#fbbf24';
-            element.style.strokeWidth = '1.5';
-            element.style.stroke = '#525252';
-          } else if (hasRep) {
-            element.style.fill = '#6b6b6b';
-            element.style.strokeWidth = '1';
-            element.style.stroke = '#525252';
-          } else {
-            element.style.fill = '#3a3a3a';
-            element.style.opacity = '0.7';
-            element.style.strokeWidth = '1';
-            element.style.stroke = '#525252';
-          }
+          let style;
+          if (isSelected) style = MAP_COLORS.selected;
+          else if (isHovered) style = hasDedicatedRep ? MAP_COLORS.repHover : MAP_COLORS.houseHover;
+          else if (inActiveTerritory) style = MAP_COLORS.territory;
+          else style = hasDedicatedRep ? MAP_COLORS.rep : MAP_COLORS.house;
+
+          element.style.fill = style.fill;
+          element.style.stroke = style.stroke;
+          element.style.strokeWidth = style.strokeWidth;
         };
 
-        // Initial style
         updateStyle();
 
-        // Remove old event listeners to prevent duplicates
         const clickHandler = (e) => {
           e.stopPropagation();
           logger.debug(CONTEXT, `State clicked: ${stateCode}`);
@@ -197,30 +216,21 @@ const USMapInteractive = ({
         element._mouseLeaveHandler = mouseLeaveHandler;
         element._updateStyle = updateStyle;
 
-        // Add event listeners
-        if (hasRep) {
-          element.addEventListener('click', clickHandler);
-          element.addEventListener('mouseenter', mouseEnterHandler);
-          element.addEventListener('mouseleave', mouseLeaveHandler);
+        element.addEventListener('click', clickHandler);
+        element.addEventListener('mouseenter', mouseEnterHandler);
+        element.addEventListener('mouseleave', mouseLeaveHandler);
 
-          // Update tooltip
-          let titleEl = element.querySelector('title');
-          if (titleEl) {
-            const originalTitle = titleEl.textContent.split(' -')[0];
-            titleEl.textContent = `${originalTitle} - Click to view representative`;
-          }
-        } else {
-          let titleEl = element.querySelector('title');
-          if (titleEl) {
-            const originalTitle = titleEl.textContent.split(' -')[0];
-            titleEl.textContent = `${originalTitle} - No representative assigned`;
-          }
+        const titleEl = element.querySelector('title');
+        if (titleEl) {
+          titleEl.textContent = hasDedicatedRep
+            ? `${stateName} – ${rep.name}`
+            : `${stateName} – Served by our main office`;
         }
       });
     });
 
     const statesWithReps = Array.from(stateElementsMap.keys())
-      .filter(code => getRep(code))
+      .filter(code => !getRep(code)?.isHouse)
       .sort();
     logger.info(CONTEXT, `States with representatives: ${statesWithReps.length}`, { states: statesWithReps });
 
@@ -257,6 +267,86 @@ const USMapInteractive = ({
       });
     });
   }, [selectedState, hoveredState, stateElementsMap]);
+
+  // Draw the selected state's full name as a pill on the map itself
+  useEffect(() => {
+    const container = containerRef.current;
+    const svg = container?.querySelector('svg');
+    if (!svg || !stateElementsMap) return;
+
+    const draw = () => {
+      svg.querySelector(`#${LABEL_ID}`)?.remove();
+      const elements = selectedState && stateElementsMap.get(selectedState);
+      const viewBox = svg.viewBox.baseVal;
+      const renderedWidth = svg.getBoundingClientRect().width;
+      if (!elements?.length || !viewBox?.width || !renderedWidth) return;
+
+      const box = elements
+        .map(el => el.getBBox())
+        .reduce((a, b) => (b.width * b.height > a.width * a.height ? b : a));
+      const [fx, fy] = LABEL_ANCHORS[selectedState] || [0.5, 0.5];
+      const cx = box.x + box.width * fx;
+      const cy = box.y + box.height * fy;
+
+      // Keep the text ~13px on screen regardless of how small the map renders
+      const fontSize = Math.max(13, 13 * (viewBox.width / renderedWidth));
+      const height = fontSize * 1.9;
+      const padX = fontSize * 0.75;
+
+      const group = document.createElementNS(SVG_NS, 'g');
+      group.setAttribute('id', LABEL_ID);
+      group.style.pointerEvents = 'none';
+
+      const pill = document.createElementNS(SVG_NS, 'rect');
+      const text = document.createElementNS(SVG_NS, 'text');
+      const dot = document.createElementNS(SVG_NS, 'circle');
+
+      text.textContent = getStateName(selectedState);
+      text.setAttribute('font-size', fontSize);
+      text.setAttribute('font-weight', '700');
+      text.setAttribute('fill', '#fde68a');
+      text.setAttribute('text-anchor', 'middle');
+      text.setAttribute('dominant-baseline', 'central');
+      text.style.fontFamily = 'inherit';
+      text.style.letterSpacing = '0.02em';
+
+      group.append(pill, text, dot);
+      svg.append(group);
+
+      const width = text.getComputedTextLength() + padX * 2;
+      const x = Math.min(Math.max(cx - width / 2, 4), viewBox.width - width - 4);
+      const gap = fontSize * 0.7;
+      const y = cy - height - gap >= 4 ? cy - height - gap : cy + gap;
+
+      pill.setAttribute('x', x);
+      pill.setAttribute('y', y);
+      pill.setAttribute('width', width);
+      pill.setAttribute('height', height);
+      pill.setAttribute('rx', height / 2);
+      pill.setAttribute('fill', '#121212');
+      pill.setAttribute('fill-opacity', '0.92');
+      pill.setAttribute('stroke', '#f4a52d');
+      pill.setAttribute('stroke-width', fontSize * 0.1);
+
+      text.setAttribute('x', x + width / 2);
+      text.setAttribute('y', y + height / 2);
+
+      dot.setAttribute('cx', cx);
+      dot.setAttribute('cy', cy);
+      dot.setAttribute('r', fontSize * 0.28);
+      dot.setAttribute('fill', '#121212');
+      dot.setAttribute('stroke', '#fde68a');
+      dot.setAttribute('stroke-width', fontSize * 0.12);
+    };
+
+    draw();
+    const observer = new ResizeObserver(draw);
+    observer.observe(container);
+    return () => {
+      observer.disconnect();
+      svg.querySelector(`#${LABEL_ID}`)?.remove();
+    };
+  }, [selectedState, stateElementsMap]);
 
   return (
     <div className="relative w-full">

@@ -1,4 +1,4 @@
-import { useState, useCallback, useMemo } from 'react';
+import { useState, useCallback, useMemo, useRef } from 'react';
 import SEOHead from '../components/SEOHead';
 import { SEO } from '../config/seoConfig';
 import { m } from 'framer-motion';
@@ -9,15 +9,19 @@ import EditableSectionHeading from '../components/common/EditableSectionHeading'
 import EditableList from '../components/admin/EditableList';
 import { useSalesReps, useSiteSettings } from '../hooks/useContent';
 import logger from '../utils/logger';
+import { getStateName } from '../utils/usStates';
 
 const CONTEXT = 'FindARepPage';
 
 // Admin-only write API; loaded on first save so public visitors never download it
 const loadCmsAdmin = () => import('../services/cmsAdminService');
 
+const getRepStates = (rep) => rep.states_covered || rep.statesCovered || rep.states || [];
+
 const FindARepPage = () => {
   const [selectedState, setSelectedState] = useState(null);
   const [hoveredState, setHoveredState] = useState(null);
+  const mapRef = useRef(null);
   const { data: salesReps } = useSalesReps();
   const { data: siteSettings } = useSiteSettings();
 
@@ -40,10 +44,19 @@ const FindARepPage = () => {
   // Get rep for selected/hovered state
   const getRep = useCallback((stateCode) => {
     if (!stateCode) return null;
-    return reps.find(rep => (rep.states_covered || rep.statesCovered || rep.states).includes(stateCode)) || houseRep;
+    return reps.find(rep => getRepStates(rep).includes(stateCode)) || houseRep;
   }, [reps, houseRep]);
 
-  const displayRep = getRep(selectedState || hoveredState);
+  const activeState = selectedState || hoveredState;
+  const displayRep = getRep(activeState);
+  const selectedRep = getRep(selectedState);
+
+  const selectRepTerritory = (rep) => {
+    const states = getRepStates(rep);
+    if (!states.length) return;
+    setSelectedState(states[0]);
+    mapRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  };
 
   const repCard = displayRep && (
     <m.div
@@ -95,8 +108,8 @@ const FindARepPage = () => {
               <p className="text-sm font-medium text-dark-100">Coverage Area</p>
               <p className="text-sm text-dark-200">
                 {displayRep.isHouse
-                  ? `${selectedState || hoveredState} is served directly by our main office`
-                  : (displayRep.states_covered || displayRep.statesCovered || displayRep.states).join(', ')}
+                  ? `${getStateName(activeState)} is served directly by our main office`
+                  : getRepStates(displayRep).map(getStateName).join(', ')}
               </p>
             </div>
           </div>
@@ -174,13 +187,22 @@ const FindARepPage = () => {
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 sm:gap-8">
           {/* Map Section */}
-          <div className="lg:col-span-2">
+          <div className="lg:col-span-2 scroll-mt-24" ref={mapRef}>
             <Card>
-              <h2 className="text-xl sm:text-2xl font-bold mb-4 sm:mb-6 text-dark-50">Interactive US Map</h2>
-
-              <p className="text-center text-dark-100 mb-4">
-                Click a state to view your representative
-              </p>
+              <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-3 mb-4 sm:mb-6">
+                <h2 className="text-xl sm:text-2xl font-bold text-dark-50">Interactive US Map</h2>
+                {/* Legend */}
+                <div className="flex flex-wrap gap-x-4 gap-y-1.5 text-xs sm:text-sm text-dark-100">
+                  <span className="inline-flex items-center gap-2">
+                    <span className="w-3.5 h-3.5 rounded-sm bg-[#9a7426] ring-1 ring-black/30" aria-hidden="true" />
+                    Local representative
+                  </span>
+                  <span className="inline-flex items-center gap-2">
+                    <span className="w-3.5 h-3.5 rounded-sm bg-[#4a4a4a] ring-1 ring-black/30" aria-hidden="true" />
+                    Main office
+                  </span>
+                </div>
+              </div>
 
               {/* US Map SVG - Direct, no nested cards */}
               <USMapInteractive
@@ -191,9 +213,45 @@ const FindARepPage = () => {
                 getRep={getRep}
               />
 
-              <p className="text-center text-sm text-dark-200 mt-4">
-                {selectedState ? `Selected: ${selectedState}` : 'Click any state to find your sales representative'}
-              </p>
+              {/* Selection summary – on mobile this is the quickest path to contact info */}
+              <div className="mt-4 rounded-lg border border-dark-500 bg-dark-700/60 px-4 py-3" aria-live="polite">
+                {selectedState ? (
+                  <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                    <div className="min-w-0">
+                      <p className="text-base font-semibold text-dark-50">{getStateName(selectedState)}</p>
+                      <p className="text-sm text-dark-100">
+                        {selectedRep.isHouse ? (
+                          'Served directly by our main office'
+                        ) : (
+                          <>Represented by <span className="text-primary-500 font-medium">{selectedRep.name}</span></>
+                        )}
+                      </p>
+                    </div>
+                    <div className="flex gap-2 lg:hidden">
+                      {selectedRep.phone && (
+                        <a
+                          href={`tel:${selectedRep.phone}`}
+                          className="flex-1 sm:flex-none text-center px-4 py-2 rounded-lg bg-primary-500 text-dark-900 font-semibold text-sm"
+                        >
+                          Call
+                        </a>
+                      )}
+                      {selectedRep.email && (
+                        <a
+                          href={`mailto:${selectedRep.email}`}
+                          className="flex-1 sm:flex-none text-center px-4 py-2 rounded-lg border border-primary-500 text-primary-500 font-semibold text-sm"
+                        >
+                          Email
+                        </a>
+                      )}
+                    </div>
+                  </div>
+                ) : (
+                  <p className="text-center text-sm text-dark-100">
+                    Tap or click any state. Gold states have a dedicated local representative.
+                  </p>
+                )}
+              </div>
             </Card>
           </div>
 
@@ -256,20 +314,39 @@ const FindARepPage = () => {
               displayOrder: reps.length
             }}
             renderItem={(rep) => {
-              const states = rep.states_covered || rep.statesCovered || rep.states;
+              const states = getRepStates(rep);
+              const isActive = !selectedRep?.isHouse && selectedRep?.id === rep.id;
               return (
                 <Card
                   key={rep.id}
-                  className="hover:shadow-xl hover:border-primary-500 transition-all cursor-pointer"
-                  onClick={() => setSelectedState(states[0])}
+                  className={`hover:shadow-xl hover:border-primary-500 transition-all cursor-pointer ${isActive ? 'border-primary-500' : ''}`}
+                  onClick={() => selectRepTerritory(rep)}
                 >
                   <h3 className="text-lg font-semibold mb-3 text-dark-50">{rep.name}</h3>
+                  <ul className="flex flex-wrap gap-1.5 mb-3" aria-label={`States covered by ${rep.name}`}>
+                    {states.map(code => (
+                      <li key={code}>
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setSelectedState(code);
+                            mapRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                          }}
+                          className={`px-2.5 py-1 rounded-full text-xs font-medium border transition-colors ${
+                            selectedState === code
+                              ? 'bg-primary-500 border-primary-500 text-dark-900'
+                              : 'bg-[#9a7426]/20 border-[#9a7426]/60 text-primary-300 hover:border-primary-500'
+                          }`}
+                        >
+                          {getStateName(code)}
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
                   <div className="space-y-1 text-sm">
-                    <p className="text-dark-200">
-                      <strong className="text-dark-50">States:</strong> {states.join(', ')}
-                    </p>
-                    <p className="text-primary-500">{rep.phone}</p>
-                    <p className="text-primary-500 break-all">{rep.email}</p>
+                    <a href={`tel:${rep.phone}`} onClick={(e) => e.stopPropagation()} className="block text-primary-500">{rep.phone}</a>
+                    <a href={`mailto:${rep.email}`} onClick={(e) => e.stopPropagation()} className="block text-primary-500 break-all">{rep.email}</a>
                   </div>
                 </Card>
               );
