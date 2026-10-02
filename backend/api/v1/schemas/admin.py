@@ -257,7 +257,7 @@ class ProductCreate(BaseModel):
     )
 
     # Inventory & Availability
-    stock_status: str = Field("instock", max_length=50, description="Stock status")
+    stock_status: str = Field("Made to Order", max_length=50, description="Stock status")
     lead_time_days: Optional[int] = Field(None, ge=0, description="Lead time in days")
     minimum_order_quantity: int = Field(1, ge=1, description="Minimum order quantity")
 

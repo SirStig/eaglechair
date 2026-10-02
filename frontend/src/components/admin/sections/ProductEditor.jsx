@@ -3,7 +3,7 @@ import Card from '../../ui/Card';
 import Button from '../../ui/Button';
 import { useToast } from '../../../contexts/ToastContext';
 import apiClient from '../../../config/apiClient';
-import { resolveImageUrl } from '../../../utils/apiHelpers';
+import { resolveImageUrl, formatStockStatus } from '../../../utils/apiHelpers';
 import { slugify } from '../../../utils/slugify';
 import { uploadImage, deleteImage } from '../../../utils/imageUpload';
 import {
@@ -69,7 +69,6 @@ const ProductEditor = ({ product, onBack }) => {
     frame_material: '',
     construction_details: '',
     features: [],
-    stock_status: 'In Stock',
     lead_time_days: null,
     minimum_order_quantity: 1,
     is_featured: false,
@@ -81,6 +80,7 @@ const ProductEditor = ({ product, onBack }) => {
     meta_title: '',
     meta_description: '',
     ...product,
+    stock_status: formatStockStatus(product?.stock_status) || 'Made to Order',
     hover_images: Array.isArray(product?.hover_images) ? product.hover_images : [],
     keywords: Array.isArray(product?.keywords) ? product.keywords : [],
     secondary_family_ids: Array.isArray(product?.secondary_family_ids) ? product.secondary_family_ids : [],
@@ -1294,7 +1294,7 @@ const ProductEditor = ({ product, onBack }) => {
                   upholstery_id: null,
                   color_id: null,
                   price_adjustment: 0,
-                  stock_status: 'Available',
+                  stock_status: 'Made to Order',
                   is_available: true,
                   family_ids: [],
                   width: null,
@@ -1373,7 +1373,7 @@ const ProductEditor = ({ product, onBack }) => {
                               Stock Status
                             </label>
                             <select
-                              value={variation.stock_status || 'Available'}
+                              value={formatStockStatus(variation.stock_status) || 'Made to Order'}
                               onChange={(e) => {
                                 const newVariations = [...variations];
                                 newVariations[index].stock_status = e.target.value;
@@ -1381,6 +1381,7 @@ const ProductEditor = ({ product, onBack }) => {
                               }}
                               className="w-full px-3 py-2 bg-dark-700 border border-dark-600 rounded-lg text-dark-50"
                             >
+                              <option value="Made to Order">Made to Order</option>
                               <option value="Available">Available</option>
                               <option value="Low Stock">Low Stock</option>
                               <option value="Out of Stock">Out of Stock</option>
@@ -1739,6 +1740,7 @@ const ProductEditor = ({ product, onBack }) => {
                   onChange={(e) => handleChange('stock_status', e.target.value)}
                   className="w-full px-4 py-2 bg-dark-700 border border-dark-600 rounded-lg text-dark-50 focus:border-primary-500 focus:ring-1 focus:ring-primary-500 outline-none"
                 >
+                  <option value="Made to Order">Made to Order</option>
                   <option value="In Stock">In Stock</option>
                   <option value="Low Stock">Low Stock</option>
                   <option value="Out of Stock">Out of Stock</option>

@@ -5,7 +5,7 @@ Comprehensive models for chairs, booths, tables with categories, finishes, mater
 """
 
 from sqlalchemy import JSON, Boolean, Column, Float, ForeignKey, Index, Integer, String, Table, Text
-from sqlalchemy.orm import relationship
+from sqlalchemy.orm import relationship, validates
 
 from backend.database.base import Base
 
@@ -45,6 +45,30 @@ chair_subcategories = Table(
         primary_key=True,
     ),
 )
+
+
+# Canonical display labels for stock statuses, keyed by the status with
+# spaces/punctuation stripped, so "instock", "in_stock" and "IN STOCK" all
+# store as "In Stock".
+STOCK_STATUS_LABELS = {
+    "instock": "In Stock",
+    "available": "Available",
+    "lowstock": "Low Stock",
+    "outofstock": "Out of Stock",
+    "backorder": "Backorder",
+    "preorder": "Pre-Order",
+    "madetoorder": "Made to Order",
+    "customonly": "Custom Only",
+    "discontinued": "Discontinued",
+}
+
+
+def normalize_stock_status(value):
+    """Return a stock status in display prose ("instock" -> "In Stock")."""
+    if not value:
+        return value
+    key = "".join(c for c in str(value).lower() if c.isalpha())
+    return STOCK_STATUS_LABELS.get(key, str(value).strip())
 
 
 # Spec symbol sets for product pages, assigned per category/subcategory.
@@ -434,7 +458,7 @@ class Chair(Base):
     spec_sheet_url = Column(String(500), nullable=True)
 
     # Inventory & Availability
-    stock_status = Column(String(50), default="In Stock", nullable=False)
+    stock_status = Column(String(50), default="Made to Order", nullable=False)
     lead_time_days = Column(Integer, nullable=True)
     minimum_order_quantity = Column(Integer, default=1, nullable=False)
 
@@ -496,6 +520,10 @@ class Chair(Base):
         except:
             # Fallback if anything goes wrong
             return f"<Chair at {hex(id(self))}>"
+
+    @validates("stock_status")
+    def _normalize_stock_status(self, _key, value):
+        return normalize_stock_status(value)
 
 
 class ProductRelation(Base):
@@ -611,7 +639,7 @@ class ProductVariation(Base):
     primary_image_url = Column(String(500), nullable=True)
 
     # Inventory
-    stock_status = Column(String(50), default="Available", nullable=False)
+    stock_status = Column(String(50), default="Made to Order", nullable=False)
     is_available = Column(Boolean, default=True, nullable=False)
     lead_time_days = Column(Integer, nullable=True)
 
@@ -646,6 +674,10 @@ class ProductVariation(Base):
             return f"<ProductVariation(id={var_id}, sku={sku}, product_id={prod_id})>"
         except:
             return f"<ProductVariation at {hex(id(self))}>"
+
+    @validates("stock_status")
+    def _normalize_stock_status(self, _key, value):
+        return normalize_stock_status(value)
 
 
 class ProductImage(Base):

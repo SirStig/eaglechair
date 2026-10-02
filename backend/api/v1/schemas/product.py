@@ -453,7 +453,7 @@ class ChairBase(BaseModel):
     spec_sheet_url: Optional[str] = Field(None, max_length=500)
 
     # Inventory
-    stock_status: str = Field("In Stock", max_length=50)
+    stock_status: str = Field("Made to Order", max_length=50)
     lead_time_days: Optional[int] = None
     minimum_order_quantity: int = 1
 

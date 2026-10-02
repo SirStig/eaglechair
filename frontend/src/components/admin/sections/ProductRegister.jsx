@@ -7,7 +7,7 @@ import {
 import Card from '../../ui/Card';
 import Button from '../../ui/Button';
 import ResponsiveImage from '../../ui/ResponsiveImage';
-import { resolveImageUrl } from '../../../utils/apiHelpers';
+import { resolveImageUrl, formatStockStatus } from '../../../utils/apiHelpers';
 import { useToast } from '../../../contexts/ToastContext';
 import { useAdminRefresh } from '../../../contexts/AdminRefreshContext';
 import {
@@ -437,7 +437,7 @@ const ProductRegister = () => {
                             {v.is_available ? 'Available' : 'Unavailable'}
                           </button>
                         </td>
-                        <td className="p-2 text-dark-400 hidden md:table-cell">{v.stock_status}</td>
+                        <td className="p-2 text-dark-400 hidden md:table-cell">{formatStockStatus(v.stock_status)}</td>
                         <td />
                       </tr>
                     ))}

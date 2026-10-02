@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom';
 import Button from './Button';
 import Tag from './Tag';
 import { useCartStore } from '../../store/cartStore';
-import { getProductImages, buildProductUrl, resolveImageUrl, variationHasOwnImage } from '../../utils/apiHelpers';
+import { getProductImages, buildProductUrl, resolveImageUrl, variationHasOwnImage, formatStockStatus, isInStock } from '../../utils/apiHelpers';
 import SwatchImage from './SwatchImage';
 import ResponsiveImage from './ResponsiveImage';
 import VariationImageDisclaimer from './VariationImageDisclaimer';
@@ -363,11 +363,11 @@ const QuickViewModal = ({ product, isOpen, onClose }) => {
                             <div className="flex items-center gap-2 flex-wrap">
                               {selectedVariation.stock_status && (
                                 <span className={`inline-block px-2 py-1 rounded text-xs ${
-                                  selectedVariation.stock_status === 'Available' 
+                                  isInStock(selectedVariation)
                                     ? 'bg-green-100 text-green-800' 
                                     : 'bg-yellow-100 text-yellow-800'
                                 }`}>
-                                  {selectedVariation.stock_status}
+                                  {formatStockStatus(selectedVariation.stock_status)}
                                 </span>
                               )}
                               {selectedVariation.lead_time_days && (

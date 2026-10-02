@@ -612,8 +612,37 @@ export const hasValidPrice = (product) => {
  */
 export const isInStock = (product) => {
   if (!product) return false;
-  const status = product.stock_status?.toLowerCase() || '';
+  const status = formatStockStatus(product.stock_status).toLowerCase();
   return status === 'in stock' || status === 'available';
+};
+
+const STOCK_STATUS_LABELS = {
+  instock: 'In Stock',
+  available: 'Available',
+  lowstock: 'Low Stock',
+  outofstock: 'Out of Stock',
+  backorder: 'Backorder',
+  preorder: 'Pre-Order',
+  madetoorder: 'Made to Order',
+  customonly: 'Custom Only',
+  discontinued: 'Discontinued',
+};
+
+/**
+ * Turn a stored stock status (e.g. "instock", "in_stock", "OUT OF STOCK")
+ * into display prose (e.g. "In Stock", "Out of Stock").
+ * @param {string} status - Raw stock status
+ * @returns {string} Display label, or '' when empty
+ */
+export const formatStockStatus = (status) => {
+  if (!status) return '';
+  const key = String(status).toLowerCase().replace(/[^a-z]/g, '');
+  if (STOCK_STATUS_LABELS[key]) return STOCK_STATUS_LABELS[key];
+  return String(status)
+    .trim()
+    .replace(/[_-]+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .replace(/\b\w/g, (c) => c.toUpperCase());
 };
 
 /**
@@ -665,5 +694,6 @@ export default {
   // Validation
   hasValidPrice,
   isInStock,
+  formatStockStatus,
   isCustomProduct,
 };

@@ -12,7 +12,7 @@ import EditableWrapper from '../components/admin/EditableWrapper';
 import SEOHead from '../components/SEOHead';
 import { useCartStore } from '../store/cartStore';
 import productService from '../services/productService';
-import { getProductImages, getProductGalleryImages, resolveImageUrl, resolveFileUrl, variationHasOwnImage, getImageSrcSet } from '../utils/apiHelpers';
+import { getProductImages, getProductGalleryImages, resolveImageUrl, resolveFileUrl, variationHasOwnImage, getImageSrcSet, formatStockStatus, isInStock } from '../utils/apiHelpers';
 import ResponsiveImage from '../components/ui/ResponsiveImage';
 import SpecSymbols, { SpecIcon } from '../components/ui/SpecSymbols';
 import CustomOptionsNote from '../components/ui/CustomOptionsNote';
@@ -510,8 +510,8 @@ const ProductDetailPage = () => {
                 {product.featured && <Tag variant="featured">Featured</Tag>}
                 {product.is_outdoor_suitable && <Tag variant="default">Outdoor</Tag>}
                 {product.stock_status && (
-                  <Tag variant={product.stock_status === 'In Stock' ? 'new' : 'limited'}>
-                    {product.stock_status}
+                  <Tag variant={isInStock(product) ? 'new' : 'limited'}>
+                    {formatStockStatus(product.stock_status)}
                   </Tag>
                 )}
                 {product.ada_compliant && <Tag variant="commercial">ADA Compliant</Tag>}
@@ -950,11 +950,11 @@ const ProductDetailPage = () => {
                       {selectedVariation != null && (
                         <div className="flex items-center gap-2 flex-wrap pt-2 border-t border-cream-200">
                           {selectedVariation.stock_status && (
-                            <span className={`inline-block px-3 py-1 rounded text-xs font-medium ${selectedVariation.stock_status === 'Available'
+                            <span className={`inline-block px-3 py-1 rounded text-xs font-medium ${isInStock(selectedVariation)
                               ? 'bg-green-100 text-green-800'
                               : 'bg-yellow-100 text-yellow-800'
                               }`}>
-                              {selectedVariation.stock_status}
+                              {formatStockStatus(selectedVariation.stock_status)}
                             </span>
                           )}
                           {selectedVariation.lead_time_days && (
