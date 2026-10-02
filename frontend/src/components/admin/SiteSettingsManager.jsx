@@ -226,8 +226,8 @@ const SiteSettingsManager = () => {
           <textarea id="company_tagline" {...field('company_tagline')} rows={2} className={`${TEXTAREA_CLASS} resize-y`} />
         </div>
         <div className="grid gap-6 md:grid-cols-2">
-          {renderLogoField('logo_url', 'Main logo', 'Shown in the header and footer.')}
-          {renderLogoField('logo_dark_url', 'Alternate logo', 'Optional variant for dark backgrounds. Not currently shown on the site.')}
+          {renderLogoField('logo_url', 'Main logo', 'Dark logo for light backgrounds: emails and search results. Use a transparent PNG.')}
+          {renderLogoField('logo_dark_url', 'Logo for dark backgrounds', 'Light logo shown in the header, footer and sign-in pages. Use a transparent PNG; defaults to the white Eagle Chair logo.')}
         </div>
       </Section>
 

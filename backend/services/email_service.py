@@ -481,7 +481,8 @@ class EmailService:
         
         # Merge context with base template defaults
         # Ensure URLs are absolute
-        logo_url = context.get('logo_url') or site_settings.get('logo_url')
+        # Emails have a white header, so fall back to the black logo
+        logo_url = context.get('logo_url') or site_settings.get('logo_url') or '/assets/eagle-chair-logo.png'
         unsubscribe_url = context.get('unsubscribe_url')
         
         base_context = {

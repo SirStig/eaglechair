@@ -180,7 +180,7 @@ const Header = ({ isMobileMenuOpen, setIsMobileMenuOpen }) => {
               className={`header-logo-wrap flex items-center gap-2 sm:gap-3 ${!showHeaderBackground ? 'drop-shadow-[0_2px_8px_rgba(0,0,0,0.6)]' : ''}`}
             >
               <SiteLogo
-                src={siteSettings?.logoUrl}
+                src={siteSettings?.logoDarkUrl}
                 alt={siteSettings?.companyName || 'Eagle Chair'}
                 className={`header-logo h-12 sm:h-14 md:h-16 lg:h-16 w-auto object-contain ${!showHeaderBackground ? 'drop-shadow-[0_2px_8px_rgba(0,0,0,0.8)]' : ''}`}
                 priority

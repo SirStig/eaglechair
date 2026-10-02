@@ -1,10 +1,11 @@
 import ResponsiveImage from './ResponsiveImage';
 
-export const DEFAULT_LOGO = '/assets/eagle-chair-logo.png';
+// White logo: every surface SiteLogo sits on (header, footer, auth pages) is dark
+export const DEFAULT_LOGO = '/assets/eagle-chair-logo-white.png';
 
 /**
- * Company logo from Site Settings (an upload, kept at full resolution) or the
- * bundled default. It's shown ~48-64px tall, so request a small rendition
+ * Company logo for dark backgrounds from Site Settings (an upload, kept at
+ * full resolution) or the bundled white default. It's shown ~48-64px tall, so request a small rendition
  * instead of the original, skip the blurred placeholder (a blurry logo looks
  * broken) and never upgrade to full resolution.
  */

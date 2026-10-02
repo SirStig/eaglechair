@@ -46,7 +46,7 @@ const ForgotPasswordPage = () => {
             <Link to="/" className="inline-block mb-4">
               <m.div className="inline-block" whileHover={{ scale: 1.05 }} transition={{ type: "spring", stiffness: 300 }}>
                 <SiteLogo
-                  src={siteSettings?.logoUrl}
+                  src={siteSettings?.logoDarkUrl}
                   alt={siteSettings?.companyName || "Eagle Chair"}
                   className="h-16 w-auto mx-auto"
                   priority
@@ -96,7 +96,7 @@ const ForgotPasswordPage = () => {
           <Link to="/" className="inline-block mb-4">
             <m.div className="inline-block" whileHover={{ scale: 1.05 }} transition={{ type: "spring", stiffness: 300 }}>
               <SiteLogo
-                src={siteSettings?.logoUrl}
+                src={siteSettings?.logoDarkUrl}
                 alt={siteSettings?.companyName || "Eagle Chair"}
                 className="h-16 w-auto mx-auto"
                 priority

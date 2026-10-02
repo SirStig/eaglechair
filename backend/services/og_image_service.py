@@ -38,11 +38,12 @@ logger = logging.getLogger(__name__)
 
 CARD_W, CARD_H = 1200, 630
 # Bump to re-render every card after a design change
-TEMPLATE_VERSION = 1
+TEMPLATE_VERSION = 2
 
 ASSETS_DIR = Path(__file__).resolve().parent.parent / "assets"
 FONTS_DIR = ASSETS_DIR / "fonts"
-LOGO_PATH = ASSETS_DIR / "eagle-chair-logo.png"
+# White on transparent: the logo always sits on the dark brand panel
+LOGO_PATH = ASSETS_DIR / "eagle-chair-logo-white.png"
 
 # Brand palette (frontend/tailwind.config.js)
 WHITE = (255, 255, 255)

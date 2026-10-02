@@ -96,6 +96,7 @@ async def get_site_settings(db: AsyncSession = Depends(get_db)):
         "companyName": settings.company_name,
         "companyTagline": settings.company_tagline,
         "logoUrl": settings.logo_url,
+        "logoDarkUrl": settings.logo_dark_url,
         "faviconUrl": settings.favicon_url,
         "primaryEmail": settings.primary_email,
         "primaryPhone": settings.primary_phone,

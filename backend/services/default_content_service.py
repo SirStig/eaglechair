@@ -19,7 +19,7 @@ class DefaultContentService:
             "companyName": "Eagle Chair",
             "companyTagline": "Premium Commercial Furniture Since 1984",
             "logoUrl": "/assets/eagle-chair-logo.png",
-            "logoDarkUrl": "/assets/eagle-chair-logo-dark.png",
+            "logoDarkUrl": "/assets/eagle-chair-logo-white.png",
             "faviconUrl": "/assets/favicon.ico",
             "primaryEmail": "info@eaglechair.com",
             "primaryPhone": "(713) 555-0100",

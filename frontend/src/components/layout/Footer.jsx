@@ -40,7 +40,7 @@ const Footer = () => {
   
   // Extract contact info from siteSettings (loaded from contentData.json)
   // All contact information comes from contentData, not hardcoded
-  const logoUrl = siteSettings?.logoUrl;
+  const logoUrl = siteSettings?.logoDarkUrl;
   const companyName = siteSettings?.companyName || 'Eagle Chair';
   const addressLine1 = siteSettings?.addressLine1 || '';
   const addressLine2 = siteSettings?.addressLine2 || '';
