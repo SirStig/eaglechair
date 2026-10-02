@@ -88,7 +88,7 @@ const SeatBackTermsPage = () => (
       <dl className="grid grid-cols-1 sm:grid-cols-2 gap-x-8 gap-y-3">
         {MODEL_CODE.map((c) => (
           <div key={c.code} className="flex gap-4 items-baseline">
-            <dt className="font-mono font-semibold text-primary-700 w-20 flex-shrink-0">{c.code}</dt>
+            <dt className="font-mono font-semibold text-primary-700 w-24 flex-shrink-0">{c.code}</dt>
             <dd className="text-slate-700">{c.meaning}</dd>
           </div>
         ))}

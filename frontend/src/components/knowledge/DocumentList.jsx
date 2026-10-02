@@ -86,7 +86,7 @@ const DocumentList = ({ documents, variant = 'list', showType = false }) => {
           {documents.map((doc) => (
             <li key={doc.id} className="flex items-center gap-3 sm:gap-4 p-3 sm:p-4">
               <div className="w-10 sm:w-12 flex-shrink-0 rounded border border-cream-200 overflow-hidden">
-                <CatalogCoverImage catalog={doc} />
+                <CatalogCoverImage catalog={doc} compact />
               </div>
               <div className="min-w-0 flex-1">
                 <h3 className="font-semibold text-slate-800 leading-snug">{doc.title}</h3>

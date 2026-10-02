@@ -21,6 +21,19 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/seo", tags=["SEO"])
 
 
+# Keep in sync with frontend/src/config/productKnowledge.js
+KNOWLEDGE_PAGES = (
+    "/virtual-catalogs",
+    "/resources/spec-sheets",
+    "/resources/guides",
+    "/resources/woodfinishes",
+    "/resources/upholstery",
+    "/resources/laminates",
+    "/resources/hardware",
+    "/resources/seat-back-terms",
+)
+
+
 @router.get("/sitemap.xml", response_class=Response)
 async def get_sitemap(db: AsyncSession = Depends(get_db)):
     """
@@ -73,8 +86,14 @@ async def get_sitemap(db: AsyncSession = Depends(get_db)):
             f'  <url><loc>{base_url}/find-a-rep</loc><lastmod>{current_date}</lastmod><changefreq>monthly</changefreq><priority>0.7</priority></url>',
             f'  <url><loc>{base_url}/contact</loc><lastmod>{current_date}</lastmod><changefreq>monthly</changefreq><priority>0.8</priority></url>',
             '',
-            '  <!-- Categories -->',
+            '  <!-- Product Knowledge -->',
         ]
+        for path in KNOWLEDGE_PAGES:
+            xml_lines.append(
+                f'  <url><loc>{base_url}{path}</loc><lastmod>{current_date}</lastmod>'
+                f'<changefreq>monthly</changefreq><priority>0.6</priority></url>'
+            )
+        xml_lines += ['', '  <!-- Categories -->']
         
         # Add categories
         for category in categories:

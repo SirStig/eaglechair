@@ -94,7 +94,7 @@ const HardwarePage = () => {
     <KnowledgePageLayout
       pageKey="hardware"
       seo={SEO.pages.hardware}
-      subtitle="Glides, swivels, footrings and other chair hardware, plus the table bases and edge profiles we build with."
+      subtitle="Glides, swivels, footrings and other chair hardware, plus table bases and table edge profiles."
       loading={loading}
       toolbar={
         <div className="space-y-4">

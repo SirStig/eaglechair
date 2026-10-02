@@ -87,7 +87,7 @@ EAGLECHAIR_DOMAIN_KNOWLEDGE = """
 - /cart — Shopping cart
 - /quote-request — Quote request form
 - /about, /contact, /gallery, /find-a-rep — Info pages
-- /virtual-catalogs, /resources/guides, /resources/woodfinishes, /resources/hardware, /resources/laminates, /resources/upholstery, /resources/seat-back-terms — Resource pages
+- /virtual-catalogs (full catalogs), /resources/spec-sheets (line sheets, spec sheets, line drawings), /resources/guides (installation, care, warranty), /resources/woodfinishes, /resources/hardware, /resources/laminates, /resources/upholstery, /resources/seat-back-terms — Resource pages
 - /terms, /privacy, /general-information — Legal/info
 - /login, /verify-email, /forgot-password, /reset-password — Auth
 

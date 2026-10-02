@@ -36,7 +36,7 @@ const KnowledgePageLayout = ({
 
           <nav
             aria-label="Product Knowledge sections"
-            className="mt-5 -mx-4 px-4 sm:mx-0 sm:px-0 flex gap-2 overflow-x-auto scrollbar-hide"
+            className="mt-5 -mx-4 px-4 sm:mx-0 sm:px-0 flex gap-1.5 overflow-x-auto scrollbar-hide sm:flex-wrap sm:overflow-visible"
           >
             {PRODUCT_KNOWLEDGE_PAGES.map((p) => {
               const active = p.key === pageKey;
@@ -46,14 +46,14 @@ const KnowledgePageLayout = ({
                   key={p.key}
                   to={p.path}
                   aria-current={active ? 'page' : undefined}
-                  className={`flex-shrink-0 inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm border transition-colors ${
+                  className={`flex-shrink-0 inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-full text-sm border transition-colors ${
                     active
                       ? 'bg-primary-600 border-primary-600 text-white'
                       : 'bg-white border-cream-200 text-slate-700 hover:border-primary-500 hover:text-primary-700'
                   }`}
                 >
                   <Icon className="w-4 h-4" aria-hidden />
-                  {p.name}
+                  {p.shortName || p.name}
                 </Link>
               );
             })}
@@ -80,7 +80,7 @@ const KnowledgePageLayout = ({
               {footerNote?.title || "Can't find what you need?"}
             </h2>
             <p className="text-slate-600 text-sm mt-1">
-              {footerNote?.text || 'Our team can send samples, drawings or details for any model.'}
+              {footerNote?.text || 'Ask our team about samples, drawings or details for a specific model.'}
             </p>
           </div>
           <Link

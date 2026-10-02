@@ -346,8 +346,12 @@ async def get_catalog_pdf_thumbnail(
     if file_url.startswith("http"):
         raise HTTPException(status_code=404, detail="External PDF URLs not supported for thumbnail")
     filename = Path(file_url).name
-    file_path = UPLOAD_BASE_DIR / "documents" / "catalogs" / filename
-    if not file_path.exists():
+    # Documents live in several upload folders (catalogs, guides, spec-sheets, drawings):
+    # resolve from the stored URL, staying inside the uploads root.
+    uploads_root = Path(UPLOAD_BASE_DIR).resolve()
+    rel = file_url.split("/uploads/", 1)[1] if "/uploads/" in file_url else f"documents/catalogs/{filename}"
+    file_path = (uploads_root / rel).resolve()
+    if not file_path.is_relative_to(uploads_root) or not file_path.exists():
         raise HTTPException(status_code=404, detail="PDF file not found")
     mtime = file_path.stat().st_mtime
     etag = f'"{filename}-{int(mtime)}"'
