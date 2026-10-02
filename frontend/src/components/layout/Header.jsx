@@ -232,7 +232,7 @@ const Header = ({ isMobileMenuOpen, setIsMobileMenuOpen }) => {
             <Dropdown
               trigger={(isOpen) => (
                 <Button variant="transparent" className="header-nav-btn font-medium hover-lift">
-                  Resources
+                  Product Knowledge
                   <Motion.svg
                     className="ml-1 h-4 w-4"
                     fill="none"
@@ -259,7 +259,7 @@ const Header = ({ isMobileMenuOpen, setIsMobileMenuOpen }) => {
             <Dropdown
               trigger={(isOpen) => (
                 <Button variant="transparent" className="header-nav-btn font-medium hover-lift">
-                  Connect
+                  Sales &amp; Support
                   <Motion.svg
                     className="ml-1 h-4 w-4"
                     fill="none"
@@ -584,16 +584,16 @@ export const MobileMenu = ({ isMobileMenuOpen, setIsMobileMenuOpen, searchQuery,
                     About Us
                   </Link>
                   <Link to="/virtual-catalogs" onClick={() => setIsMobileMenuOpen(false)} className="py-2 hover:text-primary-400 transition-colors">
-                    Resources
+                    Product Knowledge
                   </Link>
 
-                  {/* Connect Dropdown */}
+                  {/* Sales & Support Dropdown */}
                   <div>
                     <button
                       onClick={() => setIsConnectOpen(!isConnectOpen)}
                       className="flex items-center justify-between w-full py-2 hover:text-primary-400 transition-colors"
                     >
-                      <span>Connect</span>
+                      <span>Sales &amp; Support</span>
                       <Motion.svg
                         className="h-4 w-4"
                         fill="none"

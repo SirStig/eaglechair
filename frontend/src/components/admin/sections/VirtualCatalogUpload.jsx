@@ -667,7 +667,7 @@ const VirtualCatalogUpload = () => {
                         alt={product.name}
                         className="w-full h-full object-contain"
                         onError={(e) => {
-                          e.target.src = '/placeholder.png';
+                          e.target.src = '/placeholder.svg';
                         }}
                       />
                     </div>

@@ -135,7 +135,7 @@ const Footer = () => {
             </ul>
           </div>
           <div className="lg:col-span-1 text-center sm:text-left">
-            <h4 className="text-dark-50 font-semibold mb-3 sm:mb-4">Resources</h4>
+            <h4 className="text-dark-50 font-semibold mb-3 sm:mb-4">Product Knowledge</h4>
             <ul className="space-y-2">
               {footerLinks.resources.map((link) => (
                 <li key={link.path}>

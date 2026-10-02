@@ -450,7 +450,7 @@ const EditTmpProduct = () => {
                       className="w-full h-48 object-contain"
                       style={{ mixBlendMode: 'multiply' }}
                       onError={(e) => {
-                        e.target.src = '/placeholder.png';
+                        e.target.src = '/placeholder.svg';
                       }}
                     />
                   </div>

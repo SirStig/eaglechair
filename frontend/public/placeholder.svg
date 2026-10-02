@@ -1,11 +1,32 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="400" height="400" viewBox="0 0 400 400">
-  <rect width="400" height="400" fill="#f1ede7"/>
-  <!-- Chair silhouette -->
-  <rect x="140" y="110" width="120" height="90" rx="6" fill="#c9bfb0"/>
-  <rect x="128" y="195" width="144" height="12" rx="4" fill="#b5a898"/>
-  <rect x="140" y="207" width="16" height="80" rx="4" fill="#c9bfb0"/>
-  <rect x="244" y="207" width="16" height="80" rx="4" fill="#c9bfb0"/>
-  <rect x="152" y="267" width="96" height="14" rx="4" fill="#b5a898"/>
-  <rect x="156" y="281" width="12" height="30" rx="3" fill="#c9bfb0"/>
-  <rect x="232" y="281" width="12" height="30" rx="3" fill="#c9bfb0"/>
+<svg xmlns="http://www.w3.org/2000/svg" width="400" height="400" viewBox="0 0 400 400" role="img" aria-label="Image coming soon">
+  <rect width="400" height="400" fill="#f5f2ed"/>
+  <rect x="16" y="16" width="368" height="368" rx="10" fill="none" stroke="#e3d9c8" stroke-width="1.5"/>
+
+  <!-- Line-art side chair, 3/4 view -->
+  <g fill="none" stroke="#b59d82" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round">
+    <!-- Rear leg (partly hidden) -->
+    <path d="M183 206 L183 284" stroke="#d6c7b0"/>
+    <!-- Back posts -->
+    <path d="M181 196 L177 98"/>
+    <path d="M263 204 L268 110"/>
+    <!-- Top rail -->
+    <path d="M175 96 Q222 84 270 108"/>
+    <path d="M178 116 Q222 106 267 128"/>
+    <!-- Center splat -->
+    <path d="M214 112 L216 200"/>
+    <path d="M230 116 L232 202"/>
+    <!-- Seat -->
+    <path d="M150 214 L180 192 L266 200 L240 224 Z" fill="#ede7dc"/>
+    <path d="M150 214 L150 223 L240 234 L266 209 L266 200"/>
+    <path d="M240 224 L240 234"/>
+    <!-- Legs -->
+    <path d="M154 224 L154 306"/>
+    <path d="M237 234 L237 318"/>
+    <path d="M262 212 L262 292"/>
+    <!-- Stretchers -->
+    <path d="M154 282 L237 293"/>
+    <path d="M237 293 L262 270"/>
+  </g>
+
+  <text x="200" y="356" text-anchor="middle" font-family="Inter, 'Helvetica Neue', Arial, sans-serif" font-size="13" font-weight="600" letter-spacing="3" fill="#9f8a6f">IMAGE COMING SOON</text>
 </svg>
