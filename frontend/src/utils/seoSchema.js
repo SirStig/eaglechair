@@ -23,6 +23,20 @@ const truncate = (text, max = DESCRIPTION_MAX) => {
 };
 
 const sentence = (text) => (!text || /[.!?…]$/.test(text) ? text : `${text}.`);
+
+/** lead + the first suffix that fits whole (longest first), else just lead. */
+const withSuffix = (lead, ...suffixes) => {
+  const text = sentence(lead.trim());
+  for (const suffix of suffixes) {
+    const candidate = `${text} ${suffix}`;
+    if (candidate.length <= DESCRIPTION_MAX) return candidate;
+  }
+  return truncate(text);
+};
+
+/** "a", "a and b", "a, b and c" */
+const joinWords = (words) =>
+  words.length <= 2 ? words.join(' and ') : `${words.slice(0, -1).join(', ')} and ${words[words.length - 1]}`;
 const plural = (n, word) => `${n} ${word}${n === 1 ? '' : 's'}`;
 
 /** "A | B | Eagle Chair", dropping trailing parts until it fits. */
@@ -84,16 +98,16 @@ export const productSeo = (product, images = [], family = null) => {
     cleanText(product.meta_title) || composeTitle(nameHasModel ? name : `${name}, Model ${model}`, categoryName);
 
   const summary = cleanText(product.short_description) || cleanText(product.full_description);
-  let description;
-  if (cleanText(product.meta_description)) {
-    description = truncate(cleanText(product.meta_description));
-  } else {
-    const lead = summary ? sentence(summary) : `${name} by ${SITE_NAME}.`;
-    const context = model
-      ? `Model ${model} commercial ${categoryName ? categoryName.toLowerCase() : 'seating'}, made to order. Request a quote.`
-      : 'Made to order. Request a quote.';
-    description = truncate(lead.length < 100 ? `${lead} ${context}` : lead);
-  }
+  const headline = nameHasModel ? name : `${name}, Model ${model}`;
+  const kind = categoryName ? categoryName.toLowerCase() : 'seating';
+  const description = cleanText(product.meta_description)
+    ? truncate(cleanText(product.meta_description))
+    : withSuffix(
+        summary || headline,
+        `Commercial ${kind} by ${SITE_NAME}, made to order in Houston, TX. Request a quote.`,
+        `Made to order by ${SITE_NAME}. Request a quote.`,
+        'Request a quote.'
+      );
 
   const crumbs = [...categoryCrumbs(category), [name, path]];
   const full = cleanText(product.full_description) || summary;
@@ -161,13 +175,16 @@ export const familySeo = (family, members = []) => {
   const path = `/families/${family.slug}`;
   const kinds = memberKinds(members);
   const summary = cleanText(family.description) || cleanText(family.overview_text);
-  const kindsText = kinds.length ? kinds.map((k) => k.toLowerCase()).join(', ') : 'commercial seating';
-  const description = truncate(
-    summary ||
-      (members.length
-        ? `The ${name} from ${SITE_NAME}: ${plural(members.length, 'model')} of ${kindsText} for restaurants, bars and hospitality. Made to order in Houston, TX. Request a quote.`
-        : `The ${name} from ${SITE_NAME}. Commercial seating made to order in Houston, TX. Request a quote.`)
-  );
+  const kindsText = kinds.length ? joinWords(kinds.map((k) => k.toLowerCase())) : 'commercial seating';
+  const description = summary
+    ? truncate(summary)
+    : withSuffix(
+        members.length
+          ? `The ${name} from ${SITE_NAME}: ${plural(members.length, 'model')} of ${kindsText} for restaurants, bars and hotels`
+          : `The ${name} from ${SITE_NAME}, commercial seating for restaurants, bars and hotels`,
+        'Made to order in Houston, TX. Request a quote.',
+        'Request a quote.'
+      );
   return {
     path,
     heading,
@@ -205,8 +222,11 @@ export const categorySeo = (category, parent) => {
   const summary = cleanText(category.description);
   const description = cleanText(category.meta_description)
     ? truncate(cleanText(category.meta_description))
-    : truncate(
-        `${summary ? `${sentence(summary)} ` : ''}Browse commercial ${name.toLowerCase()} from ${SITE_NAME}, made to order in Houston, TX since 1984. Request a quote.`
+    : withSuffix(
+        summary || `Commercial ${name.toLowerCase()} from ${SITE_NAME} for restaurants, bars and hotels`,
+        `Made to order by ${SITE_NAME} in Houston, TX since 1984. Request a quote.`,
+        'Made to order in Houston, TX. Request a quote.',
+        'Request a quote.'
       );
   const crumbs = [['Home', '/'], ['Products', '/products']];
   if (parent) crumbs.push([parent.name, buildCatalogPath(parent.slug)]);

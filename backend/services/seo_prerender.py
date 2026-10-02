@@ -164,6 +164,23 @@ def _sentence(text: str) -> str:
     return text if not text or text[-1] in ".!?…" else text + "."
 
 
+def with_suffix(lead: str, *suffixes: str, limit: int = DESCRIPTION_MAX) -> str:
+    """lead + the first suffix that fits whole (longest first), else just lead."""
+    lead = _sentence(lead)
+    for suffix in suffixes:
+        candidate = f"{lead} {suffix}".strip()
+        if len(candidate) <= limit:
+            return candidate
+    return truncate(lead, limit)
+
+
+def join_words(words: list[str]) -> str:
+    """'a', 'a and b', 'a, b and c'."""
+    if len(words) <= 2:
+        return " and ".join(words)
+    return f"{', '.join(words[:-1])} and {words[-1]}"
+
+
 def inches(value: Optional[float]) -> Optional[str]:
     if value is None or value <= 0:
         return None
@@ -571,10 +588,13 @@ def build_product_page(p: dict, families_by_id: dict, cards: _Cards) -> PageMeta
     if clean_text(p["meta_description"]):
         description = truncate(clean_text(p["meta_description"]))
     else:
-        lead = _sentence(summary) if summary else f"{name} by {BRAND}."
         kind = cat_name.lower() if cat_name else "seating"
-        context = f"Model {model} commercial {kind}, made to order. Request a quote." if model else "Made to order. Request a quote."
-        description = truncate(f"{lead} {context}" if len(lead) < 100 else lead)
+        description = with_suffix(
+            summary or headline,
+            f"Commercial {kind} by {BRAND}, made to order in Houston, TX. Request a quote.",
+            f"Made to order by {BRAND}. Request a quote.",
+            "Request a quote.",
+        )
 
     images = p["images"] or ([p["primary_image"]] if p["primary_image"] else [])
     primary = p["primary_image"] or (images[0] if images else None)
@@ -715,13 +735,12 @@ def build_family_page(f: dict, members: list[dict], categories_by_id: dict, card
     if summary:
         description = truncate(summary)
     else:
-        kinds_text = ", ".join(k.lower() for k in kinds) if kinds else "commercial seating"
-        description = truncate(
-            f"The {name} from {BRAND}: {_plural(len(members), 'model')} of {kinds_text} for restaurants, "
-            f"bars and hospitality. Made to order in Houston, TX. Request a quote."
-            if members else
-            f"The {name} from {BRAND}. Commercial seating made to order in Houston, TX. Request a quote."
+        kinds_text = join_words([k.lower() for k in kinds]) if kinds else "commercial seating"
+        lead = (
+            f"The {name} from {BRAND}: {_plural(len(members), 'model')} of {kinds_text} for restaurants, bars and hotels"
+            if members else f"The {name} from {BRAND}, commercial seating for restaurants, bars and hotels"
         )
+        description = with_suffix(lead, "Made to order in Houston, TX. Request a quote.", "Request a quote.")
 
     # A family photo when one is uploaded, else its products side by side
     if f["image"]:
@@ -730,7 +749,7 @@ def build_family_page(f: dict, members: list[dict], categories_by_id: dict, card
         layout, sources = "product", _member_images(members)
     eyebrow = " · ".join(x for x in ("Collection", _plural(len(members), "model") if members else None) if x)
     image = cards.card("family", f["slug"], layout, sources, eyebrow, heading,
-                       [", ".join(kinds[:3])] if kinds else [])
+                       [join_words(kinds[:3])] if kinds else [])
 
     crumbs = [("Home", "/"), ("Products", "/products"), (heading, path)]
     item_list, list_html = _member_list(members)
@@ -754,10 +773,11 @@ def build_category_page(cat: dict, members: list[dict], cards: _Cards) -> PageMe
     if clean_text(cat["meta_description"]):
         description = truncate(clean_text(cat["meta_description"]))
     else:
-        description = truncate(
-            (_sentence(summary) + " " if summary else "")
-            + f"Browse commercial {name.lower()} from {BRAND}, "
-            f"made to order in Houston, TX since 1984. Request a quote."
+        description = with_suffix(
+            summary or f"Commercial {name.lower()} from {BRAND} for restaurants, bars and hotels",
+            f"Made to order by {BRAND} in Houston, TX since 1984. Request a quote.",
+            "Made to order in Houston, TX. Request a quote.",
+            "Request a quote.",
         )
 
     if cat["banner_image_url"]:

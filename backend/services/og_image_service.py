@@ -162,7 +162,9 @@ def _fetch_remote(url: str) -> Optional[bytes]:
             with client.stream("GET", url) as response:
                 if response.status_code != 200:
                     return None
-                if not response.headers.get("content-type", "").startswith("image/"):
+                # Apache may send .webp without a Content-Type; Pillow validates the bytes
+                content_type = response.headers.get("content-type", "")
+                if content_type and not content_type.startswith("image/"):
                     return None
                 data = bytearray()
                 for chunk in response.iter_bytes():
