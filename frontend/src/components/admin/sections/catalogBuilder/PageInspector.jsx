@@ -4,7 +4,7 @@ import Button from '../../../ui/Button';
 import ResponsiveImage from '../../../ui/ResponsiveImage';
 import { resolveImageUrl } from '../../../../utils/apiHelpers';
 import { ImagePicker, ProductPicker } from './Pickers';
-import { EMBLEMS, PAGE_TYPES, defaultCaption, modelLabel, newItem } from './pageModel';
+import { EMBLEMS, PAGE_TYPES, defaultCaption, inspectorTabs, modelLabel, newItem } from './pageModel';
 
 const INPUT = 'w-full px-3 py-2 bg-dark-700 border border-dark-600 rounded-lg text-sm text-dark-50 focus:border-primary-500 focus:ring-1 focus:ring-primary-500 outline-none';
 
@@ -132,14 +132,17 @@ const ItemRow = ({ item, index, count, page, product, selected, onSelect, onChan
 };
 
 /**
- * Right-hand panel: every setting of the selected page.
- * onChange takes a partial page, or a function (current page) => partial page.
+ * Right-hand panel: the selected page's settings, split into tabs
+ * (Page / Products / Text). onChange takes a partial page, or a function
+ * (current page) => partial page.
  */
-const PageInspector = ({ page, products, onRegisterProduct, selectedItem, onSelectItem, onChange }) => {
+const PageInspector = ({ page, pageNumber, tab, onTabChange, products, onRegisterProduct, selectedItem, onSelectItem, onChange }) => {
   const [adding, setAdding] = useState(false);
   const [pickingPhoto, setPickingPhoto] = useState(false);
   const meta = PAGE_TYPES[page.type];
   const items = page.items || [];
+  const tabs = inspectorTabs(page.type);
+  const activeTab = tabs.some((t) => t.id === tab) ? tab : 'page';
   const set = (key) => (value) => onChange({ [key]: value });
 
   const setItems = (next) => onChange({ items: next });
@@ -164,35 +167,153 @@ const PageInspector = ({ page, products, onRegisterProduct, selectedItem, onSele
     });
   };
 
-  return (
-    <div className="space-y-1 divide-y divide-dark-700/60">
-      <Section title={meta.label}>
-        <p className="text-xs text-dark-400">{meta.description}</p>
-        {page.type !== 'photo' && (
-          <Field label={page.type === 'cover' ? 'Headline' : 'Title'}>
-            <Text value={page.title} onChange={set('title')} />
-          </Field>
-        )}
-        {(page.type === 'product' || page.type === 'gallery') && (
-          <Field label="Subtitle" hint='Smaller words after the title, e.g. "variations" or "outdoor".'>
-            <Text value={page.subtitle} onChange={set('subtitle')} />
-          </Field>
-        )}
-        {page.type === 'cover' && (
-          <>
-            <Field label="Line above the headline"><Text value={page.subtitle} onChange={set('subtitle')} /></Field>
-            <Field label="Year"><Text value={page.year} onChange={set('year')} /></Field>
-            <div className="grid grid-cols-2 gap-2">
-              <Field label="Left tagline"><Text value={page.tagline} onChange={set('tagline')} /></Field>
-              <Field label="Right tagline"><Text value={page.tagline_right} onChange={set('tagline_right')} /></Field>
-            </div>
-            <Field label="Website"><Text value={page.website} onChange={set('website')} /></Field>
-          </>
-        )}
-      </Section>
+  const Icon = meta.icon;
 
-      {meta.maxItems > 0 && (
-        <Section title={`Products (${items.length}/${meta.maxItems})`}>
+  return (
+    <div className="space-y-4">
+      <div>
+        <div className="flex items-center gap-2 text-dark-50">
+          <Icon className="w-4 h-4 text-primary-400" />
+          <span className="font-semibold">{meta.label}</span>
+          <span className="text-xs text-dark-400 ml-auto">Page {pageNumber}</span>
+        </div>
+        <p className="text-xs text-dark-400 mt-1">{meta.description}</p>
+      </div>
+
+      {tabs.length > 1 && (
+        <div className="flex rounded-lg bg-dark-900/60 p-1" role="tablist">
+          {tabs.map((t) => (
+            <button
+              key={t.id}
+              type="button"
+              role="tab"
+              aria-selected={activeTab === t.id}
+              onClick={() => onTabChange(t.id)}
+              className={`flex-1 px-2 py-1.5 rounded-md text-xs font-medium transition-colors ${
+                activeTab === t.id ? 'bg-primary-500 text-dark-900' : 'text-dark-200 hover:text-dark-50'
+              }`}
+            >
+              {t.label}
+              {t.id === 'products' && <span className="ml-1 opacity-70">{items.length}/{meta.maxItems}</span>}
+            </button>
+          ))}
+        </div>
+      )}
+
+      {activeTab === 'page' && (
+        <div className="space-y-1 divide-y divide-dark-700/60">
+          {page.type !== 'photo' && (
+            <Section title="Heading">
+              <Field label={page.type === 'cover' ? 'Headline' : 'Title'}>
+                <Text value={page.title} onChange={set('title')} />
+              </Field>
+              {(page.type === 'product' || page.type === 'gallery') && (
+                <Field label="Subtitle" hint='Smaller words after the title, e.g. "variations" or "outdoor".'>
+                  <Text value={page.subtitle} onChange={set('subtitle')} />
+                </Field>
+              )}
+              {page.type === 'cover' && (
+                <>
+                  <Field label="Line above the headline"><Text value={page.subtitle} onChange={set('subtitle')} /></Field>
+                  <Field label="Year"><Text value={page.year} onChange={set('year')} /></Field>
+                </>
+              )}
+            </Section>
+          )}
+
+          {page.type === 'cover' && (
+            <Section title="Taglines">
+              <div className="grid grid-cols-2 gap-2">
+                <Field label="Left"><Text value={page.tagline} onChange={set('tagline')} /></Field>
+                <Field label="Right"><Text value={page.tagline_right} onChange={set('tagline_right')} /></Field>
+              </div>
+              <Field label="Website (bottom left)"><Text value={page.website} onChange={set('website')} /></Field>
+            </Section>
+          )}
+
+          {(page.type === 'gallery' || page.type === 'toc') && (
+            <Section title="Bottom banner">
+              <Field label="Tagline"><Area rows={2} value={page.tagline} onChange={set('tagline')} /></Field>
+            </Section>
+          )}
+
+          {(page.type === 'product' || page.type === 'gallery') && (
+            <Section title="Emblem">
+              <div className="flex gap-2">
+                {EMBLEMS.map((e) => (
+                  <button
+                    key={e.value}
+                    type="button"
+                    onClick={() => onChange({ emblem: e.value })}
+                    className={`flex-1 px-2 py-1.5 rounded-md text-xs border ${
+                      page.emblem === e.value ? 'border-primary-500 text-primary-300 bg-primary-500/10' : 'border-dark-600 text-dark-200'
+                    }`}
+                  >
+                    {e.label}
+                  </button>
+                ))}
+              </div>
+              {page.type === 'product' && (
+                <Field label="Patent / IP" hint='Printed as "IP: …", e.g. pat. US D828,063 S'>
+                  <Text value={page.ip_text} onChange={set('ip_text')} />
+                </Field>
+              )}
+            </Section>
+          )}
+
+          {page.type === 'photo' && (
+            <Section title="Photo">
+              <button
+                type="button"
+                onClick={() => setPickingPhoto(true)}
+                className="block w-32 aspect-[612/792] rounded bg-dark-700 overflow-hidden border border-dark-600 hover:border-primary-500"
+                title="Choose photo"
+              >
+                {page.image_url ? (
+                  <ResponsiveImage sizes="128px" fullResolution={false} src={resolveImageUrl(page.image_url)} alt="" className="w-full h-full object-cover" />
+                ) : (
+                  <span className="flex h-full items-center justify-center text-xs text-dark-400 p-2 text-center">Choose a photo</span>
+                )}
+              </button>
+              <div className="flex gap-2">
+                <Button size="xs" variant="outline" onClick={() => setPickingPhoto(true)}><ImageIcon className="w-3.5 h-3.5 mr-1" />Choose photo</Button>
+                {(page.dx || page.dy || page.scale !== 1) && (
+                  <Button size="xs" variant="ghost" onClick={() => onChange({ dx: 0, dy: 0, scale: 1 })}><RotateCcw className="w-3.5 h-3.5 mr-1" />Reset crop</Button>
+                )}
+              </div>
+              <Field label="Caption" hint="White text, bottom left."><Area rows={2} value={page.caption} onChange={set('caption')} /></Field>
+              <label className="flex items-center gap-2 text-xs text-dark-200">
+                <input type="checkbox" className="accent-primary-500" checked={!!page.show_footer} onChange={(e) => onChange({ show_footer: e.target.checked })} />
+                Show copyright and page number
+              </label>
+              <ImagePicker isOpen={pickingPhoto} onClose={() => setPickingPhoto(false)} onPick={(url) => onChange({ image_url: url })} />
+            </Section>
+          )}
+
+          {page.type !== 'cover' && page.type !== 'toc' && (
+            <Section title="Contents page">
+              <label className="flex items-center gap-2 text-xs text-dark-200">
+                <input type="checkbox" className="accent-primary-500" checked={page.include_in_toc !== false} onChange={(e) => onChange({ include_in_toc: e.target.checked })} />
+                List this page in the contents
+              </label>
+              {page.include_in_toc !== false && (
+                <Field
+                  label="Name in the contents"
+                  hint={page.type === 'photo' ? 'Photo pages need a name to be listed.' : 'Defaults to the title. Pages in a row with the same name share one entry.'}
+                >
+                  <Text value={page.toc_label ?? ''} placeholder={page.title} onChange={(v) => onChange({ toc_label: v || null })} />
+                </Field>
+              )}
+            </Section>
+          )}
+        </div>
+      )}
+
+      {activeTab === 'products' && (
+        <div className="space-y-3">
+          <p className="text-xs text-dark-400">
+            Click a product to change its variation, photo or caption. On the preview you can also drag its photo.
+          </p>
           <div className="space-y-2">
             {items.map((item, index) => (
               <ItemRow
@@ -209,90 +330,26 @@ const PageInspector = ({ page, products, onRegisterProduct, selectedItem, onSele
                 onRemove={() => removeItem(index)}
               />
             ))}
+            {!items.length && (
+              <p className="text-sm text-dark-300 border border-dashed border-dark-600 rounded-lg p-4 text-center">No products on this page yet.</p>
+            )}
           </div>
           <Button size="sm" variant="outline" className="w-full" disabled={items.length >= meta.maxItems} onClick={() => setAdding(true)}>
             <Plus className="w-4 h-4 mr-1" /> Add products
           </Button>
           <ProductPicker isOpen={adding} onClose={() => setAdding(false)} onPick={addItem} remaining={meta.maxItems - items.length} />
-        </Section>
+        </div>
       )}
 
-      {page.type === 'product' && (
-        <Section title="Text panel">
+      {activeTab === 'text' && (
+        <div className="space-y-3">
+          <p className="text-xs text-dark-400">The white panel at the bottom of the sheet. Empty sections are left out; text shrinks to fit.</p>
           <Field label="Features"><Area rows={4} value={page.features} onChange={set('features')} /></Field>
           <Field label="Materials"><Area rows={2} value={page.materials} onChange={set('materials')} /></Field>
           <Field label="Environmental consideration"><Area rows={2} value={page.environmental} onChange={set('environmental')} /></Field>
-          <Field label="Standard"><Area rows={2} value={page.standard} onChange={set('standard')} /></Field>
-          <Field label="Options"><Area rows={2} value={page.options} onChange={set('options')} /></Field>
-          <p className="text-[11px] text-dark-400">Empty sections are left out. Text shrinks to fit the panel.</p>
-          <Field label="Patent / IP" hint='Printed as "IP: …", e.g. pat. US D828,063 S'>
-            <Text value={page.ip_text} onChange={set('ip_text')} />
-          </Field>
-        </Section>
-      )}
-
-      {(page.type === 'product' || page.type === 'gallery') && (
-        <Section title="Emblem">
-          <div className="flex gap-2">
-            {EMBLEMS.map((e) => (
-              <button
-                key={e.value}
-                type="button"
-                onClick={() => onChange({ emblem: e.value })}
-                className={`flex-1 px-2 py-1.5 rounded-md text-xs border ${
-                  page.emblem === e.value ? 'border-primary-500 text-primary-300 bg-primary-500/10' : 'border-dark-600 text-dark-200'
-                }`}
-              >
-                {e.label}
-              </button>
-            ))}
-          </div>
-        </Section>
-      )}
-
-      {(page.type === 'gallery' || page.type === 'toc') && (
-        <Section title="Banner">
-          <Field label="Tagline"><Area rows={2} value={page.tagline} onChange={set('tagline')} /></Field>
-        </Section>
-      )}
-
-      {page.type === 'photo' && (
-        <Section title="Photo">
-          <div className="aspect-[612/792] w-32 rounded bg-dark-700 overflow-hidden">
-            {page.image_url && (
-              <ResponsiveImage sizes="128px" fullResolution={false} src={resolveImageUrl(page.image_url)} alt="" className="w-full h-full object-cover" />
-            )}
-          </div>
-          <div className="flex gap-2">
-            <Button size="xs" variant="outline" onClick={() => setPickingPhoto(true)}><ImageIcon className="w-3.5 h-3.5 mr-1" />Choose photo</Button>
-            {(page.dx || page.dy || page.scale !== 1) && (
-              <Button size="xs" variant="ghost" onClick={() => onChange({ dx: 0, dy: 0, scale: 1 })}><RotateCcw className="w-3.5 h-3.5 mr-1" />Reset crop</Button>
-            )}
-          </div>
-          <Field label="Caption" hint="White text, bottom left."><Area rows={2} value={page.caption} onChange={set('caption')} /></Field>
-          <label className="flex items-center gap-2 text-xs text-dark-200">
-            <input type="checkbox" className="accent-primary-500" checked={!!page.show_footer} onChange={(e) => onChange({ show_footer: e.target.checked })} />
-            Show copyright and page number
-          </label>
-          <ImagePicker isOpen={pickingPhoto} onClose={() => setPickingPhoto(false)} onPick={(url) => onChange({ image_url: url })} />
-        </Section>
-      )}
-
-      {page.type !== 'cover' && page.type !== 'toc' && (
-        <Section title="Contents">
-          <label className="flex items-center gap-2 text-xs text-dark-200">
-            <input type="checkbox" className="accent-primary-500" checked={page.include_in_toc !== false} onChange={(e) => onChange({ include_in_toc: e.target.checked })} />
-            List this page in the contents
-          </label>
-          {page.include_in_toc !== false && (
-            <Field
-              label="Contents name"
-              hint={page.type === 'photo' ? 'Photo pages need a name to be listed.' : 'Defaults to the title. Pages in a row with the same name share one entry.'}
-            >
-              <Text value={page.toc_label ?? ''} placeholder={page.title} onChange={(v) => onChange({ toc_label: v || null })} />
-            </Field>
-          )}
-        </Section>
+          <Field label="Standard (right column)"><Area rows={2} value={page.standard} onChange={set('standard')} /></Field>
+          <Field label="Options (right column)"><Area rows={2} value={page.options} onChange={set('options')} /></Field>
+        </div>
       )}
     </div>
   );

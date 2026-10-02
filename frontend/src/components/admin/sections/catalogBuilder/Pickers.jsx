@@ -1,12 +1,12 @@
 import { useEffect, useRef, useState } from 'react';
-import { Check, ImagePlus, Loader2, Plus, Search, Upload } from 'lucide-react';
+import { Check, ImagePlus, Layers, Loader2, Plus, Search, Upload } from 'lucide-react';
 import Modal from '../../../ui/Modal';
 import Button from '../../../ui/Button';
 import ResponsiveImage from '../../../ui/ResponsiveImage';
 import { resolveImageUrl } from '../../../../utils/apiHelpers';
 import { getInstallations } from '../../../../services/contentService';
 import { listFamilies, searchProducts, uploadCatalogImage } from '../../../../services/catalogToolsService';
-import { modelLabel } from './pageModel';
+import { PAGE_TYPES, modelLabel } from './pageModel';
 
 const INPUT = 'w-full px-3 py-2 bg-dark-700 border border-dark-600 rounded-lg text-sm text-dark-50 focus:border-primary-500 outline-none';
 
@@ -309,3 +309,47 @@ export const ImagePicker = ({ isOpen, onClose, onPick, productImages = [], allow
     </Modal>
   );
 };
+
+/**
+ * "Add page": the quickest path (whole families, pre-filled) first, then
+ * every single page type with what it looks like.
+ */
+export const AddPageDialog = ({ isOpen, onClose, onAddType, onAddFamilies }) => (
+  <Modal isOpen={isOpen} onClose={onClose} title="Add pages" size="lg">
+    <div className="space-y-4">
+      <button
+        type="button"
+        onClick={() => { onClose(); onAddFamilies(); }}
+        className="w-full flex items-start gap-4 p-4 rounded-xl border-2 border-primary-500/70 bg-primary-500/10 hover:bg-primary-500/20 text-left"
+      >
+        <Layers className="w-8 h-8 text-primary-400 shrink-0" />
+        <div>
+          <div className="text-dark-50 font-semibold">Product families <span className="ml-1 text-[11px] font-normal text-primary-300">Recommended</span></div>
+          <p className="text-sm text-dark-300 mt-0.5">
+            Pick one or more families: their product sheets and variations pages are built for you, with dimensions,
+            photos and text filled in from the product data. You can edit everything afterwards.
+          </p>
+        </div>
+      </button>
+      <div>
+        <p className="text-xs uppercase tracking-wider text-dark-400 mb-2">Or add a single page</p>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+          {Object.entries(PAGE_TYPES).map(([type, meta]) => (
+            <button
+              key={type}
+              type="button"
+              onClick={() => { onClose(); onAddType(type); }}
+              className="flex items-start gap-3 p-3 rounded-lg border border-dark-500 hover:border-primary-500 bg-dark-700/40 text-left"
+            >
+              <meta.icon className="w-5 h-5 text-dark-200 shrink-0 mt-0.5" />
+              <div>
+                <div className="text-sm text-dark-50 font-medium">{meta.label}</div>
+                <p className="text-xs text-dark-300 mt-0.5">{meta.description}</p>
+              </div>
+            </button>
+          ))}
+        </div>
+      </div>
+    </div>
+  </Modal>
+);

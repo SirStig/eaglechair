@@ -351,24 +351,44 @@ const ContactPage = () => {
               </div>
             </div>
             
-            {/* Google Maps Embed - only when address is loaded to avoid wrong place */}
-            <div className="h-96 w-full">
-              {siteSettings?.addressLine1 && contact.address.fullAddress && contact.address.fullAddress !== 'N/A' ? (
-                <iframe
-                  key={contact.address.fullAddress}
-                  title="Eagle Chair Location"
-                  src={`https://www.google.com/maps/embed/v1/place?key=AIzaSyBFw0Qbyq9zTFTd-tUY6dZWTgaQzuU17R8&q=${encodeURIComponent(contact.address.fullAddress)}&zoom=15`}
-                  width="100%"
-                  height="100%"
-                  style={{ border: 0 }}
-                  allowFullScreen=""
-                  loading="lazy"
-                  referrerPolicy="no-referrer-when-downgrade"
-                  className="grayscale"
-                />
-              ) : (
-                <div className="h-full w-full flex items-center justify-center bg-dark-700 text-dark-300">Loading map…</div>
-              )}
+            {/* Satellite map beside the aerial entrance guide; stacked on mobile */}
+            <div className="grid grid-cols-1 lg:grid-cols-2">
+              {/* Google Maps Embed - only when address is loaded to avoid wrong place */}
+              <div className="h-72 sm:h-96 w-full">
+                {siteSettings?.addressLine1 && contact.address.fullAddress && contact.address.fullAddress !== 'N/A' ? (
+                  <iframe
+                    key={contact.address.fullAddress}
+                    title="Eagle Chair Location"
+                    src={`https://www.google.com/maps/embed/v1/place?key=AIzaSyBFw0Qbyq9zTFTd-tUY6dZWTgaQzuU17R8&q=${encodeURIComponent(contact.address.fullAddress)}&zoom=17&maptype=satellite`}
+                    width="100%"
+                    height="100%"
+                    style={{ border: 0 }}
+                    allowFullScreen=""
+                    loading="lazy"
+                    referrerPolicy="no-referrer-when-downgrade"
+                  />
+                ) : (
+                  <div className="h-full w-full flex items-center justify-center bg-dark-700 text-dark-300">Loading map…</div>
+                )}
+              </div>
+
+              <figure className="relative h-72 sm:h-96 w-full bg-dark-700 border-t lg:border-t-0 lg:border-l border-dark-600">
+                <picture>
+                  <source srcSet="/assets/contact/entrance-aerial.webp" type="image/webp" />
+                  <img
+                    src="/assets/contact/entrance-aerial.jpg"
+                    alt="Aerial view of the Eagle Chair building on Baythorne Dr, with an arrow marking the entrance"
+                    width={784}
+                    height={522}
+                    loading="lazy"
+                    decoding="async"
+                    className="h-full w-full object-cover"
+                  />
+                </picture>
+                <figcaption className="absolute bottom-0 inset-x-0 bg-dark-900/80 px-4 py-2 text-sm text-dark-50">
+                  Our entrance is on Baythorne Dr, just off Campbell Rd.
+                </figcaption>
+              </figure>
             </div>
           </div>
         </Card>

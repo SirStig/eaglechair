@@ -41,6 +41,14 @@ export const PAGE_TYPES = {
   },
 };
 
+/** Which inspector tabs a page type has (Page / Products / Text). */
+export const inspectorTabs = (type) => {
+  const tabs = [{ id: 'page', label: 'Page' }];
+  if (PAGE_TYPES[type]?.maxItems > 0) tabs.push({ id: 'products', label: 'Products' });
+  if (type === 'product') tabs.push({ id: 'text', label: 'Text' });
+  return tabs;
+};
+
 export const EMBLEMS = [
   { value: 'none', label: 'None' },
   { value: 'flag', label: 'Flag eagle' },

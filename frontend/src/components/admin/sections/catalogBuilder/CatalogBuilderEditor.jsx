@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import {
   DndContext, KeyboardSensor, PointerSensor, closestCenter, useSensor, useSensors,
 } from '@dnd-kit/core';
@@ -7,7 +8,8 @@ import {
 } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import {
-  ArrowLeft, Copy, Download, Eye, GripVertical, Layers, Loader2, Plus, Redo2, Settings, Trash2, Undo2, X,
+  ArrowLeft, ChevronLeft, ChevronRight, Copy, Download, Eye, GripVertical, Layers, Lightbulb, Loader2, Plus, Redo2,
+  Settings, Trash2, Undo2, X,
 } from 'lucide-react';
 import Button from '../../../ui/Button';
 import Modal from '../../../ui/Modal';
@@ -17,7 +19,7 @@ import {
 } from '../../../../services/catalogToolsService';
 import PagePreview from './PagePreview';
 import PageInspector from './PageInspector';
-import { FamilyPicker } from './Pickers';
+import { AddPageDialog, FamilyPicker } from './Pickers';
 import {
   DEFAULT_SETTINGS, PAGE_TYPES, duplicatePage, newPage, normalizePage, pageSummary, referencedIds,
 } from './pageModel';
@@ -73,8 +75,11 @@ const SortablePage = ({ page, index, active, onSelect, onDuplicate, onDelete }) 
       </button>
       <button type="button" onClick={() => onSelect(index)} className="flex-1 min-w-0 flex items-center gap-2 text-left">
         <span className="text-[11px] text-dark-400 w-5 text-right">{index + 1}</span>
-        <Icon className="w-4 h-4 text-dark-300 shrink-0" />
-        <span className="truncate text-dark-100">{pageSummary(page)}</span>
+        <Icon className={`w-4 h-4 shrink-0 ${active ? 'text-primary-400' : 'text-dark-300'}`} />
+        <span className="min-w-0">
+          <span className="block truncate text-dark-100">{pageSummary(page)}</span>
+          <span className="block text-[11px] text-dark-400">{PAGE_TYPES[page.type]?.label}</span>
+        </span>
       </button>
       <div className="hidden group-hover:flex items-center">
         <button type="button" onClick={() => onDuplicate(index)} className="p-1 text-dark-400 hover:text-dark-100" title="Duplicate"><Copy className="w-3.5 h-3.5" /></button>
@@ -102,7 +107,8 @@ const CatalogBuilderEditor = ({ project, onBack, onSaved }) => {
   const [products, setProducts] = useState({});
   const [saveState, setSaveState] = useState('saved');
   const [busy, setBusy] = useState(null);
-  const [addMenu, setAddMenu] = useState(false);
+  const [addDialog, setAddDialog] = useState(false);
+  const [tab, setTab] = useState('page');
   const [familyPicker, setFamilyPicker] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [pdfUrl, setPdfUrl] = useState(null);
@@ -205,10 +211,20 @@ const CatalogBuilderEditor = ({ project, onBack, onSaved }) => {
     setSelectedItem(null);
   };
 
-  const addPage = (type) => {
-    setAddMenu(false);
-    insertPages([newPage(type)]);
+  const addPage = (type) => insertPages([newPage(type)]);
+
+  const selectPage = (index) => {
+    setPageIndex(index);
+    setSelectedItem(null);
   };
+
+  // Clicking a photo on the preview opens it in the Products tab
+  const selectItem = (index) => {
+    setSelectedItem(index);
+    if (index != null && page?.type !== 'photo') setTab('products');
+  };
+
+  const hasContentPages = document.pages.some((p) => p.type === 'product' || p.type === 'gallery');
 
   const addFamilies = async (familyIds, includeGallery) => {
     try {
@@ -337,32 +353,13 @@ const CatalogBuilderEditor = ({ project, onBack, onSaved }) => {
       <div className="grid grid-cols-1 lg:grid-cols-[230px_minmax(0,1fr)_340px] gap-4 items-start">
         {/* Pages */}
         <div className="bg-dark-800/60 border border-dark-700 rounded-xl p-2 space-y-2 lg:sticky lg:top-2 lg:max-h-[calc(100vh-8rem)] lg:overflow-y-auto">
-          <div className="relative">
-            <Button size="xs" variant="outline" className="w-full" onClick={() => setAddMenu((v) => !v)}>
-              <Plus className="w-4 h-4 mr-1" /> Add page
-            </Button>
-            {addMenu && (
-              <div className="absolute z-20 mt-1 w-full bg-dark-900 border border-dark-600 rounded-lg shadow-xl overflow-hidden">
-                {Object.entries(PAGE_TYPES).map(([type, meta]) => (
-                  <button
-                    key={type}
-                    type="button"
-                    onClick={() => addPage(type)}
-                    className="w-full flex items-center gap-2 px-3 py-2 text-sm text-dark-100 hover:bg-dark-700 text-left"
-                  >
-                    <meta.icon className="w-4 h-4 text-dark-300" /> {meta.label}
-                  </button>
-                ))}
-                <button
-                  type="button"
-                  onClick={() => { setAddMenu(false); setFamilyPicker(true); }}
-                  className="w-full flex items-center gap-2 px-3 py-2 text-sm text-primary-300 hover:bg-dark-700 text-left border-t border-dark-700"
-                >
-                  <Layers className="w-4 h-4" /> Whole families…
-                </button>
-              </div>
-            )}
+          <div className="flex items-center justify-between px-1">
+            <span className="text-xs uppercase tracking-wider text-dark-400 font-semibold">Pages ({document.pages.length})</span>
+            <span className="text-[11px] text-dark-500">drag to reorder</span>
           </div>
+          <Button size="xs" className="w-full" onClick={() => setAddDialog(true)}>
+            <Plus className="w-4 h-4 mr-1" /> Add pages
+          </Button>
           <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={onDragEnd}>
             <SortableContext items={document.pages.map((p) => p.id)} strategy={verticalListSortingStrategy}>
               <div className="space-y-1.5">
@@ -372,7 +369,7 @@ const CatalogBuilderEditor = ({ project, onBack, onSaved }) => {
                     page={p}
                     index={index}
                     active={index === pageIndex}
-                    onSelect={(i) => { setPageIndex(i); setSelectedItem(null); }}
+                    onSelect={selectPage}
                     onDuplicate={duplicateAt}
                     onDelete={deletePage}
                   />
@@ -388,13 +385,46 @@ const CatalogBuilderEditor = ({ project, onBack, onSaved }) => {
         </div>
 
         {/* Preview */}
-        <div className="min-w-0 flex justify-center">
+        <div className="min-w-0 flex flex-col items-center gap-3">
+          {!hasContentPages && (
+            <div className="w-full max-w-[640px] flex items-start gap-3 rounded-xl border border-primary-500/40 bg-primary-500/10 p-3">
+              <Lightbulb className="w-5 h-5 text-primary-400 shrink-0 mt-0.5" />
+              <div className="flex-1 text-sm text-dark-100">
+                <span className="font-medium">Next: add your products.</span>{' '}
+                Pick product families and their sheets are built for you, ready to tweak.
+              </div>
+              <Button size="xs" onClick={() => setFamilyPicker(true)}>Add families</Button>
+            </div>
+          )}
+          {page && (
+            <div className="w-full max-w-[640px] flex items-center justify-between text-sm">
+              <button
+                type="button"
+                onClick={() => selectPage(pageIndex - 1)}
+                disabled={pageIndex === 0}
+                className="inline-flex items-center gap-1 px-2 py-1 rounded text-dark-200 hover:bg-dark-700 disabled:opacity-30"
+              >
+                <ChevronLeft className="w-4 h-4" /> Previous
+              </button>
+              <span className="text-dark-300">
+                {PAGE_TYPES[page.type]?.label} · page {pageIndex + 1} of {document.pages.length}
+              </span>
+              <button
+                type="button"
+                onClick={() => selectPage(pageIndex + 1)}
+                disabled={pageIndex >= document.pages.length - 1}
+                className="inline-flex items-center gap-1 px-2 py-1 rounded text-dark-200 hover:bg-dark-700 disabled:opacity-30"
+              >
+                Next <ChevronRight className="w-4 h-4" />
+              </button>
+            </div>
+          )}
           {page ? (
             <PagePreview
               document={document}
               pageIndex={pageIndex}
               selectedItem={selectedItem}
-              onSelectItem={setSelectedItem}
+              onSelectItem={selectItem}
               getAdjust={getAdjust}
               onAdjust={onAdjust}
             />
@@ -411,18 +441,27 @@ const CatalogBuilderEditor = ({ project, onBack, onSaved }) => {
             <PageInspector
               key={page.id}
               page={page}
+              pageNumber={pageIndex + 1}
+              tab={tab}
+              onTabChange={setTab}
               products={products}
               onRegisterProduct={registerProduct}
               selectedItem={selectedItem}
-              onSelectItem={setSelectedItem}
+              onSelectItem={selectItem}
               onChange={updatePage}
             />
           ) : (
-            <p className="text-sm text-dark-400">Select a page to edit it.</p>
+            <p className="text-sm text-dark-400">Select a page on the left to edit it.</p>
           )}
         </div>
       </div>
 
+      <AddPageDialog
+        isOpen={addDialog}
+        onClose={() => setAddDialog(false)}
+        onAddType={addPage}
+        onAddFamilies={() => setFamilyPicker(true)}
+      />
       <FamilyPicker isOpen={familyPicker} onClose={() => setFamilyPicker(false)} onConfirm={addFamilies} />
 
       <Modal isOpen={settingsOpen} onClose={() => setSettingsOpen(false)} title="Catalog settings" size="sm">
@@ -449,7 +488,7 @@ const CatalogBuilderEditor = ({ project, onBack, onSaved }) => {
         </div>
       </Modal>
 
-      {pdfUrl && (
+      {pdfUrl && createPortal(
         <div className="fixed inset-0 z-50 bg-black/80 flex flex-col p-4">
           <div className="flex items-center justify-between mb-2">
             <span className="text-dark-50 font-semibold">{name}</span>
@@ -463,7 +502,8 @@ const CatalogBuilderEditor = ({ project, onBack, onSaved }) => {
             </div>
           </div>
           <iframe title="Catalog PDF preview" src={pdfUrl} className="flex-1 w-full rounded bg-white" />
-        </div>
+        </div>,
+        window.document.body,
       )}
     </div>
   );

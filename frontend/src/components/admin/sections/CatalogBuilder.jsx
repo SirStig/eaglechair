@@ -1,12 +1,12 @@
 import { useCallback, useEffect, useState } from 'react';
-import { BookOpen, Copy, FilePlus2, Loader2, Trash2 } from 'lucide-react';
+import { BookOpen, Copy, FilePlus2, Loader2, Sparkles, Trash2 } from 'lucide-react';
 import Card from '../../ui/Card';
 import Button from '../../ui/Button';
 import Modal from '../../ui/Modal';
 import { useToast } from '../../../contexts/ToastContext';
 import { useAdminRefresh } from '../../../contexts/AdminRefreshContext';
 import {
-  createProject, deleteProject, duplicateProject, getProject, listProjects,
+  createProject, createSampleProject, deleteProject, duplicateProject, getProject, listProjects,
 } from '../../../services/catalogToolsService';
 import CatalogBuilderEditor from './catalogBuilder/CatalogBuilderEditor';
 import { newPage } from './catalogBuilder/pageModel';
@@ -29,6 +29,7 @@ const CatalogBuilder = () => {
   const [creating, setCreating] = useState(false);
   const [newName, setNewName] = useState('');
   const [confirmDelete, setConfirmDelete] = useState(null);
+  const [buildingSample, setBuildingSample] = useState(false);
 
   const load = useCallback(async () => {
     try {
@@ -70,6 +71,19 @@ const CatalogBuilder = () => {
       setOpen(project);
     } catch (error) {
       toast.error(error?.response?.data?.detail || 'Could not create the catalog');
+    }
+  };
+
+  const createSample = async () => {
+    setBuildingSample(true);
+    try {
+      const project = await createSampleProject();
+      setCreating(false);
+      setOpen(project);
+    } catch (error) {
+      toast.error(error?.response?.data?.detail || 'Could not build the sample catalog');
+    } finally {
+      setBuildingSample(false);
     }
   };
 
@@ -119,10 +133,21 @@ const CatalogBuilder = () => {
       {loading ? (
         <div className="flex justify-center h-40 items-center"><Loader2 className="w-8 h-8 animate-spin text-primary-500" /></div>
       ) : projects.length === 0 ? (
-        <Card className="bg-dark-800 border-dark-700 text-center py-14">
-          <BookOpen className="w-10 h-10 mx-auto text-dark-400 mb-3" />
-          <p className="text-dark-200">No catalogs yet.</p>
-          <p className="text-dark-400 text-sm mt-1">Create one, then add whole product families or single product sheets.</p>
+        <Card className="bg-dark-800 border-dark-700 text-center py-14 space-y-4">
+          <BookOpen className="w-10 h-10 mx-auto text-dark-400" />
+          <div>
+            <p className="text-dark-200">No catalogs yet.</p>
+            <p className="text-dark-400 text-sm mt-1">
+              Start with the sample to see what it can do: it builds a full catalog from your current products and photos.
+            </p>
+          </div>
+          <div className="flex justify-center gap-2">
+            <Button onClick={createSample} disabled={buildingSample}>
+              {buildingSample ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Sparkles className="w-4 h-4 mr-2" />}
+              Create sample catalog
+            </Button>
+            <Button variant="outline" onClick={() => setCreating(true)}>Start blank</Button>
+          </div>
         </Card>
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4">
@@ -155,20 +180,43 @@ const CatalogBuilder = () => {
         </div>
       )}
 
-      <Modal isOpen={creating} onClose={() => setCreating(false)} title="New catalog" size="sm">
-        <form className="space-y-4" onSubmit={(e) => { e.preventDefault(); create(); }}>
-          <input
-            autoFocus
-            className="w-full px-3 py-2 bg-dark-700 border border-dark-600 rounded-lg text-dark-50 focus:border-primary-500 outline-none"
-            placeholder={`Eagle Chair Catalog ${new Date().getFullYear()}`}
-            value={newName}
-            onChange={(e) => setNewName(e.target.value)}
-          />
-          <div className="flex justify-end gap-2">
-            <Button size="sm" variant="ghost" onClick={() => setCreating(false)}>Cancel</Button>
-            <Button size="sm" type="submit">Create</Button>
-          </div>
-        </form>
+      <Modal isOpen={creating} onClose={() => setCreating(false)} title="New catalog" size="md">
+        <div className="space-y-5">
+          <button
+            type="button"
+            onClick={createSample}
+            disabled={buildingSample}
+            className="w-full flex items-start gap-4 p-4 rounded-xl border-2 border-primary-500/70 bg-primary-500/10 hover:bg-primary-500/20 text-left disabled:opacity-60"
+          >
+            {buildingSample
+              ? <Loader2 className="w-7 h-7 text-primary-400 shrink-0 animate-spin" />
+              : <Sparkles className="w-7 h-7 text-primary-400 shrink-0" />}
+            <div>
+              <div className="text-dark-50 font-semibold">Sample catalog</div>
+              <p className="text-sm text-dark-300 mt-0.5">
+                A complete catalog built for you: cover, contents, and product sheets and variations for your
+                best-photographed families. Show it as is, or edit it into your own.
+              </p>
+            </div>
+          </button>
+          <form className="space-y-3 border-t border-dark-500 pt-4" onSubmit={(e) => { e.preventDefault(); create(); }}>
+            <div>
+              <div className="text-dark-50 font-semibold">Blank catalog</div>
+              <p className="text-sm text-dark-300">Starts with a cover and a contents page; you add the products.</p>
+            </div>
+            <input
+              className="w-full px-3 py-2 bg-dark-700 border border-dark-600 rounded-lg text-dark-50 focus:border-primary-500 outline-none"
+              placeholder={`Eagle Chair Catalog ${new Date().getFullYear()}`}
+              value={newName}
+              onChange={(e) => setNewName(e.target.value)}
+              aria-label="Catalog name"
+            />
+            <div className="flex justify-end gap-2">
+              <Button size="sm" variant="ghost" onClick={() => setCreating(false)}>Cancel</Button>
+              <Button size="sm" type="submit">Create blank</Button>
+            </div>
+          </form>
+        </div>
       </Modal>
 
       <Modal isOpen={!!confirmDelete} onClose={() => setConfirmDelete(null)} title="Delete catalog?" size="sm">

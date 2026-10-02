@@ -32,7 +32,8 @@ from backend.database.base import get_db
 from backend.models.catalog_project import CatalogProject
 from backend.models.chair import Chair, ProductFamily
 from backend.models.company import AdminRole, AdminUser
-from backend.services.catalog_pdf.data import load_catalog_data, load_products, suggest_pages
+from backend.models.content import Installation
+from backend.services.catalog_pdf.data import load_catalog_data, load_products, sample_document, suggest_pages
 from backend.services.catalog_pdf.images import EXPORT_MAX_PX, PREVIEW_MAX_PX, ImageLoader
 from backend.services.catalog_pdf.renderer import render_pdf, render_preview
 
@@ -98,6 +99,45 @@ async def create_project(
     await db.commit()
     await db.refresh(project)
     logger.info("Admin %s created catalog project %s", admin.username, project.id)
+    return _project_detail(project)
+
+
+@router.post("/projects/sample", status_code=201, summary="Create a sample catalog from live data")
+async def create_sample_project(
+    admin: AdminUser = Depends(require_role(AdminRole.EDITOR)),
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    A ready-made catalog to show or start from: cover, contents and the
+    best-photographed families with their variations, plus an install photo.
+    """
+    products = await load_products(db, include_inactive=False)
+    family_ids = {p["family_id"] for p in products if p["family_id"]}
+    families = {}
+    if family_ids:
+        rows = await db.execute(select(ProductFamily).where(ProductFamily.id.in_(family_ids)))
+        families = {f.id: f for f in rows.scalars().all()}
+    installs = await db.execute(
+        select(Installation).where(Installation.is_active.is_(True)).order_by(Installation.display_order)
+    )
+    photos = []
+    for inst in installs.scalars().all():
+        for entry in [inst.primary_image, *(inst.images or [])]:
+            url = entry.get("url") if isinstance(entry, dict) else entry
+            if isinstance(url, str) and url.startswith("/uploads/images/"):
+                photos.append(url)
+    document = CatalogDocument.model_validate(sample_document(products, families, photos))
+    project = CatalogProject(
+        name="Sample Catalog",
+        description="Built automatically from live products, families and install photos.",
+        document=document.model_dump(),
+        created_by_id=admin.id,
+        updated_by_id=admin.id,
+    )
+    db.add(project)
+    await db.commit()
+    await db.refresh(project)
+    logger.info("Admin %s created a sample catalog (%d pages)", admin.username, len(document.pages))
     return _project_detail(project)
 
 

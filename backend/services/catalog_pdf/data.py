@@ -6,6 +6,7 @@ without touching the ORM.
 
 import uuid
 from collections import OrderedDict
+from datetime import date
 from typing import Iterable, Optional
 
 from sqlalchemy import select
@@ -216,3 +217,54 @@ def suggest_pages(products: list[dict], families: dict[int, ProductFamily], incl
                     "emblem": "none",
                 })
     return pages
+
+
+# ---------------------------------------------------------------------------
+# Sample catalog (a ready-made template built from live data)
+# ---------------------------------------------------------------------------
+
+SAMPLE_FAMILY_COUNT = 6
+
+
+def sample_document(products: list[dict], families: dict[int, ProductFamily], install_photos: list[str]) -> dict:
+    """
+    A complete starter catalog: cover, contents, then the best-photographed
+    families (active products only), with an install photo after the first.
+    """
+    photographed = [p for p in products if p["is_active"] and p.get("default_image") and p.get("family_id")]
+    by_family: "OrderedDict[int, list[dict]]" = OrderedDict()
+    for product in photographed:
+        by_family.setdefault(product["family_id"], []).append(product)
+    ranked = sorted(by_family.items(), key=lambda kv: (-len(kv[1]), kv[1][0]["family_name"] or ""))
+    chosen = ranked[:SAMPLE_FAMILY_COUNT]
+
+    # Cover: one product per family first, then fill up to 8
+    cover_items, seen = [], set()
+    for _, members in chosen:
+        cover_items.append({"product_id": members[0]["id"]})
+        seen.add(members[0]["id"])
+    for _, members in chosen:
+        for p in members[1:]:
+            if len(cover_items) >= 8:
+                break
+            if p["id"] not in seen:
+                cover_items.append({"product_id": p["id"]})
+                seen.add(p["id"])
+
+    year = str(date.today().year)
+    pages = [
+        {
+            "id": new_page_id(), "type": "cover", "title": "New Traditions", "subtitle": "Eagle Chair Inc.",
+            "year": year, "items": cover_items[:8], "tagline": "Built to last",
+            "tagline_right": "Designed to impress", "website": "www.eaglechair.com",
+        },
+        {"id": new_page_id(), "type": "toc", "title": "Contents", "tagline": "Diverse concepts, unvarying quality"},
+    ]
+    for index, (_, members) in enumerate(chosen):
+        pages.extend(suggest_pages(members, families, include_gallery=True))
+        if index == 0 and install_photos:
+            pages.append({
+                "id": new_page_id(), "type": "photo", "image_url": install_photos[0],
+                "include_in_toc": False, "title": "",
+            })
+    return {"settings": {"title": f"Eagle Chair Catalog {year}"}, "pages": pages}

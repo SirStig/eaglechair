@@ -29,6 +29,8 @@ export const saveBlob = (blob, filename) => {
 export const listProjects = () => apiClient.get(`${BUILDER}/projects`);
 export const getProject = (id) => apiClient.get(`${BUILDER}/projects/${id}`);
 export const createProject = (body) => apiClient.post(`${BUILDER}/projects`, body);
+/** A ready-made catalog built from live families, photos and installs. */
+export const createSampleProject = () => apiClient.post(`${BUILDER}/projects/sample`, null, { timeout: 60000, retry: 0 });
 export const saveProject = (id, body) => apiClient.put(`${BUILDER}/projects/${id}`, body);
 export const duplicateProject = (id) => apiClient.post(`${BUILDER}/projects/${id}/duplicate`);
 export const deleteProject = (id) => apiClient.delete(`${BUILDER}/projects/${id}`);

@@ -1,4 +1,5 @@
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { m, AnimatePresence } from 'framer-motion';
 import { clsx } from 'clsx';
 
@@ -11,6 +12,10 @@ const Modal = ({
   showCloseButton = true,
   closeOnOverlayClick = true 
 }) => {
+  // Portal only after mount, so server render and hydration match
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => setMounted(true), []);
+
   useEffect(() => {
     if (isOpen) {
       document.body.style.overflow = 'hidden';
@@ -42,7 +47,7 @@ const Modal = ({
     full: 'max-w-full mx-4',
   };
 
-  return (
+  const content = (
     <AnimatePresence>
       {isOpen && (
         <>
@@ -97,6 +102,10 @@ const Modal = ({
       )}
     </AnimatePresence>
   );
+
+  // Render on <body> so scrolling or transformed ancestors (sticky panels,
+  // animated sections) can't clip or offset the fixed overlay.
+  return mounted ? createPortal(content, document.body) : content;
 };
 
 export default Modal;

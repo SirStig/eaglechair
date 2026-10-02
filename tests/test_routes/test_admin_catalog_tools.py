@@ -174,6 +174,22 @@ class TestCatalogBuilder:
         assert [i["product_id"] for i in pages[0]["items"]] == [lobo["side"].id]  # inactive barstool left out
         assert len(pages[1]["items"]) == 3
 
+    async def test_sample_catalog(self, async_client, as_role, lobo):
+        as_role(AdminRole.EDITOR)
+        response = await async_client.post(f"{BASE}/catalog-builder/projects/sample", headers=UA)
+        assert response.status_code == 201, response.text
+        pages = response.json()["document"]["pages"]
+        assert [p["type"] for p in pages] == ["cover", "toc", "product", "gallery"]
+        assert pages[0]["items"] == [
+            {"product_id": lobo["side"].id, "variation_id": None, "image_url": None, "caption": None,
+             "show_specs": True, "dx": 0.0, "dy": 0.0, "scale": 1.0}
+        ]
+        export = await async_client.post(
+            f"{BASE}/catalog-builder/export", json={"document": response.json()["document"]}, headers=UA
+        )
+        assert export.status_code == 200
+        assert len(fitz.open("pdf", export.content)) == 4
+
     async def test_picker_products_search(self, async_client, as_role, lobo):
         as_role()
         response = await async_client.get(f"{BASE}/catalog-builder/products", params={"search": "3506"}, headers=UA)
