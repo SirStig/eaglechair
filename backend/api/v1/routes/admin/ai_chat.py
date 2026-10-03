@@ -552,6 +552,7 @@ async def upsert_memory(
 @router.post("/apply-edit")
 async def apply_edit(
     body: dict,
+    db: AsyncSession = Depends(get_db),
     admin=Depends(require_role(AdminRole.ADMIN)),
 ):
     """
@@ -560,13 +561,12 @@ async def apply_edit(
     """
     if not isinstance(body, dict) or not body.get("entity_type") or body.get("entity_id") is None or not body.get("changes"):
         raise HTTPException(status_code=400, detail="entity_type, entity_id, and changes required")
-    async with AsyncSessionLocal() as db:
-        try:
-            norm = await validate_change(db, {**body, "action": "update"})
-        except ChangeError as e:
-            raise HTTPException(status_code=400, detail=str(e))
-        proposal = AIProposedEdit(id=str(uuid.uuid4()), batch_id="legacy", **{**norm, "before": None})
-        result = await apply_proposal(db, proposal)
+    try:
+        norm = await validate_change(db, {**body, "action": "update"})
+    except ChangeError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    proposal = AIProposedEdit(id=str(uuid.uuid4()), batch_id="legacy", **{**norm, "before": None})
+    result = await apply_proposal(db, proposal)
     if result["status"] != "applied":
         raise HTTPException(status_code=400, detail=result.get("error") or "Could not apply edit")
     logger.info(f"Admin {admin.id} applied legacy AI edit to {norm['entity_type']} {norm['entity_id']}")
@@ -618,6 +618,7 @@ async def list_proposed_edits(
 @router.post("/edits/apply")
 async def apply_proposed_edits(
     body: dict,
+    db: AsyncSession = Depends(get_db),
     admin=Depends(require_role(AdminRole.ADMIN)),
 ):
     """
@@ -627,43 +628,43 @@ async def apply_proposed_edits(
     ids = _edit_ids(body)
     force = bool(body.get("force"))
     results = []
-    async with AsyncSessionLocal() as db:
-        proposals = await _load_own_proposals(db, ids, admin.id)
-        for pid in ids:
-            p = proposals.get(pid)
-            if p is None:
-                results.append({"id": pid, "status": "failed", "error": "Proposal not found", "conflict": False})
-                continue
-            if p.status != ProposalStatus.PENDING.value:
-                results.append({"id": pid, "status": p.status, "error": p.error, "conflict": False, "entity_id": p.entity_id})
-                continue
-            try:
-                outcome = await apply_proposal(db, p, force=force)
-            except Exception as e:  # never let one bad row abort the whole batch
-                logger.exception(f"Applying AI proposal {pid} failed")
-                await db.rollback()
-                outcome = {"status": "failed", "error": f"Unexpected error: {type(e).__name__}", "conflict": False}
+    proposals = await _load_own_proposals(db, ids, admin.id)
+    for pid in ids:
+        if pid not in proposals:
+            results.append({"id": pid, "status": "failed", "error": "Proposal not found", "conflict": False})
+            continue
+        # get() refreshes the row if a previous proposal's rollback expired it
+        p = await db.get(AIProposedEdit, pid)
+        if p.status != ProposalStatus.PENDING.value:
+            results.append({"id": pid, "status": p.status, "error": p.error, "conflict": False, "entity_id": p.entity_id})
+            continue
+        try:
+            outcome = await apply_proposal(db, p, force=force)
+        except Exception as e:  # never let one bad row abort the whole batch
+            logger.exception(f"Applying AI proposal {pid} failed")
+            await db.rollback()
+            outcome = {"status": "failed", "error": f"Unexpected error: {type(e).__name__}", "conflict": False}
 
-            # Re-load: apply_proposal may have rolled back / expired the session
-            p = await db.get(AIProposedEdit, pid)
-            if outcome["status"] in (ProposalStatus.APPLIED.value, ProposalStatus.FAILED.value):
-                p.status = outcome["status"]
-                p.error = outcome.get("error")
-                p.resolved_at = datetime.utcnow()
-                p.resolved_by_id = admin.id
-                if outcome.get("entity_id") and not p.entity_id:
-                    p.entity_id = outcome["entity_id"]
-                if outcome["status"] == ProposalStatus.APPLIED.value:
-                    db.add(AdminAuditLog(
-                        admin_id=admin.id,
-                        action=f"AI_{p.action.upper()}_{p.entity_type.upper()}",
-                        resource_type=p.entity_type,
-                        resource_id=p.entity_id,
-                        details={"proposal_id": p.id, "batch_id": p.batch_id, "changes": p.changes, "before": p.before},
-                        timestamp=datetime.utcnow().isoformat(),
-                    ))
-                await db.commit()
-            results.append({"id": pid, **outcome, "entity_id": p.entity_id, "proposal": serialize_proposal(p)})
+        # Re-load: apply_proposal may have rolled back / expired the session
+        p = await db.get(AIProposedEdit, pid)
+        if outcome["status"] in (ProposalStatus.APPLIED.value, ProposalStatus.FAILED.value):
+            p.status = outcome["status"]
+            p.error = outcome.get("error")
+            p.resolved_at = datetime.utcnow()
+            p.resolved_by_id = admin.id
+            if outcome.get("entity_id") and not p.entity_id:
+                p.entity_id = outcome["entity_id"]
+            if outcome["status"] == ProposalStatus.APPLIED.value:
+                db.add(AdminAuditLog(
+                    admin_id=admin.id,
+                    action=f"AI_{p.action.upper()}_{p.entity_type.upper()}",
+                    resource_type=p.entity_type,
+                    resource_id=p.entity_id,
+                    details={"proposal_id": p.id, "batch_id": p.batch_id, "changes": p.changes, "before": p.before},
+                    timestamp=datetime.utcnow().isoformat(),
+                ))
+            await db.commit()
+        results.append({"id": pid, **outcome, "entity_id": p.entity_id, "proposal": serialize_proposal(p)})
     applied = sum(1 for r in results if r["status"] == "applied")
     logger.info(f"Admin {admin.id} applied {applied}/{len(ids)} AI proposals")
     return {"results": results, "applied": applied}
@@ -1172,9 +1173,15 @@ async def websocket_chat(websocket: WebSocket, session_id: str):
             user_content = (pending_message.get("content") or "").strip()
             file_ids = pending_message.get("file_ids", [])
             mode = pending_message.get("mode", "edit")
+            if mode not in CHAT_MODES:
+                mode = "edit"
             if not can_write:
                 mode = "ask"
             model = pending_message.get("model", "auto")
+            if model not in CHAT_MODEL_OPTIONS:
+                model = "auto"
+            if not isinstance(file_ids, list):
+                file_ids = []
             pending_message = None
 
             if not user_content and not file_ids:
@@ -1199,7 +1206,9 @@ async def websocket_chat(websocket: WebSocket, session_id: str):
                 if file_ids:
                     for fid in file_ids:
                         fr = await db.execute(
-                            select(AIUploadedFile).where(AIUploadedFile.id == fid)
+                            select(AIUploadedFile).where(
+                                AIUploadedFile.id == fid, AIUploadedFile.session_id == session_id
+                            )
                         )
                         f = fr.scalar_one_or_none()
                         if f and f.processed_content:
@@ -1236,8 +1245,10 @@ async def websocket_chat(websocket: WebSocket, session_id: str):
                 training = await load_training_summaries(db)
                 db_context = await get_eaglechair_context(db)
                 valid_ids = await fetch_valid_reference_ids() if mode in ("edit", "agent") else None
+                proposal_status = await _proposal_status_summary(db, session_id)
                 system_prompt = build_system_prompt(
-                    memory, training, mode=mode, model=model, valid_reference_ids=valid_ids
+                    memory, training, mode=mode, model=model, valid_reference_ids=valid_ids,
+                    proposal_status=proposal_status,
                 )
                 if db_context:
                     system_prompt += f"\n\n## Live Data\n{db_context}"
@@ -1254,10 +1265,16 @@ async def websocket_chat(websocket: WebSocket, session_id: str):
                 "error_sent": False,
             }
             cancelled_event = asyncio.Event()
+            # Known up front so proposals made during the stream link to this message
+            asst_msg_id = str(uuid.uuid4())
+            tool_context = ToolContext(session_id=session_id, message_id=asst_msg_id, admin_user_id=admin_id)
 
             async def consume_stream():
                 try:
-                    async for event in stream_ai_response(history, system_prompt, mode=mode, model=model, cancelled=cancelled_event):
+                    async for event in stream_ai_response(
+                        history, system_prompt, mode=mode, model=model,
+                        cancelled=cancelled_event, tool_context=tool_context,
+                    ):
                         if event["type"] == "text_chunk":
                             stream_state["full_response"] += event["data"]["content"]
                             blocks = stream_state["content_blocks"]
@@ -1275,6 +1292,11 @@ async def websocket_chat(websocket: WebSocket, session_id: str):
                                 stream_state["suggested_edits"].append(edit)
                                 stream_state["content_blocks"].append({"type": "suggested_edit", "data": edit})
                             await websocket.send_json(event)
+                        elif event["type"] == "edit_batch":
+                            batch = event["data"].get("batch") or {}
+                            if batch.get("edits"):
+                                stream_state["content_blocks"].append({"type": "edit_batch", "data": batch})
+                            await websocket.send_json(event)
                         elif event["type"] == "tool_call_started":
                             d = event["data"] or {}
                             stream_state["content_blocks"].append({
@@ -1287,8 +1309,15 @@ async def websocket_chat(websocket: WebSocket, session_id: str):
                             if tool_call:
                                 stream_state["tool_calls"].append(tool_call)
                                 blocks = stream_state["content_blocks"]
-                                if blocks and blocks[-1].get("type") == "tool_call_in_progress":
-                                    blocks[-1] = {"type": "tool_call", "data": tool_call}
+                                # Parallel calls: replace the first still-running block for this tool
+                                idx = next(
+                                    (i for i, b in enumerate(blocks)
+                                     if b.get("type") == "tool_call_in_progress"
+                                     and (b.get("data") or {}).get("name") == tool_call.get("name")),
+                                    None,
+                                )
+                                if idx is not None:
+                                    blocks[idx] = {"type": "tool_call", "data": tool_call}
                                 else:
                                     blocks.append({"type": "tool_call", "data": tool_call})
                             await websocket.send_json(event)
@@ -1353,6 +1382,13 @@ async def websocket_chat(websocket: WebSocket, session_id: str):
             is_first_message = (session.message_count or 0) <= 1
 
             has_content = bool(full_response and full_response.strip())
+            # Drop spinners for tools that never finished (interrupted mid-call)
+            content_blocks = [b for b in content_blocks if b.get("type") != "tool_call_in_progress"]
+            has_batches = any(b.get("type") == "edit_batch" for b in content_blocks)
+            if not has_content and (has_batches or tool_calls):
+                # Keep turns that only made tool calls / proposals; the review cards live on this message
+                full_response = "_(Proposed changes below.)_" if has_batches else "_(No answer — stopped after using tools.)_"
+                has_content = True
 
             if not error_sent and not has_content:
                 logger.info(
@@ -1360,10 +1396,9 @@ async def websocket_chat(websocket: WebSocket, session_id: str):
                     f"{session_id} (interrupted={interrupted})"
                 )
 
-            if not error_sent and has_content:
+            if has_content and (not error_sent or has_batches):
                 try:
                     async with AsyncSessionLocal() as db:
-                        asst_msg_id = str(uuid.uuid4())
                         asst_msg = AIChatMessage(
                             id=asst_msg_id,
                             session_id=session_id,

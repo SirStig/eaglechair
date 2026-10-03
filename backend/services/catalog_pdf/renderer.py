@@ -4,7 +4,7 @@ Builder) into a PDF, or one page of it into a PNG preview.
 
 Page numbers: every page is one physical page except "toc", which takes as
 many pages as its entries need. Contents entries are the titled product /
-gallery / photo pages; consecutive entries with the same title (a family that
+gallery / photo / seats / bases / chart pages; consecutive entries with the same title (a family that
 spans several sheets) collapse into one.
 
 MuPDF is not thread-safe, so renders are serialized with a lock (callers run
@@ -31,16 +31,23 @@ from backend.services.catalog_pdf.layouts import (
     _chrome,
     _footer,
     _title,
+    draw_bases,
+    draw_chart,
     draw_cover,
     draw_gallery,
     draw_photo,
     draw_product,
+    draw_seats,
     draw_toc,
     model_label,
+    page_size,
     resolve_item,
 )
 
-PAGE_TYPES = ("cover", "toc", "product", "gallery", "photo")
+PAGE_TYPES = ("cover", "toc", "product", "gallery", "photo", "seats", "bases", "chart")
+# Pages that can be listed in the contents, and those whose model numbers are listed
+TOC_TYPES = ("product", "gallery", "photo", "seats", "bases", "chart")
+TOC_MODEL_TYPES = ("product", "bases")
 DEFAULT_COPYRIGHT = "All Rights Reserved © Copyright Eagle Chair Inc. 1984 - {year}"
 
 _render_lock = threading.Lock()
@@ -52,6 +59,9 @@ _DRAW = {
     "product": draw_product,
     "gallery": draw_gallery,
     "photo": draw_photo,
+    "seats": draw_seats,
+    "bases": draw_bases,
+    "chart": draw_chart,
 }
 
 
@@ -78,13 +88,13 @@ def _toc_candidates(pages: list[dict], data: CatalogData) -> list[dict]:
     """Contents entries without page numbers: [{"title", "models", "index"}]."""
     entries: list[dict] = []
     for index, page in enumerate(pages):
-        if page.get("type") not in ("product", "gallery", "photo") or page.get("include_in_toc") is False:
+        if page.get("type") not in TOC_TYPES or page.get("include_in_toc") is False:
             continue
         title = _entry_title(page)
         if not title:
             continue
         models = []
-        if page.get("type") == "product":
+        if page.get("type") in TOC_MODEL_TYPES:
             for item in page.get("items") or []:
                 label = model_label(*resolve_item(item, data))
                 if label:
@@ -122,7 +132,8 @@ def _draw(out: fitz.Document, ctx: Ctx, page_spec: dict, plan: PagePlan, entries
     slots = []
     count = 1 if only_first else plan.count
     for offset in range(count):
-        page = out.new_page(width=PAGE_WIDTH, height=PAGE_HEIGHT)
+        width, height = page_size(page_spec)
+        page = out.new_page(width=width, height=height)
         ctx.page_number = plan.first + offset
         ctx.slots = []
         if kind == "toc":
@@ -160,6 +171,8 @@ class Preview:
     page_number: int
     physical_pages: int
     total_pages: int
+    width: float
+    height: float
 
 
 def render_preview(document: dict, data: CatalogData, images: ImageLoader, index: int, dpi: int = 110) -> Preview:
@@ -177,7 +190,11 @@ def render_preview(document: dict, data: CatalogData, images: ImageLoader, index
         # JPEG: a fraction of the size of PNG and faster to encode (the page has no transparency)
         image = out[0].get_pixmap(dpi=dpi).tobytes("jpeg", jpg_quality=PREVIEW_JPEG_QUALITY)
         total = plans[-1].first + plans[-1].count - 1 if plans else 0
-        return Preview(image=image, slots=slots[0], page_number=plan.first, physical_pages=plan.count, total_pages=total)
+        width, height = page_size(pages[index])
+        return Preview(
+            image=image, slots=slots[0], page_number=plan.first, physical_pages=plan.count, total_pages=total,
+            width=width, height=height,
+        )
 
 
 # ---------------------------------------------------------------------------

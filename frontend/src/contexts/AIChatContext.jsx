@@ -13,6 +13,8 @@ import {
   createChatWebSocket,
   uploadFileToChat,
   deleteChatMessage,
+  applyProposedEdits,
+  declineProposedEdits,
 } from '../services/aiChatService';
 
 const AIChatContext = createContext(null);
@@ -278,6 +280,21 @@ export function AIChatProvider({ children }) {
         break;
       }
 
+      case 'edit_batch': {
+        const batch = data?.batch;
+        if (batch?.edits?.length) {
+          setMessages(prev => {
+            const last = prev[prev.length - 1];
+            if (!last?.isStreaming) return prev;
+            return prev.slice(0, -1).concat({
+              ...last,
+              content_blocks: [...(last.content_blocks || []), { type: 'edit_batch', data: batch }],
+            });
+          });
+        }
+        break;
+      }
+
       case 'tool_call_started': {
         const d = data || {};
         setStreamingState({ type: 'thinking', message: d.label || 'Working...' });
@@ -324,9 +341,12 @@ export function AIChatProvider({ children }) {
             if (last?.isStreaming) {
               const blocks = last.content_blocks || [];
               const newBlocks = [...blocks];
-              const lastIdx = newBlocks.length - 1;
-              if (lastIdx >= 0 && newBlocks[lastIdx]?.type === 'tool_call_in_progress') {
-                newBlocks[lastIdx] = { type: 'tool_call', data: toolCall };
+              // Tools run in parallel: finish the first still-running block for this tool
+              const runningIdx = newBlocks.findIndex(
+                b => b?.type === 'tool_call_in_progress' && b.data?.name === toolCall.name
+              );
+              if (runningIdx >= 0) {
+                newBlocks[runningIdx] = { type: 'tool_call', data: toolCall };
               } else {
                 newBlocks.push({ type: 'tool_call', data: toolCall });
               }
@@ -742,6 +762,80 @@ export function AIChatProvider({ children }) {
     updateEditInMessage(message, edit, 'declined');
   }, [updateEditInMessage]);
 
+  // ── AI-proposed change batches ────────────────────────────────────────────
+  // Patch proposal rows (by id) inside every message's edit_batch blocks
+  const patchProposals = useCallback((patches) => {
+    if (!patches.length) return;
+    const byId = new Map(patches.map(p => [p.id, p]));
+    setMessages(prev => prev.map(m => {
+      const blocks = m.content_blocks;
+      if (!blocks?.some(b => b.type === 'edit_batch')) return m;
+      let changed = false;
+      const nextBlocks = blocks.map(b => {
+        if (b.type !== 'edit_batch' || !b.data?.edits) return b;
+        const edits = b.data.edits.map(e => {
+          const patch = byId.get(e.id);
+          if (!patch) return e;
+          changed = true;
+          return { ...e, ...patch };
+        });
+        return { ...b, data: { ...b.data, edits } };
+      });
+      return changed ? { ...m, content_blocks: nextBlocks } : m;
+    }));
+  }, []);
+
+  const [busyProposalIds, setBusyProposalIds] = useState({});
+  const markBusy = useCallback((ids, busy) => {
+    setBusyProposalIds(prev => {
+      const next = { ...prev };
+      ids.forEach(id => { if (busy) next[id] = true; else delete next[id]; });
+      return next;
+    });
+  }, []);
+
+  const resultToPatch = (r) => ({
+    ...(r.proposal || {}),
+    id: r.id,
+    status: r.proposal?.status || r.status,
+    error: r.error || null,
+    conflict: !!r.conflict,
+    current: r.current,
+  });
+
+  /** Apply proposals; returns the per-id results. force overrides "changed since proposed" conflicts. */
+  const applyProposals = useCallback(async (ids, { force = false } = {}) => {
+    const todo = ids.filter(id => !busyProposalIds[id]);
+    if (!todo.length) return [];
+    markBusy(todo, true);
+    try {
+      const { results } = await applyProposedEdits(todo, { force });
+      patchProposals(results.map(resultToPatch));
+      return results;
+    } catch (err) {
+      patchProposals(todo.map(id => ({ id, error: err?.message || 'Failed to apply' })));
+      throw err;
+    } finally {
+      markBusy(todo, false);
+    }
+  }, [busyProposalIds, markBusy, patchProposals]);
+
+  const declineProposals = useCallback(async (ids) => {
+    const todo = ids.filter(id => !busyProposalIds[id]);
+    if (!todo.length) return [];
+    markBusy(todo, true);
+    try {
+      const { results } = await declineProposedEdits(todo);
+      patchProposals(results.map(resultToPatch));
+      return results;
+    } catch (err) {
+      patchProposals(todo.map(id => ({ id, error: err?.message || 'Failed to decline' })));
+      throw err;
+    } finally {
+      markBusy(todo, false);
+    }
+  }, [busyProposalIds, markBusy, patchProposals]);
+
   // Shared lock so "Accept All" (SuggestedEditsBar) and an individual card's
   // Approve button (SuggestedEditCard) can't both apply the same suggested
   // edit at once.
@@ -833,6 +927,9 @@ export function AIChatProvider({ children }) {
     removePendingFile,
     markEditApplied,
     markEditDeclined,
+    applyProposals,
+    declineProposals,
+    busyProposalIds,
     applyingEditKeys,
     beginApplyingEdit,
     endApplyingEdit,

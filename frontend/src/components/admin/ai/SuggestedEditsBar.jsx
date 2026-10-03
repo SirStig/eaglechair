@@ -31,19 +31,41 @@ function getPendingEdits(messages) {
   return out;
 }
 
+/** Pending rows from AI change batches (edit_batch blocks), as proposal ids */
+function getPendingBatchIds(messages) {
+  const ids = [];
+  for (const msg of messages || []) {
+    if (msg.role !== 'assistant') continue;
+    for (const b of msg.content_blocks || []) {
+      if (b.type !== 'edit_batch' || !b.data?.edits) continue;
+      for (const e of b.data.edits) {
+        if ((e.status || 'pending') === 'pending' && e.id) ids.push(e.id);
+      }
+    }
+  }
+  return ids;
+}
+
 export default function SuggestedEditsBar({ messages, onEditApplied, onEditDeclined }) {
-  const { applyingEditKeys, beginApplyingEdit, endApplyingEdit } = useAIChat();
+  const {
+    applyingEditKeys, beginApplyingEdit, endApplyingEdit, applyProposals, declineProposals, busyProposalIds,
+  } = useAIChat();
   const [isAccepting, setIsAccepting] = useState(false);
   const [isRejecting, setIsRejecting] = useState(false);
 
   const pending = getPendingEdits(messages);
-  const count = pending.length;
+  const batchIds = getPendingBatchIds(messages);
+  const count = pending.length + batchIds.length;
 
   if (count < 2) return null;
 
   const handleAcceptAll = async () => {
     setIsAccepting(true);
     try {
+      if (batchIds.length) {
+        // One request; the server applies them in order and reports each result
+        await applyProposals(batchIds).catch(err => console.error('Failed to apply changes:', err));
+      }
       for (const { message, edit } of pending) {
         const key = getEditKey(edit);
         if (applyingEditKeys[key]) continue; // already being applied (e.g. an individual card's Approve)
@@ -66,17 +88,24 @@ export default function SuggestedEditsBar({ messages, onEditApplied, onEditDecli
     }
   };
 
-  const handleRejectAll = () => {
+  const handleRejectAll = async () => {
     setIsRejecting(true);
-    for (const { message, edit } of pending) {
-      onEditDeclined?.(message, edit);
+    try {
+      for (const { message, edit } of pending) {
+        onEditDeclined?.(message, edit);
+      }
+      if (batchIds.length) {
+        await declineProposals(batchIds).catch(err => console.error('Failed to decline changes:', err));
+      }
+    } finally {
+      setIsRejecting(false);
     }
-    setIsRejecting(false);
   };
 
   // Also disable while any pending edit is being applied by an individual
   // card's Approve button, so Accept All can't double-submit it.
-  const anyLocked = pending.some(({ edit }) => applyingEditKeys[getEditKey(edit)]);
+  const anyLocked = pending.some(({ edit }) => applyingEditKeys[getEditKey(edit)])
+    || batchIds.some(id => busyProposalIds[id]);
   const busy = isAccepting || isRejecting || anyLocked;
 
   return (

@@ -27,6 +27,7 @@ LAYERS = {
     "banner_panel": 4,
     "flag_emblem": 5,
     "made_in_usa": 6,
+    "spec_panel_tall": 7,
 }
 
 # Where the eagle sits on the logo layer, for stamping it elsewhere/scaled

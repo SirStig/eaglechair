@@ -1,6 +1,6 @@
 import { memo, useEffect, useMemo, useRef, useState } from 'react';
 import { Loader2, Minus, Move, Plus, RotateCcw } from 'lucide-react';
-import { PAGE_HEIGHT, PAGE_WIDTH, previewPayload } from './pageModel';
+import { pageSize, previewPayload } from './pageModel';
 import { getCachedPreview, loadPreview, prefetchPreviews, previewKey } from './previewCache';
 
 // Debounce while typing / dragging; cached pages skip it and show at once
@@ -29,6 +29,8 @@ const PagePreview = ({ document, pageIndex, selectedItem, onSelectItem, getAdjus
     [document, pageIndex],
   );
   const key = useMemo(() => (payload ? previewKey(payload, pageIndex) : null), [payload, pageIndex]);
+  // Page size in PDF points (landscape photo pages are 792 x 612)
+  const [pageWidth, pageHeight] = pageSize(document?.pages?.[pageIndex]);
 
   useEffect(() => {
     if (!key) {
@@ -76,7 +78,7 @@ const PagePreview = ({ document, pageIndex, selectedItem, onSelectItem, getAdjus
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [key, pageIndex]);
 
-  const pointsPerPixel = () => PAGE_WIDTH / (containerRef.current?.clientWidth || PAGE_WIDTH);
+  const pointsPerPixel = () => pageWidth / (containerRef.current?.clientWidth || pageWidth);
 
   const adjust = (index, change) => {
     const current = getAdjust(index);
@@ -131,7 +133,7 @@ const PagePreview = ({ document, pageIndex, selectedItem, onSelectItem, getAdjus
         tabIndex={0}
         onKeyDown={onKeyDown}
         className="relative w-full max-w-[640px] shadow-2xl bg-dark-700 outline-none focus:ring-2 focus:ring-primary-500/40"
-        style={{ aspectRatio: `${PAGE_WIDTH} / ${PAGE_HEIGHT}` }}
+        style={{ aspectRatio: `${pageWidth} / ${pageHeight}` }}
       >
         {preview?.image && (
           <img src={preview.image} alt="Page preview" className="absolute inset-0 w-full h-full select-none" draggable={false} />
@@ -157,15 +159,15 @@ const PagePreview = ({ document, pageIndex, selectedItem, onSelectItem, getAdjus
               onWheel={(e) => onWheel(e, slot.item)}
               className={`absolute cursor-move ${active ? 'ring-2 ring-primary-500' : 'hover:ring-2 hover:ring-primary-400/60'}`}
               style={{
-                left: pct(x0, PAGE_WIDTH),
-                top: pct(y0, PAGE_HEIGHT),
-                width: pct(width, PAGE_WIDTH),
-                height: pct(height, PAGE_HEIGHT),
+                left: pct(x0, pageWidth),
+                top: pct(y0, pageHeight),
+                width: pct(width, pageWidth),
+                height: pct(height, pageHeight),
                 transform: dragging ? `translate(${drag.dx * ratio}px, ${drag.dy * ratio}px)` : undefined,
                 // While dragging, carry the rendered photo along with the handle
                 backgroundImage: dragging && preview?.image ? `url(${preview.image})` : undefined,
-                backgroundSize: `${(PAGE_WIDTH / width) * 100}% ${(PAGE_HEIGHT / height) * 100}%`,
-                backgroundPosition: `${(x0 / (PAGE_WIDTH - width || 1)) * 100}% ${(y0 / (PAGE_HEIGHT - height || 1)) * 100}%`,
+                backgroundSize: `${(pageWidth / width) * 100}% ${(pageHeight / height) * 100}%`,
+                backgroundPosition: `${(x0 / (pageWidth - width || 1)) * 100}% ${(y0 / (pageHeight - height || 1)) * 100}%`,
                 opacity: dragging ? 0.85 : 1,
               }}
             >

@@ -2,21 +2,26 @@
 Catalog Builder schemas
 
 A catalog document is {"settings": {...}, "pages": [...]}. Pages are one of
-cover / toc / product / gallery / photo (see
+cover / toc / product / gallery / photo / seats / bases / chart (see
 backend/services/catalog_pdf/layouts.py for how each is drawn); fields a page
 type does not use are ignored. Items point at a product and/or variation;
 dx / dy / scale are the editor's photo adjustments in PDF points.
 """
 
-from typing import Literal, Optional
+from typing import Annotated, Literal, Optional
 
 from pydantic import BaseModel, ConfigDict, Field
 
 from backend.services.catalog_pdf.data import new_page_id
 from backend.services.catalog_pdf.renderer import DEFAULT_COPYRIGHT
 
-PageType = Literal["cover", "toc", "product", "gallery", "photo"]
+PageType = Literal["cover", "toc", "product", "gallery", "photo", "seats", "bases", "chart"]
 Emblem = Literal["none", "flag", "made_in_usa"]
+Orientation = Literal["portrait", "landscape"]
+
+# Table cells (bases sizes table, chart rows)
+Cell = Annotated[str, Field(max_length=60)]
+Row = Annotated[list[Cell], Field(max_length=6)]
 
 _TEXT = 2000
 _LINE = 200
@@ -44,7 +49,7 @@ class CatalogPage(BaseModel):
     subtitle: str = Field("", max_length=_LINE)
     toc_label: Optional[str] = Field(None, max_length=_LINE)
     include_in_toc: bool = True
-    items: list[CatalogItem] = Field(default_factory=list, max_length=8)
+    items: list[CatalogItem] = Field(default_factory=list, max_length=12)
 
     # product page panel
     features: str = Field("", max_length=_TEXT)
@@ -54,6 +59,13 @@ class CatalogPage(BaseModel):
     options: str = Field("", max_length=_TEXT)
     ip_text: str = Field("", max_length=_LINE)
     emblem: Emblem = "none"
+    # optional sizes column (booths, banquettes), e.g. "Standard Sizes" / 30" 36" ...
+    sizes: str = Field("", max_length=_TEXT)
+    sizes_label: str = Field("", max_length=_LINE)
+
+    # bases sizes table (empty: built from the products) / chart rows
+    table_header: list[Cell] = Field(default_factory=list, max_length=6)
+    table_rows: list[Row] = Field(default_factory=list, max_length=120)
 
     # gallery / toc banner, cover taglines
     tagline: str = Field("", max_length=_TEXT)
@@ -64,10 +76,11 @@ class CatalogPage(BaseModel):
     # photo page
     image_url: Optional[str] = Field(None, max_length=500)
     caption: str = Field("", max_length=_TEXT)
-    dx: float = Field(0, ge=-612, le=612)
+    dx: float = Field(0, ge=-792, le=792)
     dy: float = Field(0, ge=-792, le=792)
     scale: float = Field(1, ge=0.2, le=4)
     show_footer: bool = False
+    orientation: Orientation = "portrait"
 
 
 class CatalogSettings(BaseModel):

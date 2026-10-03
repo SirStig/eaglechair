@@ -3,10 +3,15 @@
  * Mirrors backend/api/v1/schemas/catalog_builder.py and the layouts in
  * backend/services/catalog_pdf/layouts.py.
  */
-import { BookOpen, Image as ImageIcon, LayoutGrid, ListOrdered, Package } from 'lucide-react';
+import { Armchair, BookOpen, Columns3, Image as ImageIcon, LayoutGrid, ListOrdered, Package, Table2 } from 'lucide-react';
 
 export const PAGE_WIDTH = 612;
 export const PAGE_HEIGHT = 792;
+
+/** [width, height] of a page in PDF points: photo pages can be landscape (see layouts.page_size). */
+export const pageSize = (page) => (
+  page?.type === 'photo' && page.orientation === 'landscape' ? [PAGE_HEIGHT, PAGE_WIDTH] : [PAGE_WIDTH, PAGE_HEIGHT]
+);
 
 export const PAGE_TYPES = {
   cover: {
@@ -24,8 +29,8 @@ export const PAGE_TYPES = {
   product: {
     label: 'Product sheet',
     icon: Package,
-    maxItems: 3,
-    description: 'Family title, 1-3 products with spec columns and the Features / Materials panel.',
+    maxItems: 5,
+    description: 'Family title, 1-5 products each with its spec column, and the Features / Materials panel (add a Sizes column for booths).',
   },
   gallery: {
     label: 'Variations',
@@ -37,15 +42,37 @@ export const PAGE_TYPES = {
     label: 'Photo',
     icon: ImageIcon,
     maxItems: 0,
-    description: 'One full-bleed install photo.',
+    description: 'One full-bleed install photo, portrait or landscape.',
+  },
+  seats: {
+    label: 'Seat options',
+    icon: Armchair,
+    maxItems: 10,
+    description: 'Up to 10 seat close-ups in ovals with a code and description (P, PF, 22BX…), and a tagline banner.',
+  },
+  bases: {
+    label: 'Table bases',
+    icon: Columns3,
+    maxItems: 12,
+    description: 'Up to 12 captioned bases with a Sizes / Weight table and notes in the panel.',
+  },
+  chart: {
+    label: 'Chart',
+    icon: Table2,
+    maxItems: 0,
+    description: 'A ruled table, e.g. the table top / base compatibility chart, and a tagline banner.',
   },
 };
+
+/** Page types whose items list their model numbers in the contents (see renderer.TOC_MODEL_TYPES). */
+export const TOC_MODEL_TYPES = ['product', 'bases'];
 
 /** Which inspector tabs a page type has (Page / Products / Text). */
 export const inspectorTabs = (type) => {
   const tabs = [{ id: 'page', label: 'Page' }];
   if (PAGE_TYPES[type]?.maxItems > 0) tabs.push({ id: 'products', label: 'Products' });
-  if (type === 'product') tabs.push({ id: 'text', label: 'Text' });
+  if (type === 'product' || type === 'bases') tabs.push({ id: 'text', label: 'Text' });
+  if (type === 'bases' || type === 'chart') tabs.push({ id: 'table', label: 'Table' });
   return tabs;
 };
 
@@ -76,6 +103,10 @@ const BASE = {
   options: '',
   ip_text: '',
   emblem: 'none',
+  sizes: '',
+  sizes_label: '',
+  table_header: [],
+  table_rows: [],
   tagline: '',
   tagline_right: '',
   year: '',
@@ -86,6 +117,7 @@ const BASE = {
   dy: 0,
   scale: 1,
   show_footer: false,
+  orientation: 'portrait',
 };
 
 export const newPage = (type) => {
@@ -102,6 +134,20 @@ export const newPage = (type) => {
   }
   if (type === 'toc') Object.assign(page, { title: 'Contents', tagline: 'Diverse concepts, unvarying quality' });
   if (type === 'gallery') Object.assign(page, { subtitle: 'variations', tagline: 'Your imagination is the only limitation on what we can build for you.' });
+  if (type === 'seats') {
+    Object.assign(page, {
+      subtitle: 'upholstery',
+      tagline: 'Eagle Chair provides one of the widest selections of upholstered seat types on all of our chairs.\nAnd even those can be further customized by several factors.',
+    });
+  }
+  if (type === 'bases') Object.assign(page, { subtitle: 'table bases', environmental: 'High content of recycled iron and fully recyclable.' });
+  if (type === 'chart') {
+    Object.assign(page, {
+      subtitle: 'table top compatibility chart',
+      table_header: ['Table top\nsize', 'Table base\nmodel'],
+      tagline: 'Please contact the factory if you are uncertain of the base sizes needed for your project.',
+    });
+  }
   return page;
 };
 
@@ -127,6 +173,21 @@ export const modelLabel = (product, variation) => {
   if (!product) return '';
   return [product.model_number, product.model_suffix].filter(Boolean).join(' ');
 };
+
+/** Seat option caption when none is set (see layouts.seat_caption): "P - Padded seat". */
+export const seatCaption = (product, variation) => {
+  const label = modelLabel(product, variation);
+  const name = variation?.name || '';
+  return label && name ? `${label} - ${name}` : label || name;
+};
+
+/** Chart / sizes table rows <-> text: one row per line, cells split by tabs (pasted from Excel) or "|". */
+export const rowsToText = (rows) => (rows || []).map((row) => row.join(' | ')).join('\n');
+export const textToRows = (text) => text
+  .split('\n')
+  .filter((line) => line.trim())
+  .slice(0, 120)
+  .map((line) => line.split(line.includes('\t') ? '\t' : '|').slice(0, 6).map((cell) => cell.trim().slice(0, 60)));
 
 /** The caption the PDF prints when none is set (see layouts.default_caption). */
 export const defaultCaption = (product, variation) => {
@@ -172,7 +233,7 @@ export const previewPayload = (document, index) => {
     pages: document.pages.map((page, i) => {
       if (i === index) return page;
       const slim = pick(page, NUMBERING_FIELDS);
-      if (isToc && page.type === 'product') {
+      if (isToc && TOC_MODEL_TYPES.includes(page.type)) {
         slim.items = (page.items || []).map((item) => ({ product_id: item.product_id, variation_id: item.variation_id }));
       }
       return slim;

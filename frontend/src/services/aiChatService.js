@@ -208,6 +208,29 @@ export async function applyEdit(edit) {
   });
 }
 
+// ── AI-proposed changes (batch review) ───────────────────────────────────
+
+/** Approve + apply proposals. Returns {results: [{id, status, error, conflict, proposal}], applied}. */
+export const applyProposedEdits = (ids, { force = false } = {}) =>
+  apiFetch('/edits/apply', {
+    method: 'POST',
+    body: JSON.stringify({ ids, force }),
+  });
+
+export const declineProposedEdits = (ids) =>
+  apiFetch('/edits/decline', {
+    method: 'POST',
+    body: JSON.stringify({ ids }),
+  });
+
+export const listProposedEdits = ({ sessionId, status } = {}) => {
+  const params = new URLSearchParams();
+  if (sessionId) params.set('session_id', sessionId);
+  if (status) params.set('status', status);
+  const qs = params.toString();
+  return apiFetch(`/edits${qs ? `?${qs}` : ''}`);
+};
+
 export async function createChatWebSocket(sessionId) {
   // The WebSocket host may be on another site where auth cookies aren't
   // sent, so authenticate with a one-time ticket from the cookie-auth API

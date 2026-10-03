@@ -14,7 +14,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from backend.models.chair import Category, Chair, ProductFamily, ProductVariation
-from backend.services.catalog_pdf.layouts import MAX_GALLERY_ITEMS, CatalogData
+from backend.services.catalog_pdf.layouts import MAX_BASE_ITEMS, MAX_GALLERY_ITEMS, CatalogData
 from backend.services.catalog_pdf.specs import SPEC_FIELDS
 
 
@@ -169,11 +169,19 @@ def _join(*parts: Optional[str]) -> str:
     return "\n".join(p.strip() for p in parts if p and p.strip())
 
 
+def _chunks(members: list, size: int) -> list[list]:
+    """members split into pages of at most size, as evenly as possible (5 -> 3 + 2)."""
+    count = -(-len(members) // size)
+    per = -(-len(members) // count) if count else 0
+    return [members[i:i + per] for i in range(0, len(members), per)] if per else []
+
+
 def suggest_pages(products: list[dict], families: dict[int, ProductFamily], include_gallery: bool = True) -> list[dict]:
     """
-    Starter pages for products, grouped by family: spec sheets with two
-    products each (pre-filled with the product text) and a variations gallery
-    when there are at least three photographed variations.
+    Starter pages for products, grouped by family: spec sheets with up to four
+    products each (pre-filled with the product text), or one table-bases sheet
+    per twelve bases, and a variations gallery when there are at least three
+    photographed variations.
     """
     groups: "OrderedDict[str, list[dict]]" = OrderedDict()
     for product in products:
@@ -183,8 +191,20 @@ def suggest_pages(products: list[dict], families: dict[int, ProductFamily], incl
     for title, members in groups.items():
         family = families.get(members[0].get("family_id"))
         overview = family.overview_text if family is not None else None
-        for start in range(0, len(members), 2):
-            chunk = members[start:start + 2]
+        lead = members[0]
+        if lead.get("spec_profile") == "table_base":
+            for chunk in _chunks(members, MAX_BASE_ITEMS):
+                pages.append({
+                    "id": new_page_id(),
+                    "type": "bases",
+                    "title": title,
+                    "subtitle": "table bases",
+                    "items": [{"product_id": p["id"]} for p in chunk],
+                    "features": overview or lead.get("short_description") or "",
+                    "environmental": ", ".join(lead.get("green_certifications") or []),
+                })
+            continue
+        for chunk in _chunks(members, 4):
             lead = chunk[0]
             pages.append({
                 "id": new_page_id(),

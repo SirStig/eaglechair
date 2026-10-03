@@ -1,39 +1,16 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { Navigate, useNavigate, useLocation } from 'react-router-dom';
+import { AnimatePresence, m } from 'framer-motion';
 import { useStandalone } from '../../hooks/useStandalone';
 import { useMediaQuery } from '../../hooks/useMediaQuery';
 import FloatingAIButton from '../../components/admin/ai/FloatingAIButton';
 import AIChatWidget from '../../components/admin/ai/AIChatWidget';
 import { useAuthStore } from '../../store/authStore';
 import { AdminRefreshProvider, useAdminRefresh } from '../../contexts/AdminRefreshContext';
-import { 
-  LayoutDashboard, 
-  TrendingUp, 
-  Package, 
-  Tags, 
-  Users2, 
-  Palette, 
-  Droplet,
-  Armchair,
-  Layers,
-  FileText,
-  Wrench, 
-  Settings,
-  ChevronLeft,
-  ChevronRight,
-  ExternalLink,
-  User,
-  DollarSign,
-  Mail,
-  Menu,
-  X,
-  MessageSquare,
-  Download,
-  ClipboardList,
-  BookOpen,
-  Inbox,
-} from 'lucide-react';
-import { AnimatePresence, m } from 'framer-motion';
+import AdminSidebar from '../../components/admin/layout/AdminSidebar';
+import AdminTopbar from '../../components/admin/layout/AdminTopbar';
+import AdminCommandPalette from '../../components/admin/layout/AdminCommandPalette';
+import { getAdminNavItem, sectionFromPath } from '../../components/admin/adminNav';
 
 // Import admin sections
 import DashboardOverview from '../../components/admin/sections/DashboardOverview';
@@ -60,17 +37,23 @@ import ProductRegister from '../../components/admin/sections/ProductRegister';
 import CatalogBuilder from '../../components/admin/sections/CatalogBuilder';
 import apiClient from '../../config/apiClient';
 
+const SIDEBAR_COLLAPSED_KEY = 'ec-admin-sidebar-collapsed';
+
+function readCollapsed() {
+  try {
+    return localStorage.getItem(SIDEBAR_COLLAPSED_KEY) === '1';
+  } catch {
+    return false;
+  }
+}
+
 /**
- * Comprehensive Admin Dashboard
- * 
- * Full-width modern admin interface with:
- * - Left sidebar navigation
- * - Multiple management sections
- * - Smooth animations
- * - Responsive design
+ * Admin console shell: sidebar navigation, top bar (breadcrumb, ⌘K jump,
+ * account menu) and the active management section. The URL is the source of
+ * truth for which section is shown.
  */
 const NewAdminDashboardInner = () => {
-  const { user } = useAuthStore();
+  const { user, logout } = useAuthStore();
   const navigate = useNavigate();
   const location = useLocation();
   const { invalidate } = useAdminRefresh();
@@ -78,9 +61,17 @@ const NewAdminDashboardInner = () => {
   const isTabletOrSmaller = useMediaQuery('(max-width: 767px)');
   const showBottomNav = isStandalone && isTabletOrSmaller;
   const [selectedProduct, setSelectedProduct] = useState(null);
-  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(readCollapsed);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const [paletteOpen, setPaletteOpen] = useState(false);
   const [inquiryUnread, setInquiryUnread] = useState(0);
+
+  const activeSection = useMemo(() => {
+    // Deep links like /admin/dashboard?edit=12 open the product editor
+    if (new URLSearchParams(location.search).get('edit')) return 'catalog';
+    return sectionFromPath(location.pathname);
+  }, [location.pathname, location.search]);
+  const activeItem = getAdminNavItem(activeSection);
 
   // Unread contact-form inquiries for the nav badge
   useEffect(() => {
@@ -89,81 +80,61 @@ const NewAdminDashboardInner = () => {
       .catch(() => {});
   }, []);
 
-  // Determine active section from URL
-  const getActiveSectionFromPath = () => {
-    const path = location.pathname;
-    if (path.includes('/admin/analytics')) return 'analytics';
-    if (path.includes('/admin/catalog-builder')) return 'catalog-builder';
-    if (path.includes('/admin/register')) return 'register';
-    if (path.includes('/admin/catalog')) return 'catalog';
-    if (path.includes('/admin/categories')) return 'categories';
-    if (path.includes('/admin/families')) return 'families';
-    if (path.includes('/admin/colors')) return 'colors';
-    if (path.includes('/admin/finishes')) return 'finishes';
-    if (path.includes('/admin/upholstery')) return 'upholstery';
-    if (path.includes('/admin/laminates')) return 'laminates';
-    if (path.includes('/admin/resources/catalogs')) return 'catalogs';
-    if (path.includes('/admin/hardware')) return 'hardware';
-    if (path.includes('/admin/companies')) return 'companies';
-    if (path.includes('/admin/quotes')) return 'quotes';
-    if (path.includes('/admin/inquiries')) return 'inquiries';
-    if (path.includes('/admin/pricing-tiers')) return 'pricing-tiers';
-    if (path.includes('/admin/legal-documents')) return 'legal-documents';
-    if (path.includes('/admin/settings')) return 'settings';
-    if (path.includes('/admin/emails')) return 'emails';
-    if (path.includes('/admin/downloads')) return 'downloads';
-    return 'overview';
-  };
-
-  const [activeSection, setActiveSection] = useState(getActiveSectionFromPath());
-
   useEffect(() => {
-    const params = new URLSearchParams(location.search);
-    const editId = params.get('edit');
-    if (editId && (location.pathname.includes('/admin/catalog') || location.pathname.includes('/admin/dashboard'))) {
-      const pid = parseInt(editId, 10);
-      if (!isNaN(pid)) {
-        apiClient.get(`/api/v1/admin/products/${pid}`)
-          .then((product) => {
-            setSelectedProduct(product);
-            setActiveSection('catalog');
-          })
-          .catch(() => {});
-      }
-    }
+    const editId = new URLSearchParams(location.search).get('edit');
+    if (!editId) return;
+    const pid = parseInt(editId, 10);
+    if (isNaN(pid)) return;
+    apiClient.get(`/api/v1/admin/products/${pid}`)
+      .then((product) => setSelectedProduct(product))
+      .catch(() => {});
   }, [location.pathname, location.search]);
 
-  // Sync active section with URL
   useEffect(() => {
-    const path = location.pathname;
-    let section = 'overview';
-    if (path.includes('/admin/analytics')) section = 'analytics';
-    else if (path.includes('/admin/resources/catalogs')) section = 'catalogs';
-    else if (path.includes('/admin/catalog-builder')) section = 'catalog-builder';
-    else if (path.includes('/admin/register')) section = 'register';
-    else if (path.includes('/admin/catalog')) section = 'catalog';
-    else if (path.includes('/admin/categories')) section = 'categories';
-    else if (path.includes('/admin/families')) section = 'families';
-    else if (path.includes('/admin/colors')) section = 'colors';
-    else if (path.includes('/admin/finishes')) section = 'finishes';
-    else if (path.includes('/admin/upholstery')) section = 'upholstery';
-    else if (path.includes('/admin/laminates')) section = 'laminates';
-    else if (path.includes('/admin/hardware')) section = 'hardware';
-    else if (path.includes('/admin/companies')) section = 'companies';
-    else if (path.includes('/admin/quotes')) section = 'quotes';
-    else if (path.includes('/admin/inquiries')) section = 'inquiries';
-    else if (path.includes('/admin/pricing-tiers')) section = 'pricing-tiers';
-    else if (path.includes('/admin/legal-documents')) section = 'legal-documents';
-    else if (path.includes('/admin/settings')) section = 'settings';
-    else if (path.includes('/admin/emails')) section = 'emails';
-    else if (path.includes('/admin/downloads')) section = 'downloads';
-    
-    setActiveSection(section);
-  }, [location.pathname]);
+    window.scrollTo({ top: 0 });
+  }, [activeSection, selectedProduct]);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(SIDEBAR_COLLAPSED_KEY, sidebarCollapsed ? '1' : '0');
+    } catch {
+      // Storage unavailable (private mode) — the preference just won't persist
+    }
+  }, [sidebarCollapsed]);
+
+  // ⌘K / Ctrl+K opens the quick switcher; Esc closes the mobile drawer
+  useEffect(() => {
+    const onKey = (e) => {
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') {
+        e.preventDefault();
+        setPaletteOpen((open) => !open);
+      } else if (e.key === 'Escape') {
+        setIsMobileMenuOpen(false);
+      }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, []);
+
+  const handleNavigate = useCallback((path, sectionId) => {
+    invalidate(sectionId);
+    navigate(path);
+    setSelectedProduct(null);
+    setIsMobileMenuOpen(false);
+  }, [invalidate, navigate]);
+
+  const navigateToSection = useCallback((sectionId) => {
+    handleNavigate(getAdminNavItem(sectionId).path, sectionId);
+  }, [handleNavigate]);
+
+  const handleLogout = async () => {
+    await logout();
+    navigate('/login', { replace: true });
+  };
 
   // Check if user is admin
-  const isAdmin = user?.type === 'admin' || 
-                  user?.role === 'super_admin' || 
+  const isAdmin = user?.type === 'admin' ||
+                  user?.role === 'super_admin' ||
                   user?.role === 'admin' ||
                   user?.role === 'editor';
 
@@ -171,71 +142,23 @@ const NewAdminDashboardInner = () => {
     return <Navigate to="/" replace />;
   }
 
-  // Navigation sections with paths
-  const navSections = [
-    {
-      id: 'main',
-      title: 'Main',
-      items: [
-        { id: 'overview', label: 'Dashboard', icon: LayoutDashboard, path: '/admin/dashboard' },
-        { id: 'analytics', label: 'Analytics', icon: TrendingUp, path: '/admin/analytics' },
-      ]
-    },
-    {
-      id: 'products',
-      title: 'Product Management',
-      items: [
-        { id: 'catalog', label: 'Product Catalog', icon: Package, path: '/admin/catalog' },
-        { id: 'register', label: 'Product Register', icon: ClipboardList, path: '/admin/register' },
-        { id: 'catalog-builder', label: 'Catalog Builder', icon: BookOpen, path: '/admin/catalog-builder' },
-        { id: 'categories', label: 'Categories', icon: Tags, path: '/admin/categories' },
-        { id: 'families', label: 'Product Families', icon: Users2, path: '/admin/families' },
-        { id: 'colors', label: 'Colors', icon: Droplet, path: '/admin/colors' },
-        { id: 'finishes', label: 'Finishes', icon: Palette, path: '/admin/finishes' },
-        { id: 'upholstery', label: 'Upholstery', icon: Armchair, path: '/admin/upholstery' },
-        { id: 'laminates', label: 'Laminates', icon: Layers, path: '/admin/laminates' },
-        { id: 'catalogs', label: 'Virtual Catalogs', icon: FileText, path: '/admin/resources/catalogs' },
-        { id: 'hardware', label: 'Hardware', icon: Wrench, path: '/admin/hardware' },
-      ]
-    },
-    {
-      id: 'business',
-      title: 'Business',
-      items: [
-        { id: 'quotes', label: 'Quotes', icon: FileText, path: '/admin/quotes' },
-        { id: 'inquiries', label: 'Inquiries', icon: Inbox, path: '/admin/inquiries', badge: inquiryUnread },
-        { id: 'pricing-tiers', label: 'Pricing Tiers', icon: DollarSign, path: '/admin/pricing-tiers' },
-        { id: 'legal-documents', label: 'Legal Documents', icon: FileText, path: '/admin/legal-documents' },
-      ]
-    },
-    {
-      id: 'system',
-      title: 'System',
-      items: [
-        { id: 'downloads', label: 'Downloads', icon: Download, path: '/admin/downloads' },
-        { id: 'emails', label: 'Email Templates', icon: Mail, path: '/admin/emails' },
-        { id: 'settings', label: 'Site Settings', icon: Settings, path: '/admin/settings' },
-      ]
-    }
-  ];
-
   const handleBackFromEditor = () => {
     invalidate('catalog');
     setSelectedProduct(null);
+    if (location.search.includes('edit=')) navigate(activeItem.path, { replace: true });
   };
 
-  const handleNavigate = (path, sectionId) => {
-    invalidate(sectionId);
-    navigate(path);
-    setSelectedProduct(null);
-    setIsMobileMenuOpen(false);
-  };
+  const crumbs = [
+    { label: activeItem.group },
+    { label: activeItem.label, onClick: selectedProduct ? handleBackFromEditor : undefined },
+    ...(selectedProduct ? [{ label: selectedProduct.name || 'Edit product' }] : []),
+  ];
 
   const renderSection = () => {
     if (selectedProduct) {
       return (
-        <ProductEditor 
-          product={selectedProduct} 
+        <ProductEditor
+          product={selectedProduct}
           onBack={handleBackFromEditor}
         />
       );
@@ -243,7 +166,7 @@ const NewAdminDashboardInner = () => {
 
     switch (activeSection) {
       case 'overview':
-        return <DashboardOverview onNavigate={setActiveSection} />;
+        return <DashboardOverview onNavigate={navigateToSection} inquiryUnread={inquiryUnread} />;
       case 'analytics':
         return <Analytics />;
       case 'catalog':
@@ -285,185 +208,58 @@ const NewAdminDashboardInner = () => {
       case 'downloads':
         return <AdminDownloads />;
       default:
-        return <DashboardOverview onNavigate={setActiveSection} />;
+        return <DashboardOverview onNavigate={navigateToSection} inquiryUnread={inquiryUnread} />;
     }
   };
 
   return (
-    <div className="flex min-h-[100dvh] bg-dark-900 relative overflow-x-hidden">
-      {/* Mobile Menu Overlay */}
+    <div className="admin-theme relative flex min-h-[100dvh] bg-dark-900 overflow-x-hidden">
+      {/* Mobile drawer backdrop */}
       <AnimatePresence>
         {isMobileMenuOpen && (
-          <>
-            <m.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              onClick={() => setIsMobileMenuOpen(false)}
-              className="fixed inset-0 bg-black/50 backdrop-blur-sm z-40 lg:hidden"
-            />
-          </>
+          <m.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            onClick={() => setIsMobileMenuOpen(false)}
+            className="fixed inset-0 z-40 bg-black/60 backdrop-blur-sm lg:hidden"
+          />
         )}
       </AnimatePresence>
 
-      {/* Sidebar */}
-      <aside
-        className={`
-          bg-dark-800 border-r border-dark-600 flex flex-col
-          fixed lg:sticky top-0 h-[100dvh] z-50 lg:z-auto
-          transition-all duration-300 ease-in-out
-          pt-safe lg:pt-0
-          ${showBottomNav ? 'pb-nav-spacer' : ''}
-          ${sidebarCollapsed ? 'lg:w-20' : 'w-64 lg:w-64'}
-          ${isMobileMenuOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'}
-        `}
-      >
-        {/* Logo / Header */}
-        <div className="p-4 sm:p-6 border-b border-dark-600">
-          {!sidebarCollapsed ? (
-            <div className="flex items-center gap-2 sm:gap-3">
-              <img src="/web-app-manifest-192x192.png" alt="Eagle Chair" className="w-8 h-8 sm:w-10 sm:h-10 flex-shrink-0" />
-              <div className="min-w-0">
-                <h1 className="text-base sm:text-lg md:text-xl font-bold text-dark-50 truncate">Eagle Chair</h1>
-                <p className="text-[10px] sm:text-xs text-dark-300">Admin Panel</p>
-              </div>
-            </div>
-          ) : (
-            <div className="flex justify-center">
-              <img src="/web-app-manifest-192x192.png" alt="Eagle Chair" className="w-8 h-8 sm:w-10 sm:h-10" />
-            </div>
-          )}
-        </div>
-
-        {/* Navigation */}
-        <nav className="flex-1 overflow-y-auto py-4 px-2">
-          {navSections.map((section) => (
-            <div key={section.id} className="mb-6">
-              {!sidebarCollapsed && (
-                <h3 className="px-3 sm:px-4 mb-2 text-[8px] sm:text-[10px] md:text-xs font-semibold text-dark-400 uppercase tracking-wide">
-                  {section.title}
-                </h3>
-              )}
-              <div className="space-y-1">
-                {section.items.map((item) => {
-                  const Icon = item.icon;
-                  return (
-                    <button
-                      key={item.id}
-                      onClick={() => handleNavigate(item.path, item.id)}
-                      className={`
-                        w-full flex items-center gap-3 px-4 py-2.5 rounded-lg
-                        transition-all duration-200 group
-                        ${activeSection === item.id && !selectedProduct
-                          ? 'bg-primary-900 border border-primary-500 text-primary-400'
-                          : 'text-dark-200 hover:bg-dark-700 hover:text-dark-50'
-                        }
-                      `}
-                    >
-                      <span className="relative flex-shrink-0">
-                        <Icon className="w-5 h-5" />
-                        {item.badge > 0 && sidebarCollapsed && (
-                          <span className="absolute -right-1 -top-1 h-2 w-2 rounded-full bg-primary-500" aria-hidden="true" />
-                        )}
-                      </span>
-                      {!sidebarCollapsed && (
-                        <span className="font-medium text-sm">{item.label}</span>
-                      )}
-                      {item.badge > 0 && !sidebarCollapsed && (
-                        <span className="ml-auto rounded-full bg-primary-500 px-2 py-0.5 text-[11px] font-bold leading-none text-dark-900">
-                          {item.badge > 99 ? '99+' : item.badge}
-                          <span className="sr-only"> unread</span>
-                        </span>
-                      )}
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-          ))}
-        </nav>
-
-        {/* Toggle Sidebar Button - Hidden on mobile */}
-        <div className="hidden lg:block p-4 border-t border-dark-600">
-          <button
-            onClick={() => setSidebarCollapsed(!sidebarCollapsed)}
-            className="w-full flex items-center justify-center gap-2 px-4 py-2 rounded-lg text-dark-300 hover:bg-dark-700 hover:text-dark-50 transition-colors min-h-[44px]"
-          >
-            {sidebarCollapsed ? <ChevronRight className="w-5 h-5" /> : <ChevronLeft className="w-5 h-5" />}
-            {!sidebarCollapsed && <span className="text-sm">Collapse</span>}
-          </button>
-        </div>
-      </aside>
+      <AdminSidebar
+        activeSection={activeSection}
+        badges={{ inquiries: inquiryUnread }}
+        collapsed={sidebarCollapsed}
+        onToggleCollapsed={() => setSidebarCollapsed((v) => !v)}
+        mobileOpen={isMobileMenuOpen}
+        onNavigate={handleNavigate}
+        bottomPadding={showBottomNav}
+      />
 
       {!showBottomNav && <FloatingAIButton />}
       <AIChatWidget />
+      <AdminCommandPalette
+        open={paletteOpen}
+        onClose={() => setPaletteOpen(false)}
+        onSelect={(item) => handleNavigate(item.path, item.id)}
+      />
 
-      {/* Main Content */}
-      <main className="flex-1 flex flex-col min-h-[100dvh] lg:ml-0 overflow-x-hidden">
+      <main className="flex min-h-[100dvh] min-w-0 flex-1 flex-col overflow-x-hidden">
         {/* Safe-area top spacer — env() is 0px in browser, non-zero on notched standalone */}
-        <div className="pt-safe bg-dark-800 flex-shrink-0" />
-        {/* Top Bar */}
-        <header className="bg-dark-800 border-b border-dark-600 px-4 sm:px-6 lg:px-8 py-3 sm:py-4 sticky top-safe z-30">
-          <div className="flex items-center justify-between gap-2 sm:gap-4 min-w-0">
-            <div className="flex items-center gap-2 sm:gap-3 min-w-0 flex-1">
-              <button
-                onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
-                className="lg:hidden text-dark-50 hover:text-primary-500 transition-colors min-w-[44px] min-h-[44px] flex items-center justify-center flex-shrink-0"
-                aria-label={isMobileMenuOpen ? 'Close menu' : 'Open menu'}
-              >
-                {isMobileMenuOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
-              </button>
-              <div className="min-w-0 flex-1 overflow-hidden">
-                <h2 className="text-base sm:text-lg md:text-2xl font-bold text-dark-50 truncate">
-                  {selectedProduct ? 'Product Editor' : navSections
-                    .flatMap(s => s.items)
-                    .find(i => i.id === activeSection)?.label || 'Dashboard'}
-                </h2>
-                <p className={`text-[11px] sm:text-xs text-dark-300 mt-0.5 truncate ${showBottomNav ? 'hidden sm:block' : ''}`}>
-                  {selectedProduct 
-                    ? `Editing: ${selectedProduct.name}`
-                    : 'Manage your store content and settings'
-                  }
-                </p>
-              </div>
-            </div>
-            <div className="flex items-center gap-2 sm:gap-4 flex-shrink-0 flex-nowrap">
-              {showBottomNav ? (
-                <button
-                  onClick={() => navigate('/admin/ai')}
-                  className="flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl bg-chat-button hover:bg-chat-button-hover text-dark-950 font-medium transition-colors touch-manipulation"
-                  title="AI Chat"
-                >
-                  <MessageSquare className="w-5 h-5" />
-                  <span className="text-xs font-medium">AI</span>
-                </button>
-              ) : (
-                <a
-                  href="/"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="px-3 sm:px-4 py-2 text-xs sm:text-sm font-medium text-dark-200 hover:text-dark-50 border border-dark-600 rounded-lg hover:border-dark-500 transition-all flex items-center gap-2 min-h-[44px]"
-                >
-                  <ExternalLink className="w-4 h-4 flex-shrink-0" />
-                  <span className="hidden sm:inline">View Site</span>
-                </a>
-              )}
-              <div className="flex items-center gap-2 sm:gap-3 pl-2 sm:pl-4 border-l border-dark-600">
-                <div className="text-right hidden sm:block">
-                  <p className="text-sm font-medium text-dark-50 truncate max-w-[120px]">{user?.username || 'Admin'}</p>
-                  <p className="text-xs text-dark-400">{user?.role || 'Administrator'}</p>
-                </div>
-                <div className="w-9 h-9 sm:w-10 sm:h-10 bg-gradient-to-br from-accent-500 to-primary-500 rounded-full flex items-center justify-center text-dark-900 flex-shrink-0">
-                  <User className="w-4 h-4 sm:w-5 sm:h-5" />
-                </div>
-              </div>
-            </div>
-          </div>
-        </header>
+        <div className="pt-safe flex-shrink-0 bg-dark-900" />
+        <AdminTopbar
+          crumbs={crumbs}
+          mobileMenuOpen={isMobileMenuOpen}
+          onToggleMobileMenu={() => setIsMobileMenuOpen((v) => !v)}
+          onOpenSearch={() => setPaletteOpen(true)}
+          onOpenAI={showBottomNav ? () => navigate('/admin/ai') : undefined}
+          user={user}
+          onLogout={handleLogout}
+        />
 
-        {/* Content Area */}
-        <div className="flex-1 bg-dark-900 overflow-x-hidden overflow-y-auto">
-          <div key={selectedProduct ? 'editor' : activeSection}>
+        <div className="flex-1 overflow-x-hidden">
+          <div key={selectedProduct ? 'editor' : activeSection} className="animate-admin-in">
             {renderSection()}
           </div>
           {showBottomNav && <div className="h-nav-spacer flex-shrink-0" />}

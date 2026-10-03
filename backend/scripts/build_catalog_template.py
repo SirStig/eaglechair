@@ -27,6 +27,7 @@ SPEC_ICON_SRC = Path(__file__).resolve().parents[2] / "frontend" / "src" / "asse
 
 SPEC_SHEET = "cat.3506-4506.Lobo.2026.pdf"  # page 0: spec page, page 2: gallery page
 GALLERY_SHEET = "cat.3721-4721.Voda.2024..pdf"  # page 4: "Made in USA" emblem
+TALL_PANEL_GLOB = "*Abruzzo*.pdf"  # page 0: the taller text panel (top at y 597) most sheets use
 
 # Layer names, in template.pdf page order (keep in sync with catalog_pdf/assets.py)
 LAYERS = (
@@ -37,6 +38,7 @@ LAYERS = (
     "banner_panel",
     "flag_emblem",
     "made_in_usa",
+    "spec_panel_tall",
 )
 
 
@@ -149,6 +151,13 @@ def build(source_dir: Path) -> Path:
     _cropped_layer(
         out, gallery_doc, _images(gallery_doc[4], lambda r: r.x0 < 20 and r.y0 > 600 and r.width < 80)
     )
+
+    # spec_panel_tall: the same panel starting at y 597, for sheets with more text
+    tall_sheets = sorted(source_dir.glob(TALL_PANEL_GLOB))
+    if not tall_sheets:
+        sys.exit(f"No {TALL_PANEL_GLOB} sheet in {source_dir}")
+    layer = out.new_page(width=width, height=height)
+    _redraw([p for p in fitz.open(tall_sheets[0])[0].get_drawings() if p["rect"].y0 >= 590 and p["rect"].x0 >= 20], layer)
 
     assert len(out) == len(LAYERS), f"expected {len(LAYERS)} layers, built {len(out)}"
     ASSET_DIR.mkdir(parents=True, exist_ok=True)

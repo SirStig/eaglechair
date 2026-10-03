@@ -12,6 +12,7 @@ import remarkGfm from 'remark-gfm';
 import { Paperclip, ArrowRight, RotateCcw, RefreshCw, Copy, Check, AlertCircle } from 'lucide-react';
 import { sanitizeStreamingMarkdown } from '../../../utils/sanitizeStreamingMarkdown';
 import SuggestedEditCard from './SuggestedEditCard';
+import EditBatchCard from './EditBatchCard';
 import ToolCallCard, { ToolCallGroup } from './ToolCallCard';
 import AIMark from './AIMark';
 import ResponsiveImage from '../../ui/ResponsiveImage';
@@ -284,6 +285,8 @@ function ContentBlocks({ message, isStreaming, onEditApplied, onEditDeclined }) 
           onDeclined={(e) => onEditDeclined?.(message, e)}
         />
       );
+    } else if (block.type === 'edit_batch' && block.data) {
+      out.push(<EditBatchCard key={block.data.batch_id || i} batch={block.data} />);
     }
   });
   flushTools('end');

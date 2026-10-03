@@ -25,7 +25,8 @@ const Card = ({
   return (
     <Component
       className={clsx(
-        'bg-dark-600 border border-dark-500 rounded-xl shadow-md transition-shadow duration-300',
+        // ec-card: hook for scoped surface overrides (see .admin-theme in index.css)
+        'ec-card bg-dark-600 border border-dark-500 rounded-xl shadow-md transition-shadow duration-300',
         paddingStyles[padding],
         onClick && 'cursor-pointer',
         className

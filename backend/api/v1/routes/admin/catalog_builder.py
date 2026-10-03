@@ -216,7 +216,8 @@ async def preview_page(
 ):
     """
     Renders page ``page_index`` of an (unsaved) document. Returns a JPEG as a
-    data URL plus the photo slots (PDF points, 612 x 792 page) for the editor's
+    data URL plus the photo slots (PDF points; the page is 612 x 792, or
+    792 x 612 for a landscape photo page, as page_size says) for the editor's
     drag handles.
     """
     document = body.document.model_dump()
@@ -231,7 +232,7 @@ async def preview_page(
         "page_number": preview.page_number,
         "physical_pages": preview.physical_pages,
         "total_pages": preview.total_pages,
-        "page_size": [612, 792],
+        "page_size": [preview.width, preview.height],
     }
 
 

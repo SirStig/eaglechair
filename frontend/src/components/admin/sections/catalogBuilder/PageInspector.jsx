@@ -1,10 +1,12 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { ArrowDown, ArrowUp, Image as ImageIcon, Plus, RotateCcw, Trash2 } from 'lucide-react';
 import Button from '../../../ui/Button';
 import ResponsiveImage from '../../../ui/ResponsiveImage';
 import { resolveImageUrl } from '../../../../utils/apiHelpers';
 import { ImagePicker, ProductPicker } from './Pickers';
-import { EMBLEMS, PAGE_TYPES, defaultCaption, inspectorTabs, modelLabel, newItem } from './pageModel';
+import {
+  EMBLEMS, PAGE_TYPES, defaultCaption, inspectorTabs, modelLabel, newItem, rowsToText, seatCaption, textToRows,
+} from './pageModel';
 
 const INPUT = 'w-full px-3 py-2 bg-dark-700 border border-dark-600 rounded-lg text-sm text-dark-50 focus:border-primary-500 focus:ring-1 focus:ring-primary-500 outline-none';
 
@@ -30,6 +32,31 @@ const Section = ({ title, children }) => (
     {children}
   </div>
 );
+
+const CAPTIONED = ['gallery', 'cover', 'seats', 'bases'];
+
+const captionPlaceholder = (type, product, variation) => {
+  if (type === 'cover' || type === 'bases') return modelLabel(product, variation);
+  if (type === 'seats') return seatCaption(product, variation);
+  return defaultCaption(product, variation);
+};
+
+const headerToText = (header) => (header || []).map((h) => h.replace(/\n/g, '\\n')).join(' | ');
+const textToHeader = (text) => text.split('|').map((h) => h.trim().replace(/\\n/g, '\n').slice(0, 60)).slice(0, 6);
+
+/**
+ * A value edited as text (table rows, column headings). The text is kept
+ * locally so typing a "|" or a new line isn't undone by re-formatting; it is
+ * reset when another page is selected.
+ */
+const ParsedText = ({ pageId, value, format, parse, onChange, multiline = false }) => {
+  const [text, setText] = useState(() => format(value));
+  useEffect(() => { setText(format(value)); }, [pageId]); // eslint-disable-line react-hooks/exhaustive-deps
+  const update = (next) => { setText(next); onChange(parse(next)); };
+  return multiline
+    ? <Area rows={14} value={text} className={`${INPUT} resize-y font-mono`} onChange={update} />
+    : <Text value={text} onChange={update} />;
+};
 
 const findVariation = (product, id) => product?.variations?.find((v) => v.id === id) || null;
 
@@ -93,12 +120,12 @@ const ItemRow = ({ item, index, count, page, product, selected, onSelect, onChan
               {product.variations.map((v) => <option key={v.id} value={v.id}>{v.sku}{v.name ? ` – ${v.name}` : ''}</option>)}
             </select>
           )}
-          {(page.type === 'gallery' || page.type === 'cover') && (
+          {CAPTIONED.includes(page.type) && (
             <Field label="Caption" hint="Leave empty for the automatic caption shown in grey.">
               <Area
-                rows={2}
+                rows={page.type === 'seats' ? 3 : 2}
                 value={item.caption ?? ''}
-                placeholder={page.type === 'cover' ? modelLabel(product, variation) : defaultCaption(product, variation)}
+                placeholder={captionPlaceholder(page.type, product, variation)}
                 onChange={(v) => onChange({ caption: v === '' ? null : v })}
               />
             </Field>
@@ -207,8 +234,8 @@ const PageInspector = ({ page, pageNumber, tab, onTabChange, products, onRegiste
               <Field label={page.type === 'cover' ? 'Headline' : 'Title'}>
                 <Text value={page.title} onChange={set('title')} />
               </Field>
-              {(page.type === 'product' || page.type === 'gallery') && (
-                <Field label="Subtitle" hint='Smaller words after the title, e.g. "variations" or "outdoor".'>
+              {['product', 'gallery', 'seats', 'bases', 'chart'].includes(page.type) && (
+                <Field label="Subtitle" hint='Smaller words after the title, e.g. "variations" or "outdoor". A long one goes on its own line.'>
                   <Text value={page.subtitle} onChange={set('subtitle')} />
                 </Field>
               )}
@@ -231,7 +258,7 @@ const PageInspector = ({ page, pageNumber, tab, onTabChange, products, onRegiste
             </Section>
           )}
 
-          {(page.type === 'gallery' || page.type === 'toc') && (
+          {['gallery', 'toc', 'seats', 'chart'].includes(page.type) && (
             <Section title="Bottom banner">
               <Field label="Tagline"><Area rows={2} value={page.tagline} onChange={set('tagline')} /></Field>
             </Section>
@@ -263,10 +290,24 @@ const PageInspector = ({ page, pageNumber, tab, onTabChange, products, onRegiste
 
           {page.type === 'photo' && (
             <Section title="Photo">
+              <div className="flex gap-2">
+                {[['portrait', 'Portrait'], ['landscape', 'Landscape']].map(([value, label]) => (
+                  <button
+                    key={value}
+                    type="button"
+                    onClick={() => onChange({ orientation: value, dx: 0, dy: 0, scale: 1 })}
+                    className={`flex-1 px-2 py-1.5 rounded-md text-xs border ${
+                      (page.orientation || 'portrait') === value ? 'border-primary-500 text-primary-300 bg-primary-500/10' : 'border-dark-600 text-dark-200'
+                    }`}
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
               <button
                 type="button"
                 onClick={() => setPickingPhoto(true)}
-                className="block w-32 aspect-[612/792] rounded bg-dark-700 overflow-hidden border border-dark-600 hover:border-primary-500"
+                className={`block w-32 ${page.orientation === 'landscape' ? 'aspect-[792/612]' : 'aspect-[612/792]'} rounded bg-dark-700 overflow-hidden border border-dark-600 hover:border-primary-500`}
                 title="Choose photo"
               >
                 {page.image_url ? (
@@ -341,7 +382,44 @@ const PageInspector = ({ page, pageNumber, tab, onTabChange, products, onRegiste
         </div>
       )}
 
-      {activeTab === 'text' && (
+      {activeTab === 'text' && page.type === 'bases' && (
+        <div className="space-y-3">
+          <p className="text-xs text-dark-400">The white panel: notes on the right of the Sizes table. Empty sections are left out.</p>
+          <Field label="Notes" hint="e.g. powdercoat colours, available heights."><Area rows={4} value={page.features} onChange={set('features')} /></Field>
+          <Field label="Environmental consideration"><Area rows={2} value={page.environmental} onChange={set('environmental')} /></Field>
+        </div>
+      )}
+
+      {activeTab === 'table' && (
+        <div className="space-y-3">
+          <p className="text-xs text-dark-400">
+            One row per line, cells separated by | (or paste straight from Excel).
+            {page.type === 'bases' && ' Leave empty to list each base with its shipping weight.'}
+            {page.type === 'chart' && ' Long tables split into two halves side by side.'}
+          </p>
+          <Field label="Column headings" hint={page.type === 'chart' ? 'Separated by |. Use \\n for a second line, e.g. Table top\\nsize' : 'Separated by |, e.g. Sizes | Weight lbs/kg'}>
+            <ParsedText
+              pageId={page.id}
+              value={page.table_header}
+              format={headerToText}
+              parse={textToHeader}
+              onChange={(header) => onChange({ table_header: header })}
+            />
+          </Field>
+          <Field label={`Rows (${(page.table_rows || []).length}/120)`}>
+            <ParsedText
+              pageId={page.id}
+              value={page.table_rows}
+              format={rowsToText}
+              parse={textToRows}
+              onChange={(rows) => onChange({ table_rows: rows })}
+              multiline
+            />
+          </Field>
+        </div>
+      )}
+
+      {activeTab === 'text' && page.type === 'product' && (
         <div className="space-y-3">
           <p className="text-xs text-dark-400">The white panel at the bottom of the sheet. Empty sections are left out; text shrinks to fit.</p>
           <Field label="Features"><Area rows={4} value={page.features} onChange={set('features')} /></Field>
@@ -349,6 +427,12 @@ const PageInspector = ({ page, pageNumber, tab, onTabChange, products, onRegiste
           <Field label="Environmental consideration"><Area rows={2} value={page.environmental} onChange={set('environmental')} /></Field>
           <Field label="Standard (right column)"><Area rows={2} value={page.standard} onChange={set('standard')} /></Field>
           <Field label="Options (right column)"><Area rows={2} value={page.options} onChange={set('options')} /></Field>
+          <Field label="Sizes column" hint={'For booths and banquettes: one size per line, e.g. 30" … 96". Leave empty for no column.'}>
+            <Area rows={3} value={page.sizes} onChange={set('sizes')} />
+          </Field>
+          {page.sizes && (
+            <Field label="Sizes heading"><Text value={page.sizes_label} placeholder="Standard Sizes" onChange={set('sizes_label')} /></Field>
+          )}
         </div>
       )}
     </div>
