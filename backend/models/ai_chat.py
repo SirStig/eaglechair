@@ -187,3 +187,44 @@ class AIUploadedFile(Base):
 
     # Relationship
     session = relationship("AIChatSession", back_populates="files")
+
+
+class ProposalStatus(str, enum.Enum):
+    PENDING = "pending"
+    APPLIED = "applied"
+    DECLINED = "declined"
+    FAILED = "failed"
+
+
+class AIProposedEdit(Base):
+    """
+    A catalog change proposed by the AI, waiting for an admin to approve or decline.
+
+    Proposals are grouped into batches (one propose_changes tool call). ``before``
+    snapshots the fields being changed so the reviewer sees a diff and so applying
+    can detect that the record was edited after the proposal was made.
+    """
+
+    __tablename__ = "ai_proposed_edits"
+
+    id = Column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
+    session_id = Column(String(36), ForeignKey("ai_chat_sessions.id", ondelete="CASCADE"), nullable=False, index=True)
+    message_id = Column(String(36), nullable=True, index=True)
+    batch_id = Column(String(36), nullable=False, index=True)
+    batch_title = Column(String(255), nullable=True)
+    admin_user_id = Column(Integer, ForeignKey("admin_users.id", ondelete="CASCADE"), nullable=True, index=True)
+
+    action = Column(String(20), nullable=False)  # update | create | delete
+    entity_type = Column(String(50), nullable=False)
+    entity_id = Column(Integer, nullable=True)  # null for create until applied
+    entity_name = Column(String(255), nullable=True)
+    changes = Column(JSON, nullable=False, default=dict)
+    before = Column(JSON, nullable=True)
+    reason = Column(Text, nullable=True)
+    position = Column(Integer, default=0, nullable=False)
+
+    status = Column(String(20), default=ProposalStatus.PENDING.value, nullable=False, index=True)
+    error = Column(Text, nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    resolved_at = Column(DateTime, nullable=True)
+    resolved_by_id = Column(Integer, ForeignKey("admin_users.id", ondelete="SET NULL"), nullable=True)

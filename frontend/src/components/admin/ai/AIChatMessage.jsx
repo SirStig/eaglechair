@@ -2,17 +2,21 @@
  * AI Chat Message Component
  * Renders individual messages with markdown, sources, file badges.
  * Internal links (/admin/..., /products/...) use Link for in-app navigation.
- * Action-style links (Go to, Edit, View) render as buttons.
+ * Action-style links (Go to, Edit, View) render with an arrow.
  */
 
 import { useState, memo } from 'react';
 import { Link } from 'react-router-dom';
 import ReactMarkdown from 'react-markdown';
-import { ExternalLink, ChevronDown, ChevronUp, Paperclip, Globe, ArrowRight, RotateCcw, RefreshCw, Copy, Check, Wrench } from 'lucide-react';
+import remarkGfm from 'remark-gfm';
+import { Paperclip, ArrowRight, RotateCcw, RefreshCw, Copy, Check, AlertCircle } from 'lucide-react';
 import { sanitizeStreamingMarkdown } from '../../../utils/sanitizeStreamingMarkdown';
 import SuggestedEditCard from './SuggestedEditCard';
-import ToolCallCard from './ToolCallCard';
+import ToolCallCard, { ToolCallGroup } from './ToolCallCard';
+import AIMark from './AIMark';
 import ResponsiveImage from '../../ui/ResponsiveImage';
+
+const REMARK_PLUGINS = [remarkGfm];
 
 function getLinkLabel(children) {
   if (typeof children === 'string') return children;
@@ -20,17 +24,31 @@ function getLinkLabel(children) {
   return arr.map(c => (typeof c === 'string' ? c : (c?.props?.children != null ? getLinkLabel(c.props.children) : ''))).join('');
 }
 
+function hostnameOf(url) {
+  try {
+    return new URL(url).hostname.replace(/^www\./, '');
+  } catch {
+    return url;
+  }
+}
+
+// Heading sizes use `!` so the site's mobile h1–h3 overrides don't apply here
 const markdownComponents = {
-  h1: ({ children }) => <h1 className="text-lg font-bold text-dark-50 mt-4 mb-2 tracking-tight">{children}</h1>,
-  h2: ({ children }) => <h2 className="text-base font-bold text-dark-50 mt-4 mb-1.5 tracking-tight">{children}</h2>,
-  h3: ({ children }) => <h3 className="text-sm font-bold text-dark-50 mt-3 mb-1.5 tracking-tight">{children}</h3>,
-  hr: () => <hr className="border-dark-600 my-4" />,
-  ul: ({ children }) => <ul className="list-disc list-inside space-y-1.5 my-2 pl-0.5">{children}</ul>,
-  ol: ({ children }) => <ol className="list-decimal list-inside space-y-1.5 my-2 pl-0.5">{children}</ol>,
-  li: ({ children }) => <li className="ml-2 leading-[1.7]">{children}</li>,
-  p: ({ children }) => <p className="text-dark-100 leading-[1.7] tracking-[0.01em] mb-2 last:mb-0">{children}</p>,
+  h1: ({ children }) => <h1 className="!text-lg font-semibold text-chat-text mt-6 mb-2 tracking-tight">{children}</h1>,
+  h2: ({ children }) => <h2 className="!text-base font-semibold text-chat-text mt-5 mb-2 tracking-tight">{children}</h2>,
+  h3: ({ children }) => <h3 className="!text-[15px] font-semibold text-chat-text mt-4 mb-1.5">{children}</h3>,
+  h4: ({ children }) => <h4 className="!text-sm font-semibold text-chat-text mt-4 mb-1">{children}</h4>,
+  hr: () => <hr className="border-chat-line my-5" />,
+  ul: ({ children }) => <ul className="list-disc pl-5 space-y-1 my-3 marker:text-chat-faint">{children}</ul>,
+  ol: ({ children }) => <ol className="list-decimal pl-5 space-y-1 my-3 marker:text-chat-faint">{children}</ol>,
+  li: ({ children }) => <li className="pl-1 leading-7">{children}</li>,
+  p: ({ children }) => <p className="leading-7 my-3">{children}</p>,
+  strong: ({ children }) => <strong className="font-semibold text-white">{children}</strong>,
+  blockquote: ({ children }) => (
+    <blockquote className="my-3 border-l-2 border-chat-line-strong pl-4 text-chat-muted">{children}</blockquote>
+  ),
   pre: ({ children }) => (
-    <pre className="bg-dark-950 border border-dark-700 rounded-lg p-2 sm:p-3 my-2 overflow-x-auto text-xs font-mono text-dark-100 max-w-full">
+    <pre className="my-3 overflow-x-auto rounded-lg border border-chat-line bg-dark-950 p-3.5 text-[13px] leading-relaxed font-mono text-chat-code max-w-full [&>code]:bg-transparent [&>code]:border-0 [&>code]:p-0 [&>code]:text-[inherit]">
       {children}
     </pre>
   ),
@@ -38,24 +56,22 @@ const markdownComponents = {
     className ? (
       <code className={className}>{children}</code>
     ) : (
-      <code className="bg-dark-800 border border-dark-600 rounded px-1 py-0.5 text-xs font-mono text-chat-code">
+      <code className="rounded bg-white/[0.07] px-1.5 py-0.5 text-[0.85em] font-mono text-chat-code">
         {children}
       </code>
     ),
   table: ({ children }) => (
-    <div className="overflow-x-auto my-2 max-w-full">
-      <table className="min-w-full text-xs border-collapse">{children}</table>
+    <div className="my-4 overflow-x-auto rounded-lg border border-chat-line max-w-full">
+      <table className="w-full text-[13px] border-collapse tabular-nums">{children}</table>
     </div>
   ),
-  thead: ({ children }) => <thead className="[&_tr]:border-b [&_tr]:border-dark-600">{children}</thead>,
-  tbody: ({ children }) => <tbody className="[&_tr]:border-b [&_tr]:border-dark-700/50 [&_tr]:hover:bg-dark-800/30">{children}</tbody>,
+  thead: ({ children }) => <thead className="bg-white/[0.03]">{children}</thead>,
+  tbody: ({ children }) => <tbody className="[&_tr]:border-t [&_tr]:border-chat-line">{children}</tbody>,
   tr: ({ children, ...props }) => <tr {...props}>{children}</tr>,
   th: ({ children }) => (
-    <th className="px-2 py-1.5 text-left text-dark-300 font-semibold whitespace-nowrap leading-[1.6]">
-      {children}
-    </th>
+    <th className="px-3 py-2 text-left text-xs font-medium text-chat-muted whitespace-nowrap">{children}</th>
   ),
-  td: ({ children }) => <td className="px-2 py-1.5 text-dark-200 whitespace-nowrap leading-[1.6]">{children}</td>,
+  td: ({ children }) => <td className="px-3 py-2 text-chat-text whitespace-nowrap">{children}</td>,
   img: ({ src, alt }) => {
     const safe = src && (src.startsWith('http') || src.startsWith('/'));
     if (!safe) return null;
@@ -68,7 +84,7 @@ const markdownComponents = {
           src={src}
           alt={alt || ''}
           loading="lazy"
-          className="max-w-full max-h-[280px] sm:max-h-[320px] w-auto h-auto rounded-lg border border-dark-600 object-contain"
+          className="max-w-full max-h-[280px] sm:max-h-[320px] w-auto h-auto rounded-lg border border-chat-line object-contain"
           style={{ maxWidth: 'min(100%, 400px)' }}
         />
       </a>
@@ -79,69 +95,93 @@ const markdownComponents = {
     const isInternal = href.startsWith('/') && !href.startsWith('//');
     const isAdminLink = isInternal && href.startsWith('/admin');
     const isAction = /^(go to|edit|view|open|manage|add|create)\s/i.test(label.toLowerCase()) || label.includes('→');
-    const useButtonStyle = isAdminLink || isAction;
-    const btnClass = useButtonStyle
-      ? 'inline-flex items-center gap-1 text-chat-link hover:text-chat-link-hover underline underline-offset-2 hover:bg-chat-link/5 rounded px-0.5 -mx-0.5 transition-colors'
-      : 'text-chat-link hover:text-chat-link-hover underline underline-offset-2';
+    const useArrow = isAdminLink || isAction;
+    const linkClass = `text-chat-link hover:text-chat-link-hover underline decoration-chat-link/30 hover:decoration-chat-link-hover underline-offset-[3px] transition-colors ${useArrow ? 'inline-flex items-center gap-1' : ''}`;
     if (isInternal) {
       return (
-        <Link to={href} className={btnClass}>
-          {useButtonStyle && <ArrowRight className="w-3 h-3 flex-shrink-0" />}
+        <Link to={href} className={linkClass}>
           {children}
+          {useArrow && <ArrowRight className="w-3 h-3 flex-shrink-0" />}
         </Link>
       );
     }
     return (
-      <a href={href} target="_blank" rel="noopener noreferrer" className={btnClass}>
+      <a href={href} target="_blank" rel="noopener noreferrer" className={linkClass}>
         {children}
       </a>
     );
   },
 };
 
+// Strip the outer margins so a block's first/last element sits flush
+const PROSE_EDGES = '[&>*:first-child]:mt-0 [&>*:last-child]:mb-0';
+
+function Markdown({ children }) {
+  return (
+    <ReactMarkdown remarkPlugins={REMARK_PLUGINS} components={markdownComponents}>
+      {children}
+    </ReactMarkdown>
+  );
+}
+
+function StreamingCaret() {
+  return <span className="inline-block w-[3px] h-[1.1em] bg-chat-accent/80 animate-pulse ml-0.5 align-[-0.15em] rounded-sm" />;
+}
+
 function WebSources({ sources }) {
   const [expanded, setExpanded] = useState(false);
   if (!sources || sources.length === 0) return null;
 
-  const shown = expanded ? sources : sources.slice(0, 3);
+  const LIMIT = 4;
+  const shown = expanded ? sources : sources.slice(0, LIMIT);
 
   return (
-    <div className="mt-2 pt-2 border-t border-dark-700/50">
-      <div className="flex items-center gap-1.5 mb-1.5">
-        <Globe className="w-3 h-3 text-dark-400" />
-        <span className="text-[10px] font-medium text-dark-400 uppercase tracking-wide">Sources</span>
-      </div>
-      <div className="space-y-1">
+    <div className="mt-4">
+      <p className="text-xs font-medium text-chat-faint mb-2">Sources</p>
+      <div className="flex flex-wrap gap-1.5">
         {shown.map((source, i) => (
           <a
             key={i}
             href={source.url}
             target="_blank"
             rel="noopener noreferrer"
-            className="flex items-start gap-1.5 group"
+            title={source.snippet || source.title || source.url}
+            className="group inline-flex items-center gap-2 max-w-full sm:max-w-[280px] rounded-md border border-chat-line bg-chat-surface hover:bg-chat-raised hover:border-chat-line-strong px-2.5 py-1.5 transition-colors"
           >
-            <ExternalLink className="w-3 h-3 text-dark-500 group-hover:text-chat-link flex-shrink-0 mt-0.5" />
-            <div className="min-w-0">
-              <p className="text-[11px] text-chat-link group-hover:text-chat-link-hover truncate leading-tight">
-                {source.title || source.url}
-              </p>
-              {source.snippet && (
-                <p className="text-[10px] text-dark-400 truncate">{source.snippet}</p>
-              )}
-            </div>
+            <span className="flex-shrink-0 w-4 h-4 rounded bg-white/[0.06] text-[9px] font-semibold text-chat-muted flex items-center justify-center">
+              {i + 1}
+            </span>
+            <span className="min-w-0 flex flex-col">
+              <span className="text-xs text-chat-text truncate leading-tight">{source.title || hostnameOf(source.url)}</span>
+              <span className="text-[11px] text-chat-faint truncate leading-tight">{hostnameOf(source.url)}</span>
+            </span>
           </a>
         ))}
+        {sources.length > LIMIT && (
+          <button
+            type="button"
+            onClick={() => setExpanded(!expanded)}
+            className="inline-flex items-center rounded-md border border-dashed border-chat-line-strong px-2.5 py-1.5 text-xs text-chat-muted hover:text-chat-text transition-colors"
+          >
+            {expanded ? 'Show less' : `+${sources.length - LIMIT} more`}
+          </button>
+        )}
       </div>
-      {sources.length > 3 && (
-        <button
-          onClick={() => setExpanded(!expanded)}
-          className="flex items-center gap-1 mt-1.5 text-[10px] text-dark-400 hover:text-dark-200"
-        >
-          {expanded ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
-          {expanded ? 'Show less' : `${sources.length - 3} more sources`}
-        </button>
-      )}
     </div>
+  );
+}
+
+function ActionButton({ onClick, title, children }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className="p-1.5 rounded-md text-chat-faint hover:text-chat-text hover:bg-white/[0.05] transition-colors"
+      title={title}
+      aria-label={title}
+    >
+      {children}
+    </button>
   );
 }
 
@@ -161,46 +201,94 @@ function MessageActions({ message, onRedo, onRetry, isUser }) {
     }
   };
 
-  const showRedo = !isUser && !message.isError && !message.isStreaming && hasContent && onRedo;
+  if (message.isStreaming) return null;
+
+  const showRedo = !isUser && !message.isError && hasContent && onRedo;
   const showRetry = !isUser && message.isError && onRetry;
   const showCopy = hasContent;
+  const time = message.created_at
+    ? new Date(message.created_at).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })
+    : null;
 
-  if (!showRedo && !showRetry && !showCopy) return null;
+  if (!showRedo && !showRetry && !showCopy && !time) return null;
 
   return (
-    <div className={`flex items-center gap-0.5 mt-1 ${isUser ? 'justify-end' : 'justify-start'} ${!isUser ? 'ml-8 sm:ml-9' : ''}`}>
+    <div
+      className={`flex items-center gap-0.5 mt-1 transition-opacity sm:opacity-0 sm:group-hover/msg:opacity-100 sm:focus-within:opacity-100 ${isUser ? 'justify-end' : 'justify-start -ml-1.5'}`}
+    >
+      {isUser && time && <span className="text-[11px] text-chat-faint mr-1.5">{time}</span>}
+      {showCopy && (
+        <ActionButton onClick={handleCopy} title={copied ? 'Copied' : 'Copy'}>
+          {copied ? <Check className="w-3.5 h-3.5 text-chat-status-success" /> : <Copy className="w-3.5 h-3.5" />}
+        </ActionButton>
+      )}
       {showRedo && (
-        <button
-          type="button"
-          onClick={() => onRedo(message.id)}
-          className="p-1.5 rounded-lg text-dark-400 hover:text-dark-200 hover:bg-dark-700/50 transition-colors"
-          title="Redo (delete and resend)"
-        >
+        <ActionButton onClick={() => onRedo(message.id)} title="Regenerate">
           <RotateCcw className="w-3.5 h-3.5" />
-        </button>
+        </ActionButton>
       )}
       {showRetry && (
-        <button
-          type="button"
-          onClick={() => onRetry(message.id)}
-          className="p-1.5 rounded-lg text-dark-400 hover:text-dark-200 hover:bg-dark-700/50 transition-colors"
-          title="Retry"
-        >
+        <ActionButton onClick={() => onRetry(message.id)} title="Retry">
           <RefreshCw className="w-3.5 h-3.5" />
-        </button>
+        </ActionButton>
       )}
-      {showCopy && (
-        <button
-          type="button"
-          onClick={handleCopy}
-          className="p-1.5 rounded-lg text-dark-400 hover:text-dark-200 hover:bg-dark-700/50 transition-colors"
-          title="Copy"
-        >
-          {copied ? <Check className="w-3.5 h-3.5 text-chat-status-success" /> : <Copy className="w-3.5 h-3.5" />}
-        </button>
-      )}
+      {!isUser && time && <span className="text-[11px] text-chat-faint ml-1.5">{time}</span>}
     </div>
   );
+}
+
+// Render content blocks, merging consecutive tool calls into one group
+function ContentBlocks({ message, isStreaming, onEditApplied, onEditDeclined }) {
+  const blocks = message.content_blocks;
+  const out = [];
+  let toolRun = [];
+
+  const flushTools = (key) => {
+    if (toolRun.length === 0) return;
+    out.push(<ToolCallGroup key={`tools-${key}`}>{toolRun}</ToolCallGroup>);
+    toolRun = [];
+  };
+
+  blocks.forEach((block, i) => {
+    if ((block.type === 'tool_call' || block.type === 'tool_call_in_progress') && block.data) {
+      toolRun.push(
+        <ToolCallCard
+          key={i}
+          name={block.data.name}
+          label={block.data.label}
+          args={block.data.args}
+          result={block.type === 'tool_call' ? block.data.result : undefined}
+          status={block.type === 'tool_call_in_progress' ? 'in_progress' : (block.data.status || 'done')}
+        />
+      );
+      return;
+    }
+    flushTools(i);
+    if (block.type === 'text') {
+      const isLast = i === blocks.length - 1;
+      const text = isStreaming && isLast
+        ? sanitizeStreamingMarkdown(block.content || '')
+        : (block.content || '');
+      out.push(
+        <div key={i} className={PROSE_EDGES}>
+          <Markdown>{text}</Markdown>
+          {isStreaming && isLast && <StreamingCaret />}
+        </div>
+      );
+    } else if (block.type === 'suggested_edit' && block.data) {
+      out.push(
+        <SuggestedEditCard
+          key={i}
+          edit={block.data}
+          onApplied={(e) => onEditApplied?.(message, e)}
+          onDeclined={(e) => onEditDeclined?.(message, e)}
+        />
+      );
+    }
+  });
+  flushTools('end');
+
+  return <div className="space-y-3">{out}</div>;
 }
 
 function AIChatMessage({ message, onRedo, onRetry, onEditApplied, onEditDeclined }) {
@@ -208,153 +296,91 @@ function AIChatMessage({ message, onRedo, onRetry, onEditApplied, onEditDeclined
   const isStreaming = message.isStreaming;
   const rawContent = isStreaming ? message.streamingContent : message.content;
   const content = isStreaming ? sanitizeStreamingMarkdown(rawContent) : rawContent;
+  const hasFiles = message.file_ids && message.file_ids.length > 0;
+  const hasBlocks = message.content_blocks && message.content_blocks.length > 0;
+
+  const fileBadges = hasFiles && (
+    <div className={`flex flex-wrap gap-1.5 mb-2 ${isUser ? 'justify-end' : ''}`}>
+      {message.file_ids.map(fid => (
+        <span key={fid} className="inline-flex items-center gap-1.5 rounded-md border border-chat-line-strong bg-chat-raised px-2 py-1 text-xs text-chat-muted">
+          <Paperclip className="w-3 h-3" />
+          Attachment
+        </span>
+      ))}
+    </div>
+  );
+
+  if (isUser) {
+    return (
+      <div className="group/msg flex flex-col items-end mb-6 min-w-0">
+        {fileBadges}
+        {content && (
+          <div className="max-w-[88%] sm:max-w-[80%] rounded-2xl rounded-br-md bg-chat-user-bubble border border-white/[0.04] px-4 py-2.5 text-[15px] leading-7 text-chat-text">
+            <p className="whitespace-pre-wrap break-words">{content}</p>
+          </div>
+        )}
+        <MessageActions message={message} isUser />
+      </div>
+    );
+  }
 
   return (
-    <div className={`flex flex-col ${isUser ? 'items-end' : 'items-start'} mb-4 min-w-0`}>
-      <div className={`flex ${isUser ? 'justify-end' : 'justify-start'} w-full min-w-0`}>
-      {!isUser && (
-        <div className="w-6 h-6 sm:w-7 sm:h-7 rounded-full bg-dark-700 flex items-center justify-center flex-shrink-0 mr-2 mt-0.5 p-1">
-          <img src="/web-app-manifest-192x192.png" alt="Eagle Chair" className="w-full h-full object-contain" />
+    <div className="group/msg flex gap-3 mb-6 min-w-0">
+      <AIMark size="sm" className="mt-0.5 hidden sm:flex" />
+      <div className="flex-1 min-w-0">
+        {fileBadges}
+        <div className="text-[15px] leading-7 text-chat-text overflow-hidden break-words space-y-3">
+          {hasBlocks ? (
+            <ContentBlocks
+              message={message}
+              isStreaming={isStreaming}
+              onEditApplied={onEditApplied}
+              onEditDeclined={onEditDeclined}
+            />
+          ) : !message.isError && (
+            <div className="space-y-3">
+              <div className={PROSE_EDGES}>
+                <Markdown>{content}</Markdown>
+                {isStreaming && <StreamingCaret />}
+              </div>
+              {message.tool_calls && message.tool_calls.length > 0 && (
+                <ToolCallGroup>
+                  {message.tool_calls.map((tc, i) => (
+                    <ToolCallCard
+                      key={i}
+                      name={tc.name}
+                      label={tc.label}
+                      args={tc.args}
+                      result={tc.result}
+                      status={tc.status || 'done'}
+                    />
+                  ))}
+                </ToolCallGroup>
+              )}
+              {message.suggested_edits && message.suggested_edits.map((edit, i) => (
+                <SuggestedEditCard
+                  key={i}
+                  edit={edit}
+                  onApplied={(e) => onEditApplied?.(message, e)}
+                  onDeclined={(e) => onEditDeclined?.(message, e)}
+                />
+              ))}
+            </div>
+          )}
+          {message.isError && (
+            <div className="flex items-start gap-2.5 rounded-lg border border-red-500/25 bg-red-500/[0.06] px-3.5 py-2.5 text-sm leading-6 text-red-300">
+              <AlertCircle className="w-4 h-4 mt-1 flex-shrink-0" />
+              <p className="min-w-0 whitespace-pre-wrap">{content || 'Something went wrong.'}</p>
+            </div>
+          )}
         </div>
-      )}
 
-      <div className={`
-        w-full max-w-full min-w-0 text-[15px] leading-[1.7] tracking-[0.01em]
-        ${isUser
-          ? 'max-w-[92%] sm:max-w-[85%] rounded-2xl px-4 py-3 bg-chat-user-bubble hover:bg-chat-user-bubble-hover text-white rounded-tr-sm'
-          : 'px-0 py-2 text-dark-100 overflow-hidden'
-        }
-        ${!isUser && message.isError ? 'text-red-300' : ''}
-      `}>
-        {/* File badges */}
-        {message.file_ids && message.file_ids.length > 0 && (
-          <div className="flex flex-wrap gap-1 mb-1.5">
-            {message.file_ids.map(fid => (
-              <span key={fid} className="flex items-center gap-1 bg-white/10 rounded-full px-2 py-0.5 text-[10px]">
-                <Paperclip className="w-2.5 h-2.5" />
-                File
-              </span>
-            ))}
-          </div>
-        )}
-
-        {/* Content - block-based (inline tools/edits) or legacy */}
-        {isUser ? (
-          <p className="whitespace-pre-wrap leading-[1.7] tracking-[0.01em]">{content}</p>
-        ) : message.content_blocks && message.content_blocks.length > 0 ? (
-          <div className="space-y-2">
-            {message.content_blocks.map((block, i) => {
-              if (block.type === 'text') {
-                const text = isStreaming && i === message.content_blocks.length - 1
-                  ? sanitizeStreamingMarkdown(block.content || '')
-                  : (block.content || '');
-                return (
-                  <div key={i} className="[&_h1:first-child]:mt-0 [&_h2:first-child]:mt-0 [&_h3:first-child]:mt-0 [&_p:first-child]:mt-0 [&_ul:first-child]:mt-0 [&_ol:first-child]:mt-0">
-                    <ReactMarkdown components={markdownComponents}>{text}</ReactMarkdown>
-                    {isStreaming && i === message.content_blocks.length - 1 && (
-                      <span className="inline-block w-1.5 h-4 bg-chat-accent animate-pulse ml-0.5 align-middle" />
-                    )}
-                  </div>
-                );
-              }
-              if (block.type === 'tool_call' && block.data) {
-                return (
-                  <div key={i} className="py-1">
-                    <ToolCallCard
-                      name={block.data.name}
-                      label={block.data.label}
-                      args={block.data.args}
-                      result={block.data.result}
-                      status={block.data.status || 'done'}
-                    />
-                  </div>
-                );
-              }
-              if (block.type === 'tool_call_in_progress' && block.data) {
-                return (
-                  <div key={i} className="py-1">
-                    <ToolCallCard
-                      name={block.data.name}
-                      label={block.data.label}
-                      args={block.data.args}
-                      status="in_progress"
-                    />
-                  </div>
-                );
-              }
-              if (block.type === 'suggested_edit' && block.data) {
-                return (
-                  <div key={i} className="py-1">
-                    <SuggestedEditCard
-                      edit={block.data}
-                      onApplied={(e) => onEditApplied?.(message, e)}
-                      onDeclined={(e) => onEditDeclined?.(message, e)}
-                    />
-                  </div>
-                );
-              }
-              return null;
-            })}
-          </div>
-        ) : (
-          <div className="space-y-1 [&_h1:first-child]:mt-0 [&_h2:first-child]:mt-0 [&_h3:first-child]:mt-0 [&_p:first-child]:mt-0 [&_ul:first-child]:mt-0 [&_ol:first-child]:mt-0">
-            <ReactMarkdown components={markdownComponents}>{content}</ReactMarkdown>
-            {isStreaming && (
-              <span className="inline-block w-1.5 h-4 bg-chat-accent animate-pulse ml-0.5 align-middle" />
-            )}
-            {!isUser && message.tool_calls && message.tool_calls.length > 0 && (
-              <div className="mt-2 pt-2 border-t border-dark-700/50 space-y-2">
-                <div className="flex items-center gap-1.5 mb-1.5">
-                  <Wrench className="w-3 h-3 text-dark-400" />
-                  <span className="text-[10px] font-medium text-dark-400 uppercase tracking-wide">Tools used</span>
-                </div>
-                {message.tool_calls.map((tc, i) => (
-                  <ToolCallCard
-                    key={i}
-                    name={tc.name}
-                    label={tc.label}
-                    args={tc.args}
-                    result={tc.result}
-                    status={tc.status || 'done'}
-                  />
-                ))}
-              </div>
-            )}
-            {!isUser && message.suggested_edits && message.suggested_edits.length > 0 && (
-              <div className="mt-2 pt-2 border-t border-dark-700/50 space-y-2">
-                {message.suggested_edits.map((edit, i) => (
-                  <SuggestedEditCard
-                    key={i}
-                    edit={edit}
-                    onApplied={(e) => onEditApplied?.(message, e)}
-                    onDeclined={(e) => onEditDeclined?.(message, e)}
-                  />
-                ))}
-              </div>
-            )}
-          </div>
-        )}
-
-        {/* Web sources */}
-        {!isUser && message.web_sources && message.web_sources.length > 0 && (
+        {message.web_sources && message.web_sources.length > 0 && (
           <WebSources sources={message.web_sources} />
         )}
 
-        {/* Timestamp */}
-        {!isStreaming && message.created_at && (
-          <p className={`text-[9px] mt-1.5 ${isUser ? 'text-white/50' : 'text-dark-500'}`}>
-            {new Date(message.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-          </p>
-        )}
+        <MessageActions message={message} onRedo={onRedo} onRetry={onRetry} isUser={false} />
       </div>
-
-      {isUser && (
-        <div className="w-6 h-6 sm:w-7 sm:h-7 rounded-full bg-dark-700 flex items-center justify-center flex-shrink-0 ml-2 mt-0.5">
-          <span className="text-[10px] font-bold text-dark-300">You</span>
-        </div>
-      )}
-      </div>
-      <MessageActions message={message} onRedo={onRedo} onRetry={onRetry} isUser={isUser} />
     </div>
   );
 }

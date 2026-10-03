@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { m, AnimatePresence } from 'framer-motion';
-import { Check, X, Loader2 } from 'lucide-react';
+import { Check, Loader2 } from 'lucide-react';
 import { applyEdit } from '../../../services/aiChatService';
 import { useAIChat } from '../../../contexts/AIChatContext';
 
@@ -86,37 +86,42 @@ export default function SuggestedEditsBar({ messages, onEditApplied, onEditDecli
         animate={{ height: 'auto', opacity: 1 }}
         exit={{ height: 0, opacity: 0 }}
         transition={{ duration: 0.15 }}
-        className="overflow-hidden border-t border-dark-700 bg-dark-800/80"
+        className="overflow-hidden flex-shrink-0"
+        style={{
+          paddingLeft: 'calc(0.75rem + env(safe-area-inset-left, 0px))',
+          paddingRight: 'calc(0.75rem + env(safe-area-inset-right, 0px))',
+        }}
       >
-        <div
-          className="flex items-center justify-between gap-3 px-3 py-2"
-          style={{
-            paddingLeft: 'calc(0.5rem + env(safe-area-inset-left, 0px))',
-            paddingRight: 'calc(0.5rem + env(safe-area-inset-right, 0px))',
-          }}
-        >
-          <span className="text-[11px] text-dark-400">
-            {count} suggested edit{count !== 1 ? 's' : ''}
-          </span>
-          <div className="flex items-center gap-1.5">
-            <button
-              type="button"
-              onClick={handleRejectAll}
-              disabled={busy}
-              className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-[11px] text-dark-400 hover:text-red-400 hover:bg-dark-700/50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              {isRejecting ? <Loader2 className="w-3 h-3 animate-spin" /> : <X className="w-3 h-3" />}
-              Reject all
-            </button>
-            <button
-              type="button"
-              onClick={handleAcceptAll}
-              disabled={busy}
-              className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-[11px] bg-green-600 hover:bg-green-500 text-white transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              {isAccepting ? <Loader2 className="w-3 h-3 animate-spin" /> : <Check className="w-3 h-3" />}
-              Accept all
-            </button>
+        <div className="w-full max-w-3xl mx-auto pt-2">
+          <div className="flex items-center justify-between gap-3 rounded-xl border border-chat-line-strong bg-chat-surface pl-3.5 pr-1.5 py-1.5">
+            <span className="flex items-center gap-2 text-[13px] text-chat-muted min-w-0">
+              <span className="w-1.5 h-1.5 rounded-full bg-chat-accent flex-shrink-0" />
+              <span className="truncate">
+                <span className="text-chat-text font-medium">{count}</span>
+                <span className="hidden sm:inline"> suggested</span> edit{count !== 1 ? 's' : ''}
+                <span className="hidden sm:inline"> pending</span>
+              </span>
+            </span>
+            <div className="flex items-center gap-1 flex-shrink-0">
+              <button
+                type="button"
+                onClick={handleRejectAll}
+                disabled={busy}
+                className="h-8 inline-flex items-center gap-1.5 px-3 rounded-lg text-[13px] font-medium text-chat-muted hover:text-chat-text hover:bg-white/[0.05] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {isRejecting && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
+                Decline all
+              </button>
+              <button
+                type="button"
+                onClick={handleAcceptAll}
+                disabled={busy}
+                className="h-8 inline-flex items-center gap-1.5 px-3 rounded-lg text-[13px] font-semibold bg-chat-button hover:bg-chat-button-hover text-dark-950 transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
+              >
+                {isAccepting ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Check className="w-3.5 h-3.5" />}
+                Apply all
+              </button>
+            </div>
           </div>
         </div>
       </m.div>

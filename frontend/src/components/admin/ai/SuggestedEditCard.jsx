@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Check, X, Edit2, Loader2 } from 'lucide-react';
+import { Check, X, PenLine, Loader2, ExternalLink } from 'lucide-react';
 import { applyEdit } from '../../../services/aiChatService';
 import { useAIChat } from '../../../contexts/AIChatContext';
 
@@ -8,8 +8,13 @@ function formatChange(key, value) {
   if ((key === 'base_price' || key === 'msrp') && typeof value === 'number') {
     return `$${(value / 100).toFixed(2)}`;
   }
+  if (typeof value === 'boolean') return value ? 'Yes' : 'No';
   if (typeof value === 'object') return JSON.stringify(value);
   return String(value);
+}
+
+function formatKey(key) {
+  return key.replace(/_/g, ' ').replace(/^\w/, c => c.toUpperCase());
 }
 
 function getEditKey(edit) {
@@ -51,85 +56,75 @@ export default function SuggestedEditCard({ edit, onApplied, onDeclined }) {
     onDeclined?.(edit);
   };
 
-  if (status === 'applied') {
+  if (status === 'applied' || status === 'declined') {
+    const applied = status === 'applied';
     return (
-      <div className="mt-2 p-2.5 rounded-lg bg-green-900/20 border border-green-700/50 text-green-400 text-xs">
-        <span className="flex items-center gap-1.5">
-          <Check className="w-3.5 h-3.5" />
-          Edit applied to {edit.entity_name}
-        </span>
-      </div>
-    );
-  }
-
-  if (status === 'declined') {
-    return (
-      <div className="mt-2 p-2.5 rounded-lg bg-dark-700/50 border border-dark-600 text-dark-400 text-xs">
-        <span className="flex items-center gap-1.5">
-          <X className="w-3.5 h-3.5" />
-          Edit declined
+      <div className="my-1 flex items-center gap-2 rounded-lg border border-chat-line bg-chat-surface px-3 py-2 text-[13px]">
+        {applied
+          ? <Check className="w-3.5 h-3.5 text-chat-status-success flex-shrink-0" />
+          : <X className="w-3.5 h-3.5 text-chat-faint flex-shrink-0" />}
+        <span className="text-chat-muted truncate">
+          {applied ? 'Applied' : 'Declined'} edit to <span className="text-chat-text">{edit.entity_name}</span>
         </span>
       </div>
     );
   }
 
   const changeEntries = Object.entries(edit.changes || {});
+  const busy = status === 'applying' || lockedElsewhere;
 
   return (
-    <div className="mt-2 p-2.5 rounded-lg bg-primary-500/10 border border-primary-500/30">
-      <div className="flex items-start justify-between gap-2">
-        <div className="min-w-0 flex-1">
-          <div className="flex items-center gap-1.5 mb-1">
-            <Edit2 className="w-3 h-3 text-primary-400 flex-shrink-0" />
-            <span className="text-[10px] font-medium text-primary-400 uppercase tracking-wide">Suggested edit</span>
+    <div className="my-1 rounded-lg border border-chat-line-strong bg-chat-surface overflow-hidden">
+      <div className="flex items-start justify-between gap-3 px-3.5 pt-3">
+        <div className="min-w-0">
+          <div className="flex items-center gap-1.5 text-[11px] font-medium text-chat-accent">
+            <PenLine className="w-3 h-3" />
+            Suggested edit
           </div>
-          <p className="text-xs text-dark-200 font-medium">{edit.entity_name}</p>
-          {edit.reason && (
-            <p className="text-[11px] text-dark-400 mt-0.5">{edit.reason}</p>
-          )}
-          <div className="mt-1.5 space-y-0.5">
-            {changeEntries.map(([key, value]) => (
-              <div key={key} className="text-[11px] text-dark-300">
-                <span className="text-dark-500">{key.replace(/_/g, ' ')}:</span>{' '}
-                {formatChange(key, value)}
-              </div>
-            ))}
-          </div>
-          {error && (
-            <p className="text-[10px] text-red-400 mt-1">{error}</p>
-          )}
+          <p className="mt-1 text-sm font-medium text-chat-text truncate">{edit.entity_name}</p>
+          {edit.reason && <p className="mt-0.5 text-[13px] text-chat-muted">{edit.reason}</p>}
         </div>
-        <div className="flex items-center gap-1 flex-shrink-0">
-          <Link
-            to={`/admin/catalog?edit=${edit.entity_id}`}
-            className="p-1.5 rounded-lg text-dark-400 hover:text-dark-200 hover:bg-dark-700/50 transition-colors"
-            title="Open in editor"
-          >
-            <Edit2 className="w-3.5 h-3.5" />
-          </Link>
-          <button
-            type="button"
-            onClick={handleDecline}
-            disabled={status === 'applying' || lockedElsewhere}
-            className="p-1.5 rounded-lg text-dark-400 hover:text-red-400 hover:bg-dark-700/50 transition-colors disabled:opacity-50"
-            title="Decline"
-          >
-            <X className="w-3.5 h-3.5" />
-          </button>
-          <button
-            type="button"
-            onClick={handleApprove}
-            disabled={status === 'applying' || lockedElsewhere}
-            className="p-1.5 rounded-lg bg-green-600 hover:bg-green-500 text-white transition-colors disabled:opacity-50"
-            title="Apply"
-          >
-            {status === 'applying' || lockedElsewhere ? (
-              <Loader2 className="w-3.5 h-3.5 animate-spin" />
-            ) : (
-              <Check className="w-3.5 h-3.5" />
-            )}
-          </button>
-        </div>
+        <Link
+          to={`/admin/catalog?edit=${edit.entity_id}`}
+          className="flex-shrink-0 -mr-1 p-1.5 rounded-md text-chat-faint hover:text-chat-text hover:bg-white/[0.04] transition-colors"
+          title="Open in editor"
+          aria-label="Open in editor"
+        >
+          <ExternalLink className="w-3.5 h-3.5" />
+        </Link>
+      </div>
+
+      {changeEntries.length > 0 && (
+        <dl className="mx-3.5 mt-2.5 rounded-md border border-chat-line divide-y divide-chat-line text-[13px]">
+          {changeEntries.map(([key, value]) => (
+            <div key={key} className="flex items-center justify-between gap-4 px-2.5 py-1.5">
+              <dt className="text-chat-muted">{formatKey(key)}</dt>
+              <dd className="text-chat-text font-medium tabular-nums truncate">{formatChange(key, value)}</dd>
+            </div>
+          ))}
+        </dl>
+      )}
+
+      {error && <p className="mx-3.5 mt-2 text-xs text-red-400">{error}</p>}
+
+      <div className="flex items-center justify-end gap-2 px-3.5 py-2.5">
+        <button
+          type="button"
+          onClick={handleDecline}
+          disabled={busy}
+          className="h-8 px-3 rounded-md text-[13px] font-medium text-chat-muted hover:text-chat-text hover:bg-white/[0.05] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+        >
+          Decline
+        </button>
+        <button
+          type="button"
+          onClick={handleApprove}
+          disabled={busy}
+          className="h-8 px-3 inline-flex items-center gap-1.5 rounded-md text-[13px] font-semibold bg-chat-button hover:bg-chat-button-hover text-dark-950 transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
+        >
+          {busy ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Check className="w-3.5 h-3.5" />}
+          Apply
+        </button>
       </div>
     </div>
   );

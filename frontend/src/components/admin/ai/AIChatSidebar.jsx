@@ -89,175 +89,152 @@ export default function AIChatSidebar({ sessions, currentSessionId, onSelect, on
     setMenuOpenId(null);
   }, [onDelete]);
 
-  const SessionItem = ({ session }) => (
-    <div
-      onClick={() => onSelect(session.id)}
-      className={`
-        relative group flex items-start gap-2 px-3 py-2.5 rounded-xl cursor-pointer transition-colors
-        ${session.id === currentSessionId
-          ? 'bg-chat-selected border border-chat-selected-border'
-          : 'hover:bg-dark-800/70'
-        }
-      `}
-    >
-      <MessageSquare className={`w-3.5 h-3.5 flex-shrink-0 mt-0.5 ${session.id === currentSessionId ? 'text-white/70' : 'text-dark-400'}`} />
-      <div className="flex-1 min-w-0">
-        <p className={`text-xs font-medium truncate ${session.id === currentSessionId ? 'text-white' : 'text-dark-100'}`}>
-          {session.title || 'New Chat'}
-        </p>
-        <p className={`text-[10px] mt-0.5 ${session.id === currentSessionId ? 'text-white/70' : 'text-dark-400'}`}>
-          {formatTime(session.updated_at)} · {session.message_count || 0} msgs
-        </p>
-      </div>
+  const SessionItem = ({ session }) => {
+    const active = session.id === currentSessionId;
+    const menuOpen = menuOpenId === session.id;
+    return (
+      <div
+        onClick={() => onSelect(session.id)}
+        className={`
+          relative group flex items-center gap-2 pl-3 pr-1.5 py-2 rounded-lg cursor-pointer transition-colors
+          ${active ? 'bg-white/[0.07]' : 'hover:bg-white/[0.04]'}
+        `}
+      >
+        <div className="flex-1 min-w-0">
+          <p className={`text-[13px] truncate ${active ? 'text-white font-medium' : 'text-chat-text'}`}>
+            {session.title || 'New chat'}
+          </p>
+          <p className="text-[11px] text-chat-faint mt-0.5 truncate">
+            {formatTime(session.updated_at)}
+            {session.message_count ? ` · ${session.message_count} messages` : ''}
+          </p>
+        </div>
 
-      {session.pinned && (
-        <Pin className={`w-3 h-3 flex-shrink-0 mt-0.5 ${session.id === currentSessionId ? 'text-white/80' : 'text-chat-accent'}`} />
-      )}
+        {session.pinned && !menuOpen && (
+          <Pin className="w-3 h-3 flex-shrink-0 text-chat-faint sm:group-hover:hidden" />
+        )}
 
-      {/* Actions menu */}
-      <div className="flex-shrink-0 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity">
+        {/* Actions menu */}
         <button
           onClick={(e) => {
             e.stopPropagation();
-            if (menuOpenId === session.id) {
+            if (menuOpen) {
               setMenuOpenId(null);
             } else {
-              const rect = e.currentTarget.getBoundingClientRect();
-              setMenuRect(rect);
+              setMenuRect(e.currentTarget.getBoundingClientRect());
               setMenuOpenId(session.id);
             }
           }}
-          className={`p-0.5 rounded hover:bg-dark-600 ${session.id === currentSessionId ? 'text-white/70 hover:text-white' : 'text-dark-400 hover:text-dark-100'}`}
+          className={`flex-shrink-0 p-1 rounded-md text-chat-faint hover:text-chat-text hover:bg-white/[0.08] transition-opacity ${
+            menuOpen ? 'opacity-100 bg-white/[0.08]' : 'opacity-100 sm:opacity-0 sm:group-hover:opacity-100'
+          }`}
+          aria-label="Chat actions"
         >
-          <MoreHorizontal className="w-3.5 h-3.5" />
+          <MoreHorizontal className="w-4 h-4" />
         </button>
-      </div>
 
-      {/* Dropdown menu (portal to avoid scroll clipping) */}
-      {menuOpenId === session.id && menuRect && createPortal(
-        <div
-          className="fixed z-[9999] bg-dark-800 border border-dark-600 rounded-lg shadow-xl py-1 min-w-[140px] max-w-[calc(100vw-2rem)]"
-          style={{
-            top: menuRect.bottom + 4,
-            right: window.innerWidth - menuRect.right,
-          }}
-          onClick={(e) => e.stopPropagation()}
-        >
-          <button
-            onClick={(e) => handlePin(session, e)}
-            className="flex items-center gap-2 w-full px-3 py-1.5 text-xs text-dark-100 hover:bg-dark-700 hover:text-white"
+        {/* Dropdown menu (portal to avoid scroll clipping) */}
+        {menuOpen && menuRect && createPortal(
+          <div
+            className="ai-chat fixed z-[9999] w-44 p-1 rounded-xl bg-chat-raised border border-chat-line-strong shadow-2xl shadow-black/50"
+            style={{
+              top: menuRect.bottom + 4,
+              left: Math.min(menuRect.left, window.innerWidth - 184),
+            }}
+            onClick={(e) => e.stopPropagation()}
           >
-            <Pin className="w-3 h-3" />
-            {session.pinned ? 'Unpin' : 'Pin'}
-          </button>
-          <button
-            onClick={(e) => handleArchive(session, e)}
-            className="flex items-center gap-2 w-full px-3 py-1.5 text-xs text-dark-100 hover:bg-dark-700 hover:text-white"
-          >
-            <Archive className="w-3 h-3" />
-            Archive
-          </button>
-          <div className="border-t border-dark-700 my-1" />
-          <button
-            onClick={(e) => handleDelete(session, e)}
-            className="flex items-center gap-2 w-full px-3 py-1.5 text-xs text-red-400 hover:bg-red-900/20"
-          >
-            <Trash2 className="w-3 h-3" />
-            Delete
-          </button>
-        </div>,
-        document.body
-      )}
-    </div>
+            <button
+              onClick={(e) => handlePin(session, e)}
+              className="flex items-center gap-2.5 w-full px-2.5 py-1.5 rounded-lg text-[13px] text-chat-text hover:bg-white/[0.06]"
+            >
+              <Pin className="w-3.5 h-3.5 text-chat-muted" />
+              {session.pinned ? 'Unpin' : 'Pin'}
+            </button>
+            <button
+              onClick={(e) => handleArchive(session, e)}
+              className="flex items-center gap-2.5 w-full px-2.5 py-1.5 rounded-lg text-[13px] text-chat-text hover:bg-white/[0.06]"
+            >
+              <Archive className="w-3.5 h-3.5 text-chat-muted" />
+              Archive
+            </button>
+            <div className="h-px bg-chat-line my-1 mx-1" />
+            <button
+              onClick={(e) => handleDelete(session, e)}
+              className="flex items-center gap-2.5 w-full px-2.5 py-1.5 rounded-lg text-[13px] text-red-400 hover:bg-red-500/10"
+            >
+              <Trash2 className="w-3.5 h-3.5" />
+              Delete
+            </button>
+          </div>,
+          document.body
+        )}
+      </div>
+    );
+  };
+
+  const SectionLabel = ({ children }) => (
+    <p className="text-[11px] font-medium text-chat-faint px-3 pt-3 pb-1.5">{children}</p>
   );
 
   return (
-    <div className="relative w-full sm:w-56 flex-shrink-0 flex flex-col h-full overflow-hidden min-w-0 bg-dark-950 border-r border-dark-600/80 shadow-[4px_0_24px_-4px_rgba(0,0,0,0.4)]">
-      <div className="absolute left-0 top-0 bottom-0 w-0.5 bg-gradient-to-b from-chat-accent/50 via-chat-accent/20 to-transparent pointer-events-none" aria-hidden />
-      <div className="flex flex-col flex-1 min-h-0">
-        <div className="p-3 pb-2 flex-shrink-0">
-          <div className="flex items-center justify-between mb-3">
-            <p className="text-[10px] uppercase tracking-widest text-dark-500 px-0.5">Chats</p>
-            {showCloseButton && onClose && (
-              <button
-                onClick={onClose}
-                className="p-2 -m-2 text-dark-400 hover:text-dark-100 hover:bg-dark-700 rounded-lg transition-colors touch-manipulation"
-                aria-label="Close"
-              >
-                <X className="w-4 h-4" />
-              </button>
-            )}
-          </div>
+    <div className="ai-chat w-full flex-shrink-0 flex flex-col h-full overflow-hidden min-w-0 bg-chat-surface border-r border-chat-line">
+      <div className="p-3 flex-shrink-0 space-y-2">
+        <div className="flex items-center gap-2">
           <button
             onClick={onNew}
-            className="w-full flex items-center justify-center gap-2 px-3 py-2.5 bg-chat-button hover:bg-chat-button-hover text-white rounded-xl text-xs font-medium transition-colors shadow-sm"
+            className="flex-1 h-9 flex items-center gap-2 px-3 rounded-lg border border-chat-line-strong bg-chat-raised hover:bg-white/[0.06] text-[13px] font-medium text-chat-text transition-colors"
           >
-            <Plus className="w-3.5 h-3.5" />
-            New Chat
+            <Plus className="w-4 h-4 text-chat-muted" />
+            New chat
           </button>
+          {showCloseButton && onClose && (
+            <button
+              onClick={onClose}
+              className="w-9 h-9 flex items-center justify-center rounded-lg text-chat-muted hover:text-chat-text hover:bg-white/[0.06] transition-colors touch-manipulation"
+              aria-label="Close chat history"
+            >
+              <X className="w-4 h-4" />
+            </button>
+          )}
         </div>
-
-        <div className="px-3 pb-3 flex-shrink-0">
-          <div className="relative">
-            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-dark-500" />
-            <input
-              type="text"
-              placeholder="Search chats..."
-              value={search}
-              onChange={e => setSearch(e.target.value)}
-              className="w-full bg-dark-800/80 border border-dark-600 rounded-lg pl-7 pr-2.5 py-2 text-xs text-dark-100 placeholder-dark-500 focus:outline-none focus:border-chat-focus focus:ring-1 focus:ring-chat-focus/30"
-            />
-          </div>
+        <div className="relative">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-chat-faint pointer-events-none" />
+          <input
+            type="text"
+            placeholder="Search chats"
+            value={search}
+            onChange={e => setSearch(e.target.value)}
+            className="w-full h-9 bg-transparent border border-chat-line rounded-lg pl-8 pr-3 text-[13px] text-chat-text placeholder-chat-faint focus:outline-none focus:border-chat-line-strong focus:bg-white/[0.02]"
+          />
         </div>
+      </div>
 
-        <div ref={listRef} className="flex-1 overflow-y-auto px-2 pb-3 space-y-0.5 min-h-0" onClick={() => setMenuOpenId(null)}>
-          <div
-            onClick={onNew}
-            className={`
-              relative flex items-start gap-2 px-3 py-2.5 rounded-xl cursor-pointer transition-colors
-              ${!currentSessionId
-                ? 'bg-chat-selected border border-chat-selected-border'
-                : 'hover:bg-dark-800/70'
-              }
-            `}
-          >
-            <MessageSquare className={`w-3.5 h-3.5 flex-shrink-0 mt-0.5 ${!currentSessionId ? 'text-white/70' : 'text-dark-400'}`} />
-            <div className="flex-1 min-w-0">
-              <p className={`text-xs font-medium truncate ${!currentSessionId ? 'text-white' : 'text-dark-100'}`}>
-                New Chat
-              </p>
-              <p className={`text-[10px] mt-0.5 ${!currentSessionId ? 'text-white/70' : 'text-dark-400'}`}>
-                Start a conversation
-              </p>
-            </div>
-          </div>
-          {pinnedSessions.length > 0 && (
-            <>
-              <p className="text-[9px] uppercase tracking-widest text-dark-500 px-2.5 pt-2 pb-1">Pinned</p>
+      <div ref={listRef} className="flex-1 overflow-y-auto px-2 pb-3 min-h-0" onClick={() => setMenuOpenId(null)}>
+        {pinnedSessions.length > 0 && (
+          <>
+            <SectionLabel>Pinned</SectionLabel>
+            <div className="space-y-px">
               {pinnedSessions.map(s => <SessionItem key={s.id} session={s} />)}
-              <div className="border-t border-dark-700/60 my-2 mx-2" />
-            </>
-          )}
+            </div>
+          </>
+        )}
 
-          {regularSessions.length > 0 ? (
-            <>
-              {pinnedSessions.length > 0 && (
-                <p className="text-[9px] uppercase tracking-widest text-dark-500 px-2.5 pt-1 pb-1">Recent</p>
-              )}
+        {regularSessions.length > 0 && (
+          <>
+            <SectionLabel>Recent</SectionLabel>
+            <div className="space-y-px">
               {regularSessions.map(s => <SessionItem key={s.id} session={s} />)}
-            </>
-          ) : (
-            !pinnedSessions.length && (
-              <div className="text-center py-10 px-4">
-                <div className="w-10 h-10 rounded-xl bg-dark-800/60 border border-dark-700 flex items-center justify-center mx-auto mb-3">
-                  <MessageSquare className="w-5 h-5 text-dark-500" />
-                </div>
-                <p className="text-xs text-dark-500">No chats yet</p>
-                <p className="text-[10px] text-dark-600 mt-1">Start a new chat to begin</p>
-              </div>
-            )
-          )}
-        </div>
+            </div>
+          </>
+        )}
+
+        {filtered.length === 0 && (
+          <div className="text-center py-12 px-4">
+            <MessageSquare className="w-5 h-5 text-chat-faint mx-auto mb-2.5" />
+            <p className="text-[13px] text-chat-muted">{search ? 'No matching chats' : 'No chats yet'}</p>
+            {!search && <p className="text-xs text-chat-faint mt-1">Your conversations will appear here.</p>}
+          </div>
+        )}
       </div>
     </div>
   );

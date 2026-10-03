@@ -11,6 +11,7 @@ from backend.models.ai_chat import (
     AIMemory,
     AITrainingDocument,
     AIUploadedFile,
+    AIProposedEdit,
 )
 
 # Legal models

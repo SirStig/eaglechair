@@ -17,6 +17,9 @@ Endpoints:
   GET    /admin/ai/training           - List training documents
   POST   /admin/ai/training           - Upload training document
   DELETE /admin/ai/training/{id}      - Delete training document
+  GET    /admin/ai/edits              - List AI-proposed changes (by session / status)
+  POST   /admin/ai/edits/apply        - Approve + apply proposed changes
+  POST   /admin/ai/edits/decline      - Decline proposed changes
   POST   /admin/ai/ws-ticket          - One-time ticket for the WebSocket
   WS     /admin/ai/ws/{chat_id}       - WebSocket for streaming chat
 """
@@ -49,7 +52,7 @@ from sqlalchemy.orm import selectinload
 from backend.api.dependencies import get_current_admin, require_role
 from backend.core.config import settings
 from backend.core.ephemeral_store import ephemeral_store
-from backend.models.company import AdminRole, AdminUser
+from backend.models.company import AdminAuditLog, AdminRole, AdminUser
 from backend.core.security import SecurityManager
 from backend.database.base import get_db, AsyncSessionLocal
 from backend.utils.file_validation import PRIVATE_UPLOAD_DIR
@@ -60,11 +63,20 @@ from backend.models.ai_chat import (
     AITrainingDocument,
     AIUploadedFile,
     AIFileType,
+    AIProposedEdit,
     MessageRole,
+    ProposalStatus,
     TrainingStatus,
+)
+from backend.services.ai_catalog_tools import (
+    ChangeError,
+    apply_proposal,
+    serialize_proposal,
+    validate_change,
 )
 from backend.services.ai_service import (
     AIStreamEvent,
+    ToolContext,
     build_system_prompt,
     extract_memory_from_conversation,
     fetch_valid_reference_ids,
@@ -78,6 +90,9 @@ from backend.services.ai_service import (
 logger = logging.getLogger(__name__)
 
 router = APIRouter()
+
+CHAT_MODES = {"ask", "edit", "agent"}
+CHAT_MODEL_OPTIONS = {"auto", "max", "deep"}
 
 # Upload directories for AI files: private (not under the public /uploads mount),
 # resolved relative to the repository rather than the process CWD
@@ -202,7 +217,12 @@ async def load_training_summaries(db: AsyncSession) -> list[dict]:
     ]
 
 
-def serialize_session(session: AIChatSession, include_messages: bool = True, messages_list: list | None = None) -> dict:
+def serialize_session(
+    session: AIChatSession,
+    include_messages: bool = True,
+    messages_list: list | None = None,
+    proposals: dict | None = None,
+) -> dict:
     data = {
         "id": session.id,
         "title": session.title,
@@ -216,14 +236,27 @@ def serialize_session(session: AIChatSession, include_messages: bool = True, mes
     }
     if include_messages:
         data["messages"] = [
-            serialize_message(m)
+            serialize_message(m, proposals)
             for m in (messages_list if messages_list is not None else session.messages)
         ]
         data["files"] = [serialize_file(f) for f in session.files]
     return data
 
 
-def serialize_message(msg: AIChatMessage) -> dict:
+def _overlay_proposals(blocks, proposals: dict | None):
+    """Replace stored edit_batch rows with their live status from ai_proposed_edits."""
+    if not blocks or not proposals:
+        return blocks
+    out = []
+    for b in blocks:
+        if isinstance(b, dict) and b.get("type") == "edit_batch" and isinstance(b.get("data"), dict):
+            edits = [proposals.get(e.get("id"), e) for e in b["data"].get("edits") or []]
+            b = {**b, "data": {**b["data"], "edits": edits}}
+        out.append(b)
+    return out
+
+
+def serialize_message(msg: AIChatMessage, proposals: dict | None = None) -> dict:
     return {
         "id": msg.id,
         "session_id": msg.session_id,
@@ -235,7 +268,7 @@ def serialize_message(msg: AIChatMessage) -> dict:
         "tool_calls": msg.tool_calls or [],
         "file_ids": msg.file_ids or [],
         "suggested_edits": getattr(msg, "suggested_edits", None) or [],
-        "content_blocks": getattr(msg, "content_blocks", None),
+        "content_blocks": _overlay_proposals(getattr(msg, "content_blocks", None), proposals),
     }
 
 
@@ -320,7 +353,14 @@ async def get_chat(
         )
         total = count_row.scalar() or 0
         has_more = total > limit
-    data = serialize_session(session, messages_list=msgs)
+    proposal_rows = await db.execute(
+        select(AIProposedEdit).where(
+            AIProposedEdit.session_id == session_id,
+            AIProposedEdit.message_id.in_([m.id for m in msgs] or [""]),
+        )
+    )
+    proposals = {p.id: serialize_proposal(p) for p in proposal_rows.scalars().all()}
+    data = serialize_session(session, messages_list=msgs, proposals=proposals)
     data["has_more"] = has_more
     return data
 
@@ -515,46 +555,168 @@ async def apply_edit(
     admin=Depends(require_role(AdminRole.ADMIN)),
 ):
     """
-    Apply an AI-suggested edit. Admin must approve first.
+    Apply a legacy single suggested edit (messages from before proposal batches).
     Body: {entity_type, entity_id, changes}
     """
-    entity_type = body.get("entity_type")
-    entity_id = body.get("entity_id")
-    changes = body.get("changes", {})
-    if not entity_type or entity_id is None or not changes:
+    if not isinstance(body, dict) or not body.get("entity_type") or body.get("entity_id") is None or not body.get("changes"):
         raise HTTPException(status_code=400, detail="entity_type, entity_id, and changes required")
-
-    if entity_type == "product":
-        from sqlalchemy.exc import IntegrityError
-
-        from backend.services.admin_service import AdminService
-        from backend.core.exceptions import ResourceNotFoundError, ValidationError
-
+    async with AsyncSessionLocal() as db:
         try:
-            product_id = int(entity_id)
-        except (TypeError, ValueError):
-            raise HTTPException(status_code=400, detail=f"Invalid entity_id for product: {entity_id!r}")
+            norm = await validate_change(db, {**body, "action": "update"})
+        except ChangeError as e:
+            raise HTTPException(status_code=400, detail=str(e))
+        proposal = AIProposedEdit(id=str(uuid.uuid4()), batch_id="legacy", **{**norm, "before": None})
+        result = await apply_proposal(db, proposal)
+    if result["status"] != "applied":
+        raise HTTPException(status_code=400, detail=result.get("error") or "Could not apply edit")
+    logger.info(f"Admin {admin.id} applied legacy AI edit to {norm['entity_type']} {norm['entity_id']}")
+    return {"success": True, "entity_type": norm["entity_type"], "entity_id": norm["entity_id"]}
 
-        async with AsyncSessionLocal() as db:
+
+# ─────────────────────────────────────────────────────────────────────────────
+# AI-proposed changes (review queue)
+# ─────────────────────────────────────────────────────────────────────────────
+
+MAX_EDIT_IDS_PER_REQUEST = 500
+
+
+def _edit_ids(body) -> list[str]:
+    ids = body.get("ids") if isinstance(body, dict) else None
+    if not isinstance(ids, list) or not ids or not all(isinstance(i, str) for i in ids):
+        raise HTTPException(status_code=400, detail="ids must be a non-empty list of proposal ids")
+    if len(ids) > MAX_EDIT_IDS_PER_REQUEST:
+        raise HTTPException(status_code=400, detail=f"At most {MAX_EDIT_IDS_PER_REQUEST} ids per request")
+    return list(dict.fromkeys(ids))
+
+
+async def _load_own_proposals(db: AsyncSession, ids: list[str], admin_id: int) -> dict[str, AIProposedEdit]:
+    rows = await db.execute(
+        select(AIProposedEdit)
+        .where(AIProposedEdit.id.in_(ids), AIProposedEdit.admin_user_id == admin_id)
+        .order_by(AIProposedEdit.batch_id, AIProposedEdit.position)
+    )
+    return {p.id: p for p in rows.scalars().all()}
+
+
+@router.get("/edits")
+async def list_proposed_edits(
+    session_id: str | None = None,
+    status: str | None = None,
+    limit: int = 500,
+    db: AsyncSession = Depends(get_db),
+    admin=Depends(get_current_admin),
+):
+    q = select(AIProposedEdit).where(AIProposedEdit.admin_user_id == admin.id)
+    if session_id:
+        q = q.where(AIProposedEdit.session_id == session_id)
+    if status:
+        q = q.where(AIProposedEdit.status == status)
+    q = q.order_by(desc(AIProposedEdit.created_at), AIProposedEdit.position).limit(min(max(1, limit), 2000))
+    return [serialize_proposal(p) for p in (await db.execute(q)).scalars().all()]
+
+
+@router.post("/edits/apply")
+async def apply_proposed_edits(
+    body: dict,
+    admin=Depends(require_role(AdminRole.ADMIN)),
+):
+    """
+    Approve and apply proposals in order. Each one commits on its own, so one
+    failure doesn't block the rest. Body: {ids: [...], force?: bool}
+    """
+    ids = _edit_ids(body)
+    force = bool(body.get("force"))
+    results = []
+    async with AsyncSessionLocal() as db:
+        proposals = await _load_own_proposals(db, ids, admin.id)
+        for pid in ids:
+            p = proposals.get(pid)
+            if p is None:
+                results.append({"id": pid, "status": "failed", "error": "Proposal not found", "conflict": False})
+                continue
+            if p.status != ProposalStatus.PENDING.value:
+                results.append({"id": pid, "status": p.status, "error": p.error, "conflict": False, "entity_id": p.entity_id})
+                continue
             try:
-                product = await AdminService.update_product(
-                    db=db,
-                    product_id=product_id,
-                    update_data=dict(changes),
-                )
-                from backend.utils.serializers import orm_to_dict
-                return {"success": True, "entity_type": "product", "entity_id": entity_id, "result": orm_to_dict(product)}
-            except ResourceNotFoundError:
-                raise HTTPException(status_code=404, detail="Product not found")
-            except ValidationError as e:
-                raise HTTPException(status_code=400, detail=str(e))
-            except IntegrityError as e:
-                raise HTTPException(
-                    status_code=400,
-                    detail="Invalid reference: one or more IDs (category, family, subcategory, etc.) do not exist. Please verify the suggested edit.",
-                )
+                outcome = await apply_proposal(db, p, force=force)
+            except Exception as e:  # never let one bad row abort the whole batch
+                logger.exception(f"Applying AI proposal {pid} failed")
+                await db.rollback()
+                outcome = {"status": "failed", "error": f"Unexpected error: {type(e).__name__}", "conflict": False}
 
-    raise HTTPException(status_code=400, detail=f"Unsupported entity_type: {entity_type}")
+            # Re-load: apply_proposal may have rolled back / expired the session
+            p = await db.get(AIProposedEdit, pid)
+            if outcome["status"] in (ProposalStatus.APPLIED.value, ProposalStatus.FAILED.value):
+                p.status = outcome["status"]
+                p.error = outcome.get("error")
+                p.resolved_at = datetime.utcnow()
+                p.resolved_by_id = admin.id
+                if outcome.get("entity_id") and not p.entity_id:
+                    p.entity_id = outcome["entity_id"]
+                if outcome["status"] == ProposalStatus.APPLIED.value:
+                    db.add(AdminAuditLog(
+                        admin_id=admin.id,
+                        action=f"AI_{p.action.upper()}_{p.entity_type.upper()}",
+                        resource_type=p.entity_type,
+                        resource_id=p.entity_id,
+                        details={"proposal_id": p.id, "batch_id": p.batch_id, "changes": p.changes, "before": p.before},
+                        timestamp=datetime.utcnow().isoformat(),
+                    ))
+                await db.commit()
+            results.append({"id": pid, **outcome, "entity_id": p.entity_id, "proposal": serialize_proposal(p)})
+    applied = sum(1 for r in results if r["status"] == "applied")
+    logger.info(f"Admin {admin.id} applied {applied}/{len(ids)} AI proposals")
+    return {"results": results, "applied": applied}
+
+
+@router.post("/edits/decline")
+async def decline_proposed_edits(
+    body: dict,
+    db: AsyncSession = Depends(get_db),
+    admin=Depends(get_current_admin),
+):
+    ids = _edit_ids(body)
+    proposals = await _load_own_proposals(db, ids, admin.id)
+    results = []
+    for pid in ids:
+        p = proposals.get(pid)
+        if p is None:
+            results.append({"id": pid, "status": "failed", "error": "Proposal not found"})
+            continue
+        if p.status == ProposalStatus.PENDING.value:
+            p.status = ProposalStatus.DECLINED.value
+            p.resolved_at = datetime.utcnow()
+            p.resolved_by_id = admin.id
+        results.append({"id": pid, "status": p.status, "proposal": serialize_proposal(p)})
+    await db.commit()
+    return {"results": results}
+
+
+async def _proposal_status_summary(db: AsyncSession, session_id: str) -> str | None:
+    """Short recap of this chat's proposals for the system prompt, so the AI knows what was approved."""
+    rows = (await db.execute(
+        select(AIProposedEdit)
+        .where(AIProposedEdit.session_id == session_id)
+        .order_by(AIProposedEdit.created_at, AIProposedEdit.position)
+    )).scalars().all()
+    if not rows:
+        return None
+    batches: dict[str, list] = {}
+    for p in rows:
+        batches.setdefault(p.batch_id, []).append(p)
+    lines = []
+    for batch in list(batches.values())[-15:]:
+        counts: dict[str, int] = {}
+        for p in batch:
+            counts[p.status] = counts.get(p.status, 0) + 1
+        summary = ", ".join(f"{n} {s}" for s, n in counts.items())
+        lines.append(f"- \"{batch[0].batch_title}\" ({len(batch)} changes): {summary}")
+        for p in batch:
+            if p.status in ("failed", "declined"):
+                detail = f": {p.error}" if p.error else ""
+                lines.append(f"  - {p.status} {p.action} {p.entity_type} {p.entity_id or ''} {p.entity_name or ''}{detail}"[:300])
+    lines.append("Pending changes are still awaiting review; don't re-propose them. Re-propose failed ones only after fixing the cause.")
+    return "\n".join(lines)
 
 
 @router.delete("/memory/{key}")

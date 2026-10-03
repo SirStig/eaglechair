@@ -431,7 +431,7 @@ const NewAdminDashboardInner = () => {
               {showBottomNav ? (
                 <button
                   onClick={() => navigate('/admin/ai')}
-                  className="flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl bg-chat-button hover:bg-chat-button-hover text-white transition-colors touch-manipulation"
+                  className="flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl bg-chat-button hover:bg-chat-button-hover text-dark-950 font-medium transition-colors touch-manipulation"
                   title="AI Chat"
                 >
                   <MessageSquare className="w-5 h-5" />

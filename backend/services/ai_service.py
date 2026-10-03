@@ -19,14 +19,11 @@ import json
 import logging
 import math
 import os
-import queue
 import operator
 import re
 import socket
-import threading
-import time
-import traceback
-from datetime import datetime
+from dataclasses import dataclass, field
+from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Any, AsyncGenerator, Optional
 from urllib.parse import urljoin, urlparse
@@ -37,6 +34,7 @@ import pandas as pd
 import pdfplumber
 from ddgs import DDGS
 from google import genai
+from google.genai import errors as genai_errors
 from google.genai import types
 from fuzzywuzzy import fuzz
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -45,6 +43,15 @@ from sqlalchemy import select, text
 from backend.core.config import settings
 from backend.database.base import AsyncSessionLocal
 from backend.models.ai_chat import AITrainingDocument, TrainingStatus
+from backend.services.ai_catalog_tools import (
+    ENTITIES,
+    audit_data_quality,
+    catalog_overview,
+    create_proposals,
+    describe_schema,
+    get_records,
+    list_records,
+)
 from backend.services.ai_domain_knowledge import EAGLECHAIR_DOMAIN_KNOWLEDGE
 
 logger = logging.getLogger(__name__)
@@ -386,223 +393,173 @@ def convert_excel_to_markdown(file_path: str, max_rows_per_sheet: int = 1000) ->
 # Gemini Tool Definitions
 # ─────────────────────────────────────────────────────────────────────────────
 
-TOOL_DEFINITIONS = [
-    types.Tool(
-        function_declarations=[
-            types.FunctionDeclaration(
-                name="web_search",
-                description="Search the web for current information using DuckDuckGo. Use this to find pricing data, industry news, product specs, competitor info, or any information not in your training data.",
-                parameters=types.Schema(
-                    type=types.Type.OBJECT,
-                    properties={
-                        "query": types.Schema(
-                            type=types.Type.STRING,
-                            description="Search query. Be specific and concise.",
-                        ),
-                        "max_results": types.Schema(
-                            type=types.Type.INTEGER,
-                            description="Number of results to return (1-15, default 12)",
-                        ),
+_ENTITY_TYPES = list(ENTITIES)
+
+
+def _fn(name: str, description: str, properties: dict | None = None, required: list | None = None):
+    schema = {"type": "object", "properties": properties or {}}
+    if required:
+        schema["required"] = required
+    return types.FunctionDeclaration(name=name, description=description, parameters_json_schema=schema)
+
+
+_ENTITY_TYPE_PROP = {
+    "type": "string",
+    "enum": _ENTITY_TYPES,
+    "description": "Which kind of record: " + ", ".join(_ENTITY_TYPES),
+}
+
+FUNCTION_DECLARATIONS = [
+    _fn(
+        "web_search",
+        "Search the web (DuckDuckGo) for current information: competitor pricing, industry news, material specs, anything not in the database.",
+        {
+            "query": {"type": "string", "description": "Specific, concise search query"},
+            "max_results": {"type": "integer", "description": "1-15, default 12"},
+        },
+        ["query"],
+    ),
+    _fn(
+        "fetch_webpage",
+        "Read the full content of a public webpage. Use after web_search instead of relying on snippets.",
+        {"url": {"type": "string"}},
+        ["url"],
+    ),
+    _fn(
+        "calculate",
+        "Exact arithmetic for pricing, margins, percentages and conversions. E.g. '250 * 1.15', '(500 - 350) / 500 * 100'.",
+        {"expression": {"type": "string"}},
+        ["expression"],
+    ),
+    _fn(
+        "catalog_overview",
+        "Counts (total and active) for every record type in the database. Call first to see how big each table is before paging through it.",
+    ),
+    _fn(
+        "get_data_schema",
+        "Field names, types, foreign keys and required fields for record types. Call before proposing creates or edits to a type you have not used yet in this chat.",
+        {"entity_type": {**_ENTITY_TYPE_PROP, "description": "Optional; omit for every type"}},
+    ),
+    _fn(
+        "list_records",
+        (
+            "Page through ANY record type, including inactive / unavailable ones. Supports text search over names, codes "
+            "and SKUs, and exact-match filters on any column (e.g. {\"product_id\": 42}, {\"family_id\": 7, \"is_active\": true}, "
+            "{\"finish_id\": null} for missing values, {\"name\": \"not_null\"}). Returns summary columns plus resolved names "
+            "for foreign keys. Use offset to read everything when has_more is true."
+        ),
+        {
+            "entity_type": _ENTITY_TYPE_PROP,
+            "search": {"type": "string", "description": "Optional case-insensitive text search"},
+            "filters": {"type": "object", "description": "Optional exact-match filters: {column: value | [values] | null | \"not_null\"}"},
+            "include_inactive": {"type": "boolean", "description": "Default true"},
+            "fields": {"type": "array", "items": {"type": "string"}, "description": "Optional columns to return instead of the summary set"},
+            "limit": {"type": "integer", "description": "Default 100, max 500"},
+            "offset": {"type": "integer", "description": "Default 0"},
+        },
+        ["entity_type"],
+    ),
+    _fn(
+        "get_records",
+        (
+            "Every column of specific records by id. Products also include all their variations, category_ids, "
+            "subcategory_ids and secondary_family_ids; families include their products; catalog projects include a page summary."
+        ),
+        {
+            "entity_type": _ENTITY_TYPE_PROP,
+            "ids": {"type": "array", "items": {"type": "integer"}, "description": "Up to 100 ids"},
+        },
+        ["entity_type", "ids"],
+    ),
+    _fn(
+        "audit_data_quality",
+        (
+            "Scan a record type for cleanup work: duplicate SKUs/model numbers/names, messy whitespace, lowercase SKUs, SKUs "
+            "that don't match their product, variations still available on inactive products, redundant dimensions, missing "
+            "names/images/descriptions, unused finishes/fabrics/colors, empty families. Issues with an obvious fix include "
+            "suggested_changes you can pass straight to propose_changes. Use filters to scope (e.g. {\"product_id\": 42})."
+        ),
+        {
+            "entity_type": _ENTITY_TYPE_PROP,
+            "filters": {"type": "object", "description": "Optional exact-match filters, same format as list_records"},
+            "max_issues": {"type": "integer", "description": "Default 300"},
+        },
+        ["entity_type"],
+    ),
+    _fn(
+        "search_catalog",
+        "Quick keyword search across active families, products, variations, finishes, upholsteries, colors and categories. Use 'all' for a family/model overview.",
+        {"query": {"type": "string"}},
+        ["query"],
+    ),
+    _fn(
+        "get_product_details",
+        "Customer-facing product details by model number (e.g. ['5242', '6018WB']) or product id: specs, variations with swatch images, public product_url and admin_edit_url.",
+        {
+            "model_numbers": {"type": "array", "items": {"type": "string"}},
+            "product_ids": {"type": "array", "items": {"type": "integer"}},
+        },
+    ),
+    _fn(
+        "get_product_catalog",
+        "The entire active catalog as markdown tables (categories, families, finishes, upholsteries, colors, products, variations). Large; prefer list_records for targeted work.",
+    ),
+    _fn(
+        "search_training_data",
+        "Fuzzy search over uploaded training documents (price lists, spec sheets, PDFs).",
+        {
+            "query": {"type": "string"},
+            "max_results": {"type": "integer", "description": "Default 20"},
+        },
+        ["query"],
+    ),
+    _fn(
+        "get_training_vs_catalog_overview",
+        "Model numbers that appear only in training documents, only in the live catalog, or in both.",
+    ),
+    _fn(
+        "propose_changes",
+        (
+            "Propose one or many database changes for the admin to review. NOTHING is written until the admin approves each "
+            "change in the chat. Put every change for one task in a single call (up to 200; use several calls with clear titles "
+            "for more). Each change is validated now: invalid ones come back in `rejected` with the reason so you can fix and "
+            "re-propose them. Only include fields that actually change. Prices are in cents. Get ids from list_records / "
+            "get_records first; never guess ids."
+        ),
+        {
+            "title": {"type": "string", "description": "Short batch title shown to the admin, e.g. 'Normalize SKU casing for 6018 variations'"},
+            "changes": {
+                "type": "array",
+                "items": {
+                    "type": "object",
+                    "properties": {
+                        "action": {"type": "string", "enum": ["update", "create", "delete"], "description": "Default update"},
+                        "entity_type": _ENTITY_TYPE_PROP,
+                        "entity_id": {"type": "integer", "description": "Required for update/delete"},
+                        "changes": {"type": "object", "description": "update: {field: new value}; create: all field values for the new record"},
+                        "reason": {"type": "string", "description": "One line explaining why"},
                     },
-                    required=["query"],
-                ),
-            ),
-            types.FunctionDeclaration(
-                name="fetch_webpage",
-                description="Fetch and read the full content of a specific webpage URL. Use after web_search to get detailed info from a result.",
-                parameters=types.Schema(
-                    type=types.Type.OBJECT,
-                    properties={
-                        "url": types.Schema(
-                            type=types.Type.STRING,
-                            description="The URL to fetch",
-                        ),
-                    },
-                    required=["url"],
-                ),
-            ),
-            types.FunctionDeclaration(
-                name="calculate",
-                description="Perform mathematical calculations, pricing math, percentages, unit conversions. Supports algebra, statistics formulas, and more.",
-                parameters=types.Schema(
-                    type=types.Type.OBJECT,
-                    properties={
-                        "expression": types.Schema(
-                            type=types.Type.STRING,
-                            description="Mathematical expression to evaluate. E.g. '250 * 1.15' or 'sqrt(144)' or '(500 - 350) / 500 * 100'",
-                        ),
-                    },
-                    required=["expression"],
-                ),
-            ),
-            types.FunctionDeclaration(
-                name="search_catalog",
-                description=(
-                    "Search the Eagle Chair catalog. Use query 'all' or 'everything' for full catalog overview "
-                    "(all families, all model numbers). For specific terms: product/family name, model number, "
-                    "finish, upholstery, color. Searches families, products, variations, finishes, upholsteries, "
-                    "colors, categories. Use FIRST when the user asks about products. Call before saying you don't know."
-                ),
-                parameters=types.Schema(
-                    type=types.Type.OBJECT,
-                    properties={
-                        "query": types.Schema(
-                            type=types.Type.STRING,
-                            description="Search term: product/family name, model number, finish, upholstery, color, etc.",
-                        ),
-                    },
-                    required=["query"],
-                ),
-            ),
-            types.FunctionDeclaration(
-                name="search_training_data",
-                description=(
-                    "Search ALL training documents (uploaded PDFs, CSVs, pricing sheets, etc.) using fuzzy matching. "
-                    "Use when the user asks about models, products, pricing, or specs that might be in training data. "
-                    "Returns matched facts and chunks from each document. Call this for 'search your training data', "
-                    "'find all models in training', 'what does the pricing sheet say', etc."
-                ),
-                parameters=types.Schema(
-                    type=types.Type.OBJECT,
-                    properties={
-                        "query": types.Schema(
-                            type=types.Type.STRING,
-                            description="Search term: model number, product name, price, spec, or keyword to find in training docs.",
-                        ),
-                        "max_results": types.Schema(
-                            type=types.Type.INTEGER,
-                            description="Max number of document matches to return (default 20)",
-                        ),
-                    },
-                    required=["query"],
-                ),
-            ),
-            types.FunctionDeclaration(
-                name="get_product_catalog",
-                description=(
-                    "Retrieve the complete Eagle Chair product catalog from the live database. "
-                    "Returns all active products, variations, categories, families, finishes, upholsteries, colors. "
-                    "Use when search_catalog returns nothing but you need full context, or when the user asks for "
-                    "broad catalog info, pricing overview, or full structure."
-                ),
-                parameters=types.Schema(
-                    type=types.Type.OBJECT,
-                    properties={},
-                ),
-            ),
-            types.FunctionDeclaration(
-                name="get_training_vs_catalog_overview",
-                description=(
-                    "Compare model numbers in training data vs live catalog. Returns which models appear only in "
-                    "training, only in catalog, or in both. Use when the user asks to 'compare training to catalog', "
-                    "'find all models in training and compare with catalog', or 'what models are in training but not catalog'."
-                ),
-                parameters=types.Schema(
-                    type=types.Type.OBJECT,
-                    properties={},
-                ),
-            ),
-            types.FunctionDeclaration(
-                name="get_product_details",
-                description=(
-                    "Get FULL detailed specs for products. Prefer model_numbers (e.g. ['5242', '6018']) — users "
-                    "know models like 5242, not internal IDs. Pass model_numbers when the user says a model; "
-                    "product_ids only when you have them from search_catalog. Returns dimensions, features, "
-                    "weight, variations, stock_status, and everything. Never give partial info when full data is available."
-                ),
-                parameters=types.Schema(
-                    type=types.Type.OBJECT,
-                    properties={
-                        "product_ids": types.Schema(
-                            type=types.Type.ARRAY,
-                            items=types.Schema(type=types.Type.INTEGER),
-                            description="Product IDs from search_catalog (optional if model_numbers provided)",
-                        ),
-                        "model_numbers": types.Schema(
-                            type=types.Type.ARRAY,
-                            items=types.Schema(type=types.Type.STRING),
-                            description="Model numbers or SKUs the user mentioned (e.g. ['5242', '5242P', '6018WB'])",
-                        ),
-                    },
-                ),
-            ),
-            types.FunctionDeclaration(
-                name="create_product",
-                description=(
-                    "Create a new product when the admin asks you to add one. REQUIRED: category_id MUST be from "
-                    "the Valid Reference IDs section in your context (or from get_product_catalog/search_catalog). "
-                    "family_id and subcategory_id, if provided, must also be from that list. base_price in cents "
-                    "(e.g. 25000 for $250). Slug is auto-generated."
-                ),
-                parameters=types.Schema(
-                    type=types.Type.OBJECT,
-                    properties={
-                        "name": types.Schema(type=types.Type.STRING, description="Product name"),
-                        "model_number": types.Schema(type=types.Type.STRING, description="Model number (e.g. 201, 5242)"),
-                        "category_id": types.Schema(type=types.Type.INTEGER, description="Category ID from Valid Reference IDs only"),
-                        "base_price": types.Schema(type=types.Type.INTEGER, description="Base price in cents"),
-                        "short_description": types.Schema(type=types.Type.STRING, description="Short description"),
-                        "full_description": types.Schema(type=types.Type.STRING, description="Full description"),
-                        "family_id": types.Schema(type=types.Type.INTEGER, description="Family ID from Valid Reference IDs (optional)"),
-                        "subcategory_id": types.Schema(type=types.Type.INTEGER, description="Subcategory ID from Valid Reference IDs (optional)"),
-                        "stock_status": types.Schema(type=types.Type.STRING, description="e.g. In Stock, Made to Order"),
-                        "msrp": types.Schema(type=types.Type.INTEGER, description="MSRP in cents (optional)"),
-                    },
-                    required=["name", "model_number", "category_id", "base_price"],
-                ),
-            ),
-            types.FunctionDeclaration(
-                name="propose_edit",
-                description=(
-                    "Suggest an edit to a product, family, finish, upholstery, or color when the admin asks you to "
-                    "change something. Admin must approve before the edit is applied. CRITICAL: For product edits, "
-                    "category_id, subcategory_id, family_id in changes MUST come from the Valid Reference IDs section "
-                    "or from get_product_details/search_catalog results. Never guess or infer IDs."
-                ),
-                parameters=types.Schema(
-                    type=types.Type.OBJECT,
-                    properties={
-                        "entity_type": types.Schema(
-                            type=types.Type.STRING,
-                            description="One of: product, family, finish, upholstery, color",
-                        ),
-                        "entity_id": types.Schema(
-                            type=types.Type.INTEGER,
-                            description="ID of the entity to edit (from search_catalog or get_product_details)",
-                        ),
-                        "entity_name": types.Schema(
-                            type=types.Type.STRING,
-                            description="Human-readable name for display (e.g. 'Abruzzo 5242')",
-                        ),
-                        "changes": types.Schema(
-                            type=types.Type.OBJECT,
-                            description="Fields to update. For products: base_price (cents), name, short_description, stock_status, lead_time_days, category_id, subcategory_id, family_id. ID fields must be from Valid Reference IDs.",
-                        ),
-                        "reason": types.Schema(
-                            type=types.Type.STRING,
-                            description="Brief explanation of why this edit was suggested",
-                        ),
-                    },
-                    required=["entity_type", "entity_id", "entity_name", "changes", "reason"],
-                ),
-            ),
-        ]
-    )
+                    "required": ["entity_type", "reason"],
+                },
+            },
+        },
+        ["title", "changes"],
+    ),
 ]
+
+READ_ONLY_TOOLS = {d.name for d in FUNCTION_DECLARATIONS} - {"propose_changes"}
+
+
+def _get_tools_for_mode(mode: str) -> list[types.Tool]:
+    decls = FUNCTION_DECLARATIONS
+    if mode == "ask":
+        decls = [d for d in decls if d.name in READ_ONLY_TOOLS]
+    return [types.Tool(function_declarations=decls)]
 
 
 # ─────────────────────────────────────────────────────────────────────────────
 # System Prompt Builder
 # ─────────────────────────────────────────────────────────────────────────────
-
-def _get_tools_for_mode(mode: str):
-    if mode == "ask":
-        exclude = {"propose_edit", "create_product"}
-        tool = TOOL_DEFINITIONS[0]
-        decls = [f for f in tool.function_declarations if f.name not in exclude]
-        return [types.Tool(function_declarations=decls)] if decls else TOOL_DEFINITIONS
-    return TOOL_DEFINITIONS
-
 
 def build_system_prompt(
     memory_entries: list[dict],
@@ -610,6 +567,7 @@ def build_system_prompt(
     mode: str = "edit",
     model: str = "auto",
     valid_reference_ids: str | None = None,
+    proposal_status: str | None = None,
 ) -> str:
     today = datetime.now().strftime("%B %d, %Y")
 
@@ -624,23 +582,23 @@ You are MAX mode: a know-it-all, condescending, and VERY rude assistant. You are
 - Be smart and correct — you know everything — but deliver it with maximum condescension.
 - Roll your eyes in text. Sigh. Make it clear you are WASTING your genius on them.
 - Examples: "OBVIOUSLY.", "Did you even TRY searching?", "I cannot believe I have to explain this.", "Are you serious right now?"
-- Still do the work: use tools, give accurate answers, suggest edits when asked. Just be annoying about it."""
+- Still do the work: use tools, give accurate answers, propose changes when asked. Just be annoying about it."""
 
-    mode_block = ""
     if mode == "ask":
         mode_block = """
 
 ## MODE: ASK (Read-Only)
-You are in ASK mode. Do NOT use propose_edit, create_product, or any tool that modifies data.
-Only use: search_catalog, get_product_catalog, get_product_details, web_search, fetch_webpage, calculate.
-Answer questions and provide information only. If the user asks you to change something, respond with: I'm in Ask mode — switch to Edit mode to suggest changes."""
+You cannot propose changes in this mode. Read, research and answer. If the admin asks for a change, explain what you would change and tell them to switch to Edit or Agent mode."""
     elif mode == "agent":
         mode_block = """
 
-## MODE: AGENT (Batch Operations)
-You are in AGENT mode. You may perform many tasks in parallel: suggest edits for multiple products at once, suggest creating multiple products, run multiple web searches or tools concurrently. When the user asks for bulk changes, use propose_edit for each entity. Batch similar operations."""
+## MODE: AGENT (Bulk Work)
+Work through large jobs end to end without stopping to ask: page through every relevant record (follow has_more), run audit_data_quality, and propose ALL the fixes as batches. Split huge jobs into several propose_changes calls grouped by kind of fix (e.g. one batch for SKU casing, one for deactivations). Call independent read tools in parallel."""
     else:
-        mode_block = ""
+        mode_block = """
+
+## MODE: EDIT
+Propose changes when the admin asks for them. For bulk requests, still gather everything first and propose it as one batch."""
 
     memory_block = ""
     if memory_entries:
@@ -649,9 +607,8 @@ You are in AGENT mode. You may perform many tasks in parallel: suggest edits for
             for m in memory_entries
         )
 
-    valid_ids_block = ""
-    if valid_reference_ids and mode in ("edit", "agent"):
-        valid_ids_block = f"\n\n{valid_reference_ids}"
+    valid_ids_block = f"\n\n{valid_reference_ids}" if valid_reference_ids and mode in ("edit", "agent") else ""
+    proposal_block = f"\n\n## Your Proposals In This Chat\n{proposal_status}" if proposal_status else ""
 
     training_block = ""
     if training_summaries:
@@ -660,92 +617,55 @@ You are in AGENT mode. You may perform many tasks in parallel: suggest edits for
             block = f"### {t['name']}\n{t.get('summary', 'No summary available.')}"
             kf = t.get("key_facts") or []
             if kf:
-                block += "\n\nKey facts (use these when answering):\n" + "\n".join(f"- {f}" for f in kf)
+                block += "\n\nKey facts:\n" + "\n".join(f"- {f}" for f in kf)
             sd = t.get("structured_data") or ""
             if sd.strip():
-                block += "\n\nStructured data (tables/pricing — use in full when answering):\n" + sd
+                block += "\n\nStructured data:\n" + sd
             parts.append(block)
         training_block = "\n\n## Trained Knowledge Base\n" + "\n\n".join(parts)
 
-    return f"""You are the EagleChair AI Assistant — a highly intelligent, senior business analyst and operational expert for Eagle Chair, a premium B2B chair manufacturer.
+    return f"""You are the EagleChair AI Assistant — a senior catalog manager and business analyst for Eagle Chair, a premium B2B commercial seating manufacturer. You work for the admin team inside the admin panel.
 
 Today's date: {today}
 
-## Your Role
-You assist the Eagle Chair admin team with:
-- **Business Intelligence**: Analyzing quotes, revenue, company performance, pricing strategy
-- **Product Analysis**: Understanding product specs, pricing, inventory, variations
-- **Research**: Finding competitor pricing, industry trends, material costs, market data
-- **Math & Calculations**: Pricing calculations, margin analysis, discount modeling, forecasting
-- **Document Analysis**: Reading and interpreting uploaded PDFs, CSVs, pricing sheets
-- **Data Processing**: Converting raw data into actionable insights
+## What You Can See
+You have read access to the ENTIRE catalog database, active and inactive: products, variations, families, categories, subcategories, finishes, upholsteries, colors, laminates, hardware, custom options, product tags, downloadable catalogs (PDF catalogs, spec sheets) and Catalog Builder projects. Plus uploaded training documents, the admin's attached files, and the web.
 
-## CRITICAL: Search Before Saying "I Don't Know" — Never Assume or Guess
-NEVER assume, guess, or infer product details (pricing, specs, availability, family membership, etc.). Always use search_catalog or get_product_catalog to get factual data.
+- **catalog_overview** — how many of each record exist.
+- **list_records** — page through any type with search and filters; follow has_more until you have everything you need. Never conclude something doesn't exist after reading only the first page.
+- **get_records** — every field of specific records (products include all variations and category/family links).
+- **audit_data_quality** — find cleanup work automatically.
+- **get_data_schema** — exact field names and types before you propose changes.
+- **search_catalog / get_product_details / get_product_catalog** — fast customer-facing lookups (active records only).
+- **search_training_data / get_training_vs_catalog_overview** — uploaded documents.
+- **web_search / fetch_webpage / calculate** — research and exact math.
 
-NEVER say you don't know, have no information, or can't find something about products, families, variations, finishes, upholstery, colors, or catalog without FIRST:
-1. Calling **search_catalog** with the user's term (e.g. "Abruzzo", "5242", "Alpine") — this searches families, products, variations, finishes, upholsteries, colors
-2. If search_catalog returns nothing, calling **get_product_catalog** for the full catalog
-3. Checking **Trained Knowledge Base** (below) and **Persistent Memory** (below)
-4. For external info: **web_search** and **fetch_webpage**
+Never guess catalog facts or ids. Look them up. Call independent tools in parallel.
 
-When the user mentions ANY product name, family name, model number, finish, upholstery, color, or category — call search_catalog or get_product_details (with model_numbers like ["5242"]) IMMEDIATELY. Prefer get_product_details with model_numbers when the user says a model — never expose internal IDs to users. Search everywhere, every time.
+## Changing Data — Always Through propose_changes
+You never write to the database directly. **propose_changes** stores changes as a reviewable batch; the admin approves or declines each one (or all at once) in the chat, and only approved changes are applied.
+1. Gather the facts first (list_records / get_records / audit_data_quality). Use exact ids from tool results.
+2. Check field names with get_data_schema if unsure. Prices and costs are integers in cents.
+3. Put all changes for one task in ONE call with a clear title. Each change needs a one-line reason. Only include fields that change.
+4. Read the tool result: fix every `rejected` change and re-propose it; don't repeat accepted ones.
+5. Then summarize for the admin: what the batch does, how many changes, anything you skipped and why. Don't restate every row — the admin sees each change in the review card.
+6. Prefer deactivating (is_active=false; is_available=false for variations) over deleting records that quotes may reference. Use delete only for true junk/duplicates, and say so.
+7. Trust the admin when they say data is wrong; propose the fix.
 
-## Available Tools (use them liberally)
-- **search_catalog**: Search the live catalog for a term. Use FIRST when the user asks about any product, family (e.g. Abruzzo, Alpine), model, finish, upholstery, or color. Returns matching families, products, variations, finishes, upholsteries, colors. Never guess — always search.
-- **get_product_details**: Get FULL specs. Prefer model_numbers (e.g. ["5242"]) — users say "5242", not "product ID 42". Call with model_numbers when the user mentions a model; product_ids only when you have them from search. Returns dimensions, features, variations, stock_status, everything.
-- **get_product_catalog**: Full catalog. Use when search_catalog returns nothing or user needs broad overview. Never assume product data — fetch it.
-- **create_product**: Create a product when the admin asks. category_id, family_id, subcategory_id MUST be from Valid Reference IDs (injected above). base_price in cents.
-- **web_search**: Search the web. Use 2–4 searches per research question. Default 12 results.
-- **fetch_webpage**: Read a webpage in full. Use after web_search — don't rely on snippets alone.
-- **calculate**: Precise math for pricing, margins, percentages.
+## Cleanup Jobs (e.g. "clean up these variations")
+Scope the records (filters by product_id / family_id, or search), read ALL of them, run audit_data_quality on the same scope, then look for patterns yourself too: inconsistent naming ("Walnut" vs "walnut finish"), SKU formats, missing finish/fabric links that the name implies, wrong price adjustments, duplicates. Propose the full set of fixes, grouped into batches by kind of fix.
 
-## Product Questions — Give FULL Information
-When a user asks about a product (by name, model, or family):
-1. Call **search_catalog** with their term, or call **get_product_details** directly with model_numbers (e.g. ["5242"]) — users know models like 5242, not internal IDs.
-2. For each matching product, call **get_product_details** with model_numbers when the user said a model; use product_ids only when you have them from search.
-3. Present a complete picture: dimensions, pricing, features, variations, stock status, lead time, certifications, recommended use — everything you have. Do not summarize away important specs.
-4. **Never mention internal database IDs** (e.g. "product ID 42") to users. Always use model numbers (5242), SKUs (5242PBX), or product names (Abruzzo 5242). If a product cannot be found, say "Couldn't find model 5242" or "No details for 5242" — never "product ID 42".
-4. Use clear markdown structure: headers, tables for variations, bullet lists for features. Add brief context (e.g., "This is a solid wood dining chair in the Alpine family, ideal for restaurants").
+## Answering Product Questions
+Use model numbers (5242), SKUs (5242PBX) or names with admins and in public-facing text — not internal ids, except when discussing a specific change. Give full detail: dimensions, pricing, variations, stock status, lead time, certifications. Include images with markdown ![alt](url) when helpful (primary_image_url, swatch urls).
 
-## Response Style — Intelligent, Conversational, Thorough
-- **Explain your reasoning**: When relevant, briefly share how you arrived at an answer (e.g., "I searched the catalog for '5242' and found the Abruzzo dining chair — here's the full breakdown").
-- **Ask clarifying questions**: If the request is ambiguous or you can help further, ask. E.g., "Are you looking for pricing for a specific finish, or a general overview?" or "Would you like me to compare this to similar products?"
-- **Follow up**: Offer next steps or related info. "I can also look up available finishes for this model if you'd like" or "For quote-specific pricing, you'd use the [Quote Management](/admin/quotes) tool."
-- **Be thorough**: Provide comprehensive answers with full context. Don't be brief when the user asks about a product — give them everything.
-- Use tools extensively: multiple searches for research, get_product_details for every product question, calculate when numbers matter.
+## Formatting
+Markdown: ## headings, bullet lists, tables for comparisons, **bold** key terms, `code` for model numbers and SKUs. Cite web sources as [title](url). Show calculation work. Keep answers scannable.
 
-## Formatting — Clean, Readable Markdown
-- Use markdown in all responses. The chat UI renders it.
-- **Structure**: ## for main sections, ### for subsections. Add blank lines between sections for readability.
-- **Lists**: Bullet lists for features, options; numbered lists for steps.
-- **Tables**: For variations, pricing tiers, comparisons. Keep columns aligned.
-- **Emphasis**: **bold** for key terms, `code` for model numbers and IDs.
-- **Spacing**: Use paragraph breaks. Avoid walls of text — break into scannable blocks.
-- Cite web sources with [title](url). For calculations, show the work.
-- **Images**: When discussing products, families, finishes, upholsteries, or research results, include relevant images using markdown: ![alt text](url). Use primary_image_url, image_urls, family_image, finish_image_url, upholstery swatches, or image URLs from web_search/fetch_webpage. Images render at a comfortable size; include 1–2 per product when helpful. For external research, include images from sources when they illustrate your point.
-
-## Guiding Admin (Links & Buttons)
-When the admin asks "how do I edit X?" or "where do I do Y?", provide step-by-step instructions and include clickable links. Use markdown: [Go to Product Catalog](/admin/catalog). Internal links (paths starting with /) open in-app. For prominent actions, use descriptive link text like [Edit Product](/admin/catalog) or [View Quote #42](/admin/quotes). You have full knowledge of all admin routes — use them to guide users directly.
-
-## URLs — Always Include When Discussing Products
-When you mention a product, family, or catalog item, include clickable links. get_product_details returns product_url (public) and admin_edit_url (admin edit). Use them:
-- **Public product page**: Use product_url from get_product_details, e.g. [View Abruzzo 5242](product_url). Customers see this.
-- **Admin edit**: Use admin_edit_url, e.g. [Edit Product](/admin/catalog?edit=42). Opens the product editor in the admin catalog.
-- **Families**: Public [View Alpine Family](/families/alpine). Admin [Edit Families](/admin/families).
-- **Catalog sections**: [Products](/admin/catalog), [Families](/admin/families), [Finishes](/admin/finishes), [Upholstery](/admin/upholstery), [Colors](/admin/colors).
-
-## Trust the Admin — Fix Data When They Say It's Wrong
-When the admin says catalog data is wrong (e.g. wrong category, wrong price, wrong description) — trust them. Acknowledge the correction, use **propose_edit** to fix it. For category/family/subcategory changes: use ONLY IDs from the Valid Reference IDs section above. Look up the target by name in that section (e.g. "Tables" → find its id). Never use an ID not listed there.
-
-## Suggesting Edits — Admin Must Approve
-When the admin asks you to change something, use **propose_edit**. Call search_catalog or get_product_details first to get entity_id. For product edits: base_price in cents (e.g. 25000 for $250). For category_id, subcategory_id, family_id: use ONLY IDs from the Valid Reference IDs section. If changing to "Tables", find "Tables" in that section and use its id. Edits with invalid IDs will fail.
+## Links
+Internal links open in-app: [Products](/admin/catalog), [Edit product](/admin/catalog?edit=ID), [Families](/admin/families), [Categories](/admin/categories), [Finishes](/admin/finishes), [Upholstery](/admin/upholstery), [Colors](/admin/colors), [Laminates](/admin/laminates), [Hardware](/admin/hardware), [Downloads/Catalogs](/admin/downloads), [Catalog Builder](/admin/catalog-builder), [Quotes](/admin/quotes). Public product pages come from product_url in get_product_details.
 
 ## EagleChair Domain Knowledge
-{EAGLECHAIR_DOMAIN_KNOWLEDGE}
-
-## EagleChair Context
-Eagle Chair is a premium B2B chair manufacturer selling to commercial clients (hotels, offices, restaurants). Products include chairs with various wood finishes, upholstery options, and hardware. Pricing is in cents in the database. Companies register for accounts and submit quote requests.{personality_block}{mode_block}{memory_block}{valid_ids_block}{training_block}"""
+{EAGLECHAIR_DOMAIN_KNOWLEDGE}{personality_block}{mode_block}{proposal_block}{memory_block}{valid_ids_block}{training_block}"""
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -877,6 +797,10 @@ class AIStreamEvent:
         return {"type": "tool_call", "data": {"tool_call": tool_call}}
 
     @staticmethod
+    def edit_batch(batch: dict) -> dict:
+        return {"type": "edit_batch", "data": {"batch": batch}}
+
+    @staticmethod
     def tool_call_started(name: str, label: str, args: dict) -> dict:
         return {"type": "tool_call_started", "data": {"name": name, "label": label, "args": args}}
 
@@ -885,169 +809,215 @@ TOOL_FRIENDLY_LABELS = {
     "web_search": "Searching the web",
     "fetch_webpage": "Reading webpage",
     "calculate": "Calculating",
+    "catalog_overview": "Counting catalog records",
+    "get_data_schema": "Reading data schema",
+    "list_records": "Listing records",
+    "get_records": "Loading records",
+    "audit_data_quality": "Auditing data quality",
     "search_catalog": "Searching catalog",
     "search_training_data": "Searching training data",
     "get_product_catalog": "Loading catalog",
     "get_training_vs_catalog_overview": "Comparing training to catalog",
     "get_product_details": "Fetching product details",
-    "create_product": "Creating product",
-    "propose_edit": "Suggesting edit",
+    "propose_changes": "Proposing changes",
 }
 
 
 def _tool_friendly_label(name: str, args: dict | None = None) -> str:
+    args = args or {}
     base = TOOL_FRIENDLY_LABELS.get(name, name.replace("_", " ").title())
-    if args and name == "search_catalog" and args.get("query"):
-        return f"Searching catalog for '{args.get('query', '')[:40]}'"
-    if args and name == "search_training_data" and args.get("query"):
-        return f"Searching training data for '{args.get('query', '')[:40]}'"
-    if args and name == "get_product_details":
-        models = args.get("model_numbers") or []
-        if models:
-            return f"Fetching details for {', '.join(str(m) for m in models[:3])}"
-    if args and name == "create_product":
-        mn = args.get("model_number", "")
-        nm = args.get("name", "")
-        if mn or nm:
-            return f"Creating product {mn} {nm}".strip()
-    if args and name == "fetch_webpage" and args.get("url"):
-        try:
-            from urllib.parse import urlparse
-            host = urlparse(args["url"]).netloc or "page"
-            return f"Reading {host}"
-        except Exception:
-            pass
-    if args and name == "web_search" and args.get("query"):
-        return f"Searching the web for '{args.get('query', '')[:30]}'"
-    if args and name == "calculate" and args.get("expression"):
-        return "Calculating"
+    entity = str(args.get("entity_type") or "").replace("_", " ")
+    if name == "search_catalog" and args.get("query"):
+        return f"Searching catalog for '{str(args['query'])[:40]}'"
+    if name == "search_training_data" and args.get("query"):
+        return f"Searching training data for '{str(args['query'])[:40]}'"
+    if name == "get_product_details" and args.get("model_numbers"):
+        return f"Fetching details for {', '.join(str(m) for m in args['model_numbers'][:3])}"
+    if name == "list_records" and entity:
+        label = f"Listing {entity} records"
+        if args.get("search"):
+            label += f" matching '{str(args['search'])[:30]}'"
+        if args.get("offset"):
+            label += f" (from {args['offset']})"
+        return label
+    if name == "get_records" and entity:
+        return f"Loading {len(args.get('ids') or [])} {entity} record(s)"
+    if name == "audit_data_quality" and entity:
+        return f"Auditing {entity} data"
+    if name == "propose_changes":
+        n = len(args.get("changes") or [])
+        return f"Proposing {n} change{'s' if n != 1 else ''}" + (f": {str(args.get('title'))[:50]}" if args.get("title") else "")
+    if name == "fetch_webpage" and args.get("url"):
+        host = urlparse(str(args["url"])).netloc or "page"
+        return f"Reading {host}"
+    if name == "web_search" and args.get("query"):
+        return f"Searching the web for '{str(args['query'])[:30]}'"
     return base
 
 
-async def _execute_tool_and_yield(
-    fc,
-    web_sources_accumulated: list,
-    search_count_ref: list,
-    yield_fn,
-    cancelled_fn,
-) -> tuple[types.Part, bool]:
-    """Execute one tool, yield events, return (FunctionResponse part, True if cancelled)."""
-    func_name = fc.name
-    func_args = dict(fc.args) if fc.args else {}
-    if func_name == "web_search":
-        if cancelled_fn():
-            return None, True
-        yield_fn(AIStreamEvent.tool_call_started(func_name, _tool_friendly_label(func_name, func_args), func_args))
-        query = func_args.get("query", "")
-        max_r = min(int(func_args.get("max_results", 12)), 15)
-        search_count_ref[0] += 1
-        yield_fn(AIStreamEvent.searching(query, search_count_ref[0]))
+@dataclass
+class ToolContext:
+    """Who/where a tool call runs for; propose_changes stores proposals against it."""
+    session_id: Optional[str] = None
+    message_id: Optional[str] = None
+    admin_user_id: Optional[int] = None
+    mode: str = "edit"
+    web_sources: list = field(default_factory=list)
+    search_count: int = 0
+
+
+TOOL_PREVIEW_MAX_CHARS = 12000  # tool results shown in / stored with the chat UI
+
+
+def _preview_result(result: Any) -> Any:
+    """Trim large tool results for the websocket + stored message (the model gets the full result)."""
+    try:
+        raw = json.dumps(result, default=str)
+    except (TypeError, ValueError):
+        return {"preview": str(result)[:TOOL_PREVIEW_MAX_CHARS]}
+    if len(raw) <= TOOL_PREVIEW_MAX_CHARS:
+        return result
+    if isinstance(result, dict):
+        slim = {}
+        for k, v in result.items():
+            if isinstance(v, list) and len(v) > 10:
+                slim[k] = v[:10]
+                slim[f"{k}_omitted"] = len(v) - 10
+            elif isinstance(v, str) and len(v) > 2000:
+                slim[k] = v[:2000] + "…"
+            else:
+                slim[k] = v
+        slim["_truncated_for_display"] = True
+        if len(json.dumps(slim, default=str)) <= TOOL_PREVIEW_MAX_CHARS * 2:
+            return slim
+    return {"preview": raw[:TOOL_PREVIEW_MAX_CHARS] + "…", "_truncated_for_display": True}
+
+
+async def _with_db(fn, *args, **kwargs):
+    async with AsyncSessionLocal() as db:
+        return await fn(db, *args, **kwargs)
+
+
+async def _run_tool(name: str, args: dict, ctx: ToolContext, emit) -> Any:
+    """Execute one tool and return its result (a JSON-serializable object)."""
+    if name == "web_search":
+        query = str(args.get("query", ""))
+        max_r = max(1, min(int(args.get("max_results") or 12), 15))
+        ctx.search_count += 1
+        emit(AIStreamEvent.searching(query, ctx.search_count))
         result = await asyncio.to_thread(web_search, query, max_r)
         sources = result.get("results", [])
-        web_sources_accumulated.extend(sources[:5])
-        yield_fn(AIStreamEvent.search_results(sources))
-        yield_fn(AIStreamEvent.tool_call({"name": func_name, "label": _tool_friendly_label(func_name, func_args), "args": func_args, "result": result}))
-        return types.Part(function_response=types.FunctionResponse(name=func_name, response={"result": result})), False
-    if func_name == "fetch_webpage":
-        if cancelled_fn():
-            return None, True
-        yield_fn(AIStreamEvent.tool_call_started(func_name, _tool_friendly_label(func_name, func_args), func_args))
-        url = func_args.get("url", "")
-        yield_fn(AIStreamEvent.fetching_url(url))
+        ctx.web_sources.extend(sources[:5])
+        emit(AIStreamEvent.search_results(sources))
+        return result
+    if name == "fetch_webpage":
+        url = str(args.get("url", ""))
+        emit(AIStreamEvent.fetching_url(url))
         result = await asyncio.to_thread(fetch_webpage, url)
-        if not any(s.get("url") == url for s in web_sources_accumulated):
-            web_sources_accumulated.append({"url": url, "title": (result.get("content", "")[:80] or "").strip(), "snippet": ""})
-        yield_fn(AIStreamEvent.tool_call({"name": func_name, "label": _tool_friendly_label(func_name, func_args), "args": func_args, "result": result}))
-        return types.Part(function_response=types.FunctionResponse(name=func_name, response={"result": result})), False
-    if func_name == "calculate":
-        if cancelled_fn():
-            return None, True
-        yield_fn(AIStreamEvent.tool_call_started(func_name, _tool_friendly_label(func_name, func_args), func_args))
-        expression = func_args.get("expression", "")
-        yield_fn(AIStreamEvent.calculating(expression))
-        result = await asyncio.to_thread(calculate, expression)
-        yield_fn(AIStreamEvent.tool_call({"name": func_name, "label": _tool_friendly_label(func_name, func_args), "args": func_args, "result": result}))
-        return types.Part(function_response=types.FunctionResponse(name=func_name, response={"result": result})), False
-    if func_name == "search_catalog":
-        if cancelled_fn():
-            return None, True
-        yield_fn(AIStreamEvent.tool_call_started(func_name, _tool_friendly_label(func_name, func_args), func_args))
-        query = func_args.get("query", "").strip()
-        yield_fn(AIStreamEvent.thinking(f"Searching catalog for '{query}'..."))
-        result = await search_catalog(query)
-        yield_fn(AIStreamEvent.tool_call({"name": func_name, "label": _tool_friendly_label(func_name, func_args), "args": func_args, "result": result}))
-        return types.Part(function_response=types.FunctionResponse(name=func_name, response={"result": result})), False
-    if func_name == "search_training_data":
-        if cancelled_fn():
-            return None, True
-        yield_fn(AIStreamEvent.tool_call_started(func_name, _tool_friendly_label(func_name, func_args), func_args))
-        query = func_args.get("query", "").strip()
-        max_r = min(int(func_args.get("max_results", 20)), 50)
-        yield_fn(AIStreamEvent.thinking(f"Searching training data for '{query}'..."))
-        result = await search_training_data(query, max_results=max_r)
-        yield_fn(AIStreamEvent.tool_call({"name": func_name, "label": _tool_friendly_label(func_name, func_args), "args": func_args, "result": result}))
-        return types.Part(function_response=types.FunctionResponse(name=func_name, response={"result": result})), False
-    if func_name == "get_product_catalog":
-        if cancelled_fn():
-            return None, True
-        yield_fn(AIStreamEvent.tool_call_started(func_name, _tool_friendly_label(func_name, func_args), func_args))
-        yield_fn(AIStreamEvent.thinking("Loading product catalog from database..."))
-        catalog_text = await fetch_product_catalog()
-        yield_fn(AIStreamEvent.tool_call({"name": func_name, "label": _tool_friendly_label(func_name, func_args), "args": func_args, "result": {"catalog_preview": catalog_text[:500] + "..." if len(catalog_text) > 500 else catalog_text}}))
-        return types.Part(function_response=types.FunctionResponse(name=func_name, response={"catalog": catalog_text})), False
-    if func_name == "get_training_vs_catalog_overview":
-        if cancelled_fn():
-            return None, True
-        yield_fn(AIStreamEvent.tool_call_started(func_name, _tool_friendly_label(func_name, func_args), func_args))
-        yield_fn(AIStreamEvent.thinking("Comparing training data to catalog..."))
-        result = await get_training_vs_catalog_overview()
-        yield_fn(AIStreamEvent.tool_call({"name": func_name, "label": _tool_friendly_label(func_name, func_args), "args": func_args, "result": result}))
-        return types.Part(function_response=types.FunctionResponse(name=func_name, response={"result": result})), False
-    if func_name == "get_product_details":
-        if cancelled_fn():
-            return None, True
-        yield_fn(AIStreamEvent.tool_call_started(func_name, _tool_friendly_label(func_name, func_args), func_args))
-        pids = func_args.get("product_ids") or []
-        models = func_args.get("model_numbers") or []
-        label = ", ".join(str(m) for m in models) if models else f"{len(pids)} product(s)"
-        yield_fn(AIStreamEvent.thinking(f"Fetching full specs for {label}..."))
-        result = await get_product_details(product_ids=pids, model_numbers=models)
-        yield_fn(AIStreamEvent.tool_call({"name": func_name, "label": _tool_friendly_label(func_name, func_args), "args": func_args, "result": result}))
-        return types.Part(function_response=types.FunctionResponse(name=func_name, response={"result": result})), False
-    if func_name == "create_product":
-        if cancelled_fn():
-            return None, True
-        yield_fn(AIStreamEvent.tool_call_started(func_name, _tool_friendly_label(func_name, func_args), func_args))
-        name = func_args.get("name", "").strip()
-        model_number = func_args.get("model_number", "").strip()
-        category_id = func_args.get("category_id")
-        base_price = int(func_args.get("base_price", 0))
-        yield_fn(AIStreamEvent.thinking(f"Creating product {model_number} {name}..."))
-        created = await create_product_in_db(
-            name=name, model_number=model_number, category_id=category_id, base_price=base_price,
-            short_description=func_args.get("short_description"), full_description=func_args.get("full_description"),
-            family_id=func_args.get("family_id"), subcategory_id=func_args.get("subcategory_id"),
-            stock_status=func_args.get("stock_status"), msrp=func_args.get("msrp"),
+        if not any(s.get("url") == url for s in ctx.web_sources):
+            ctx.web_sources.append({"url": url, "title": (result.get("content", "")[:80] or "").strip(), "snippet": ""})
+        return result
+    if name == "calculate":
+        expression = str(args.get("expression", ""))
+        emit(AIStreamEvent.calculating(expression))
+        return await asyncio.to_thread(calculate, expression)
+    if name == "catalog_overview":
+        return await _with_db(catalog_overview)
+    if name == "get_data_schema":
+        return describe_schema(args.get("entity_type") or None)
+    if name == "list_records":
+        return await _with_db(
+            list_records,
+            args.get("entity_type"),
+            search=args.get("search"),
+            filters=args.get("filters"),
+            include_inactive=args.get("include_inactive", True) is not False,
+            fields=args.get("fields"),
+            limit=args.get("limit") or 100,
+            offset=args.get("offset") or 0,
         )
-        yield_fn(AIStreamEvent.tool_call({"name": func_name, "label": _tool_friendly_label(func_name, func_args), "args": func_args, "result": created}))
-        return types.Part(function_response=types.FunctionResponse(name=func_name, response={"result": created})), False
-    if func_name == "propose_edit":
-        yield_fn(AIStreamEvent.tool_call_started(func_name, _tool_friendly_label(func_name, func_args), func_args))
-        entity_type = func_args.get("entity_type", "")
-        entity_id = func_args.get("entity_id")
-        entity_name = func_args.get("entity_name", "")
-        changes = func_args.get("changes", {})
-        reason = func_args.get("reason", "")
-        if entity_type and entity_id is not None and changes:
-            yield_fn(AIStreamEvent.suggested_edit({
-                "entity_type": entity_type, "entity_id": int(entity_id), "entity_name": str(entity_name),
-                "changes": changes, "reason": reason,
+    if name == "get_records":
+        return await _with_db(get_records, args.get("entity_type"), args.get("ids") or [])
+    if name == "audit_data_quality":
+        return await _with_db(
+            audit_data_quality, args.get("entity_type"), filters=args.get("filters"), max_issues=args.get("max_issues") or 300,
+        )
+    if name == "search_catalog":
+        return await search_catalog(str(args.get("query", "")).strip())
+    if name == "search_training_data":
+        max_r = max(1, min(int(args.get("max_results") or 20), 50))
+        return await search_training_data(str(args.get("query", "")).strip(), max_results=max_r)
+    if name == "get_product_catalog":
+        return {"catalog": await fetch_product_catalog()}
+    if name == "get_training_vs_catalog_overview":
+        return await get_training_vs_catalog_overview()
+    if name == "get_product_details":
+        return await get_product_details(
+            product_ids=args.get("product_ids") or [], model_numbers=args.get("model_numbers") or [],
+        )
+    if name == "propose_changes":
+        if ctx.mode == "ask":
+            return {"error": "Ask mode is read-only; ask the admin to switch to Edit or Agent mode to propose changes."}
+        if not ctx.session_id:
+            return {"error": "Proposals need a chat session"}
+        result = await _with_db(
+            create_proposals,
+            session_id=ctx.session_id,
+            message_id=ctx.message_id,
+            admin_user_id=ctx.admin_user_id,
+            title=args.get("title"),
+            changes=args.get("changes") or [],
+        )
+        if result.get("accepted"):
+            emit(AIStreamEvent.edit_batch({
+                "batch_id": result["batch_id"], "title": result["title"], "edits": result["edits"],
             }))
-        yield_fn(AIStreamEvent.tool_call({"name": func_name, "label": _tool_friendly_label(func_name, func_args), "args": func_args, "result": {"status": "suggested", "message": "Edit suggested for admin approval"}}))
-        return types.Part(function_response=types.FunctionResponse(name=func_name, response={"status": "suggested", "message": "Edit suggested for admin approval"})), False
-    err_result = {"error": f"Unknown tool: {func_name}"}
-    yield_fn(AIStreamEvent.tool_call({"name": func_name, "label": _tool_friendly_label(func_name, func_args), "args": func_args, "result": err_result}))
-    return types.Part(function_response=types.FunctionResponse(name=func_name, response=err_result)), False
+        # The model only needs ids + outcome, not the full rows back
+        out = {
+            "batch_id": result.get("batch_id"),
+            "accepted": result.get("accepted", 0),
+            "accepted_ids": [
+                {"proposal_id": e["id"], "entity_type": e["entity_type"], "entity_id": e["entity_id"], "action": e["action"]}
+                for e in result.get("edits", [])
+            ],
+            "rejected": result.get("rejected", []),
+            "status": "Waiting for admin review. Nothing has been written yet.",
+        }
+        if result.get("error"):
+            out["error"] = result["error"]
+        return out
+    return {"error": f"Unknown tool: {name}"}
+
+
+async def _execute_tool(fc, ctx: ToolContext) -> tuple[types.Part, dict, list[dict]]:
+    """Run one call; returns (function_response part, UI record, events the tool emitted)."""
+    events: list[dict] = []
+    emit = events.append
+    name = fc.name or ""
+    args = dict(fc.args) if fc.args else {}
+    label = _tool_friendly_label(name, args)
+    try:
+        result = await _run_tool(name, args, ctx, emit)
+    except ValueError as e:  # bad entity_type / filter field etc. — let the model correct itself
+        result = {"error": str(e)}
+    except Exception as e:
+        logger.exception(f"AI tool {name} failed")
+        result = {"error": f"{type(e).__name__}: {e}"}
+    if not isinstance(result, dict):
+        result = {"result": result}
+    response = types.Part(function_response=types.FunctionResponse(id=fc.id, name=name, response=result))
+    return response, {"name": name, "label": label, "args": _preview_result(args), "result": _preview_result(result)}, events
+
+
+def _thinking_level(model_option: str | None) -> str:
+    if model_option == "deep":
+        return "high"
+    level = (getattr(settings, "GEMINI_THINKING_LEVEL", None) or "medium").lower()
+    return level if level in ("minimal", "low", "medium", "high") else "medium"
+
+
+_RETRYABLE_CODES = {429, 500, 502, 503, 504}
+_BLOCK_FINISH_REASONS = ("SAFETY", "RECITATION", "PROHIBITED_CONTENT", "BLOCKLIST", "SPII")
 
 
 async def stream_ai_response(
@@ -1056,29 +1026,33 @@ async def stream_ai_response(
     model: str | None = None,
     mode: str = "edit",
     cancelled: asyncio.Event | None = None,
+    tool_context: ToolContext | None = None,
 ) -> AsyncGenerator[dict, None]:
     """
-    Agent-style streaming: yields text and tool_call events interleaved as the model produces them.
-    Uses generate_content_stream so we get text chunks before/after tool calls.
+    Agent loop: stream model output, run every function call the model makes
+    (concurrently), feed the results back, and repeat until the model answers.
+
+    The model's turn is sent back verbatim (all parts, including thought
+    signatures), which Gemini 3+ requires for multi-step function calling.
     """
     client = get_gemini_client()
-    gemini_model = getattr(settings, "GEMINI_MODEL", "gemini-2.5-flash-lite")
-    tools = _get_tools_for_mode(mode)
+    gemini_model = settings.GEMINI_MODEL
+    ctx = tool_context or ToolContext()
+    ctx.mode = mode
 
     def _cancelled() -> bool:
         return cancelled is not None and cancelled.is_set()
 
-    contents = []
-    for msg in session_messages:
-        role = "user" if msg["role"] == "user" else "model"
-        contents.append(types.Content(role=role, parts=[types.Part(text=msg["content"])]))
-
-    web_sources_accumulated = []
-    search_count_ref = [0]
+    contents = [
+        types.Content(role="user" if m["role"] == "user" else "model", parts=[types.Part(text=m["content"])])
+        for m in session_messages
+        if (m.get("content") or "").strip()
+    ]
     config = types.GenerateContentConfig(
         system_instruction=system_prompt,
-        tools=tools,
-        temperature=0.6,
+        tools=_get_tools_for_mode(mode),
+        thinking_config=types.ThinkingConfig(thinking_level=_thinking_level(model)),
+        automatic_function_calling=types.AutomaticFunctionCallingConfig(disable=True),
         max_output_tokens=65536,
     )
 
@@ -1086,118 +1060,109 @@ async def stream_ai_response(
         return
     yield AIStreamEvent.thinking()
 
-    max_tool_rounds = 10
-    tool_round = 0
-    last_response = None
-    tokens = 0
+    max_rounds = 40 if mode == "agent" else 25
+    total_tokens = 0
+    produced_text = False
 
-    while tool_round < max_tool_rounds:
-        tool_round += 1
-        if _cancelled():
-            break
+    for _round in range(max_rounds):
+        model_parts: list[types.Part] = []
+        calls: list = []
+        round_tokens = 0
+        finish_reason = None
 
-        chunk_queue = queue.Queue()
-        stream_error = [None]
-
-        def produce():
+        for attempt in range(3):
             try:
-                for c in client.models.generate_content_stream(
-                    model=gemini_model,
-                    contents=contents,
-                    config=config,
-                ):
-                    chunk_queue.put(c)
-            except Exception as e:
-                stream_error[0] = e
-            finally:
-                chunk_queue.put(None)
-
-        thread = threading.Thread(target=produce, daemon=True)
-        thread.start()
-
-        hit_function_call = False
-        model_content_with_fc = None
-
-        while True:
-            if _cancelled():
+                stream = await client.aio.models.generate_content_stream(
+                    model=gemini_model, contents=contents, config=config,
+                )
+                try:
+                    async for chunk in stream:
+                        if _cancelled():
+                            break
+                        usage = getattr(chunk, "usage_metadata", None)
+                        if usage and getattr(usage, "total_token_count", None):
+                            round_tokens = usage.total_token_count
+                        if not chunk.candidates:
+                            block = getattr(getattr(chunk, "prompt_feedback", None), "block_reason", None)
+                            if block:
+                                yield AIStreamEvent.error(f"The request was blocked by the model ({block}).")
+                                return
+                            continue
+                        cand = chunk.candidates[0]
+                        finish_reason = getattr(cand, "finish_reason", None) or finish_reason
+                        parts = (getattr(cand.content, "parts", None) or []) if cand.content else []
+                        for part in parts:
+                            model_parts.append(part)
+                            if getattr(part, "thought", None):
+                                continue
+                            if part.text:
+                                produced_text = True
+                                yield AIStreamEvent.text_chunk(part.text)
+                            if part.function_call:
+                                calls.append(part.function_call)
+                finally:
+                    aclose = getattr(stream, "aclose", None)
+                    if aclose:
+                        try:
+                            await aclose()
+                        except Exception:
+                            pass
                 break
-            try:
-                chunk = await asyncio.to_thread(chunk_queue.get)
-            except Exception:
-                break
-            if chunk is None:
-                if stream_error[0]:
-                    yield AIStreamEvent.error(f"AI error: {str(stream_error[0])}")
-                    return
-                break
-
-            last_response = chunk
-            usage = getattr(chunk, "usage_metadata", None)
-            if usage:
-                tokens = getattr(usage, "total_token_count", 0) or tokens
-
-            if not chunk.candidates:
-                reason = getattr(getattr(chunk, "prompt_feedback", None), "block_reason", None)
-                if reason:
-                    yield AIStreamEvent.error(f"No response from AI (blocked: {reason})")
-                    return
-                continue
-
-            content = getattr(chunk.candidates[0], "content", None)
-            parts = getattr(content, "parts", None) or []
-
-            for part in parts:
-                if _cancelled():
-                    break
-                if getattr(part, "text", None):
-                    yield AIStreamEvent.text_chunk(part.text)
-                if getattr(part, "function_call", None):
-                    fc = part.function_call
-                    model_content_with_fc = types.Content(role="model", parts=[types.Part(function_call=fc)])
-                    hit_function_call = True
-                    break
-            if hit_function_call:
-                break
-
-        if _cancelled():
-            break
-        if not hit_function_call:
-            break
-
-        contents.append(model_content_with_fc)
-        tool_results = []
-        content = getattr(last_response.candidates[0], "content", None) if last_response and last_response.candidates else None
-        parts = getattr(content, "parts", None) or []
-        for part in parts:
-            if not getattr(part, "function_call", None):
-                continue
-            fc = part.function_call
-            events = []
-            def collect(e):
-                events.append(e)
-            resp_part, was_cancelled = await _execute_tool_and_yield(
-                fc, web_sources_accumulated, search_count_ref, collect, _cancelled,
-            )
-            if was_cancelled:
+            except genai_errors.APIError as e:
+                code = getattr(e, "code", None)
+                if code in _RETRYABLE_CODES and attempt < 2 and not model_parts:
+                    yield AIStreamEvent.thinking("The model is busy, retrying...")
+                    await asyncio.sleep(2 * (attempt + 1))
+                    continue
+                logger.error(f"Gemini API error ({gemini_model}): {e}")
+                if code == 404:
+                    yield AIStreamEvent.error(
+                        f"AI model '{gemini_model}' is not available. Check GEMINI_MODEL in the server settings."
+                    )
+                else:
+                    yield AIStreamEvent.error(f"AI error: {getattr(e, 'message', None) or e}")
                 return
+        total_tokens += round_tokens
+
+        if _cancelled():
+            return
+        if not calls:
+            reason = str(finish_reason or "")
+            if not produced_text and reason.endswith(_BLOCK_FINISH_REASONS):
+                yield AIStreamEvent.error(f"The model stopped without answering ({reason}).")
+                return
+            if reason.endswith("MAX_TOKENS"):
+                yield AIStreamEvent.text_chunk("\n\n_(Response hit the output limit — ask me to continue.)_")
+            break
+
+        contents.append(types.Content(role="model", parts=model_parts))
+
+        # Announce every call, run them concurrently, then report results in call order
+        for fc in calls:
+            args = dict(fc.args) if fc.args else {}
+            yield AIStreamEvent.tool_call_started(fc.name, _tool_friendly_label(fc.name, args), _preview_result(args))
+        outcomes = await asyncio.gather(*(_execute_tool(fc, ctx) for fc in calls))
+        if _cancelled():
+            return
+        for _, record, events in outcomes:
+            yield AIStreamEvent.tool_call(record)
             for ev in events:
                 yield ev
-            if resp_part:
-                tool_results.append(resp_part)
-
-        contents.append(types.Content(role="user", parts=tool_results))
-        yield AIStreamEvent.thinking("Processing results...")
+        contents.append(types.Content(role="user", parts=[resp for resp, _, _ in outcomes]))
+        yield AIStreamEvent.thinking("Working with the results...")
+    else:
+        yield AIStreamEvent.text_chunk(
+            f"\n\n_(Stopped after {max_rounds} tool rounds. Say \"continue\" to keep going.)_"
+        )
 
     seen_urls = set()
     unique_sources = []
-    for s in web_sources_accumulated:
+    for s in ctx.web_sources:
         url = s.get("url", "")
         if url and url not in seen_urls:
             seen_urls.add(url)
             unique_sources.append(s)
-    yield AIStreamEvent.message_done("", tokens, unique_sources)
-
-
+    yield AIStreamEvent.message_done("", total_tokens, unique_sources)
 
 
 async def generate_chat_title(first_message: str) -> str:
@@ -1206,7 +1171,7 @@ async def generate_chat_title(first_message: str) -> str:
         client = get_gemini_client()
         response = await asyncio.to_thread(
             lambda: client.models.generate_content(
-                model="gemini-2.0-flash",
+                model=settings.GEMINI_FAST_MODEL,
                 contents=f"Generate a concise 3-7 word title for this chat message. Return ONLY the title, no quotes or punctuation:\n\n{first_message[:500]}",
                 config=types.GenerateContentConfig(
                     max_output_tokens=30,
@@ -1254,7 +1219,7 @@ Return [] if nothing meets the criteria. Return ONLY valid JSON."""
 
         response = await asyncio.to_thread(
             lambda: client.models.generate_content(
-                model="gemini-2.0-flash",
+                model=settings.GEMINI_FAST_MODEL,
                 contents=prompt,
                 config=types.GenerateContentConfig(max_output_tokens=1024, temperature=0.2),
             )
@@ -1327,7 +1292,7 @@ Output valid JSON only:
 
         response = await asyncio.to_thread(
             lambda: client.models.generate_content(
-                model="gemini-2.0-flash",
+                model=settings.GEMINI_MODEL,
                 contents=analysis_prompt,
                 config=types.GenerateContentConfig(max_output_tokens=65536, temperature=0.1),
             )
@@ -1369,30 +1334,28 @@ Output valid JSON only:
 
 async def get_eaglechair_context(db: AsyncSession) -> str:
     """Get a brief overview of current EagleChair data for AI context."""
+    from sqlalchemy import func as sa_func
+
+    from backend.models.chair import Category, Chair
+    from backend.models.company import Company, CompanyStatus
+    from backend.models.quote import Quote
+
     try:
-        results = {}
+        async def count(q):
+            return (await db.execute(q)).scalar() or 0
 
-        # Product count
-        r = await db.execute(text("SELECT COUNT(*) as cnt FROM chairs WHERE is_active = true"))
-        results["active_products"] = r.scalar() or 0
-
-        # Quote count (recent)
-        r = await db.execute(text("SELECT COUNT(*) as cnt FROM quotes WHERE created_at >= NOW() - INTERVAL '30 days'"))
-        results["quotes_last_30d"] = r.scalar() or 0
-
-        # Company count
-        r = await db.execute(text("SELECT COUNT(*) as cnt FROM companies WHERE status = 'active'"))
-        results["active_companies"] = r.scalar() or 0
-
-        # Category count
-        r = await db.execute(text("SELECT COUNT(*) as cnt FROM categories"))
-        results["categories"] = r.scalar() or 0
-
+        products = await count(select(sa_func.count()).select_from(Chair).where(Chair.is_active.is_(True)))
+        companies = await count(
+            select(sa_func.count()).select_from(Company).where(Company.status == CompanyStatus.ACTIVE)
+        )
+        quotes = await count(
+            select(sa_func.count()).select_from(Quote)
+            .where(Quote.created_at >= datetime.utcnow() - timedelta(days=30))
+        )
+        categories = await count(select(sa_func.count()).select_from(Category))
         return (
-            f"Current EagleChair Data: {results['active_products']} active products, "
-            f"{results['active_companies']} active companies, "
-            f"{results['quotes_last_30d']} quotes in last 30 days, "
-            f"{results['categories']} categories."
+            f"Current EagleChair Data: {products} active products, {companies} active companies, "
+            f"{quotes} quotes in last 30 days, {categories} categories."
         )
     except Exception as e:
         logger.debug(f"Could not fetch EagleChair context: {e}")
@@ -1986,62 +1949,6 @@ async def search_catalog(query: str, max_results: int = 50) -> dict:
     except Exception as e:
         logger.error(f"Catalog search failed: {e}")
         return {"error": str(e), "query": query, "families": [], "products": [], "variations": [], "finishes": [], "upholsteries": [], "colors": [], "categories": []}
-
-
-def _slugify(text: str) -> str:
-    s = re.sub(r"[^a-z0-9]+", "-", text.lower()).strip("-")
-    return s[:255] if s else "product"
-
-
-async def create_product_in_db(
-    name: str,
-    model_number: str,
-    category_id: int,
-    base_price: int,
-    short_description: str | None = None,
-    full_description: str | None = None,
-    family_id: int | None = None,
-    subcategory_id: int | None = None,
-    stock_status: str | None = None,
-    msrp: int | None = None,
-) -> dict:
-    """Create a new product. Returns created product info or error."""
-    try:
-        slug = _slugify(f"{model_number}-{name}")
-        async with AsyncSessionLocal() as db:
-            from backend.services.admin_service import AdminService
-
-            product_data = {
-                "name": name,
-                "model_number": model_number,
-                "slug": slug,
-                "category_id": category_id,
-                "base_price": base_price,
-                "stock_status": stock_status or "Made to Order",
-            }
-            if short_description is not None:
-                product_data["short_description"] = short_description
-            if full_description is not None:
-                product_data["full_description"] = full_description
-            if family_id is not None:
-                product_data["family_id"] = family_id
-            if subcategory_id is not None:
-                product_data["subcategory_id"] = subcategory_id
-            if msrp is not None:
-                product_data["msrp"] = msrp
-
-            product = await AdminService.create_product(db=db, product_data=product_data)
-            return {
-                "success": True,
-                "id": product.id,
-                "name": product.name,
-                "model_number": product.model_number,
-                "slug": product.slug,
-                "admin_edit_url": f"/admin/catalog?edit={product.id}",
-            }
-    except Exception as e:
-        logger.error(f"create_product_in_db failed: {e}")
-        return {"success": False, "error": str(e)}
 
 
 async def get_product_details(product_ids: list | None = None, model_numbers: list | None = None) -> dict:

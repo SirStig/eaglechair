@@ -4,43 +4,46 @@
  * Shows as a compact panel or full-screen mode.
  */
 
-import { useRef, useEffect, useCallback, useState } from 'react';
+import { useRef, useCallback, useState } from 'react';
 import { useMediaQuery } from '../../../hooks/useMediaQuery';
 import { m, AnimatePresence } from 'framer-motion';
-import { X, Maximize2, Minimize2, ChevronLeft, MessageSquare, Loader2 } from 'lucide-react';
+import { X, Maximize2, PanelLeft, Plus, Loader2, ArrowUpRight } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useAIChat } from '../../../contexts/AIChatContext';
 import AIChatInput from './AIChatInput';
 import AIChatSidebar from './AIChatSidebar';
 import ChatMessageList from './ChatMessageList';
 import SuggestedEditsBar from './SuggestedEditsBar';
+import AIMark from './AIMark';
 
 function WelcomeScreen({ onSuggestionClick }) {
   const suggestions = [
     'Analyze quote trends',
     'Research competitor pricing',
     'Calculate margins',
-    'Summarize pricing sheet',
+    'Summarize a pricing sheet',
   ];
   return (
-    <div className="flex flex-col items-center justify-center h-full text-center px-4">
-      <div className="w-10 h-10 sm:w-14 sm:h-14 rounded-2xl bg-dark-800 flex items-center justify-center mb-3 shadow-lg p-2">
-        <img src="/web-app-manifest-192x192.png" alt="Eagle Chair" className="w-full h-full object-contain" />
-      </div>
-      <h3 className="text-xs sm:text-sm font-bold text-dark-50 mb-1.5">EagleChair AI Assistant</h3>
-      <p className="text-[11px] sm:text-xs text-dark-400 leading-relaxed max-w-xs">
-        Ask about quotes, pricing, products, and more.
-      </p>
-      <div className="grid grid-cols-2 gap-2 mt-4 w-full max-w-xs">
-        {suggestions.map((suggestion, i) => (
-          <button
-            key={i}
-            onClick={() => onSuggestionClick?.(suggestion)}
-            className="text-left text-[11px] sm:text-xs bg-dark-800 hover:bg-dark-700 border border-dark-700 hover:border-dark-600 rounded-xl p-2 text-dark-300 hover:text-dark-100 transition-colors leading-tight"
-          >
-            {suggestion}
-          </button>
-        ))}
+    <div className="flex-1 overflow-y-auto">
+      <div className="min-h-full flex flex-col justify-end px-4 pb-4 pt-8">
+        <AIMark size="md" className="mb-4" />
+        <h3 className="!text-base font-semibold text-chat-text">How can I help?</h3>
+        <p className="text-[13px] text-chat-muted leading-relaxed mt-1">
+          Ask about quotes, pricing, products and more. Answers here are read-only.
+        </p>
+        <div className="mt-4 rounded-xl border border-chat-line divide-y divide-chat-line overflow-hidden">
+          {suggestions.map((suggestion) => (
+            <button
+              key={suggestion}
+              type="button"
+              onClick={() => onSuggestionClick?.(suggestion)}
+              className="group w-full flex items-center justify-between gap-2 text-left px-3.5 py-2.5 text-[13px] text-chat-text hover:bg-white/[0.03] transition-colors"
+            >
+              {suggestion}
+              <ArrowUpRight className="w-3.5 h-3.5 text-chat-faint group-hover:text-chat-accent transition-colors" />
+            </button>
+          ))}
+        </div>
       </div>
     </div>
   );
@@ -52,7 +55,6 @@ export default function AIChatWidget() {
     isOpen,
     isFullScreen,
     closeChat,
-    toggleFullScreen,
     sessions,
     currentSessionId,
     messages,
@@ -105,106 +107,103 @@ export default function AIChatWidget() {
     <AnimatePresence>
       <m.div
         key="chat-widget"
-        initial={{ opacity: 0, scale: 0.95, y: 10 }}
+        initial={{ opacity: 0, scale: 0.97, y: 8 }}
         animate={{ opacity: 1, scale: 1, y: 0 }}
-        exit={{ opacity: 0, scale: 0.95, y: 10 }}
-        transition={{ duration: 0.2, ease: 'easeOut' }}
+        exit={{ opacity: 0, scale: 0.97, y: 8 }}
+        transition={{ duration: 0.18, ease: 'easeOut' }}
+        style={{ transformOrigin: 'bottom right' }}
         className={`
-          fixed z-[999] bg-dark-850 border border-dark-700 shadow-2xl flex flex-col overflow-hidden
+          ai-chat fixed z-[999] bg-dark-900 border border-chat-line-strong shadow-2xl shadow-black/60 flex flex-col overflow-hidden
           ${isFullScreen
             ? 'inset-0 rounded-none'
-            : 'left-2 right-2 top-2 bottom-2 sm:left-auto sm:right-6 sm:top-auto sm:bottom-20 sm:w-[420px] rounded-2xl h-[calc(100dvh-1rem)] sm:h-[600px]'
+            : 'left-2 right-2 top-2 bottom-2 sm:left-auto sm:right-6 sm:top-auto sm:bottom-24 sm:w-[420px] rounded-2xl h-[calc(100dvh-1rem)] sm:h-[min(640px,calc(100dvh-8rem))]'
           }
         `}
-        style={{ '--tw-bg-opacity': '1', backgroundColor: 'rgb(15 17 23 / var(--tw-bg-opacity))' }}
       >
         {/* Safe-area top spacer — only affects standalone on notched devices in full-screen */}
-        {isFullScreen && <div className="pt-safe bg-dark-800 flex-shrink-0" />}
+        {isFullScreen && <div className="pt-safe flex-shrink-0" />}
 
         {/* Header */}
-        <div className="flex items-center justify-between px-3 sm:px-4 py-3 border-b border-dark-700 bg-dark-800/80 backdrop-blur-sm flex-shrink-0">
-          <div className="flex items-center gap-2">
-            <button
-              onClick={() => setShowSidebar(!showSidebar)}
-              className="w-7 h-7 rounded-lg flex items-center justify-center text-dark-400 hover:text-dark-100 hover:bg-dark-700 transition-colors"
-              title="Chat history"
-            >
-              <ChevronLeft className={`w-4 h-4 transition-transform ${showSidebar ? '' : 'rotate-180'}`} />
-            </button>
-            <div className="w-7 h-7 rounded-lg bg-dark-700 flex items-center justify-center p-1">
-              <img src="/web-app-manifest-192x192.png" alt="Eagle Chair" className="w-full h-full object-contain" />
-            </div>
-            <div>
-              <p className="text-sm font-semibold text-dark-50 leading-none">Eagle AI</p>
-              <p className="text-[10px] text-dark-400 mt-0.5">
-                {isStreaming ? (
-                  <span className="text-chat-accent flex items-center gap-1">
-                    <span className="w-1.5 h-1.5 rounded-full bg-chat-accent animate-pulse inline-block" />
-                    Responding...
-                  </span>
-                ) : 'Ready'}
-              </p>
+        <div className="flex items-center justify-between h-14 pl-2 pr-2 border-b border-chat-line flex-shrink-0">
+          <div className="flex items-center gap-1 min-w-0">
+            <HeaderButton onClick={() => setShowSidebar(!showSidebar)} title={showSidebar ? 'Hide chats' : 'Chat history'} active={showSidebar}>
+              <PanelLeft className="w-4 h-4" />
+            </HeaderButton>
+            <div className="flex items-center gap-2.5 min-w-0 pl-1">
+              <AIMark size="xs" />
+              <div className="min-w-0">
+                <p className="text-sm font-semibold text-chat-text leading-tight">Eagle AI</p>
+                <p className="text-[11px] text-chat-faint leading-tight mt-0.5">
+                  {isStreaming ? (
+                    <span className="inline-flex items-center gap-1.5 text-chat-accent">
+                      <span className="w-1.5 h-1.5 rounded-full bg-chat-accent animate-pulse" />
+                      Responding
+                    </span>
+                  ) : 'Ask mode · read-only'}
+                </p>
+              </div>
             </div>
           </div>
 
-          <div className="flex items-center gap-1">
-            <button
-              onClick={handleOpenFullScreen}
-              className="w-7 h-7 rounded-lg flex items-center justify-center text-dark-400 hover:text-dark-100 hover:bg-dark-700 transition-colors"
-              title="Open full screen"
-            >
+          <div className="flex items-center gap-0.5">
+            <HeaderButton onClick={() => { newChat(); setShowSidebar(false); }} title="New chat">
+              <Plus className="w-4 h-4" />
+            </HeaderButton>
+            <HeaderButton onClick={handleOpenFullScreen} title="Open full screen">
               <Maximize2 className="w-3.5 h-3.5" />
-            </button>
-            <button
-              onClick={closeChat}
-              className="w-7 h-7 rounded-lg flex items-center justify-center text-dark-400 hover:text-dark-100 hover:bg-dark-700 transition-colors"
-              title="Close"
-            >
+            </HeaderButton>
+            <HeaderButton onClick={closeChat} title="Close">
               <X className="w-4 h-4" />
-            </button>
+            </HeaderButton>
           </div>
         </div>
 
         {/* Body */}
         <div className="flex flex-1 overflow-hidden relative">
-          {showSidebar && isMobile && (
-            <div
-              className="absolute inset-0 z-10 bg-black/50 sm:hidden"
-              onClick={() => setShowSidebar(false)}
-              aria-hidden
-            />
-          )}
           <AnimatePresence>
             {showSidebar && (
-              <m.div
-                initial={{ width: 0, opacity: 0 }}
-                animate={{ width: isMobile ? '100%' : 208, opacity: 1 }}
-                exit={{ width: 0, opacity: 0 }}
-                transition={{ duration: 0.2 }}
-                className="absolute sm:relative inset-y-0 left-0 z-20 w-full sm:w-[224px] sm:max-w-none overflow-hidden flex-shrink-0 sm:bg-transparent"
-              >
-                <AIChatSidebar
-                  sessions={sessions}
-                  currentSessionId={currentSessionId}
-                  onSelect={(id) => { switchSession(id); setShowSidebar(false); }}
-                  onNew={() => { newChat(); setShowSidebar(false); }}
-                  onDelete={handleDeleteSession}
-                  onUpdate={handleUpdateSession}
-                  onClose={isMobile ? () => setShowSidebar(false) : undefined}
-                  showCloseButton={isMobile}
+              <>
+                <m.div
+                  key="scrim"
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  exit={{ opacity: 0 }}
+                  transition={{ duration: 0.15 }}
+                  className="absolute inset-0 z-10 bg-black/50"
+                  onClick={() => setShowSidebar(false)}
+                  aria-hidden
                 />
-              </m.div>
+                <m.div
+                  key="sidebar"
+                  initial={{ x: '-100%' }}
+                  animate={{ x: 0 }}
+                  exit={{ x: '-100%' }}
+                  transition={{ duration: 0.2, ease: 'easeOut' }}
+                  className="absolute inset-y-0 left-0 z-20 w-full sm:w-[272px] shadow-2xl shadow-black/60"
+                >
+                  <AIChatSidebar
+                    sessions={sessions}
+                    currentSessionId={currentSessionId}
+                    onSelect={(id) => { switchSession(id); setShowSidebar(false); }}
+                    onNew={() => { newChat(); setShowSidebar(false); }}
+                    onDelete={handleDeleteSession}
+                    onUpdate={handleUpdateSession}
+                    onClose={isMobile ? () => setShowSidebar(false) : undefined}
+                    showCloseButton={isMobile}
+                  />
+                </m.div>
+              </>
             )}
           </AnimatePresence>
 
           {/* Chat area */}
-          <div className="flex-1 flex flex-col overflow-hidden">
+          <div className="flex-1 flex flex-col overflow-hidden min-w-0">
             {/* Messages */}
             <div className="flex-1 min-h-0 flex flex-col overflow-hidden">
               {isLoadingChat ? (
-                <div className="flex flex-col items-center justify-center h-full min-h-[200px]">
-                  <Loader2 className="w-8 h-8 animate-spin text-chat-accent" />
-                  <p className="text-xs text-dark-400 mt-3">Loading chat...</p>
+                <div className="flex flex-col items-center justify-center h-full">
+                  <Loader2 className="w-5 h-5 animate-spin text-chat-faint" />
+                  <p className="text-[13px] text-chat-muted mt-3">Loading conversation…</p>
                 </div>
               ) : messages.length === 0 ? (
                 <WelcomeScreen onSuggestionClick={sendMessage} />
@@ -240,6 +239,7 @@ export default function AIChatWidget() {
               pendingFiles={pendingFiles}
               onRemoveFile={removePendingFile}
               showModeSelectors={false}
+              placeholder="Ask Eagle AI…"
             />
             {/* Safe-area bottom spacer in full-screen standalone */}
             {isFullScreen && <div className="pb-safe flex-shrink-0" />}
@@ -250,3 +250,18 @@ export default function AIChatWidget() {
   );
 }
 
+function HeaderButton({ onClick, title, active, children }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      title={title}
+      aria-label={title}
+      className={`w-8 h-8 rounded-lg flex items-center justify-center transition-colors ${
+        active ? 'bg-white/[0.08] text-chat-text' : 'text-chat-muted hover:text-chat-text hover:bg-white/[0.06]'
+      }`}
+    >
+      {children}
+    </button>
+  );
+}

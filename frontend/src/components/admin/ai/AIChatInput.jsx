@@ -1,164 +1,97 @@
 /**
  * AI Chat Input
- * Message input with file attachment, send button, mode/model dropdowns
+ * Composer: auto-growing message box with a toolbar for attachments,
+ * mode/model selection and send/stop.
  */
 
 import { useState, useRef, useCallback, useEffect } from 'react';
-import { createPortal } from 'react-dom';
 import { m, AnimatePresence } from 'framer-motion';
-import { Send, Paperclip, X, Loader2, Image, FileText, Table, Square, ChevronDown } from 'lucide-react';
-
-const TOOLTIP_PADDING = 8;
-const TOOLTIP_MIN_WIDTH = 200;
-const TOOLTIP_MAX_WIDTH = 320;
+import { ArrowUp, Paperclip, X, Loader2, Image, FileText, Table, Square, ChevronDown, Check } from 'lucide-react';
 
 const MODE_OPTIONS = [
-  { value: 'ask', label: 'Ask', tooltip: 'Read-only. Ask questions and get information. No edits or creates.' },
-  { value: 'edit', label: 'Edit', tooltip: 'Can suggest edits and create things. Acts like normal.' },
-  { value: 'agent', label: 'Agent', tooltip: 'Performs many tasks at once. Batch edits, creates, parallel research.' },
+  { value: 'ask', label: 'Ask', description: 'Read-only. Answers questions without making changes.' },
+  { value: 'edit', label: 'Edit', description: 'Can suggest edits and create records for you to review.' },
+  { value: 'agent', label: 'Agent', description: 'Handles multi-step work: batch edits, creates and research.' },
 ];
 
 const MODEL_OPTIONS = [
-  { value: 'auto', label: 'Auto', tooltip: 'Default model for all tasks.' },
-  { value: 'max', label: 'Max', tooltip: 'Tries to imitate Max — different personality but can do all tasks.' },
+  { value: 'auto', label: 'Auto', description: 'Balanced default for everyday tasks.' },
+  { value: 'deep', label: 'Deep', description: 'More reasoning for complex analysis. Slower.' },
+  { value: 'max', label: 'Max', description: 'Responds in Max’s voice. Can do every task.' },
 ];
 
-function Tooltip({ children, text, placement = 'top', fullWidth }) {
-  const [visible, setVisible] = useState(false);
-  const [pos, setPos] = useState({ top: 0, left: 0 });
-  const triggerRef = useRef(null);
-  const tooltipRef = useRef(null);
-
-  const updatePosition = useCallback(() => {
-    if (!triggerRef.current || typeof document === 'undefined') return;
-
-    const trigger = triggerRef.current.getBoundingClientRect();
-    const vw = window.innerWidth;
-    const vh = window.innerHeight;
-    const gap = 6;
-
-    const tooltipEl = tooltipRef.current;
-    const tw = tooltipEl ? Math.min(Math.max(tooltipEl.offsetWidth, TOOLTIP_MIN_WIDTH), TOOLTIP_MAX_WIDTH) : TOOLTIP_MAX_WIDTH;
-    const th = tooltipEl ? tooltipEl.offsetHeight : 80;
-
-    let top;
-    let left;
-
-    if (placement === 'top') {
-      top = trigger.top - th - gap;
-      left = trigger.left + trigger.width / 2 - tw / 2;
-    } else if (placement === 'bottom') {
-      top = trigger.bottom + gap;
-      left = trigger.left + trigger.width / 2 - tw / 2;
-    } else if (placement === 'right') {
-      top = trigger.top + trigger.height / 2 - th / 2;
-      left = trigger.right + gap;
-    } else {
-      top = trigger.top + trigger.height / 2 - th / 2;
-      left = trigger.left - tw - gap;
-    }
-
-    left = Math.max(TOOLTIP_PADDING, Math.min(vw - tw - TOOLTIP_PADDING, left));
-    top = Math.max(TOOLTIP_PADDING, Math.min(vh - th - TOOLTIP_PADDING, top));
-
-    setPos({ top, left });
-  }, [placement]);
-
-  useEffect(() => {
-    if (!visible || !text) return;
-    const timer = requestAnimationFrame(() => {
-      requestAnimationFrame(updatePosition);
-    });
-    return () => cancelAnimationFrame(timer);
-  }, [visible, text, updatePosition]);
-
-  return (
-    <div
-      ref={triggerRef}
-      className={`relative ${fullWidth ? 'flex w-full' : 'inline-flex'}`}
-      onMouseEnter={() => setVisible(true)}
-      onMouseLeave={() => setVisible(false)}
-    >
-      {children}
-      {visible && text && typeof document !== 'undefined' && createPortal(
-        <AnimatePresence>
-          <m.div
-            ref={tooltipRef}
-            initial={{ opacity: 0, scale: 0.96 }}
-            animate={{ opacity: 1, scale: 1 }}
-            exit={{ opacity: 0, scale: 0.96 }}
-            transition={{ duration: 0.08 }}
-            className="fixed z-[9999] px-3 py-2 text-[11px] leading-relaxed text-dark-100 bg-dark-700 border border-dark-600 rounded-lg shadow-xl whitespace-normal"
-            style={{
-              top: pos.top,
-              left: pos.left,
-              minWidth: TOOLTIP_MIN_WIDTH,
-              maxWidth: TOOLTIP_MAX_WIDTH,
-              width: 'max-content',
-              pointerEvents: 'none',
-            }}
-          >
-            {text}
-          </m.div>
-        </AnimatePresence>,
-        document.body
-      )}
-    </div>
-  );
-}
-
-function SelectDropdown({ options, value, onChange, disabled }) {
+function SelectDropdown({ label, options, value, onChange, disabled }) {
   const [open, setOpen] = useState(false);
   const ref = useRef(null);
 
   useEffect(() => {
-    const handler = (e) => {
+    if (!open) return;
+    const onClick = (e) => {
       if (ref.current && !ref.current.contains(e.target)) setOpen(false);
     };
-    document.addEventListener('click', handler);
-    return () => document.removeEventListener('click', handler);
-  }, []);
+    const onKey = (e) => { if (e.key === 'Escape') setOpen(false); };
+    document.addEventListener('click', onClick);
+    document.addEventListener('keydown', onKey);
+    return () => {
+      document.removeEventListener('click', onClick);
+      document.removeEventListener('keydown', onKey);
+    };
+  }, [open]);
 
   const selected = options.find((o) => o.value === value) || options[0];
 
   return (
     <div ref={ref} className="relative">
-      <Tooltip text={selected.tooltip} placement="top">
-        <button
-          type="button"
-          onClick={() => !disabled && setOpen((o) => !o)}
-          disabled={disabled}
-          className="flex items-center gap-1 bg-transparent border-none text-dark-400 hover:text-dark-200 focus:outline-none focus:ring-0 cursor-pointer py-1 pr-1 min-h-0 disabled:opacity-50 disabled:cursor-not-allowed"
-        >
-          <span className="text-[11px]">{selected.label}</span>
-          <ChevronDown className={`w-3 h-3 transition-transform ${open ? 'rotate-180' : ''}`} />
-        </button>
-      </Tooltip>
+      <button
+        type="button"
+        onClick={() => !disabled && setOpen((o) => !o)}
+        disabled={disabled}
+        aria-haspopup="listbox"
+        aria-expanded={open}
+        title={`${label}: ${selected.description}`}
+        className={`h-8 inline-flex items-center gap-1 rounded-lg px-2 text-[13px] transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${
+          open ? 'bg-white/[0.06] text-chat-text' : 'text-chat-muted hover:text-chat-text hover:bg-white/[0.05]'
+        }`}
+      >
+        <span className="text-chat-faint hidden sm:inline">{label}</span>
+        <span className="font-medium">{selected.label}</span>
+        <ChevronDown className={`w-3.5 h-3.5 text-chat-faint transition-transform ${open ? 'rotate-180' : ''}`} />
+      </button>
       <AnimatePresence>
         {open && (
           <m.div
-            initial={{ opacity: 0, y: -4 }}
+            initial={{ opacity: 0, y: 4 }}
             animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -4 }}
-            transition={{ duration: 0.15 }}
-            className="absolute bottom-full left-0 mb-1 z-50 min-w-[140px] py-1 rounded-lg bg-dark-800 border border-dark-600 shadow-xl"
+            exit={{ opacity: 0, y: 4 }}
+            transition={{ duration: 0.12 }}
+            role="listbox"
+            className="absolute bottom-full left-0 mb-2 z-50 w-[260px] p-1 rounded-xl bg-chat-raised border border-chat-line-strong shadow-2xl shadow-black/50"
           >
-            {options.map((o) => (
-              <Tooltip key={o.value} text={o.tooltip} placement="right" fullWidth>
+            <p className="px-2.5 pt-1.5 pb-1 text-[11px] font-medium text-chat-faint">{label}</p>
+            {options.map((o) => {
+              const active = o.value === value;
+              return (
                 <button
+                  key={o.value}
                   type="button"
+                  role="option"
+                  aria-selected={active}
                   onClick={() => {
                     onChange?.(o.value);
                     setOpen(false);
                   }}
-                  className={`w-full text-left px-3 py-1.5 text-[11px] transition-colors ${
-                    o.value === value ? 'text-chat-accent bg-dark-700/50' : 'text-dark-300 hover:text-dark-100 hover:bg-dark-700/50'
+                  className={`w-full flex items-start gap-2 text-left px-2.5 py-2 rounded-lg transition-colors ${
+                    active ? 'bg-white/[0.05]' : 'hover:bg-white/[0.04]'
                   }`}
                 >
-                  {o.label}
+                  <span className="flex-1 min-w-0">
+                    <span className="block text-[13px] font-medium text-chat-text">{o.label}</span>
+                    <span className="block text-xs leading-snug text-chat-muted mt-0.5">{o.description}</span>
+                  </span>
+                  <Check className={`w-3.5 h-3.5 mt-0.5 flex-shrink-0 text-chat-accent ${active ? '' : 'invisible'}`} />
                 </button>
-              </Tooltip>
-            ))}
+              );
+            })}
           </m.div>
         )}
       </AnimatePresence>
@@ -167,18 +100,18 @@ function SelectDropdown({ options, value, onChange, disabled }) {
 }
 
 const FILE_TYPE_ICONS = {
-  pdf: <FileText className="w-3 h-3" />,
-  csv: <Table className="w-3 h-3" />,
-  excel: <Table className="w-3 h-3" />,
-  image: <Image className="w-3 h-3" />,
-  text: <FileText className="w-3 h-3" />,
+  pdf: <FileText className="w-3.5 h-3.5" />,
+  csv: <Table className="w-3.5 h-3.5" />,
+  excel: <Table className="w-3.5 h-3.5" />,
+  image: <Image className="w-3.5 h-3.5" />,
+  text: <FileText className="w-3.5 h-3.5" />,
 };
 
 function formatFileSize(bytes) {
   if (!bytes) return '';
-  if (bytes < 1024) return `${bytes}B`;
-  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(0)}KB`;
-  return `${(bytes / 1024 / 1024).toFixed(1)}MB`;
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(0)} KB`;
+  return `${(bytes / 1024 / 1024).toFixed(1)} MB`;
 }
 
 export default function AIChatInput({
@@ -189,7 +122,7 @@ export default function AIChatInput({
   pendingFiles,
   onRemoveFile,
   disabled,
-  placeholder = 'Message AI...',
+  placeholder = 'Message Eagle AI…',
   mode = 'edit',
   onModeChange,
   model = 'auto',
@@ -199,8 +132,11 @@ export default function AIChatInput({
   const [input, setInput] = useState('');
   const [isUploading, setIsUploading] = useState(false);
   const [uploadError, setUploadError] = useState(null);
+  const [isDragging, setIsDragging] = useState(false);
   const textareaRef = useRef(null);
   const fileInputRef = useRef(null);
+
+  const canSend = (input.trim() || pendingFiles.length > 0) && !disabled;
 
   const handleSend = useCallback(() => {
     const text = input.trim();
@@ -214,7 +150,7 @@ export default function AIChatInput({
   }, [input, pendingFiles, disabled, onSend]);
 
   const handleKeyDown = useCallback((e) => {
-    if (e.key === 'Enter' && !e.shiftKey) {
+    if (e.key === 'Enter' && !e.shiftKey && !e.nativeEvent.isComposing) {
       e.preventDefault();
       handleSend();
     }
@@ -225,11 +161,10 @@ export default function AIChatInput({
     // Auto-grow
     const el = e.target;
     el.style.height = 'auto';
-    el.style.height = Math.min(el.scrollHeight, 160) + 'px';
+    el.style.height = Math.min(el.scrollHeight, 200) + 'px';
   };
 
-  const handleFileSelect = async (e) => {
-    const files = Array.from(e.target.files || []);
+  const uploadFiles = async (files) => {
     if (!files.length) return;
     setUploadError(null);
     setIsUploading(true);
@@ -241,147 +176,157 @@ export default function AIChatInput({
       setUploadError(err.message || 'Upload failed');
     } finally {
       setIsUploading(false);
-      if (fileInputRef.current) fileInputRef.current.value = '';
     }
+  };
+
+  const handleFileSelect = async (e) => {
+    await uploadFiles(Array.from(e.target.files || []));
+    if (fileInputRef.current) fileInputRef.current.value = '';
   };
 
   const handleDrop = async (e) => {
     e.preventDefault();
-    const files = Array.from(e.dataTransfer.files);
-    if (!files.length) return;
-    setUploadError(null);
-    setIsUploading(true);
-    try {
-      for (const file of files) {
-        await onUpload(file);
-      }
-    } catch (err) {
-      setUploadError(err.message || 'Upload failed');
-    } finally {
-      setIsUploading(false);
-    }
+    setIsDragging(false);
+    await uploadFiles(Array.from(e.dataTransfer.files));
   };
 
-  const handleDragOver = (e) => e.preventDefault();
+  const handleDragOver = (e) => {
+    e.preventDefault();
+    if (!isDragging) setIsDragging(true);
+  };
+
+  const handleDragLeave = (e) => {
+    if (!e.currentTarget.contains(e.relatedTarget)) setIsDragging(false);
+  };
 
   return (
     <div
-      className="ai-chat-input pt-2 sm:pt-3 border-t border-dark-700 bg-dark-800/50"
+      className="ai-chat-input flex-shrink-0 pt-2"
       style={{
-        paddingLeft: 'calc(0.5rem + env(safe-area-inset-left, 0px))',
-        paddingRight: 'calc(0.5rem + env(safe-area-inset-right, 0px))',
+        paddingLeft: 'calc(0.75rem + env(safe-area-inset-left, 0px))',
+        paddingRight: 'calc(0.75rem + env(safe-area-inset-right, 0px))',
         paddingBottom: 'calc(0.75rem + env(safe-area-inset-bottom, 0px))',
       }}
       onDrop={handleDrop}
       onDragOver={handleDragOver}
+      onDragLeave={handleDragLeave}
     >
-      {/* Pending Files */}
-      {pendingFiles.length > 0 && (
-        <div className="flex flex-wrap gap-1.5 mb-2">
-          {pendingFiles.map(f => (
-            <div
-              key={f.file_id}
-              className="flex items-center gap-1.5 bg-dark-700 border border-dark-600 rounded-lg px-2 py-1 text-xs group"
-            >
-              <span className="text-dark-400">
-                {FILE_TYPE_ICONS[f.file_type] || <FileText className="w-3 h-3" />}
-              </span>
-              <span className="text-dark-200 max-w-[80px] sm:max-w-[100px] truncate">{f.filename}</span>
-              {f.file_size && (
-                <span className="text-dark-500">{formatFileSize(f.file_size)}</span>
-              )}
-              <button
-                onClick={() => onRemoveFile(f.file_id)}
-                className="text-dark-500 hover:text-red-400 transition-colors ml-0.5"
-              >
-                <X className="w-3 h-3" />
-              </button>
+      <div className="w-full max-w-3xl mx-auto">
+        <div
+          className={`rounded-2xl border bg-chat-raised transition-colors shadow-lg shadow-black/20 ${
+            isDragging
+              ? 'border-chat-accent/60 bg-chat-accent/[0.04]'
+              : 'border-chat-line-strong focus-within:border-[#444]'
+          }`}
+          onClick={(e) => {
+            if (e.target === e.currentTarget) textareaRef.current?.focus();
+          }}
+        >
+          {/* Pending files */}
+          {pendingFiles.length > 0 && (
+            <div className="flex flex-wrap gap-1.5 px-3 pt-3">
+              {pendingFiles.map(f => (
+                <div
+                  key={f.file_id}
+                  className="flex items-center gap-2 rounded-lg border border-chat-line-strong bg-chat-surface pl-2 pr-1 py-1 text-xs"
+                >
+                  <span className="text-chat-muted">
+                    {FILE_TYPE_ICONS[f.file_type] || <FileText className="w-3.5 h-3.5" />}
+                  </span>
+                  <span className="text-chat-text max-w-[140px] sm:max-w-[200px] truncate">{f.filename}</span>
+                  {f.file_size && (
+                    <span className="text-chat-faint">{formatFileSize(f.file_size)}</span>
+                  )}
+                  <button
+                    type="button"
+                    onClick={() => onRemoveFile(f.file_id)}
+                    className="p-0.5 rounded text-chat-faint hover:text-chat-text hover:bg-white/[0.06] transition-colors"
+                    aria-label={`Remove ${f.filename}`}
+                  >
+                    <X className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+              ))}
             </div>
-          ))}
-        </div>
-      )}
+          )}
 
-      {/* Upload error */}
-      {uploadError && (
-        <p className="text-xs text-red-400 mb-2">{uploadError}</p>
-      )}
-
-      <div className="flex flex-col gap-2">
-        <div className="flex items-center gap-2 flex-1 min-w-0">
-          <button
-            onClick={() => fileInputRef.current?.click()}
-            disabled={disabled || isUploading}
-            className="flex-shrink-0 w-10 h-10 rounded-xl flex items-center justify-center text-dark-400 hover:text-dark-100 hover:bg-dark-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed touch-manipulation"
-            title="Attach file (PDF, CSV, image, etc.)"
-          >
-            {isUploading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Paperclip className="w-4 h-4" />}
-          </button>
-
-          <input
-            ref={fileInputRef}
-            type="file"
-            multiple
-            accept=".pdf,.csv,.xlsx,.xls,.txt,.md,.json,.jpg,.jpeg,.png,.gif,.webp"
-            className="hidden"
-            onChange={handleFileSelect}
+          <textarea
+            ref={textareaRef}
+            value={input}
+            onChange={handleTextareaChange}
+            onKeyDown={handleKeyDown}
+            disabled={disabled}
+            placeholder={isDragging ? 'Drop files to attach' : placeholder}
+            rows={1}
+            aria-label="Message"
+            className="block w-full bg-transparent border-0 px-4 pt-3.5 pb-1 text-[15px] leading-6 text-chat-text placeholder-chat-faint resize-none focus:outline-none focus:ring-0 disabled:opacity-50 disabled:cursor-not-allowed"
+            style={{ maxHeight: '200px' }}
           />
 
-          <div className="flex-1 min-w-0">
-            <textarea
-              ref={textareaRef}
-              value={input}
-              onChange={handleTextareaChange}
-              onKeyDown={handleKeyDown}
-              disabled={disabled}
-              placeholder={isStreaming ? 'AI is responding...' : placeholder}
-              rows={1}
-              className="w-full bg-dark-700 border border-dark-600 rounded-xl px-3 py-2.5 text-dark-50 placeholder-dark-400 resize-none focus:outline-none focus:border-chat-focus focus:ring-1 focus:ring-chat-focus/30 transition-colors disabled:opacity-50 disabled:cursor-not-allowed leading-snug min-h-[44px]"
-              style={{ maxHeight: '160px', fontSize: '16px' }}
+          {/* Toolbar */}
+          <div className="flex items-center gap-1 px-2 pb-2 pt-1">
+            <button
+              type="button"
+              onClick={() => fileInputRef.current?.click()}
+              disabled={disabled || isUploading}
+              className="w-8 h-8 rounded-lg flex items-center justify-center text-chat-muted hover:text-chat-text hover:bg-white/[0.05] transition-colors disabled:opacity-50 disabled:cursor-not-allowed touch-manipulation"
+              title="Attach files (PDF, CSV, Excel, images)"
+              aria-label="Attach files"
+            >
+              {isUploading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Paperclip className="w-4 h-4" />}
+            </button>
+            <input
+              ref={fileInputRef}
+              type="file"
+              multiple
+              accept=".pdf,.csv,.xlsx,.xls,.txt,.md,.json,.jpg,.jpeg,.png,.gif,.webp"
+              className="hidden"
+              onChange={handleFileSelect}
             />
-          </div>
 
-          {isStreaming ? (
-            <button
-              onClick={onStop}
-              disabled={disabled}
-              className="flex-shrink-0 w-10 h-10 rounded-xl flex items-center justify-center bg-red-500/80 hover:bg-red-500 text-white transition-colors disabled:opacity-40 disabled:cursor-not-allowed touch-manipulation"
-              title="Stop generating"
-            >
-              <Square className="w-3.5 h-3.5 fill-current" />
-            </button>
-          ) : (
-            <button
-              onClick={handleSend}
-              disabled={(!input.trim() && pendingFiles.length === 0) || disabled}
-              className="flex-shrink-0 w-10 h-10 rounded-xl flex items-center justify-center bg-chat-button hover:bg-chat-button-hover text-white transition-colors disabled:opacity-40 disabled:cursor-not-allowed touch-manipulation"
-              title="Send (Enter)"
-            >
-              <Send className="w-4 h-4" />
-            </button>
-          )}
+            {showModeSelectors && (
+              <>
+                <SelectDropdown label="Mode" options={MODE_OPTIONS} value={mode} onChange={onModeChange} disabled={disabled} />
+                <SelectDropdown label="Model" options={MODEL_OPTIONS} value={model} onChange={onModelChange} disabled={disabled} />
+              </>
+            )}
+
+            <div className="flex-1" />
+
+            {isStreaming ? (
+              <button
+                type="button"
+                onClick={onStop}
+                disabled={disabled}
+                className="w-8 h-8 rounded-full flex items-center justify-center bg-chat-text hover:bg-white text-dark-950 transition-colors disabled:opacity-40 disabled:cursor-not-allowed touch-manipulation"
+                title="Stop generating"
+                aria-label="Stop generating"
+              >
+                <Square className="w-3 h-3 fill-current" />
+              </button>
+            ) : (
+              <button
+                type="button"
+                onClick={handleSend}
+                disabled={!canSend}
+                className="w-8 h-8 rounded-full flex items-center justify-center bg-chat-button hover:bg-chat-button-hover text-dark-950 transition-colors disabled:bg-white/[0.08] disabled:text-chat-faint disabled:cursor-not-allowed touch-manipulation"
+                title="Send (Enter)"
+                aria-label="Send message"
+              >
+                <ArrowUp className="w-4 h-4" strokeWidth={2.5} />
+              </button>
+            )}
+          </div>
         </div>
 
-        {showModeSelectors && (
-          <div className="flex items-center gap-4 text-[11px] text-dark-400">
-            <SelectDropdown
-              options={MODE_OPTIONS}
-              value={mode}
-              onChange={onModeChange}
-              disabled={disabled}
-            />
-            <SelectDropdown
-              options={MODEL_OPTIONS}
-              value={model}
-              onChange={onModelChange}
-              disabled={disabled}
-            />
-          </div>
+        {uploadError ? (
+          <p className="text-xs text-red-400 mt-2 px-1">{uploadError}</p>
+        ) : (
+          <p className="text-[11px] text-chat-faint mt-2 text-center hidden sm:block">
+            Eagle AI can make mistakes. Review suggested edits before applying them.
+          </p>
         )}
       </div>
-
-      <p className="text-[10px] text-dark-500 mt-1.5 text-center hidden sm:block">
-        Enter to send · Shift+Enter for new line · Drag & drop files
-      </p>
     </div>
   );
 }

@@ -3,53 +3,45 @@
  * Shows real-time state: thinking, searching, fetching URL, calculating
  */
 
-import { m, AnimatePresence } from 'framer-motion';
-import { Search, Globe, Calculator, Brain, Loader2 } from 'lucide-react';
+import { Search, Globe, Calculator, Loader2, Check } from 'lucide-react';
+import AIMark from './AIMark';
+
+function hostnameOf(url) {
+  try {
+    return new URL(url).hostname.replace(/^www\./, '');
+  } catch {
+    return '…';
+  }
+}
 
 export default function AIChatStreamStatus({ state }) {
   if (!state) return null;
 
   const icons = {
-    thinking: <Brain className="w-3.5 h-3.5 text-chat-status-thinking animate-pulse" />,
-    searching: <Search className="w-3.5 h-3.5 text-chat-status-searching" />,
-    search_results: <Search className="w-3.5 h-3.5 text-chat-status-success" />,
-    fetching_url: <Globe className="w-3.5 h-3.5 text-chat-status-fetching" />,
-    calculating: <Calculator className="w-3.5 h-3.5 text-chat-status-calculating" />,
+    thinking: <Loader2 className="w-3.5 h-3.5 animate-spin" />,
+    searching: <Search className="w-3.5 h-3.5" />,
+    search_results: <Check className="w-3.5 h-3.5" />,
+    fetching_url: <Globe className="w-3.5 h-3.5" />,
+    calculating: <Calculator className="w-3.5 h-3.5" />,
   };
 
   const labels = {
-    thinking: state.message || 'Thinking...',
-    searching: `Searching: "${state.query}"${state.count > 1 ? ` (search #${state.count})` : ''}`,
+    thinking: state.message || 'Thinking',
+    searching: `Searching “${state.query}”${state.count > 1 ? ` · search ${state.count}` : ''}`,
     search_results: `Found ${state.sources?.length || 0} results`,
-    fetching_url: `Reading: ${state.url ? new URL(state.url).hostname : '...'}`,
-    calculating: `Calculating: ${state.expression || '...'}`,
-  };
-
-  const colors = {
-    thinking: 'text-chat-status-thinking',
-    searching: 'text-chat-status-searching',
-    search_results: 'text-chat-status-success',
-    fetching_url: 'text-chat-status-fetching',
-    calculating: 'text-chat-status-calculating',
+    fetching_url: `Reading ${state.url ? hostnameOf(state.url) : '…'}`,
+    calculating: `Calculating ${state.expression || ''}`.trim(),
   };
 
   return (
-    <AnimatePresence mode="wait">
-      <m.div
-        key={state.type + (state.query || state.url || '')}
-        initial={false}
-        animate={{ opacity: 1 }}
-        exit={{ opacity: 0 }}
-        transition={{ duration: 0.1 }}
-        className="flex items-center gap-2 px-3 py-2 mb-2"
-      >
-        <div className="flex items-center gap-1.5 bg-dark-800 border border-dark-700 rounded-full px-3 py-1.5">
-          {icons[state.type] || <Loader2 className="w-3.5 h-3.5 text-dark-400 animate-spin" />}
-          <span className={`text-xs ${colors[state.type] || 'text-dark-300'} truncate max-w-[180px] sm:max-w-[250px]`}>
-            {labels[state.type] || 'Processing...'}
-          </span>
-        </div>
-      </m.div>
-    </AnimatePresence>
+    <div className="flex gap-3 mb-6 min-w-0" role="status" aria-live="polite">
+      <AIMark size="sm" className="hidden sm:flex" />
+      <div className="flex items-center gap-2 h-7 min-w-0 text-chat-muted">
+        <span className="flex-shrink-0 text-chat-accent">
+          {icons[state.type] || <Loader2 className="w-3.5 h-3.5 animate-spin" />}
+        </span>
+        <span className="text-[13px] truncate">{labels[state.type] || 'Working'}</span>
+      </div>
+    </div>
   );
 }

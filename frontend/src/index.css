@@ -278,6 +278,33 @@
   @apply bg-primary-500;
 }
 
+/* AI assistant: sans headings (site headings are serif) and a quiet,
+   neutral scrollbar in place of the site-wide gold one */
+.ai-chat h1, .ai-chat h2, .ai-chat h3, .ai-chat h4, .ai-chat h5, .ai-chat h6 {
+  font-family: 'Inter', system-ui, -apple-system, sans-serif;
+}
+.ai-chat * {
+  scrollbar-width: thin;
+  scrollbar-color: #333333 transparent;
+}
+.ai-chat ::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+.ai-chat ::-webkit-scrollbar-track {
+  background: transparent;
+}
+.ai-chat ::-webkit-scrollbar-thumb {
+  background: #2d2d2d;
+  border: 2px solid transparent;
+  background-clip: padding-box;
+  border-radius: 9999px;
+}
+.ai-chat ::-webkit-scrollbar-thumb:hover {
+  background: #3d3d3d;
+  background-clip: padding-box;
+}
+
 /* Smooth scroll */
 html {
   scroll-behavior: smooth;

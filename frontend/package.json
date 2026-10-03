@@ -56,6 +56,7 @@
     "react-virtuoso": "^4.18.3",
     "react-zoom-pan-pinch": "^3.7.0",
     "recharts": "^3.3.0",
+    "remark-gfm": "^4.0.1",
     "zustand": "^5.0.2"
   },
   "devDependencies": {

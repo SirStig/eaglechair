@@ -205,7 +205,9 @@ class Settings(BaseSettings):
 
     # AI Configuration (Google Gemini)
     GEMINI_API_KEY: Optional[str] = None
-    GEMINI_MODEL: str = "gemini-2.5-flash-lite"
+    GEMINI_MODEL: str = "gemini-3.8-flash"  # chat agent + training document analysis
+    GEMINI_FAST_MODEL: str = "gemini-3.5-flash-lite"  # chat titles + memory extraction
+    GEMINI_THINKING_LEVEL: str = "medium"  # low | medium | high ("deep" chat mode uses high)
 
     # AWS Configuration (for media storage)
     AWS_ACCESS_KEY_ID: Optional[str] = None

@@ -20,8 +20,10 @@ export default function ChatMessageList({
   onEditApplied,
   onEditDeclined,
 }) {
-  const px = compact ? 'px-2 sm:px-3' : 'px-3 sm:px-6';
-  const pt = compact ? 'pt-2 sm:pt-3' : 'pt-4 sm:pt-6';
+  const px = compact ? 'px-3 sm:px-4' : 'px-4 sm:px-6';
+  const pt = compact ? 'pt-4' : 'pt-6 sm:pt-10';
+  // Full-page chat keeps a readable measure; the widget uses its full width
+  const column = compact ? 'w-full' : 'w-full max-w-3xl mx-auto';
   const loadOlderTriggered = useRef(false);
   const scrollContainerRef = useRef(null);
   const scrollRafRef = useRef(null);
@@ -77,15 +79,16 @@ export default function ChatMessageList({
         onScroll={handleScroll}
         className={`flex-1 min-h-0 min-w-0 overflow-y-auto overflow-x-hidden overscroll-contain scroll-smooth ${px} ${pt} pb-2`}
       >
+        <div className={column}>
         {hasMoreMessages && (
           <div className="flex justify-center py-3">
             {isLoadingOlder ? (
-              <Loader2 className="w-5 h-5 animate-spin text-chat-accent" />
+              <Loader2 className="w-5 h-5 animate-spin text-chat-faint" />
             ) : (
               <button
                 type="button"
                 onClick={onLoadOlder}
-                className="text-xs text-dark-400 hover:text-chat-accent transition-colors"
+                className="text-xs text-chat-muted hover:text-chat-text rounded-md border border-chat-line px-3 py-1.5 transition-colors"
               >
                 Load older messages
               </button>
@@ -105,6 +108,7 @@ export default function ChatMessageList({
         ))}
         {streamingState && <AIChatStreamStatus state={streamingState} />}
         <div ref={messagesEndRef} />
+        </div>
       </div>
     );
   }
@@ -121,6 +125,7 @@ export default function ChatMessageList({
         startReached={handleStartReached}
         itemContent={(index, msg) => (
           <div className={`${px} ${index === 0 ? pt : 'pt-1'}`}>
+            <div className={column}>
             <AIChatMessage
               message={msg}
               onRedo={onRedo}
@@ -128,6 +133,7 @@ export default function ChatMessageList({
               onEditApplied={onEditApplied}
               onEditDeclined={onEditDeclined}
             />
+            </div>
           </div>
         )}
         components={{
@@ -135,7 +141,7 @@ export default function ChatMessageList({
             hasMoreMessages ? (
               <div className={`flex justify-center py-3 ${px}`}>
                 {isLoadingOlder ? (
-                  <Loader2 className="w-5 h-5 animate-spin text-chat-accent" />
+                  <Loader2 className="w-5 h-5 animate-spin text-chat-faint" />
                 ) : (
                   <button
                     type="button"
@@ -143,7 +149,7 @@ export default function ChatMessageList({
                       loadOlderTriggered.current = true;
                       onLoadOlder?.();
                     }}
-                    className="text-xs text-dark-400 hover:text-chat-accent transition-colors"
+                    className="text-xs text-chat-muted hover:text-chat-text rounded-md border border-chat-line px-3 py-1.5 transition-colors"
                   >
                     Load older messages
                   </button>
@@ -152,8 +158,10 @@ export default function ChatMessageList({
             ) : null,
           Footer: () => (
             <div className={`${px} pb-2`}>
-              {streamingState && <AIChatStreamStatus state={streamingState} />}
-              <div ref={messagesEndRef} />
+              <div className={column}>
+                {streamingState && <AIChatStreamStatus state={streamingState} />}
+                <div ref={messagesEndRef} />
+              </div>
             </div>
           ),
         }}
