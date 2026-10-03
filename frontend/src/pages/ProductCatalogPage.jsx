@@ -16,6 +16,7 @@ import FilterSidebar from '../components/products/FilterSidebar';
 import QuickViewModal from '../components/ui/QuickViewModal';
 import {
   DEFAULT_CATALOG_FILTERS,
+  CATALOG_PAGE_SIZES,
   resolveCatalogFilters,
   getCatalogPage,
   getCatalogLocation,
@@ -23,15 +24,17 @@ import {
 import { findCategoryById, findNestedCategoryById } from '../utils/categoryTree';
 
 const CONTEXT = 'ProductCatalogPage';
-const PAGE_SIZE = 25;
+// The products API caps per_page at 100, so "See all" fetches 100-item pages
+const MAX_API_PAGE_SIZE = 100;
 
-// Card image widths measured on the live grid: 2 columns below xl (beside the
-// filter sidebar from lg), 3 at xl. Keeps retina laptops on the 640px
-// rendition instead of 1024px.
+// Card image widths on the live grid: 2 columns on phones, 3 from md (beside
+// the filter sidebar from lg), 4 at xl, 5 from 1700px.
 const CATALOG_CARD_IMAGE_SIZES =
-  '(min-width: 1280px) calc((100vw - 560px) / 3), (min-width: 1024px) calc(50vw - 225px), calc(50vw - 40px)';
-// Cards that are on screen at load (one row at xl, two on smaller screens)
-const FIRST_ROW_CARDS = 4;
+  '(min-width: 1700px) calc((100vw - 560px) / 5), (min-width: 1280px) calc((100vw - 540px) / 4), (min-width: 1024px) calc((100vw - 440px) / 3), (min-width: 768px) calc((100vw - 96px) / 3), calc(50vw - 40px)';
+// Cards that are on screen at load (one row on the widest grid)
+const FIRST_ROW_CARDS = 5;
+
+const PAGE_SIZE_LABELS = { all: 'All' };
 
 const ProductCatalogPage = () => {
   const [searchParams] = useSearchParams();
@@ -60,8 +63,6 @@ const ProductCatalogPage = () => {
     features: false,
   });
 
-  const page = getCatalogPage(searchParams);
-
   const filters = useMemo(
     () =>
       resolveCatalogFilters({
@@ -73,6 +74,10 @@ const ProductCatalogPage = () => {
       }),
     [searchParams, categoryParam, subcategoryParam, categories, subcategories]
   );
+
+  const showAll = filters.per_page === 'all';
+  const pageSize = showAll ? null : filters.per_page;
+  const page = showAll ? 1 : getCatalogPage(searchParams);
 
   const debouncedSearch = useDebounce(filters.search, 300);
 
@@ -171,6 +176,7 @@ const ProductCatalogPage = () => {
     filters.featured,
     filters.new,
     filters.sortBy,
+    filters.per_page,
     page,
   ]);
 
@@ -244,7 +250,7 @@ const ProductCatalogPage = () => {
     try {
       const params = {
         page,
-        per_page: PAGE_SIZE,
+        per_page: showAll ? MAX_API_PAGE_SIZE : pageSize,
         exclude_variations: true,
       };
 
@@ -329,12 +335,23 @@ const ProductCatalogPage = () => {
       const response = await productService.getProducts(params);
       if (requestId !== productsRequestRef.current) return;
 
+      let items = response.data || [];
+      if (showAll && response.pages > 1) {
+        const rest = await Promise.all(
+          Array.from({ length: response.pages - 1 }, (_, i) =>
+            productService.getProducts({ ...params, page: i + 2 })
+          )
+        );
+        if (requestId !== productsRequestRef.current) return;
+        items = items.concat(...rest.map((r) => r.data || []));
+      }
+
       logger.debug(CONTEXT, `Loaded ${response.total} products`, response);
 
-      setProducts(response.data || []);
+      setProducts(items);
       setResultMeta({
         total: response.total || 0,
-        pages: response.pages || 0,
+        pages: showAll ? 1 : response.pages || 0,
       });
     } catch (error) {
       if (requestId !== productsRequestRef.current) return;
@@ -356,8 +373,14 @@ const ProductCatalogPage = () => {
     goToCatalog(newFilters, 1, key === 'search' ? { replace: true } : undefined);
   };
 
+  // Clearing filters keeps the visitor's chosen page size
   const clearFilters = () => {
-    goToCatalog({ ...DEFAULT_CATALOG_FILTERS }, 1);
+    goToCatalog({ ...DEFAULT_CATALOG_FILTERS, per_page: filters.per_page }, 1);
+  };
+
+  const handlePageSizeChange = (size) => {
+    if (size === filters.per_page) return;
+    goToCatalog({ ...filters, per_page: size }, 1);
   };
 
   const toggleFilterSection = (section) => {
@@ -580,7 +603,7 @@ const ProductCatalogPage = () => {
 
           <main className="lg:col-span-1">
             {loading ? (
-              <CardGridSkeleton count={9} columns={3} />
+              <CardGridSkeleton count={8} columns={4} />
             ) : products.length === 0 ? (
               <EmptyResults
                 icon={filters.search ? SearchX : SlidersHorizontal}
@@ -595,15 +618,43 @@ const ProductCatalogPage = () => {
               </EmptyResults>
             ) : (
               <>
-                <div className="mb-4 flex items-center justify-between text-sm text-slate-600">
+                <div className="mb-4 flex flex-wrap items-center justify-between gap-3 text-sm text-slate-600">
                   <div>
-                    Showing {(page - 1) * PAGE_SIZE + 1} -{' '}
-                    {Math.min(page * PAGE_SIZE, resultMeta.total)} of {resultMeta.total} product
-                    {resultMeta.total !== 1 ? 's' : ''}
+                    {showAll ? (
+                      <>
+                        Showing all {resultMeta.total} product{resultMeta.total !== 1 ? 's' : ''}
+                      </>
+                    ) : (
+                      <>
+                        Showing {(page - 1) * pageSize + 1} -{' '}
+                        {Math.min(page * pageSize, resultMeta.total)} of {resultMeta.total} product
+                        {resultMeta.total !== 1 ? 's' : ''}
+                      </>
+                    )}
+                  </div>
+                  <div className="flex items-center gap-2" role="group" aria-label="Products per page">
+                    <span>Show</span>
+                    <div className="inline-flex rounded-lg border border-cream-300 bg-white overflow-hidden">
+                      {CATALOG_PAGE_SIZES.map((size) => (
+                        <button
+                          key={size}
+                          type="button"
+                          onClick={() => handlePageSizeChange(size)}
+                          aria-pressed={filters.per_page === size}
+                          className={`px-3 min-h-[36px] text-sm font-medium transition-colors border-l border-cream-300 first:border-l-0 ${
+                            filters.per_page === size
+                              ? 'bg-primary-500 text-white'
+                              : 'text-slate-700 hover:bg-cream-100'
+                          }`}
+                        >
+                          {PAGE_SIZE_LABELS[size] || size}
+                        </button>
+                      ))}
+                    </div>
                   </div>
                 </div>
 
-                <div className="grid grid-cols-2 md:grid-cols-2 xl:grid-cols-3 gap-5 md:gap-6 xl:gap-8 mb-8">
+                <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-4 min-[1700px]:grid-cols-5 gap-4 md:gap-5 2xl:gap-6 mb-8">
                   {products.map((product, index) => (
                     <div key={product.id} className="h-full">
                       <ProductCard
@@ -687,6 +738,14 @@ const ProductCatalogPage = () => {
                       className="min-h-[44px] min-w-[80px]"
                     >
                       Last
+                    </Button>
+                    <Button
+                      variant="primary"
+                      size="sm"
+                      onClick={() => handlePageSizeChange('all')}
+                      className="min-h-[44px] min-w-[80px]"
+                    >
+                      See All
                     </Button>
                   </div>
                 )}

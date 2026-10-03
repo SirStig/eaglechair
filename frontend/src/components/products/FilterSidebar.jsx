@@ -1,4 +1,3 @@
-import { useState, useEffect } from 'react';
 import { X, ChevronDown, ChevronUp, ArrowUpDown, Search, Folder, Grid3x3, Users } from 'lucide-react';
 import { childFilterKey, isChildActive } from '../../utils/categoryTree';
 
@@ -24,56 +23,14 @@ const FilterSidebar = ({
   showMobileFilters,
   onCloseMobile,
 }) => {
-  const [lgSticky, setLgSticky] = useState(true);
-
-  useEffect(() => {
-    const footer = document.querySelector('footer');
-    if (!footer) return undefined;
-
-    const mq = window.matchMedia('(min-width: 1024px)');
-    let raf = 0;
-
-    const tick = () => {
-      if (!mq.matches) {
-        setLgSticky(true);
-        return;
-      }
-      const ft = footer.getBoundingClientRect().top;
-      const h = window.innerHeight;
-      setLgSticky((prev) => {
-        const release = ft < h + 80;
-        const engage = ft > h + 160;
-        if (release) return false;
-        if (engage) return true;
-        return prev;
-      });
-    };
-
-    const schedule = () => {
-      if (raf) return;
-      raf = requestAnimationFrame(() => {
-        raf = 0;
-        tick();
-      });
-    };
-
-    tick();
-    window.addEventListener('scroll', schedule, { passive: true });
-    window.addEventListener('resize', schedule);
-    return () => {
-      window.removeEventListener('scroll', schedule);
-      window.removeEventListener('resize', schedule);
-      if (raf) cancelAnimationFrame(raf);
-    };
-  }, []);
-
+  // Sticky stops at the bottom of the sidebar column (which spans the product
+  // grid), so on desktop the panel follows the scroll and parks above the footer.
   return (
     <div
       className={`
         w-full
         ${showMobileFilters ? 'max-lg:fixed max-lg:inset-4 max-lg:z-50' : 'max-lg:hidden'}
-        lg:block
-        ${lgSticky ? 'lg:sticky lg:top-24 lg:z-0' : 'lg:relative lg:top-auto lg:z-0'}
+        lg:block lg:sticky lg:top-24 lg:z-0
       `}
     >
     <div

@@ -181,14 +181,14 @@ const Header = ({ isMobileMenuOpen, setIsMobileMenuOpen }) => {
               <SiteLogo
                 src={siteSettings?.logoDarkUrl}
                 alt={siteSettings?.companyName || 'Eagle Chair'}
-                className={`header-logo h-12 sm:h-14 md:h-16 lg:h-16 w-auto object-contain ${!showHeaderBackground ? 'drop-shadow-[0_2px_8px_rgba(0,0,0,0.8)]' : ''}`}
+                className={`header-logo h-11 sm:h-12 md:h-14 lg:h-11 xl:h-12 w-auto max-w-[45vw] lg:max-w-none object-contain ${!showHeaderBackground ? 'drop-shadow-[0_2px_8px_rgba(0,0,0,0.8)]' : ''}`}
                 priority
               />
             </Motion.div>
           </Link>
 
           <nav
-            className="header-nav hidden lg:flex items-center gap-1"
+            className="header-nav hidden lg:flex items-center gap-1 min-w-0"
             onPointerEnter={warmCategoryImages}
             onFocus={warmCategoryImages}
           >
@@ -293,10 +293,11 @@ const Header = ({ isMobileMenuOpen, setIsMobileMenuOpen }) => {
           </nav>
 
           {/* Right Side: Search, Account, Cart */}
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-1 xl:gap-2 flex-shrink-0">
             {/* Search with Results Dropdown - Hidden on mobile */}
-            <form onSubmit={handleSearch} className="hidden lg:block relative flex-shrink-0" ref={searchRef}>
-              <div className="relative">
+            {/* Fixed-width slot; the focused input grows leftward over the nav so it never pushes the cart off */}
+            <form onSubmit={handleSearch} className="hidden lg:block relative flex-shrink-0 h-10 w-32 xl:w-44" ref={searchRef}>
+              <div className="absolute right-0 top-0 z-20">
                 <input
                   type="text"
                   placeholder="Search products..."
@@ -311,8 +312,8 @@ const Header = ({ isMobileMenuOpen, setIsMobileMenuOpen }) => {
                     h-10 pl-10 pr-4 border rounded-lg 
                     transition-all duration-300 ease-in-out
                     focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent
-                    ${showHeaderBackground ? 'bg-dark-700 text-dark-50 placeholder-dark-200' : 'header-search-blur text-white placeholder-white/70 border-white/30'}
-                    ${isSearchFocused ? 'w-64 xl:w-72' : 'w-40 xl:w-48'}
+                    ${showHeaderBackground ? 'bg-dark-700 text-dark-50 placeholder-dark-200' : `${isSearchFocused ? '!bg-dark-800/95' : 'header-search-blur'} text-white placeholder-white/70 border-white/30`}
+                    ${isSearchFocused ? 'w-64 xl:w-72' : 'w-32 xl:w-44'}
                   `}
                   style={{
                     WebkitTransition: 'width 0.3s ease-in-out',
@@ -343,7 +344,7 @@ const Header = ({ isMobileMenuOpen, setIsMobileMenuOpen }) => {
                     animate={{ opacity: 1, y: 0 }}
                     exit={{ opacity: 0, y: -10 }}
                     transition={{ duration: 0.2 }}
-                    className="absolute top-full mt-2 w-full bg-white border border-cream-200 rounded-lg shadow-xl max-h-96 overflow-y-auto z-50 [&_button]:!text-slate-800"
+                    className="absolute top-full right-0 mt-2 w-64 xl:w-72 bg-white border border-cream-200 rounded-lg shadow-xl max-h-96 overflow-y-auto z-50 [&_button]:!text-slate-800"
                   >
                     <div className="py-2">
                       {searchResults.map((product, idx) => (
@@ -394,11 +395,16 @@ const Header = ({ isMobileMenuOpen, setIsMobileMenuOpen }) => {
               {user ? (
                 <Dropdown
                   trigger={(isOpen) => (
-                    <Button variant="transparent" size="sm" className="hover-lift">
-                      <svg className="h-5 w-5 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <Button
+                      variant="transparent"
+                      size="sm"
+                      className="hover-lift whitespace-nowrap"
+                      title={user.companyName || user.username || 'User'}
+                      aria-label={`Account: ${user.companyName || user.username || 'User'}`}
+                    >
+                      <svg className="h-5 w-5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
                       </svg>
-                      {user.companyName || user.username || 'User'}
                       <Motion.svg
                         className="ml-1 h-4 w-4 inline-block"
                         fill="none"
@@ -412,9 +418,12 @@ const Header = ({ isMobileMenuOpen, setIsMobileMenuOpen }) => {
                     </Button>
                   )}
                   align="right"
-                  contentClassName="w-48"
+                  contentClassName="w-56"
                 >
                   <div className="py-2">
+                    <p className="px-4 pt-1 pb-2 mb-1 text-sm font-medium text-dark-50 truncate border-b border-dark-600">
+                      {user.companyName || user.username || 'User'}
+                    </p>
                     {(user.role === 'super_admin' || user.role === 'admin' || user.type === 'admin') && (
                       <Link
                         to="/admin/dashboard"

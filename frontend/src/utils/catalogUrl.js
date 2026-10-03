@@ -27,7 +27,17 @@ export const DEFAULT_CATALOG_FILTERS = {
   featured: false,
   new: false,
   sortBy: 'smart',
+  per_page: 25,
 };
+
+// Products per page; 'all' shows the whole result set on one page
+export const CATALOG_PAGE_SIZES = [25, 50, 100, 'all'];
+
+function parsePerPage(value) {
+  if (value === 'all') return 'all';
+  const n = parseInt(value, 10);
+  return CATALOG_PAGE_SIZES.includes(n) ? n : DEFAULT_CATALOG_FILTERS.per_page;
+}
 
 export function parseCatalogFilters(searchParams) {
   return {
@@ -50,6 +60,7 @@ export function parseCatalogFilters(searchParams) {
     featured: searchParams.get('featured') === 'true',
     new: searchParams.get('new') === 'true',
     sortBy: searchParams.get('sort') || 'smart',
+    per_page: parsePerPage(searchParams.get('per_page')),
   };
 }
 
@@ -170,6 +181,9 @@ export function buildCatalogSearchParams(filters, page = 1) {
   }
   if (filters.sortBy && filters.sortBy !== 'smart') {
     params.set('sort', filters.sortBy);
+  }
+  if (filters.per_page && filters.per_page !== DEFAULT_CATALOG_FILTERS.per_page) {
+    params.set('per_page', String(filters.per_page));
   }
 
   return params;
