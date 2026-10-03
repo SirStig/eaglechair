@@ -252,38 +252,6 @@
   animation: none;
 }
 
-/* Desktop View Mode - Override mobile responsive breakpoints */
-body.desktop-view-mode {
-  /* Force desktop breakpoints even on mobile devices */
-  min-width: 1024px;
-}
-
-body.desktop-view-mode * {
-  /* Prevent mobile-specific styles from applying */
-}
-
-/* Desktop view mode: Show desktop layout on mobile */
-@media (max-width: 1023px) {
-  body.desktop-view-mode .container {
-    max-width: 1280px;
-  }
-  
-  /* Force desktop grid layouts */
-  body.desktop-view-mode .grid {
-    /* Override mobile grid-cols-2 to use desktop breakpoints */
-  }
-  
-  /* Ensure desktop navigation is visible */
-  body.desktop-view-mode header nav {
-    display: flex !important;
-  }
-  
-  /* Hide mobile menu button when in desktop view */
-  body.desktop-view-mode [aria-label*="menu"] {
-    display: none !important;
-  }
-}
-
 /* Custom scrollbar */
 ::-webkit-scrollbar {
   width: 8px;

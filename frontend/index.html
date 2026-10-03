@@ -20,7 +20,30 @@
     
     <!-- Viewport - Optimized for mobile and all devices -->
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0, user-scalable=yes, viewport-fit=cover" />
-    
+    <script>
+      // Honour the browser's "Request Desktop Site". In that mode the phone
+      // sends a desktop user agent but keeps its narrow device-width, so the
+      // page would still get the mobile layout. Give it a desktop-width
+      // viewport instead; switching back to the mobile site sends a mobile
+      // user agent again, so this no longer applies. Tablets (shortest side
+      // >= 768px) and touch laptops keep the normal responsive viewport.
+      (function () {
+        try {
+          // Clear the old in-page "View Desktop Site" toggle, which could
+          // leave visitors stuck in a half-desktop layout.
+          localStorage.removeItem('eaglechair_desktop_view');
+        } catch (e) {}
+        var mobileUA = /Mobi|Android|iPhone|iPod|IEMobile|Opera Mini/i
+          .test(navigator.userAgent || '');
+        var touch = navigator.maxTouchPoints > 0 || 'ontouchstart' in window;
+        var shortSide = Math.min(screen.width, screen.height);
+        if (!mobileUA && touch && shortSide < 768) {
+          document.querySelector('meta[name="viewport"]')
+            .setAttribute('content', 'width=1440, user-scalable=yes');
+        }
+      })();
+    </script>
+
     <!-- Default page meta (home). vite.config.js (seoMetaPlugin) fills this
          block from src/config/seoConfig.js; the backend's prerendered page
          shells (backend/services/seo_prerender.py) replace it per page, and
