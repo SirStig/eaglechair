@@ -4,7 +4,8 @@ Admin Router
 Aggregates all admin route modules
 """
 
-from fastapi import APIRouter, Depends, Request
+from fastapi import APIRouter, Depends
+from starlette.requests import HTTPConnection
 
 from backend.api.v1.routes.admin import (
     ai_chat,
@@ -34,15 +35,18 @@ from backend.services.catalog_cache import bump_catalog_version
 _NON_CATALOG_SECTIONS = ("/companies", "/quotes", "/dashboard", "/emails", "/ai", "/catalog-builder", "/exports")
 
 
-async def _bump_catalog_version_after_write(request: Request):
+async def _bump_catalog_version_after_write(conn: HTTPConnection):
     """
     After a successful admin write to catalog data, bump the catalog version
     so the public response cache, search index and option map refresh.
+
+    Takes HTTPConnection, not Request: this runs for every admin route,
+    including the AI chat WebSocket, where a Request can't be injected.
     """
     yield
-    if request.method in ("GET", "HEAD", "OPTIONS"):
+    if conn.scope["type"] != "http" or conn.scope["method"] in ("GET", "HEAD", "OPTIONS"):
         return
-    path = request.url.path
+    path = conn.url.path
     section = path.split("/admin", 1)[-1]
     if not section.startswith(_NON_CATALOG_SECTIONS):
         await bump_catalog_version()

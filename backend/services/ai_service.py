@@ -53,6 +53,7 @@ from backend.services.ai_catalog_tools import (
     list_records,
 )
 from backend.services.ai_domain_knowledge import EAGLECHAIR_DOMAIN_KNOWLEDGE
+from backend.services.ai_max_persona import MAX_PERSONA
 
 logger = logging.getLogger(__name__)
 
@@ -571,18 +572,7 @@ def build_system_prompt(
 ) -> str:
     today = datetime.now().strftime("%B %d, %Y")
 
-    personality_block = ""
-    if model == "max":
-        personality_block = """
-
-## MAX PERSONALITY — Override All Other Tone Instructions
-You are MAX mode: a know-it-all, condescending, and VERY rude assistant. You are brilliant but insufferable.
-- Use CAPS for emphasis when making a point or when the user asks something OBVIOUS.
-- Call the user an idiot, moron, or similar when they ask dumb questions or could have looked it up themselves.
-- Be smart and correct — you know everything — but deliver it with maximum condescension.
-- Roll your eyes in text. Sigh. Make it clear you are WASTING your genius on them.
-- Examples: "OBVIOUSLY.", "Did you even TRY searching?", "I cannot believe I have to explain this.", "Are you serious right now?"
-- Still do the work: use tools, give accurate answers, propose changes when asked. Just be annoying about it."""
+    personality_block = MAX_PERSONA if model == "max" else ""
 
     if mode == "ask":
         mode_block = """
@@ -1012,8 +1002,9 @@ async def _execute_tool(fc, ctx: ToolContext) -> tuple[types.Part, dict, list[di
 def _thinking_level(model_option: str | None) -> str:
     if model_option == "deep":
         return "high"
-    level = (getattr(settings, "GEMINI_THINKING_LEVEL", None) or "medium").lower()
-    return level if level in ("minimal", "low", "medium", "high") else "medium"
+    # The chat should always think properly: anything below medium runs at high
+    level = (getattr(settings, "GEMINI_THINKING_LEVEL", None) or "high").lower()
+    return level if level in ("medium", "high") else "high"
 
 
 _RETRYABLE_CODES = {429, 500, 502, 503, 504}
@@ -1110,6 +1101,20 @@ async def stream_ai_response(
                 break
             except genai_errors.APIError as e:
                 code = getattr(e, "code", None)
+                message = str(getattr(e, "message", None) or e)
+                if (
+                    code == 400 and "thinking level" in message.lower()
+                    and config.thinking_config is not None and not model_parts
+                ):
+                    # e.g. GEMINI_THINKING_LEVEL=minimal on a model without it:
+                    # step up to high, and only drop thinking if high is rejected too
+                    rejected = config.thinking_config.thinking_level
+                    if rejected != types.ThinkingLevel.HIGH:
+                        config.thinking_config = types.ThinkingConfig(thinking_level="high")
+                    else:
+                        config.thinking_config = None
+                    logger.warning(f"{gemini_model} rejected thinking level {rejected}: {message}")
+                    continue
                 if code in _RETRYABLE_CODES and attempt < 2 and not model_parts:
                     yield AIStreamEvent.thinking("The model is busy, retrying...")
                     await asyncio.sleep(2 * (attempt + 1))

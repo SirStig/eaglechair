@@ -603,6 +603,7 @@ if __name__ == "__main__":
         "bind": f"{settings.HOST}:{settings.PORT}",
         "workers": 2,
         "worker_class": "backend.core.worker.AsyncioUvicornWorker",
+        "forwarded_allow_ips": settings.FORWARDED_ALLOW_IPS,
         "timeout": 120,
         "keepalive": 5,
         "preload_app": True,

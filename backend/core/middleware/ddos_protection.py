@@ -85,14 +85,15 @@ class DDoSProtectionMiddleware(BaseHTTPMiddleware):
             )
             raise IPBannedError()
         
-        # Check for attack patterns in URL and headers
+        # Check for attack patterns in URL and headers. Block only this request:
+        # banning the IP lets one bot probe lock out everyone who shares it
+        # (office NAT, a proxy whose forwarded IP isn't trusted).
         if self._detect_attack_pattern(request):
             security_logger.log_suspicious_activity(
                 client_ip,
                 "Attack pattern detected",
                 {"path": str(request.url.path), "method": request.method}
             )
-            self._ban_ip(client_ip, current_time)
             raise SuspiciousActivityError()
         
         # Track request

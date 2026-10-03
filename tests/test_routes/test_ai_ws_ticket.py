@@ -79,3 +79,12 @@ class TestWsTicket:
     async def test_ticket_endpoint_requires_auth(self, async_client):
         response = await async_client.post("/api/v1/admin/ai/ws-ticket", json={"session_id": "x"})
         assert response.status_code in (401, 403)
+
+
+@pytest.mark.unit
+@pytest.mark.admin
+def test_websocket_handshake_through_admin_router(client):
+    """The admin router's dependencies must not break the WebSocket upgrade."""
+    with client.websocket_connect("/api/v1/admin/ai/ws/missing?ticket=bad") as ws:
+        message = ws.receive_json()
+    assert message["type"] == "error"

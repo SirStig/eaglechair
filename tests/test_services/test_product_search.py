@@ -243,6 +243,33 @@ class TestTrackingStatePruning:
         assert not ddos.banned_ips
         assert not ddos.suspicious_ips
 
+    @pytest.mark.asyncio
+    async def test_ddos_attack_pattern_blocks_request_without_banning_ip(self):
+        from starlette.requests import Request
+        from starlette.responses import Response
+
+        from backend.core.exceptions import SuspiciousActivityError
+        from backend.core.middleware.ddos_protection import DDoSProtectionMiddleware
+
+        async def ok(request):
+            return Response("ok")
+
+        ddos = DDoSProtectionMiddleware(app=None)
+
+        def req(path, ua):
+            return Request({
+                "type": "http", "method": "GET", "path": path, "query_string": b"",
+                "headers": [(b"user-agent", ua.encode())], "client": ("10.0.0.5", 1234),
+            })
+
+        with pytest.raises(SuspiciousActivityError):
+            await ddos.dispatch(req("/../etc/passwd", "Mozilla/5.0 probe"), ok)
+        assert not ddos.banned_ips
+
+        # The same IP (e.g. a shared proxy) keeps working for normal requests
+        response = await ddos.dispatch(req("/api/v1/admin/ai/ws-ticket", "Mozilla/5.0 Safari"), ok)
+        assert response.status_code == 200
+
 
 @pytest.mark.unit
 class TestBackgroundEmail:

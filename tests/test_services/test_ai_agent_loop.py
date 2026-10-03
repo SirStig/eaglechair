@@ -1,6 +1,7 @@
 """Agent loop in ai_service.stream_ai_response, driven by a fake Gemini client."""
 
 import pytest
+from google.genai import errors as genai_errors
 from google.genai import types
 
 from backend.services import ai_service
@@ -21,8 +22,13 @@ class FakeModels:
         self.requests = []
 
     async def generate_content_stream(self, model, contents, config):
-        self.requests.append({"model": model, "contents": list(contents), "config": config})
+        self.requests.append({
+            "model": model, "contents": list(contents), "config": config,
+            "thinking_config": config.thinking_config,
+        })
         chunks = self.turns.pop(0)
+        if isinstance(chunks, Exception):
+            raise chunks
 
         async def gen():
             for c in chunks:
@@ -98,3 +104,35 @@ async def test_propose_changes_refused_in_ask_mode(monkeypatch):
     client, _ = await _run(monkeypatch, turns, mode="ask")
     response = client.aio.models.requests[1]["contents"][-1].parts[0].function_response.response
     assert "read-only" in response["error"]
+
+
+def _thinking_rejected():
+    return genai_errors.ClientError(400, {"error": {
+        "code": 400, "status": "INVALID_ARGUMENT",
+        "message": "Thinking level MINIMAL is not supported for this model. Please retry with other thinking level.",
+    }})
+
+
+async def test_unsupported_thinking_level_steps_up_to_high(monkeypatch):
+    monkeypatch.setattr(ai_service.settings, "GEMINI_THINKING_LEVEL", "medium")
+    turns = [_thinking_rejected(), [_chunk([types.Part(text="ok")], finish=types.FinishReason.STOP)]]
+    client, events = await _run(monkeypatch, turns)
+    first, second = client.aio.models.requests
+    assert first["thinking_config"].thinking_level == types.ThinkingLevel.MEDIUM
+    assert second["thinking_config"].thinking_level == types.ThinkingLevel.HIGH
+    assert events[-1]["type"] == "message_done"
+
+
+async def test_rejected_high_thinking_drops_to_model_default(monkeypatch):
+    turns = [_thinking_rejected(), [_chunk([types.Part(text="ok")], finish=types.FinishReason.STOP)]]
+    client, events = await _run(monkeypatch, turns, model="deep")
+    assert client.aio.models.requests[1]["thinking_config"] is None
+    assert events[-1]["type"] == "message_done"
+
+
+def test_thinking_level_never_runs_low(monkeypatch):
+    for configured, expected in (("minimal", "high"), ("low", "high"), ("medium", "medium"), ("high", "high"), ("", "high")):
+        monkeypatch.setattr(ai_service.settings, "GEMINI_THINKING_LEVEL", configured)
+        assert ai_service._thinking_level("auto") == expected
+        assert ai_service._thinking_level("max") == expected
+    assert ai_service._thinking_level("deep") == "high"
