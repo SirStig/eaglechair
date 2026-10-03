@@ -341,14 +341,20 @@ class SiteAnalyticsService:
             )).all()
         ]
 
-        # The tracker only sends a referrer on a session's landing page view
+        # The tracker only sends a referrer on a session's landing page view,
+        # so attribute each session to its (single) non-null referrer
+        session_refs = (
+            select(E.session_id, func.max(E.referrer).label("referrer"))
+            .where(*in_range, E.event_type == AnalyticsEventType.PAGE_VIEW)
+            .group_by(E.session_id)
+            .subquery()
+        )
         referrers = [
             {"source": r.referrer or "Direct / none", "sessions": int(r.sessions)}
             for r in (await db.execute(
-                select(E.referrer, func.count(distinct(E.session_id)).label("sessions"))
-                .where(*in_range, E.event_type == AnalyticsEventType.PAGE_VIEW)
-                .group_by(E.referrer)
-                .order_by(func.count(distinct(E.session_id)).desc())
+                select(session_refs.c.referrer, func.count().label("sessions"))
+                .group_by(session_refs.c.referrer)
+                .order_by(func.count().desc())
                 .limit(limit)
             )).all()
         ]

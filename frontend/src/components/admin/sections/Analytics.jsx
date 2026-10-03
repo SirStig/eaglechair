@@ -2,8 +2,6 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { clsx } from 'clsx';
 import { Area, AreaChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
 import {
-  ArrowDownRight,
-  ArrowUpRight,
   Download,
   Eye,
   FileText,
@@ -17,8 +15,9 @@ import {
 } from 'lucide-react';
 import apiClient from '../../../config/apiClient';
 import { resolveImageUrl } from '../../../utils/apiHelpers';
-import { CATALOG_TYPE_LABELS } from '../../../utils/catalogTypes';
 import { AdminPage, AdminPageHeader } from '../ui/AdminPage';
+import { Delta, EmptyRow, RankedList } from '../analyticsUi';
+import { RESOURCE_TYPE_LABELS, formatNumber, humanizePath } from '../analyticsFormat';
 
 const RANGES = [
   { label: '7D', days: 7 },
@@ -32,26 +31,12 @@ const METRICS = [
   { key: 'visitors', label: 'Visitors', icon: Users, hint: 'Unique browsers' },
   { key: 'page_views', label: 'Page views', icon: Eye, hint: 'All public pages' },
   { key: 'product_views', label: 'Product views', icon: Package, hint: 'Product detail pages' },
-  { key: 'downloads', label: 'Downloads', icon: Download, hint: 'Files & documents opened' },
+  { key: 'downloads', label: 'Downloads', icon: Download, hint: 'Files & documents' },
 ];
-
-const RESOURCE_TYPE_LABELS = {
-  ...CATALOG_TYPE_LABELS,
-  catalog: 'Catalog',
-  spec_sheet: 'Spec Sheet',
-  line_drawing: 'Line Drawing',
-  cad: 'CAD File',
-  image: 'Product Image',
-  guide: 'Guide',
-  document: 'Document',
-  other: 'Other',
-};
 
 const DEVICE_LABELS = { desktop: 'Desktop', mobile: 'Mobile', tablet: 'Tablet', unknown: 'Unknown' };
 
 const GOLD = '#f4a52d';
-
-const formatNumber = (n) => new Intl.NumberFormat('en-US').format(n || 0);
 
 // Series dates are UTC calendar days ("YYYY-MM-DD"); show them as-is
 const parseDay = (value) => {
@@ -60,34 +45,6 @@ const parseDay = (value) => {
 };
 const formatDay = (value, opts = { month: 'short', day: 'numeric' }) =>
   parseDay(value).toLocaleDateString('en-US', opts);
-
-const humanizePath = (path) => (!path || path === '/' ? 'Home' : path);
-
-function changeOf(current, previous) {
-  if (!previous) return current ? null : 0;
-  return ((current - previous) / previous) * 100;
-}
-
-function Delta({ current, previous, invert = false }) {
-  const change = changeOf(current, previous);
-  if (change === null) {
-    return <span className="text-[11px] font-medium text-dark-200">New this period</span>;
-  }
-  if (Math.abs(change) < 0.5) {
-    return <span className="text-[11px] font-medium text-dark-200">No change</span>;
-  }
-  const up = change > 0;
-  const good = invert ? !up : up;
-  const Icon = up ? ArrowUpRight : ArrowDownRight;
-  return (
-    <span className={clsx('inline-flex items-center gap-0.5 text-[11px] font-medium', good ? 'text-emerald-300' : 'text-secondary-300')}>
-      <Icon className="h-3.5 w-3.5" aria-hidden="true" />
-      {Math.abs(change).toFixed(Math.abs(change) < 10 ? 1 : 0)}%
-      <span className="sr-only">{up ? 'increase' : 'decrease'}</span>
-      <span className="ml-1 font-normal text-dark-200">vs prev.</span>
-    </span>
-  );
-}
 
 function Panel({ title, icon: Icon, subtitle, action, children, className }) {
   return (
@@ -104,37 +61,6 @@ function Panel({ title, icon: Icon, subtitle, action, children, className }) {
       </div>
       <div className="flex-1">{children}</div>
     </section>
-  );
-}
-
-function EmptyRow({ children }) {
-  return <p className="px-5 py-8 text-center text-sm text-dark-200">{children}</p>;
-}
-
-/** Ranked rows with a thin magnitude bar under each label (single hue). */
-function RankedList({ rows, empty, valueLabel }) {
-  if (!rows.length) return <EmptyRow>{empty}</EmptyRow>;
-  const max = Math.max(...rows.map((r) => r.value), 1);
-  return (
-    <ol className="divide-y divide-white/[0.04]">
-      {rows.map((row) => (
-        <li key={row.key} className="group px-5 py-2.5" title={`${row.label}: ${formatNumber(row.value)} ${valueLabel}`}>
-          <div className="flex items-baseline justify-between gap-3">
-            <div className="min-w-0">
-              <p className="truncate text-sm text-dark-50">{row.label}</p>
-              {row.sublabel && <p className="truncate text-xs text-dark-200">{row.sublabel}</p>}
-            </div>
-            <span className="flex-shrink-0 text-sm font-semibold tabular-nums text-dark-50">{formatNumber(row.value)}</span>
-          </div>
-          <div className="mt-1.5 h-1 overflow-hidden rounded-full bg-white/[0.04]">
-            <div
-              className="h-full rounded-full bg-primary-500/70 transition-colors group-hover:bg-primary-500"
-              style={{ width: `${Math.max((row.value / max) * 100, 2)}%` }}
-            />
-          </div>
-        </li>
-      ))}
-    </ol>
   );
 }
 

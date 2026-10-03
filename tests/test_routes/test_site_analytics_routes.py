@@ -171,6 +171,11 @@ class TestTrafficReport:
         assert data["top_products"][0]["downloads"] == 1
         assert data["top_downloads"][0]["label"] == "CAD File"
         assert data["downloads_by_type"] == [{"type": "cad", "downloads": 1}]
-        assert {"source": "bing.com", "sessions": 1} in data["referrers"]
+        # The bing session's later /products view has no referrer but must not
+        # count as a second, "direct" session
+        assert sorted(data["referrers"], key=lambda r: r["source"]) == [
+            {"source": "Direct / none", "sessions": 1},
+            {"source": "bing.com", "sessions": 1},
+        ]
         assert {d["device"] for d in data["devices"]} == {"desktop", "mobile"}
         assert data["top_searches"] == [{"query": "booth", "searches": 1}]
