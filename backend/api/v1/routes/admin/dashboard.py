@@ -11,6 +11,7 @@ from fastapi.responses import JSONResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from backend.api.dependencies import get_current_admin
+from backend.core.config import settings
 from backend.core.exceptions import EagleChairException
 from backend.database.base import get_db
 from backend.models.company import AdminUser
@@ -185,14 +186,77 @@ async def get_average_values(
 async def get_traffic_analytics(
     days: int = Query(30, ge=1, le=365),
     limit: int = Query(10, ge=1, le=50),
+    include_staff: bool = Query(False, description="Include visits from browsers logged into the admin panel"),
     admin: AdminUser = Depends(get_current_admin),
     db: AsyncSession = Depends(get_db)
 ):
     """Anonymous site engagement for the last `days` days, with the prior period for comparison"""
     try:
-        return await SiteAnalyticsService.get_overview(db=db, days=days, limit=limit)
+        return await SiteAnalyticsService.get_overview(
+            db=db, days=days, limit=limit, include_staff=include_staff
+        )
     except (HTTPException, EagleChairException):
         raise
     except Exception as e:
         logger.error(f"Error fetching traffic analytics: {e}")
         raise HTTPException(status_code=500, detail="Failed to fetch traffic analytics") from e
+
+
+@router.get(
+    "/analytics/products/{product_id}",
+    summary="Get analytics for one product (Admin)",
+    description="Views, downloads, quote-cart adds, quotes and option/tab interactions for a product"
+)
+async def get_product_analytics(
+    product_id: int,
+    days: int = Query(30, ge=1, le=365),
+    include_staff: bool = Query(False),
+    admin: AdminUser = Depends(get_current_admin),
+    db: AsyncSession = Depends(get_db)
+):
+    try:
+        report = await SiteAnalyticsService.get_product_report(
+            db=db, product_id=product_id, days=days, include_staff=include_staff
+        )
+    except Exception as e:
+        logger.error(f"Error fetching product analytics: {e}")
+        raise HTTPException(status_code=500, detail="Failed to fetch product analytics") from e
+    if report is None:
+        raise HTTPException(status_code=404, detail="Product not found")
+    return report
+
+
+@router.get(
+    "/analytics/digest/preview",
+    summary="Preview the weekly analytics email (Admin)",
+)
+async def preview_analytics_digest(
+    admin: AdminUser = Depends(get_current_admin),
+    db: AsyncSession = Depends(get_db)
+):
+    from backend.services.analytics_digest import DIGEST_DAYS, digest_recipients, render_digest
+
+    report = await SiteAnalyticsService.get_overview(db=db, days=DIGEST_DAYS, limit=5)
+    return {
+        "html": render_digest(report),
+        "recipients": digest_recipients(),
+        "enabled": settings.ANALYTICS_DIGEST_ENABLED,
+        "schedule": f"Mondays at {settings.ANALYTICS_DIGEST_HOUR_UTC:02d}:00 UTC",
+    }
+
+
+@router.post(
+    "/analytics/digest/send",
+    summary="Email the weekly analytics digest now (Admin)",
+    description="Sends the current 7-day digest to the signed-in admin only, as a test",
+)
+async def send_analytics_digest(
+    admin: AdminUser = Depends(get_current_admin),
+    db: AsyncSession = Depends(get_db)
+):
+    from backend.services.analytics_digest import send_digest
+
+    sent = await send_digest(db, [admin.email])
+    if not sent:
+        raise HTTPException(status_code=502, detail="The email could not be sent. Check the SMTP settings.")
+    return {"sent_to": admin.email}

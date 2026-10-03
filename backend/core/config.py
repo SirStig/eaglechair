@@ -267,6 +267,16 @@ class Settings(BaseSettings):
     SEO_PRERENDER_ENABLED: bool = True
     SEO_PRERENDER_INTERVAL_SECONDS: int = 60
 
+    # Site analytics
+    # Optional MaxMind GeoLite2 City/Country .mmdb file for visitor country /
+    # region (needs the geoip2 package). Without it, country comes only from a
+    # CDN header (CF-IPCountry etc.) when one is present.
+    GEOIP_DB_PATH: Optional[str] = None
+    # Weekly traffic digest email to staff (Mondays, UTC)
+    ANALYTICS_DIGEST_ENABLED: bool = True
+    ANALYTICS_DIGEST_RECIPIENTS: str = ""  # comma-separated; empty = ADMIN_EMAIL
+    ANALYTICS_DIGEST_HOUR_UTC: int = 13
+
     # Performance Configuration
     ENABLE_CACHE: bool = True
     ENABLE_COMPRESSION: bool = True

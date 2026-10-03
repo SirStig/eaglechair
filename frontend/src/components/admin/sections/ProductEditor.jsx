@@ -22,9 +22,11 @@ import {
   Award,
   TrendingUp,
   Package,
+  BarChart3,
 } from 'lucide-react';
 import ResponsiveImage from '../../ui/ResponsiveImage';
 import { AdminPage, AdminPageHeader } from '../ui/AdminPage';
+import ProductAnalyticsPanel from '../ProductAnalyticsPanel';
 
 /**
  * Comprehensive Product Editor
@@ -333,10 +335,14 @@ const ProductEditor = ({ product, onBack }) => {
     { id: 'variations', label: 'Variations', icon: RefreshCw },
     { id: 'certifications', label: 'Certifications', icon: Award },
     { id: 'seo', label: 'SEO & Analytics', icon: TrendingUp },
+    // Saved products only: there's no traffic to show for a new one
+    ...(product?.id ? [{ id: 'activity', label: 'Site Activity', icon: BarChart3 }] : []),
   ];
 
   const renderTabContent = () => {
     switch (activeTab) {
+      case 'activity':
+        return <ProductAnalyticsPanel productId={product?.id} />;
       case 'basic':
         return (
           <div className="space-y-6">

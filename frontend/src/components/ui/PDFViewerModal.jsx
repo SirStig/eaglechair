@@ -1,11 +1,45 @@
+import { useEffect } from 'react';
 import { X, Download, ExternalLink } from 'lucide-react';
 import { resolveFileUrl } from '../../utils/apiHelpers';
+import { trackCatalogRead } from '../../utils/analytics';
+
+/**
+ * Reports how long a document stays open (visible tab time only). The PDF is
+ * rendered by the browser's own viewer, so pages turned can't be seen.
+ */
+function useReadingTime(isOpen, title) {
+  useEffect(() => {
+    if (!isOpen || !title) return undefined;
+    let visibleSince = document.visibilityState === 'visible' ? Date.now() : null;
+    let ms = 0;
+    const report = () => {
+      if (visibleSince !== null) {
+        ms += Date.now() - visibleSince;
+        visibleSince = null;
+      }
+      trackCatalogRead(title, ms / 1000);
+      ms = 0;
+    };
+    const onVisibility = () => {
+      if (document.visibilityState === 'hidden') report();
+      else if (visibleSince === null) visibleSince = Date.now();
+    };
+    document.addEventListener('visibilitychange', onVisibility);
+    window.addEventListener('pagehide', report);
+    return () => {
+      document.removeEventListener('visibilitychange', onVisibility);
+      window.removeEventListener('pagehide', report);
+      report();
+    };
+  }, [isOpen, title]);
+}
 
 /**
  * PDF Viewer Modal Component
  * Displays PDF files in an iframe for in-browser viewing
  */
 const PDFViewerModal = ({ isOpen, onClose, fileUrl, fileName, fileType = 'PDF' }) => {
+  useReadingTime(isOpen, fileName);
   if (!isOpen) return null;
 
   const resolvedUrl = resolveFileUrl(fileUrl);

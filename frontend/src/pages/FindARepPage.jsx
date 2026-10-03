@@ -1,4 +1,4 @@
-import { useState, useCallback, useMemo, useRef } from 'react';
+import { useState, useCallback, useEffect, useMemo, useRef } from 'react';
 import SEOHead from '../components/SEOHead';
 import { SEO } from '../config/seoConfig';
 import { m } from 'framer-motion';
@@ -10,6 +10,7 @@ import EditableList from '../components/admin/EditableList';
 import { useSalesReps, useSiteSettings } from '../hooks/useContent';
 import logger from '../utils/logger';
 import { getStateName } from '../utils/usStates';
+import { trackRepSearch } from '../utils/analytics';
 
 const CONTEXT = 'FindARepPage';
 
@@ -50,6 +51,11 @@ const FindARepPage = () => {
   const activeState = selectedState || hoveredState;
   const displayRep = getRep(activeState);
   const selectedRep = getRep(selectedState);
+
+  // Which territories people look up (clicks, not hovers)
+  useEffect(() => {
+    if (selectedState) trackRepSearch(getStateName(selectedState));
+  }, [selectedState]);
 
   const selectRepTerritory = (rep) => {
     const states = getRepStates(rep);

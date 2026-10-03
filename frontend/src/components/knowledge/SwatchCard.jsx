@@ -1,11 +1,16 @@
 import SwatchImage from '../ui/SwatchImage';
+import { useMaterialInterest } from '../../hooks/useMaterialInterest';
+
+// Swatch kinds as analytics material types
+const MATERIAL_TYPES = { wood: 'finish', fabric: 'upholstery', laminate: 'laminate' };
 
 /** One material swatch (finish, vinyl, laminate) with its name, code and a few facts. */
 const SwatchCard = ({ item, kind, title, code, facts: rawFacts = [], description, badges = [] }) => {
   // Skip facts the title already says (e.g. pattern "Milled" on "Milled Claret Red").
   const facts = rawFacts.filter((f) => f && !title?.toLowerCase().includes(String(f).toLowerCase()));
+  const interest = useMaterialInterest(MATERIAL_TYPES[kind] || kind, [title, code].filter(Boolean).join(' · '));
   return (
-  <article className="bg-white rounded-lg border border-cream-200 overflow-hidden hover:border-primary-500 transition-colors duration-300">
+  <article {...interest} className="bg-white rounded-lg border border-cream-200 overflow-hidden hover:border-primary-500 transition-colors duration-300">
     <SwatchImage item={item} size="card" rounded="none" kind={kind} alt={title} className="w-full rounded-none" />
     <div className="p-3 sm:p-4">
       <h3 className="font-semibold text-slate-800 leading-snug">{title}</h3>

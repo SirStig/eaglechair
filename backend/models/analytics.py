@@ -7,7 +7,7 @@ generated in the browser (no IP address, no account link), so this table holds
 no personal data.
 """
 
-from sqlalchemy import Column, Index, Integer, String
+from sqlalchemy import Boolean, Column, Index, Integer, String
 
 from backend.database.base import Base
 
@@ -17,8 +17,43 @@ class AnalyticsEventType:
     PRODUCT_VIEW = "product_view"
     DOWNLOAD = "download"
     SEARCH = "search"
+    # Quote funnel (accounts are off, so quotes are the conversion)
+    CART_ADD = "cart_add"
+    CART_REMOVE = "cart_remove"
+    QUOTE_START = "quote_start"
+    QUOTE_SUBMIT = "quote_submit"
+    # Lead forms
+    CONTACT_SUBMIT = "contact_submit"
+    REP_SEARCH = "rep_search"
+    # Interest signals
+    MATERIAL_VIEW = "material_view"  # finish / upholstery / laminate / hardware opened
+    PRODUCT_INTERACTION = "product_interaction"  # option picked, tab opened, image viewed
+    CATALOG_READ = "catalog_read"  # catalog open in the PDF viewer (value = seconds)
+    FILTER = "filter"  # catalog filter applied (label = "facet: value")
+    # Time on page: value = visible seconds, depth = max scroll %
+    ENGAGEMENT = "engagement"
 
-    ALL = (PAGE_VIEW, PRODUCT_VIEW, DOWNLOAD, SEARCH)
+    ALL = (
+        PAGE_VIEW, PRODUCT_VIEW, DOWNLOAD, SEARCH,
+        CART_ADD, CART_REMOVE, QUOTE_START, QUOTE_SUBMIT,
+        CONTACT_SUBMIT, REP_SEARCH,
+        MATERIAL_VIEW, PRODUCT_INTERACTION, CATALOG_READ, FILTER,
+        ENGAGEMENT,
+    )
+
+
+# Columns added after the table first shipped; create_all() won't add them to
+# an existing table, so database/base.py adds them at startup
+ANALYTICS_ADDED_COLUMNS = {
+    "value": "INTEGER",
+    "depth": "INTEGER",
+    "country": "VARCHAR(2)",
+    "region": "VARCHAR(64)",
+    "utm_source": "VARCHAR(100)",
+    "utm_medium": "VARCHAR(100)",
+    "utm_campaign": "VARCHAR(150)",
+    "is_staff": "BOOLEAN NOT NULL DEFAULT FALSE",
+}
 
 
 class AnalyticsEvent(Base):
@@ -43,10 +78,29 @@ class AnalyticsEvent(Base):
     resource_url = Column(String(512), nullable=True)
     label = Column(String(255), nullable=True)  # human-readable name / search query
 
+    # Event-specific number: search result count, cart quantity, catalog
+    # reading seconds, engaged seconds
+    value = Column(Integer, nullable=True)
+    depth = Column(Integer, nullable=True)  # engagement: max scroll depth, 0-100
+
+    # Coarse location from the request (never the IP itself)
+    country = Column(String(2), nullable=True)
+    region = Column(String(64), nullable=True)
+
+    # Campaign tags from the session's landing URL
+    utm_source = Column(String(100), nullable=True)
+    utm_medium = Column(String(100), nullable=True)
+    utm_campaign = Column(String(150), nullable=True)
+
+    # Sent from a browser logged into the admin panel; left out of reports
+    # unless asked for
+    is_staff = Column(Boolean, default=False, nullable=False)
+
     __table_args__ = (
         Index("ix_analytics_events_type_created", "event_type", "created_at"),
         Index("ix_analytics_events_created", "created_at"),
         Index("ix_analytics_events_product", "product_id", "event_type"),
+        Index("ix_analytics_events_session", "session_id", "created_at"),
     )
 
     def __repr__(self) -> str:

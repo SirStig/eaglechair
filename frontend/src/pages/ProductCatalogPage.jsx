@@ -22,6 +22,7 @@ import {
   getCatalogLocation,
 } from '../utils/catalogUrl';
 import { findCategoryById, findNestedCategoryById } from '../utils/categoryTree';
+import { trackFilter } from '../utils/analytics';
 
 const CONTEXT = 'ProductCatalogPage';
 // The products API caps per_page at 100, so "See all" fetches 100-item pages
@@ -35,6 +36,45 @@ const CATALOG_CARD_IMAGE_SIZES =
 const FIRST_ROW_CARDS = 5;
 
 const PAGE_SIZE_LABELS = { all: 'All' };
+
+// Analytics: which catalog filters people apply. Category / subcategory
+// changes are page views of their own, and the search box is tracked once
+// typing settles, so neither is repeated here.
+const FILTER_FACETS = {
+  family_id: 'Family',
+  finish_ids: 'Finish',
+  upholstery_ids: 'Upholstery',
+  color_ids: 'Color',
+  is_stackable: 'Stackable',
+  is_outdoor_suitable: 'Outdoor',
+  ada_compliant: 'ADA compliant',
+  min_seat_height: 'Min seat height',
+  max_seat_height: 'Max seat height',
+  min_width: 'Min width',
+  max_width: 'Max width',
+  max_lead_time: 'Max lead time',
+  stock_status: 'Stock status',
+  featured: 'Featured',
+  new: 'New',
+  sortBy: 'Sort',
+};
+
+function trackFilterChanges(prev, next, { families, finishes, upholsteries, colors }) {
+  const nameOf = (list, id) => list.find((item) => String(item.id) === String(id))?.name || `#${id}`;
+  const lists = { family_id: families, finish_ids: finishes, upholstery_ids: upholsteries, color_ids: colors };
+  Object.entries(FILTER_FACETS).forEach(([key, facet]) => {
+    const before = prev?.[key];
+    const after = next?.[key];
+    if (Array.isArray(after)) {
+      const added = after.filter((id) => !(before || []).map(String).includes(String(id)));
+      added.forEach((id) => trackFilter(facet, nameOf(lists[key], id)));
+      return;
+    }
+    if (after === before || after === '' || after === null || after === false || after === undefined) return;
+    if (after === true) trackFilter(facet, 'Yes');
+    else trackFilter(facet, lists[key] ? nameOf(lists[key], after) : after);
+  });
+}
 
 const ProductCatalogPage = () => {
   const [searchParams] = useSearchParams();
@@ -83,6 +123,7 @@ const ProductCatalogPage = () => {
 
   const goToCatalog = useCallback(
     (nextFilters, nextPage = 1, options = {}) => {
+      trackFilterChanges(filters, nextFilters, { families, finishes, upholsteries, colors });
       const { pathname, search } = getCatalogLocation(
         nextFilters,
         categories,
@@ -91,8 +132,14 @@ const ProductCatalogPage = () => {
       );
       navigate({ pathname, search }, options);
     },
-    [navigate, categories, subcategories]
+    [navigate, categories, subcategories, filters, families, finishes, upholsteries, colors]
   );
+
+  // Catalog search box: one event once typing settles
+  const settledSearch = useDebounce((filters.search || '').trim().toLowerCase(), 1200);
+  useEffect(() => {
+    if (settledSearch.length >= 2) trackFilter('Catalog search', settledSearch);
+  }, [settledSearch]);
 
   // Request sequence numbers: a slower, older response must never overwrite
   // the results for the current filters.

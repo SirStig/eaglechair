@@ -3,6 +3,7 @@ import { persist } from 'zustand/middleware';
 import apiClient from '../config/apiClient';
 import logger from '../utils/logger';
 import { ensurePriceCents } from '../utils/apiHelpers';
+import { trackCartAdd, trackCartRemove } from '../utils/analytics';
 
 const CONTEXT = 'CartStore';
 
@@ -69,6 +70,7 @@ export const useCartStore = create(
       
       addItem: async (product, quantity = 1, customizations = {}) => {
         const isAuth = get().isAuthenticated;
+        trackCartAdd(product, quantity);
         
         if (isAuth) {
           // Authenticated: Add to backend
@@ -160,6 +162,8 @@ export const useCartStore = create(
       
       removeItem: async (itemIndex) => {
         const isAuth = get().isAuthenticated;
+        const removed = get().getItems()[itemIndex];
+        if (removed) trackCartRemove(removed.product ?? { id: removed.product_id, name: removed.product_name });
         
         if (isAuth) {
           // For backend cart, we need the item ID

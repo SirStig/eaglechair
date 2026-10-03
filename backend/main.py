@@ -247,6 +247,13 @@ async def lifespan(app: FastAPI):
 
         seo_task = asyncio.create_task(prerender_loop())
 
+    # Weekly analytics email to staff (one send per week; see analytics_digest.py)
+    digest_task = None
+    if settings.ANALYTICS_DIGEST_ENABLED and not settings.TESTING:
+        from backend.services.analytics_digest import digest_loop
+
+        digest_task = asyncio.create_task(digest_loop())
+
     logger.info(f"🎯 API v1 available at: {settings.API_V1_PREFIX}")
     logger.info("✨ EagleChair API is ready!")
 
@@ -257,6 +264,8 @@ async def lifespan(app: FastAPI):
 
     if seo_task is not None:
         seo_task.cancel()
+    if digest_task is not None:
+        digest_task.cancel()
 
     try:
         # Close cache connections first

@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import SEOHead from '../components/SEOHead';
 import { SEO } from '../config/seoConfig';
@@ -13,6 +13,7 @@ import { useCartStore } from '../store/cartStore';
 import { useAuthStore } from '../store/authStore';
 import apiClient from '../config/apiClient';
 import { getProductImage } from '../utils/apiHelpers';
+import { trackQuoteStart, trackQuoteSubmit } from '../utils/analytics';
 
 const inputClass = 'w-full px-4 py-3 border border-cream-300 bg-white text-slate-800 placeholder-slate-400 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 text-base';
 
@@ -31,6 +32,13 @@ const QuoteRequestPage = () => {
   );
   const [uploadedFiles, setUploadedFiles] = useState([]);
   const [submitStatus, setSubmitStatus] = useState(null);
+  // First field focused = the visitor started filling in the form (once per visit)
+  const quoteStartedRef = useRef(false);
+  const handleFormFocus = () => {
+    if (quoteStartedRef.current) return;
+    quoteStartedRef.current = true;
+    trackQuoteStart();
+  };
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [sameAsBilling, setSameAsBilling] = useState(true);
 
@@ -171,6 +179,7 @@ const QuoteRequestPage = () => {
       } else {
         await apiClient.post('/api/v1/quotes/request-guest', payload);
       }
+      trackQuoteSubmit(items.length);
       setSubmitStatus('success');
       if (clearCart) clearCart();
     } catch (error) {
@@ -235,7 +244,7 @@ const QuoteRequestPage = () => {
           </Card>
         )}
 
-        <form onSubmit={handleSubmit(onSubmit)} className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <form onSubmit={handleSubmit(onSubmit)} onFocus={handleFormFocus} className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           <div className="lg:col-span-2 space-y-4 sm:space-y-6 order-2 lg:order-1">
             <Card className="bg-white border-cream-200">
               <h2 className="text-lg sm:text-xl font-bold text-slate-800 mb-4 flex items-center gap-2">

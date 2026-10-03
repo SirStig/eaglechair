@@ -8,6 +8,8 @@ import KnowledgePageLayout from '../components/knowledge/KnowledgePageLayout';
 import ResponsiveImage from '../components/ui/ResponsiveImage';
 import ImagePlaceholder from '../components/ui/ImagePlaceholder';
 import { resolveImageUrl } from '../utils/apiHelpers';
+import { useMaterialInterest, useTrackedQuery } from '../hooks/useMaterialInterest';
+import { trackFilter } from '../utils/analytics';
 
 const CATEGORY_ORDER = [
   'Glides',
@@ -30,9 +32,10 @@ const HardwareCard = ({ item }) => {
     item.weightCapacity && ['Capacity', item.weightCapacity],
     item.compatibleWith && ['Fits', item.compatibleWith],
   ].filter(Boolean);
+  const interest = useMaterialInterest('hardware', [item.name, item.modelNumber].filter(Boolean).join(' · '));
 
   return (
-    <article className="bg-white rounded-lg border border-cream-200 overflow-hidden hover:border-primary-500 transition-colors duration-300 flex flex-col">
+    <article {...interest} className="bg-white rounded-lg border border-cream-200 overflow-hidden hover:border-primary-500 transition-colors duration-300 flex flex-col">
       {img ? (
         <div className="relative aspect-[4/3] overflow-hidden bg-white border-b border-cream-100">
           <ResponsiveImage
@@ -68,6 +71,7 @@ const HardwareCard = ({ item }) => {
 const HardwarePage = () => {
   const { data: hardware = [], loading } = useHardware();
   const [query, setQuery] = useState('');
+  useTrackedQuery('Hardware search', query);
   const [category, setCategory] = useState('all');
 
   const active = useMemo(() => (hardware || []).filter((h) => h.isActive !== false), [hardware]);
@@ -116,7 +120,10 @@ const HardwarePage = () => {
                   key={c}
                   type="button"
                   aria-pressed={category === c}
-                  onClick={() => setCategory(c)}
+                  onClick={() => {
+                    setCategory(c);
+                    if (c !== 'all') trackFilter('Hardware category', c);
+                  }}
                   className={`px-3 py-1.5 rounded-lg text-sm font-medium border transition-colors ${
                     category === c
                       ? 'bg-slate-800 border-slate-800 text-white'

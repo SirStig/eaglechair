@@ -279,6 +279,80 @@ async def ensure_spec_profile_columns(target_engine=None) -> list[str]:
     return added
 
 
+def _missing_analytics_columns(sync_conn) -> list[str]:
+    """Columns of ANALYTICS_ADDED_COLUMNS the analytics_events table lacks"""
+    from sqlalchemy import inspect
+
+    from backend.models.analytics import ANALYTICS_ADDED_COLUMNS
+
+    inspector = inspect(sync_conn)
+    if "analytics_events" not in inspector.get_table_names():
+        return []
+    present = {col["name"] for col in inspector.get_columns("analytics_events")}
+    return [name for name in ANALYTICS_ADDED_COLUMNS if name not in present]
+
+
+def _add_analytics_column(sync_conn, column: str) -> bool:
+    from sqlalchemy import text
+
+    from backend.models.analytics import ANALYTICS_ADDED_COLUMNS
+
+    if column not in _missing_analytics_columns(sync_conn):
+        return False
+    sync_conn.execute(
+        text(f"ALTER TABLE analytics_events ADD COLUMN {column} {ANALYTICS_ADDED_COLUMNS[column]}")
+    )
+    return True
+
+
+async def ensure_analytics_columns(target_engine=None) -> list[str]:
+    """
+    Idempotently add columns introduced after analytics_events first shipped.
+
+    Same approach as ensure_token_version_columns. Returns the added columns.
+    """
+    target_engine = target_engine or engine
+    async with target_engine.connect() as conn:
+        missing = await conn.run_sync(_missing_analytics_columns)
+    added = []
+    for column in missing:
+        try:
+            async with target_engine.begin() as conn:
+                if await conn.run_sync(_add_analytics_column, column):
+                    added.append(column)
+                    logger.info(f"[DB] Added analytics_events.{column}")
+        except Exception as e:
+            # Another worker may have added it concurrently - re-check
+            async with target_engine.connect() as conn:
+                still_missing = column in await conn.run_sync(_missing_analytics_columns)
+            if still_missing:
+                logger.error(f"[DB] Failed to add analytics_events.{column}: {e}")
+                raise
+
+    # Indexes added with those columns (create_all() skips existing tables too)
+    try:
+        async with target_engine.begin() as conn:
+            await conn.run_sync(_ensure_analytics_indexes)
+    except Exception as e:
+        logger.warning(f"[DB] Could not add analytics_events indexes: {e}")
+    return added
+
+
+def _ensure_analytics_indexes(sync_conn) -> None:
+    from sqlalchemy import inspect
+
+    from backend.models.analytics import AnalyticsEvent
+
+    inspector = inspect(sync_conn)
+    if "analytics_events" not in inspector.get_table_names():
+        return
+    present = {ix["name"] for ix in inspector.get_indexes("analytics_events")}
+    for index in AnalyticsEvent.__table__.indexes:
+        if index.name not in present:
+            index.create(sync_conn)
+            logger.info(f"[DB] Added index {index.name}")
+
+
 async def init_db() -> None:
     """
     Initialize database - create all tables
@@ -289,6 +363,7 @@ async def init_db() -> None:
         await conn.run_sync(Base.metadata.create_all)
     await ensure_token_version_columns()
     await ensure_spec_profile_columns()
+    await ensure_analytics_columns()
 
 
 async def close_db() -> None:

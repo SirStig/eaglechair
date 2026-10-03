@@ -7,6 +7,7 @@ import KnowledgePageLayout from '../components/knowledge/KnowledgePageLayout';
 import SwatchCard from '../components/knowledge/SwatchCard';
 import DocumentList from '../components/knowledge/DocumentList';
 import { UPHOLSTERY_GUIDE_TYPES, filterByTypes } from '../utils/catalogTypes';
+import { useTrackedQuery } from '../hooks/useMaterialInterest';
 
 // Section heading for a material: the mill/brand when known, otherwise its grade, otherwise its type.
 const groupOf = (u) => u.manufacturer || (u.grade ? `${u.grade} ${u.materialType || ''}`.trim() : u.materialType || 'Other');
@@ -15,6 +16,7 @@ const UpholsteryPage = () => {
   const { data: upholsteries = [], loading } = useUpholsteries();
   const { data: catalogs = [] } = useCatalogs();
   const [query, setQuery] = useState('');
+  useTrackedQuery('Upholstery search', query);
   const [type, setType] = useState('all');
 
   const active = useMemo(() => (upholsteries || []).filter((u) => u.isActive !== false), [upholsteries]);

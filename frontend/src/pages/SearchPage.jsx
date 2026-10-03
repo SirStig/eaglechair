@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { trackSearch } from '../utils/analytics';
 import { useSearchParams, useNavigate, Link } from 'react-router-dom';
 import SEOHead from '../components/SEOHead';
@@ -66,10 +66,9 @@ const SearchPage = () => {
     loadCategories();
   }, []);
 
-  // One analytics event per settled query (not per page/sort change)
-  useEffect(() => {
-    trackSearch(debouncedQuery);
-  }, [debouncedQuery]);
+  // One analytics event per settled query (not per page/sort change), sent
+  // once results are in so searches that found nothing can be flagged
+  const trackedQueryRef = useRef(null);
 
   // Search products when query or filters change
   useEffect(() => {
@@ -104,6 +103,11 @@ const SearchPage = () => {
       });
       
       let productsData = searchResults || [];
+      const query = debouncedQuery.trim();
+      if (trackedQueryRef.current !== query) {
+        trackedQueryRef.current = query;
+        trackSearch(query, productsData.length);
+      }
       
       // Apply category filter client-side
       if (filters.category_id) {

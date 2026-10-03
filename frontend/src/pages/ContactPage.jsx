@@ -10,6 +10,7 @@ import EditableWrapper from '../components/admin/EditableWrapper';
 import { useSiteSettings, usePageContent } from '../hooks/useContent';
 import { submitFeedback } from '../services/contentService';
 import logger from '../utils/logger';
+import { trackContactSubmit } from '../utils/analytics';
 
 const CONTEXT = 'ContactPage';
 
@@ -60,6 +61,7 @@ const ContactPage = () => {
         message: data.message,
         feedback_type: data.subject
       });
+      trackContactSubmit(data.subject);
       setSubmitStatus('success');
       reset();
       setTimeout(() => setSubmitStatus(null), 5000);

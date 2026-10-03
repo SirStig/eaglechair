@@ -185,6 +185,15 @@ const DashboardOverview = ({ onNavigate, inquiryUnread = 0 }) => {
       text: `${inquiryUnread} unread ${inquiryUnread === 1 ? 'inquiry' : 'inquiries'} from the contact form`,
       cta: 'Open inbox',
     },
+    // Products people looked at this week that have nothing to download
+    week?.content_gaps?.missing_files_count > 0 && {
+      id: 'analytics',
+      icon: Search,
+      text: `${week.content_gaps.missing_files_count} viewed ${
+        week.content_gaps.missing_files_count === 1 ? 'product has' : 'products have'
+      } no spec sheet, CAD file or line drawing`,
+      cta: 'See which',
+    },
   ].filter(Boolean);
 
   const shortcuts = [
@@ -290,7 +299,7 @@ const DashboardOverview = ({ onNavigate, inquiryUnread = 0 }) => {
       <div className="grid grid-cols-1 gap-6 xl:grid-cols-5">
         <Panel
           title="Trending products"
-          subtitle="Most viewed, last 7 days"
+          subtitle="Most interest, last 7 days"
           icon={Package}
           className="xl:col-span-3"
           action={<ViewAll onClick={() => onNavigate('analytics')} />}

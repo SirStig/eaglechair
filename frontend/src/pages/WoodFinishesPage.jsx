@@ -7,6 +7,7 @@ import KnowledgePageLayout from '../components/knowledge/KnowledgePageLayout';
 import SwatchCard from '../components/knowledge/SwatchCard';
 import DocumentList from '../components/knowledge/DocumentList';
 import { FINISH_GUIDE_TYPES, filterByTypes } from '../utils/catalogTypes';
+import { useTrackedQuery } from '../hooks/useMaterialInterest';
 
 const GRADE_ORDER = ['Standard', 'Premium', 'Premium Plus', 'Artisan'];
 
@@ -14,6 +15,7 @@ const WoodFinishesPage = () => {
   const { data: finishes = [], loading } = useFinishes();
   const { data: catalogs = [] } = useCatalogs();
   const [query, setQuery] = useState('');
+  useTrackedQuery('Wood finish search', query);
 
   const groups = useMemo(() => {
     const q = query.trim().toLowerCase();

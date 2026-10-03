@@ -167,6 +167,11 @@ class EmailService:
                 </html>
             '''
         },
+        'analytics_digest': {
+            'subject': 'Website activity this week: {{ visitors }} visitors',
+            # digest_html is built (and escaped) by services/analytics_digest.py
+            'body': '''<div class="analytics-digest">{{ digest_html | safe }}</div>'''
+        },
         'company_approved': {
             'subject': 'Your EagleChair Account is Approved',
             'body': '''

@@ -7,10 +7,12 @@ import { SEO } from '../config/seoConfig';
 import KnowledgePageLayout from '../components/knowledge/KnowledgePageLayout';
 import SwatchCard from '../components/knowledge/SwatchCard';
 import { safeHref } from '../utils/safeUrl';
+import { useTrackedQuery } from '../hooks/useMaterialInterest';
 
 const LaminatesPage = () => {
   const { data: laminates = [], loading } = useLaminates();
   const [query, setQuery] = useState('');
+  useTrackedQuery('Laminate search', query);
 
   const groups = useMemo(() => {
     const q = query.trim().toLowerCase();

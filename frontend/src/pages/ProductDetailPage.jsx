@@ -19,7 +19,7 @@ import ResponsiveImage from '../components/ui/ResponsiveImage';
 import SpecSymbols, { SpecIcon } from '../components/ui/SpecSymbols';
 import CustomOptionsNote from '../components/ui/CustomOptionsNote';
 import useSpecProfile from '../hooks/useSpecProfile';
-import { trackDownload, trackProductView } from '../utils/analytics';
+import { trackDownload, trackProductInteraction, trackProductView } from '../utils/analytics';
 import { getSpecItems, getFeatureSymbol } from '../utils/specSymbols';
 
 // Hero image column: full width below lg, half of the max-w-7xl container above.
@@ -57,6 +57,15 @@ const ProductDetailPage = () => {
   const [showSuccessMessage, setShowSuccessMessage] = useState(false);
   const [variations, setVariations] = useState([]);
   const [selectedVariation, setSelectedVariation] = useState(null);
+  // Analytics: options picked on this page (user clicks only, not defaults)
+  const trackOption = (kind, label) => trackProductInteraction(product?.id, kind, label);
+  const variationLabel = (v) => (v ? v.name || v.sku || [v.finish?.name, v.upholstery?.name].filter(Boolean).join(' / ') || `Variation ${v.id}` : 'Base model');
+  const photosBrowsedRef = useRef(null);
+  const trackPhotoBrowse = () => {
+    if (photosBrowsedRef.current === product?.id) return;
+    photosBrowsedRef.current = product?.id;
+    trackOption('image', 'Browsed photos');
+  };
   const [loadingVariations, setLoadingVariations] = useState(false);
   const [familyProducts, setFamilyProducts] = useState([]);
   const [currentFamily, setCurrentFamily] = useState(null);
@@ -438,7 +447,10 @@ const ProductDetailPage = () => {
                   <>
                     <button
                       type="button"
-                      onClick={() => setSelectedImage(selectedImage === 0 ? carouselImages.length - 1 : selectedImage - 1)}
+                      onClick={() => {
+                        trackPhotoBrowse();
+                        setSelectedImage(selectedImage === 0 ? carouselImages.length - 1 : selectedImage - 1);
+                      }}
                       className="absolute left-2 sm:left-3 top-1/2 -translate-y-1/2 w-10 h-10 sm:w-12 sm:h-12 flex items-center justify-center bg-cream-50/80 hover:bg-cream-50 border border-cream-300 rounded-full transition-colors min-w-[44px] min-h-[44px] z-10"
                     >
                       <svg className="w-5 h-5 sm:w-6 sm:h-6 text-slate-800" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -447,7 +459,10 @@ const ProductDetailPage = () => {
                     </button>
                     <button
                       type="button"
-                      onClick={() => setSelectedImage(selectedImage === carouselImages.length - 1 ? 0 : selectedImage + 1)}
+                      onClick={() => {
+                        trackPhotoBrowse();
+                        setSelectedImage(selectedImage === carouselImages.length - 1 ? 0 : selectedImage + 1);
+                      }}
                       className="absolute right-2 sm:right-3 top-1/2 -translate-y-1/2 w-10 h-10 sm:w-12 sm:h-12 flex items-center justify-center bg-cream-50/80 hover:bg-cream-50 border border-cream-300 rounded-full transition-colors min-w-[44px] min-h-[44px] z-10"
                     >
                       <svg className="w-5 h-5 sm:w-6 sm:h-6 text-slate-800" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -544,6 +559,7 @@ const ProductDetailPage = () => {
                     <button
                       type="button"
                       onClick={() => {
+                        trackOption('variation', 'Base model');
                         setSelectedVariation(null);
                         setSelectedImage(0);
                       }}
@@ -577,6 +593,7 @@ const ProductDetailPage = () => {
                           key={variation.id}
                           type="button"
                           onClick={() => {
+                            trackOption('variation', variationLabel(variation));
                             setSelectedVariation(variation);
                             setSelectedImage(0);
                           }}
@@ -860,6 +877,7 @@ const ProductDetailPage = () => {
                       } else {
                         const variation = variations.find(v => v.id === parseInt(val, 10));
                         setSelectedVariation(variation || null);
+                        if (variation) trackOption('variation', variationLabel(variation));
                       }
                       setSelectedImage(0);
                     }}
@@ -958,7 +976,10 @@ const ProductDetailPage = () => {
                       return (
                         <button
                           key={f.id ?? idx}
-                          onClick={() => setSelectedFinish(f)}
+                          onClick={() => {
+                            setSelectedFinish(f);
+                            trackOption('finish', f.name);
+                          }}
                           className={`p-2 sm:p-3 rounded-lg border-2 transition-all text-sm font-medium min-h-[44px] flex items-center gap-2 ${isSelected
                             ? 'border-primary-600 bg-primary-50 text-primary-900'
                             : 'border-cream-300 bg-white text-slate-700 hover:border-primary-400'
@@ -986,7 +1007,10 @@ const ProductDetailPage = () => {
                       return (
                         <button
                           key={f.id ?? idx}
-                          onClick={() => setSelectedUpholstery(f)}
+                          onClick={() => {
+                            setSelectedUpholstery(f);
+                            trackOption('upholstery', f.name);
+                          }}
                           className={`p-2 sm:p-3 rounded-lg border-2 transition-all text-sm font-medium min-h-[44px] flex items-center gap-2 ${isSelected
                             ? 'border-primary-600 bg-primary-50 text-primary-900'
                             : 'border-cream-300 bg-white text-slate-700 hover:border-primary-400'
@@ -1014,7 +1038,10 @@ const ProductDetailPage = () => {
                       return (
                         <button
                           key={c.id ?? idx}
-                          onClick={() => setSelectedFinish(c)}
+                          onClick={() => {
+                            setSelectedFinish(c);
+                            trackOption('color', c.name);
+                          }}
                           className={`p-2 sm:p-3 rounded-lg border-2 transition-all text-sm font-medium min-h-[44px] flex items-center gap-2 ${isSelected
                             ? 'border-primary-600 bg-primary-50 text-primary-900'
                             : 'border-cream-300 bg-white text-slate-700 hover:border-primary-400'
