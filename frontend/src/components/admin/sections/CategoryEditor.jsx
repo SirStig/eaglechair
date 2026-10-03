@@ -4,7 +4,8 @@ import Button from '../../ui/Button';
 import apiClient from '../../../config/apiClient';
 import { resolveImageUrl } from '../../../utils/apiHelpers';
 import { slugify } from '../../../utils/slugify';
-import { ArrowLeft, Upload, X } from 'lucide-react';
+import { Upload, X } from 'lucide-react';
+import { AdminPage, AdminPageHeader } from '../ui/AdminPage';
 import ResponsiveImage from '../../ui/ResponsiveImage';
 import { SPEC_PROFILES } from '../../../utils/specSymbols';
 
@@ -213,29 +214,19 @@ const CategoryEditor = ({ category, categories, parentCategory, isSubcategory, o
   };
 
   return (
-    <div className="p-6 space-y-6">
-      {/* Header */}
-      <div className="flex items-center gap-4">
-        <button
-          onClick={onBack}
-          className="p-2 hover:bg-dark-700 rounded-lg transition-colors disabled:opacity-50 disabled:pointer-events-none"
-          disabled={saving || isUploading}
-        >
-          <ArrowLeft className="w-5 h-5 text-dark-300" />
-        </button>
-        <div>
-          <h2 className="text-3xl font-bold text-dark-50">
-            {subcategoryMode
-              ? (category ? `Edit: ${String(category.name ?? '')}` : `Create Subcategory${parentCategory ? ` under ${String(parentCategory.name ?? '')}` : ''}`)
-              : (category ? `Edit: ${String(category.name ?? '')}` : 'Create Category')}
-          </h2>
-          <p className="text-dark-300 mt-1">
-            {subcategoryMode
-              ? (category ? 'Update subcategory details' : 'Add a new subcategory under this category')
-              : (category ? 'Update category details and images' : 'Add a new product category')}
-          </p>
-        </div>
-      </div>
+    <AdminPage>
+      <AdminPageHeader
+        eyebrow="Products"
+        title={subcategoryMode
+          ? (category ? `Edit ${String(category.name ?? '')}` : `New Subcategory${parentCategory ? ` under ${String(parentCategory.name ?? '')}` : ''}`)
+          : (category ? `Edit ${String(category.name ?? '')}` : 'New Category')}
+        description={subcategoryMode
+          ? (category ? 'Update subcategory details' : 'Add a new subcategory under this category')
+          : (category ? 'Update category details and images' : 'Add a new product category')}
+        onBack={onBack}
+        backDisabled={saving || isUploading}
+        backLabel="Back to Categories"
+      />
 
       {/* Form */}
       <form onSubmit={handleSubmit}>
@@ -444,7 +435,7 @@ const CategoryEditor = ({ category, categories, parentCategory, isSubcategory, o
           </Button>
         </div>
       </form>
-    </div>
+    </AdminPage>
   );
 };
 

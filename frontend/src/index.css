@@ -562,9 +562,10 @@ input[type="number"] {
   }
 
   /* Better mobile typography — allow Tailwind responsive classes to override */
-  h1 { font-size: 1.5rem !important; }
-  h2 { font-size: 1.25rem !important; }
-  h3 { font-size: 1.125rem !important; }
+  /* The admin console sizes its own headings (see AdminPageHeader) */
+  h1:not(.admin-theme *) { font-size: 1.5rem !important; }
+  h2:not(.admin-theme *) { font-size: 1.25rem !important; }
+  h3:not(.admin-theme *) { font-size: 1.125rem !important; }
 }
 
 /* Admin dashboard mobile overrides — prevent horizontal overflow from tables/grids */

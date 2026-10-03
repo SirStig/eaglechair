@@ -11,6 +11,7 @@ import PermanentDeleteModal from '../PermanentDeleteModal';
 import { useToast } from '../../../contexts/ToastContext';
 import { useAdminRefresh } from '../../../contexts/AdminRefreshContext';
 import ResponsiveImage from '../../ui/ResponsiveImage';
+import { AdminPage, AdminPageHeader } from '../ui/AdminPage';
 
 /**
  * Color Management Component
@@ -161,22 +162,20 @@ const ColorManagement = () => {
   }
 
   return (
-    <div className="p-6 space-y-6">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h2 className="text-3xl font-bold text-dark-50">Color Management</h2>
-          <p className="text-dark-300 mt-2">
-            Manage color options for finishes and upholstery
-          </p>
-        </div>
-        <Button 
-          onClick={handleCreate}
-          className="bg-primary-600 hover:bg-primary-500 px-6 py-3"
-        >
-          + Add Color
-        </Button>
-      </div>
+    <AdminPage>
+      <AdminPageHeader
+        eyebrow="Materials & Options"
+        title="Colors"
+        description="Manage color options for finishes and upholstery"
+        actions={
+          <Button 
+            onClick={handleCreate}
+            className="bg-primary-600 hover:bg-primary-500 px-6 py-3"
+          >
+            + Add Color
+          </Button>
+        }
+      />
 
       <StatusTabs tab={tab} onChange={handleTabChange} activeCount={activeTotal} archivedCount={archivedTotal} />
 
@@ -375,7 +374,7 @@ const ColorManagement = () => {
         itemName={permDeleteTarget?.name}
         isLoading={permDeleting}
       />
-    </div>
+    </AdminPage>
   );
 };
 

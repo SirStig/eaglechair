@@ -1,4 +1,5 @@
 import { clsx } from 'clsx';
+import { ArrowLeft } from 'lucide-react';
 
 /**
  * Page frame for an admin section: consistent gutters and max width so every
@@ -22,7 +23,7 @@ export function AdminPage({ children, className, width = 'wide' }) {
  * Section header: small gold eyebrow, serif title (matches the public site's
  * headings), optional description and a right-aligned action slot.
  */
-export function AdminPageHeader({ eyebrow, title, description, actions, icon: Icon, className }) {
+export function AdminPageHeader({ eyebrow, title, description, actions, icon: Icon, onBack, backLabel = 'Back', backDisabled = false, className }) {
   return (
     <header
       className={clsx(
@@ -31,6 +32,17 @@ export function AdminPageHeader({ eyebrow, title, description, actions, icon: Ic
       )}
     >
       <div className="min-w-0">
+        {onBack && (
+          <button
+            type="button"
+            onClick={onBack}
+            disabled={backDisabled}
+            className="mb-3 inline-flex items-center gap-1.5 text-sm text-dark-200 transition-colors hover:text-dark-50 disabled:pointer-events-none disabled:opacity-40"
+          >
+            <ArrowLeft className="h-4 w-4" aria-hidden="true" />
+            {backLabel}
+          </button>
+        )}
         {eyebrow && (
           <p className="mb-1.5 text-[11px] font-semibold uppercase tracking-[0.18em] text-primary-500/90">
             {eyebrow}

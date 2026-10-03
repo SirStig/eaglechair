@@ -60,8 +60,11 @@ const NewAdminDashboardInner = () => {
   const isStandalone = useStandalone();
   const isTabletOrSmaller = useMediaQuery('(max-width: 767px)');
   const showBottomNav = isStandalone && isTabletOrSmaller;
+  // Tablets (md) always get the icon rail; desktop (lg+) honours the collapse toggle
+  const isDesktop = useMediaQuery('(min-width: 1024px)');
   const [selectedProduct, setSelectedProduct] = useState(null);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(readCollapsed);
+  const railCollapsed = !isDesktop || sidebarCollapsed;
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [paletteOpen, setPaletteOpen] = useState(false);
   const [inquiryUnread, setInquiryUnread] = useState(0);
@@ -213,7 +216,9 @@ const NewAdminDashboardInner = () => {
   };
 
   return (
-    <div className="admin-theme relative flex min-h-[100dvh] bg-dark-900 overflow-x-hidden">
+    // overflow-x-clip, not hidden: hidden makes this a scroll container and
+    // breaks the sticky top bar
+    <div className="admin-theme relative min-h-[100dvh] bg-dark-900 overflow-x-clip">
       {/* Mobile drawer backdrop */}
       <AnimatePresence>
         {isMobileMenuOpen && (
@@ -222,7 +227,7 @@ const NewAdminDashboardInner = () => {
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             onClick={() => setIsMobileMenuOpen(false)}
-            className="fixed inset-0 z-40 bg-black/60 backdrop-blur-sm lg:hidden"
+            className="fixed inset-0 z-40 bg-black/60 backdrop-blur-sm md:hidden"
           />
         )}
       </AnimatePresence>
@@ -230,7 +235,7 @@ const NewAdminDashboardInner = () => {
       <AdminSidebar
         activeSection={activeSection}
         badges={{ inquiries: inquiryUnread }}
-        collapsed={sidebarCollapsed}
+        collapsed={railCollapsed}
         onToggleCollapsed={() => setSidebarCollapsed((v) => !v)}
         mobileOpen={isMobileMenuOpen}
         onNavigate={handleNavigate}
@@ -245,7 +250,11 @@ const NewAdminDashboardInner = () => {
         onSelect={(item) => handleNavigate(item.path, item.id)}
       />
 
-      <main className="flex min-h-[100dvh] min-w-0 flex-1 flex-col overflow-x-hidden">
+      <main
+        className={`flex min-h-[100dvh] min-w-0 flex-col overflow-x-clip transition-[padding] duration-300 ease-out ${
+          railCollapsed ? 'md:pl-[4.5rem]' : 'md:pl-[17rem]'
+        }`}
+      >
         {/* Safe-area top spacer — env() is 0px in browser, non-zero on notched standalone */}
         <div className="pt-safe flex-shrink-0 bg-dark-900" />
         <AdminTopbar

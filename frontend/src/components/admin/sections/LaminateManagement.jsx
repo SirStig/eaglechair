@@ -5,6 +5,7 @@ import apiClient from '../../../config/apiClient';
 import { resolveImageUrl } from '../../../utils/apiHelpers';
 import { Edit, Trash2, Layers, X, Plus, RotateCcw } from 'lucide-react';
 import LaminateEditor from './LaminateEditor';
+import { AdminPage, AdminPageHeader } from '../ui/AdminPage';
 import ReorderableTable from '../ReorderableTable';
 import StatusTabs from '../StatusTabs';
 import PermanentDeleteModal from '../PermanentDeleteModal';
@@ -165,19 +166,18 @@ const LaminateManagement = () => {
   }
 
   return (
-    <div className="p-6 space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h2 className="text-3xl font-bold text-dark-50">Laminate Management</h2>
-          <p className="text-dark-300 mt-1">
-            Manage laminate brands and patterns
-          </p>
-        </div>
-        <Button onClick={handleCreate} className="bg-primary-600 hover:bg-primary-500">
-          <Plus className="w-4 h-4 mr-2" />
-          Add Laminate
-        </Button>
-      </div>
+    <AdminPage>
+      <AdminPageHeader
+        eyebrow="Materials & Options"
+        title="Laminates"
+        description="Manage laminate brands and patterns"
+        actions={
+          <Button onClick={handleCreate} className="bg-primary-600 hover:bg-primary-500">
+            <Plus className="w-4 h-4 mr-2" />
+            Add Laminate
+          </Button>
+        }
+      />
 
       <StatusTabs tab={tab} onChange={handleTabChange} activeCount={activeTotal} archivedCount={archivedTotal} />
 
@@ -342,7 +342,7 @@ const LaminateManagement = () => {
         itemName={permDeleteTarget?.name}
         isLoading={permDeleting}
       />
-    </div>
+    </AdminPage>
   );
 };
 

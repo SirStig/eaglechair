@@ -9,6 +9,7 @@ import { useAdminRefresh } from '../../../contexts/AdminRefreshContext';
 import { useToast } from '../../../contexts/ToastContext';
 import TableSortHead from '../TableSortHead';
 import PaginationBar from '../PaginationBar';
+import { AdminPage, AdminPageHeader } from '../ui/AdminPage';
 
 const CompanyManagement = () => {
   const { refreshKeys } = useAdminRefresh();
@@ -229,13 +230,17 @@ const CompanyManagement = () => {
   }
 
   return (
-    <div className="p-8 space-y-6">
-      <div className="flex justify-between items-center">
-        <h2 className="text-2xl font-bold text-dark-50">Company Management</h2>
-        <Button onClick={handleOpenInviteModal}>
-          Invite Company
-        </Button>
-      </div>
+    <AdminPage>
+      <AdminPageHeader
+        eyebrow="Sales"
+        title="Companies"
+        description="Manage customer accounts and send invitations"
+        actions={
+          <Button onClick={handleOpenInviteModal}>
+            Invite Company
+          </Button>
+        }
+      />
       
       {selectedCompanies.length > 0 && (
         <Card className="bg-primary-900/20 border-primary-500">
@@ -410,7 +415,7 @@ const CompanyManagement = () => {
           )}
         </form>
       </Modal>
-    </div>
+    </AdminPage>
   );
 };
 

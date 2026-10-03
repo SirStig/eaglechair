@@ -8,6 +8,7 @@ import PricingTierEditor from './PricingTierEditor';
 import { useToast } from '../../../contexts/ToastContext';
 import { useAdminRefresh } from '../../../contexts/AdminRefreshContext';
 import TableSortHead, { compareValues } from '../TableSortHead';
+import { AdminPage, AdminPageHeader } from '../ui/AdminPage';
 
 /**
  * Pricing Tier Management Component
@@ -112,23 +113,21 @@ const PricingTierManagement = () => {
   }
 
   return (
-    <div className="p-6 space-y-6">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h2 className="text-3xl font-bold text-dark-50">Pricing Tier Management</h2>
-          <p className="text-dark-300 mt-2">
-            Create and manage reusable pricing tiers that can be assigned to companies
-          </p>
-        </div>
-        <Button 
-          onClick={handleCreate}
-          className="bg-primary-600 hover:bg-primary-500 px-6 py-3"
-        >
-          <Plus className="w-4 h-4 mr-2" />
-          Create Tier
-        </Button>
-      </div>
+    <AdminPage>
+      <AdminPageHeader
+        eyebrow="Sales"
+        title="Pricing Tiers"
+        description="Create and manage reusable pricing tiers that can be assigned to companies"
+        actions={
+          <Button 
+            onClick={handleCreate}
+            className="bg-primary-600 hover:bg-primary-500 px-6 py-3"
+          >
+            <Plus className="w-4 h-4 mr-2" />
+            Create Tier
+          </Button>
+        }
+      />
 
       {/* Info Card */}
       <Card className="bg-dark-800 border-dark-700">
@@ -282,7 +281,7 @@ const PricingTierManagement = () => {
           </div>
         </Card>
       )}
-    </div>
+    </AdminPage>
   );
 };
 

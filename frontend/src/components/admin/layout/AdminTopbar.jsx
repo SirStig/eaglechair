@@ -106,7 +106,7 @@ export default function AdminTopbar({ crumbs, mobileMenuOpen, onToggleMobileMenu
       <button
         type="button"
         onClick={onToggleMobileMenu}
-        className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-lg text-dark-50 hover:bg-white/[0.05] lg:hidden"
+        className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-lg text-dark-50 hover:bg-white/[0.05] md:hidden"
         aria-label={mobileMenuOpen ? 'Close menu' : 'Open menu'}
       >
         {mobileMenuOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}

@@ -12,6 +12,7 @@ import PermanentDeleteModal from '../PermanentDeleteModal';
 import { useToast } from '../../../contexts/ToastContext';
 import { useAdminRefresh } from '../../../contexts/AdminRefreshContext';
 import ResponsiveImage from '../../ui/ResponsiveImage';
+import { AdminPage, AdminPageHeader } from '../ui/AdminPage';
 
 /**
  * Product Family Management with Full CRUD
@@ -293,18 +294,17 @@ const FamilyManagement = () => {
   }
 
   return (
-    <div className="p-8 space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h2 className="text-2xl font-bold text-dark-50">Product Family Management</h2>
-          <p className="text-dark-300 mt-1">
-            Manage product families and collections
-          </p>
-        </div>
-        <Button onClick={handleCreate}>
-          + Add Family
-        </Button>
-      </div>
+    <AdminPage>
+      <AdminPageHeader
+        eyebrow="Products"
+        title="Product Families"
+        description="Manage product families and collections"
+        actions={
+          <Button onClick={handleCreate}>
+            + Add Family
+          </Button>
+        }
+      />
 
       <StatusTabs tab={tab} onChange={handleTabChange} activeCount={activeTotal} archivedCount={archivedTotal} />
 
@@ -540,7 +540,7 @@ const FamilyManagement = () => {
         message={permDeleteTarget?.bulk ? `${permDeleteTarget.bulk.length} families will be removed from the database immediately.` : undefined}
         isLoading={permDeleting}
       />
-    </div>
+    </AdminPage>
   );
 };
 

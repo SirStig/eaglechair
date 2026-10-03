@@ -3,9 +3,10 @@ import Card from '../../ui/Card';
 import Button from '../../ui/Button';
 import apiClient from '../../../config/apiClient';
 import { resolveImageUrl } from '../../../utils/apiHelpers';
-import { ArrowLeft, Upload, X, FileText } from 'lucide-react';
+import { Upload, X, FileText } from 'lucide-react';
 import ResponsiveImage from '../../ui/ResponsiveImage';
 import { CATALOG_TYPE_OPTIONS } from '../../../utils/catalogTypes';
+import { AdminPage, AdminPageHeader } from '../ui/AdminPage';
 
 /**
  * Catalog Editor Component
@@ -180,25 +181,15 @@ const CatalogEditor = ({ catalog, onBack, onSave }) => {
   const isUploading = uploadingThumbnail;
 
   return (
-    <div className="p-6 space-y-6">
-      {/* Header */}
-      <div className="flex items-center gap-4">
-        <button
-          onClick={onBack}
-          className="p-2 hover:bg-dark-700 rounded-lg transition-colors disabled:opacity-50 disabled:pointer-events-none"
-          disabled={saving || isUploading}
-        >
-          <ArrowLeft className="w-5 h-5 text-dark-300" />
-        </button>
-        <div>
-          <h2 className="text-3xl font-bold text-dark-50">
-            {catalog ? `Edit: ${catalog.title}` : 'Create Catalog'}
-          </h2>
-          <p className="text-dark-300 mt-1">
-            {catalog ? 'Update catalog details and files' : 'Add a new virtual catalog or guide'}
-          </p>
-        </div>
-      </div>
+    <AdminPage>
+      <AdminPageHeader
+        eyebrow="Publishing"
+        title={catalog ? `Edit: ${catalog.title}` : 'Create Catalog'}
+        description={catalog ? 'Update catalog details and files' : 'Add a new virtual catalog or guide'}
+        onBack={onBack}
+        backDisabled={saving || isUploading}
+        backLabel="Back to Virtual Catalogs"
+      />
 
       {/* Form */}
       <form onSubmit={handleSubmit}>
@@ -458,7 +449,7 @@ const CatalogEditor = ({ catalog, onBack, onSave }) => {
           </Button>
         </div>
       </form>
-    </div>
+    </AdminPage>
   );
 };
 

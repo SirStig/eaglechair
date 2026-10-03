@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import Card from '../../ui/Card';
 import apiClient from '../../../config/apiClient';
+import { AdminPage, AdminPageHeader } from '../ui/AdminPage';
 import {
   LineChart,
   Line,
@@ -109,24 +110,21 @@ const Analytics = () => {
 
   if (loading) {
     return (
-      <div className="p-8">
+      <AdminPage>
         <div className="flex items-center justify-center py-12">
           <div className="w-12 h-12 border-4 border-dark-600 border-t-primary-500 rounded-full animate-spin" />
         </div>
-      </div>
+      </AdminPage>
     );
   }
 
   return (
-    <div className="p-8 space-y-6">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h2 className="text-2xl font-bold text-dark-50">Analytics Dashboard</h2>
-          <p className="text-dark-300 mt-1">Track your business performance and trends</p>
-        </div>
-        
-        {/* Time Range Selector */}
+    <AdminPage>
+      <AdminPageHeader
+        eyebrow="Overview"
+        title="Analytics"
+        description="Track your business performance and trends"
+        actions={
         <div className="flex items-center gap-2 bg-dark-700 p-1 rounded-lg">
           {[
             { label: '7D', value: '7d' },
@@ -149,7 +147,8 @@ const Analytics = () => {
             </button>
           ))}
         </div>
-      </div>
+        }
+      />
 
       {/* Key Metrics */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
@@ -395,7 +394,7 @@ const Analytics = () => {
           </div>
         </Card>
       )}
-    </div>
+    </AdminPage>
   );
 };
 

@@ -212,13 +212,6 @@ const SiteSettingsManager = () => {
 
   return (
     <form onSubmit={handleSubmit} className="space-y-6 pb-24">
-      <div>
-        <h2 className="text-xl font-bold text-dark-50 sm:text-2xl">Site Settings</h2>
-        <p className="mt-1 text-sm text-dark-100">
-          Company details shown in the header, footer and contact page. Changes go live when you save.
-        </p>
-      </div>
-
       <Section icon={<Building2 />} title="Branding" description="Name, tagline and logos used across the site.">
         <Input label="Company name" {...field('company_name')} />
         <div>

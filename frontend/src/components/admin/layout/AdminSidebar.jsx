@@ -11,7 +11,7 @@ function SidebarBrand({ collapsed }) {
   const showWordmark = !collapsed && logoUrl && !logoFailed;
 
   return (
-    <div className={clsx('flex h-16 flex-shrink-0 items-center border-b border-white/[0.06]', collapsed ? 'px-5 lg:justify-center lg:px-2' : 'px-5')}>
+    <div className={clsx('flex h-16 flex-shrink-0 items-center border-b border-white/[0.06]', collapsed ? 'px-5 md:justify-center md:px-2' : 'px-5')}>
       {showWordmark ? (
         <img
           src={logoUrl}
@@ -22,7 +22,7 @@ function SidebarBrand({ collapsed }) {
       ) : (
         <div className="flex min-w-0 items-center gap-2.5">
           <img src="/web-app-manifest-192x192.png" alt="Eagle Chair" className="h-8 w-8 flex-shrink-0 rounded" />
-          <span className={clsx('truncate font-serif text-lg font-bold text-dark-50', collapsed && 'lg:hidden')}>Eagle Chair</span>
+          <span className={clsx('truncate font-serif text-lg font-bold text-dark-50', collapsed && 'md:hidden')}>Eagle Chair</span>
         </div>
       )}
     </div>
@@ -32,6 +32,8 @@ function SidebarBrand({ collapsed }) {
 /**
  * Admin sidebar: brand, grouped navigation with a gold active rail, and a
  * footer with the live-site link and collapse toggle (desktop only).
+ * Permanently pinned from md up (icon rail when `collapsed`); a slide-out
+ * drawer on phones.
  */
 export default function AdminSidebar({
   activeSection,
@@ -46,11 +48,12 @@ export default function AdminSidebar({
     <aside
       aria-label="Admin navigation"
       className={clsx(
-        'fixed top-0 z-50 flex h-[100dvh] w-[17rem] flex-shrink-0 flex-col border-r border-white/[0.06] bg-dark-950 pt-safe',
-        'transition-[width,transform] duration-300 ease-out lg:sticky lg:z-auto lg:pt-0',
+        // Always fixed (never sticky): an overflow ancestor would make sticky scroll away with the page
+        'fixed inset-y-0 left-0 z-50 flex w-[17rem] flex-col border-r border-white/[0.06] bg-dark-950 pt-safe',
+        'transition-[width,transform] duration-300 ease-out md:z-40',
         bottomPadding && 'pb-nav-spacer',
-        collapsed && 'lg:w-[4.5rem]',
-        mobileOpen ? 'translate-x-0 shadow-2xl shadow-black/60' : '-translate-x-full lg:translate-x-0'
+        collapsed && 'md:w-[4.5rem]',
+        mobileOpen ? 'translate-x-0 shadow-2xl shadow-black/60' : '-translate-x-full md:translate-x-0'
       )}
     >
       <SidebarBrand collapsed={collapsed} />
@@ -58,15 +61,15 @@ export default function AdminSidebar({
       <nav className="admin-scrollbar flex-1 overflow-y-auto overflow-x-hidden px-3 py-4">
         {ADMIN_NAV.map((group) => (
           <div key={group.id} className="mb-5 last:mb-0">
-            {collapsed && <div className="mx-auto mb-2 hidden h-px w-6 bg-white/[0.08] lg:block" aria-hidden="true" />}
-            <h2
+            {collapsed && <div className="mx-auto mb-2 hidden h-px w-6 bg-white/[0.08] md:block" aria-hidden="true" />}
+            <p
               className={clsx(
                 'mb-1.5 px-3 font-sans text-[10.5px] font-semibold uppercase tracking-[0.16em] text-dark-200',
-                collapsed && 'lg:sr-only'
+                collapsed && 'md:sr-only'
               )}
             >
               {group.title}
-            </h2>
+            </p>
             <ul className="space-y-0.5">
               {group.items.map((item) => {
                 const Icon = item.icon;
@@ -87,7 +90,7 @@ export default function AdminSidebar({
                       className={clsx(
                         'group relative flex h-9 items-center gap-3 rounded-md px-3 text-[13.5px] font-medium transition-colors',
                         'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500/70',
-                        collapsed && 'lg:justify-center lg:px-0',
+                        collapsed && 'md:justify-center md:px-0',
                         isActive
                           ? 'bg-white/[0.07] text-dark-50'
                           : 'text-dark-100 hover:bg-white/[0.04] hover:text-dark-50'
@@ -105,15 +108,15 @@ export default function AdminSidebar({
                           aria-hidden="true"
                         />
                         {badge > 0 && collapsed && (
-                          <span className="absolute -right-1 -top-1 hidden h-2 w-2 rounded-full bg-primary-500 lg:block" aria-hidden="true" />
+                          <span className="absolute -right-1 -top-1 hidden h-2 w-2 rounded-full bg-primary-500 md:block" aria-hidden="true" />
                         )}
                       </span>
-                      <span className={clsx('truncate', collapsed && 'lg:sr-only')}>{item.label}</span>
+                      <span className={clsx('truncate', collapsed && 'md:sr-only')}>{item.label}</span>
                       {badge > 0 && (
                         <span
                           className={clsx(
                             'ml-auto rounded-full bg-primary-500 px-1.5 py-0.5 text-[10.5px] font-bold leading-none tabular-nums text-dark-950',
-                            collapsed && 'lg:hidden'
+                            collapsed && 'md:hidden'
                           )}
                         >
                           {badge > 99 ? '99+' : badge}
@@ -137,11 +140,11 @@ export default function AdminSidebar({
           title={collapsed ? 'View live site' : undefined}
           className={clsx(
             'flex h-9 items-center gap-3 rounded-md px-3 text-[13px] text-dark-100 transition-colors hover:bg-white/[0.04] hover:text-dark-50',
-            collapsed && 'lg:justify-center lg:px-0'
+            collapsed && 'md:justify-center md:px-0'
           )}
         >
           <ExternalLink className="h-4 w-4 flex-shrink-0" aria-hidden="true" />
-          <span className={clsx(collapsed && 'lg:sr-only')}>View live site</span>
+          <span className={clsx(collapsed && 'md:sr-only')}>View live site</span>
         </a>
         <button
           type="button"

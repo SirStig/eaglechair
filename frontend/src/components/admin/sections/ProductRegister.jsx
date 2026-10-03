@@ -13,6 +13,7 @@ import { useAdminRefresh } from '../../../contexts/AdminRefreshContext';
 import {
   bulkUpdateProducts, downloadProductIndex, downloadProductsExcel, getRegister, updateProduct, updateVariation,
 } from '../../../services/catalogToolsService';
+import { AdminPage, AdminPageHeader } from '../ui/AdminPage';
 
 const PAGE_SIZE = 50;
 const INPUT = 'px-3 py-2 bg-dark-700 border border-dark-600 rounded-lg text-sm text-dark-50 focus:border-primary-500 focus:ring-1 focus:ring-primary-500 outline-none';
@@ -203,42 +204,47 @@ const ProductRegister = () => {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center h-64">
-        <Loader2 className="w-8 h-8 animate-spin text-primary-500" />
-      </div>
+      <AdminPage>
+        <div className="flex items-center justify-center h-64">
+          <Loader2 className="w-8 h-8 animate-spin text-primary-500" />
+        </div>
+      </AdminPage>
     );
   }
 
   return (
-    <div className="p-3 sm:p-6 space-y-4 sm:space-y-6">
-      <div className="flex flex-col lg:flex-row lg:items-end justify-between gap-4">
-        <div>
-          <h2 className="text-2xl sm:text-3xl font-bold text-dark-50">Product Register</h2>
-          <p className="text-dark-300 mt-1 text-sm">
+    <AdminPage>
+      <AdminPageHeader
+        eyebrow="Products"
+        title="Product Register"
+        description={
+          <>
             Every product and variation, live or not: {stats.products} products ({stats.active} active),{' '}
             {stats.variations} variations, {stats.flagged} with missing data.
-          </p>
-        </div>
-        <div className="flex flex-wrap items-center gap-2">
-          <label className="flex items-center gap-2 text-sm text-dark-200 mr-2">
-            <input
-              type="checkbox"
-              checked={includeInactive}
-              onChange={(e) => setIncludeInactive(e.target.checked)}
-              className="accent-primary-500"
-            />
-            Include inactive
-          </label>
-          <Button size="sm" variant="outline" onClick={() => runExport('excel')} disabled={!!busy}>
-            {busy === 'excel' ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <FileSpreadsheet className="w-4 h-4 mr-2" />}
-            Excel
-          </Button>
-          <Button size="sm" variant="outline" onClick={() => runExport('index')} disabled={!!busy}>
-            {busy === 'index' ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <FileText className="w-4 h-4 mr-2" />}
-            Product Index PDF
-          </Button>
-        </div>
-      </div>
+          </>
+        }
+        actions={
+          <>
+            <label className="flex items-center gap-2 text-sm text-dark-200 mr-2">
+              <input
+                type="checkbox"
+                checked={includeInactive}
+                onChange={(e) => setIncludeInactive(e.target.checked)}
+                className="accent-primary-500"
+              />
+              Include inactive
+            </label>
+            <Button size="sm" variant="outline" onClick={() => runExport('excel')} disabled={!!busy}>
+              {busy === 'excel' ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <FileSpreadsheet className="w-4 h-4 mr-2" />}
+              Excel
+            </Button>
+            <Button size="sm" variant="outline" onClick={() => runExport('index')} disabled={!!busy}>
+              {busy === 'index' ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <FileText className="w-4 h-4 mr-2" />}
+              Product Index PDF
+            </Button>
+          </>
+        }
+      />
 
       <Card className="bg-dark-800 border-dark-700">
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
@@ -464,7 +470,7 @@ const ProductRegister = () => {
       <p className="text-xs text-dark-400 flex items-center gap-1">
         <Download className="w-3 h-3" /> Exports always cover the whole product base, not just the filtered rows.
       </p>
-    </div>
+    </AdminPage>
   );
 };
 

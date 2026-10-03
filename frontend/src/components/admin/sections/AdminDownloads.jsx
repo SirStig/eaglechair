@@ -1,6 +1,7 @@
 import { m } from 'framer-motion';
 import Card from '../../ui/Card';
 import { Download } from 'lucide-react';
+import { AdminPage, AdminPageHeader } from '../ui/AdminPage';
 
 const SOFTWARE = [
   {
@@ -21,11 +22,12 @@ const SOFTWARE = [
 
 const AdminDownloads = () => {
   return (
-    <div className="p-3 sm:p-6 lg:p-8 space-y-4 sm:space-y-6 lg:space-y-8">
-      <div>
-        <h1 className="text-lg sm:text-xl md:text-2xl font-bold text-dark-50 mb-2">Downloads</h1>
-        <p className="text-xs sm:text-sm text-dark-300">EagleChair software and utilities</p>
-      </div>
+    <AdminPage width="default">
+      <AdminPageHeader
+        eyebrow="System"
+        title="Downloads"
+        description="EagleChair software and utilities."
+      />
 
       <div className="space-y-6">
         {SOFTWARE.map((item, index) => (
@@ -65,7 +67,7 @@ const AdminDownloads = () => {
           </m.div>
         ))}
       </div>
-    </div>
+    </AdminPage>
   );
 };
 

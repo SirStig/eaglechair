@@ -1,11 +1,12 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
-import { Mail, Pencil, Plus, Send, Power, Code2, Eye } from 'lucide-react';
+import { Pencil, Plus, Send, Power, Code2, Eye } from 'lucide-react';
 import Button from '../../ui/Button';
 import Input from '../../ui/Input';
 import Modal from '../../ui/Modal';
 import ConfirmModal from '../../ui/ConfirmModal';
 import apiClient from '../../../config/apiClient';
 import { useToast } from '../../../contexts/ToastContext';
+import { AdminPage, AdminPageHeader } from '../ui/AdminPage';
 
 const EMPTY_FORM = {
   template_type: '',
@@ -205,22 +206,18 @@ const EmailTemplateManagement = () => {
   const variables = Object.entries(formData.available_variables || {});
 
   return (
-    <div className="space-y-6 p-4 sm:p-6 lg:p-8">
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-        <div className="flex items-center gap-3">
-          <div className="rounded-lg bg-primary-500/10 p-2.5">
-            <Mail className="h-6 w-6 text-primary-500" aria-hidden="true" />
-          </div>
-          <div>
-            <h2 className="text-xl font-bold text-dark-50 sm:text-2xl">Email Templates</h2>
-            <p className="text-sm text-dark-100">Subjects and content of the emails the system sends</p>
-          </div>
-        </div>
-        <Button onClick={() => openEditor(null)} variant="primary" size="sm" className="gap-2 self-start sm:self-auto">
-          <Plus className="h-4 w-4" aria-hidden="true" />
-          New template
-        </Button>
-      </div>
+    <AdminPage>
+      <AdminPageHeader
+        eyebrow="System"
+        title="Email Templates"
+        description="Subjects and content of the emails the system sends."
+        actions={
+          <Button onClick={() => openEditor(null)} variant="primary" size="sm" className="gap-2 self-start sm:self-auto">
+            <Plus className="h-4 w-4" aria-hidden="true" />
+            New template
+          </Button>
+        }
+      />
 
       {loadError && (
         <div role="alert" className="flex items-center justify-between gap-4 rounded-lg border border-red-800 bg-red-950/40 px-4 py-3 text-sm text-red-200">
@@ -474,7 +471,7 @@ const EmailTemplateManagement = () => {
         confirmText="Deactivate"
         variant="warning"
       />
-    </div>
+    </AdminPage>
   );
 };
 

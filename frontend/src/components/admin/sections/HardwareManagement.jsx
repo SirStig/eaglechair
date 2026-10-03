@@ -5,6 +5,7 @@ import apiClient from '../../../config/apiClient';
 import { resolveImageUrl } from '../../../utils/apiHelpers';
 import { Edit, Trash2, Wrench, X, Plus, RotateCcw } from 'lucide-react';
 import HardwareEditor from './HardwareEditor';
+import { AdminPage, AdminPageHeader } from '../ui/AdminPage';
 import ReorderableTable from '../ReorderableTable';
 import StatusTabs from '../StatusTabs';
 import PermanentDeleteModal from '../PermanentDeleteModal';
@@ -165,19 +166,18 @@ const HardwareManagement = () => {
   }
 
   return (
-    <div className="p-6 space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h2 className="text-3xl font-bold text-dark-50">Hardware Management</h2>
-          <p className="text-dark-300 mt-1">
-            Manage hardware components and specifications
-          </p>
-        </div>
-        <Button onClick={handleCreate} className="bg-primary-600 hover:bg-primary-500">
-          <Plus className="w-4 h-4 mr-2" />
-          Add Hardware
-        </Button>
-      </div>
+    <AdminPage>
+      <AdminPageHeader
+        eyebrow="Materials & Options"
+        title="Hardware"
+        description="Manage hardware components and specifications"
+        actions={
+          <Button onClick={handleCreate} className="bg-primary-600 hover:bg-primary-500">
+            <Plus className="w-4 h-4 mr-2" />
+            Add Hardware
+          </Button>
+        }
+      />
 
       <StatusTabs tab={tab} onChange={handleTabChange} activeCount={activeTotal} archivedCount={archivedTotal} />
 
@@ -348,7 +348,7 @@ const HardwareManagement = () => {
         itemName={permDeleteTarget?.name}
         isLoading={permDeleting}
       />
-    </div>
+    </AdminPage>
   );
 };
 

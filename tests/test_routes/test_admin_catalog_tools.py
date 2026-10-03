@@ -190,6 +190,78 @@ class TestCatalogBuilder:
         assert export.status_code == 200
         assert len(fitz.open("pdf", export.content)) == 4
 
+    async def test_new_page_types_export(self, async_client, as_role, lobo):
+        as_role()
+        side = lobo["side"]
+        document = {
+            "pages": [
+                {"type": "toc"},
+                {"type": "product", "title": "Lobo", "items": [{"product_id": side.id}],
+                 "sizes": '30"\n36"', "standard": "P, padded seat"},
+                {"type": "seats", "title": "Lobo", "subtitle": "upholstery",
+                 "items": [{"variation_id": v.id} for v in lobo["variations"]], "tagline": "Many seat types."},
+                {"type": "bases", "title": "Lobo", "items": [{"product_id": side.id}], "environmental": "Recyclable."},
+                {"type": "chart", "title": "Lobo", "subtitle": "table top compatibility chart",
+                 "table_header": ["Table top\nsize", "Table base\nmodel"], "table_rows": [['18" x 18"', "3T-18"]]},
+                {"type": "photo", "orientation": "landscape", "image_url": "/uploads/images/products/chair.png",
+                 "include_in_toc": False},
+            ],
+        }
+        response = await async_client.post(f"{BASE}/catalog-builder/export", json={"document": document}, headers=UA)
+        assert response.status_code == 200, response.text
+        pdf = fitz.open("pdf", response.content)
+        assert len(pdf) == 6
+        assert "Standard\nSizes" in pdf[1].get_text() and '36"' in pdf[1].get_text()  # heading wraps, as printed
+        assert "3506.Bl - Bl frame" in pdf[2].get_text()  # default seat caption
+        bases_text = pdf[3].get_text()
+        assert "Sizes" in bases_text and "3506 CR" in bases_text  # sizes table built from the products
+        chart_text = pdf[4].get_text()
+        assert "Table top" in chart_text and "3T-18" in chart_text
+        assert (pdf[5].rect.width, pdf[5].rect.height) == (792, 612)  # landscape photo page
+        assert "3506 CR" in pdf[0].get_text()  # contents lists the models of product and bases pages
+
+    async def test_landscape_preview_reports_page_size(self, async_client, as_role, lobo):
+        as_role()
+        document = {"pages": [{"type": "photo", "orientation": "landscape", "image_url": "/uploads/images/products/chair.png"}]}
+        response = await async_client.post(
+            f"{BASE}/catalog-builder/preview", json={"document": document, "page_index": 0}, headers=UA
+        )
+        assert response.status_code == 200, response.text
+        body = response.json()
+        assert body["page_size"] == [792, 612]
+        assert body["slots"][0]["box"] == [0, 0, 792, 612]
+
+    async def test_product_sheet_takes_five_products_and_rejects_bad_tables(self, async_client, as_role, lobo):
+        as_role()
+        items = [{"product_id": lobo["side"].id}] * 5
+        document = {"pages": [{"type": "product", "title": "Lobo", "items": items}]}
+        response = await async_client.post(
+            f"{BASE}/catalog-builder/preview", json={"document": document, "page_index": 0}, headers=UA
+        )
+        assert response.status_code == 200, response.text
+        assert len(response.json()["slots"]) == 5
+
+        too_wide = {"pages": [{"type": "chart", "table_rows": [["x"] * 7]}]}
+        response = await async_client.post(
+            f"{BASE}/catalog-builder/preview", json={"document": too_wide, "page_index": 0}, headers=UA
+        )
+        assert response.status_code == 422
+
+    async def test_suggest_pages_for_table_bases(self, async_client, as_role, db_session, uploads):
+        as_role()
+        category = await create_category(db_session, spec_profile="table_base")
+        family = await create_product_family(db_session, category_id=category.id, name="St. Louis")
+        for model in ("3T-18", "3T-24"):
+            await create_chair(db_session, category_id=category.id, family_id=family.id, model_number=model,
+                               name=f"{model} base", images=[{"url": uploads}])
+        response = await async_client.post(
+            f"{BASE}/catalog-builder/suggest-pages", json={"family_ids": [family.id]}, headers=UA
+        )
+        assert response.status_code == 200
+        pages = response.json()["pages"]
+        assert [p["type"] for p in pages] == ["bases"]
+        assert len(pages[0]["items"]) == 2
+
     async def test_picker_products_search(self, async_client, as_role, lobo):
         as_role()
         response = await async_client.get(f"{BASE}/catalog-builder/products", params={"search": "3506"}, headers=UA)

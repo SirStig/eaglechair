@@ -4,7 +4,6 @@ import Button from '../../ui/Button';
 import Input from '../../ui/Input';
 import apiClient from '../../../config/apiClient';
 import {
-  ArrowLeft,
   Save,
   Edit2,
   X,
@@ -25,6 +24,7 @@ import {
 } from 'lucide-react';
 import { formatPrice } from '../../../utils/apiHelpers';
 import ResponsiveImage from '../../ui/ResponsiveImage';
+import { AdminPage, AdminPageHeader } from '../ui/AdminPage';
 
 const AdminQuoteDetailView = ({ quoteId, onBack, onUpdated }) => {
   const [quote, setQuote] = useState(null);
@@ -321,47 +321,42 @@ const AdminQuoteDetailView = ({ quoteId, onBack, onUpdated }) => {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center py-12">
-        <div className="w-12 h-12 border-4 border-dark-600 border-t-accent-500 rounded-full animate-spin" />
-      </div>
+      <AdminPage>
+        <div className="flex items-center justify-center py-12">
+          <div className="w-12 h-12 border-4 border-dark-600 border-t-accent-500 rounded-full animate-spin" />
+        </div>
+      </AdminPage>
     );
   }
 
   if (error && !quote) {
     return (
-      <div className="p-8 space-y-4">
-        <Button variant="outline" onClick={onBack} className="flex items-center gap-2">
-          <ArrowLeft className="w-4 h-4" />
-          Back to Quotes
-        </Button>
+      <AdminPage>
+        <AdminPageHeader
+          eyebrow="Sales"
+          title="Quote"
+          onBack={onBack}
+          backLabel="Back to Quotes"
+        />
         <Card>
           <div className="text-center py-8">
             <AlertCircle className="w-12 h-12 text-red-500 mx-auto mb-4" />
             <p className="text-red-500">{error}</p>
           </div>
         </Card>
-      </div>
+      </AdminPage>
     );
   }
 
   return (
-    <div className="p-8 space-y-6">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-4">
-          <Button variant="outline" onClick={onBack} className="flex items-center gap-2">
-            <ArrowLeft className="w-4 h-4" />
-            Back
-          </Button>
-          <div>
-            <h2 className="text-2xl font-bold text-dark-50 flex items-center gap-2">
-              <FileText className="w-6 h-6 text-accent-500" />
-              Quote #{quote?.quote_number}
-            </h2>
-            <p className="text-dark-300 mt-1">Quote Details</p>
-          </div>
-        </div>
-        {!isEditing ? (
+    <AdminPage>
+      <AdminPageHeader
+        eyebrow="Sales"
+        title={`Quote #${quote?.quote_number}`}
+        description="Quote Details"
+        onBack={onBack}
+        backLabel="Back to Quotes"
+        actions={!isEditing ? (
           <Button onClick={() => setIsEditing(true)} className="flex items-center gap-2">
             <Edit2 className="w-4 h-4" />
             Edit
@@ -378,7 +373,7 @@ const AdminQuoteDetailView = ({ quoteId, onBack, onUpdated }) => {
             </Button>
           </div>
         )}
-      </div>
+      />
 
       {error && (
         <Card>
@@ -1015,7 +1010,7 @@ const AdminQuoteDetailView = ({ quoteId, onBack, onUpdated }) => {
           </Card>
         </div>
       </div>
-    </div>
+    </AdminPage>
   );
 };
 

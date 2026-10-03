@@ -4,7 +4,8 @@ import Button from '../../ui/Button';
 import apiClient from '../../../config/apiClient';
 import { resolveImageUrl, resolveFileUrl } from '../../../utils/apiHelpers';
 import { slugify } from '../../../utils/slugify';
-import { ArrowLeft, FileText, Upload, X } from 'lucide-react';
+import { FileText, Upload, X } from 'lucide-react';
+import { AdminPage, AdminPageHeader } from '../ui/AdminPage';
 import ResponsiveImage from '../../ui/ResponsiveImage';
 
 /**
@@ -181,25 +182,15 @@ const FamilyEditor = ({ family, categories, onBack, onSave }) => {
   };
 
   return (
-    <div className="p-6 max-w-5xl mx-auto space-y-6">
-      {/* Header */}
-      <div className="flex items-center gap-4">
-        <button
-          onClick={onBack}
-          className="p-2 hover:bg-dark-700 rounded-lg transition-colors disabled:opacity-50 disabled:pointer-events-none"
-          disabled={saving || isUploading}
-        >
-          <ArrowLeft className="w-5 h-5 text-dark-300" />
-        </button>
-        <div>
-          <h2 className="text-3xl font-bold text-dark-50">
-            {family ? `Edit: ${family.name}` : 'Create Product Family'}
-          </h2>
-          <p className="text-dark-300 mt-1">
-            {family ? 'Update family details and images' : 'Add a new product family'}
-          </p>
-        </div>
-      </div>
+    <AdminPage width="default">
+      <AdminPageHeader
+        eyebrow="Products"
+        title={family ? `Edit ${family.name}` : 'New Product Family'}
+        description={family ? 'Update family details and images' : 'Add a new product family'}
+        onBack={onBack}
+        backDisabled={saving || isUploading}
+        backLabel="Back to Product Families"
+      />
 
       {/* Form */}
       <form onSubmit={handleSubmit}>
@@ -414,7 +405,7 @@ const FamilyEditor = ({ family, categories, onBack, onSave }) => {
           </Button>
         </div>
       </form>
-    </div>
+    </AdminPage>
   );
 };
 

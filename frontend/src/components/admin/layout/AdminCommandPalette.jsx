@@ -71,7 +71,7 @@ export default function AdminCommandPalette({ open, onClose, onSelect }) {
             onChange={(e) => setQuery(e.target.value)}
             onKeyDown={onKeyDown}
             placeholder="Jump to a section…"
-            className="h-12 w-full bg-transparent text-sm text-dark-50 placeholder-dark-200 outline-none"
+            className="h-12 w-full border-0 bg-transparent text-sm text-dark-50 placeholder-dark-200 shadow-none outline-none ring-0 focus:outline-none focus:ring-0 focus-visible:ring-0 focus-visible:ring-offset-0"
             role="combobox"
             aria-expanded="true"
             aria-controls="admin-palette-list"

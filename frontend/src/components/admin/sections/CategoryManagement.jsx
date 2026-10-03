@@ -24,6 +24,7 @@ import { Edit2, Trash2, FolderTree, GripVertical, ChevronUp, ChevronDown, Rotate
 import CategoryEditor from './CategoryEditor';
 import StatusTabs from '../StatusTabs';
 import PermanentDeleteModal from '../PermanentDeleteModal';
+import { AdminPage, AdminPageHeader } from '../ui/AdminPage';
 
 function compareValues(a, b, dir) {
   const va = a == null ? '' : a;
@@ -525,21 +526,20 @@ const CategoryManagement = () => {
   }
 
   return (
-    <div className="p-6 space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h2 className="text-2xl sm:text-3xl font-bold text-dark-50">Category Management</h2>
-          <p className="text-dark-300 mt-2">
-            Manage product categories with subcategories and images
-          </p>
-        </div>
-        <Button
-          onClick={handleCreate}
-          className="bg-primary-600 hover:bg-primary-500 px-6 py-3"
-        >
-          + Add Category
-        </Button>
-      </div>
+    <AdminPage>
+      <AdminPageHeader
+        eyebrow="Products"
+        title="Categories"
+        description="Manage product categories with subcategories and images"
+        actions={
+          <Button
+            onClick={handleCreate}
+            className="bg-primary-600 hover:bg-primary-500 px-6 py-3"
+          >
+            + Add Category
+          </Button>
+        }
+      />
 
       <StatusTabs tab={tab} onChange={handleTabChange} activeCount={activeCount} archivedCount={archivedCount} />
 
@@ -684,7 +684,7 @@ const CategoryManagement = () => {
         itemName={permDeleteTarget?.name}
         isLoading={permDeleting}
       />
-    </div>
+    </AdminPage>
   );
 };
 

@@ -3,7 +3,8 @@ import Card from '../../ui/Card';
 import Button from '../../ui/Button';
 import apiClient from '../../../config/apiClient';
 import { resolveImageUrl } from '../../../utils/apiHelpers';
-import { ArrowLeft, Upload, X } from 'lucide-react';
+import { Upload, X } from 'lucide-react';
+import { AdminPage, AdminPageHeader } from '../ui/AdminPage';
 import ResponsiveImage from '../../ui/ResponsiveImage';
 
 /**
@@ -89,25 +90,15 @@ const ColorEditor = ({ color, onBack, onSave }) => {
   const isUploading = uploadingImage;
 
   return (
-    <div className="p-6 space-y-6">
-      {/* Header */}
-      <div className="flex items-center gap-4">
-        <button
-          onClick={onBack}
-          className="p-2 hover:bg-dark-700 rounded-lg transition-colors disabled:opacity-50 disabled:pointer-events-none"
-          disabled={saving || isUploading}
-        >
-          <ArrowLeft className="w-5 h-5 text-dark-300" />
-        </button>
-        <div>
-          <h2 className="text-3xl font-bold text-dark-50">
-            {color ? `Edit: ${color.name}` : 'Create Color'}
-          </h2>
-          <p className="text-dark-300 mt-1">
-            {color ? 'Update color details and swatch' : 'Add a new color option'}
-          </p>
-        </div>
-      </div>
+    <AdminPage>
+      <AdminPageHeader
+        eyebrow="Materials & Options"
+        title={color ? `Edit ${color.name}` : 'New Color'}
+        description={color ? 'Update color details and swatch' : 'Add a new color option'}
+        onBack={onBack}
+        backDisabled={saving || isUploading}
+        backLabel="Back to Colors"
+      />
 
       {/* Form */}
       <form onSubmit={handleSubmit}>
@@ -318,7 +309,7 @@ const ColorEditor = ({ color, onBack, onSave }) => {
           </Button>
         </div>
       </form>
-    </div>
+    </AdminPage>
   );
 };
 

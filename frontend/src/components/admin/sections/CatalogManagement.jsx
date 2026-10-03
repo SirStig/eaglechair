@@ -8,6 +8,7 @@ import ReorderableTable from '../ReorderableTable';
 import { useToast } from '../../../contexts/ToastContext';
 import { useAdminRefresh } from '../../../contexts/AdminRefreshContext';
 import { CATALOG_TYPE_OPTIONS, formatCatalogType } from '../../../utils/catalogTypes';
+import { AdminPage, AdminPageHeader } from '../ui/AdminPage';
 
 /**
  * Catalog Management - Table Layout
@@ -108,19 +109,18 @@ const CatalogManagement = () => {
   }
 
   return (
-    <div className="p-6 space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h2 className="text-3xl font-bold text-dark-50">Catalog Management</h2>
-          <p className="text-dark-300 mt-1">
-            Manage virtual catalogs and downloadable guides
-          </p>
-        </div>
-        <Button onClick={handleCreate} className="bg-primary-600 hover:bg-primary-500">
-          <Plus className="w-4 h-4 mr-2" />
-          Add Catalog
-        </Button>
-      </div>
+    <AdminPage>
+      <AdminPageHeader
+        eyebrow="Publishing"
+        title="Virtual Catalogs"
+        description="Manage virtual catalogs and downloadable guides."
+        actions={
+          <Button onClick={handleCreate} className="bg-primary-600 hover:bg-primary-500">
+            <Plus className="w-4 h-4 mr-2" />
+            Add Catalog
+          </Button>
+        }
+      />
 
       <Card className="bg-dark-800 border-dark-700">
         <div className="flex gap-4">
@@ -260,9 +260,8 @@ const CatalogManagement = () => {
           />
         )}
       </Card>
-    </div>
+    </AdminPage>
   );
 };
 
 export default CatalogManagement;
-

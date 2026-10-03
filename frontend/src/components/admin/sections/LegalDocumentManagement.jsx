@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo, useCallback } from 'react';
-import { FileText, Plus, Pencil, Trash2, Search, ExternalLink } from 'lucide-react';
+import { Plus, Pencil, Trash2, Search, ExternalLink } from 'lucide-react';
 import EditModal from '../EditModal';
 import ConfirmModal from '../../ui/ConfirmModal';
 import Button from '../../ui/Button';
@@ -7,6 +7,7 @@ import apiClient from '../../../config/apiClient';
 import { useToast } from '../../../contexts/ToastContext';
 import TableSortHead, { compareValues } from '../TableSortHead';
 import { LEGAL_DOCUMENT_TYPES, legalDocumentTypeLabel } from '../legalDocumentTypes';
+import { AdminPage, AdminPageHeader } from '../ui/AdminPage';
 
 // Public pages that render a specific legal document type
 const PUBLIC_PATHS = {
@@ -188,32 +189,25 @@ const LegalDocumentManagement = () => {
   const headClass = 'px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-dark-100';
 
   return (
-    <div className="space-y-6 p-4 sm:p-6 lg:p-8">
-      {/* Header */}
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-        <div className="flex items-center gap-3">
-          <div className="rounded-lg bg-primary-500/10 p-2.5">
-            <FileText className="h-6 w-6 text-primary-500" aria-hidden="true" />
-          </div>
-          <div>
-            <h2 className="text-xl font-bold text-dark-50 sm:text-2xl">Legal Documents</h2>
-            <p className="text-sm text-dark-100">
-              Policies, terms and conditions published on the website
-            </p>
-          </div>
-        </div>
-        <Button
-          onClick={handleCreate}
-          variant="primary"
-          size="sm"
-          disabled={allTypesUsed}
-          title={allTypesUsed ? 'Every document type already has a document' : undefined}
-          className="gap-2 self-start sm:self-auto"
-        >
-          <Plus className="h-4 w-4" aria-hidden="true" />
-          Add document
-        </Button>
-      </div>
+    <AdminPage>
+      <AdminPageHeader
+        eyebrow="Publishing"
+        title="Legal Documents"
+        description="Policies, terms and conditions published on the website."
+        actions={
+          <Button
+            onClick={handleCreate}
+            variant="primary"
+            size="sm"
+            disabled={allTypesUsed}
+            title={allTypesUsed ? 'Every document type already has a document' : undefined}
+            className="gap-2 self-start sm:self-auto"
+          >
+            <Plus className="h-4 w-4" aria-hidden="true" />
+            Add document
+          </Button>
+        }
+      />
 
       {/* Filters */}
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
@@ -398,7 +392,7 @@ const LegalDocumentManagement = () => {
         confirmText="Delete"
         confirmButtonVariant="danger"
       />
-    </div>
+    </AdminPage>
   );
 };
 

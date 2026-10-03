@@ -3,7 +3,8 @@ import Card from '../../ui/Card';
 import Button from '../../ui/Button';
 import apiClient from '../../../config/apiClient';
 import { resolveImageUrl } from '../../../utils/apiHelpers';
-import { ArrowLeft, Upload, X } from 'lucide-react';
+import { Upload, X } from 'lucide-react';
+import { AdminPage, AdminPageHeader } from '../ui/AdminPage';
 import ResponsiveImage from '../../ui/ResponsiveImage';
 
 /**
@@ -121,25 +122,15 @@ const HardwareEditor = ({ hardware, onBack, onSave }) => {
   const isUploading = uploadingImage || uploadingThumbnail;
 
   return (
-    <div className="p-6 space-y-6">
-      {/* Header */}
-      <div className="flex items-center gap-4">
-        <button
-          onClick={onBack}
-          className="p-2 hover:bg-dark-700 rounded-lg transition-colors disabled:opacity-50 disabled:pointer-events-none"
-          disabled={saving || isUploading}
-        >
-          <ArrowLeft className="w-5 h-5 text-dark-300" />
-        </button>
-        <div>
-          <h2 className="text-3xl font-bold text-dark-50">
-            {hardware ? `Edit: ${hardware.name}` : 'Create Hardware'}
-          </h2>
-          <p className="text-dark-300 mt-1">
-            {hardware ? 'Update hardware details and images' : 'Add a new hardware component'}
-          </p>
-        </div>
-      </div>
+    <AdminPage>
+      <AdminPageHeader
+        onBack={onBack}
+        backDisabled={saving || isUploading}
+        backLabel="Back to Hardware"
+        eyebrow="Materials & Options"
+        title={hardware ? `Edit: ${hardware.name}` : 'Create Hardware'}
+        description={hardware ? 'Update hardware details and images' : 'Add a new hardware component'}
+      />
 
       {/* Form */}
       <form onSubmit={handleSubmit}>
@@ -482,7 +473,7 @@ const HardwareEditor = ({ hardware, onBack, onSave }) => {
           </Button>
         </div>
       </form>
-    </div>
+    </AdminPage>
   );
 };
 

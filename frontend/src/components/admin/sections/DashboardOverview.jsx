@@ -1,319 +1,406 @@
 import { useEffect, useState } from 'react';
-import { m } from 'framer-motion';
-import Card from '../../ui/Card';
+import { clsx } from 'clsx';
 import Button from '../../ui/Button';
 import apiClient from '../../../config/apiClient';
 import { useAdminRefresh } from '../../../contexts/AdminRefreshContext';
-import { 
-  Package, 
-  FileText, 
-  Building2, 
-  TrendingUp, 
-  PlusCircle, 
-  Tags, 
-  ClipboardList, 
+import { useAuthStore } from '../../../store/authStore';
+import { AdminPage, AdminPageHeader } from '../ui/AdminPage';
+import {
+  Package,
+  FileText,
+  Building2,
+  Inbox,
+  ArrowRight,
+  ArrowUpRight,
+  CheckCircle2,
+  BookOpen,
+  Tags,
   Settings as SettingsIcon,
-  ArrowRight
+  Mail,
+  TrendingUp,
+  PlusCircle,
 } from 'lucide-react';
 
+const QUOTE_STATUS_STYLES = {
+  submitted: 'bg-primary-500/10 text-primary-400 ring-primary-500/25',
+  under_review: 'bg-primary-500/10 text-primary-400 ring-primary-500/25',
+  quoted: 'bg-sky-500/10 text-sky-300 ring-sky-500/25',
+  accepted: 'bg-emerald-500/10 text-emerald-300 ring-emerald-500/25',
+  declined: 'bg-secondary-500/10 text-secondary-300 ring-secondary-500/25',
+  expired: 'bg-secondary-500/10 text-secondary-300 ring-secondary-500/25',
+};
+
+const COMPANY_STATUS_STYLES = {
+  pending: 'bg-primary-500/10 text-primary-400 ring-primary-500/25',
+  active: 'bg-emerald-500/10 text-emerald-300 ring-emerald-500/25',
+};
+
+const NEUTRAL_BADGE = 'bg-white/[0.05] text-dark-100 ring-white/10';
+
+function StatusBadge({ status, styles }) {
+  return (
+    <span
+      className={clsx(
+        'inline-flex items-center whitespace-nowrap rounded-full px-2 py-0.5 text-[11px] font-medium capitalize ring-1 ring-inset',
+        styles[status] || NEUTRAL_BADGE
+      )}
+    >
+      {status ? status.replace(/_/g, ' ') : 'unknown'}
+    </span>
+  );
+}
+
+const formatDate = (value) =>
+  value ? new Date(value).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : '';
+
+const formatCurrency = (cents) =>
+  cents
+    ? new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 }).format(cents / 100)
+    : null;
+
+const formatNumber = (n) => new Intl.NumberFormat('en-US').format(n || 0);
+
+function greeting() {
+  const h = new Date().getHours();
+  if (h < 12) return 'Good morning';
+  if (h < 18) return 'Good afternoon';
+  return 'Good evening';
+}
+
+function Panel({ title, icon: Icon, action, children, className }) {
+  return (
+    <section className={clsx('ec-card flex flex-col rounded-xl border', className)}>
+      <div className="flex items-center justify-between gap-3 border-b border-white/[0.06] px-5 py-3.5">
+        <h2 className="flex items-center gap-2 font-sans text-sm font-semibold text-dark-50">
+          {Icon && <Icon className="h-4 w-4 text-primary-500" aria-hidden="true" />}
+          {title}
+        </h2>
+        {action}
+      </div>
+      <div className="flex-1">{children}</div>
+    </section>
+  );
+}
+
+function StatTile({ label, value, detail, icon: Icon, highlight, onClick, loading }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={clsx(
+        'ec-card group relative overflow-hidden rounded-xl border p-5 text-left transition-colors',
+        'hover:border-white/[0.14] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500/60'
+      )}
+    >
+      {highlight && <span className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-primary-500/70 to-transparent" aria-hidden="true" />}
+      <div className="flex items-start justify-between gap-3">
+        <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-dark-200">{label}</p>
+        <Icon className={clsx('h-4 w-4', highlight ? 'text-primary-500' : 'text-dark-200')} aria-hidden="true" />
+      </div>
+      {loading ? (
+        <div className="mt-3 h-8 w-20 animate-pulse rounded bg-white/[0.06]" />
+      ) : (
+        <p className="mt-2 font-serif text-[2rem] font-bold leading-none tabular-nums text-dark-50">{value}</p>
+      )}
+      <p className="mt-2 flex items-center gap-1 text-xs text-dark-200">
+        {detail}
+        <ArrowUpRight className="h-3 w-3 opacity-0 transition-opacity group-hover:opacity-100" aria-hidden="true" />
+      </p>
+    </button>
+  );
+}
+
+function RowSkeleton() {
+  return (
+    <div className="flex items-center gap-4 px-5 py-3.5">
+      <div className="flex-1 space-y-2">
+        <div className="h-3.5 w-1/3 animate-pulse rounded bg-white/[0.06]" />
+        <div className="h-3 w-1/2 animate-pulse rounded bg-white/[0.04]" />
+      </div>
+      <div className="h-5 w-16 animate-pulse rounded-full bg-white/[0.05]" />
+    </div>
+  );
+}
+
+function EmptyRow({ children }) {
+  return <p className="px-5 py-10 text-center text-sm text-dark-200">{children}</p>;
+}
+
 /**
- * Dashboard Overview
- * 
- * Main dashboard page with:
- * - Quick stats
- * - Recent activity
- * - Quick actions
+ * Dashboard Overview — the admin home: headline numbers, what needs a
+ * response, recent activity and shortcuts.
  */
-const DashboardOverview = ({ onNavigate }) => {
+const DashboardOverview = ({ onNavigate, inquiryUnread = 0 }) => {
   const { refreshKeys } = useAdminRefresh();
+  const { user } = useAuthStore();
   const [stats, setStats] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(false);
 
   useEffect(() => {
-    fetchStats();
+    let cancelled = false;
+    setError(false);
+    apiClient.get('/api/v1/admin/dashboard/stats')
+      .then((response) => { if (!cancelled) setStats(response); })
+      .catch((err) => {
+        console.error('Failed to fetch stats:', err);
+        if (!cancelled) setError(true);
+      })
+      .finally(() => { if (!cancelled) setLoading(false); });
+    return () => { cancelled = true; };
   }, [refreshKeys.overview]);
 
-  const fetchStats = async () => {
-    try {
-      const response = await apiClient.get('/api/v1/admin/dashboard/stats');
-      setStats(response);
-    } catch (error) {
-      console.error('Failed to fetch stats:', error);
-    } finally {
-      setLoading(false);
-    }
-  };
+  const pendingQuotes = stats?.pending_quotes || 0;
+  const pendingCompanies = stats?.pending_companies || 0;
+  const potentialRevenue = formatCurrency(stats?.potential_revenue);
 
-  const quickActions = [
-    { label: 'Add Product', icon: PlusCircle, action: () => onNavigate('catalog'), color: 'primary' },
-    { label: 'Manage Categories', icon: Tags, action: () => onNavigate('categories'), color: 'accent' },
-    { label: 'View Quotes', icon: ClipboardList, action: () => onNavigate('quotes'), color: 'green' },
-    { label: 'Site Settings', icon: SettingsIcon, action: () => onNavigate('settings'), color: 'blue' },
-  ];
-
-  const statCards = [
+  const statTiles = [
     {
-      title: 'Total Products',
-      value: stats?.total_products || 0,
-      change: `${stats?.active_products || 0} active`,
-      icon: Package,
-      color: 'primary',
-      bgGradient: 'from-primary-500/10 to-primary-600/5',
-    },
-    {
-      title: 'Pending Quotes',
-      value: stats?.pending_quotes || 0,
-      change: `${stats?.total_quotes || 0} total quotes`,
+      label: 'Quotes to review',
+      value: formatNumber(pendingQuotes),
+      detail: `${formatNumber(stats?.total_quotes)} quotes all time`,
       icon: FileText,
-      color: 'accent',
-      bgGradient: 'from-accent-500/10 to-accent-600/5',
+      highlight: pendingQuotes > 0,
+      section: 'quotes',
     },
     {
-      title: 'Active Companies',
-      value: stats?.active_companies || 0,
-      change: `${stats?.total_companies || 0} total companies`,
-      icon: Building2,
-      color: 'green',
-      bgGradient: 'from-green-500/10 to-green-600/5',
-    },
-    {
-      title: 'Total Quotes',
-      value: stats?.total_quotes || 0,
-      change: `${stats?.pending_quotes || 0} pending`,
+      label: 'Open quote value',
+      value: potentialRevenue || '$0',
+      detail: `${formatNumber(stats?.accepted_quotes)} accepted`,
       icon: TrendingUp,
-      color: 'blue',
-      bgGradient: 'from-blue-500/10 to-blue-600/5',
+      section: 'quotes',
+    },
+    {
+      label: 'Active companies',
+      value: formatNumber(stats?.active_companies),
+      detail: `${formatNumber(stats?.total_companies)} registered`,
+      icon: Building2,
+      highlight: pendingCompanies > 0,
+      section: 'companies',
+    },
+    {
+      label: 'Products',
+      value: formatNumber(stats?.active_products),
+      detail: `${formatNumber(stats?.total_products)} in catalog`,
+      icon: Package,
+      section: 'catalog',
     },
   ];
+
+  const attention = [
+    pendingQuotes > 0 && {
+      id: 'quotes',
+      icon: FileText,
+      text: `${pendingQuotes} quote ${pendingQuotes === 1 ? 'request is' : 'requests are'} waiting for review`,
+      cta: 'Review quotes',
+    },
+    inquiryUnread > 0 && {
+      id: 'inquiries',
+      icon: Inbox,
+      text: `${inquiryUnread} unread ${inquiryUnread === 1 ? 'inquiry' : 'inquiries'} from the contact form`,
+      cta: 'Open inbox',
+    },
+    pendingCompanies > 0 && {
+      id: 'companies',
+      icon: Building2,
+      text: `${pendingCompanies} ${pendingCompanies === 1 ? 'company is' : 'companies are'} awaiting account approval`,
+      cta: 'Review accounts',
+    },
+  ].filter(Boolean);
+
+  const shortcuts = [
+    { id: 'catalog', label: 'Product Catalog', hint: 'Edit products & variations', icon: Package },
+    { id: 'catalog-builder', label: 'Catalog Builder', hint: 'Lay out printed catalogs', icon: BookOpen },
+    { id: 'categories', label: 'Categories', hint: 'Organize the storefront', icon: Tags },
+    { id: 'emails', label: 'Email Templates', hint: 'Customer notifications', icon: Mail },
+    { id: 'analytics', label: 'Analytics', hint: 'Demand & popular products', icon: TrendingUp },
+    { id: 'settings', label: 'Site Settings', hint: 'Branding, contact, SEO', icon: SettingsIcon },
+  ];
+
+  const recentQuotes = Array.isArray(stats?.recent_quotes) ? stats.recent_quotes : [];
+  const recentCompanies = Array.isArray(stats?.recent_companies) ? stats.recent_companies : [];
+  const today = new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' });
 
   return (
-    <div className="p-3 sm:p-6 lg:p-8 space-y-4 sm:space-y-6 lg:space-y-8">
-      {/* Welcome Section */}
-      <div>
-        <h1 className="text-lg sm:text-xl md:text-2xl font-bold text-dark-50 mb-2">Welcome Back!</h1>
-        <p className="text-xs sm:text-sm text-dark-300">Here's what's happening with your store today.</p>
+    <AdminPage>
+      <AdminPageHeader
+        eyebrow={today}
+        title={`${greeting()}${user?.firstName ? `, ${user.firstName}` : ''}`}
+        description="Where things stand across quotes, dealer accounts and the catalog."
+        actions={
+          <>
+            <Button variant="ghost" size="sm" onClick={() => onNavigate('quotes')} className="border border-white/[0.08]">
+              All quotes
+            </Button>
+            <Button size="sm" icon={PlusCircle} onClick={() => onNavigate('catalog')}>
+              Add product
+            </Button>
+          </>
+        }
+      />
+
+      {error && (
+        <div className="rounded-lg border border-secondary-500/30 bg-secondary-500/10 px-4 py-3 text-sm text-secondary-200">
+          Couldn&apos;t load dashboard numbers. Refresh the page to try again.
+        </div>
+      )}
+
+      {/* Headline numbers */}
+      <div className="grid grid-cols-1 gap-4 min-[480px]:grid-cols-2 xl:grid-cols-4">
+        {statTiles.map((tile) => (
+          <StatTile key={tile.label} {...tile} loading={loading} onClick={() => onNavigate(tile.section)} />
+        ))}
       </div>
 
-      {/* Stats Grid */}
-      <div className="grid grid-cols-2 md:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-6">
-        {statCards.map((stat, index) => {
-          const Icon = stat.icon;
-          return (
-            <m.div
-              key={stat.title}
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: index * 0.1 }}
-            >
-              <Card className="relative overflow-hidden group hover:shadow-lg transition-shadow duration-300">
-                <div className={`absolute top-0 right-0 w-32 h-32 bg-gradient-to-br ${stat.bgGradient} rounded-bl-full opacity-50`} />
-                <div className="relative">
-                  <div className="flex items-center justify-between mb-4">
-                    <div className={`p-3 bg-${stat.color}-900/30 border border-${stat.color}-500/50 rounded-lg group-hover:border-${stat.color}-500 transition-colors`}>
-                      <Icon className={`w-6 h-6 text-${stat.color}-500`} />
+      {/* Needs attention */}
+      {!loading && !error && (
+        <section aria-label="Needs attention" className="ec-card overflow-hidden rounded-xl border">
+          {attention.length > 0 ? (
+            <ul className="divide-y divide-white/[0.06]">
+              {attention.map((item) => {
+                const Icon = item.icon;
+                return (
+                  <li key={item.id} className="flex flex-col gap-3 px-5 py-3.5 sm:flex-row sm:items-center">
+                    <span className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg bg-primary-500/10 ring-1 ring-inset ring-primary-500/25">
+                      <Icon className="h-4 w-4 text-primary-400" aria-hidden="true" />
+                    </span>
+                    <p className="flex-1 text-sm text-dark-50">{item.text}</p>
+                    <button
+                      type="button"
+                      onClick={() => onNavigate(item.id)}
+                      className="inline-flex items-center gap-1.5 self-start text-sm font-medium text-primary-400 hover:text-primary-300 sm:self-auto"
+                    >
+                      {item.cta} <ArrowRight className="h-3.5 w-3.5" />
+                    </button>
+                  </li>
+                );
+              })}
+            </ul>
+          ) : (
+            <div className="flex items-center gap-3 px-5 py-4 text-sm text-dark-100">
+              <CheckCircle2 className="h-5 w-5 text-emerald-400" aria-hidden="true" />
+              You&apos;re all caught up. No quotes, inquiries or accounts are waiting on you.
+            </div>
+          )}
+        </section>
+      )}
+
+      {/* Recent activity */}
+      <div className="grid grid-cols-1 gap-6 xl:grid-cols-5">
+        <Panel
+          title="Recent quote requests"
+          icon={FileText}
+          className="xl:col-span-3"
+          action={
+            <button type="button" onClick={() => onNavigate('quotes')} className="inline-flex items-center gap-1 text-xs font-medium text-dark-200 hover:text-dark-50">
+              View all <ArrowRight className="h-3.5 w-3.5" />
+            </button>
+          }
+        >
+          {loading ? (
+            <div className="divide-y divide-white/[0.06]">{[0, 1, 2, 3].map((i) => <RowSkeleton key={i} />)}</div>
+          ) : recentQuotes.length === 0 ? (
+            <EmptyRow>No quote requests yet.</EmptyRow>
+          ) : (
+            <ul className="divide-y divide-white/[0.06]">
+              {recentQuotes.map((quote) => {
+                const amount = formatCurrency(quote.quoted_price || quote.total_amount);
+                return (
+                  <li key={quote.id}>
+                    <button
+                      type="button"
+                      onClick={() => onNavigate('quotes')}
+                      className="flex w-full items-center gap-4 px-5 py-3 text-left transition-colors hover:bg-white/[0.03]"
+                    >
+                      <div className="min-w-0 flex-1">
+                        <p className="flex items-baseline gap-2 truncate text-sm">
+                          <span className="font-medium text-dark-50">{quote.company_name || 'Unknown company'}</span>
+                          <span className="font-mono text-[11px] text-dark-200">#{quote.quote_number}</span>
+                        </p>
+                        <p className="mt-0.5 truncate text-xs text-dark-200">
+                          {[quote.project_name, formatDate(quote.created_at)].filter(Boolean).join(' · ')}
+                        </p>
+                      </div>
+                      {amount && <span className="hidden text-sm tabular-nums text-dark-100 sm:block">{amount}</span>}
+                      <StatusBadge status={quote.status} styles={QUOTE_STATUS_STYLES} />
+                    </button>
+                  </li>
+                );
+              })}
+            </ul>
+          )}
+        </Panel>
+
+        <Panel
+          title="New dealer accounts"
+          icon={Building2}
+          className="xl:col-span-2"
+          action={
+            <button type="button" onClick={() => onNavigate('companies')} className="inline-flex items-center gap-1 text-xs font-medium text-dark-200 hover:text-dark-50">
+              View all <ArrowRight className="h-3.5 w-3.5" />
+            </button>
+          }
+        >
+          {loading ? (
+            <div className="divide-y divide-white/[0.06]">{[0, 1, 2, 3].map((i) => <RowSkeleton key={i} />)}</div>
+          ) : recentCompanies.length === 0 ? (
+            <EmptyRow>No companies have registered yet.</EmptyRow>
+          ) : (
+            <ul className="divide-y divide-white/[0.06]">
+              {recentCompanies.map((company) => (
+                <li key={company.id}>
+                  <button
+                    type="button"
+                    onClick={() => onNavigate('companies')}
+                    className="flex w-full items-center gap-3 px-5 py-3 text-left transition-colors hover:bg-white/[0.03]"
+                  >
+                    <span className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full bg-white/[0.06] text-xs font-semibold text-dark-50">
+                      {(company.company_name || '?').charAt(0).toUpperCase()}
+                    </span>
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate text-sm font-medium text-dark-50">{company.company_name || 'Unknown company'}</p>
+                      <p className="truncate text-xs text-dark-200">
+                        {[company.rep_email, company.created_at && `Joined ${formatDate(company.created_at)}`].filter(Boolean).join(' · ')}
+                      </p>
                     </div>
-                    {loading && <div className="w-4 h-4 border-2 border-dark-600 border-t-primary-500 rounded-full animate-spin" />}
-                  </div>
-                  <p className="text-xs sm:text-sm text-dark-300 mb-1">{stat.title}</p>
-                  <p className="text-xl sm:text-2xl font-bold text-dark-50 mb-1">{stat.value}</p>
-                  <p className="text-xs text-dark-400">{stat.change}</p>
-                </div>
-              </Card>
-            </m.div>
-          );
-        })}
+                    <StatusBadge status={company.status} styles={COMPANY_STATUS_STYLES} />
+                  </button>
+                </li>
+              ))}
+            </ul>
+          )}
+        </Panel>
       </div>
 
-      {/* Quick Actions */}
-      <Card>
-        <h2 className="text-base sm:text-lg font-bold text-dark-50 mb-3">Quick Actions</h2>
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-2 sm:gap-4">
-          {quickActions.map((action) => {
-            const Icon = action.icon;
+      {/* Shortcuts */}
+      <section aria-labelledby="shortcuts-heading">
+        <h2 id="shortcuts-heading" className="mb-3 font-sans text-[11px] font-semibold uppercase tracking-[0.14em] text-dark-200">
+          Shortcuts
+        </h2>
+        <div className="grid grid-cols-1 gap-3 min-[480px]:grid-cols-2 lg:grid-cols-3">
+          {shortcuts.map((s) => {
+            const Icon = s.icon;
             return (
               <button
-                key={action.label}
-                onClick={action.action}
-                className={`
-                  p-3 sm:p-6 rounded-lg border-2 border-dashed border-dark-600
-                  hover:border-${action.color}-500 hover:bg-${action.color}-900/10
-                  transition-all duration-200 group
-                  flex flex-col items-center gap-1.5 sm:gap-3
-                `}
+                key={s.id}
+                type="button"
+                onClick={() => onNavigate(s.id)}
+                className="ec-card group flex items-center gap-3.5 rounded-xl border px-4 py-3.5 text-left transition-colors hover:border-primary-500/40"
               >
-                <Icon className="w-5 h-5 sm:w-7 sm:h-7 text-dark-300 group-hover:text-${action.color}-500 transition-colors" />
-                <span className="font-medium text-xs sm:text-sm text-dark-200 group-hover:text-dark-50 transition-colors text-center leading-tight">
-                  {action.label}
+                <span className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-lg bg-white/[0.04] ring-1 ring-inset ring-white/[0.06] transition-colors group-hover:bg-primary-500/10 group-hover:ring-primary-500/25">
+                  <Icon className="h-[18px] w-[18px] text-dark-100 transition-colors group-hover:text-primary-400" aria-hidden="true" />
                 </span>
+                <span className="min-w-0 flex-1">
+                  <span className="block text-sm font-medium text-dark-50">{s.label}</span>
+                  <span className="block truncate text-xs text-dark-200">{s.hint}</span>
+                </span>
+                <ArrowRight className="h-4 w-4 text-dark-300 transition-transform group-hover:translate-x-0.5 group-hover:text-primary-400" aria-hidden="true" />
               </button>
             );
           })}
         </div>
-      </Card>
-
-      {/* Recent Activity */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6">
-        <Card>
-          <h3 className="text-base sm:text-lg font-bold text-dark-50 mb-4 flex items-center gap-2">
-            <FileText className="w-5 h-5 text-accent-500" />
-            Recent Quotes
-          </h3>
-          <div className="space-y-3">
-            {Array.isArray(stats?.recent_quotes) && stats.recent_quotes.length > 0 ? (
-              stats.recent_quotes.map((quote) => {
-                const getStatusColor = (status) => {
-                  switch (status) {
-                    case 'submitted':
-                    case 'under_review':
-                      return 'bg-yellow-900/30 text-yellow-500';
-                    case 'quoted':
-                      return 'bg-blue-900/30 text-blue-500';
-                    case 'accepted':
-                      return 'bg-green-900/30 text-green-500';
-                    case 'declined':
-                    case 'expired':
-                      return 'bg-red-900/30 text-red-500';
-                    case 'draft':
-                    default:
-                      return 'bg-dark-600 text-dark-300';
-                  }
-                };
-                
-                const formatDate = (dateString) => {
-                  if (!dateString) return '';
-                  const date = new Date(dateString);
-                  return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
-                };
-                
-                const formatCurrency = (amount) => {
-                  if (!amount) return '';
-                  return new Intl.NumberFormat('en-US', {
-                    style: 'currency',
-                    currency: 'USD',
-                    minimumFractionDigits: 0
-                  }).format(amount / 100);
-                };
-                
-                return (
-                  <div
-                    key={quote.id}
-                    className="flex items-center justify-between p-3 bg-dark-700 rounded-lg hover:bg-dark-600 transition-colors cursor-pointer"
-                    onClick={() => onNavigate('quotes')}
-                  >
-                    <div className="flex-1 min-w-0">
-                      <p className="font-medium text-dark-50 truncate">
-                        Quote #{quote.quote_number}
-                      </p>
-                      <p className="text-sm text-dark-300 truncate">
-                        {quote.company_name || 'Unknown Company'}
-                      </p>
-                      {quote.project_name && (
-                        <p className="text-xs text-dark-400 truncate mt-1">
-                          {quote.project_name}
-                        </p>
-                      )}
-                      <div className="flex items-center gap-2 mt-1">
-                        {quote.created_at && (
-                          <p className="text-xs text-dark-400">{formatDate(quote.created_at)}</p>
-                        )}
-                        {(quote.quoted_price || quote.total_amount) && (
-                          <p className="text-xs text-dark-400">
-                            • {formatCurrency(quote.quoted_price || quote.total_amount)}
-                          </p>
-                        )}
-                      </div>
-                    </div>
-                    <div className="text-right ml-3">
-                      <span className={`px-2 py-1 rounded text-xs font-medium ${getStatusColor(quote.status)}`}>
-                        {quote.status?.replace('_', ' ') || 'Unknown'}
-                      </span>
-                    </div>
-                  </div>
-                );
-              })
-            ) : (
-              <p className="text-dark-400 text-center py-8">No recent quotes</p>
-            )}
-          </div>
-          <Button
-            variant="outline"
-            className="w-full mt-4"
-            onClick={() => onNavigate('quotes')}
-          >
-            View All Quotes
-            <ArrowRight className="w-4 h-4 ml-2" />
-          </Button>
-        </Card>
-
-        <Card>
-          <h3 className="text-base sm:text-lg font-bold text-dark-50 mb-4 flex items-center gap-2">
-            <Building2 className="w-5 h-5 text-green-500" />
-            Recent Companies
-          </h3>
-          <div className="space-y-3">
-            {Array.isArray(stats?.recent_companies) && stats.recent_companies.length > 0 ? (
-              stats.recent_companies.map((company) => {
-                const getStatusColor = (status) => {
-                  switch (status) {
-                    case 'pending':
-                      return 'bg-yellow-900/30 text-yellow-500';
-                    case 'active':
-                      return 'bg-green-900/30 text-green-500';
-                    case 'inactive':
-                    case 'suspended':
-                    default:
-                      return 'bg-dark-600 text-dark-300';
-                  }
-                };
-                
-                const formatDate = (dateString) => {
-                  if (!dateString) return '';
-                  const date = new Date(dateString);
-                  return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
-                };
-                
-                return (
-                  <div
-                    key={company.id}
-                    className="flex items-center justify-between p-3 bg-dark-700 rounded-lg hover:bg-dark-600 transition-colors cursor-pointer"
-                    onClick={() => onNavigate('companies')}
-                  >
-                    <div className="flex-1 min-w-0">
-                      <p className="font-medium text-dark-50 truncate">
-                        {company.company_name || 'Unknown Company'}
-                      </p>
-                      <p className="text-sm text-dark-300 truncate">
-                        {company.rep_email || 'No email'}
-                      </p>
-                      {company.created_at && (
-                        <p className="text-xs text-dark-400 mt-1">
-                          Joined {formatDate(company.created_at)}
-                        </p>
-                      )}
-                    </div>
-                    <div className="text-right ml-3">
-                      <span className={`px-2 py-1 rounded text-xs font-medium ${getStatusColor(company.status)}`}>
-                        {company.status?.replace('_', ' ') || 'Unknown'}
-                      </span>
-                    </div>
-                  </div>
-                );
-              })
-            ) : (
-              <p className="text-dark-400 text-center py-8">No recent companies</p>
-            )}
-          </div>
-          <Button
-            variant="outline"
-            className="w-full mt-4"
-            onClick={() => onNavigate('companies')}
-          >
-            View All Companies
-            <ArrowRight className="w-4 h-4 ml-2" />
-          </Button>
-        </Card>
-      </div>
-    </div>
+      </section>
+    </AdminPage>
   );
 };
 

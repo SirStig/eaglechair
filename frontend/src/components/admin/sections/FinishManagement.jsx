@@ -5,6 +5,7 @@ import apiClient from '../../../config/apiClient';
 import { resolveImageUrl } from '../../../utils/apiHelpers';
 import { Edit, Trash2, Palette, X, RotateCcw } from 'lucide-react';
 import FinishEditor from './FinishEditor';
+import { AdminPage, AdminPageHeader } from '../ui/AdminPage';
 import ReorderableTable from '../ReorderableTable';
 import StatusTabs from '../StatusTabs';
 import PermanentDeleteModal from '../PermanentDeleteModal';
@@ -184,19 +185,17 @@ const FinishManagement = () => {
   }
 
   return (
-    <div className="p-6 space-y-6">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h2 className="text-3xl font-bold text-dark-50">Finish Management</h2>
-          <p className="text-dark-300 mt-1">
-            Manage wood and metal finishes with colors and pricing
-          </p>
-        </div>
-        <Button onClick={handleCreate} className="bg-primary-600 hover:bg-primary-500">
-          + Add Finish
-        </Button>
-      </div>
+    <AdminPage>
+      <AdminPageHeader
+        eyebrow="Materials & Options"
+        title="Finishes"
+        description="Manage wood and metal finishes with colors and pricing"
+        actions={
+          <Button onClick={handleCreate} className="bg-primary-600 hover:bg-primary-500">
+            + Add Finish
+          </Button>
+        }
+      />
 
       <StatusTabs tab={tab} onChange={handleTabChange} activeCount={activeTotal} archivedCount={archivedTotal} />
 
@@ -426,7 +425,7 @@ const FinishManagement = () => {
         itemName={permDeleteTarget?.name}
         isLoading={permDeleting}
       />
-    </div>
+    </AdminPage>
   );
 };
 

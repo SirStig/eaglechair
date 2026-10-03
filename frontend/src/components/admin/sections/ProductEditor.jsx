@@ -18,13 +18,13 @@ import {
   X,
   Plus,
   Trash2,
-  ArrowLeft,
   Wrench,
   Award,
   TrendingUp,
   Package,
 } from 'lucide-react';
 import ResponsiveImage from '../../ui/ResponsiveImage';
+import { AdminPage, AdminPageHeader } from '../ui/AdminPage';
 
 /**
  * Comprehensive Product Editor
@@ -2007,35 +2007,25 @@ const ProductEditor = ({ product, onBack }) => {
   };
 
   return (
-    <div className="p-6 space-y-6">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-4">
-          <button
-            onClick={onBack}
-            className="p-2 hover:bg-dark-700 rounded-lg transition-colors disabled:opacity-50 disabled:pointer-events-none"
-            disabled={saving || uploadingImage}
-          >
-            ← Back
-          </button>
-          <div>
-            <h2 className="text-2xl font-bold text-dark-50">
-              {product?._isNew ? 'Add New Product' : 'Edit Product'}
-            </h2>
-            <p className="text-dark-300 mt-1">
-              {product?._isNew ? 'Create a new product' : `Editing: ${product?.name}`}
-            </p>
-          </div>
-        </div>
-        <div className="flex gap-3">
-          <Button variant="outline" onClick={onBack} disabled={saving || uploadingImage}>
-            Cancel
-          </Button>
-          <Button onClick={handleSave} disabled={saving || uploadingImage}>
-            {uploadingImage ? 'Uploading...' : saving ? 'Saving...' : 'Save Product'}
-          </Button>
-        </div>
-      </div>
+    <AdminPage>
+      <AdminPageHeader
+        eyebrow="Products"
+        title={product?._isNew ? 'New Product' : (product?.name || 'Edit product')}
+        description={product?._isNew ? 'Create a new product' : 'Edit product details, pricing, images and variations'}
+        onBack={onBack}
+        backDisabled={saving || uploadingImage}
+        backLabel="Back to Product Catalog"
+        actions={
+          <>
+            <Button variant="outline" onClick={onBack} disabled={saving || uploadingImage}>
+              Cancel
+            </Button>
+            <Button onClick={handleSave} disabled={saving || uploadingImage}>
+              {uploadingImage ? 'Uploading...' : saving ? 'Saving...' : 'Save Product'}
+            </Button>
+          </>
+        }
+      />
 
       {/* Tabs */}
       <Card className="bg-dark-800">
@@ -2066,7 +2056,7 @@ const ProductEditor = ({ product, onBack }) => {
       <Card>
         {renderTabContent()}
       </Card>
-    </div>
+    </AdminPage>
   );
 };
 

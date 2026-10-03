@@ -1,10 +1,11 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { Inbox, Search, Mail, Phone, Building2, ArrowLeft, Trash2, CheckCircle2, Circle } from 'lucide-react';
+import { Search, Mail, Phone, Building2, ArrowLeft, Trash2, CheckCircle2, Circle } from 'lucide-react';
 import Button from '../../ui/Button';
 import ConfirmModal from '../../ui/ConfirmModal';
 import PaginationBar from '../PaginationBar';
 import apiClient from '../../../config/apiClient';
 import { useToast } from '../../../contexts/ToastContext';
+import { AdminPage, AdminPageHeader } from '../ui/AdminPage';
 
 const BASE = '/api/v1/admin/inquiries';
 const PAGE_SIZE = 25;
@@ -160,19 +161,17 @@ const InquiryManagement = ({ onUnreadChange }) => {
   const totalPages = Math.max(1, Math.ceil(data.total / PAGE_SIZE));
 
   return (
-    <div className="space-y-5 p-4 sm:p-6 lg:p-8">
-      <div className="flex items-center gap-3">
-        <div className="rounded-lg bg-primary-500/10 p-2.5">
-          <Inbox className="h-6 w-6 text-primary-500" aria-hidden="true" />
-        </div>
-        <div>
-          <h2 className="text-xl font-bold text-dark-50 sm:text-2xl">Inquiries</h2>
-          <p className="text-sm text-dark-100">
+    <AdminPage>
+      <AdminPageHeader
+        eyebrow="Sales"
+        title="Inquiries"
+        description={
+          <>
             Messages from the website contact form
             {data.unread > 0 && <span className="text-primary-400"> · {data.unread} unread</span>}
-          </p>
-        </div>
-      </div>
+          </>
+        }
+      />
 
       <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
         <div className="inline-flex flex-wrap gap-1 rounded-lg border border-dark-600 bg-dark-800 p-1" role="tablist" aria-label="Filter inquiries">
@@ -377,7 +376,7 @@ const InquiryManagement = ({ onUnreadChange }) => {
         message={pendingDelete ? `The message from ${pendingDelete.name} will be permanently deleted.` : ''}
         confirmText="Delete"
       />
-    </div>
+    </AdminPage>
   );
 };
 

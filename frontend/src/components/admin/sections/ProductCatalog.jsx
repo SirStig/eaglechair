@@ -11,6 +11,7 @@ import PaginationBar from '../PaginationBar';
 import StatusTabs from '../StatusTabs';
 import PermanentDeleteModal from '../PermanentDeleteModal';
 import ResponsiveImage from '../../ui/ResponsiveImage';
+import { AdminPage, AdminPageHeader } from '../ui/AdminPage';
 
 /**
  * Product Catalog Management
@@ -386,23 +387,21 @@ const ProductCatalog = ({ onEdit }) => {
   };
 
   return (
-    <div className="p-8 space-y-6">
-      {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-        <div>
-          <h2 className="text-xl sm:text-2xl font-bold text-dark-50">Product Catalog</h2>
-          <p className="text-dark-300 mt-1">
-            Manage all products, variations, and inventory
-          </p>
-        </div>
-        <Button
-          onClick={() => onEdit({ _isNew: true })}
-          className="flex items-center gap-2"
-        >
-          <span>➕</span>
-          <span>Add Product</span>
-        </Button>
-      </div>
+    <AdminPage>
+      <AdminPageHeader
+        eyebrow="Products"
+        title="Product Catalog"
+        description="Manage all products, variations, and inventory"
+        actions={
+          <Button
+            onClick={() => onEdit({ _isNew: true })}
+            className="flex items-center gap-2"
+          >
+            <span>➕</span>
+            <span>Add Product</span>
+          </Button>
+        }
+      />
 
       <StatusTabs tab={tab} onChange={handleTabChange} activeCount={activeTotal} archivedCount={archivedTotal} />
 
@@ -705,7 +704,7 @@ const ProductCatalog = ({ onEdit }) => {
         message={permDeleteTarget?.bulk ? `${permDeleteTarget.bulk.length} products will be removed from the database immediately, freeing their SKUs for reuse.` : undefined}
         isLoading={permDeleting}
       />
-    </div>
+    </AdminPage>
   );
 };
 

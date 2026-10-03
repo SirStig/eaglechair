@@ -3,7 +3,8 @@ import Card from '../../ui/Card';
 import Button from '../../ui/Button';
 import apiClient from '../../../config/apiClient';
 import { resolveImageUrl } from '../../../utils/apiHelpers';
-import { ArrowLeft, Upload, X } from 'lucide-react';
+import { Upload, X } from 'lucide-react';
+import { AdminPage, AdminPageHeader } from '../ui/AdminPage';
 import ResponsiveImage from '../../ui/ResponsiveImage';
 
 /**
@@ -128,25 +129,15 @@ const LaminateEditor = ({ laminate, onBack, onSave }) => {
   const isUploading = uploadingSwatch || uploadingFullImage;
 
   return (
-    <div className="p-6 space-y-6">
-      {/* Header */}
-      <div className="flex items-center gap-4">
-        <button
-          onClick={onBack}
-          className="p-2 hover:bg-dark-700 rounded-lg transition-colors disabled:opacity-50 disabled:pointer-events-none"
-          disabled={saving || isUploading}
-        >
-          <ArrowLeft className="w-5 h-5 text-dark-300" />
-        </button>
-        <div>
-          <h2 className="text-3xl font-bold text-dark-50">
-            {laminate ? `Edit: ${laminate.brand} - ${laminate.pattern_name}` : 'Create Laminate'}
-          </h2>
-          <p className="text-dark-300 mt-1">
-            {laminate ? 'Update laminate details and images' : 'Add a new laminate option'}
-          </p>
-        </div>
-      </div>
+    <AdminPage>
+      <AdminPageHeader
+        onBack={onBack}
+        backDisabled={saving || isUploading}
+        backLabel="Back to Laminates"
+        eyebrow="Materials & Options"
+        title={laminate ? `Edit: ${laminate.brand} - ${laminate.pattern_name}` : 'Create Laminate'}
+        description={laminate ? 'Update laminate details and images' : 'Add a new laminate option'}
+      />
 
       {/* Form */}
       <form onSubmit={handleSubmit}>
@@ -572,7 +563,7 @@ const LaminateEditor = ({ laminate, onBack, onSave }) => {
           </Button>
         </div>
       </form>
-    </div>
+    </AdminPage>
   );
 };
 

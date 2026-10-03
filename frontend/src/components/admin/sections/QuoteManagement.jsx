@@ -7,6 +7,7 @@ import { useAdminRefresh } from '../../../contexts/AdminRefreshContext';
 import { useToast } from '../../../contexts/ToastContext';
 import TableSortHead from '../TableSortHead';
 import PaginationBar from '../PaginationBar';
+import { AdminPage, AdminPageHeader } from '../ui/AdminPage';
 import { 
   FileText, 
   Search, 
@@ -198,23 +199,18 @@ const QuoteManagement = () => {
   }
 
   return (
-    <div className="p-8 space-y-6">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h2 className="text-2xl font-bold text-dark-50 flex items-center gap-2">
-            <FileText className="w-7 h-7 text-accent-500" />
-            Quote Management
-          </h2>
-          <p className="text-dark-300 mt-1">Manage and track customer quotes</p>
-        </div>
-        <div className="flex items-center gap-3">
+    <AdminPage>
+      <AdminPageHeader
+        eyebrow="Sales"
+        title="Quotes"
+        description="Manage and track customer quotes"
+        actions={
           <Button variant="outline" className="flex items-center gap-2">
             <Download className="w-4 h-4" />
             Export
           </Button>
-        </div>
-      </div>
+        }
+      />
 
       {/* Filters */}
       <Card>
@@ -402,7 +398,7 @@ const QuoteManagement = () => {
           </>
         )}
       </Card>
-    </div>
+    </AdminPage>
   );
 };
 

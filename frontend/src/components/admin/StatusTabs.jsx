@@ -11,24 +11,26 @@ const StatusTabs = ({ tab, onChange, activeCount, archivedCount }) => {
   ];
 
   return (
-    <div className="inline-flex items-center gap-1 p-1 bg-dark-800 border border-dark-700 rounded-lg">
+    <div className="inline-flex items-center gap-1 rounded-lg border border-white/[0.07] bg-dark-950/60 p-1" role="tablist">
       {tabs.map(({ key, label, icon: Icon, count }) => (
         <button
           key={key}
           type="button"
+          role="tab"
+          aria-selected={tab === key}
           onClick={() => onChange(key)}
-          className={`flex items-center gap-1.5 px-3 sm:px-4 py-2 rounded-md text-sm font-medium transition-colors ${
+          className={`flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm font-medium transition-colors sm:px-3.5 ${
             tab === key
-              ? 'bg-primary-600 text-white'
-              : 'text-dark-300 hover:text-dark-100 hover:bg-dark-700'
+              ? 'bg-white/[0.08] text-dark-50 shadow-sm'
+              : 'text-dark-200 hover:bg-white/[0.04] hover:text-dark-50'
           }`}
         >
-          <Icon className="w-4 h-4" />
+          <Icon className={`h-4 w-4 ${tab === key ? 'text-primary-500' : ''}`} />
           {label}
           {typeof count === 'number' && (
             <span
-              className={`ml-0.5 px-1.5 py-0.5 rounded text-xs tabular-nums ${
-                tab === key ? 'bg-white/20' : 'bg-dark-700 text-dark-400'
+              className={`ml-0.5 rounded px-1.5 py-0.5 text-xs tabular-nums ${
+                tab === key ? 'bg-primary-500/15 text-primary-300' : 'bg-white/[0.05] text-dark-200'
               }`}
             >
               {count}

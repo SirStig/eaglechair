@@ -10,6 +10,7 @@ import {
 } from '../../../services/catalogToolsService';
 import CatalogBuilderEditor from './catalogBuilder/CatalogBuilderEditor';
 import { newPage } from './catalogBuilder/pageModel';
+import { AdminPage, AdminPageHeader } from '../ui/AdminPage';
 
 const formatDate = (iso) => (iso ? new Date(iso).toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' }) : '—');
 
@@ -119,16 +120,13 @@ const CatalogBuilder = () => {
   }
 
   return (
-    <div className="p-3 sm:p-6 space-y-6">
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-        <div>
-          <h2 className="text-2xl sm:text-3xl font-bold text-dark-50">Catalog Builder</h2>
-          <p className="text-dark-300 mt-1 text-sm">
-            Build print-ready catalogs in the Eagle Chair catalog design from live product data.
-          </p>
-        </div>
-        <Button onClick={() => setCreating(true)}><FilePlus2 className="w-4 h-4 mr-2" />New catalog</Button>
-      </div>
+    <AdminPage>
+      <AdminPageHeader
+        eyebrow="Publishing"
+        title="Catalog Builder"
+        description="Build print-ready catalogs in the Eagle Chair catalog design from live product data."
+        actions={<Button onClick={() => setCreating(true)}><FilePlus2 className="w-4 h-4 mr-2" />New catalog</Button>}
+      />
 
       {loading ? (
         <div className="flex justify-center h-40 items-center"><Loader2 className="w-8 h-8 animate-spin text-primary-500" /></div>
@@ -228,7 +226,7 @@ const CatalogBuilder = () => {
           <Button size="sm" variant="danger" onClick={remove}>Delete</Button>
         </div>
       </Modal>
-    </div>
+    </AdminPage>
   );
 };
 

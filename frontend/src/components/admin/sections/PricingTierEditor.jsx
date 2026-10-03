@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import Card from '../../ui/Card';
 import Button from '../../ui/Button';
 import apiClient from '../../../config/apiClient';
-import { ArrowLeft, DollarSign } from 'lucide-react';
+import { AdminPage, AdminPageHeader } from '../ui/AdminPage';
 
 /**
  * Pricing Tier Editor Component
@@ -121,25 +121,15 @@ const PricingTierEditor = ({ tier, onBack, onSave }) => {
   };
 
   return (
-    <div className="p-6 space-y-6">
-      {/* Header */}
-      <div className="flex items-center gap-4">
-        <button
-          onClick={onBack}
-          className="p-2 hover:bg-dark-700 rounded-lg transition-colors"
-          disabled={saving}
-        >
-          <ArrowLeft className="w-5 h-5 text-dark-300" />
-        </button>
-        <div>
-          <h2 className="text-3xl font-bold text-dark-50">
-            {tier ? `Edit: ${tier.pricing_tier_name}` : 'Create Pricing Tier'}
-          </h2>
-          <p className="text-dark-300 mt-1">
-            {tier ? 'Update pricing tier details' : 'Create a new reusable pricing tier'}
-          </p>
-        </div>
-      </div>
+    <AdminPage>
+      <AdminPageHeader
+        eyebrow="Sales"
+        title={tier ? `Edit: ${tier.pricing_tier_name}` : 'Create Pricing Tier'}
+        description={tier ? 'Update pricing tier details' : 'Create a new reusable pricing tier'}
+        onBack={onBack}
+        backDisabled={saving}
+        backLabel="Back to Pricing Tiers"
+      />
 
       {/* Form */}
       <form onSubmit={handleSubmit}>
@@ -348,7 +338,7 @@ const PricingTierEditor = ({ tier, onBack, onSave }) => {
           </div>
         </Card>
       </form>
-    </div>
+    </AdminPage>
   );
 };
 
