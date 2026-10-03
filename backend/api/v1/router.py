@@ -8,6 +8,7 @@ from fastapi import APIRouter
 
 from backend.api.v1.routes import (
     admin_auth,
+    analytics,
     auth,
     cms_admin,
     cms_content,
@@ -41,6 +42,9 @@ router.include_router(cms_content.router, prefix="/content")
 
 # Include CMS admin routes (admin-only content management with static export)
 router.include_router(cms_admin.router)
+
+# Include anonymous site analytics ingest
+router.include_router(analytics.router)
 
 # Include SEO routes (sitemap, meta tags)
 router.include_router(seo.router)

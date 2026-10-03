@@ -12,6 +12,7 @@ import { ToastProvider } from './contexts/ToastContext';
 import { useEditMode } from './contexts/useEditMode';
 import { useAuthStore, startAuthInit } from './store/authStore';
 import { useCartStore } from './store/cartStore';
+import { installAnalytics, trackPageView } from './utils/analytics';
 
 // Animation features (domAnimation) load in a separate chunk; m.* components
 // render their initial state until it arrives. The request starts as soon as
@@ -78,6 +79,19 @@ function ManifestInjector() {
   return null;
 }
 
+// Anonymous first-party analytics: a page view per route change plus
+// site-wide download link tracking. Admin pages are skipped by the tracker.
+function AnalyticsTracker() {
+  const location = useLocation();
+  useEffect(() => {
+    installAnalytics();
+  }, []);
+  useEffect(() => {
+    trackPageView(location.pathname);
+  }, [location.pathname]);
+  return null;
+}
+
 // Only fetch the edit-mode toggle chunk once an admin session is detected
 function AdminEditModeToggle() {
   const { isAdmin } = useEditMode();
@@ -121,6 +135,7 @@ function App() {
     <ErrorBoundary>
       <LazyMotion features={loadMotionFeatures} strict>
           <ManifestInjector />
+          <AnalyticsTracker />
           <CartSync />
           <AdminAuthProvider>
             <EditModeProvider>

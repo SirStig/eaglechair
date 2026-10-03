@@ -1,6 +1,6 @@
 import { ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight } from 'lucide-react';
 
-function PageButton({ onClick, disabled, label, children }) {
+function PageButton({ onClick, disabled, label, children, className = 'flex' }) {
   return (
     <button
       type="button"
@@ -8,7 +8,7 @@ function PageButton({ onClick, disabled, label, children }) {
       disabled={disabled}
       aria-label={label}
       title={label}
-      className="flex h-8 w-8 items-center justify-center rounded-md border border-white/[0.08] text-dark-100 transition-colors hover:border-white/[0.16] hover:bg-white/[0.04] hover:text-dark-50 disabled:pointer-events-none disabled:opacity-35"
+      className={`${className} h-8 w-8 items-center justify-center rounded-md border border-white/[0.08] text-dark-100 transition-colors hover:border-white/[0.16] hover:bg-white/[0.04] hover:text-dark-50 disabled:pointer-events-none disabled:opacity-35`}
     >
       {children}
     </button>
@@ -19,8 +19,9 @@ const PaginationBar = ({ page, totalPages, total, pageSize, onPageChange, onPage
   if (totalPages <= 1 && total <= 0) return null;
 
   return (
-    <div className={`flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 px-4 py-3 ${position === 'top' ? 'border-b' : 'border-t'} border-white/[0.06]`}>
-      <div className="flex items-center gap-4 flex-wrap">
+    // Phones get only the bottom bar, on a single row
+    <div className={`items-center justify-between gap-3 px-4 py-3 ${position === 'top' ? 'hidden sm:flex border-b' : 'flex border-t'} border-white/[0.06]`}>
+      <div className="flex items-center gap-3 sm:gap-4">
         <p className="text-sm text-dark-200 tabular-nums">
           {total > 0 ? (
             <>
@@ -30,7 +31,7 @@ const PaginationBar = ({ page, totalPages, total, pageSize, onPageChange, onPage
         </p>
         {onPageSizeChange && (
           <div className="flex items-center gap-2">
-            <label htmlFor={`page-size-${position}`} className="text-sm text-dark-200">Rows</label>
+            <label htmlFor={`page-size-${position}`} className="hidden sm:inline text-sm text-dark-200">Rows</label>
             <select
               id={`page-size-${position}`}
               value={pageSize}
@@ -48,7 +49,7 @@ const PaginationBar = ({ page, totalPages, total, pageSize, onPageChange, onPage
         )}
       </div>
       <div className="flex items-center gap-1.5">
-        <PageButton label="First page" onClick={() => onPageChange(1)} disabled={page === 1}>
+        <PageButton className="hidden sm:flex" label="First page" onClick={() => onPageChange(1)} disabled={page === 1}>
           <ChevronsLeft className="h-4 w-4" />
         </PageButton>
         <PageButton label="Previous page" onClick={() => onPageChange(Math.max(1, page - 1))} disabled={page === 1}>
@@ -60,7 +61,7 @@ const PaginationBar = ({ page, totalPages, total, pageSize, onPageChange, onPage
         <PageButton label="Next page" onClick={() => onPageChange(Math.min(totalPages, page + 1))} disabled={page >= totalPages}>
           <ChevronRight className="h-4 w-4" />
         </PageButton>
-        <PageButton label="Last page" onClick={() => onPageChange(totalPages)} disabled={page >= totalPages}>
+        <PageButton className="hidden sm:flex" label="Last page" onClick={() => onPageChange(totalPages)} disabled={page >= totalPages}>
           <ChevronsRight className="h-4 w-4" />
         </PageButton>
       </div>

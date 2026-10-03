@@ -19,6 +19,7 @@ import ResponsiveImage from '../components/ui/ResponsiveImage';
 import SpecSymbols, { SpecIcon } from '../components/ui/SpecSymbols';
 import CustomOptionsNote from '../components/ui/CustomOptionsNote';
 import useSpecProfile from '../hooks/useSpecProfile';
+import { trackDownload, trackProductView } from '../utils/analytics';
 import { getSpecItems, getFeatureSymbol } from '../utils/specSymbols';
 
 // Hero image column: full width below lg, half of the max-w-7xl container above.
@@ -202,6 +203,7 @@ const ProductDetailPage = () => {
       if (response && response.data) {
         setProduct(response.data);
         setRelatedProducts(response.related || []);
+        trackProductView(response.data);
 
         logger.info(CONTEXT, `Successfully loaded product: ${response.data.name}`);
 
@@ -303,6 +305,7 @@ const ProductDetailPage = () => {
     link.href = url;
     link.download = `${product.slug || product.name}.jpg`;
     link.click();
+    trackDownload({ url, label: `${product.name} image`, type: 'image', productId: product.id });
   };
 
   const handleQuickView = (p) => setQuickViewProduct(p);
@@ -675,17 +678,35 @@ const ProductDetailPage = () => {
                     <p className="text-slate-500 text-sm mb-2">Resources</p>
                     <div className="flex flex-col gap-2 text-[15px]">
                       {product.spec_sheet_url && (
-                        <a href={resolveFileUrl(product.spec_sheet_url)} download className="text-slate-700 hover:text-slate-900 underline">
+                        <a
+                          href={resolveFileUrl(product.spec_sheet_url)}
+                          download
+                          data-track-label={`${product.name} – Spec Sheet`}
+                          data-track-type="spec_sheet"
+                          data-track-product={product.id}
+                          className="text-slate-700 hover:text-slate-900 underline">
                           Spec Sheet
                         </a>
                       )}
                       {product.dimensional_drawing_url && (
-                        <a href={resolveFileUrl(product.dimensional_drawing_url)} download className="text-slate-700 hover:text-slate-900 underline">
+                        <a
+                          href={resolveFileUrl(product.dimensional_drawing_url)}
+                          download
+                          data-track-label={`${product.name} – Line Drawing`}
+                          data-track-type="line_drawing"
+                          data-track-product={product.id}
+                          className="text-slate-700 hover:text-slate-900 underline">
                           Line Drawing
                         </a>
                       )}
                       {product.cad_file_url && (
-                        <a href={resolveFileUrl(product.cad_file_url)} download className="text-slate-700 hover:text-slate-900 underline">
+                        <a
+                          href={resolveFileUrl(product.cad_file_url)}
+                          download
+                          data-track-label={`${product.name} – CAD File`}
+                          data-track-type="cad"
+                          data-track-product={product.id}
+                          className="text-slate-700 hover:text-slate-900 underline">
                           CAD File
                         </a>
                       )}
@@ -1100,7 +1121,11 @@ const ProductDetailPage = () => {
                   <Button
                     variant="outline"
                     size="sm"
-                    onClick={() => window.open(resolveFileUrl(currentFamily.catalog_pdf_url), '_blank', 'noopener,noreferrer')}
+                    onClick={() => {
+                      const url = resolveFileUrl(currentFamily.catalog_pdf_url);
+                      trackDownload({ url, label: `${currentFamily.name} family catalog`, type: 'catalog', productId: product.id });
+                      window.open(url, '_blank', 'noopener,noreferrer');
+                    }}
                   >
                     View Product Family Catalog
                   </Button>

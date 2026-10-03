@@ -183,6 +183,122 @@
   box-shadow: 0 1px 0 rgba(255, 255, 255, 0.02) inset, 0 1px 2px rgba(0, 0, 0, 0.4);
 }
 
+/* Admin list tables on phones: each row becomes a card of label/value lines.
+   Labels come from the column headers (useStackedTables sets data-label). */
+@media (max-width: 639px) {
+  .admin-theme table.admin-stack {
+    display: block;
+    width: 100% !important;
+    min-width: 0 !important;
+  }
+  .admin-theme table.admin-stack thead {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+    white-space: nowrap;
+  }
+  .admin-theme table.admin-stack tbody {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+    padding: 0.75rem 0;
+    border: 0 !important;
+  }
+  /* Card: title row, then a two-column grid of label-over-value fields,
+     then the actions along the bottom */
+  .admin-theme table.admin-stack tbody > tr {
+    position: relative;
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    column-gap: 1rem;
+    border: 1px solid rgba(255, 255, 255, 0.07) !important;
+    border-radius: 0.75rem;
+    background-color: rgba(255, 255, 255, 0.02);
+    padding: 0.625rem 0.875rem;
+  }
+  .admin-theme table.admin-stack tbody > tr > td {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.2rem;
+    min-width: 0;
+    width: auto !important;
+    max-width: none !important;
+    padding: 0.4rem 0 !important;
+    border: 0 !important;
+    text-align: left;
+    white-space: normal !important;
+    overflow-wrap: anywhere;
+  }
+  .admin-theme table.admin-stack tbody > tr > td::before {
+    content: attr(data-label);
+    font-size: 10.5px;
+    font-weight: 600;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: #858585;
+  }
+  /* Unlabelled cells (selection checkboxes, drag handles, empty states) */
+  .admin-theme table.admin-stack tbody > tr > td[data-label='']::before,
+  .admin-theme table.admin-stack tbody > tr > td:not([data-label])::before,
+  .admin-theme table.admin-stack tbody > tr > td[data-primary]::before,
+  .admin-theme table.admin-stack tbody > tr > td:last-child:not(:first-child)::before {
+    display: none;
+  }
+  /* Title row */
+  .admin-theme table.admin-stack tbody > tr > td[data-primary] {
+    grid-column: 1 / -1;
+    order: -1;
+    padding-right: 2rem !important;
+    font-size: 0.9375rem;
+    font-weight: 500;
+  }
+  /* Selection checkbox: tucked into the card's top-right corner */
+  .admin-theme table.admin-stack tbody > tr > td:first-child:not(:last-child)[data-label=''] {
+    position: absolute;
+    top: 0.75rem;
+    right: 0.875rem;
+    padding: 0 !important;
+  }
+  /* Actions (last column) and full-width rows span the card */
+  .admin-theme table.admin-stack tbody > tr > td:last-child,
+  .admin-theme table.admin-stack tbody > tr > td[colspan] {
+    grid-column: 1 / -1;
+  }
+  .admin-theme table.admin-stack tbody > tr > td:last-child:not(:first-child) {
+    flex-direction: row;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+    margin-top: 0.25rem;
+    padding-top: 0.6rem !important;
+    border-top: 1px solid rgba(255, 255, 255, 0.06) !important;
+  }
+  .admin-theme table.admin-stack tbody > tr > td > * {
+    max-width: 100%;
+  }
+  /* The row cards replace the table's surrounding box on phones */
+  .admin-theme .ec-card:has(table.admin-stack) {
+    background-color: transparent;
+    border-color: transparent;
+    box-shadow: none;
+    padding: 0;
+  }
+  .admin-theme .ec-card:has(table.admin-stack) > .flex.border-t {
+    border-top: 0;
+    padding-left: 0;
+    padding-right: 0;
+  }
+  /* Tables sit in overflow-x-auto wrappers; nothing should side-scroll now */
+  .admin-theme .overflow-x-auto:has(> table.admin-stack),
+  .admin-theme .overflow-x-auto:has(> div > table.admin-stack) {
+    overflow-x: visible;
+    margin-left: 0;
+    margin-right: 0;
+  }
+}
+
 /* Safari-specific fixes */
 @supports (-webkit-appearance: none) {
   /* Fix for Safari hero slider transitions */

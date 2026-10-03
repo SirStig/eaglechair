@@ -4,6 +4,7 @@ import CatalogCoverImage from '../ui/CatalogCoverImage';
 import PDFViewerModal from '../ui/PDFViewerModal';
 import { formatFileSize, resolveFileUrl } from '../../utils/apiHelpers';
 import { formatCatalogType, getCatalogType } from '../../utils/catalogTypes';
+import { trackDownload } from '../../utils/analytics';
 
 const fileUrlOf = (doc) => doc.fileUrl || doc.file_url;
 const isPdf = (doc) =>
@@ -18,7 +19,10 @@ const DocActions = ({ doc, onView, compact = false }) => {
       {isPdf(doc) && (
         <button
           type="button"
-          onClick={() => onView(doc)}
+          onClick={() => {
+            trackDownload({ url: resolveFileUrl(url), label: doc.title, type: getCatalogType(doc) });
+            onView(doc);
+          }}
           className={`${btn} inline-flex items-center justify-center gap-2 bg-primary-600 hover:bg-primary-500 text-white font-medium rounded-lg transition-colors`}
         >
           <Eye className="w-4 h-4" aria-hidden />
@@ -28,6 +32,8 @@ const DocActions = ({ doc, onView, compact = false }) => {
       <a
         href={resolveFileUrl(url)}
         download
+        data-track-label={doc.title}
+        data-track-type={getCatalogType(doc) || undefined}
         aria-label={`Download ${doc.title}`}
         className={`${btn} inline-flex items-center justify-center gap-2 bg-slate-200 hover:bg-slate-300 text-slate-800 font-medium rounded-lg transition-colors`}
       >

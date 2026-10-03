@@ -14,6 +14,7 @@ const PDFViewerModal = ({ isOpen, onClose, fileUrl, fileName, fileType = 'PDF' }
     const link = document.createElement('a');
     link.href = resolvedUrl;
     link.download = fileName || 'catalog.pdf';
+    link.dataset.trackIgnore = '';
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
@@ -77,7 +78,7 @@ const PDFViewerModal = ({ isOpen, onClose, fileUrl, fileName, fileType = 'PDF' }
             />
             <p className="text-dark-300 p-4">
               Your browser does not support PDFs. 
-              <a href={resolvedUrl} download className="text-primary-400 hover:text-primary-300 underline ml-1">
+              <a href={resolvedUrl} download data-track-ignore className="text-primary-400 hover:text-primary-300 underline ml-1">
                 Click here to download the PDF
               </a>
             </p>

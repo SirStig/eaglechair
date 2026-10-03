@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { trackSearch } from '../utils/analytics';
 import { useSearchParams, useNavigate, Link } from 'react-router-dom';
 import SEOHead from '../components/SEOHead';
 import { SEO } from '../config/seoConfig';
@@ -64,6 +65,11 @@ const SearchPage = () => {
   useEffect(() => {
     loadCategories();
   }, []);
+
+  // One analytics event per settled query (not per page/sort change)
+  useEffect(() => {
+    trackSearch(debouncedQuery);
+  }, [debouncedQuery]);
 
   // Search products when query or filters change
   useEffect(() => {

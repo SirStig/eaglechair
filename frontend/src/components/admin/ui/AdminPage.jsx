@@ -13,7 +13,7 @@ export function AdminPage({ children, className, width = 'wide' }) {
     full: 'max-w-none',
   };
   return (
-    <div className={clsx('mx-auto w-full px-4 py-5 sm:px-6 sm:py-7 lg:px-8 lg:py-8 space-y-6', widths[width], className)}>
+    <div className={clsx('mx-auto w-full px-4 pt-5 pb-24 sm:px-6 sm:py-7 lg:px-8 lg:py-8 space-y-6', widths[width], className)}>
       {children}
     </div>
   );

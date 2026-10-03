@@ -86,6 +86,7 @@ class RateLimitConfig:
     # Unauthenticated submission endpoints (tracked per IP + path, independent of other traffic)
     GUEST_SUBMISSION_LIMITS = {
         "/api/v1/quotes/request-guest": (10, 600),  # 10 guest quotes per 10 minutes
+        "/api/v1/analytics/events": (120, 60),  # batched beacons; generous but bounded
     }
 
 

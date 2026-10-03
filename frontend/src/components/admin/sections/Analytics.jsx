@@ -1,399 +1,479 @@
-import { useState, useEffect, useRef } from 'react';
-import Card from '../../ui/Card';
-import apiClient from '../../../config/apiClient';
-import { AdminPage, AdminPageHeader } from '../ui/AdminPage';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { clsx } from 'clsx';
+import { Area, AreaChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
 import {
-  LineChart,
-  Line,
-  BarChart,
-  Bar,
-  PieChart,
-  Pie,
-  Cell,
-  XAxis,
-  YAxis,
-  CartesianGrid,
-  Tooltip,
-  Legend,
-  ResponsiveContainer
-} from 'recharts';
-import { 
-  TrendingUp, 
-  TrendingDown, 
-  Package, 
-  FileText, 
-  Building2,
-  Calendar
+  ArrowDownRight,
+  ArrowUpRight,
+  Download,
+  Eye,
+  FileText,
+  Globe,
+  MonitorSmartphone,
+  MousePointerClick,
+  Package,
+  RefreshCw,
+  Search,
+  Users,
 } from 'lucide-react';
+import apiClient from '../../../config/apiClient';
+import { resolveImageUrl } from '../../../utils/apiHelpers';
+import { CATALOG_TYPE_LABELS } from '../../../utils/catalogTypes';
+import { AdminPage, AdminPageHeader } from '../ui/AdminPage';
+
+const RANGES = [
+  { label: '7D', days: 7 },
+  { label: '30D', days: 30 },
+  { label: '90D', days: 90 },
+  { label: '1Y', days: 365 },
+];
+
+// KPI tiles double as the chart's metric selector: one series at a time
+const METRICS = [
+  { key: 'visitors', label: 'Visitors', icon: Users, hint: 'Unique browsers' },
+  { key: 'page_views', label: 'Page views', icon: Eye, hint: 'All public pages' },
+  { key: 'product_views', label: 'Product views', icon: Package, hint: 'Product detail pages' },
+  { key: 'downloads', label: 'Downloads', icon: Download, hint: 'Files & documents opened' },
+];
+
+const RESOURCE_TYPE_LABELS = {
+  ...CATALOG_TYPE_LABELS,
+  catalog: 'Catalog',
+  spec_sheet: 'Spec Sheet',
+  line_drawing: 'Line Drawing',
+  cad: 'CAD File',
+  image: 'Product Image',
+  guide: 'Guide',
+  document: 'Document',
+  other: 'Other',
+};
+
+const DEVICE_LABELS = { desktop: 'Desktop', mobile: 'Mobile', tablet: 'Tablet', unknown: 'Unknown' };
+
+const GOLD = '#f4a52d';
+
+const formatNumber = (n) => new Intl.NumberFormat('en-US').format(n || 0);
+
+// Series dates are UTC calendar days ("YYYY-MM-DD"); show them as-is
+const parseDay = (value) => {
+  const [y, m, d] = value.split('-').map(Number);
+  return new Date(y, m - 1, d);
+};
+const formatDay = (value, opts = { month: 'short', day: 'numeric' }) =>
+  parseDay(value).toLocaleDateString('en-US', opts);
+
+const humanizePath = (path) => (!path || path === '/' ? 'Home' : path);
+
+function changeOf(current, previous) {
+  if (!previous) return current ? null : 0;
+  return ((current - previous) / previous) * 100;
+}
+
+function Delta({ current, previous, invert = false }) {
+  const change = changeOf(current, previous);
+  if (change === null) {
+    return <span className="text-[11px] font-medium text-dark-200">New this period</span>;
+  }
+  if (Math.abs(change) < 0.5) {
+    return <span className="text-[11px] font-medium text-dark-200">No change</span>;
+  }
+  const up = change > 0;
+  const good = invert ? !up : up;
+  const Icon = up ? ArrowUpRight : ArrowDownRight;
+  return (
+    <span className={clsx('inline-flex items-center gap-0.5 text-[11px] font-medium', good ? 'text-emerald-300' : 'text-secondary-300')}>
+      <Icon className="h-3.5 w-3.5" aria-hidden="true" />
+      {Math.abs(change).toFixed(Math.abs(change) < 10 ? 1 : 0)}%
+      <span className="sr-only">{up ? 'increase' : 'decrease'}</span>
+      <span className="ml-1 font-normal text-dark-200">vs prev.</span>
+    </span>
+  );
+}
+
+function Panel({ title, icon: Icon, subtitle, action, children, className }) {
+  return (
+    <section className={clsx('ec-card flex min-w-0 flex-col rounded-xl border', className)}>
+      <div className="flex items-center justify-between gap-3 border-b border-white/[0.06] px-5 py-3.5">
+        <div className="min-w-0">
+          <h2 className="flex items-center gap-2 font-sans text-sm font-semibold text-dark-50">
+            {Icon && <Icon className="h-4 w-4 text-primary-500" aria-hidden="true" />}
+            {title}
+          </h2>
+          {subtitle && <p className="mt-0.5 text-xs text-dark-200">{subtitle}</p>}
+        </div>
+        {action}
+      </div>
+      <div className="flex-1">{children}</div>
+    </section>
+  );
+}
+
+function EmptyRow({ children }) {
+  return <p className="px-5 py-8 text-center text-sm text-dark-200">{children}</p>;
+}
+
+/** Ranked rows with a thin magnitude bar under each label (single hue). */
+function RankedList({ rows, empty, valueLabel }) {
+  if (!rows.length) return <EmptyRow>{empty}</EmptyRow>;
+  const max = Math.max(...rows.map((r) => r.value), 1);
+  return (
+    <ol className="divide-y divide-white/[0.04]">
+      {rows.map((row) => (
+        <li key={row.key} className="group px-5 py-2.5" title={`${row.label}: ${formatNumber(row.value)} ${valueLabel}`}>
+          <div className="flex items-baseline justify-between gap-3">
+            <div className="min-w-0">
+              <p className="truncate text-sm text-dark-50">{row.label}</p>
+              {row.sublabel && <p className="truncate text-xs text-dark-200">{row.sublabel}</p>}
+            </div>
+            <span className="flex-shrink-0 text-sm font-semibold tabular-nums text-dark-50">{formatNumber(row.value)}</span>
+          </div>
+          <div className="mt-1.5 h-1 overflow-hidden rounded-full bg-white/[0.04]">
+            <div
+              className="h-full rounded-full bg-primary-500/70 transition-colors group-hover:bg-primary-500"
+              style={{ width: `${Math.max((row.value / max) * 100, 2)}%` }}
+            />
+          </div>
+        </li>
+      ))}
+    </ol>
+  );
+}
+
+function ChartTooltip({ active, payload, label, metricLabel }) {
+  if (!active || !payload?.length) return null;
+  return (
+    <div className="rounded-lg border border-white/10 bg-dark-900/95 px-3 py-2 shadow-xl">
+      <p className="text-xs text-dark-200">{formatDay(label, { weekday: 'short', month: 'short', day: 'numeric' })}</p>
+      <p className="mt-0.5 text-sm font-semibold text-dark-50">
+        {formatNumber(payload[0].value)} <span className="font-normal text-dark-100">{metricLabel.toLowerCase()}</span>
+      </p>
+    </div>
+  );
+}
 
 const Analytics = () => {
-  const [stats, setStats] = useState(null);
-  const [categoryStats, setCategoryStats] = useState([]);
-  const [conversionRates, setConversionRates] = useState(null);
-  const [popularProducts, setPopularProducts] = useState([]);
+  const [days, setDays] = useState(30);
+  const [metric, setMetric] = useState('visitors');
+  const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [timeRange, setTimeRange] = useState('30d'); // 7d, 30d, 90d, 1y
+  const [error, setError] = useState(null);
   const requestIdRef = useRef(0);
 
-  useEffect(() => {
-    fetchAnalytics();
-  }, [timeRange]); // eslint-disable-line react-hooks/exhaustive-deps
-
-  const getDaysFromRange = (range) => {
-    const daysMap = {
-      '7d': 7,
-      '30d': 30,
-      '90d': 90,
-      '1y': 365,
-    };
-    return daysMap[range] || 30;
-  };
-
-  const fetchAnalytics = async () => {
-    // Guard against out-of-order responses: only the most recently started
-    // request is allowed to write to state, so rapidly switching timeRange
-    // can't let a stale response overwrite fresher data.
+  const load = useCallback(async () => {
+    // Only the latest request may write state, so fast range switching can't
+    // let a slow, stale response overwrite fresher data
     const requestId = ++requestIdRef.current;
+    setLoading(true);
+    setError(null);
     try {
-      setLoading(true);
-      const days = getDaysFromRange(timeRange);
-
-      // Fetch all analytics data in parallel
-      const [
-        statsRes,
-        categoryRes,
-        conversionRes,
-        productsRes
-      ] = await Promise.all([
-        apiClient.get('/api/v1/admin/dashboard/stats'),
-        apiClient.get('/api/v1/admin/dashboard/analytics/category-stats'),
-        apiClient.get('/api/v1/admin/dashboard/analytics/conversion-rates'),
-        apiClient.get(`/api/v1/admin/dashboard/analytics/popular-products?limit=5&days=${days}`)
-      ]);
-
-      if (requestId !== requestIdRef.current) return; // a newer request superseded this one
-
-      setStats(statsRes);
-      setCategoryStats(categoryRes.items || []);
-      setConversionRates(conversionRes);
-      setPopularProducts(productsRes.items || []);
-    } catch (error) {
-      console.error('Failed to fetch analytics:', error);
+      const res = await apiClient.get(`/api/v1/admin/dashboard/analytics/traffic?days=${days}&limit=10`);
+      if (requestId === requestIdRef.current) setData(res);
+    } catch (err) {
+      console.error('Failed to fetch analytics:', err);
+      if (requestId === requestIdRef.current) setError('Analytics could not be loaded. Try refreshing.');
     } finally {
-      if (requestId === requestIdRef.current) {
-        setLoading(false);
-      }
+      if (requestId === requestIdRef.current) setLoading(false);
     }
-  };
+  }, [days]);
 
-  const productCategoryData = categoryStats.map(item => ({
-    name: item.category?.name || 'Unknown',
-    value: item.product_count || 0
-  }));
+  useEffect(() => {
+    load();
+  }, [load]);
 
-  const companyStatusData = [
-    { name: 'Active', value: stats?.active_companies || 0 },
-    { name: 'Pending', value: stats?.pending_companies || 0 },
-    { name: 'Inactive', value: (stats?.total_companies || 0) - (stats?.active_companies || 0) - (stats?.pending_companies || 0) },
-  ];
-
-  const COLORS = {
-    primary: '#D4A574',
-    accent: '#8B7355',
-    green: '#10b981',
-    blue: '#3b82f6',
-    red: '#ef4444',
-    yellow: '#f59e0b',
-  };
-
-  const PIE_COLORS = [COLORS.primary, COLORS.accent, COLORS.green, COLORS.blue];
-
-  if (loading) {
-    return (
-      <AdminPage>
-        <div className="flex items-center justify-center py-12">
-          <div className="w-12 h-12 border-4 border-dark-600 border-t-primary-500 rounded-full animate-spin" />
-        </div>
-      </AdminPage>
-    );
-  }
+  const totals = data?.totals || {};
+  const previous = data?.previous || {};
+  const activeMetric = METRICS.find((m) => m.key === metric);
+  const hasAnyData = (totals.page_views || 0) + (totals.product_views || 0) + (totals.downloads || 0) > 0;
+  const rangeLabel = days === 365 ? 'last 12 months' : `last ${days} days`;
 
   return (
     <AdminPage>
       <AdminPageHeader
         eyebrow="Overview"
         title="Analytics"
-        description="Track your business performance and trends"
+        description="Who's visiting the site, which products they look at and what they download."
         actions={
-        <div className="flex items-center gap-2 bg-dark-700 p-1 rounded-lg">
-          {[
-            { label: '7D', value: '7d' },
-            { label: '30D', value: '30d' },
-            { label: '90D', value: '90d' },
-            { label: '1Y', value: '1y' },
-          ].map((range) => (
+          <>
+            {data && (
+              <span className="inline-flex items-center gap-2 rounded-full bg-white/[0.04] px-3 py-1.5 text-xs text-dark-100 ring-1 ring-inset ring-white/10">
+                <span className="relative flex h-2 w-2">
+                  {data.active_now > 0 && (
+                    <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-60" />
+                  )}
+                  <span className={clsx('relative inline-flex h-2 w-2 rounded-full', data.active_now > 0 ? 'bg-emerald-400' : 'bg-dark-300')} />
+                </span>
+                <span className="font-semibold tabular-nums text-dark-50">{data.active_now}</span> active now
+              </span>
+            )}
+            <div className="flex items-center gap-1 rounded-lg bg-white/[0.04] p-1 ring-1 ring-inset ring-white/10" role="group" aria-label="Date range">
+              {RANGES.map((range) => (
+                <button
+                  key={range.days}
+                  type="button"
+                  onClick={() => setDays(range.days)}
+                  aria-pressed={days === range.days}
+                  className={clsx(
+                    'rounded-md px-3 py-1.5 text-xs font-semibold transition-colors',
+                    days === range.days ? 'bg-primary-500 text-dark-900' : 'text-dark-100 hover:text-dark-50'
+                  )}
+                >
+                  {range.label}
+                </button>
+              ))}
+            </div>
             <button
-              key={range.value}
-              onClick={() => setTimeRange(range.value)}
-              className={`
-                px-4 py-2 rounded-md font-medium transition-all
-                ${timeRange === range.value
-                  ? 'bg-primary-500 text-dark-900'
-                  : 'text-dark-300 hover:text-dark-50'
-                }
-              `}
+              type="button"
+              onClick={load}
+              disabled={loading}
+              className="inline-flex h-9 w-9 items-center justify-center rounded-lg bg-white/[0.04] text-dark-100 ring-1 ring-inset ring-white/10 transition-colors hover:text-dark-50 disabled:opacity-50"
+              aria-label="Refresh analytics"
             >
-              {range.label}
+              <RefreshCw className={clsx('h-4 w-4', loading && 'animate-spin')} aria-hidden="true" />
             </button>
-          ))}
-        </div>
+          </>
         }
       />
 
-      {/* Key Metrics */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-        <Card className="relative overflow-hidden">
-          <div className="absolute top-0 right-0 w-24 h-24 bg-gradient-to-br from-primary-500/10 to-transparent rounded-bl-full" />
-          <div className="relative">
-            <div className="flex items-center justify-between mb-2">
-              <Package className="w-5 h-5 text-primary-500" />
-              <TrendingUp className="w-4 h-4 text-green-500" />
-            </div>
-            <p className="text-sm text-dark-300 mb-1">Total Products</p>
-            <p className="text-2xl font-bold text-dark-50">{stats?.total_products || 0}</p>
-            <p className="text-xs text-dark-400 mt-1">{stats?.active_products || 0} active</p>
-          </div>
-        </Card>
+      {error && (
+        <div className="rounded-lg border border-secondary-500/30 bg-secondary-500/10 px-4 py-3 text-sm text-secondary-200">{error}</div>
+      )}
 
-        <Card className="relative overflow-hidden">
-          <div className="absolute top-0 right-0 w-24 h-24 bg-gradient-to-br from-accent-500/10 to-transparent rounded-bl-full" />
-          <div className="relative">
-            <div className="flex items-center justify-between mb-2">
-              <FileText className="w-5 h-5 text-accent-500" />
-              <TrendingUp className="w-4 h-4 text-green-500" />
-            </div>
-            <p className="text-sm text-dark-300 mb-1">Total Quotes</p>
-            <p className="text-2xl font-bold text-dark-50">{stats?.total_quotes || 0}</p>
-            <p className="text-xs text-dark-400 mt-1">{stats?.pending_quotes || 0} pending</p>
-          </div>
-        </Card>
-
-        <Card className="relative overflow-hidden">
-          <div className="absolute top-0 right-0 w-24 h-24 bg-gradient-to-br from-green-500/10 to-transparent rounded-bl-full" />
-          <div className="relative">
-            <div className="flex items-center justify-between mb-2">
-              <Building2 className="w-5 h-5 text-green-500" />
-              <TrendingUp className="w-4 h-4 text-green-500" />
-            </div>
-            <p className="text-sm text-dark-300 mb-1">Active Companies</p>
-            <p className="text-2xl font-bold text-dark-50">{stats?.active_companies || 0}</p>
-            <p className="text-xs text-dark-400 mt-1">{stats?.total_companies || 0} total</p>
-          </div>
-        </Card>
-
-        <Card className="relative overflow-hidden">
-          <div className="absolute top-0 right-0 w-24 h-24 bg-gradient-to-br from-blue-500/10 to-transparent rounded-bl-full" />
-          <div className="relative">
-            <div className="flex items-center justify-between mb-2">
-              <Calendar className="w-5 h-5 text-blue-500" />
-              {conversionRates?.quote_to_accepted >= 50 ? (
-                <TrendingUp className="w-4 h-4 text-green-500" />
-              ) : (
-                <TrendingDown className="w-4 h-4 text-yellow-500" />
-              )}
-            </div>
-            <p className="text-sm text-dark-300 mb-1">Approval Rate</p>
-            <p className="text-2xl font-bold text-dark-50">
-              {conversionRates?.quote_to_accepted?.toFixed(0) || 0}%
-            </p>
-            <p className="text-xs text-dark-400 mt-1">{stats?.accepted_quotes || 0} accepted</p>
-          </div>
-        </Card>
-      </div>
-
-      {/* Charts */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Recent Activity */}
-        <Card>
-          <h3 className="text-lg font-bold text-dark-50 mb-4 flex items-center gap-2">
-            <FileText className="w-5 h-5 text-accent-500" />
-            Recent Activity (Last 30 Days)
-          </h3>
-          <div className="space-y-4">
-            <div className="flex items-center justify-between p-4 bg-dark-700 rounded-lg">
-              <div className="flex items-center gap-3">
-                <div className="p-3 bg-primary-500/20 rounded-lg">
-                  <FileText className="w-6 h-6 text-primary-500" />
-                </div>
-                <div>
-                  <p className="text-dark-50 font-medium">Quote Requests</p>
-                  <p className="text-xs text-dark-400">New quote submissions</p>
-                </div>
-              </div>
-              <p className="text-2xl font-bold text-dark-50">{stats?.recent_quotes_30d || 0}</p>
-            </div>
-
-            <div className="flex items-center justify-between p-4 bg-dark-700 rounded-lg">
-              <div className="flex items-center gap-3">
-                <div className="p-3 bg-green-500/20 rounded-lg">
-                  <Building2 className="w-6 h-6 text-green-500" />
-                </div>
-                <div>
-                  <p className="text-dark-50 font-medium">New Companies</p>
-                  <p className="text-xs text-dark-400">Company registrations</p>
-                </div>
-              </div>
-              <p className="text-2xl font-bold text-dark-50">{stats?.recent_companies_30d || 0}</p>
-            </div>
-
-            <div className="flex items-center justify-between p-4 bg-dark-700 rounded-lg">
-              <div className="flex items-center gap-3">
-                <div className="p-3 bg-blue-500/20 rounded-lg">
-                  <TrendingUp className="w-6 h-6 text-blue-500" />
-                </div>
-                <div>
-                  <p className="text-dark-50 font-medium">Pending Reviews</p>
-                  <p className="text-xs text-dark-400">Awaiting response</p>
-                </div>
-              </div>
-              <p className="text-2xl font-bold text-dark-50">{stats?.pending_quotes || 0}</p>
-            </div>
-          </div>
-        </Card>
-
-        {/* Product Categories */}
-        <Card>
-          <h3 className="text-lg font-bold text-dark-50 mb-4 flex items-center gap-2">
-            <Package className="w-5 h-5 text-primary-500" />
-            Products by Category
-          </h3>
-          {productCategoryData.length > 0 ? (
-            <ResponsiveContainer width="100%" height={300}>
-              <PieChart>
-                <Pie
-                  data={productCategoryData}
-                  cx="50%"
-                  cy="50%"
-                  labelLine={false}
-                  label={({ name, percent }) => `${name}: ${(percent * 100).toFixed(0)}%`}
-                  outerRadius={100}
-                  fill="#8884d8"
-                  dataKey="value"
-                >
-                  {productCategoryData.map((entry, index) => (
-                    <Cell key={`cell-${index}`} fill={PIE_COLORS[index % PIE_COLORS.length]} />
-                  ))}
-                </Pie>
-                <Tooltip
-                  contentStyle={{
-                    backgroundColor: '#1f2937',
-                    border: '1px solid #374151',
-                    borderRadius: '8px',
-                    color: '#f3f4f6'
-                  }}
-                />
-              </PieChart>
-            </ResponsiveContainer>
-          ) : (
-            <div className="flex items-center justify-center h-[300px] text-dark-400">
-              No category data available
+      {!data && loading ? (
+        <div className="flex items-center justify-center py-24">
+          <div className="h-10 w-10 animate-spin rounded-full border-4 border-dark-600 border-t-primary-500" />
+        </div>
+      ) : data ? (
+        <div className={clsx('space-y-6 transition-opacity', loading && 'opacity-60')}>
+          {!hasAnyData && (
+            <div className="rounded-xl border border-primary-500/20 bg-primary-500/[0.06] px-5 py-4 text-sm text-dark-100">
+              <p className="font-semibold text-dark-50">No visits recorded for the {rangeLabel} yet.</p>
+              <p className="mt-1">
+                Tracking is anonymous and first-party: page views, product views, searches and downloads appear here as people
+                browse the public site. Bots and logged-in admins aren&apos;t counted.
+              </p>
             </div>
           )}
-        </Card>
 
-        {/* Company Status */}
-        <Card>
-          <h3 className="text-lg font-bold text-dark-50 mb-4 flex items-center gap-2">
-            <Building2 className="w-5 h-5 text-green-500" />
-            Company Status Distribution
-          </h3>
-          <ResponsiveContainer width="100%" height={300}>
-            <BarChart data={companyStatusData}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
-              <XAxis dataKey="name" stroke="#9ca3af" />
-              <YAxis stroke="#9ca3af" />
-              <Tooltip
-                contentStyle={{
-                  backgroundColor: '#1f2937',
-                  border: '1px solid #374151',
-                  borderRadius: '8px',
-                  color: '#f3f4f6'
-                }}
-              />
-              <Bar dataKey="value" fill={COLORS.green} radius={[8, 8, 0, 0]} />
-            </BarChart>
-          </ResponsiveContainer>
-        </Card>
-
-        {/* Revenue Stats */}
-        <Card>
-          <h3 className="text-lg font-bold text-dark-50 mb-4 flex items-center gap-2">
-            <TrendingUp className="w-5 h-5 text-blue-500" />
-            Revenue Overview
-          </h3>
-          <div className="space-y-4">
-            <div className="p-4 bg-dark-700 rounded-lg">
-              <p className="text-sm text-dark-400 mb-1">Total Revenue (Accepted Quotes)</p>
-              <p className="text-3xl font-bold text-green-500">
-                ${((stats?.total_revenue || 0) / 100).toLocaleString('en-US', { minimumFractionDigits: 0 })}
-              </p>
-            </div>
-
-            <div className="p-4 bg-dark-700 rounded-lg">
-              <p className="text-sm text-dark-400 mb-1">Potential Revenue (Quoted)</p>
-              <p className="text-3xl font-bold text-primary-500">
-                ${((stats?.potential_revenue || 0) / 100).toLocaleString('en-US', { minimumFractionDigits: 0 })}
-              </p>
-            </div>
-
-            <div className="grid grid-cols-2 gap-4">
-              <div className="p-3 bg-dark-700 rounded-lg">
-                <p className="text-xs text-dark-400 mb-1">Accepted Quotes</p>
-                <p className="text-xl font-bold text-dark-50">{stats?.accepted_quotes || 0}</p>
-              </div>
-              <div className="p-3 bg-dark-700 rounded-lg">
-                <p className="text-xs text-dark-400 mb-1">Conversion Rate</p>
-                <p className="text-xl font-bold text-dark-50">
-                  {conversionRates?.quote_to_accepted?.toFixed(1) || 0}%
+          {/* KPI tiles — click one to chart it */}
+          <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+            {METRICS.map(({ key, label, icon, hint }) => {
+              const Icon = icon;
+              return (
+              <button
+                key={key}
+                type="button"
+                onClick={() => setMetric(key)}
+                aria-pressed={metric === key}
+                className={clsx(
+                  'ec-card rounded-xl border p-4 text-left transition-colors',
+                  metric === key ? '!border-primary-500/60 ring-1 ring-primary-500/30' : 'hover:!border-white/15'
+                )}
+              >
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-medium text-dark-100">{label}</span>
+                  <Icon className={clsx('h-4 w-4', metric === key ? 'text-primary-500' : 'text-dark-300')} aria-hidden="true" />
+                </div>
+                <p className="mt-2 font-serif text-2xl font-bold tabular-nums text-dark-50 sm:text-[1.75rem]">
+                  {formatNumber(totals[key])}
                 </p>
-              </div>
-            </div>
+                <div className="mt-1 flex flex-wrap items-center justify-between gap-x-2">
+                  <Delta current={totals[key] || 0} previous={previous[key] || 0} />
+                  <span className="hidden text-[11px] text-dark-300 xl:inline">{hint}</span>
+                </div>
+              </button>
+              );
+            })}
           </div>
-        </Card>
-      </div>
 
-      {/* Popular Products */}
-      {popularProducts.length > 0 && (
-        <Card>
-          <h3 className="text-lg font-bold text-dark-50 mb-4 flex items-center gap-2">
-            <TrendingUp className="w-5 h-5 text-primary-500" />
-            Most Requested Products ({timeRange.toUpperCase()})
-          </h3>
-          <div className="space-y-3">
-            {popularProducts.map((item, index) => (
-              <div key={index} className="flex items-center justify-between p-3 bg-dark-700 rounded-lg">
-                <div className="flex items-center gap-3">
-                  <span className="flex items-center justify-center w-8 h-8 rounded-full bg-primary-500/20 text-primary-500 font-bold text-sm">
-                    {index + 1}
-                  </span>
-                  <div>
-                    <p className="text-dark-50 font-medium">
-                      {item.product?.name || 'Unknown Product'}
-                    </p>
-                    <p className="text-xs text-dark-400">
-                      Model: {item.product?.model_number || 'N/A'}
-                    </p>
-                  </div>
+          {/* Trend */}
+          <Panel title={`${activeMetric.label} per day`} subtitle={`${rangeLabel} · UTC days`} icon={activeMetric.icon}>
+            <div className="h-[260px] px-2 pb-3 pt-4 sm:h-[300px] sm:px-4">
+              <ResponsiveContainer width="100%" height="100%">
+                <AreaChart data={data.timeseries} margin={{ top: 4, right: 8, bottom: 0, left: -12 }}>
+                  <defs>
+                    <linearGradient id="analytics-fill" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="0%" stopColor={GOLD} stopOpacity={0.28} />
+                      <stop offset="100%" stopColor={GOLD} stopOpacity={0} />
+                    </linearGradient>
+                  </defs>
+                  <CartesianGrid vertical={false} stroke="rgba(255,255,255,0.05)" />
+                  <XAxis
+                    dataKey="date"
+                    tickFormatter={(v) => formatDay(v)}
+                    tick={{ fontSize: 11, fill: '#858585' }}
+                    tickLine={false}
+                    axisLine={false}
+                    minTickGap={24}
+                  />
+                  <YAxis
+                    allowDecimals={false}
+                    tick={{ fontSize: 11, fill: '#858585' }}
+                    tickLine={false}
+                    axisLine={false}
+                    width={44}
+                  />
+                  <Tooltip
+                    content={<ChartTooltip metricLabel={activeMetric.label} />}
+                    cursor={{ stroke: 'rgba(255,255,255,0.25)', strokeWidth: 1 }}
+                  />
+                  <Area
+                    type="monotone"
+                    dataKey={metric}
+                    stroke={GOLD}
+                    strokeWidth={2}
+                    fill="url(#analytics-fill)"
+                    activeDot={{ r: 4, stroke: '#171717', strokeWidth: 2, fill: GOLD }}
+                    dot={false}
+                    isAnimationActive={false}
+                  />
+                </AreaChart>
+              </ResponsiveContainer>
+            </div>
+            <dl className="grid grid-cols-2 gap-px border-t border-white/[0.06] bg-white/[0.04] sm:grid-cols-4">
+              {[
+                { label: 'Sessions', value: formatNumber(totals.sessions), cur: totals.sessions, prev: previous.sessions },
+                { label: 'Pages / session', value: totals.pages_per_session || 0, cur: totals.pages_per_session, prev: previous.pages_per_session },
+                { label: 'Bounce rate', value: `${totals.bounce_rate || 0}%`, cur: totals.bounce_rate, prev: previous.bounce_rate, invert: true },
+                { label: 'Quote requests', value: formatNumber(totals.quote_requests), cur: totals.quote_requests, prev: previous.quote_requests },
+              ].map((s) => (
+                <div key={s.label} className="bg-[#171717] px-5 py-3">
+                  <dt className="text-[11px] font-medium uppercase tracking-wide text-dark-200">{s.label}</dt>
+                  <dd className="mt-0.5 flex flex-wrap items-baseline gap-x-2">
+                    <span className="text-lg font-semibold tabular-nums text-dark-50">{s.value}</span>
+                    <Delta current={s.cur || 0} previous={s.prev || 0} invert={s.invert} />
+                  </dd>
                 </div>
-                <div className="text-right">
-                  <p className="text-dark-50 font-semibold">{item.quote_count} quotes</p>
-                  <p className="text-xs text-dark-400">{item.total_quantity} units total</p>
-                </div>
+              ))}
+            </dl>
+          </Panel>
+
+          {/* Products */}
+          <Panel title="Most viewed products" subtitle={rangeLabel} icon={Package}>
+            {data.top_products.length ? (
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="text-left text-[11px] uppercase tracking-wide text-dark-200">
+                      <th className="px-5 py-2.5 font-medium">Product</th>
+                      <th className="px-3 py-2.5 text-right font-medium">Views</th>
+                      <th className="hidden px-3 py-2.5 text-right font-medium sm:table-cell">Visitors</th>
+                      <th className="px-5 py-2.5 text-right font-medium">Downloads</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-white/[0.04]">
+                    {data.top_products.map((p, i) => {
+                      const maxViews = data.top_products[0]?.views || 1;
+                      const image = p.image_url ? resolveImageUrl(p.image_url) : null;
+                      return (
+                        <tr key={p.product_id} className="hover:bg-white/[0.02]">
+                          <td className="px-5 py-2.5">
+                            <div className="flex items-center gap-3">
+                              <span className="w-4 flex-shrink-0 text-right text-xs tabular-nums text-dark-300">{i + 1}</span>
+                              <div className="h-10 w-10 flex-shrink-0 overflow-hidden rounded-md bg-white/[0.06]">
+                                {image && <img src={image} alt="" className="h-full w-full object-contain" loading="lazy" />}
+                              </div>
+                              <div className="min-w-0 flex-1">
+                                {p.slug ? (
+                                  <a
+                                    href={`/products/${p.slug}`}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="block truncate font-medium text-dark-50 hover:text-primary-400"
+                                  >
+                                    {p.name}
+                                  </a>
+                                ) : (
+                                  <span className="block truncate font-medium text-dark-100">{p.name}</span>
+                                )}
+                                <div className="mt-1 flex items-center gap-2">
+                                  {p.model_number && <span className="text-xs text-dark-200">#{p.model_number}</span>}
+                                  <div className="hidden h-1 max-w-[160px] flex-1 overflow-hidden rounded-full bg-white/[0.04] md:block">
+                                    <div className="h-full rounded-full bg-primary-500/70" style={{ width: `${(p.views / maxViews) * 100}%` }} />
+                                  </div>
+                                </div>
+                              </div>
+                            </div>
+                          </td>
+                          <td className="px-3 py-2.5 text-right font-semibold tabular-nums text-dark-50">{formatNumber(p.views)}</td>
+                          <td className="hidden px-3 py-2.5 text-right tabular-nums text-dark-100 sm:table-cell">{formatNumber(p.visitors)}</td>
+                          <td className="px-5 py-2.5 text-right tabular-nums text-dark-100">{formatNumber(p.downloads)}</td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
               </div>
-            ))}
+            ) : (
+              <EmptyRow>No product views in this period.</EmptyRow>
+            )}
+          </Panel>
+
+          <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
+            <Panel title="Top downloads" subtitle="Catalogs, spec sheets, CAD & images" icon={FileText}>
+              <RankedList
+                valueLabel="downloads"
+                empty="Nothing downloaded in this period."
+                rows={data.top_downloads.map((d) => ({
+                  key: d.resource_url || d.label,
+                  label: d.label || d.resource_url,
+                  sublabel: RESOURCE_TYPE_LABELS[d.resource_type] || d.resource_type || 'Document',
+                  value: d.downloads,
+                }))}
+              />
+            </Panel>
+
+            <Panel title="Top pages" subtitle="Page views" icon={MousePointerClick}>
+              <RankedList
+                valueLabel="views"
+                empty="No page views in this period."
+                rows={data.top_pages.map((p) => ({
+                  key: p.path,
+                  label: humanizePath(p.path),
+                  sublabel: `${formatNumber(p.visitors)} visitor${p.visitors === 1 ? '' : 's'}`,
+                  value: p.views,
+                }))}
+              />
+            </Panel>
           </div>
-        </Card>
-      )}
+
+          <div className="grid grid-cols-1 gap-6 md:grid-cols-2 xl:grid-cols-4">
+            <Panel title="Downloads by type" icon={Download}>
+              <RankedList
+                valueLabel="downloads"
+                empty="No downloads yet."
+                rows={data.downloads_by_type.map((d) => ({
+                  key: d.type,
+                  label: RESOURCE_TYPE_LABELS[d.type] || d.type,
+                  value: d.downloads,
+                }))}
+              />
+            </Panel>
+
+            <Panel title="Traffic sources" subtitle="Sessions by referrer" icon={Globe}>
+              <RankedList
+                valueLabel="sessions"
+                empty="No sessions yet."
+                rows={data.referrers.map((r) => ({ key: r.source, label: r.source, value: r.sessions }))}
+              />
+            </Panel>
+
+            <Panel title="Devices" subtitle="Visitors" icon={MonitorSmartphone}>
+              <RankedList
+                valueLabel="visitors"
+                empty="No visitors yet."
+                rows={data.devices.map((d) => ({ key: d.device, label: DEVICE_LABELS[d.device] || d.device, value: d.visitors }))}
+              />
+            </Panel>
+
+            <Panel title="Site searches" subtitle={`${formatNumber(totals.searches)} total`} icon={Search}>
+              <RankedList
+                valueLabel="searches"
+                empty="No searches yet."
+                rows={data.top_searches.map((s) => ({ key: s.query, label: `“${s.query}”`, value: s.searches }))}
+              />
+            </Panel>
+          </div>
+        </div>
+      ) : null}
     </AdminPage>
   );
 };

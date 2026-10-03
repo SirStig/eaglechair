@@ -15,6 +15,7 @@ from backend.core.exceptions import EagleChairException
 from backend.database.base import get_db
 from backend.models.company import AdminUser
 from backend.services.analytics_service import AnalyticsService
+from backend.services.site_analytics_service import SiteAnalyticsService
 
 logger = logging.getLogger(__name__)
 
@@ -174,3 +175,24 @@ async def get_average_values(
     except Exception as e:
         logger.error(f"Error fetching average values: {e}")
         raise HTTPException(status_code=500, detail="Failed to fetch average values") from e
+
+
+@router.get(
+    "/analytics/traffic",
+    summary="Get site traffic analytics (Admin)",
+    description="Page views, visitors, product views, downloads, searches, referrers and devices for a date range"
+)
+async def get_traffic_analytics(
+    days: int = Query(30, ge=1, le=365),
+    limit: int = Query(10, ge=1, le=50),
+    admin: AdminUser = Depends(get_current_admin),
+    db: AsyncSession = Depends(get_db)
+):
+    """Anonymous site engagement for the last `days` days, with the prior period for comparison"""
+    try:
+        return await SiteAnalyticsService.get_overview(db=db, days=days, limit=limit)
+    except (HTTPException, EagleChairException):
+        raise
+    except Exception as e:
+        logger.error(f"Error fetching traffic analytics: {e}")
+        raise HTTPException(status_code=500, detail="Failed to fetch traffic analytics") from e

@@ -12,6 +12,7 @@ import { familySeo } from '../utils/seoSchema';
 import productService from '../services/productService';
 import { resolveFileUrl, resolveImageUrl } from '../utils/apiHelpers';
 import logger from '../utils/logger';
+import { trackDownload } from '../utils/analytics';
 
 const CONTEXT = 'ProductFamilyDetailPage';
 
@@ -163,7 +164,11 @@ const ProductFamilyDetailPage = () => {
                     <Button
                       variant="outline"
                       size="sm"
-                      onClick={() => window.open(resolveFileUrl(family.catalog_pdf_url), '_blank', 'noopener,noreferrer')}
+                      onClick={() => {
+                        const url = resolveFileUrl(family.catalog_pdf_url);
+                        trackDownload({ url, label: `${family.name} family catalog`, type: 'catalog' });
+                        window.open(url, '_blank', 'noopener,noreferrer');
+                      }}
                       className="inline-flex items-center gap-2"
                     >
                       <FileText className="w-4 h-4" />

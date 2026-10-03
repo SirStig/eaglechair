@@ -36,6 +36,9 @@ from backend.models.passkey import AdminPasskeyCredential
 # Catalog Builder
 from backend.models.catalog_project import CatalogProject
 
+# Site analytics
+from backend.models.analytics import AnalyticsEvent
+
 # Product models
 from backend.models.chair import (
     Category,
@@ -131,4 +134,6 @@ __all__ = [
     "SavedConfiguration",
     # Catalog Builder
     "CatalogProject",
+    # Site analytics
+    "AnalyticsEvent",
 ]

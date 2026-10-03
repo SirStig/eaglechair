@@ -106,6 +106,9 @@ class RouteConfig:
         
         # SEO routes
         "/api/v1/seo/sitemap.xml",
+
+        # Anonymous site analytics ingest
+        "/api/v1/analytics/events",
     }
     
     # Public route patterns (startswith matching)

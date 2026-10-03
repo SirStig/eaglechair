@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { Navigate, useNavigate, useLocation } from 'react-router-dom';
 import { AnimatePresence, m } from 'framer-motion';
 import { useStandalone } from '../../hooks/useStandalone';
@@ -11,6 +11,7 @@ import AdminSidebar from '../../components/admin/layout/AdminSidebar';
 import AdminTopbar from '../../components/admin/layout/AdminTopbar';
 import AdminCommandPalette from '../../components/admin/layout/AdminCommandPalette';
 import { getAdminNavItem, sectionFromPath } from '../../components/admin/adminNav';
+import { useStackedTables } from '../../components/admin/useStackedTables';
 
 // Import admin sections
 import DashboardOverview from '../../components/admin/sections/DashboardOverview';
@@ -68,6 +69,8 @@ const NewAdminDashboardInner = () => {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [paletteOpen, setPaletteOpen] = useState(false);
   const [inquiryUnread, setInquiryUnread] = useState(0);
+  const contentRef = useRef(null);
+  useStackedTables(contentRef);
 
   const activeSection = useMemo(() => {
     // Deep links like /admin/dashboard?edit=12 open the product editor
@@ -267,7 +270,7 @@ const NewAdminDashboardInner = () => {
           onLogout={handleLogout}
         />
 
-        <div className="flex-1 overflow-x-hidden">
+        <div ref={contentRef} className="flex-1 overflow-x-hidden">
           <div key={selectedProduct ? 'editor' : activeSection} className="animate-admin-in">
             {renderSection()}
           </div>
