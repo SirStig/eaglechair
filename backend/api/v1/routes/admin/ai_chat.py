@@ -1248,10 +1248,8 @@ async def websocket_chat(websocket: WebSocket, session_id: str):
                 proposal_status = await _proposal_status_summary(db, session_id)
                 system_prompt = build_system_prompt(
                     memory, training, mode=mode, model=model, valid_reference_ids=valid_ids,
-                    proposal_status=proposal_status,
+                    proposal_status=proposal_status, live_data=db_context, latest_message=user_content,
                 )
-                if db_context:
-                    system_prompt += f"\n\n## Live Data\n{db_context}"
 
                 await db.commit()
 
@@ -1341,10 +1339,18 @@ async def websocket_chat(websocket: WebSocket, session_id: str):
             stream_task = asyncio.create_task(consume_stream())
             receive_task = asyncio.create_task(receive_next())
 
-            done, pending = await asyncio.wait(
-                [stream_task, receive_task],
-                return_when=asyncio.FIRST_COMPLETED,
-            )
+            while True:
+                done, pending = await asyncio.wait(
+                    [stream_task, receive_task],
+                    return_when=asyncio.FIRST_COMPLETED,
+                )
+                # A keepalive ping mid-stream must not cancel a long response
+                if receive_task in done and stream_task not in done and receive_task.exception() is None \
+                        and (receive_task.result() or {}).get("type") == "ping":
+                    await websocket.send_json({"type": "pong"})
+                    receive_task = asyncio.create_task(receive_next())
+                    continue
+                break
 
             interrupted = False
             if receive_task in done:

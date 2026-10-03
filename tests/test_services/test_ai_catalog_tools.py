@@ -93,9 +93,60 @@ class TestAudit:
             assert counts.get(issue), issue
         fixes = [i for i in result["issues"] if i["issue"] == "sku_not_uppercase"]
         assert fixes[0]["suggested_changes"] == {"sku": "6018-WB"}
+        assert result["auto_fixable_counts"]["messy_whitespace"] >= 1
+
+    async def test_collect_audit_fixes_merges_one_change_per_record(self, db_session):
+        product = await create_chair(db_session, name="  Messy   Chair ", short_description="Too  many spaces")
+        await create_chair(db_session, name="Clean Chair")
+
+        found = await tools.collect_audit_fixes(
+            db_session, "product", filters={"id": product.id}, issue_types=["messy_whitespace"],
+        )
+        assert len(found["changes"]) == 1
+        change = found["changes"][0]
+        assert change["entity_id"] == product.id
+        assert change["changes"]["name"] == "Messy Chair"
+        assert change["changes"]["short_description"] == "Too many spaces"
+        assert "messy whitespace" in change["reason"]
+
+        none = await tools.collect_audit_fixes(db_session, "product", filters={"id": product.id}, issue_types=["nope"])
+        assert none["changes"] == [] and "messy_whitespace" in none["fixable_issue_types"]
 
 
 class TestProposals:
+    async def test_propose_audit_fixes_builds_one_batch_with_progress(self, db_session, monkeypatch):
+        from backend.services import ai_service
+
+        admin = await create_admin(db_session)
+        chat = await _chat(db_session, admin)
+        family = await create_product_family(db_session)
+        for i in range(30):
+            await create_chair(db_session, family_id=family.id, name=f"Chair  {i} ")
+
+        async def with_db(fn, *args, **kwargs):
+            return await fn(db_session, *args, **kwargs)
+
+        monkeypatch.setattr(ai_service, "_with_db", with_db)
+        monkeypatch.setattr(ai_service, "PROPOSAL_CHUNK", 7)
+        events = []
+        ctx = ai_service.ToolContext(session_id=chat.id, admin_user_id=admin.id, mode="edit")
+        result = await ai_service._propose_audit_fixes(
+            {"entity_type": "product", "issue_types": ["messy_whitespace"], "filters": {"family_id": family.id}},
+            ctx, events.append,
+        )
+
+        assert result["accepted"] == 30 and result["rejected_count"] == 0
+        progress = [e["data"] for e in events if e["type"] == "progress" and e["data"]["total"]]
+        assert [p["done"] for p in progress] == [7, 14, 21, 28, 30]
+        batches = [e["data"]["batch"] for e in events if e["type"] == "edit_batch"]
+        assert len(batches) == 1 and len(batches[0]["edits"]) == 30
+
+        rows = (await db_session.execute(
+            select(AIProposedEdit).where(AIProposedEdit.session_id == chat.id).order_by(AIProposedEdit.position)
+        )).scalars().all()
+        assert {r.batch_id for r in rows} == {batches[0]["batch_id"]}
+        assert [r.position for r in rows] == list(range(30))
+
     async def test_batch_validates_and_reports_rejections(self, db_session):
         admin = await create_admin(db_session)
         chat = await _chat(db_session, admin)

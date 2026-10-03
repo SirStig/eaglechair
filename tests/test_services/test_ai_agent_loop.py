@@ -1,5 +1,7 @@
 """Agent loop in ai_service.stream_ai_response, driven by a fake Gemini client."""
 
+import asyncio
+
 import pytest
 from google.genai import errors as genai_errors
 from google.genai import types
@@ -7,6 +9,13 @@ from google.genai import types
 from backend.services import ai_service
 
 pytestmark = pytest.mark.asyncio
+
+
+@pytest.fixture(autouse=True)
+def _fresh_thinking_cache():
+    ai_service._NO_THINKING_LEVEL.clear()
+    yield
+    ai_service._NO_THINKING_LEVEL.clear()
 
 
 def _chunk(parts, tokens=10, finish=None):
@@ -21,6 +30,8 @@ class FakeModels:
         self.turns = list(turns)
         self.requests = []
 
+    delay = 0.0
+
     async def generate_content_stream(self, model, contents, config):
         self.requests.append({
             "model": model, "contents": list(contents), "config": config,
@@ -32,6 +43,8 @@ class FakeModels:
 
         async def gen():
             for c in chunks:
+                if self.delay:
+                    await asyncio.sleep(self.delay)
                 yield c
         return gen()
 
@@ -128,6 +141,48 @@ async def test_rejected_high_thinking_drops_to_model_default(monkeypatch):
     client, events = await _run(monkeypatch, turns, model="deep")
     assert client.aio.models.requests[1]["thinking_config"] is None
     assert events[-1]["type"] == "message_done"
+
+
+async def test_model_without_thinking_levels_is_remembered(monkeypatch):
+    turns = [_thinking_rejected(), [_chunk([types.Part(text="ok")], finish=types.FinishReason.STOP)]]
+    await _run(monkeypatch, turns, model="deep")
+    client, _ = await _run(monkeypatch, [[_chunk([types.Part(text="ok")], finish=types.FinishReason.STOP)]])
+    # The next message goes straight to the model default instead of failing first
+    assert len(client.aio.models.requests) == 1
+    assert client.aio.models.requests[0]["thinking_config"] is None
+
+
+async def test_slow_model_sends_heartbeats(monkeypatch):
+    monkeypatch.setattr(ai_service, "HEARTBEAT_SECONDS", 0.01)
+    client = FakeClient([[_chunk([types.Part(text="done")], finish=types.FinishReason.STOP)]])
+    client.aio.models.delay = 0.05
+    monkeypatch.setattr(ai_service, "get_gemini_client", lambda: client)
+    events = [e async for e in ai_service.stream_ai_response([{"role": "user", "content": "hi"}], "sys")]
+    beats = [e for e in events if e["type"] == "thinking" and e["data"]["message"].startswith("Thinking...")]
+    assert len(beats) >= 2
+    assert events[-1]["type"] == "message_done"
+
+
+async def test_tool_progress_streams_while_the_tool_runs(monkeypatch):
+    monkeypatch.setattr(ai_service, "HEARTBEAT_SECONDS", 0.01)
+    seen_before_finish = []
+
+    async def slow_tool(name, args, ctx, emit):
+        emit(ai_service.AIStreamEvent.progress("Validating changes", 1, 2))
+        await asyncio.sleep(0.05)
+        seen_before_finish.append(True)
+        emit(ai_service.AIStreamEvent.edit_batch({"batch_id": "b", "title": "t", "edits": [{"id": "e"}]}))
+        return {"accepted": 1}
+
+    monkeypatch.setattr(ai_service, "_run_tool", slow_tool)
+    call = types.Part(function_call=types.FunctionCall(id="c1", name="propose_audit_fixes", args={"entity_type": "product"}))
+    turns = [[_chunk([call])], [_chunk([types.Part(text="Proposed.")], finish=types.FinishReason.STOP)]]
+    _, events = await _run(monkeypatch, turns)
+
+    kinds = [e["type"] for e in events]
+    # Progress arrives before the tool finishes; the batch card still lands after its tool_call
+    assert kinds.index("progress") < kinds.index("tool_call") < kinds.index("edit_batch")
+    assert any(e["type"] == "thinking" and "audit" in e["data"]["message"].lower() for e in events)
 
 
 def test_thinking_level_never_runs_low(monkeypatch):

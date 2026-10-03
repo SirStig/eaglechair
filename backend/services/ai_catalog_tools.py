@@ -607,17 +607,8 @@ def _norm_code(s: Optional[str]) -> str:
     return re.sub(r"[\s\-]", "", s or "").upper()
 
 
-async def audit_data_quality(
-    db: AsyncSession,
-    entity_type: str,
-    filters: Optional[dict] = None,
-    max_issues: int = 300,
-) -> dict:
-    """
-    Find cleanup candidates: duplicates, messy whitespace, missing names/images,
-    broken references, SKUs that don't match their product, unused options, etc.
-    Issues with an obvious fix carry `suggested_changes` ready for propose_changes.
-    """
+async def _collect_issues(db: AsyncSession, entity_type: str, filters: Optional[dict] = None):
+    """Run every check for one record type; returns (spec, records checked, issues)."""
     spec = get_spec(entity_type)
     q = select(spec.model)
     where = _filter_clauses(spec, filters)
@@ -738,17 +729,78 @@ async def audit_data_quality(
             if not (getattr(o, "image_url", None) or getattr(o, "swatch_image_url", None) or getattr(o, "hex_value", None)):
                 add(o, "missing_image_or_swatch")
 
+    return spec, len(objs), issues
+
+
+async def audit_data_quality(
+    db: AsyncSession,
+    entity_type: str,
+    filters: Optional[dict] = None,
+    max_issues: int = 300,
+) -> dict:
+    """
+    Find cleanup candidates: duplicates, messy whitespace, missing names/images,
+    broken references, SKUs that don't match their product, unused options, etc.
+    Issues with an obvious fix carry `suggested_changes`; propose_audit_fixes
+    turns those into proposals server side so the model never retypes them.
+    """
+    spec, checked, issues = await _collect_issues(db, entity_type, filters)
     by_issue: dict[str, int] = {}
+    fixable: dict[str, int] = {}
     for i in issues:
         by_issue[i["issue"]] = by_issue.get(i["issue"], 0) + 1
+        if i.get("suggested_changes"):
+            fixable[i["issue"]] = fixable.get(i["issue"], 0) + 1
     max_issues = max(1, min(int(max_issues or 300), 1000))
-    return {
+    out = {
         "entity_type": spec.key,
-        "records_checked": len(objs),
+        "records_checked": checked,
         "issue_counts": by_issue,
         "issues": issues[:max_issues],
         "truncated": len(issues) > max_issues,
     }
+    if fixable:
+        out["auto_fixable_counts"] = fixable
+        out["how_to_fix"] = (
+            "Use propose_audit_fixes with these issue_types to propose every suggested fix at once; "
+            "don't copy suggested_changes into propose_changes."
+        )
+    return out
+
+
+async def collect_audit_fixes(
+    db: AsyncSession,
+    entity_type: str,
+    filters: Optional[dict] = None,
+    issue_types: Optional[list] = None,
+) -> dict:
+    """
+    Every audit issue with a suggested fix, merged into one change per record
+    (a record with several messy columns gets a single update).
+    """
+    spec, checked, issues = await _collect_issues(db, entity_type, filters)
+    wanted = {str(t) for t in issue_types} if issue_types else None
+    merged: dict[int, dict] = {}
+    for i in issues:
+        fix = i.get("suggested_changes")
+        if not fix or (wanted is not None and i["issue"] not in wanted):
+            continue
+        entry = merged.setdefault(i["id"], {"name": i["name"], "changes": {}, "issues": []})
+        entry["changes"].update(fix)
+        if i["issue"] not in entry["issues"]:
+            entry["issues"].append(i["issue"])
+    changes = [
+        {
+            "action": "update",
+            "entity_type": spec.key,
+            "entity_id": rid,
+            "changes": e["changes"],
+            "reason": "Audit fix: " + ", ".join(x.replace("_", " ") for x in e["issues"]),
+        }
+        for rid, e in merged.items()
+    ]
+    available = sorted({i["issue"] for i in issues if i.get("suggested_changes")})
+    return {"entity_type": spec.key, "records_checked": checked, "changes": changes, "fixable_issue_types": available}
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -1056,8 +1108,13 @@ async def create_proposals(
     admin_user_id: Optional[int],
     title: Optional[str],
     changes: list,
+    batch_id: Optional[str] = None,
+    position_start: int = 0,
 ) -> dict:
-    """Validate each change, store the valid ones as one pending batch, report the rest."""
+    """
+    Validate each change, store the valid ones as one pending batch, report the rest.
+    Pass batch_id / position_start to add a chunk to an existing batch.
+    """
     if not isinstance(changes, list) or not changes:
         return {"error": "changes must be a non-empty list", "accepted": 0, "rejected": [], "edits": []}
     if len(changes) > MAX_PROPOSALS_PER_CALL:
@@ -1067,7 +1124,7 @@ async def create_proposals(
         }
 
     title = (title or "Proposed changes").strip()[:255]
-    batch_id = str(uuid.uuid4())
+    batch_id = batch_id or str(uuid.uuid4())
     rows: list[AIProposedEdit] = []
     rejected = []
     seen = set()
@@ -1093,7 +1150,7 @@ async def create_proposals(
             batch_id=batch_id,
             batch_title=title,
             admin_user_id=admin_user_id,
-            position=len(rows),
+            position=position_start + len(rows),
             status=ProposalStatus.PENDING.value,
             **norm,
         ))

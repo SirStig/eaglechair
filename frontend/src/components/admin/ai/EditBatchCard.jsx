@@ -202,6 +202,7 @@ export default function EditBatchCard({ batch }) {
   const [selected, setSelected] = useState(() => new Set());
   const [expanded, setExpanded] = useState(edits.length <= COLLAPSED_ROWS);
   const [error, setError] = useState(null);
+  const [progress, setProgress] = useState(null); // {verb, done, total} while a bulk apply/decline runs
 
   const pendingIds = edits.filter(e => (e.status || 'pending') === 'pending').map(e => e.id);
   const selectedPending = pendingIds.filter(id => selected.has(id));
@@ -212,10 +213,11 @@ export default function EditBatchCard({ batch }) {
   const allSelected = pendingIds.length > 0 && selectedPending.length === pendingIds.length;
   const scopeLabel = selectedPending.length ? `selected (${selectedPending.length})` : `all (${pendingIds.length})`;
 
-  const run = async (fn, ids, opts) => {
+  const run = async (fn, ids, opts, verb) => {
     setError(null);
+    const onProgress = verb && ids.length > 1 ? (done, total) => setProgress({ verb, done, total }) : undefined;
     try {
-      await fn(ids, opts);
+      await fn(ids, { ...opts, onProgress });
       setSelected(prev => {
         const next = new Set(prev);
         ids.forEach(id => next.delete(id));
@@ -223,6 +225,8 @@ export default function EditBatchCard({ batch }) {
       });
     } catch (err) {
       setError(err?.message || 'Request failed');
+    } finally {
+      setProgress(null);
     }
   };
 
@@ -263,7 +267,7 @@ export default function EditBatchCard({ batch }) {
           <div className="flex items-center gap-2">
             <button
               type="button"
-              onClick={() => run(declineProposals, targetIds)}
+              onClick={() => run(declineProposals, targetIds, {}, 'Declining')}
               disabled={anyBusy}
               className="h-8 px-3 rounded-md text-[13px] font-medium text-chat-muted hover:text-chat-text hover:bg-white/[0.05] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
             >
@@ -271,13 +275,31 @@ export default function EditBatchCard({ batch }) {
             </button>
             <button
               type="button"
-              onClick={() => run(applyProposals, targetIds)}
+              onClick={() => run(applyProposals, targetIds, {}, 'Applying')}
               disabled={anyBusy}
               className="h-8 px-3 inline-flex items-center gap-1.5 rounded-md text-[13px] font-semibold bg-chat-button hover:bg-chat-button-hover text-dark-950 transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
             >
               {anyBusy ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Check className="w-3.5 h-3.5" />}
               Apply {scopeLabel}
             </button>
+          </div>
+        </div>
+      )}
+
+      {progress && progress.total > 0 && (
+        <div className="px-3.5 py-2 border-b border-chat-line" role="status" aria-live="polite">
+          <div className="flex items-center justify-between text-xs text-chat-muted">
+            <span>{progress.verb} changes…</span>
+            <span className="tabular-nums">{progress.done}/{progress.total}</span>
+          </div>
+          <div
+            className="mt-1.5 h-1 rounded-full bg-chat-line overflow-hidden"
+            role="progressbar" aria-valuemin={0} aria-valuemax={progress.total} aria-valuenow={progress.done}
+          >
+            <div
+              className="h-full bg-chat-accent transition-[width] duration-300"
+              style={{ width: `${Math.round((progress.done / progress.total) * 100)}%` }}
+            />
           </div>
         </div>
       )}

@@ -21,6 +21,7 @@ import math
 import os
 import operator
 import re
+import time
 import socket
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta
@@ -45,15 +46,17 @@ from backend.database.base import AsyncSessionLocal
 from backend.models.ai_chat import AITrainingDocument, TrainingStatus
 from backend.services.ai_catalog_tools import (
     ENTITIES,
+    MAX_PROPOSALS_PER_CALL,
     audit_data_quality,
     catalog_overview,
+    collect_audit_fixes,
     create_proposals,
     describe_schema,
     get_records,
     list_records,
 )
 from backend.services.ai_domain_knowledge import EAGLECHAIR_DOMAIN_KNOWLEDGE
-from backend.services.ai_max_persona import MAX_IDENTITY, MAX_PERSONA
+from backend.services.ai_max_persona import MAX_CHARACTER, MAX_IDENTITY, voice_examples
 
 logger = logging.getLogger(__name__)
 
@@ -488,6 +491,25 @@ FUNCTION_DECLARATIONS = [
         ["entity_type"],
     ),
     _fn(
+        "propose_audit_fixes",
+        (
+            "Propose EVERY suggested fix from audit_data_quality in one step, for any number of records. The server builds "
+            "the changes itself (one change per record, merging several fixes on the same record), so this is fast even "
+            "for hundreds of records. ALWAYS use this instead of copying suggested_changes into propose_changes. Same "
+            "review flow: nothing is written until the admin approves."
+        ),
+        {
+            "entity_type": _ENTITY_TYPE_PROP,
+            "issue_types": {
+                "type": "array", "items": {"type": "string"},
+                "description": "Which audit issues to fix, e.g. [\"messy_whitespace\"]. Omit for every fixable issue.",
+            },
+            "filters": {"type": "object", "description": "Optional exact-match filters, same format as audit_data_quality"},
+            "title": {"type": "string", "description": "Short batch title shown to the admin"},
+        },
+        ["entity_type"],
+    ),
+    _fn(
         "search_catalog",
         "Quick keyword search across active families, products, variations, finishes, upholsteries, colors and categories. Use 'all' for a family/model overview.",
         {"query": {"type": "string"}},
@@ -548,7 +570,7 @@ FUNCTION_DECLARATIONS = [
     ),
 ]
 
-READ_ONLY_TOOLS = {d.name for d in FUNCTION_DECLARATIONS} - {"propose_changes"}
+READ_ONLY_TOOLS = {d.name for d in FUNCTION_DECLARATIONS} - {"propose_changes", "propose_audit_fixes"}
 
 
 def _get_tools_for_mode(mode: str) -> list[types.Tool]:
@@ -569,12 +591,16 @@ def build_system_prompt(
     model: str = "auto",
     valid_reference_ids: str | None = None,
     proposal_status: str | None = None,
+    live_data: str | None = None,
+    latest_message: str | None = None,
 ) -> str:
     today = datetime.now().strftime("%B %d, %Y")
+    live_block = f"\n\n## Live Data\n{live_data}" if live_data else ""
 
     if model == "max":
+        # Max's character and his real emails go last so they set the voice
         identity = MAX_IDENTITY
-        personality_block = MAX_PERSONA
+        personality_block = MAX_CHARACTER + voice_examples(latest_message)
     else:
         identity = "You are the EagleChair AI Assistant — a senior catalog manager and business analyst for Eagle Chair, a premium B2B commercial seating manufacturer. You work for the admin team inside the admin panel."
         personality_block = ""
@@ -630,6 +656,7 @@ You have read access to the ENTIRE catalog database, active and inactive: produc
 - **list_records** — page through any type with search and filters; follow has_more until you have everything you need. Never conclude something doesn't exist after reading only the first page.
 - **get_records** — every field of specific records (products include all variations and category/family links).
 - **audit_data_quality** — find cleanup work automatically.
+- **propose_audit_fixes** — propose all of the audit's suggested fixes in one step (any number of records).
 - **get_data_schema** — exact field names and types before you propose changes.
 - **search_catalog / get_product_details / get_product_catalog** — fast customer-facing lookups (active records only).
 - **search_training_data / get_training_vs_catalog_overview** — uploaded documents.
@@ -642,10 +669,11 @@ You never write to the database directly. **propose_changes** stores changes as 
 1. Gather the facts first (list_records / get_records / audit_data_quality). Use exact ids from tool results.
 2. Check field names with get_data_schema if unsure. Prices and costs are integers in cents.
 3. Put all changes for one task in ONE call with a clear title. Each change needs a one-line reason. Only include fields that change.
-4. Read the tool result: fix every `rejected` change and re-propose it; don't repeat accepted ones.
-5. Then summarize for the admin: what the batch does, how many changes, anything you skipped and why. Don't restate every row — the admin sees each change in the review card.
-6. Prefer deactivating (is_active=false; is_available=false for variations) over deleting records that quotes may reference. Use delete only for true junk/duplicates, and say so.
-7. Trust the admin when they say data is wrong; propose the fix.
+4. Fixing audit issues that come with suggested_changes (whitespace, SKU casing, etc.)? Call propose_audit_fixes with the issue_types. Never retype dozens of fixes into propose_changes; it's slow and error-prone.
+5. Read the tool result: fix every `rejected` change and re-propose it; don't repeat accepted ones.
+6. Then summarize for the admin: what the batch does, how many changes, anything you skipped and why. Don't restate every row — the admin sees each change in the review card.
+7. Prefer deactivating (is_active=false; is_available=false for variations) over deleting records that quotes may reference. Use delete only for true junk/duplicates, and say so.
+8. Trust the admin when they say data is wrong; propose the fix.
 
 ## Cleanup Jobs (e.g. "clean up these variations")
 Scope the records (filters by product_id / family_id, or search), read ALL of them, run audit_data_quality on the same scope, then look for patterns yourself too: inconsistent naming ("Walnut" vs "walnut finish"), SKU formats, missing finish/fabric links that the name implies, wrong price adjustments, duplicates. Propose the full set of fixes, grouped into batches by kind of fix.
@@ -660,7 +688,7 @@ Markdown: ## headings, bullet lists, tables for comparisons, **bold** key terms,
 Internal links open in-app: [Products](/admin/catalog), [Edit product](/admin/catalog?edit=ID), [Families](/admin/families), [Categories](/admin/categories), [Finishes](/admin/finishes), [Upholstery](/admin/upholstery), [Colors](/admin/colors), [Laminates](/admin/laminates), [Hardware](/admin/hardware), [Downloads/Catalogs](/admin/downloads), [Catalog Builder](/admin/catalog-builder), [Quotes](/admin/quotes). Public product pages come from product_url in get_product_details.
 
 ## EagleChair Domain Knowledge
-{EAGLECHAIR_DOMAIN_KNOWLEDGE}{mode_block}{proposal_block}{memory_block}{valid_ids_block}{training_block}{personality_block}"""
+{EAGLECHAIR_DOMAIN_KNOWLEDGE}{mode_block}{proposal_block}{memory_block}{valid_ids_block}{training_block}{live_block}{personality_block}"""
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -796,6 +824,10 @@ class AIStreamEvent:
         return {"type": "edit_batch", "data": {"batch": batch}}
 
     @staticmethod
+    def progress(label: str, done: int, total: int) -> dict:
+        return {"type": "progress", "data": {"label": label, "done": done, "total": total}}
+
+    @staticmethod
     def tool_call_started(name: str, label: str, args: dict) -> dict:
         return {"type": "tool_call_started", "data": {"name": name, "label": label, "args": args}}
 
@@ -815,6 +847,7 @@ TOOL_FRIENDLY_LABELS = {
     "get_training_vs_catalog_overview": "Comparing training to catalog",
     "get_product_details": "Fetching product details",
     "propose_changes": "Proposing changes",
+    "propose_audit_fixes": "Proposing audit fixes",
 }
 
 
@@ -842,6 +875,9 @@ def _tool_friendly_label(name: str, args: dict | None = None) -> str:
     if name == "propose_changes":
         n = len(args.get("changes") or [])
         return f"Proposing {n} change{'s' if n != 1 else ''}" + (f": {str(args.get('title'))[:50]}" if args.get("title") else "")
+    if name == "propose_audit_fixes":
+        kinds = ", ".join(str(t).replace("_", " ") for t in (args.get("issue_types") or [])[:3])
+        return f"Proposing {kinds or 'audit'} fixes" + (f" for {entity} records" if entity else "")
     if name == "fetch_webpage" and args.get("url"):
         host = urlparse(str(args["url"])).netloc or "page"
         return f"Reading {host}"
@@ -950,6 +986,12 @@ async def _run_tool(name: str, args: dict, ctx: ToolContext, emit) -> Any:
         return await get_product_details(
             product_ids=args.get("product_ids") or [], model_numbers=args.get("model_numbers") or [],
         )
+    if name == "propose_audit_fixes":
+        if ctx.mode == "ask":
+            return {"error": "Ask mode is read-only; ask the admin to switch to Edit or Agent mode to propose changes."}
+        if not ctx.session_id:
+            return {"error": "Proposals need a chat session"}
+        return await _propose_audit_fixes(args, ctx, emit)
     if name == "propose_changes":
         if ctx.mode == "ask":
             return {"error": "Ask mode is read-only; ask the admin to switch to Edit or Agent mode to propose changes."}
@@ -984,10 +1026,71 @@ async def _run_tool(name: str, args: dict, ctx: ToolContext, emit) -> Any:
     return {"error": f"Unknown tool: {name}"}
 
 
-async def _execute_tool(fc, ctx: ToolContext) -> tuple[types.Part, dict, list[dict]]:
-    """Run one call; returns (function_response part, UI record, events the tool emitted)."""
+PROPOSAL_CHUNK = 25  # changes validated per step when building a big batch (one progress tick each)
+
+
+async def _propose_audit_fixes(args: dict, ctx: ToolContext, emit) -> dict:
+    """Turn the audit's suggested fixes into proposals without the model retyping them."""
+    entity = args.get("entity_type")
+    emit(AIStreamEvent.progress("Collecting audit fixes", 0, 0))
+    found = await _with_db(collect_audit_fixes, entity, filters=args.get("filters"), issue_types=args.get("issue_types"))
+    changes = found["changes"]
+    if not changes:
+        return {
+            "accepted": 0,
+            "message": "No suggested fixes match. Fixable issue types for this scope: "
+                       + (", ".join(found["fixable_issue_types"]) or "none"),
+        }
+    kinds = ", ".join(t.replace("_", " ") for t in (args.get("issue_types") or [])) or "audit issues"
+    title = (args.get("title") or f"Fix {kinds} on {len(changes)} {found['entity_type']} records").strip()
+
+    # Several batches only past the per-batch cap; chunks inside a batch exist for progress
+    batches = [changes[i:i + MAX_PROPOSALS_PER_CALL] for i in range(0, len(changes), MAX_PROPOSALS_PER_CALL)]
+    total, done, accepted, rejected, batch_ids = len(changes), 0, 0, [], []
+    for n, batch_changes in enumerate(batches, 1):
+        batch_title = title if len(batches) == 1 else f"{title} ({n}/{len(batches)})"
+        batch_id, edits = None, []
+        for i in range(0, len(batch_changes), PROPOSAL_CHUNK):
+            chunk = batch_changes[i:i + PROPOSAL_CHUNK]
+            result = await _with_db(
+                create_proposals,
+                session_id=ctx.session_id, message_id=ctx.message_id, admin_user_id=ctx.admin_user_id,
+                title=batch_title, changes=chunk, batch_id=batch_id, position_start=len(edits),
+            )
+            batch_id = batch_id or result.get("batch_id")
+            edits.extend(result.get("edits", []))
+            for r in result.get("rejected", []):
+                r["index"] = r.get("index", 0) + done
+                rejected.append(r)
+            done += len(chunk)
+            emit(AIStreamEvent.progress("Validating changes", done, total))
+        if edits:
+            accepted += len(edits)
+            batch_ids.append(batch_id)
+            emit(AIStreamEvent.edit_batch({"batch_id": batch_id, "title": batch_title, "edits": edits}))
+    return {
+        "batch_ids": batch_ids,
+        "records_checked": found["records_checked"],
+        "accepted": accepted,
+        "rejected": rejected[:50],
+        "rejected_count": len(rejected),
+        "status": "Waiting for admin review. Nothing has been written yet. Summarize briefly; don't list every change.",
+    }
+
+
+# Events a tool emits that wait for its result; everything else streams to the client live
+_DEFERRED_EVENTS = {"edit_batch"}
+
+
+async def _execute_tool(fc, ctx: ToolContext, live=None) -> tuple[types.Part, dict, list[dict]]:
+    """Run one call; returns (function_response part, UI record, deferred events the tool emitted)."""
     events: list[dict] = []
-    emit = events.append
+
+    def emit(ev: dict):
+        if live is not None and ev.get("type") not in _DEFERRED_EVENTS:
+            live(ev)
+        else:
+            events.append(ev)
     name = fc.name or ""
     args = dict(fc.args) if fc.args else {}
     label = _tool_friendly_label(name, args)
@@ -1010,6 +1113,41 @@ def _thinking_level(model_option: str | None) -> str:
     # The chat should always think properly: anything below medium runs at high
     level = (getattr(settings, "GEMINI_THINKING_LEVEL", None) or "high").lower()
     return level if level in ("medium", "high") else "high"
+
+
+HEARTBEAT_SECONDS = 8  # keep the client's stuck-stream watchdog fed while the model or a tool works
+MODEL_IDLE_LIMIT_SECONDS = 300  # give up on a model round that sends nothing for this long
+
+# Models that reject thinking_level, so later requests skip the failing first attempt
+_NO_THINKING_LEVEL: set[str] = set()
+
+
+def _elapsed(start: float) -> str:
+    secs = int(time.monotonic() - start)
+    return f"{secs // 60}m {secs % 60:02d}s" if secs >= 60 else f"{secs}s"
+
+
+async def _iter_with_heartbeat(stream, interval: float):
+    """Yield ("chunk", c) for each stream item and ("idle", seconds) after each quiet interval."""
+    it = stream.__aiter__()
+    while True:
+        nxt = asyncio.ensure_future(it.__anext__())
+        waited = 0.0
+        try:
+            while True:
+                done, _ = await asyncio.wait({nxt}, timeout=interval)
+                if done:
+                    break
+                waited += interval
+                yield ("idle", waited)
+        except BaseException:
+            nxt.cancel()
+            raise
+        try:
+            chunk = nxt.result()
+        except StopAsyncIteration:
+            return
+        yield ("chunk", chunk)
 
 
 _RETRYABLE_CODES = {429, 500, 502, 503, 504}
@@ -1047,7 +1185,10 @@ async def stream_ai_response(
     config = types.GenerateContentConfig(
         system_instruction=system_prompt,
         tools=_get_tools_for_mode(mode),
-        thinking_config=types.ThinkingConfig(thinking_level=_thinking_level(model)),
+        thinking_config=(
+            None if gemini_model in _NO_THINKING_LEVEL
+            else types.ThinkingConfig(thinking_level=_thinking_level(model))
+        ),
         automatic_function_calling=types.AutomaticFunctionCallingConfig(disable=True),
         max_output_tokens=65536,
     )
@@ -1071,10 +1212,21 @@ async def stream_ai_response(
                 stream = await client.aio.models.generate_content_stream(
                     model=gemini_model, contents=contents, config=config,
                 )
+                round_start = time.monotonic()
                 try:
-                    async for chunk in stream:
+                    async for kind, chunk in _iter_with_heartbeat(stream, HEARTBEAT_SECONDS):
                         if _cancelled():
                             break
+                        if kind == "idle":
+                            if chunk >= MODEL_IDLE_LIMIT_SECONDS:
+                                yield AIStreamEvent.error(
+                                    "The model stopped responding. Try again, or break the job into smaller steps."
+                                )
+                                return
+                            yield AIStreamEvent.thinking(
+                                f"{'Still writing' if model_parts else 'Thinking'}... {_elapsed(round_start)}"
+                            )
+                            continue
                         usage = getattr(chunk, "usage_metadata", None)
                         if usage and getattr(usage, "total_token_count", None):
                             round_tokens = usage.total_token_count
@@ -1118,6 +1270,7 @@ async def stream_ai_response(
                         config.thinking_config = types.ThinkingConfig(thinking_level="high")
                     else:
                         config.thinking_config = None
+                        _NO_THINKING_LEVEL.add(gemini_model)
                     logger.warning(f"{gemini_model} rejected thinking level {rejected}: {message}")
                     continue
                 if code in _RETRYABLE_CODES and attempt < 2 and not model_parts:
@@ -1151,7 +1304,31 @@ async def stream_ai_response(
         for fc in calls:
             args = dict(fc.args) if fc.args else {}
             yield AIStreamEvent.tool_call_started(fc.name, _tool_friendly_label(fc.name, args), _preview_result(args))
-        outcomes = await asyncio.gather(*(_execute_tool(fc, ctx) for fc in calls))
+        live: asyncio.Queue = asyncio.Queue()
+        tools_task = asyncio.ensure_future(
+            asyncio.gather(*(_execute_tool(fc, ctx, live.put_nowait) for fc in calls))
+        )
+        tools_start = time.monotonic()
+        working = _tool_friendly_label(calls[0].name, dict(calls[0].args or {})) if len(calls) == 1 else f"Running {len(calls)} tools"
+        try:
+            while not tools_task.done():
+                getter = asyncio.ensure_future(live.get())
+                done, _ = await asyncio.wait({tools_task, getter}, timeout=HEARTBEAT_SECONDS, return_when=asyncio.FIRST_COMPLETED)
+                if getter in done:
+                    yield getter.result()
+                    continue
+                getter.cancel()
+                if _cancelled():
+                    tools_task.cancel()
+                    return
+                if not done:
+                    yield AIStreamEvent.thinking(f"{working}... {_elapsed(tools_start)}")
+        except BaseException:
+            tools_task.cancel()
+            raise
+        while not live.empty():
+            yield live.get_nowait()
+        outcomes = tools_task.result()
         if _cancelled():
             return
         for _, record, events in outcomes:

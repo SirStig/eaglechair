@@ -20,6 +20,8 @@ import {
 const AIChatContext = createContext(null);
 
 const WS_OPEN_TIMEOUT_MS = 5000;
+// Proposals applied/declined per request, so big batches report progress as they go
+const PROPOSAL_CHUNK = 20;
 
 // Resolve with the socket once it is open; reject on error, close or timeout
 function waitForOpen(ws) {
@@ -223,6 +225,10 @@ export function AIChatProvider({ children }) {
 
       case 'calculating':
         setStreamingState({ type: 'calculating', expression: data?.expression });
+        break;
+
+      case 'progress':
+        setStreamingState({ type: 'progress', message: data?.label, done: data?.done || 0, total: data?.total || 0 });
         break;
 
       case 'text_chunk': {
@@ -803,38 +809,49 @@ export function AIChatProvider({ children }) {
     current: r.current,
   });
 
-  /** Apply proposals; returns the per-id results. force overrides "changed since proposed" conflicts. */
-  const applyProposals = useCallback(async (ids, { force = false } = {}) => {
+  /**
+   * Send proposals to the server in chunks so big batches show progress
+   * (onProgress(done, total)) and each row updates as soon as its chunk lands.
+   */
+  const resolveInChunks = useCallback(async (ids, request, failLabel, onProgress) => {
     const todo = ids.filter(id => !busyProposalIds[id]);
     if (!todo.length) return [];
     markBusy(todo, true);
+    const all = [];
+    onProgress?.(0, todo.length);
     try {
-      const { results } = await applyProposedEdits(todo, { force });
-      patchProposals(results.map(resultToPatch));
-      return results;
-    } catch (err) {
-      patchProposals(todo.map(id => ({ id, error: err?.message || 'Failed to apply' })));
-      throw err;
+      for (let i = 0; i < todo.length; i += PROPOSAL_CHUNK) {
+        const chunk = todo.slice(i, i + PROPOSAL_CHUNK);
+        try {
+          const { results } = await request(chunk);
+          patchProposals(results.map(resultToPatch));
+          all.push(...results);
+        } catch (err) {
+          patchProposals(todo.slice(i).map(id => ({ id, error: err?.message || failLabel })));
+          throw err;
+        } finally {
+          markBusy(chunk, false);
+        }
+        onProgress?.(Math.min(i + chunk.length, todo.length), todo.length);
+      }
+      return all;
     } finally {
       markBusy(todo, false);
     }
   }, [busyProposalIds, markBusy, patchProposals]);
 
-  const declineProposals = useCallback(async (ids) => {
-    const todo = ids.filter(id => !busyProposalIds[id]);
-    if (!todo.length) return [];
-    markBusy(todo, true);
-    try {
-      const { results } = await declineProposedEdits(todo);
-      patchProposals(results.map(resultToPatch));
-      return results;
-    } catch (err) {
-      patchProposals(todo.map(id => ({ id, error: err?.message || 'Failed to decline' })));
-      throw err;
-    } finally {
-      markBusy(todo, false);
-    }
-  }, [busyProposalIds, markBusy, patchProposals]);
+  /** Apply proposals; returns the per-id results. force overrides "changed since proposed" conflicts. */
+  const applyProposals = useCallback(
+    (ids, { force = false, onProgress } = {}) =>
+      resolveInChunks(ids, chunk => applyProposedEdits(chunk, { force }), 'Failed to apply', onProgress),
+    [resolveInChunks],
+  );
+
+  const declineProposals = useCallback(
+    (ids, { onProgress } = {}) =>
+      resolveInChunks(ids, chunk => declineProposedEdits(chunk), 'Failed to decline', onProgress),
+    [resolveInChunks],
+  );
 
   // Shared lock so "Accept All" (SuggestedEditsBar) and an individual card's
   // Approve button (SuggestedEditCard) can't both apply the same suggested
