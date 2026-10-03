@@ -18,10 +18,10 @@ import AIMark from './AIMark';
 
 function WelcomeScreen({ onSuggestionClick }) {
   const suggestions = [
-    'Analyze quote trends',
+    'Give me an overview of our product families',
+    'Audit our products for data quality issues',
+    'Which finishes and fabrics are unused?',
     'Research competitor pricing',
-    'Calculate margins',
-    'Summarize a pricing sheet',
   ];
   return (
     <div className="flex-1 overflow-y-auto">
@@ -29,7 +29,7 @@ function WelcomeScreen({ onSuggestionClick }) {
         <AIMark size="md" className="mb-4" />
         <h3 className="!text-base font-semibold text-chat-text">How can I help?</h3>
         <p className="text-[13px] text-chat-muted leading-relaxed mt-1">
-          Ask about quotes, pricing, products and more. Answers here are read-only.
+          Ask about products, catalog data, pricing math and competitors. Answers here are read-only.
         </p>
         <div className="mt-4 rounded-xl border border-chat-line divide-y divide-chat-line overflow-hidden">
           {suggestions.map((suggestion) => (

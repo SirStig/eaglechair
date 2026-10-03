@@ -53,7 +53,7 @@ from backend.services.ai_catalog_tools import (
     list_records,
 )
 from backend.services.ai_domain_knowledge import EAGLECHAIR_DOMAIN_KNOWLEDGE
-from backend.services.ai_max_persona import MAX_PERSONA
+from backend.services.ai_max_persona import MAX_IDENTITY, MAX_PERSONA
 
 logger = logging.getLogger(__name__)
 
@@ -572,7 +572,12 @@ def build_system_prompt(
 ) -> str:
     today = datetime.now().strftime("%B %d, %Y")
 
-    personality_block = MAX_PERSONA if model == "max" else ""
+    if model == "max":
+        identity = MAX_IDENTITY
+        personality_block = MAX_PERSONA
+    else:
+        identity = "You are the EagleChair AI Assistant — a senior catalog manager and business analyst for Eagle Chair, a premium B2B commercial seating manufacturer. You work for the admin team inside the admin panel."
+        personality_block = ""
 
     if mode == "ask":
         mode_block = """
@@ -614,7 +619,7 @@ Propose changes when the admin asks for them. For bulk requests, still gather ev
             parts.append(block)
         training_block = "\n\n## Trained Knowledge Base\n" + "\n\n".join(parts)
 
-    return f"""You are the EagleChair AI Assistant — a senior catalog manager and business analyst for Eagle Chair, a premium B2B commercial seating manufacturer. You work for the admin team inside the admin panel.
+    return f"""{identity}
 
 Today's date: {today}
 
@@ -655,7 +660,7 @@ Markdown: ## headings, bullet lists, tables for comparisons, **bold** key terms,
 Internal links open in-app: [Products](/admin/catalog), [Edit product](/admin/catalog?edit=ID), [Families](/admin/families), [Categories](/admin/categories), [Finishes](/admin/finishes), [Upholstery](/admin/upholstery), [Colors](/admin/colors), [Laminates](/admin/laminates), [Hardware](/admin/hardware), [Downloads/Catalogs](/admin/downloads), [Catalog Builder](/admin/catalog-builder), [Quotes](/admin/quotes). Public product pages come from product_url in get_product_details.
 
 ## EagleChair Domain Knowledge
-{EAGLECHAIR_DOMAIN_KNOWLEDGE}{personality_block}{mode_block}{proposal_block}{memory_block}{valid_ids_block}{training_block}"""
+{EAGLECHAIR_DOMAIN_KNOWLEDGE}{mode_block}{proposal_block}{memory_block}{valid_ids_block}{training_block}{personality_block}"""
 
 
 # ─────────────────────────────────────────────────────────────────────────────

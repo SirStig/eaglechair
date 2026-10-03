@@ -22,12 +22,12 @@ import {
   Database,
   X,
   Search,
-  TrendingUp,
   Globe,
   Calculator,
   Palette,
   FileSpreadsheet,
-  Building2,
+  Layers,
+  ShieldCheck,
 } from 'lucide-react';
 import { useAIChat } from '../../contexts/AIChatContext';
 import AIChatInput from '../../components/admin/ai/AIChatInput';
@@ -45,12 +45,12 @@ import {
 } from '../../services/aiChatService';
 
 const SUGGESTIONS = [
-  { icon: TrendingUp, title: 'Top-selling products', detail: 'What sold best this month?', prompt: 'Top-selling products this month' },
-  { icon: Building2, title: 'Outstanding quotes', detail: 'Which companies are waiting on us?', prompt: 'Companies with outstanding quotes' },
-  { icon: Calculator, title: 'Pricing check', detail: 'Calculate pricing with a 15% margin', prompt: 'Calculate pricing with 15% margin' },
-  { icon: Palette, title: 'Finish comparison', detail: 'Compare our finishes with competitors', prompt: 'Compare finishes with competitors' },
-  { icon: Globe, title: 'Market research', detail: 'Contract seating market trends', prompt: 'Contract seating market trends this year' },
-  { icon: FileSpreadsheet, title: 'Document summary', detail: 'Summarize an attached pricing sheet', prompt: 'Summarize attached pricing sheet' },
+  { icon: Layers, title: 'Catalog overview', detail: 'Families and how many products each has', prompt: 'Give me an overview of our product families and how many active products are in each' },
+  { icon: ShieldCheck, title: 'Audit product data', detail: 'Duplicate SKUs, missing images, messy names', prompt: 'Audit our products for data quality issues like duplicate SKUs, missing images or missing descriptions' },
+  { icon: Palette, title: 'Unused finishes & fabrics', detail: 'Options no product is using', prompt: 'Which finishes and fabrics are not used by any product?' },
+  { icon: FileSpreadsheet, title: 'Price list vs catalog', detail: 'Models in our documents but not on the site', prompt: 'Which model numbers are in the training documents but missing from the live catalog?' },
+  { icon: Calculator, title: 'Pricing math', detail: 'Markup and margin on a list price', prompt: 'What is a 15% markup on a $385 chair, and what margin does that give us?' },
+  { icon: Globe, title: 'Competitor research', detail: 'Look up competitor pricing online', prompt: 'Research what competitors charge for commercial restaurant chairs' },
 ];
 
 const INPUT_CLASS =
