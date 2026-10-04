@@ -2,7 +2,7 @@ import { useState, useEffect, useId, useRef } from 'react';
 import { Link } from 'react-router-dom';
 import Tag from './Tag';
 import VariationImageDisclaimer from './VariationImageDisclaimer';
-import Button from './Button';
+import { ArrowRight, Eye } from 'lucide-react';
 import { getProductHoverImages, buildProductUrl } from '../../utils/apiHelpers';
 import SwatchImage from './SwatchImage';
 import ResponsiveImage from './ResponsiveImage';
@@ -96,25 +96,33 @@ const ProductCard = ({ product, onQuickView, darkMode = false, compact = false, 
   const activeAngle = isHovered && activeImageIndex > 0 ? carouselImages[activeImageIndex] : null;
   const showingAngle = Boolean(activeAngle && loadedAngles.has(activeAngle));
 
-  const finishes = product.customizations?.finishes?.slice(0, 5) || [];
-  const colors = product.customizations?.colors?.slice(0, 5) || [];
-  const swatches = finishes.length > 0 ? finishes : colors;
+  const allFinishes = product.customizations?.finishes || [];
+  const allColors = product.customizations?.colors || [];
+  const swatchSource = allFinishes.length > 0 ? allFinishes : allColors;
+  const swatches = swatchSource.slice(0, 5);
+  const moreSwatches = swatchSource.length - swatches.length;
 
   // Dark mode color classes
   const bgImage = darkMode ? 'bg-dark-800' : 'bg-cream-100';
-  const textCategory = darkMode ? 'text-dark-300' : 'text-slate-500';
-  const textType = darkMode ? 'text-dark-200' : 'text-slate-600';
-  const textSeparator = darkMode ? 'text-dark-500' : 'text-slate-300';
-  const textTitle = darkMode ? 'text-dark-50' : 'text-slate-800';
-  const textTitleHover = darkMode ? 'hover:text-primary-400' : 'hover:text-primary-600';
+  const ringHover = darkMode ? 'group-hover:ring-dark-500' : 'group-hover:ring-cream-300';
+  const textEyebrow = darkMode ? 'text-dark-300' : 'text-slate-500';
+  const textTitle = darkMode ? 'text-dark-50' : 'text-slate-900';
+  const textTitleHover = darkMode ? 'group-hover:text-primary-400' : 'group-hover:text-primary-700';
+  const textMuted = darkMode ? 'text-dark-300' : 'text-slate-500';
   const textDescription = darkMode ? 'text-dark-200' : 'text-slate-600';
-  const textSwatchLabel = darkMode ? 'text-dark-300' : 'text-slate-500';
-  const borderSwatch = darkMode ? 'border-dark-500' : 'border-slate-300';
-  const borderSwatchDashed = darkMode ? 'border-dark-500' : 'border-slate-300';
-  const textSwatchMore = darkMode ? 'text-dark-400' : 'text-slate-500';
+  const borderFooter = darkMode ? 'border-dark-600' : 'border-cream-200';
+  const textLink = darkMode ? 'text-primary-400 hover:text-primary-300' : 'text-primary-700 hover:text-primary-800';
   const spinnerBorder = darkMode ? 'border-dark-600' : 'border-cream-300';
 
   const productUrl = buildProductUrl(product, product.variation_id);
+  const eyebrow = [product.category, product.product_type].filter(Boolean).join(' · ');
+  const description = product.short_description || product.description;
+
+  const openQuickView = (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    onQuickView?.(product);
+  };
 
   return (
     <div
@@ -122,7 +130,10 @@ const ProductCard = ({ product, onQuickView, darkMode = false, compact = false, 
       onMouseEnter={handleMouseEnter}
       onMouseLeave={() => setIsHovered(false)}
     >
-      <Link to={productUrl} className={`block relative overflow-hidden ${bgImage} flex-shrink-0 rounded-lg ${compact ? 'aspect-[4/3]' : 'aspect-[3/4]'}`}>
+      <Link
+        to={productUrl}
+        className={`block relative overflow-hidden ${bgImage} flex-shrink-0 rounded-lg ring-1 ring-transparent ${ringHover} transition-shadow duration-200 group-hover:shadow-md ${compact ? 'aspect-[4/3]' : 'aspect-[3/4]'}`}
+      >
         {/* Show placeholder immediately while loading */}
         {!imageLoaded && !imageError && (
           <div className="absolute inset-0 flex items-center justify-center bg-dark-700/20">
@@ -150,8 +161,8 @@ const ProductCard = ({ product, onQuickView, darkMode = false, compact = false, 
               alt={product.name}
               onLoad={handleImageLoad}
               onError={handleImageError}
-              className={`w-full h-full object-contain transition-transform duration-150 ${imageLoaded ? 'opacity-100' : 'opacity-0'
-                } ${showingAngle ? 'invisible' : ''} ${isHovered && !hasCarousel ? 'group-hover:scale-105' : ''}`}
+              className={`w-full h-full object-contain transition-transform duration-300 ${imageLoaded ? 'opacity-100' : 'opacity-0'
+                } ${showingAngle ? 'invisible' : ''} ${isHovered && !hasCarousel ? 'group-hover:scale-[1.03]' : ''}`}
               style={{ mixBlendMode: 'multiply' }}
               priority={priority}
               fetchpriority={priority ? 'high' : 'low'}
@@ -173,14 +184,16 @@ const ProductCard = ({ product, onQuickView, darkMode = false, compact = false, 
               />
             ))}
 
-            {/* Carousel Indicators (optional, keeping minimal for now as requested) */}
-            {hasCarousel && isHovered && (
-              <div className="absolute bottom-2 left-0 right-0 flex justify-center gap-1.5 z-10">
+            {/* Angle indicators */}
+            {hasCarousel && (
+              <div
+                className={`absolute bottom-2.5 left-0 right-0 flex justify-center gap-1 z-10 transition-opacity duration-200 ${isHovered ? 'opacity-100' : 'opacity-0'}`}
+                aria-hidden="true"
+              >
                 {carouselImages.map((_, idx) => (
-                  <div
+                  <span
                     key={idx}
-                    className={`w-1.5 h-1.5 rounded-full transition-colors duration-300 ${idx === activeImageIndex ? 'bg-primary-600' : 'bg-slate-300/60'
-                      }`}
+                    className={`h-1 rounded-full transition-all duration-200 ${idx === activeImageIndex ? 'w-4 bg-slate-700' : 'w-1.5 bg-slate-400/50'}`}
                   />
                 ))}
               </div>
@@ -188,126 +201,93 @@ const ProductCard = ({ product, onQuickView, darkMode = false, compact = false, 
           </div>
         )}
 
-        {/* Overlay on hover */}
-        <div
-          className={`absolute inset-0 z-20 bg-black/30 flex items-center justify-center gap-2 transition-opacity duration-300 ${isHovered ? 'opacity-100' : 'opacity-0 pointer-events-none'
-            }`}
-        >
-          <Button
-            variant="primary"
-            size="sm"
-            onClick={(e) => {
-              e.preventDefault();
-              onQuickView?.(product);
-            }}
+        {/* Quick view: a small corner action so the product stays fully visible */}
+        {onQuickView && (
+          <button
+            type="button"
+            onClick={openQuickView}
+            aria-label={`Quick view ${product.name}`}
+            className={`absolute top-2 right-2 z-20 inline-flex items-center gap-1.5 h-8 px-2.5 rounded-full bg-white/95 text-slate-800 text-xs font-semibold shadow-sm ring-1 ring-black/5 backdrop-blur-sm hover:bg-white hover:text-primary-700 transition-all duration-200 focus-visible:opacity-100 focus-visible:translate-y-0 ${isHovered ? 'opacity-100 translate-y-0' : 'opacity-0 -translate-y-1 pointer-events-none'}`}
           >
-            Quick View
-          </Button>
-        </div>
+            <Eye className="w-3.5 h-3.5" />
+            Quick view
+          </button>
+        )}
 
         {/* Tags */}
-        <div className="absolute top-2 left-2 flex flex-col gap-1.5">
+        <div className="absolute top-2 left-2 z-10 flex flex-col gap-1.5">
           {product.is_new && <Tag variant="new" size="sm">New</Tag>}
           {product.is_featured && <Tag variant="featured" size="sm">Featured</Tag>}
         </div>
       </Link>
 
-      {/* Product Info - Below Image */}
+      {/* Product info */}
       <div className="pt-3 sm:pt-4 flex flex-col flex-grow">
-        {/* Category & Type */}
-        <div className="flex items-center gap-2 mb-1.5 sm:mb-2">
-          {product.category && (
-            <span className={`text-[10px] sm:text-xs ${textCategory} uppercase tracking-wider font-medium truncate`}>
-              {product.category}
-            </span>
-          )}
-          {product.product_type && (
-            <>
-              <span className={`${textSeparator} hidden sm:inline`}>•</span>
-              <span className={`text-[10px] sm:text-xs ${textType} font-medium truncate`}>
-                {product.product_type}
-              </span>
-            </>
-          )}
-        </div>
+        {eyebrow && (
+          <p className={`text-[10px] sm:text-[11px] ${textEyebrow} uppercase tracking-[0.12em] font-medium truncate mb-1`}>
+            {eyebrow}
+          </p>
+        )}
 
-        {/* Product Name */}
-        <Link to={productUrl}>
-          <h3 className={`text-base sm:text-lg font-semibold ${textTitle} mb-1.5 sm:mb-2 ${textTitleHover} transition-colors line-clamp-2`}>
+        <Link to={productUrl} className="block">
+          <h3 className={`text-[15px] sm:text-base font-semibold leading-snug ${textTitle} ${textTitleHover} transition-colors line-clamp-2`}>
             {product.name}
           </h3>
         </Link>
 
-        {/* Description */}
-        {(product.short_description || product.description) && (
-          <p className={`text-xs sm:text-sm ${textDescription} mb-2 sm:mb-3 line-clamp-2 leading-relaxed`}>
-            {product.short_description || product.description}
+        {product.model_number && !String(product.name || '').includes(product.model_number) && (
+          <p className={`mt-0.5 text-xs ${textMuted} tabular-nums`}>Model {product.model_number}</p>
+        )}
+
+        {description && (
+          <p className={`mt-1.5 text-xs sm:text-sm ${textDescription} line-clamp-2 leading-relaxed`}>
+            {description}
           </p>
         )}
 
-        {/* Tags */}
-        {product.tags && product.tags.length > 0 && (
-          <div className="flex flex-wrap gap-1 sm:gap-1.5 mb-2 sm:mb-3">
-            {product.tags.slice(0, 3).map((tag, idx) => (
-              <Tag key={idx} variant="commercial" size="sm">
-                {tag}
-              </Tag>
-            ))}
-          </div>
-        )}
-
-        {/* Swatches - Show available options */}
         {swatches.length > 0 && (
-          <div className="mb-2 sm:mb-3">
-            <p className={`text-[10px] sm:text-xs ${textSwatchLabel} mb-1.5 sm:mb-2`}>Available in {swatches.length}+ options:</p>
-            <div className="flex gap-1 sm:gap-1.5 items-center">
-              {swatches.map((swatch, idx) => {
-                const item = typeof swatch === 'object' ? swatch : { name: swatch };
-                return (
-                  <SwatchImage
-                    key={item.id ?? idx}
-                    item={item}
-                    size="xs"
-                    rounded="circle"
-                    zoom
-                    kind={finishes.length > 0 ? 'wood' : 'neutral'}
-                  />
-                );
-              })}
-              {(product.customizations?.finishes?.length > 5 || product.customizations?.colors?.length > 5) && (
-                <div className={`w-5 h-5 sm:w-6 sm:h-6 rounded-full border-2 border-dashed ${borderSwatchDashed} flex items-center justify-center text-[9px] sm:text-[10px] ${textSwatchMore}`}>
-                  +
-                </div>
-              )}
-            </div>
+          <div className="mt-2.5 flex items-center gap-1.5">
+            {swatches.map((swatch, idx) => {
+              const item = typeof swatch === 'object' ? swatch : { name: swatch };
+              return (
+                <SwatchImage
+                  key={item.id ?? idx}
+                  item={item}
+                  size="xs"
+                  rounded="circle"
+                  zoom
+                  kind={allFinishes.length > 0 ? 'wood' : 'neutral'}
+                />
+              );
+            })}
+            {moreSwatches > 0 && (
+              <span className={`text-[11px] ${textMuted} font-medium ml-0.5`}>+{moreSwatches}</span>
+            )}
           </div>
         )}
 
-        {/* Action Buttons */}
-        <div className="mt-auto flex gap-2">
-          <Link to={productUrl} className="flex-1">
-            <Button
-              variant="primary"
-              size="sm"
-              className="w-full text-xs px-2 py-1.5 min-h-[36px] sm:text-sm sm:px-4 sm:py-2 sm:min-h-[40px]"
+        {/* Footer */}
+        <div className={`mt-auto pt-3 sm:pt-4`}>
+          <div className={`flex items-center justify-between gap-2 pt-3 border-t ${borderFooter}`}>
+            <Link
+              to={productUrl}
+              className={`inline-flex items-center gap-1 text-xs sm:text-sm font-semibold ${textLink} transition-colors`}
             >
-              View Details
-            </Button>
-          </Link>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={(e) => {
-              e.preventDefault();
-              onQuickView?.(product);
-            }}
-            className="flex-shrink-0 px-2 py-1.5 min-h-[36px] sm:px-3 sm:py-2 sm:min-h-[40px]"
-          >
-            <svg className="h-3 w-3 sm:h-4 sm:w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
-            </svg>
-          </Button>
+              View details
+              <ArrowRight className="w-3.5 h-3.5 transition-transform group-hover:translate-x-0.5" />
+            </Link>
+            {onQuickView && (
+              <button
+                type="button"
+                onClick={openQuickView}
+                aria-label={`Quick view ${product.name}`}
+                title="Quick view"
+                className={`inline-flex items-center justify-center w-8 h-8 rounded-full ${textMuted} hover:text-primary-700 hover:bg-cream-100 transition-colors`}
+              >
+                <Eye className="w-4 h-4" />
+              </button>
+            )}
+          </div>
         </div>
       </div>
     </div>
@@ -315,5 +295,3 @@ const ProductCard = ({ product, onQuickView, darkMode = false, compact = false, 
 };
 
 export default ProductCard;
-
-
