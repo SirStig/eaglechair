@@ -5,7 +5,7 @@ import { useToast } from '../../../contexts/ToastContext';
 import apiClient from '../../../config/apiClient';
 import { resolveImageUrl, formatStockStatus } from '../../../utils/apiHelpers';
 import { slugify } from '../../../utils/slugify';
-import { uploadImage, deleteImage } from '../../../utils/imageUpload';
+import { uploadImage } from '../../../utils/imageUpload';
 import {
   FileText,
   DollarSign,
@@ -100,7 +100,11 @@ const ProductEditor = ({ product, onBack }) => {
   const [colors, setColors] = useState([]);
 
   // Multi-value fields
-  const [images, setImages] = useState(Array.isArray(product?.images) ? product.images : []);
+  const [images, setImages] = useState(() => {
+    const notGallery = new Set([product?.primary_image_url, ...(product?.hover_images || [])].filter(Boolean));
+    return (Array.isArray(product?.images) ? product.images : [])
+      .filter((img) => !notGallery.has(typeof img === 'string' ? img : img?.url));
+  });
   const [uploadingImage, setUploadingImage] = useState(false);
   const [variations, setVariations] = useState(Array.isArray(product?.variations) ? product.variations : []);
   const [selectedFinishes, setSelectedFinishes] = useState(product?.available_finishes || []);
@@ -115,14 +119,6 @@ const ProductEditor = ({ product, onBack }) => {
 
   const uploadProductImage = (file) => uploadImage(file, 'products');
 
-  const deleteProductImage = async (url) => {
-    if (!url) return;
-    try {
-      await deleteImage(url);
-    } catch (error) {
-      console.error('Failed to delete image:', error);
-    }
-  };
 
   useEffect(() => {
     fetchCategories();
@@ -873,7 +869,6 @@ const ProductEditor = ({ product, onBack }) => {
                         <button
                           type="button"
                           onClick={async () => {
-                            await deleteProductImage(formData.primary_image_url);
                             handleChange('primary_image_url', null);
                           }}
                           className="absolute top-2 right-2 p-2 bg-red-500 text-white rounded-lg transition-colors"
@@ -910,61 +905,75 @@ const ProductEditor = ({ product, onBack }) => {
                   </div>
                 </div>
 
-                {/* Hover Image 1 (Front View) */}
-                <div>
-                  <label className="block text-sm font-medium text-dark-200 mb-2">
-                    Hover Image 1 *
-                    <span className="block text-xs text-dark-400 font-normal">First rollover image (Front)</span>
-                  </label>
-                  <div className="relative">
-                    {formData.hover_images && formData.hover_images[0] ? (
+                {/* Hover Images: card rollover, shown in this order after the primary */}
+                {[...(formData.hover_images || []).filter(Boolean), null].map((url, index) => (
+                  <div key={url || `add-hover-${index}`}>
+                    <label className="block text-sm font-medium text-dark-200 mb-2">
+                      {url ? `Hover Image ${index + 1}` : 'Add Hover Image'}
+                      <span className="block text-xs text-dark-400 font-normal">
+                        {url ? 'Card rollover, in this order' : 'Product angles only, not gallery photos'}
+                      </span>
+                    </label>
+                    {url ? (
                       <div className="relative group">
                         <ResponsiveImage
                           sizes="(min-width: 768px) 33vw, 100vw"
                           fullResolution={false}
-                          src={resolveImageUrl(formData.hover_images[0])}
-                          alt="Hover 1"
+                          src={resolveImageUrl(url)}
+                          alt={`Hover ${index + 1}`}
                           className="w-full h-48 object-contain bg-dark-700 rounded-lg border-2 border-dark-600"
                         />
-                        <button
-                          type="button"
-                          onClick={async () => {
-                            await deleteProductImage(formData.hover_images[0]);
-                            setFormData(prev => {
-                              const next = [...(prev.hover_images || [])];
-                              next[0] = '';
-                              return { ...prev, hover_images: next };
-                            });
-                          }}
-                          className="absolute top-2 right-2 p-2 bg-red-500 text-white rounded-lg transition-colors"
-                        >
-                          <X className="w-4 h-4" />
-                        </button>
+                        <div className="absolute top-2 right-2 flex gap-1">
+                          {index > 0 && (
+                            <button
+                              type="button"
+                              title="Move earlier"
+                              onClick={() => setFormData(prev => {
+                                const next = (prev.hover_images || []).filter(Boolean);
+                                [next[index - 1], next[index]] = [next[index], next[index - 1]];
+                                return { ...prev, hover_images: next };
+                              })}
+                              className="px-2 py-1 bg-dark-900/80 text-dark-100 rounded-lg text-sm"
+                            >
+                              &larr;
+                            </button>
+                          )}
+                          <button
+                            type="button"
+                            title="Remove"
+                            onClick={() => setFormData(prev => ({
+                              ...prev,
+                              hover_images: (prev.hover_images || []).filter((u) => u && u !== url),
+                            }))}
+                            className="p-2 bg-red-500 text-white rounded-lg transition-colors"
+                          >
+                            <X className="w-4 h-4" />
+                          </button>
+                        </div>
                       </div>
                     ) : (
-                      <div className="border-2 border-dashed border-dark-600 rounded-lg p-4 text-center hover:border-primary-500 transition-colors cursor-pointer relative">
+                      <div className="border-2 border-dashed border-dark-600 rounded-lg p-4 text-center hover:border-primary-500 transition-colors cursor-pointer relative h-48 flex flex-col items-center justify-center">
                         <Upload className="w-8 h-8 text-dark-400 mx-auto mb-2" />
-                        <p className="text-sm text-dark-400 mb-2">Upload Hover 1</p>
+                        <p className="text-sm text-dark-400">{uploadingImage ? 'Uploading...' : 'Upload hover image'}</p>
                         <input
                           type="file"
                           accept="image/*"
+                          disabled={uploadingImage}
                           onChange={async (e) => {
                             const file = e.target.files?.[0];
-                            if (file) {
-                              setUploadingImage(true);
-                              try {
-                                const url = await uploadProductImage(file);
-                                setFormData(prev => {
-                                  const next = [...(prev.hover_images || [])];
-                                  next[0] = url;
-                                  return { ...prev, hover_images: next };
-                                });
-                              } catch (error) {
-                                console.error('Upload failed:', error);
-                                alert('Failed to upload image');
-                              } finally {
-                                setUploadingImage(false);
-                              }
+                            if (!file) return;
+                            setUploadingImage(true);
+                            try {
+                              const uploaded = await uploadProductImage(file);
+                              setFormData(prev => ({
+                                ...prev,
+                                hover_images: [...(prev.hover_images || []).filter(Boolean), uploaded],
+                              }));
+                            } catch (error) {
+                              console.error('Upload failed:', error);
+                              alert('Failed to upload image');
+                            } finally {
+                              setUploadingImage(false);
                             }
                           }}
                           className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
@@ -972,72 +981,7 @@ const ProductEditor = ({ product, onBack }) => {
                       </div>
                     )}
                   </div>
-                </div>
-
-                {/* Hover Image 2 (Detail/Second View) */}
-                <div>
-                  <label className="block text-sm font-medium text-dark-200 mb-2">
-                    Hover Image 2
-                    <span className="block text-xs text-dark-400 font-normal">Second rollover image</span>
-                  </label>
-                  <div className="relative">
-                    {formData.hover_images && formData.hover_images[1] ? (
-                      <div className="relative group">
-                        <ResponsiveImage
-                          sizes="(min-width: 768px) 33vw, 100vw"
-                          fullResolution={false}
-                          src={resolveImageUrl(formData.hover_images[1])}
-                          alt="Hover 2"
-                          className="w-full h-48 object-contain bg-dark-700 rounded-lg border-2 border-dark-600"
-                        />
-                        <button
-                          type="button"
-                          onClick={async () => {
-                            await deleteProductImage(formData.hover_images[1]);
-                            setFormData(prev => {
-                              const next = [...(prev.hover_images || [])];
-                              next[1] = '';
-                              return { ...prev, hover_images: next };
-                            });
-                          }}
-                          className="absolute top-2 right-2 p-2 bg-red-500 text-white rounded-lg transition-colors"
-                        >
-                          <X className="w-4 h-4" />
-                        </button>
-                      </div>
-                    ) : (
-                      <div className="border-2 border-dashed border-dark-600 rounded-lg p-4 text-center hover:border-primary-500 transition-colors cursor-pointer relative">
-                        <Upload className="w-8 h-8 text-dark-400 mx-auto mb-2" />
-                        <p className="text-sm text-dark-400 mb-2">Upload Hover 2</p>
-                        <input
-                          type="file"
-                          accept="image/*"
-                          onChange={async (e) => {
-                            const file = e.target.files?.[0];
-                            if (file) {
-                              setUploadingImage(true);
-                              try {
-                                const url = await uploadProductImage(file);
-                                setFormData(prev => {
-                                  const next = [...(prev.hover_images || [])];
-                                  if (next.length < 2) next.length = 2;
-                                  next[1] = url;
-                                  return { ...prev, hover_images: next };
-                                });
-                              } catch (error) {
-                                console.error('Upload failed:', error);
-                                alert('Failed to upload image');
-                              } finally {
-                                setUploadingImage(false);
-                              }
-                            }
-                          }}
-                          className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
-                        />
-                      </div>
-                    )}
-                  </div>
-                </div>
+                ))}
 
                 {/* Thumbnail */}
                 <div>
@@ -1058,7 +1002,6 @@ const ProductEditor = ({ product, onBack }) => {
                         <button
                           type="button"
                           onClick={async () => {
-                            await deleteProductImage(formData.thumbnail);
                             handleChange('thumbnail', null);
                           }}
                           className="absolute top-2 right-2 p-2 bg-red-500 text-white rounded-lg transition-colors"
@@ -1100,11 +1043,11 @@ const ProductEditor = ({ product, onBack }) => {
             {/* Gallery Images */}
             <div>
               <h3 className="text-lg font-semibold text-dark-50 mb-4">Gallery Images</h3>
-              <p className="text-sm text-dark-400 mb-4">Additional product photos for detail views</p>
+              <p className="text-sm text-dark-400 mb-4">Shown in the Gallery section of the product page (below description and features). Never used for hover.</p>
 
               <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 mb-4">
                 {images.map((img, index) => (
-                  <div key={index} className="relative group">
+                  <div key={(typeof img === 'string' ? img : img.url) || index} className="relative group">
                     <ResponsiveImage
                       sizes="(min-width: 1024px) 25vw, (min-width: 768px) 33vw, 50vw"
                       fullResolution={false}
@@ -1115,8 +1058,6 @@ const ProductEditor = ({ product, onBack }) => {
                     <button
                       type="button"
                       onClick={async () => {
-                        const imgUrl = typeof img === 'string' ? img : img.url;
-                        await deleteProductImage(imgUrl);
                         setImages(images.filter((_, i) => i !== index));
                       }}
                       className="absolute top-2 right-2 p-2 bg-red-500 text-white rounded-lg transition-colors"
@@ -1193,7 +1134,6 @@ const ProductEditor = ({ product, onBack }) => {
                               <button
                                 type="button"
                                 onClick={async () => {
-                                  await deleteProductImage(variation.primary_image_url);
                                   const newVariations = [...variations];
                                   newVariations[index].primary_image_url = null;
                                   setVariations(newVariations);
@@ -1251,8 +1191,6 @@ const ProductEditor = ({ product, onBack }) => {
                                   <button
                                     type="button"
                                     onClick={async () => {
-                                      const imgUrl = typeof img === 'string' ? img : img.url;
-                                      await deleteProductImage(imgUrl);
                                       const newVariations = [...variations];
                                       newVariations[index].images = newVariations[index].images.filter((_, i) => i !== imgIndex);
                                       setVariations(newVariations);

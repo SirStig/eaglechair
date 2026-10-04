@@ -286,7 +286,7 @@ export const getProductImage = (product, index = 0) => {
 };
 
 /**
- * Get all product images as array of URLs (primary, hover, gallery; excludes thumbnail)
+ * Product view images: primary then hover angles (no gallery, no thumbnail)
  * @param {object} product - Product object from API
  * @returns {string[]} Array of image URLs
  */
@@ -294,8 +294,9 @@ export const getProductImages = (product) => {
   const primary = product.primary_image_url || product.primary_image || product.image_url || product.image;
   const primaryUrl = primary ? resolveImageUrl(primary) : null;
   const hoverList = Array.isArray(product.hover_images) ? product.hover_images.map(img => resolveImageUrl(img)) : [];
-  const galleryList = Array.isArray(product.images) ? product.images.map(img => resolveImageUrl(img)) : [];
-  const combined = [primaryUrl, ...hoverList, ...galleryList].filter(Boolean);
+  // Product views: primary + hover angles only. Gallery images (installs, extra
+  // photos) belong to the Gallery section, never the hero or the hover rotation.
+  const combined = [primaryUrl, ...hoverList].filter(Boolean);
   const seen = new Set();
   const deduped = combined.filter(url => {
     if (seen.has(url)) return false;
@@ -345,6 +346,7 @@ export const getProductGalleryImages = (product) => {
       : []
   );
   if (primaryUrl) hoverUrls.add(primaryUrl);
+  if (product.thumbnail) hoverUrls.add(resolveImageUrl(product.thumbnail));
   const galleryUrls = product.images.map(img => resolveImageUrl(img));
   return galleryUrls.filter(url => url && !hoverUrls.has(url));
 };
