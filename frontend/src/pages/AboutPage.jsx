@@ -30,16 +30,16 @@ const AboutPage = () => {
   // Hero content
   const heroTitle = heroSection?.title || "About Eagle Chair";
   const heroSubtitle = heroSection?.subtitle || "Crafting Excellence in Seating Solutions";
-  const heroImage = heroSection?.imageUrl || "https://images.unsplash.com/photo-1565891741441-64926e441838?w=1920";
+  const heroImage = heroSection?.imageUrl || "/uploads/images/installation/paesanos-3310-0_1790000000_f191ad.jpg";
 
   // Story content
   const storyTitle = storySection?.title || "Our Story";
   const storyContent = storySection?.content || "";
-  const storyImage = storySection?.imageUrl || "https://images.unsplash.com/photo-1556912172-45b7abe8b7e1?w=800";
+  const storyImage = storySection?.imageUrl || "/uploads/images/installation/budapest-cafe-6018v_1790000000_bb0a6c.jpg";
 
   // CTA content
   const ctaTitle = ctaSection?.title || "Ready to Work Together?";
-  const ctaContent = ctaSection?.content || "Experience the Eagle Chair difference. Let's create something amazing for your business.";
+  const ctaContent = ctaSection?.content || "Tell us about your project and our team will help you choose the right seating.";
 
   // Content update handlers. Saves go through cmsAdminService; the API client
   // then invalidates the shared content caches, so every content hook on the

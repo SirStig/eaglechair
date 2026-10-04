@@ -314,7 +314,7 @@ const FindARepPage = () => {
             defaultNewItem={{
               name: 'New Representative',
               email: 'rep@eaglechair.com',
-              phone: '(555) 000-0000',
+              phone: '',
               territoryName: 'New Territory',
               statesCovered: ['TX'],
               displayOrder: reps.length

@@ -384,30 +384,8 @@ const CartPage = () => {
                     </svg>
                   </div>
                   <div>
-                    <p className="font-semibold text-slate-800">Fast Turnaround</p>
-                    <p className="text-slate-600 text-xs">Most orders ship within lead time</p>
-                  </div>
-                </div>
-                <div className="flex items-start gap-3 text-sm">
-                  <div className="flex-shrink-0 w-6 h-6 bg-green-100 rounded-full flex items-center justify-center">
-                    <svg className="w-4 h-4 text-green-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                    </svg>
-                  </div>
-                  <div>
                     <p className="font-semibold text-slate-800">Custom Options</p>
                     <p className="text-slate-600 text-xs">Tailored sizing and finishes available</p>
-                  </div>
-                </div>
-                <div className="flex items-start gap-3 text-sm">
-                  <div className="flex-shrink-0 w-6 h-6 bg-green-100 rounded-full flex items-center justify-center">
-                    <svg className="w-4 h-4 text-green-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                    </svg>
-                  </div>
-                  <div>
-                    <p className="font-semibold text-slate-800">Nationwide Delivery</p>
-                    <p className="text-slate-600 text-xs">Professional shipping across the US</p>
                   </div>
                 </div>
                 <div className="flex items-start gap-3 text-sm">

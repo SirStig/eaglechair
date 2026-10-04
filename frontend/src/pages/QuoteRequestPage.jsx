@@ -205,7 +205,7 @@ const QuoteRequestPage = () => {
               We&apos;ve sent a confirmation to your email. Please check your inbox (and spam folder) for details.
             </p>
             <p className="text-slate-600 mb-8">
-              Our sales team will review your request and reach out within 24 hours. If you have urgent questions, please contact us directly.
+              Our sales team will review your request and reach out within 2 business days. If you have urgent questions, please contact us directly.
             </p>
             <div className="flex flex-col sm:flex-row gap-3 justify-center">
               <Button variant="primary" size="lg" onClick={() => navigate('/')}>
@@ -228,7 +228,7 @@ const QuoteRequestPage = () => {
         <div className="mb-8">
           <h1 className="text-2xl sm:text-3xl md:text-4xl font-bold text-slate-800 mb-2">Request a Quote</h1>
           <p className="text-slate-600">
-            Review your items and provide your contact information. We'll send a confirmation to your email and get back to you within 24 hours.
+            Review your items and provide your contact information. We'll send a confirmation to your email and get back to you within 2 business days.
           </p>
         </div>
 
