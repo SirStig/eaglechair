@@ -840,7 +840,7 @@ FALLBACK_PAGES = (
     "/virtual-catalogs",
     "/resources/spec-sheets",
     "/resources/guides",
-    "/resources/woodfinishes",
+    "/resources/finishes",
     "/resources/upholstery",
     "/resources/laminates",
     "/resources/hardware",

@@ -205,7 +205,8 @@ function App() {
           <Route path="/virtual-catalogs" element={<VirtualCatalogsPage />} />
           <Route path="/resources/guides" element={<GuidesPage />} />
           <Route path="/resources/spec-sheets" element={<SpecSheetsPage />} />
-          <Route path="/resources/woodfinishes" element={<WoodFinishesPage />} />
+          <Route path="/resources/finishes" element={<WoodFinishesPage />} />
+          <Route path="/resources/woodfinishes" element={<Navigate to="/resources/finishes" replace />} />
           <Route path="/resources/hardware" element={<HardwarePage />} />
           <Route path="/resources/laminates" element={<LaminatesPage />} />
           <Route path="/resources/upholstery" element={<UpholsteryPage />} />

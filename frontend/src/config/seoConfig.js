@@ -65,7 +65,7 @@ const pages = {
     title: 'Finishes: Wood Stains, Powder Coat & Chrome | Eagle Chair',
     description:
       'Wood stains plus powder coat and plated metal finishes for Eagle Chair commercial chairs, barstools, booths, tables and bases, with swatches for specifying your order.',
-    url: '/resources/woodfinishes',
+    url: '/resources/finishes',
   },
   hardware: {
     title: 'Chair Hardware & Table Bases | Eagle Chair',

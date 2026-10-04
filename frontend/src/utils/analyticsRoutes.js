@@ -16,7 +16,7 @@ const STATIC_PAGES = new Set([
   '/virtual-catalogs',
   '/resources/guides',
   '/resources/spec-sheets',
-  '/resources/woodfinishes',
+  '/resources/finishes',
   '/resources/hardware',
   '/resources/laminates',
   '/resources/upholstery',
