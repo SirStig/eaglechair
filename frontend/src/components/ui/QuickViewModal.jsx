@@ -4,7 +4,7 @@ import Button from './Button';
 import Tag from './Tag';
 import { useCartStore } from '../../store/cartStore';
 import { getProductImages, buildProductUrl, resolveImageUrl, variationHasOwnImage, formatStockStatus, isInStock } from '../../utils/apiHelpers';
-import SwatchImage from './SwatchImage';
+import OptionPicker from './OptionPicker';
 import ResponsiveImage from './ResponsiveImage';
 import VariationImageDisclaimer from './VariationImageDisclaimer';
 import SpecSymbols, { SpecIcon } from './SpecSymbols';
@@ -22,6 +22,7 @@ const QuickViewModal = ({ product, isOpen, onClose }) => {
   const [selectedFinish, setSelectedFinish] = useState(null);
   const [selectedUpholstery, setSelectedUpholstery] = useState(null);
   const [selectedColor, setSelectedColor] = useState(null);
+  const [selectedLaminate, setSelectedLaminate] = useState(null);
   const [variations, setVariations] = useState([]);
   const [selectedVariation, setSelectedVariation] = useState(null);
   const [loadingVariations, setLoadingVariations] = useState(false);
@@ -43,6 +44,7 @@ const QuickViewModal = ({ product, isOpen, onClose }) => {
       if (product.customizations?.colors?.[0]) {
         setSelectedColor(product.customizations.colors[0]);
       }
+      setSelectedLaminate(product.customizations?.laminates?.[0] || null);
 
       // Fetch variations
       if (product.id) {
@@ -88,6 +90,7 @@ const QuickViewModal = ({ product, isOpen, onClose }) => {
       finish: selectedFinish,
       upholstery: selectedUpholstery,
       color: selectedColor,
+      laminate: selectedLaminate ? { id: selectedLaminate.id, name: selectedLaminate.name, brand: selectedLaminate.brand } : null,
       variation: selectedVariation,
     };
     addItem(product, quantity, customizations);
@@ -382,86 +385,16 @@ const QuickViewModal = ({ product, isOpen, onClose }) => {
 
                     {/* Customization Options */}
                     <div className="space-y-3 mb-6">
-                      {/* Finishes */}
-                      {product.customizations?.finishes && product.customizations.finishes.length > 0 && (
-                        <div>
-                          <label className="block text-sm font-medium text-slate-700 mb-2">
-                            Finish
-                          </label>
-                          <div className="flex flex-wrap gap-1.5">
-                            {product.customizations.finishes.map((finish, idx) => {
-                              const f = typeof finish === 'object' ? finish : { name: finish };
-                              const isSelected = typeof selectedFinish === 'object' ? selectedFinish?.id === f.id : selectedFinish === f.name;
-                              return (
-                                <button
-                                  key={f.id ?? idx}
-                                  type="button"
-                                  onClick={() => setSelectedFinish(f)}
-                                  className={`p-1.5 rounded-lg border-2 transition-all flex items-center gap-1.5 ${isSelected ? 'border-primary-600 bg-primary-50' : 'border-cream-300 bg-white hover:border-primary-400'}`}
-                                  title={f.name}
-                                >
-                                  <SwatchImage item={f} size="sm" rounded="circle" zoom kind="wood" />
-                                  <span className="text-xs truncate max-w-[60px]">{f.name}</span>
-                                </button>
-                              );
-                            })}
-                          </div>
-                        </div>
-                      )}
+                      <OptionPicker
+                        compact
+                        sections={[
+                          { key: 'finish', label: 'Finish', kind: 'wood', options: product.customizations?.finishes, selected: selectedFinish, onSelect: setSelectedFinish },
+                          { key: 'upholstery', label: 'Upholstery', kind: 'fabric', options: product.customizations?.fabrics, selected: selectedUpholstery, onSelect: setSelectedUpholstery },
+                          { key: 'laminate', label: 'Laminate', kind: 'laminate', options: product.customizations?.laminates, selected: selectedLaminate, onSelect: setSelectedLaminate },
+                          { key: 'color', label: 'Color', options: product.customizations?.colors, selected: selectedColor, onSelect: setSelectedColor },
+                        ]}
+                      />
 
-                      {/* Fabrics */}
-                      {product.customizations?.fabrics && product.customizations.fabrics.length > 0 && (
-                        <div>
-                          <label className="block text-sm font-medium text-slate-700 mb-2">
-                            Upholstery
-                          </label>
-                          <div className="flex flex-wrap gap-1.5">
-                            {product.customizations.fabrics.map((fabric, idx) => {
-                              const f = typeof fabric === 'object' ? fabric : { name: fabric };
-                              const isSelected = typeof selectedUpholstery === 'object' ? selectedUpholstery?.id === f.id : selectedUpholstery === f.name;
-                              return (
-                                <button
-                                  key={f.id ?? idx}
-                                  type="button"
-                                  onClick={() => setSelectedUpholstery(f)}
-                                  className={`p-1.5 rounded-lg border-2 transition-all flex items-center gap-1.5 ${isSelected ? 'border-primary-600 bg-primary-50' : 'border-cream-300 bg-white hover:border-primary-400'}`}
-                                  title={f.name}
-                                >
-                                  <SwatchImage item={f} size="sm" rounded="circle" zoom kind="fabric" />
-                                  <span className="text-xs truncate max-w-[60px]">{f.name}</span>
-                                </button>
-                              );
-                            })}
-                          </div>
-                        </div>
-                      )}
-
-                      {/* Colors */}
-                      {product.customizations?.colors && product.customizations.colors.length > 0 && (
-                        <div>
-                          <label className="block text-sm font-medium text-slate-700 mb-2">
-                            Color
-                          </label>
-                          <div className="flex flex-wrap gap-1.5">
-                            {product.customizations.colors.map((color, idx) => {
-                              const c = typeof color === 'object' ? color : { name: color };
-                              const isSelected = typeof selectedColor === 'object' ? selectedColor?.id === c.id : selectedColor === c.name;
-                              return (
-                                <button
-                                  key={c.id ?? idx}
-                                  type="button"
-                                  onClick={() => setSelectedColor(c)}
-                                  className={`p-1.5 rounded-lg border-2 transition-all flex items-center gap-1.5 ${isSelected ? 'border-primary-600 bg-primary-50' : 'border-cream-300 bg-white hover:border-primary-400'}`}
-                                  title={c.name}
-                                >
-                                  <SwatchImage item={c} size="sm" rounded="circle" zoom />
-                                  <span className="text-xs truncate max-w-[60px]">{c.name}</span>
-                                </button>
-                              );
-                            })}
-                          </div>
-                        </div>
-                      )}
 
                       {/* Quantity */}
                       <div>

@@ -1,6 +1,7 @@
 import { Navigate, useLocation } from 'react-router-dom';
 import { useEffect, useState, useRef } from 'react';
 import { useAuthStore } from '../store/authStore';
+import LoadingSpinner from './ui/LoadingSpinner';
 
 const ProtectedRoute = ({ children, requireAdmin = false }) => {
   const { isAuthenticated, user, isInitializing } = useAuthStore();
@@ -27,10 +28,7 @@ const ProtectedRoute = ({ children, requireAdmin = false }) => {
     // Show loading state while checking
     return (
       <div className="min-h-screen bg-dark-900 flex items-center justify-center">
-        <div className="text-center">
-          <div className="h-8 w-8 border-4 border-dark-600 border-t-primary-500 rounded-full animate-spin mx-auto mb-4"></div>
-          <p className="text-dark-200">Loading...</p>
-        </div>
+        <LoadingSpinner size="lg" tone="dark" />
       </div>
     );
   }

@@ -26,9 +26,8 @@ import { getSpecItems, getFeatureSymbol } from '../utils/specSymbols';
 const HERO_IMAGE_SIZES = '(min-width: 1280px) 600px, (min-width: 1024px) 50vw, 100vw';
 // Variations listed before "Show all" on phones (plus the base model row).
 const MOBILE_VARIATIONS_SHOWN = 3;
-import SwatchImage from '../components/ui/SwatchImage';
+import OptionPicker from '../components/ui/OptionPicker';
 import { useToast } from '../contexts/ToastContext';
-import { useInstallations, useProductInstalls } from '../hooks/useContent';
 import logger from '../utils/logger';
 
 const CONTEXT = 'ProductDetailPage';
@@ -51,8 +50,6 @@ const ProductDetailPage = () => {
 
   const [product, setProduct] = useState(null);
   const [relatedProducts, setRelatedProducts] = useState([]);
-  const { data: installations } = useInstallations();
-  const { data: productInstalls } = useProductInstalls();
   const [loading, setLoading] = useState(true);
   const [selectedImage, setSelectedImage] = useState(0);
   const [customizeImageIndex, setCustomizeImageIndex] = useState(0);
@@ -995,128 +992,43 @@ const ProductDetailPage = () => {
                 </div>
               )}
 
-              {/* Finishes */}
-              {product.customizations?.finishes && product.customizations.finishes.length > 0 && (
-                <div className="mb-6">
-                  <label className="block text-sm font-medium text-slate-700 mb-3">
-                    Select Finish
-                  </label>
-                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 sm:gap-3">
-                    {product.customizations.finishes.map((finish, idx) => {
-                      const f = typeof finish === 'object' ? finish : { name: finish };
-                      const isSelected = typeof selectedFinish === 'object' ? selectedFinish?.id === f.id : selectedFinish === f.name;
-                      return (
-                        <button
-                          key={f.id ?? idx}
-                          onClick={() => {
-                            setSelectedFinish(f);
-                            trackOption('finish', f.name);
-                          }}
-                          className={`p-2 sm:p-3 rounded-lg border-2 transition-all text-sm font-medium min-h-[44px] flex items-center gap-2 ${isSelected
-                            ? 'border-primary-600 bg-primary-50 text-primary-900'
-                            : 'border-cream-300 bg-white text-slate-700 hover:border-primary-400'
-                            }`}
-                        >
-                          <SwatchImage item={f} size="md" rounded="circle" zoom kind="wood" />
-                          <span className="truncate">{f.name}</span>
-                        </button>
-                      );
-                    })}
-                  </div>
-                </div>
-              )}
-
-              {/* Upholstery/Fabrics */}
-              {product.customizations?.fabrics && product.customizations.fabrics.length > 0 && (
-                <div className="mb-6">
-                  <label className="block text-sm font-medium text-slate-700 mb-3">
-                    Select Upholstery
-                  </label>
-                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 sm:gap-3">
-                    {product.customizations.fabrics.map((fabric, idx) => {
-                      const f = typeof fabric === 'object' ? fabric : { name: fabric };
-                      const isSelected = typeof selectedUpholstery === 'object' ? selectedUpholstery?.id === f.id : selectedUpholstery === f.name;
-                      return (
-                        <button
-                          key={f.id ?? idx}
-                          onClick={() => {
-                            setSelectedUpholstery(f);
-                            trackOption('upholstery', f.name);
-                          }}
-                          className={`p-2 sm:p-3 rounded-lg border-2 transition-all text-sm font-medium min-h-[44px] flex items-center gap-2 ${isSelected
-                            ? 'border-primary-600 bg-primary-50 text-primary-900'
-                            : 'border-cream-300 bg-white text-slate-700 hover:border-primary-400'
-                            }`}
-                        >
-                          <SwatchImage item={f} size="md" rounded="circle" zoom kind="fabric" />
-                          <span className="truncate">{f.name}</span>
-                        </button>
-                      );
-                    })}
-                  </div>
-                </div>
-              )}
-
-              {/* Laminates (table tops) */}
-              {product.customizations?.laminates && product.customizations.laminates.length > 0 && (
-                <div className="mb-6">
-                  <label className="block text-sm font-medium text-slate-700 mb-3">
-                    Select Laminate
-                  </label>
-                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 sm:gap-3">
-                    {product.customizations.laminates.map((laminate) => {
-                      const isSelected = selectedLaminate?.id === laminate.id;
-                      return (
-                        <button
-                          key={laminate.id}
-                          onClick={() => {
-                            setSelectedLaminate(laminate);
-                            trackOption('laminate', laminate.name);
-                          }}
-                          className={`p-2 sm:p-3 rounded-lg border-2 transition-all text-sm font-medium min-h-[44px] flex items-center gap-2 ${isSelected
-                            ? 'border-primary-600 bg-primary-50 text-primary-900'
-                            : 'border-cream-300 bg-white text-slate-700 hover:border-primary-400'
-                            }`}
-                        >
-                          <SwatchImage item={laminate} size="md" rounded="circle" zoom kind="laminate" />
-                          <span className="truncate">{laminate.name}</span>
-                        </button>
-                      );
-                    })}
-                  </div>
-                </div>
-              )}
-
-              {/* Colors (if different from finishes) */}
-              {product.customizations?.colors && product.customizations.colors.length > 0 && (
-                <div className="mb-6">
-                  <label className="block text-sm font-medium text-slate-700 mb-3">
-                    Select Color
-                  </label>
-                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 sm:gap-3">
-                    {product.customizations.colors.map((color, idx) => {
-                      const c = typeof color === 'object' ? color : { name: color };
-                      const isSelected = typeof selectedFinish === 'object' ? selectedFinish?.id === c.id : selectedFinish === c.name;
-                      return (
-                        <button
-                          key={c.id ?? idx}
-                          onClick={() => {
-                            setSelectedFinish(c);
-                            trackOption('color', c.name);
-                          }}
-                          className={`p-2 sm:p-3 rounded-lg border-2 transition-all text-sm font-medium min-h-[44px] flex items-center gap-2 ${isSelected
-                            ? 'border-primary-600 bg-primary-50 text-primary-900'
-                            : 'border-cream-300 bg-white text-slate-700 hover:border-primary-400'
-                            }`}
-                        >
-                          <SwatchImage item={c} size="md" rounded="circle" zoom />
-                          <span className="truncate">{c.name}</span>
-                        </button>
-                      );
-                    })}
-                  </div>
-                </div>
-              )}
+              {/* Finish / upholstery / laminate / color pickers */}
+              <OptionPicker
+                className="mb-6"
+                sections={[
+                  {
+                    key: 'finish',
+                    label: 'Finish',
+                    kind: 'wood',
+                    options: product.customizations?.finishes,
+                    selected: selectedFinish,
+                    onSelect: (f) => { setSelectedFinish(f); trackOption('finish', f.name); },
+                  },
+                  {
+                    key: 'upholstery',
+                    label: 'Upholstery',
+                    kind: 'fabric',
+                    options: product.customizations?.fabrics,
+                    selected: selectedUpholstery,
+                    onSelect: (f) => { setSelectedUpholstery(f); trackOption('upholstery', f.name); },
+                  },
+                  {
+                    key: 'laminate',
+                    label: 'Laminate',
+                    kind: 'laminate',
+                    options: product.customizations?.laminates,
+                    selected: selectedLaminate,
+                    onSelect: (l) => { setSelectedLaminate(l); trackOption('laminate', l.name); },
+                  },
+                  {
+                    key: 'color',
+                    label: 'Color',
+                    options: product.customizations?.colors,
+                    selected: selectedFinish,
+                    onSelect: (c) => { setSelectedFinish(c); trackOption('color', c.name); },
+                  },
+                ]}
+              />
 
               {/* Custom Requests / Notes */}
               <div className="mb-6">
@@ -1257,42 +1169,6 @@ const ProductDetailPage = () => {
           </div>
         </section>
       )}
-
-      {/* Installation photos that show this product */}
-      {(() => {
-        const showsProduct = (inst) => (inst.productsUsed || []).map(Number).includes(Number(product.id));
-        // Curated gallery photos first, then product-only install photos; 4 at most.
-        const usedIn = [
-          ...(installations || []).filter(showsProduct),
-          ...(productInstalls || []).filter(showsProduct),
-        ].slice(0, 4);
-        if (usedIn.length === 0) return null;
-        return (
-          <section className="bg-cream-50 border-t border-cream-200">
-            <div className="container mx-auto px-4 py-12 max-w-7xl">
-              <div className="flex flex-wrap items-center justify-between gap-4 mb-6 sm:mb-8">
-                <h2 className="text-2xl sm:text-3xl font-bold text-slate-800">In Use</h2>
-                <Link to="/gallery" className="text-primary-600 hover:text-primary-700 font-medium flex items-center gap-1">
-                  View Gallery <span aria-hidden="true">&rarr;</span>
-                </Link>
-              </div>
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-                {usedIn.map((inst) => (
-                  <figure key={inst.id} className="overflow-hidden rounded-lg bg-white border border-cream-200">
-                    <ResponsiveImage
-                      src={inst.url || inst.primaryImage}
-                      alt={inst.title ? `${product.name} at ${inst.title}` : `${product.name} installation`}
-                      className="w-full aspect-[4/3] object-cover"
-                      sizes="(min-width: 1024px) 33vw, (min-width: 640px) 50vw, 100vw"
-                    />
-                    {inst.title && <figcaption className="px-4 py-3 text-sm text-slate-700">{inst.title}</figcaption>}
-                  </figure>
-                ))}
-              </div>
-            </div>
-          </section>
-        );
-      })()}
 
       {/* Related Products */}
       {relatedProducts.length > 0 && (

@@ -20,6 +20,7 @@ import {
   DollarSign,
 } from 'lucide-react';
 import { quoteService } from '../../services/quoteService';
+import LoadingSpinner from '../ui/LoadingSpinner';
 
 const QuoteDetailsView = ({ quoteId, onBack }) => {
   const [quote, setQuote] = useState(null);
@@ -80,10 +81,7 @@ const QuoteDetailsView = ({ quoteId, onBack }) => {
   if (loading) {
     return (
       <div className="flex items-center justify-center py-12">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-500 mx-auto mb-4"></div>
-          <p className="text-dark-200">Loading quote details...</p>
-        </div>
+        <LoadingSpinner tone="dark" label="Loading quote details..." />
       </div>
     );
   }

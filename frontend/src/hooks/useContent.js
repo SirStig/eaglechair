@@ -434,20 +434,6 @@ export const useHardware = () => {
 };
 
 /**
- * Hook for install photos tied to products (product pages only, not the Gallery)
- */
-export const useProductInstalls = () => {
-  return useContent(
-    contentService.getProductInstalls,
-    [],
-    'product-installs',
-    30 * 60 * 1000,
-    [],
-    staticSelectors.productInstalls
-  );
-};
-
-/**
  * Hook for catalogs
  */
 export const useCatalogs = (catalogType = null) => {

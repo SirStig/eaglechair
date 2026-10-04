@@ -7,6 +7,7 @@ import Input from '../components/ui/Input';
 import apiClient from '../config/apiClient';
 import { useSiteSettings } from '../hooks/useContent';
 import SiteLogo from '../components/ui/SiteLogo';
+import LoadingSpinner from '../components/ui/LoadingSpinner';
 
 const EmailVerificationPage = () => {
   const navigate = useNavigate();
@@ -99,7 +100,7 @@ const EmailVerificationPage = () => {
         >
           <Card className="bg-dark-800 border-dark-700 text-center">
             <div className="py-12">
-              <div className="w-16 h-16 border-4 border-dark-600 border-t-primary-500 rounded-full animate-spin mx-auto mb-6" />
+              <LoadingSpinner tone="dark" className="mb-6" />
               <h2 className="text-2xl font-bold mb-2 text-dark-50">Verifying Email...</h2>
               <p className="text-dark-200">Please wait while we verify your email address</p>
             </div>

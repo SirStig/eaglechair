@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import logger from '../utils/logger';
 import { useSiteSettings } from '../hooks/useContent';
 import { getStateName } from '../utils/usStates';
+import LoadingSpinner from './ui/LoadingSpinner';
 
 const CONTEXT = 'USMapInteractive';
 const SVG_NS = 'http://www.w3.org/2000/svg';
@@ -353,10 +354,7 @@ const USMapInteractive = ({
       {/* Loading overlay */}
       {isLoading && (
         <div className="flex items-center justify-center h-96 bg-dark-700 rounded-lg border border-dark-500">
-          <div className="text-center">
-            <div className="animate-spin h-12 w-12 border-4 border-primary-500 border-t-transparent rounded-full mx-auto mb-4"></div>
-            <p className="text-dark-100">Loading interactive map...</p>
-          </div>
+          <LoadingSpinner tone="dark" label="Loading interactive map..." />
         </div>
       )}
 

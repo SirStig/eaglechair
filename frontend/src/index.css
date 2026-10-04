@@ -486,6 +486,18 @@ html {
   animation-play-state: paused;
 }
 
+/* Eagle mark pulse in the brand LoadingSpinner */
+@keyframes eagleBreathe {
+  0%, 100% {
+    transform: scale(1);
+    opacity: 1;
+  }
+  50% {
+    transform: scale(0.94);
+    opacity: 0.82;
+  }
+}
+
 /* Fade in animation for modals */
 @keyframes fadeIn {
   from {

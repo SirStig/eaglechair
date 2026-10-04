@@ -25,6 +25,7 @@ import ResponsiveImage from '../components/ui/ResponsiveImage';
 import logger from '../utils/logger';
 import { safeHref } from '../utils/safeUrl';
 import { isPublishFailed } from '../utils/cmsContentStore';
+import LoadingSpinner from '../components/ui/LoadingSpinner';
 
 const CONTEXT = 'HomePage';
 
@@ -606,7 +607,7 @@ const HomePage = () => {
 
         {categoriesLoading ? (
           <div className="w-full flex justify-center py-16">
-            <div className="w-12 h-12 border-4 border-cream-300 border-t-primary-500 rounded-full animate-spin" />
+            <LoadingSpinner size="lg" />
           </div>
         ) : (
           <div className="w-full bg-cream-50">
@@ -685,7 +686,7 @@ const HomePage = () => {
 
         {installationsLoading ? (
           <div className="h-[50vh] sm:h-[60vh] md:h-[70vh] flex items-center justify-center">
-            <div className="w-12 h-12 border-4 border-cream-300 border-t-primary-500 rounded-full animate-spin" />
+            <LoadingSpinner size="lg" />
           </div>
         ) : galleryImages.length > 0 ? (
           <div className="relative w-full">

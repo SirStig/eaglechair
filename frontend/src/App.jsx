@@ -13,6 +13,7 @@ import { useEditMode } from './contexts/useEditMode';
 import { useAuthStore, startAuthInit } from './store/authStore';
 import { useCartStore } from './store/cartStore';
 import { installAnalytics, trackPageView } from './utils/analytics';
+import { PageLoader } from './components/ui/LoadingSpinner';
 
 // Animation features (domAnimation) load in a separate chunk; m.* components
 // render their initial state until it arrives. The request starts as soon as
@@ -142,7 +143,7 @@ function App() {
               <ToastProvider>
                 <ScrollToTop />
                 <AdminEditModeToggle />
-                <Suspense fallback={null}>
+                <Suspense fallback={<PageLoader />}>
                   {/* Inside the route boundary on purpose: its effect runs only
                       after the (lazy) page has hydrated, so the auth store
                       update can't interrupt hydration (React error #421). */}
