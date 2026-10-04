@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useId, useRef } from 'react';
 import { Link } from 'react-router-dom';
 import Tag from './Tag';
 import VariationImageDisclaimer from './VariationImageDisclaimer';
@@ -6,6 +6,7 @@ import Button from './Button';
 import { getProductHoverImages, buildProductUrl } from '../../utils/apiHelpers';
 import SwatchImage from './SwatchImage';
 import ResponsiveImage from './ResponsiveImage';
+import { markMainLoading, markMainSettled, whenMainImagesIdle } from '../../utils/hoverImagePreload';
 
 // Catalog grid: 2 cols (<lg), 2 cols beside a ~320px sidebar (lg), 3 cols beside ~360px (xl)
 const DEFAULT_IMAGE_SIZES = '(min-width: 1280px) 25vw, (min-width: 1024px) 36vw, 50vw';
@@ -32,12 +33,47 @@ const ProductCard = ({ product, onQuickView, darkMode = false, compact = false, 
   const carouselImages = getProductHoverImages(product);
   const hasCarousel = carouselImages.length > 1;
 
+  // Angle images are stacked over the main image and toggled by visibility,
+  // so cycling is an instant swap rather than a fresh progressive load.
+  const cardId = useId();
+  const imageBoxRef = useRef(null);
+  const [mountAngles, setMountAngles] = useState(false);
+  const [loadedAngles, setLoadedAngles] = useState(() => new Set());
+
+  // While this card's main image is near the viewport and still loading,
+  // hold back everyone's angle images.
+  useEffect(() => {
+    const el = imageBoxRef.current;
+    if (imageLoaded || !el || typeof IntersectionObserver === 'undefined') return undefined;
+    const observer = new IntersectionObserver(([entry]) => {
+      if (entry.isIntersecting) markMainLoading(cardId);
+      else markMainSettled(cardId);
+    }, { rootMargin: '300px' });
+    observer.observe(el);
+    return () => {
+      observer.disconnect();
+      markMainSettled(cardId);
+    };
+  }, [imageLoaded, cardId]);
+
+  // Then load the angles in the background so they're ready before a hover
+  useEffect(() => {
+    if (!hasCarousel || !imageLoaded || imageError || mountAngles) return undefined;
+    return whenMainImagesIdle(() => setMountAngles(true));
+  }, [hasCarousel, imageLoaded, imageError, mountAngles]);
+
+  const handleMouseEnter = () => {
+    setIsHovered(true);
+    if (hasCarousel) setMountAngles(true);
+  };
+
   // Handle carousel rotation
   useEffect(() => {
     let interval;
 
     if (isHovered && hasCarousel) {
-      // Start cycling through images
+      // Jump to the next angle right away, then keep cycling
+      setActiveImageIndex(1);
       interval = setInterval(() => {
         setActiveImageIndex(prev => (prev + 1) % carouselImages.length);
       }, 700); // fast enough that angle shots read as the chair turning
@@ -49,8 +85,9 @@ const ProductCard = ({ product, onQuickView, darkMode = false, compact = false, 
     return () => clearInterval(interval);
   }, [isHovered, hasCarousel, carouselImages.length]);
 
-  // Determine which image to display
-  const displayImage = carouselImages[activeImageIndex];
+  // An angle that hasn't loaded yet leaves the main image showing
+  const activeAngle = isHovered && activeImageIndex > 0 ? carouselImages[activeImageIndex] : null;
+  const showingAngle = Boolean(activeAngle && loadedAngles.has(activeAngle));
 
   const finishes = product.customizations?.finishes?.slice(0, 5) || [];
   const colors = product.customizations?.colors?.slice(0, 5) || [];
@@ -75,7 +112,7 @@ const ProductCard = ({ product, onQuickView, darkMode = false, compact = false, 
   return (
     <div
       className="group flex flex-col h-full bg-transparent"
-      onMouseEnter={() => setIsHovered(true)}
+      onMouseEnter={handleMouseEnter}
       onMouseLeave={() => setIsHovered(false)}
     >
       <Link to={productUrl} className={`block relative overflow-hidden ${bgImage} flex-shrink-0 rounded-lg ${compact ? 'aspect-[4/3]' : 'aspect-[3/4]'}`}>
@@ -98,21 +135,36 @@ const ProductCard = ({ product, onQuickView, darkMode = false, compact = false, 
         )}
         {/* Main product image */}
         {!imageError && (
-          <div className="w-full h-full relative">
+          <div ref={imageBoxRef} className="w-full h-full relative">
             {product.variation_id && !product.variation_has_own_image && <VariationImageDisclaimer compact />}
             <ResponsiveImage
-              key={displayImage} // Force transition when image changes
-              src={displayImage || '/placeholder.svg'}
+              src={carouselImages[0] || '/placeholder.svg'}
               sizes={imageSizes}
               alt={product.name}
               onLoad={handleImageLoad}
               onError={handleImageError}
-              className={`w-full h-full object-contain transition-all duration-150 ${imageLoaded ? 'opacity-100' : 'opacity-0'
-                } ${isHovered && !hasCarousel ? 'group-hover:scale-105' : ''}`}
+              className={`w-full h-full object-contain transition-transform duration-150 ${imageLoaded ? 'opacity-100' : 'opacity-0'
+                } ${showingAngle ? 'invisible' : ''} ${isHovered && !hasCarousel ? 'group-hover:scale-105' : ''}`}
               style={{ mixBlendMode: 'multiply' }}
               priority={priority}
               fetchpriority={priority ? 'high' : 'low'}
             />
+
+            {mountAngles && carouselImages.slice(1).map((url) => (
+              <ResponsiveImage
+                key={url}
+                src={url}
+                sizes={imageSizes}
+                alt=""
+                aria-hidden="true"
+                placeholder={false}
+                loading="eager"
+                fetchpriority="low"
+                onLoad={() => setLoadedAngles((prev) => (prev.has(url) ? prev : new Set(prev).add(url)))}
+                className={`absolute inset-0 w-full h-full object-contain ${url === activeAngle && showingAngle ? '' : 'invisible'}`}
+                style={{ mixBlendMode: 'multiply' }}
+              />
+            ))}
 
             {/* Carousel Indicators (optional, keeping minimal for now as requested) */}
             {hasCarousel && isHovered && (

@@ -516,10 +516,32 @@ async def _build_sales_reps(db: "AsyncSession") -> List[Dict[str, Any]]:
     ]
 
 
+PRODUCT_INSTALL = "product_install"  # install photos shown only on product pages, not in the Gallery
+
+
+async def _build_product_installs(db: "AsyncSession") -> List[Dict[str, Any]]:
+    result = await db.execute(
+        select(Installation)
+        .where(Installation.is_active == True)
+        .where(Installation.project_type == PRODUCT_INSTALL)
+        .order_by(Installation.display_order.desc())
+    )
+    return [
+        {
+            "id": i.id,
+            "title": i.project_name,
+            "url": i.primary_image,
+            "productsUsed": [int(x) for x in parse_json_list(i.products_used) if str(x).isdigit()],
+        }
+        for i in result.scalars().all()
+    ]
+
+
 async def _build_gallery_images(db: "AsyncSession") -> List[Dict[str, Any]]:
     result = await db.execute(
         select(Installation)
         .where(Installation.is_active == True)
+        .where(Installation.project_type.is_distinct_from(PRODUCT_INSTALL))
         .order_by(Installation.display_order.desc())
     )
     return [
@@ -973,6 +995,7 @@ SECTION_BUILDERS: Dict[str, Callable[["AsyncSession"], Awaitable[Any]]] = {
     "heroSlides": _build_hero_slides,
     "salesReps": _build_sales_reps,
     "galleryImages": _build_gallery_images,
+    "productInstalls": _build_product_installs,
     "pageContent": _build_page_content,
     "features": _build_features,
     "companyValues": _build_company_values,

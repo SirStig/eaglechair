@@ -21,7 +21,12 @@ import {
   getCatalogPage,
   getCatalogLocation,
 } from '../utils/catalogUrl';
-import { findCategoryById, findNestedCategoryById } from '../utils/categoryTree';
+import {
+  findCategoryById,
+  findNestedCategoryById,
+  getChildren,
+  isNestedCategoryChild,
+} from '../utils/categoryTree';
 import { trackFilter } from '../utils/analytics';
 
 const CONTEXT = 'ProductCatalogPage';
@@ -94,15 +99,6 @@ const ProductCatalogPage = () => {
   const [showMobileFilters, setShowMobileFilters] = useState(false);
   const [resultMeta, setResultMeta] = useState({ total: 0, pages: 0 });
 
-  const [expandedSections, setExpandedSections] = useState({
-    category: false,
-    subcategory: false,
-    family: false,
-    filters: false,
-    dimensions: false,
-    features: false,
-  });
-
   const filters = useMemo(
     () =>
       resolveCatalogFilters({
@@ -124,10 +120,12 @@ const ProductCatalogPage = () => {
   const goToCatalog = useCallback(
     (nextFilters, nextPage = 1, options = {}) => {
       trackFilterChanges(filters, nextFilters, { families, finishes, upholsteries, colors });
+      // Include every category's children so a subcategory picked under a
+      // different parent than the current one still resolves to its slug.
       const { pathname, search } = getCatalogLocation(
         nextFilters,
         categories,
-        subcategories,
+        [...subcategories, ...categories.flatMap(getChildren)],
         nextPage
       );
       navigate({ pathname, search }, options);
@@ -170,15 +168,6 @@ const ProductCatalogPage = () => {
     const { pathname, search } = getCatalogLocation(legacyFilters, categories, subcategories, page);
     navigate({ pathname, search }, { replace: true });
   }, [categoryParam, categories, searchParams, subcategories, page, navigate]);
-
-  useEffect(() => {
-    if (categoryParam) {
-      setExpandedSections((prev) => (prev.category ? prev : { ...prev, category: true }));
-    }
-    if (subcategoryParam) {
-      setExpandedSections((prev) => (prev.subcategory ? prev : { ...prev, subcategory: true }));
-    }
-  }, [categoryParam, subcategoryParam]);
 
   useEffect(() => {
     // When a nested category is selected we still list its parent's children,
@@ -420,6 +409,22 @@ const ProductCatalogPage = () => {
     goToCatalog(newFilters, 1, key === 'search' ? { replace: true } : undefined);
   };
 
+  const updateFilters = (changes) => {
+    goToCatalog({ ...filters, ...changes }, 1);
+  };
+
+  // Pick a category and optionally one of its children. A nested category
+  // child filters by category_id; a product subcategory keeps the parent.
+  const selectCategory = (parent, child) => {
+    let next = { category_id: parent?.id ?? '', subcategory_id: '' };
+    if (child) {
+      next = isNestedCategoryChild(child)
+        ? { category_id: child.id, subcategory_id: '' }
+        : { category_id: parent.id, subcategory_id: child.id };
+    }
+    goToCatalog({ ...filters, ...next }, 1);
+  };
+
   // Clearing filters keeps the visitor's chosen page size
   const clearFilters = () => {
     goToCatalog({ ...DEFAULT_CATALOG_FILTERS, per_page: filters.per_page }, 1);
@@ -428,13 +433,6 @@ const ProductCatalogPage = () => {
   const handlePageSizeChange = (size) => {
     if (size === filters.per_page) return;
     goToCatalog({ ...filters, per_page: size }, 1);
-  };
-
-  const toggleFilterSection = (section) => {
-    setExpandedSections((prev) => ({
-      ...prev,
-      [section]: !prev[section],
-    }));
   };
 
   const toggleArrayFilter = (filterKey, value) => {
@@ -627,24 +625,24 @@ const ProductCatalogPage = () => {
             <FilterSidebar
               filters={filters}
               updateFilter={updateFilter}
+              updateFilters={updateFilters}
+              selectCategory={selectCategory}
               clearFilters={clearFilters}
               hasActiveFilters={hasActiveFilters}
-              expandedSections={expandedSections}
-              toggleFilterSection={toggleFilterSection}
               toggleArrayFilter={toggleArrayFilter}
               categories={categories}
-              subcategories={subcategories}
               families={families}
               finishes={finishes}
               upholsteries={upholsteries}
               colors={colors}
-              debouncedSearch={debouncedSearch}
               showFinishFilter={showFinishFilter}
               showUpholsteryFilter={showUpholsteryFilter}
               showStackableFilter={showStackableFilter}
               showOutdoorFilter={showOutdoorFilter}
               showMobileFilters={showMobileFilters}
               onCloseMobile={() => setShowMobileFilters(false)}
+              resultCount={resultMeta.total}
+              loading={loading}
             />
           </aside>
 

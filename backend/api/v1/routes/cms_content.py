@@ -502,7 +502,10 @@ async def get_installations(
     """
     logger.info(f"Fetching installations (project_type={project_type})")
     
-    query = select(Installation).where(Installation.is_active == True)
+    query = select(Installation).where(
+        Installation.is_active == True,
+        Installation.project_type.is_distinct_from("product_install"),
+    )
     
     if project_type:
         query = query.where(Installation.project_type == project_type)

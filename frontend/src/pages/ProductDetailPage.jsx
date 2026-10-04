@@ -28,7 +28,7 @@ const HERO_IMAGE_SIZES = '(min-width: 1280px) 600px, (min-width: 1024px) 50vw, 1
 const MOBILE_VARIATIONS_SHOWN = 3;
 import SwatchImage from '../components/ui/SwatchImage';
 import { useToast } from '../contexts/ToastContext';
-import { useInstallations } from '../hooks/useContent';
+import { useInstallations, useProductInstalls } from '../hooks/useContent';
 import logger from '../utils/logger';
 
 const CONTEXT = 'ProductDetailPage';
@@ -52,6 +52,7 @@ const ProductDetailPage = () => {
   const [product, setProduct] = useState(null);
   const [relatedProducts, setRelatedProducts] = useState([]);
   const { data: installations } = useInstallations();
+  const { data: productInstalls } = useProductInstalls();
   const [loading, setLoading] = useState(true);
   const [selectedImage, setSelectedImage] = useState(0);
   const [customizeImageIndex, setCustomizeImageIndex] = useState(0);
@@ -1226,9 +1227,12 @@ const ProductDetailPage = () => {
 
       {/* Installation photos that show this product */}
       {(() => {
-        const usedIn = (installations || []).filter(
-          (inst) => (inst.productsUsed || []).map(Number).includes(Number(product.id))
-        );
+        const showsProduct = (inst) => (inst.productsUsed || []).map(Number).includes(Number(product.id));
+        // Curated gallery photos first, then product-only install photos; 4 at most.
+        const usedIn = [
+          ...(installations || []).filter(showsProduct),
+          ...(productInstalls || []).filter(showsProduct),
+        ].slice(0, 4);
         if (usedIn.length === 0) return null;
         return (
           <section className="bg-cream-50 border-t border-cream-200">
@@ -1239,8 +1243,8 @@ const ProductDetailPage = () => {
                   View Gallery <span aria-hidden="true">&rarr;</span>
                 </Link>
               </div>
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                {usedIn.slice(0, 6).map((inst) => (
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                {usedIn.map((inst) => (
                   <figure key={inst.id} className="overflow-hidden rounded-lg bg-white border border-cream-200">
                     <ResponsiveImage
                       src={inst.url || inst.primaryImage}

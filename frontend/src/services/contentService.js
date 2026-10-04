@@ -60,6 +60,7 @@ export const staticSelectors = {
   upholsteries: (content) => content.upholsteries || [],
   laminates: (content) => content.laminates || [],
   hardware: (content) => content.hardware || [],
+  productInstalls: (content) => content.productInstalls || [],
   catalogs: (content, catalogType = null) => {
     const catalogs = content.catalogs || [];
     if (catalogType) {
@@ -344,6 +345,11 @@ export const getLaminates = async () => {
 };
 
 // Hardware
+// Install photos shown only on product pages; they live in the static export.
+export const getProductInstalls = async () => {
+  return getStaticOrAPI(staticSelectors.productInstalls, async () => [], 'Fetching product installs');
+};
+
 export const getHardware = async () => {
   return getStaticOrAPI(
     staticSelectors.hardware,
@@ -481,6 +487,7 @@ export default {
   getUpholsteries,
   getLaminates,
   getHardware,
+  getProductInstalls,
   getCatalogs,
   getPageContent,
   submitFeedback,

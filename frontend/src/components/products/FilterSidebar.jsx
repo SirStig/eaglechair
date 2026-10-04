@@ -1,28 +1,275 @@
-import { X, ChevronDown, ChevronUp, ArrowUpDown, Search, Folder, Grid3x3, Users } from 'lucide-react';
-import { childFilterKey, isChildActive } from '../../utils/categoryTree';
+import { useState } from 'react';
+import { X, ChevronDown, ChevronRight, Search, Check } from 'lucide-react';
+import { getChildren, findCategoryById, findNestedCategoryById } from '../../utils/categoryTree';
+
+const sameId = (a, b) => String(a) === String(b);
+
+const inputClass =
+  'w-full px-3 py-2 text-sm border border-cream-300 bg-white text-slate-800 placeholder-slate-400 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 transition-all';
+
+// Collapsible block. Sections with an active filter start open so a visitor
+// can always see (and undo) what is applied.
+const Section = ({ title, count = 0, open, onToggle, children }) => (
+  <div className="border-b border-cream-200 last:border-b-0">
+    <button
+      type="button"
+      onClick={onToggle}
+      aria-expanded={open}
+      className="w-full flex items-center justify-between py-3.5 text-sm font-semibold text-slate-800 hover:text-primary-600 transition-colors"
+    >
+      <span className="flex items-center gap-2">
+        {title}
+        {count > 0 && (
+          <span className="text-[11px] leading-none bg-primary-600 text-white px-1.5 py-1 rounded-full font-semibold min-w-[20px] text-center">
+            {count}
+          </span>
+        )}
+      </span>
+      <ChevronDown className={`w-4 h-4 text-slate-500 transition-transform ${open ? 'rotate-180' : ''}`} />
+    </button>
+    {open && <div className="pb-4">{children}</div>}
+  </div>
+);
+
+const CheckRow = ({ checked, onChange, label }) => (
+  <label className="flex items-center gap-2.5 py-1.5 cursor-pointer text-sm text-slate-700 hover:text-slate-900">
+    <input
+      type="checkbox"
+      checked={checked}
+      onChange={onChange}
+      className="h-4 w-4 text-primary-600 border-cream-300 rounded focus:ring-primary-500"
+    />
+    <span className="flex-1 truncate">{label}</span>
+  </label>
+);
+
+const RangeInputs = ({ label, minValue, maxValue, onMin, onMax }) => (
+  <div>
+    <span className="block text-xs font-medium text-slate-600 mb-1.5">{label}</span>
+    <div className="flex items-center gap-2">
+      <input type="number" inputMode="decimal" placeholder="Min" aria-label={`${label} minimum`} value={minValue} onChange={(e) => onMin(e.target.value)} className={inputClass} />
+      <span className="text-slate-400 text-sm">–</span>
+      <input type="number" inputMode="decimal" placeholder="Max" aria-label={`${label} maximum`} value={maxValue} onChange={(e) => onMax(e.target.value)} className={inputClass} />
+    </div>
+  </div>
+);
+
+const CheckList = ({ items, selected, onToggle, limit = 8 }) => {
+  const [showAll, setShowAll] = useState(false);
+  const visible = showAll ? items : items.slice(0, limit);
+  return (
+    <div>
+      {visible.map((item) => (
+        <CheckRow
+          key={item.id}
+          label={item.name}
+          checked={selected.includes(String(item.id))}
+          onChange={() => onToggle(String(item.id))}
+        />
+      ))}
+      {items.length > limit && (
+        <button
+          type="button"
+          onClick={() => setShowAll((v) => !v)}
+          className="mt-1 text-xs font-medium text-primary-600 hover:text-primary-700"
+        >
+          {showAll ? 'Show fewer' : `Show all ${items.length}`}
+        </button>
+      )}
+    </div>
+  );
+};
+
+// One tree for categories and their children: picking a category opens its
+// subcategories right underneath it.
+const CategoryTree = ({ categories, activeParent, activeChild, selectCategory }) => {
+  // Explicit open/closed choices; otherwise only the active category is open.
+  const [openState, setOpenState] = useState({});
+  const isOpen = (cat) => openState[cat.id] ?? sameId(cat.id, activeParent?.id);
+  const toggleOpen = (cat) => setOpenState((prev) => ({ ...prev, [cat.id]: !isOpen(cat) }));
+
+  const rowBase =
+    'w-full flex items-center justify-between gap-2 text-left text-sm rounded-lg transition-colors';
+
+  return (
+    <ul className="space-y-0.5">
+      <li>
+        <button
+          type="button"
+          onClick={() => selectCategory(null, null)}
+          className={`${rowBase} px-3 py-2 ${!activeParent ? 'bg-primary-600 text-white font-semibold' : 'text-slate-700 hover:bg-cream-100'}`}
+        >
+          All Products
+        </button>
+      </li>
+      {categories.map((cat) => {
+        const children = getChildren(cat);
+        const isParentActive = sameId(cat.id, activeParent?.id);
+        const isSelected = isParentActive && !activeChild;
+        const open = children.length > 0 && isOpen(cat);
+        return (
+          <li key={cat.id}>
+            <div
+              className={`flex items-center rounded-lg ${isSelected
+                ? 'bg-primary-600 text-white'
+                : isParentActive
+                  ? 'bg-primary-50 text-primary-800'
+                  : 'text-slate-700 hover:bg-cream-100'
+              }`}
+            >
+              <button
+                type="button"
+                onClick={() => {
+                  setOpenState((prev) => ({ ...prev, [cat.id]: true }));
+                  if (!isSelected) selectCategory(cat, null);
+                }}
+                aria-current={isSelected ? 'true' : undefined}
+                className={`${rowBase} flex-1 min-w-0 pl-3 pr-1 py-2 ${isParentActive ? 'font-semibold' : ''}`}
+              >
+                <span className="truncate">{cat.name}</span>
+                {cat.product_count > 0 && (
+                  <span className={`text-xs ${isSelected ? 'text-white/80' : 'text-slate-400'}`}>
+                    {cat.product_count}
+                  </span>
+                )}
+              </button>
+              {children.length > 0 ? (
+                <button
+                  type="button"
+                  onClick={() => toggleOpen(cat)}
+                  aria-expanded={open}
+                  aria-label={`${open ? 'Hide' : 'Show'} ${cat.name} subcategories`}
+                  className={`flex-shrink-0 w-9 h-9 flex items-center justify-center rounded-lg ${isSelected ? 'hover:bg-white/15' : 'hover:bg-cream-200'}`}
+                >
+                  <ChevronRight className={`w-4 h-4 transition-transform ${open ? 'rotate-90' : ''}`} />
+                </button>
+              ) : (
+                <span className="w-9 flex-shrink-0" />
+              )}
+            </div>
+
+            {open && (
+              <ul className="ml-4 mt-0.5 mb-1.5 pl-2 border-l-2 border-cream-200 space-y-0.5">
+                {children.map((child) => {
+                  const active =
+                    isParentActive &&
+                    !!activeChild &&
+                    child.type === activeChild.type &&
+                    sameId(child.id, activeChild.id);
+                  return (
+                    <li key={`${child.type || 'subcategory'}-${child.id}`}>
+                      <button
+                        type="button"
+                        // Clicking the active child again steps back to its parent
+                        onClick={() => selectCategory(cat, active ? null : child)}
+                        aria-current={active ? 'true' : undefined}
+                        className={`${rowBase} px-3 py-1.5 ${active
+                          ? 'bg-primary-600 text-white font-semibold'
+                          : 'text-slate-600 hover:bg-cream-100 hover:text-slate-900'
+                        }`}
+                      >
+                        <span className="flex items-center gap-1.5 min-w-0">
+                          {active && <Check className="w-3.5 h-3.5 flex-shrink-0" />}
+                          <span className="truncate">{child.name}</span>
+                        </span>
+                        {child.product_count > 0 && (
+                          <span className={`text-xs ${active ? 'text-white/80' : 'text-slate-400'}`}>
+                            {child.product_count}
+                          </span>
+                        )}
+                      </button>
+                    </li>
+                  );
+                })}
+              </ul>
+            )}
+          </li>
+        );
+      })}
+    </ul>
+  );
+};
 
 const FilterSidebar = ({
   filters,
   updateFilter,
+  updateFilters,
+  selectCategory,
   clearFilters,
   hasActiveFilters,
-  expandedSections,
-  toggleFilterSection,
   toggleArrayFilter,
   categories,
-  subcategories,
   families,
   finishes,
   upholsteries,
   colors,
-  debouncedSearch,
   showFinishFilter,
   showUpholsteryFilter,
   showStackableFilter,
   showOutdoorFilter,
   showMobileFilters,
   onCloseMobile,
+  resultCount,
+  loading,
 }) => {
+  const [openSections, setOpenSections] = useState({});
+  const isOpen = (key, active) => openSections[key] ?? active;
+  const toggle = (key, active) =>
+    setOpenSections((prev) => ({ ...prev, [key]: !isOpen(key, active) }));
+
+  // Resolve the selected category / child from the tree
+  const nested = findNestedCategoryById(categories, filters.category_id);
+  const activeParent = nested ? nested.parent : findCategoryById(categories, filters.category_id);
+  const activeChild = nested
+    ? nested.category
+    : getChildren(activeParent).find(
+      (c) => c.type !== 'category' && sameId(c.id, filters.subcategory_id)
+    );
+
+  const nameOf = (list, id) => list.find((item) => sameId(item.id, id))?.name || id;
+  const range = (min, max) =>
+    min && max ? `${min}–${max}″` : min ? `≥ ${min}″` : `≤ ${max}″`;
+
+  // Removable chips for everything currently applied
+  const chips = [];
+  if (activeParent) chips.push({ key: 'cat', label: activeParent.name, onRemove: () => selectCategory(null, null) });
+  if (activeChild) chips.push({ key: 'child', label: activeChild.name, onRemove: () => selectCategory(activeParent, null) });
+  if (filters.search) chips.push({ key: 'search', label: `“${filters.search}”`, onRemove: () => updateFilter('search', '') });
+  if (filters.family_id) chips.push({ key: 'family', label: nameOf(families, filters.family_id), onRemove: () => updateFilter('family_id', '') });
+  filters.finish_ids.forEach((id) => chips.push({ key: `fin-${id}`, label: nameOf(finishes, id), onRemove: () => toggleArrayFilter('finish_ids', id) }));
+  filters.upholstery_ids.forEach((id) => chips.push({ key: `uph-${id}`, label: nameOf(upholsteries, id), onRemove: () => toggleArrayFilter('upholstery_ids', id) }));
+  filters.color_ids.forEach((id) => chips.push({ key: `col-${id}`, label: nameOf(colors, id), onRemove: () => toggleArrayFilter('color_ids', id) }));
+  if (filters.is_stackable) chips.push({ key: 'stack', label: 'Stackable', onRemove: () => updateFilter('is_stackable', null) });
+  if (filters.is_outdoor_suitable) chips.push({ key: 'outdoor', label: 'Outdoor', onRemove: () => updateFilter('is_outdoor_suitable', null) });
+  if (filters.ada_compliant) chips.push({ key: 'ada', label: 'ADA compliant', onRemove: () => updateFilter('ada_compliant', null) });
+  if (filters.featured) chips.push({ key: 'featured', label: 'Featured', onRemove: () => updateFilter('featured', false) });
+  if (filters.new) chips.push({ key: 'new', label: 'New', onRemove: () => updateFilter('new', false) });
+  if (filters.min_seat_height || filters.max_seat_height) {
+    chips.push({
+      key: 'seat',
+      label: `Seat ${range(filters.min_seat_height, filters.max_seat_height)}`,
+      onRemove: () => updateFilters({ min_seat_height: '', max_seat_height: '' }),
+    });
+  }
+  if (filters.min_width || filters.max_width) {
+    chips.push({
+      key: 'width',
+      label: `Width ${range(filters.min_width, filters.max_width)}`,
+      onRemove: () => updateFilters({ min_width: '', max_width: '' }),
+    });
+  }
+  if (filters.max_lead_time) chips.push({ key: 'lead', label: `≤ ${filters.max_lead_time} days`, onRemove: () => updateFilter('max_lead_time', '') });
+  if (filters.stock_status) chips.push({ key: 'stock', label: filters.stock_status, onRemove: () => updateFilter('stock_status', '') });
+
+  const materialsCount = filters.finish_ids.length + filters.upholstery_ids.length + filters.color_ids.length;
+  const featureCount = [filters.is_stackable, filters.is_outdoor_suitable, filters.ada_compliant, filters.featured, filters.new].filter(Boolean).length;
+  const sizeCount = [filters.min_seat_height || filters.max_seat_height, filters.min_width || filters.max_width].filter(Boolean).length;
+  const availabilityCount = [filters.max_lead_time, filters.stock_status].filter(Boolean).length;
+  const showMaterials =
+    (showFinishFilter && finishes.length > 0) ||
+    (showUpholsteryFilter && upholsteries.length > 0) ||
+    colors.length > 0;
+
   // Sticky stops at the bottom of the sidebar column (which spans the product
   // grid), so on desktop the panel follows the scroll and parks above the footer.
   return (
@@ -41,20 +288,20 @@ const FilterSidebar = ({
         lg:max-h-[calc(100dvh-6rem)]
       `}
     >
-      <div className="flex items-center justify-between p-4 sm:p-5 border-b border-cream-200 bg-cream-50 flex-shrink-0">
-        <h2 className="text-lg sm:text-xl font-bold text-slate-800">Filters</h2>
-        <div className="flex items-center gap-2">
+      <div className="flex items-center justify-between px-4 sm:px-5 py-3.5 border-b border-cream-200 bg-cream-50 flex-shrink-0">
+        <h2 className="text-lg font-bold text-slate-800">Filters</h2>
+        <div className="flex items-center gap-1">
           {hasActiveFilters && (
             <button
+              type="button"
               onClick={clearFilters}
-              className="text-xs sm:text-sm text-primary-600 hover:text-primary-700 font-medium flex items-center gap-1 transition-colors min-h-[32px] px-2"
+              className="text-sm text-primary-600 hover:text-primary-700 font-medium transition-colors min-h-[32px] px-2"
             >
-              <X className="w-3 h-3 sm:w-4 sm:h-4" />
-              <span className="hidden sm:inline">Clear All</span>
-              <span className="sm:hidden">Clear</span>
+              Clear all
             </button>
           )}
           <button
+            type="button"
             onClick={onCloseMobile}
             className="lg:hidden text-slate-600 hover:text-slate-800 transition-colors min-h-[32px] min-w-[32px] flex items-center justify-center"
             aria-label="Close filters"
@@ -64,416 +311,231 @@ const FilterSidebar = ({
         </div>
       </div>
 
-      <div className="p-4 sm:p-5 space-y-4 filter-sidebar-scroll flex-1 min-h-0 overflow-y-auto overflow-x-hidden overscroll-contain [-webkit-overflow-scrolling:touch]">
-        <div className="pb-4 border-b border-cream-200">
-          <label className="flex items-center gap-2 text-sm font-semibold text-slate-700 mb-2.5">
-            <ArrowUpDown className="w-4 h-4" />
-            Sort Products
-          </label>
-          <select
-            value={filters.sortBy}
-            onChange={(e) => updateFilter('sortBy', e.target.value)}
-            className="w-full px-3 py-2.5 border border-cream-300 bg-white text-slate-800 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 text-sm font-medium transition-all"
-          >
-            <option value="smart">Smart Sort (Recommended)</option>
-            <option value="featured">Featured First</option>
-            <option value="name-asc">Name (A-Z)</option>
-            <option value="name-desc">Name (Z-A)</option>
-          </select>
-        </div>
-
-        <div>
-          <label className="flex items-center gap-2 text-sm font-semibold text-slate-700 mb-2">
-            <Search className="w-4 h-4" />
-            Search Products
-          </label>
-          <input
-            type="text"
-            value={filters.search}
-            onChange={(e) => updateFilter('search', e.target.value)}
-            placeholder="Search by name, model..."
-            className="w-full px-3 py-2.5 border border-cream-300 bg-white text-slate-800 placeholder-slate-400 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 text-sm transition-all"
-          />
-          {debouncedSearch && (
-            <p className="mt-1.5 text-xs text-slate-500">
-              Searching for &quot;{debouncedSearch}&quot;...
-            </p>
-          )}
-        </div>
-
-        <div className="pb-4 border-b border-cream-200">
-          <button
-            onClick={() => toggleFilterSection('category')}
-            className={`w-full flex items-center justify-between text-sm font-semibold text-slate-700 hover:text-primary-600 transition-colors ${expandedSections.category ? 'mb-3' : ''}`}
-          >
-            <span className="flex items-center gap-2">
-              <Grid3x3 className="w-4 h-4" />
-              Category
-              {filters.category_id && (
-                <span className="text-xs bg-primary-100 text-primary-700 px-2 py-0.5 rounded-full font-medium">
-                  1
-                </span>
-              )}
-            </span>
-            {expandedSections.category ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
-          </button>
-
-          {expandedSections.category && (
-            <div className="space-y-1.5">
-              <button
-                onClick={() => updateFilter('category_id', '')}
-                className={`w-full text-left px-3 py-2 rounded-lg transition-all text-sm ${!filters.category_id
-                  ? 'bg-primary-600 text-white font-semibold shadow-sm'
-                  : 'hover:bg-cream-100 text-slate-700'
-                }`}
-              >
-                All Categories
-              </button>
-              {categories.map((category) => (
+      <div className="px-4 sm:px-5 pt-4 filter-sidebar-scroll flex-1 min-h-0 overflow-y-auto overflow-x-hidden overscroll-contain [-webkit-overflow-scrolling:touch]">
+        {chips.length > 0 && (
+          <div className="mb-4">
+            <p className="text-xs font-semibold uppercase tracking-wide text-slate-500 mb-2">Applied</p>
+            <div className="flex flex-wrap gap-1.5">
+              {chips.map((chip) => (
                 <button
-                  key={category.id}
-                  onClick={() => updateFilter('category_id', category.id)}
-                  className={`w-full text-left px-3 py-2 rounded-lg transition-all text-sm ${filters.category_id === category.id || filters.category_id === String(category.id)
-                    ? 'bg-primary-600 text-white font-semibold shadow-sm'
-                    : 'hover:bg-cream-100 text-slate-700'
-                  }`}
+                  key={chip.key}
+                  type="button"
+                  onClick={chip.onRemove}
+                  aria-label={`Remove ${chip.label}`}
+                  className="inline-flex items-center gap-1 max-w-full pl-2.5 pr-1.5 py-1 rounded-full bg-primary-50 border border-primary-200 text-xs font-medium text-primary-800 hover:bg-primary-100 transition-colors"
                 >
-                  <div className="flex items-center justify-between">
-                    <span>{category.name}</span>
-                    {category.product_count > 0 && (
-                      <span className={`text-xs ${filters.category_id === category.id || filters.category_id === String(category.id) ? 'text-white/80' : 'text-slate-500'}`}>
-                        {category.product_count}
-                      </span>
-                    )}
-                  </div>
+                  <span className="truncate">{chip.label}</span>
+                  <X className="w-3 h-3 flex-shrink-0" />
                 </button>
               ))}
             </div>
-          )}
-        </div>
-
-        {subcategories.length > 0 && (
-          <div className="pb-4 border-b border-cream-200">
-            <button
-              onClick={() => toggleFilterSection('subcategory')}
-              className="w-full flex items-center justify-between text-sm font-semibold text-slate-700 mb-3 hover:text-primary-600 transition-colors"
-            >
-              <span className="flex items-center gap-2">
-                <Folder className="w-4 h-4" />
-                Subcategory
-                {subcategories.some((subcat) => isChildActive(subcat, filters)) && (
-                  <span className="text-xs bg-primary-100 text-primary-700 px-2 py-0.5 rounded-full font-medium">
-                    1
-                  </span>
-                )}
-              </span>
-              {expandedSections.subcategory ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
-            </button>
-
-            {expandedSections.subcategory && (
-              <div className="space-y-1.5">
-                {subcategories.map((subcat) => {
-                  const isActive = isChildActive(subcat, filters);
-                  return (
-                    <button
-                      key={`${subcat.type || 'subcategory'}-${subcat.id}`}
-                      onClick={() => updateFilter(childFilterKey(subcat), subcat.id)}
-                      className={`w-full text-left px-3 py-2 rounded-lg transition-all text-sm ${isActive
-                        ? 'bg-primary-600 text-white font-semibold shadow-sm'
-                        : 'hover:bg-cream-100 text-slate-700'
-                      }`}
-                    >
-                      <div className="flex items-center justify-between">
-                        <span>{subcat.name}</span>
-                        {subcat.product_count > 0 && (
-                          <span className={`text-xs ${isActive ? 'text-white/80' : 'text-slate-500'}`}>
-                            {subcat.product_count}
-                          </span>
-                        )}
-                      </div>
-                    </button>
-                  );
-                })}
-              </div>
-            )}
           </div>
         )}
+
+        <div className="space-y-2.5 pb-4 border-b border-cream-200">
+          <div className="relative">
+            <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+            <input
+              type="search"
+              value={filters.search}
+              onChange={(e) => updateFilter('search', e.target.value)}
+              placeholder="Search name or model #"
+              aria-label="Search products"
+              className={`${inputClass} pl-9 py-2.5`}
+            />
+          </div>
+          <select
+            value={filters.sortBy}
+            onChange={(e) => updateFilter('sortBy', e.target.value)}
+            aria-label="Sort products"
+            className={`${inputClass} py-2.5`}
+          >
+            <option value="smart">Sort: Recommended</option>
+            <option value="featured">Sort: Featured first</option>
+            <option value="name-asc">Sort: Name A–Z</option>
+            <option value="name-desc">Sort: Name Z–A</option>
+          </select>
+        </div>
+
+        <div className="py-4 border-b border-cream-200">
+          <h3 className="text-sm font-semibold text-slate-800 mb-2">Category</h3>
+          <CategoryTree
+            categories={categories}
+            activeParent={activeParent}
+            activeChild={activeChild}
+            selectCategory={selectCategory}
+          />
+        </div>
 
         {families.length > 0 && (
-          <div className="pb-4 border-b border-cream-200">
-            <button
-              onClick={() => toggleFilterSection('family')}
-              className={`w-full flex items-center justify-between text-sm font-semibold text-slate-700 hover:text-primary-600 transition-colors ${expandedSections.family ? 'mb-3' : ''}`}
-            >
-              <span className="flex items-center gap-2">
-                <Users className="w-4 h-4" />
-                Product Family
-                {filters.family_id && (
-                  <span className="text-xs bg-primary-100 text-primary-700 px-2 py-0.5 rounded-full font-medium">
-                    1
-                  </span>
-                )}
-              </span>
-              {expandedSections.family ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
-            </button>
-
-            {expandedSections.family && (
-              <div className="space-y-1.5">
-                <button
-                  onClick={() => updateFilter('family_id', '')}
-                  className={`w-full text-left px-3 py-2 rounded-lg transition-all text-sm ${!filters.family_id
-                    ? 'bg-primary-600 text-white font-semibold shadow-sm'
-                    : 'hover:bg-cream-100 text-slate-700'
-                  }`}
-                >
-                  All Families
-                </button>
-                {families.map((family) => (
+          <Section
+            title="Product Family"
+            count={filters.family_id ? 1 : 0}
+            open={isOpen('family', !!filters.family_id)}
+            onToggle={() => toggle('family', !!filters.family_id)}
+          >
+            <div className="space-y-0.5 max-h-72 overflow-y-auto pr-1">
+              {families.map((family) => {
+                const active = sameId(filters.family_id, family.id);
+                return (
                   <button
                     key={family.id}
-                    onClick={() => updateFilter('family_id', family.id)}
-                    className={`w-full text-left px-3 py-2 rounded-lg transition-all text-sm ${filters.family_id === family.id || filters.family_id === String(family.id)
-                      ? 'bg-primary-600 text-white font-semibold shadow-sm'
-                      : 'hover:bg-cream-100 text-slate-700'
+                    type="button"
+                    onClick={() => updateFilter('family_id', active ? '' : family.id)}
+                    aria-pressed={active}
+                    className={`w-full flex items-center justify-between gap-2 px-3 py-1.5 rounded-lg text-left text-sm transition-colors ${active
+                      ? 'bg-primary-600 text-white font-semibold'
+                      : 'text-slate-700 hover:bg-cream-100'
                     }`}
                   >
-                    <div className="flex items-center justify-between">
-                      <span className="truncate pr-2">{family.name}</span>
-                      {family.product_count > 0 && (
-                        <span className={`text-xs flex-shrink-0 ${filters.family_id === family.id || filters.family_id === String(family.id) ? 'text-white/80' : 'text-slate-500'}`}>
-                          {family.product_count}
-                        </span>
-                      )}
-                    </div>
+                    <span className="truncate">{family.name}</span>
+                    {family.product_count > 0 && (
+                      <span className={`text-xs flex-shrink-0 ${active ? 'text-white/80' : 'text-slate-400'}`}>
+                        {family.product_count}
+                      </span>
+                    )}
                   </button>
-                ))}
-              </div>
-            )}
-          </div>
+                );
+              })}
+            </div>
+          </Section>
         )}
 
-        <div>
-          <button
-            onClick={() => toggleFilterSection('filters')}
-            className="w-full flex items-center justify-between text-sm font-medium text-slate-700 mb-2"
-          >
-            <span>Materials & Finishes</span>
-            {expandedSections.filters ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
-          </button>
+        <Section
+          title="Features"
+          count={featureCount}
+          open={isOpen('features', featureCount > 0)}
+          onToggle={() => toggle('features', featureCount > 0)}
+        >
+          {showStackableFilter && (
+            <CheckRow label="Stackable" checked={filters.is_stackable === true} onChange={(e) => updateFilter('is_stackable', e.target.checked ? true : null)} />
+          )}
+          {showOutdoorFilter && (
+            <CheckRow label="Outdoor suitable" checked={filters.is_outdoor_suitable === true} onChange={(e) => updateFilter('is_outdoor_suitable', e.target.checked ? true : null)} />
+          )}
+          <CheckRow label="ADA compliant" checked={filters.ada_compliant === true} onChange={(e) => updateFilter('ada_compliant', e.target.checked ? true : null)} />
+          <CheckRow label="Featured" checked={!!filters.featured} onChange={(e) => updateFilter('featured', e.target.checked)} />
+          <CheckRow label="New products" checked={!!filters.new} onChange={(e) => updateFilter('new', e.target.checked)} />
+        </Section>
 
-          {expandedSections.filters && (
-            <div className="space-y-3">
+        {showMaterials && (
+          <Section
+            title="Materials & Finishes"
+            count={materialsCount}
+            open={isOpen('materials', materialsCount > 0)}
+            onToggle={() => toggle('materials', materialsCount > 0)}
+          >
+            <div className="space-y-4">
               {showFinishFilter && finishes.length > 0 && (
                 <div>
-                  <label className="block text-xs font-medium text-slate-600 mb-1.5">Finishes</label>
-                  <div className="space-y-1">
-                    {finishes.slice(0, 10).map((finish) => (
-                      <label key={finish.id} className="flex items-center cursor-pointer text-sm">
-                        <input
-                          type="checkbox"
-                          checked={filters.finish_ids.includes(String(finish.id))}
-                          onChange={() => toggleArrayFilter('finish_ids', String(finish.id))}
-                          className="mr-2 h-4 w-4 text-primary-600 border-cream-300 rounded focus:ring-primary-500"
-                        />
-                        <span className="text-slate-700">{finish.name}</span>
-                      </label>
-                    ))}
-                  </div>
+                  <span className="block text-xs font-semibold uppercase tracking-wide text-slate-500 mb-1">Finish</span>
+                  <CheckList items={finishes} selected={filters.finish_ids} onToggle={(id) => toggleArrayFilter('finish_ids', id)} />
                 </div>
               )}
-
               {showUpholsteryFilter && upholsteries.length > 0 && (
                 <div>
-                  <label className="block text-xs font-medium text-slate-600 mb-1.5">Upholstery</label>
-                  <div className="space-y-1">
-                    {upholsteries.slice(0, 10).map((upholstery) => (
-                      <label key={upholstery.id} className="flex items-center cursor-pointer text-sm">
-                        <input
-                          type="checkbox"
-                          checked={filters.upholstery_ids.includes(String(upholstery.id))}
-                          onChange={() => toggleArrayFilter('upholstery_ids', String(upholstery.id))}
-                          className="mr-2 h-4 w-4 text-primary-600 border-cream-300 rounded focus:ring-primary-500"
-                        />
-                        <span className="text-slate-700">{upholstery.name}</span>
-                      </label>
-                    ))}
-                  </div>
+                  <span className="block text-xs font-semibold uppercase tracking-wide text-slate-500 mb-1">Upholstery</span>
+                  <CheckList items={upholsteries} selected={filters.upholstery_ids} onToggle={(id) => toggleArrayFilter('upholstery_ids', id)} />
                 </div>
               )}
-
               {colors.length > 0 && (
                 <div>
-                  <label className="block text-xs font-medium text-slate-600 mb-1.5">Colors</label>
-                  <div className="grid grid-cols-4 gap-2">
-                    {colors.slice(0, 12).map((color) => (
-                      <button
-                        key={color.id}
-                        onClick={() => toggleArrayFilter('color_ids', String(color.id))}
-                        className={`w-full aspect-square rounded-lg border-2 transition-all ${filters.color_ids.includes(String(color.id))
-                          ? 'border-primary-600 ring-2 ring-primary-200'
-                          : 'border-cream-300 hover:border-cream-400'
-                        }`}
-                        style={{ backgroundColor: color.hex_value || '#ccc' }}
-                        title={color.name}
-                      />
-                    ))}
+                  <span className="block text-xs font-semibold uppercase tracking-wide text-slate-500 mb-2">Color</span>
+                  <div className="grid grid-cols-6 gap-2">
+                    {colors.map((color) => {
+                      const active = filters.color_ids.includes(String(color.id));
+                      return (
+                        <button
+                          key={color.id}
+                          type="button"
+                          onClick={() => toggleArrayFilter('color_ids', String(color.id))}
+                          aria-pressed={active}
+                          aria-label={color.name}
+                          title={color.name}
+                          className={`aspect-square rounded-full border-2 transition-all ${active
+                            ? 'border-primary-600 ring-2 ring-primary-200 ring-offset-1'
+                            : 'border-cream-300 hover:border-slate-400'
+                          }`}
+                          style={{ backgroundColor: color.hex_value || '#ccc' }}
+                        />
+                      );
+                    })}
                   </div>
                 </div>
               )}
             </div>
-          )}
-        </div>
+          </Section>
+        )}
 
-        <div>
-          <button
-            onClick={() => toggleFilterSection('features')}
-            className="w-full flex items-center justify-between text-sm font-medium text-slate-700 mb-2"
-          >
-            <span>Features</span>
-            {expandedSections.features ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
-          </button>
+        <Section
+          title="Size"
+          count={sizeCount}
+          open={isOpen('size', sizeCount > 0)}
+          onToggle={() => toggle('size', sizeCount > 0)}
+        >
+          <div className="space-y-3">
+            <RangeInputs
+              label="Seat height (in)"
+              minValue={filters.min_seat_height}
+              maxValue={filters.max_seat_height}
+              onMin={(v) => updateFilter('min_seat_height', v)}
+              onMax={(v) => updateFilter('max_seat_height', v)}
+            />
+            <RangeInputs
+              label="Width (in)"
+              minValue={filters.min_width}
+              maxValue={filters.max_width}
+              onMin={(v) => updateFilter('min_width', v)}
+              onMax={(v) => updateFilter('max_width', v)}
+            />
+          </div>
+        </Section>
 
-          {expandedSections.features && (
-            <div className="space-y-2">
-              {showStackableFilter && (
-                <label className="flex items-center cursor-pointer">
-                  <input
-                    type="checkbox"
-                    checked={filters.is_stackable === true}
-                    onChange={(e) => updateFilter('is_stackable', e.target.checked ? true : null)}
-                    className="mr-2 h-4 w-4 text-primary-600 border-cream-300 rounded focus:ring-primary-500"
-                  />
-                  <span className="text-sm text-slate-700">Stackable</span>
-                </label>
-              )}
-
-              {showOutdoorFilter && (
-                <label className="flex items-center cursor-pointer">
-                  <input
-                    type="checkbox"
-                    checked={filters.is_outdoor_suitable === true}
-                    onChange={(e) => updateFilter('is_outdoor_suitable', e.target.checked ? true : null)}
-                    className="mr-2 h-4 w-4 text-primary-600 border-cream-300 rounded focus:ring-primary-500"
-                  />
-                  <span className="text-sm text-slate-700">Outdoor Suitable</span>
-                </label>
-              )}
-
-              <label className="flex items-center cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={filters.ada_compliant === true}
-                  onChange={(e) => updateFilter('ada_compliant', e.target.checked ? true : null)}
-                  className="mr-2 h-4 w-4 text-primary-600 border-cream-300 rounded focus:ring-primary-500"
-                />
-                <span className="text-sm text-slate-700">ADA Compliant</span>
-              </label>
-
-              <label className="flex items-center cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={filters.featured}
-                  onChange={(e) => updateFilter('featured', e.target.checked)}
-                  className="mr-2 h-4 w-4 text-primary-600 border-cream-300 rounded focus:ring-primary-500"
-                />
-                <span className="text-sm text-slate-700">Featured Only</span>
-              </label>
-
-              <label className="flex items-center cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={filters.new}
-                  onChange={(e) => updateFilter('new', e.target.checked)}
-                  className="mr-2 h-4 w-4 text-primary-600 border-cream-300 rounded focus:ring-primary-500"
-                />
-                <span className="text-sm text-slate-700">New Products</span>
-              </label>
-            </div>
-          )}
-        </div>
-
-        <div>
-          <button
-            onClick={() => toggleFilterSection('dimensions')}
-            className="w-full flex items-center justify-between text-sm font-medium text-slate-700 mb-2"
-          >
-            <span>Dimensions</span>
-            {expandedSections.dimensions ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
-          </button>
-
-          {expandedSections.dimensions && (
-            <div className="space-y-3">
-              <div>
-                <label className="block text-xs font-medium text-slate-600 mb-1">Seat Height (inches)</label>
-                <div className="grid grid-cols-2 gap-2">
-                  <input
-                    type="number"
-                    placeholder="Min"
-                    value={filters.min_seat_height}
-                    onChange={(e) => updateFilter('min_seat_height', e.target.value)}
-                    className="px-2 py-1.5 text-sm border border-cream-300 bg-white rounded focus:ring-1 focus:ring-primary-500"
-                  />
-                  <input
-                    type="number"
-                    placeholder="Max"
-                    value={filters.max_seat_height}
-                    onChange={(e) => updateFilter('max_seat_height', e.target.value)}
-                    className="px-2 py-1.5 text-sm border border-cream-300 bg-white rounded focus:ring-1 focus:ring-primary-500"
-                  />
-                </div>
-              </div>
-
-              <div>
-                <label className="block text-xs font-medium text-slate-600 mb-1">Width (inches)</label>
-                <div className="grid grid-cols-2 gap-2">
-                  <input
-                    type="number"
-                    placeholder="Min"
-                    value={filters.min_width}
-                    onChange={(e) => updateFilter('min_width', e.target.value)}
-                    className="px-2 py-1.5 text-sm border border-cream-300 bg-white rounded focus:ring-1 focus:ring-primary-500"
-                  />
-                  <input
-                    type="number"
-                    placeholder="Max"
-                    value={filters.max_width}
-                    onChange={(e) => updateFilter('max_width', e.target.value)}
-                    className="px-2 py-1.5 text-sm border border-cream-300 bg-white rounded focus:ring-1 focus:ring-primary-500"
-                  />
-                </div>
-              </div>
-            </div>
-          )}
-        </div>
-
-        <div>
-          <label className="block text-sm font-medium text-slate-700 mb-2">Availability</label>
-          <div className="space-y-2">
+        <Section
+          title="Availability"
+          count={availabilityCount}
+          open={isOpen('availability', availabilityCount > 0)}
+          onToggle={() => toggle('availability', availabilityCount > 0)}
+        >
+          <div className="space-y-3">
             <div>
-              <label className="block text-xs font-medium text-slate-600 mb-1">Max Lead Time (days)</label>
+              <span className="block text-xs font-medium text-slate-600 mb-1.5">Max lead time (days)</span>
               <input
                 type="number"
-                placeholder="e.g., 30"
+                inputMode="numeric"
+                placeholder="e.g. 30"
+                aria-label="Max lead time in days"
                 value={filters.max_lead_time}
                 onChange={(e) => updateFilter('max_lead_time', e.target.value)}
-                className="w-full px-3 py-1.5 text-sm border border-cream-300 bg-white rounded focus:ring-1 focus:ring-primary-500"
+                className={inputClass}
               />
             </div>
             <div>
-              <label className="block text-xs font-medium text-slate-600 mb-1">Stock Status</label>
+              <span className="block text-xs font-medium text-slate-600 mb-1.5">Stock status</span>
               <select
                 value={filters.stock_status}
                 onChange={(e) => updateFilter('stock_status', e.target.value)}
-                className="w-full px-3 py-1.5 text-sm border border-cream-300 bg-white rounded focus:ring-1 focus:ring-primary-500"
+                aria-label="Stock status"
+                className={inputClass}
               >
-                <option value="">All</option>
+                <option value="">Any</option>
                 <option value="In Stock">In Stock</option>
                 <option value="Made to Order">Made to Order</option>
                 <option value="Custom Only">Custom Only</option>
               </select>
             </div>
           </div>
-        </div>
+        </Section>
+      </div>
+
+      <div className="lg:hidden flex-shrink-0 p-3 border-t border-cream-200 bg-white">
+        <button
+          type="button"
+          onClick={onCloseMobile}
+          className="w-full min-h-[44px] rounded-lg bg-primary-600 hover:bg-primary-700 text-white font-semibold transition-colors"
+        >
+          {loading ? 'Updating…' : `Show ${resultCount} product${resultCount === 1 ? '' : 's'}`}
+        </button>
       </div>
     </div>
     </div>
