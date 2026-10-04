@@ -70,19 +70,26 @@ const ProductCard = ({ product, onQuickView, darkMode = false, compact = false, 
   // Handle carousel rotation
   useEffect(() => {
     let interval;
+    let intent;
 
     if (isHovered && hasCarousel) {
-      // Jump to the next angle right away, then keep cycling
-      setActiveImageIndex(1);
-      interval = setInterval(() => {
-        setActiveImageIndex(prev => (prev + 1) % carouselImages.length);
-      }, 700); // fast enough that angle shots read as the chair turning
+      // Short hover-intent delay so sweeping the cursor across the grid
+      // doesn't flip every card it passes; then cycle at a viewable pace.
+      intent = setTimeout(() => {
+        setActiveImageIndex(1);
+        interval = setInterval(() => {
+          setActiveImageIndex(prev => (prev + 1) % carouselImages.length);
+        }, 1200);
+      }, 200);
     } else {
       // Reset to primary image when not hovered
       setActiveImageIndex(0);
     }
 
-    return () => clearInterval(interval);
+    return () => {
+      clearTimeout(intent);
+      clearInterval(interval);
+    };
   }, [isHovered, hasCarousel, carouselImages.length]);
 
   // An angle that hasn't loaded yet leaves the main image showing
