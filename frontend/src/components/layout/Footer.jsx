@@ -14,7 +14,7 @@ const Footer = () => {
   const footerLinks = {
     products: [
       { name: 'All Products', path: '/products' },
-      { name: 'Wood Finishes', path: '/resources/woodfinishes' },
+      { name: 'Finishes', path: '/resources/woodfinishes' },
       { name: 'Upholstery', path: '/resources/upholstery' },
       { name: 'Laminates', path: '/resources/laminates' },
       { name: 'Hardware & Bases', path: '/resources/hardware' }

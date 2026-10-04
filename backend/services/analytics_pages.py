@@ -27,7 +27,7 @@ PUBLIC_PAGES = {
     "/virtual-catalogs": "Virtual Catalogs",
     "/resources/guides": "Guides",
     "/resources/spec-sheets": "Spec Sheets",
-    "/resources/woodfinishes": "Wood Finishes",
+    "/resources/woodfinishes": "Finishes",
     "/resources/hardware": "Hardware",
     "/resources/laminates": "Laminates",
     "/resources/upholstery": "Upholstery",

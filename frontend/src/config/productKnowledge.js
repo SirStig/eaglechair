@@ -35,7 +35,7 @@ export const PRODUCT_KNOWLEDGE_PAGES = [
   },
   {
     key: 'finishes',
-    name: 'Wood Finishes',
+    name: 'Finishes',
     path: '/resources/woodfinishes',
     icon: Palette,
   },

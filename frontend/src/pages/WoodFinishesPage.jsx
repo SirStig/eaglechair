@@ -10,6 +10,9 @@ import { FINISH_GUIDE_TYPES, filterByTypes } from '../utils/catalogTypes';
 import { useTrackedQuery } from '../hooks/useMaterialInterest';
 
 const GRADE_ORDER = ['Standard', 'Premium', 'Premium Plus', 'Artisan'];
+// Metal frame finishes live in the same table; they get their own sections.
+const METAL_TYPES = ['Powder Coat', 'Plated'];
+const isMetal = (f) => METAL_TYPES.includes(f.finishType);
 
 const WoodFinishesPage = () => {
   const { data: finishes = [], loading } = useFinishes();
@@ -17,7 +20,7 @@ const WoodFinishesPage = () => {
   const [query, setQuery] = useState('');
   useTrackedQuery('Wood finish search', query);
 
-  const groups = useMemo(() => {
+  const { groups, metalGroups } = useMemo(() => {
     const q = query.trim().toLowerCase();
     const visible = (finishes || []).filter(
       (f) =>
@@ -25,12 +28,19 @@ const WoodFinishesPage = () => {
         (!q ||
           f.name?.toLowerCase().includes(q) ||
           f.finishCode?.toLowerCase().includes(q) ||
-          f.colorFamily?.toLowerCase().includes(q))
+          f.colorFamily?.toLowerCase().includes(q) ||
+          f.finishType?.toLowerCase().includes(q))
     );
-    const grades = [...GRADE_ORDER, ...new Set(visible.map((f) => f.grade).filter((g) => g && !GRADE_ORDER.includes(g)))];
-    return grades
-      .map((grade) => ({ grade, items: visible.filter((f) => (f.grade || 'Standard') === grade) }))
-      .filter((g) => g.items.length > 0);
+    const wood = visible.filter((f) => !isMetal(f));
+    const grades = [...GRADE_ORDER, ...new Set(wood.map((f) => f.grade).filter((g) => g && !GRADE_ORDER.includes(g)))];
+    return {
+      groups: grades
+        .map((grade) => ({ grade, items: wood.filter((f) => (f.grade || 'Standard') === grade) }))
+        .filter((g) => g.items.length > 0),
+      metalGroups: METAL_TYPES
+        .map((type) => ({ type, items: visible.filter((f) => f.finishType === type) }))
+        .filter((g) => g.items.length > 0),
+    };
   }, [finishes, query]);
 
   const guides = filterByTypes(catalogs, FINISH_GUIDE_TYPES);
@@ -39,7 +49,7 @@ const WoodFinishesPage = () => {
     <KnowledgePageLayout
       pageKey="finishes"
       seo={SEO.pages.woodFinishes}
-      subtitle="Stains and finishes grouped by grade. Swatches are a guide — wood grain and screens vary, so ask for a physical sample before you specify."
+      subtitle="Wood stains grouped by grade, plus powder coat and plated finishes for metal frames and bases. Swatches are a guide — grain, texture and screens vary, so ask for a physical sample before you specify."
       loading={loading}
       toolbar={
         <label className="block">
@@ -55,7 +65,7 @@ const WoodFinishesPage = () => {
       }
       footerNote={{ title: 'Want to see it in person?', text: 'Ask us for finish samples or about matching a custom finish.', cta: 'Request samples' }}
     >
-      {groups.length === 0 ? (
+      {groups.length === 0 && metalGroups.length === 0 ? (
         <EmptyResults
           icon={query ? SearchX : Palette}
           title={query ? 'No finishes found' : 'No finishes available'}
@@ -63,11 +73,16 @@ const WoodFinishesPage = () => {
         />
       ) : (
         <div className="space-y-12">
-          {groups.length > 1 && (
-            <nav aria-label="Grades" className="flex flex-wrap gap-x-6 gap-y-2 text-sm">
+          {groups.length + metalGroups.length > 1 && (
+            <nav aria-label="Finish groups" className="flex flex-wrap gap-x-6 gap-y-2 text-sm">
               {groups.map((g) => (
                 <a key={g.grade} href={`#grade-${g.grade.replace(/\s+/g, '-')}`} className="text-primary-600 hover:text-primary-700 font-medium">
                   {g.grade} ({g.items.length})
+                </a>
+              ))}
+              {metalGroups.map((g) => (
+                <a key={g.type} href={`#metal-${g.type.replace(/\s+/g, '-')}`} className="text-primary-600 hover:text-primary-700 font-medium">
+                  {g.type} ({g.items.length})
                 </a>
               ))}
             </nav>
@@ -91,6 +106,35 @@ const WoodFinishesPage = () => {
               </div>
             </section>
           ))}
+          {metalGroups.length > 0 && (
+            <div className="space-y-8">
+              <div>
+                <h2 className="text-2xl font-bold text-slate-800">Metal Finishes</h2>
+                <p className="text-slate-600 mt-1">
+                  All metal frames and bases are powder coated or plated. Powder coat is available in virtually any RAL color; minimum quantities and a surcharge may apply.
+                </p>
+              </div>
+              {metalGroups.map((g) => (
+                <section key={g.type} id={`metal-${g.type.replace(/\s+/g, '-')}`} className="scroll-mt-24">
+                  <h3 className="text-xl font-semibold text-slate-800 mb-4">{g.type}</h3>
+                  <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 xl:grid-cols-6 gap-3 sm:gap-4">
+                    {g.items.map((f) => (
+                      <SwatchCard
+                        key={f.id}
+                        item={f}
+                        kind="metal"
+                        title={f.name}
+                        code={f.finishCode}
+                        facts={[f.isCustom && 'Custom']}
+                        description={f.description}
+                        badges={[]}
+                      />
+                    ))}
+                  </div>
+                </section>
+              ))}
+            </div>
+          )}
         </div>
       )}
 
