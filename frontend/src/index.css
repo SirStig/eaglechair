@@ -665,9 +665,10 @@ input[type="number"] {
     min-width: 44px;
   }
 
-  /* Reduce motion for better performance on mobile. The hero dot fill is
-     exempt: its animationend drives slide timing in HeroCarousel. */
-  :where(*:not(.hero-dot-fill)) {
+  /* Reduce motion for better performance on mobile. Exempt: the hero dot
+     fill (its animationend drives slide timing in HeroCarousel) and anything
+     marked .keep-motion-speed (e.g. the LoadingSpinner's slow ring spin). */
+  :where(*:not(.hero-dot-fill, .keep-motion-speed)) {
     animation-duration: 0.5s !important;
     animation-delay: 0s !important;
   }

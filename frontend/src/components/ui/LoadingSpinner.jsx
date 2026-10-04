@@ -50,7 +50,7 @@ const LoadingSpinner = ({ size = 'md', tone = 'light', label, className, fullScr
   const spinner = (
     <div role="status" aria-live="polite" className={clsx('inline-flex flex-col items-center gap-3', className)}>
       <div className={clsx('relative flex-shrink-0', sizes[sizeKey])}>
-        <div className={clsx('absolute inset-0 motion-reduce:animate-none', compact ? 'animate-[spin_1.1s_linear_infinite]' : 'animate-[spin_14s_linear_infinite]', colors.ring)}>
+        <div className={clsx('absolute inset-0 keep-motion-speed motion-reduce:animate-none', compact ? 'animate-[spin_1.1s_linear_infinite]' : 'animate-[spin_14s_linear_infinite]', colors.ring)}>
           {compact ? (
             <svg viewBox="0 0 100 100" className="w-full h-full" aria-hidden="true">
               <circle cx="50" cy="50" r="44" fill="none" stroke="currentColor" strokeOpacity="0.2" strokeWidth="6" />
@@ -72,7 +72,7 @@ const LoadingSpinner = ({ size = 'md', tone = 'light', label, className, fullScr
         <EagleMark
           className={clsx(
             colors.eagle,
-            compact ? 'w-[52%] h-[52%]' : 'w-[50%] h-[50%] animate-[eagleBreathe_2.8s_ease-in-out_infinite] motion-reduce:animate-none'
+            compact ? 'w-[52%] h-[52%]' : 'w-[50%] h-[50%] keep-motion-speed animate-[eagleBreathe_2.8s_ease-in-out_infinite] motion-reduce:animate-none'
           )}
         />
       </div>
