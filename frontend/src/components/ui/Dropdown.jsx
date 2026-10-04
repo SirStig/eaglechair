@@ -22,6 +22,20 @@ const Dropdown = ({
     onOpenChange?.(open);
   };
 
+  // Full-width panels pin to the header's real bottom edge; --header-height is a
+  // layout reservation and can be taller than the rendered header, leaving a gap.
+  const [panelTop, setPanelTop] = useState(null);
+  useEffect(() => {
+    if (!fullWidth || !isOpen) return;
+    const measure = () => {
+      const header = dropdownRef.current?.closest('header');
+      if (header) setPanelTop(header.getBoundingClientRect().bottom);
+    };
+    measure();
+    window.addEventListener('resize', measure);
+    return () => window.removeEventListener('resize', measure);
+  }, [fullWidth, isOpen]);
+
   useEffect(() => {
     const handleClickOutside = (event) => {
       const inTrigger = dropdownRef.current?.contains(event.target);
@@ -75,7 +89,8 @@ const Dropdown = ({
             backdropFilter: 'blur(8px)',
             ...(fullWidth && {
               width: '100vw',
-              maxWidth: '100vw'
+              maxWidth: '100vw',
+              ...(panelTop != null && { top: panelTop })
             }),
             ...(!fullWidth && {
               maxHeight: 'calc(100dvh - 120px)',

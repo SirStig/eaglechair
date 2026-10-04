@@ -34,6 +34,20 @@ const Header = ({ isMobileMenuOpen, setIsMobileMenuOpen }) => {
   const [isScrolled, setIsScrolled] = useState(false);
   const [isProductsDropdownOpen, setIsProductsDropdownOpen] = useState(false);
   const searchRef = useRef(null);
+  const navRef = useRef(null);
+  // Width the focused search grows to: only into the free space left of it, never over the nav
+  const [searchExpandedWidth, setSearchExpandedWidth] = useState(null);
+
+  const handleSearchFocus = () => {
+    const form = searchRef.current;
+    const nav = navRef.current;
+    if (form && nav) {
+      const baseWidth = form.offsetWidth;
+      const freeSpace = form.getBoundingClientRect().left - nav.getBoundingClientRect().right - 8;
+      setSearchExpandedWidth(Math.min(288, baseWidth + Math.max(0, freeSpace)));
+    }
+    setIsSearchFocused(true);
+  };
   const navigate = useNavigate();
   const { user, logout } = useAuthStore();
 
@@ -188,6 +202,7 @@ const Header = ({ isMobileMenuOpen, setIsMobileMenuOpen }) => {
           </Link>
 
           <nav
+            ref={navRef}
             className="header-nav hidden lg:flex items-center gap-1 min-w-0"
             onPointerEnter={warmCategoryImages}
             onFocus={warmCategoryImages}
@@ -295,7 +310,7 @@ const Header = ({ isMobileMenuOpen, setIsMobileMenuOpen }) => {
           {/* Right Side: Search, Account, Cart */}
           <div className="flex items-center gap-1 xl:gap-2 flex-shrink-0">
             {/* Search with Results Dropdown - Hidden on mobile */}
-            {/* Fixed-width slot; the focused input grows leftward over the nav so it never pushes the cart off */}
+            {/* Fixed-width slot; the focused input grows leftward into free space only, never over the nav */}
             <form onSubmit={handleSearch} className="hidden lg:block relative flex-shrink-0 h-10 w-32 xl:w-44" ref={searchRef}>
               <div className="absolute right-0 top-0 z-20">
                 <input
@@ -303,7 +318,7 @@ const Header = ({ isMobileMenuOpen, setIsMobileMenuOpen }) => {
                   placeholder="Search products..."
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
-                  onFocus={() => setIsSearchFocused(true)}
+                  onFocus={handleSearchFocus}
                   onBlur={() => {
                     // Delay to allow clicking on results
                     setTimeout(() => setIsSearchFocused(false), 200);
@@ -313,9 +328,10 @@ const Header = ({ isMobileMenuOpen, setIsMobileMenuOpen }) => {
                     transition-all duration-300 ease-in-out
                     focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent
                     ${showHeaderBackground ? 'bg-dark-700 text-dark-50 placeholder-dark-200' : `${isSearchFocused ? '!bg-dark-800/95' : 'header-search-blur'} text-white placeholder-white/70 border-white/30`}
-                    ${isSearchFocused ? 'w-64 xl:w-72' : 'w-32 xl:w-44'}
+                    w-32 xl:w-44
                   `}
                   style={{
+                    ...(isSearchFocused && searchExpandedWidth && { width: searchExpandedWidth }),
                     WebkitTransition: 'width 0.3s ease-in-out',
                     MozTransition: 'width 0.3s ease-in-out',
                     msTransition: 'width 0.3s ease-in-out'
