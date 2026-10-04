@@ -222,19 +222,10 @@ const ProductDetailPage = () => {
 
         logger.info(CONTEXT, `Successfully loaded product: ${response.data.name}`);
 
-        // Initialize selections
-        if (response.data.customizations?.finishes?.[0]) {
-          setSelectedFinish(response.data.customizations.finishes[0]);
-        } else if (response.data.customizations?.colors?.[0]) {
-          setSelectedFinish(response.data.customizations.colors[0]);
-        }
-
-        setSelectedLaminate(response.data.customizations?.laminates?.[0] || null);
-        if (response.data.customizations?.fabrics?.[0]) {
-          setSelectedUpholstery(response.data.customizations.fabrics[0]);
-        } else if (response.data.customizations?.upholstery?.[0]) {
-          setSelectedUpholstery(response.data.customizations.upholstery[0]);
-        }
+        // Options start unselected; the customer picks only what they care about
+        setSelectedFinish(null);
+        setSelectedUpholstery(null);
+        setSelectedLaminate(null);
 
         // Fetch variations
         if (response.data.id) {
@@ -1002,7 +993,7 @@ const ProductDetailPage = () => {
                     kind: 'wood',
                     options: product.customizations?.finishes,
                     selected: selectedFinish,
-                    onSelect: (f) => { setSelectedFinish(f); trackOption('finish', f.name); },
+                    onSelect: (f) => { setSelectedFinish(f); if (f) trackOption('finish', f.name); },
                   },
                   {
                     key: 'upholstery',
@@ -1010,7 +1001,7 @@ const ProductDetailPage = () => {
                     kind: 'fabric',
                     options: product.customizations?.fabrics,
                     selected: selectedUpholstery,
-                    onSelect: (f) => { setSelectedUpholstery(f); trackOption('upholstery', f.name); },
+                    onSelect: (f) => { setSelectedUpholstery(f); if (f) trackOption('upholstery', f.name); },
                   },
                   {
                     key: 'laminate',
@@ -1018,14 +1009,14 @@ const ProductDetailPage = () => {
                     kind: 'laminate',
                     options: product.customizations?.laminates,
                     selected: selectedLaminate,
-                    onSelect: (l) => { setSelectedLaminate(l); trackOption('laminate', l.name); },
+                    onSelect: (l) => { setSelectedLaminate(l); if (l) trackOption('laminate', l.name); },
                   },
                   {
                     key: 'color',
                     label: 'Color',
                     options: product.customizations?.colors,
                     selected: selectedFinish,
-                    onSelect: (c) => { setSelectedFinish(c); trackOption('color', c.name); },
+                    onSelect: (c) => { setSelectedFinish(c); if (c) trackOption('color', c.name); },
                   },
                 ]}
               />

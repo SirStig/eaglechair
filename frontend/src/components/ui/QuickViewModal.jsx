@@ -34,17 +34,11 @@ const QuickViewModal = ({ product, isOpen, onClose }) => {
       setQuantity(1);
       setSelectedVariation(null);
       
-      // Initialize selections
-      if (product.customizations?.finishes?.[0]) {
-        setSelectedFinish(product.customizations.finishes[0]);
-      }
-      if (product.customizations?.fabrics?.[0]) {
-        setSelectedUpholstery(product.customizations.fabrics[0]);
-      }
-      if (product.customizations?.colors?.[0]) {
-        setSelectedColor(product.customizations.colors[0]);
-      }
-      setSelectedLaminate(product.customizations?.laminates?.[0] || null);
+      // Options start unselected; the customer picks only what they care about
+      setSelectedFinish(null);
+      setSelectedUpholstery(null);
+      setSelectedColor(null);
+      setSelectedLaminate(null);
 
       // Fetch variations
       if (product.id) {

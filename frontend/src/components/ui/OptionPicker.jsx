@@ -78,7 +78,10 @@ const SwatchStrip = ({ section, compact }) => {
 
   const itemWidth = compact ? 'w-[4.5rem]' : 'w-[5.5rem] sm:w-24';
   // Short lists stay on one row instead of splitting into two half-empty rows
-  const rows = filtered.length <= 4 ? 'grid-rows-1' : 'grid-rows-2';
+  // "None" leads the strip unless the customer is filtering
+  const showNone = !query.trim();
+  const rows = filtered.length + (showNone ? 1 : 0) <= 4 ? 'grid-rows-1' : 'grid-rows-2';
+  const noneDot = compact ? 'w-8 h-8 sm:w-10 sm:h-10' : 'w-10 h-10 sm:w-12 sm:h-12';
 
   return (
     <div className="pt-3">
@@ -106,6 +109,26 @@ const SwatchStrip = ({ section, compact }) => {
             aria-label={`${section.label} options`}
             className={`grid ${rows} grid-flow-col auto-cols-max gap-2 overflow-x-auto scroll-smooth snap-x snap-mandatory scrollbar-hide overscroll-x-contain`}
           >
+            {showNone && (
+              <button
+                type="button"
+                aria-pressed={!section.selected}
+                title={`No ${section.label.toLowerCase()} preference`}
+                onClick={() => section.onSelect(null)}
+                className={`${itemWidth} snap-start flex flex-col items-center gap-1.5 p-1.5 rounded-lg border-2 transition-colors text-center ${!section.selected
+                  ? 'border-primary-600 bg-primary-50 text-primary-900'
+                  : 'border-transparent bg-white text-slate-700 hover:border-primary-300'
+                  }`}
+              >
+                <span className={`${noneDot} flex items-center justify-center rounded-full border-2 border-dashed border-slate-300 text-slate-400`}>
+                  <svg className="w-1/2 h-1/2" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
+                    <circle cx="12" cy="12" r="8" strokeWidth={1.75} />
+                    <path strokeLinecap="round" strokeWidth={1.75} d="M6.5 17.5l11-11" />
+                  </svg>
+                </span>
+                <span className="text-[11px] leading-tight font-medium line-clamp-2 break-words w-full">None</span>
+              </button>
+            )}
             {filtered.map((opt, idx) => {
               const selected = isSame(section.selected, opt);
               return (
@@ -194,11 +217,13 @@ const OptionPicker = ({ sections, compact = false, className = '' }) => {
                 </span>
               </span>
               <span className="ml-auto flex items-center gap-2 min-w-0">
-                {selected && (
+                {selected ? (
                   <>
                     <span className="text-sm text-slate-700 truncate">{selected.name}</span>
                     <SwatchImage item={selected} size="sm" rounded="circle" zoom kind={section.kind} />
                   </>
+                ) : (
+                  <span className="text-sm text-slate-400">None</span>
                 )}
                 <Chevron className={`w-4 h-4 flex-shrink-0 text-slate-500 transition-transform duration-200 ${isOpen ? 'rotate-180' : ''}`} />
               </span>
