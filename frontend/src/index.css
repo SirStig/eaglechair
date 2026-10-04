@@ -397,29 +397,25 @@
   animation: none;
 }
 
-/* Custom scrollbar */
-::-webkit-scrollbar {
-  width: 8px;
-  height: 8px;
-}
-
-@media (min-width: 768px) {
+/* Custom scrollbar. Mouse devices only: styling it on touch screens swaps the
+   native auto-hiding overlay for a permanent bar on every scroll area. */
+@media (hover: hover) and (pointer: fine) {
   ::-webkit-scrollbar {
     width: 10px;
     height: 10px;
   }
-}
 
-::-webkit-scrollbar-track {
-  @apply bg-dark-700;
-}
+  ::-webkit-scrollbar-track {
+    @apply bg-dark-700;
+  }
 
-::-webkit-scrollbar-thumb {
-  @apply bg-primary-600 rounded-full;
-}
+  ::-webkit-scrollbar-thumb {
+    @apply bg-primary-600 rounded-full;
+  }
 
-::-webkit-scrollbar-thumb:hover {
-  @apply bg-primary-500;
+  ::-webkit-scrollbar-thumb:hover {
+    @apply bg-primary-500;
+  }
 }
 
 /* AI assistant: sans headings (site headings are serif) and a quiet,

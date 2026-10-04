@@ -1,5 +1,7 @@
+import { useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import SEOHead from '../SEOHead';
+import { useScrollEdges } from '../../hooks/useScrollEdges';
 import LoadingSpinner from '../ui/LoadingSpinner';
 import { PRODUCT_KNOWLEDGE_PAGES, getKnowledgePage } from '../../config/productKnowledge';
 
@@ -19,6 +21,17 @@ const KnowledgePageLayout = ({
 }) => {
   const page = getKnowledgePage(pageKey);
   const heading = title || page?.name;
+  const { ref: tabsRef, maskStyle: tabsMask } = useScrollEdges({ fade: '40px' });
+
+  // On phones the section tabs are one scrolling row; bring the current one
+  // into view (horizontally only, so the page itself doesn't jump).
+  useEffect(() => {
+    const nav = tabsRef.current;
+    const active = nav?.querySelector('[aria-current="page"]');
+    if (!nav || !active || nav.scrollWidth <= nav.clientWidth) return;
+    const offset = active.getBoundingClientRect().left - nav.getBoundingClientRect().left + nav.scrollLeft;
+    nav.scrollLeft = offset - (nav.clientWidth - active.offsetWidth) / 2;
+  }, [pageKey, tabsRef]);
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-cream-50 to-cream-100">
@@ -35,8 +48,10 @@ const KnowledgePageLayout = ({
           {subtitle && <p className="text-slate-600 mt-2 max-w-3xl">{subtitle}</p>}
 
           <nav
+            ref={tabsRef}
             aria-label="Product Knowledge sections"
             className="mt-5 -mx-4 px-4 sm:mx-0 sm:px-0 flex gap-1.5 overflow-x-auto scrollbar-hide sm:flex-wrap sm:overflow-visible"
+            style={tabsMask}
           >
             {PRODUCT_KNOWLEDGE_PAGES.map((p) => {
               const active = p.key === pageKey;

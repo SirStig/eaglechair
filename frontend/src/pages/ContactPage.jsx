@@ -105,6 +105,13 @@ const ContactPage = () => {
     }
   };
 
+  // Detail lines become tap-to-call / tap-to-email / map links when the value is real.
+  const linked = (text, href) => {
+    const t = text ?? '';
+    return { text: t, href: href && t && !/N\/A|undefined/.test(t) ? href : null };
+  };
+  const telHref = (phone) => (phone ? `tel:${phone.replace(/[^\d+]/g, '')}` : null);
+
   const contactInfo = [
     {
       icon: (
@@ -113,7 +120,10 @@ const ContactPage = () => {
         </svg>
       ),
       title: 'Phone',
-      details: [`Main: ${contact.phone}`, `Sales: ${contact.salesPhone}`]
+      details: [
+        linked(`Main: ${contact.phone}`, telHref(contact.phone)),
+        linked(`Sales: ${contact.salesPhone}`, telHref(contact.salesPhone)),
+      ]
     },
     {
       icon: (
@@ -122,7 +132,10 @@ const ContactPage = () => {
         </svg>
       ),
       title: 'Email',
-      details: [contact.email, contact.salesEmail]
+      details: [
+        linked(contact.email, `mailto:${contact.email}`),
+        linked(contact.salesEmail, `mailto:${contact.salesEmail}`),
+      ]
     },
     {
       icon: (
@@ -132,7 +145,13 @@ const ContactPage = () => {
         </svg>
       ),
       title: 'Address',
-      details: [contact.address.street, `${contact.address.city}, ${contact.address.state} ${contact.address.zip}`]
+      details: (() => {
+        const mapHref = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(contact.address.fullAddress)}`;
+        return [
+          linked(contact.address.street, mapHref),
+          linked(`${contact.address.city}, ${contact.address.state} ${contact.address.zip}`, mapHref),
+        ];
+      })()
     },
     {
       icon: (
@@ -208,11 +227,13 @@ const ContactPage = () => {
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6">
                   <Input
                     label="First Name"
+                    autoComplete="given-name"
                     {...register('firstName', { required: 'First name is required' })}
                     error={errors.firstName?.message}
                   />
                   <Input
                     label="Last Name"
+                    autoComplete="family-name"
                     {...register('lastName', { required: 'Last name is required' })}
                     error={errors.lastName?.message}
                   />
@@ -222,6 +243,7 @@ const ContactPage = () => {
                   <Input
                     label="Email"
                     type="email"
+                    autoComplete="email"
                     {...register('email', { 
                       required: 'Email is required',
                       pattern: {
@@ -234,12 +256,14 @@ const ContactPage = () => {
                   <Input
                     label="Phone"
                     type="tel"
+                    autoComplete="tel"
                     {...register('phone')}
                   />
                 </div>
 
                 <Input
                   label="Company Name"
+                  autoComplete="organization"
                   {...register('company')}
                 />
 
@@ -308,11 +332,22 @@ const ContactPage = () => {
                       </div>
                       <div>
                         <h3 className="font-semibold mb-2 text-dark-50">{info.title}</h3>
-                        {info.details.map((detail, i) => (
-                          <p key={i} className="text-sm text-dark-100">
-                            {detail}
-                          </p>
-                        ))}
+                        {info.details.map((detail, i) => {
+                          const { text, href } = typeof detail === 'string' ? { text: detail } : detail;
+                          return (
+                            <p key={i} className="text-sm text-dark-100">
+                              {href ? (
+                                <a
+                                  href={href}
+                                  {...(href.startsWith('http') ? { target: '_blank', rel: 'noopener noreferrer' } : {})}
+                                  className="inline-block py-1 hover:text-primary-400 transition-colors"
+                                >
+                                  {text}
+                                </a>
+                              ) : text}
+                            </p>
+                          );
+                        })}
                       </div>
                     </div>
                   </Card>

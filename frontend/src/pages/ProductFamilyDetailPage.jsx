@@ -112,7 +112,7 @@ const ProductFamilyDetailPage = () => {
 
         {/* Breadcrumb */}
         <div className="mb-4 sm:mb-6 text-xs sm:text-sm text-slate-600 overflow-x-auto pb-2">
-          <div className="flex items-center whitespace-nowrap min-w-fit">
+          <div className="flex items-center gap-1.5 whitespace-nowrap min-w-fit">
           <Link to="/" className="hover:text-primary-500">Home</Link>
           {' '}/{' '}
           <Link to="/products" className="hover:text-primary-500">Products</Link>
@@ -242,7 +242,7 @@ const ProductFamilyDetailPage = () => {
                   </Button>
                 </div>
               ) : viewMode === 'grid' ? (
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-6">
+                <div className="grid grid-cols-2 gap-4 sm:gap-6">
                   {products.map((item) => {
                     const categoryName = typeof item.category === 'string' ? item.category : item.category?.name;
                     const normalized = {
@@ -264,7 +264,7 @@ const ProductFamilyDetailPage = () => {
                         key={key}
                         product={normalized}
                         onQuickView={handleQuickView}
-                        imageSizes="(min-width: 1024px) 480px, (min-width: 640px) 50vw, 100vw"
+                        imageSizes="(min-width: 1024px) 480px, 50vw"
                       />
                     );
                   })}

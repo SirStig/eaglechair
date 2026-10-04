@@ -532,6 +532,7 @@ async def _build_gallery_images(db: "AsyncSession") -> List[Dict[str, Any]]:
             "description": i.description,
             "location": i.location,
             "clientName": i.client_name,
+            "productsUsed": [int(x) for x in parse_json_list(i.products_used) if str(x).isdigit()],
         }
         for i in result.scalars().all()
     ]

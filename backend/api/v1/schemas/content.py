@@ -328,6 +328,7 @@ class InstallationListItemResponse(BaseModel):
     url: Optional[str]
     clientName: Optional[str]
     displayOrder: int
+    productsUsed: List[int] = []
 
 
 # ============================================================================

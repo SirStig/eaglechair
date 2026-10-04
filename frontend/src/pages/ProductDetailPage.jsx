@@ -24,8 +24,11 @@ import { getSpecItems, getFeatureSymbol } from '../utils/specSymbols';
 
 // Hero image column: full width below lg, half of the max-w-7xl container above.
 const HERO_IMAGE_SIZES = '(min-width: 1280px) 600px, (min-width: 1024px) 50vw, 100vw';
+// Variations listed before "Show all" on phones (plus the base model row).
+const MOBILE_VARIATIONS_SHOWN = 3;
 import SwatchImage from '../components/ui/SwatchImage';
 import { useToast } from '../contexts/ToastContext';
+import { useInstallations } from '../hooks/useContent';
 import logger from '../utils/logger';
 
 const CONTEXT = 'ProductDetailPage';
@@ -48,6 +51,7 @@ const ProductDetailPage = () => {
 
   const [product, setProduct] = useState(null);
   const [relatedProducts, setRelatedProducts] = useState([]);
+  const { data: installations } = useInstallations();
   const [loading, setLoading] = useState(true);
   const [selectedImage, setSelectedImage] = useState(0);
   const [customizeImageIndex, setCustomizeImageIndex] = useState(0);
@@ -73,6 +77,8 @@ const ProductDetailPage = () => {
   const [customNotes, setCustomNotes] = useState('');
   const [notesExpanded, setNotesExpanded] = useState(false);
   const [featuresExpanded, setFeaturesExpanded] = useState(false);
+  // Mobile only: long variation lists start collapsed (desktop scrolls them in a box).
+  const [variationsExpanded, setVariationsExpanded] = useState(false);
   const [lightboxOpen, setLightboxOpen] = useState(false);
   const [lightboxImages, setLightboxImages] = useState([]);
   const [lightboxInitialIndex, setLightboxInitialIndex] = useState(0);
@@ -118,6 +124,7 @@ const ProductDetailPage = () => {
   useEffect(() => {
     setCustomizeImageIndex(0);
     setFeaturesExpanded(false);
+    setVariationsExpanded(false);
   }, [productId]);
 
   const images = useMemo(() => {
@@ -532,7 +539,7 @@ const ProductDetailPage = () => {
                   onSave={handleUpdateProduct}
                   label="Product Description"
                 >
-                  <div className="text-slate-700 leading-relaxed mb-6 max-h-[13rem] overflow-y-auto pr-1">
+                  <div className="text-slate-700 leading-relaxed mb-6 lg:max-h-[13rem] lg:overflow-y-auto lg:pr-1">
                     <p className="text-base">{product.full_description || product.description}</p>
                   </div>
                 </EditableWrapper>
@@ -555,7 +562,7 @@ const ProductDetailPage = () => {
                   {isShowingBaseImageForVariation && (
                     <p className="text-xs text-slate-500 mb-2">Image does not represent the selected variation; base model shown.</p>
                   )}
-                  <div className="max-h-64 overflow-y-auto space-y-2 pr-1 border border-cream-200 rounded-lg bg-cream-50/50 p-2">
+                  <div className="lg:max-h-64 lg:overflow-y-auto space-y-2 border border-cream-200 rounded-lg bg-cream-50/50 p-2">
                     <button
                       type="button"
                       onClick={() => {
@@ -582,8 +589,9 @@ const ProductDetailPage = () => {
                         </span>
                       )}
                     </button>
-                    {variations.map((variation) => {
+                    {variations.map((variation, index) => {
                       const isSelected = selectedVariation?.id === variation.id;
+                      const collapsed = !variationsExpanded && index >= MOBILE_VARIATIONS_SHOWN && !isSelected;
                       const thumbUrl = variation.primary_image_url
                         ? resolveImageUrl(variation.primary_image_url)
                         : (variation.images?.[0] ? (typeof variation.images[0] === 'string' ? resolveImageUrl(variation.images[0]) : resolveImageUrl(variation.images[0]?.url || variation.images[0])) : null) || resolveImageUrl(product?.primary_image_url || product?.image) || '/og-image.jpg';
@@ -597,7 +605,7 @@ const ProductDetailPage = () => {
                             setSelectedVariation(variation);
                             setSelectedImage(0);
                           }}
-                          className={`w-full flex items-center gap-3 p-2.5 rounded-lg text-left transition-colors border-2 ${isSelected ? 'border-primary-500 bg-primary-50/50' : 'border-transparent bg-white hover:bg-cream-100 hover:border-cream-300'}`}
+                          className={`w-full flex items-center gap-3 p-2.5 rounded-lg text-left transition-colors border-2 ${isSelected ? 'border-primary-500 bg-primary-50/50' : 'border-transparent bg-white hover:bg-cream-100 hover:border-cream-300'} ${collapsed ? 'max-lg:hidden' : ''}`}
                         >
                           <div className="w-10 h-14 flex-shrink-0 rounded-md overflow-hidden bg-cream-200 relative">
                             <ResponsiveImage src={thumbUrl} sizes="48px" alt="" className="w-full h-full object-cover" />
@@ -617,6 +625,15 @@ const ProductDetailPage = () => {
                         </button>
                       );
                     })}
+                    {variations.length > MOBILE_VARIATIONS_SHOWN && (
+                      <button
+                        type="button"
+                        onClick={() => setVariationsExpanded((v) => !v)}
+                        className="lg:hidden w-full py-2.5 text-sm font-medium text-primary-600 hover:text-primary-700"
+                      >
+                        {variationsExpanded ? 'Show fewer' : `Show all ${variations.length + 1} variations`}
+                      </button>
+                    )}
                   </div>
                 </div>
               )}
@@ -673,9 +690,17 @@ const ProductDetailPage = () => {
                 })()}
               </div>
 
-              {/* Certifications */}
+              {/* Certifications (the empty placeholder only keeps the desktop
+                  columns aligned, so it's dropped once they stack on mobile) */}
               <div>
-                <h3 className="text-lg font-bold text-slate-800 mb-5">Certifications</h3>
+                {(() => {
+                  const hasCerts = product.flame_certifications?.length > 0
+                    || product.green_certifications?.length > 0
+                    || product.ada_compliant;
+                  return (
+                    <h3 className={`text-lg font-bold text-slate-800 mb-5 ${hasCerts ? '' : 'hidden md:block'}`}>Certifications</h3>
+                  );
+                })()}
                 <div className="space-y-3.5 text-slate-700 text-[15px] leading-relaxed">
                   {product.flame_certifications && product.flame_certifications.length > 0 && (
                     <p>{product.flame_certifications.join(', ')}</p>
@@ -687,7 +712,7 @@ const ProductDetailPage = () => {
                   {(!product.flame_certifications || product.flame_certifications.length === 0) &&
                     (!product.green_certifications || product.green_certifications.length === 0) &&
                     !product.ada_compliant && (
-                      <p className="text-slate-500">—</p>
+                      <p className="text-slate-500 hidden md:block">—</p>
                     )}
                 </div>
                 {(product.spec_sheet_url || product.dimensional_drawing_url || product.cad_file_url) && (
@@ -792,7 +817,7 @@ const ProductDetailPage = () => {
                 <button
                   type="button"
                   onClick={() => openLightbox(carouselImages, customizeImageIndex)}
-                  className="bg-white rounded-xl overflow-hidden border border-cream-200 w-full min-h-[280px] p-4 sm:p-6 flex items-center justify-center cursor-zoom-in hover:opacity-95 transition-opacity focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2"
+                  className="bg-white rounded-xl overflow-hidden border border-cream-200 w-full min-h-[280px] p-4 sm:p-6 flex flex-col items-center justify-center cursor-zoom-in hover:opacity-95 transition-opacity focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2"
                 >
                   {/* Below the fold: lazy, no high priority. w-full for srcset (see hero). */}
                   <ResponsiveImage
@@ -803,8 +828,9 @@ const ProductDetailPage = () => {
                     style={{ mixBlendMode: 'multiply' }}
                   />
 
-                  {/* 3D Coming Soon Badge */}
-                  <div className="absolute bottom-12 left-4 right-4 bg-cream-50/90 backdrop-blur-sm border border-primary-500 rounded-lg p-3 text-center pointer-events-none">
+                  {/* 3D Coming Soon Badge: overlays the image on desktop, sits
+                      below it on mobile where it would cover the chair */}
+                  <div className="mt-4 w-full lg:mt-0 lg:w-auto lg:absolute lg:bottom-12 lg:left-4 lg:right-4 bg-cream-50/90 backdrop-blur-sm border border-primary-500 rounded-lg p-3 text-center pointer-events-none">
                     <p className="text-primary-400 font-semibold text-sm">3D Customization Coming Soon</p>
                     <p className="text-slate-600 text-xs mt-1">Interactive 3D model viewer in development</p>
                   </div>
@@ -815,6 +841,7 @@ const ProductDetailPage = () => {
                     <button
                       type="button"
                       onClick={() => setCustomizeImageIndex(customizeImageIndex === 0 ? carouselImages.length - 1 : customizeImageIndex - 1)}
+                      aria-label="Previous image"
                       className="absolute left-3 top-1/2 -translate-y-1/2 w-10 h-10 flex items-center justify-center bg-cream-50/80 hover:bg-cream-50 border border-cream-300 rounded-full transition-colors"
                     >
                       <svg className="w-6 h-6 text-slate-800" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -824,6 +851,7 @@ const ProductDetailPage = () => {
                     <button
                       type="button"
                       onClick={() => setCustomizeImageIndex(customizeImageIndex === carouselImages.length - 1 ? 0 : customizeImageIndex + 1)}
+                      aria-label="Next image"
                       className="absolute right-3 top-1/2 -translate-y-1/2 w-10 h-10 flex items-center justify-center bg-cream-50/80 hover:bg-cream-50 border border-cream-300 rounded-full transition-colors"
                     >
                       <svg className="w-6 h-6 text-slate-800" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -1143,7 +1171,7 @@ const ProductDetailPage = () => {
           <div className="container mx-auto px-4 py-12 max-w-7xl">
             <div className="flex flex-wrap items-center justify-between gap-4 mb-8">
               <h2 className="text-2xl sm:text-3xl font-bold text-slate-800">More from this Family</h2>
-              <div className="flex items-center gap-3">
+              <div className="flex flex-wrap items-center gap-x-4 gap-y-3">
                 {currentFamily?.catalog_pdf_url && (
                   <Button
                     variant="outline"
@@ -1160,7 +1188,7 @@ const ProductDetailPage = () => {
                 {currentFamily && (
                   <Link
                     to={`/families/${currentFamily.slug || currentFamily.id}`}
-                    className="text-primary-600 hover:text-primary-700 font-medium flex items-center gap-1"
+                    className="text-primary-600 hover:text-primary-700 font-medium flex items-center gap-1 whitespace-nowrap"
                   >
                     View Collection <span aria-hidden="true">&rarr;</span>
                   </Link>
@@ -1195,6 +1223,39 @@ const ProductDetailPage = () => {
           </div>
         </section>
       )}
+
+      {/* Installation photos that show this product */}
+      {(() => {
+        const usedIn = (installations || []).filter(
+          (inst) => (inst.productsUsed || []).map(Number).includes(Number(product.id))
+        );
+        if (usedIn.length === 0) return null;
+        return (
+          <section className="bg-cream-50 border-t border-cream-200">
+            <div className="container mx-auto px-4 py-12 max-w-7xl">
+              <div className="flex flex-wrap items-center justify-between gap-4 mb-6 sm:mb-8">
+                <h2 className="text-2xl sm:text-3xl font-bold text-slate-800">In Use</h2>
+                <Link to="/gallery" className="text-primary-600 hover:text-primary-700 font-medium flex items-center gap-1">
+                  View Gallery <span aria-hidden="true">&rarr;</span>
+                </Link>
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                {usedIn.slice(0, 6).map((inst) => (
+                  <figure key={inst.id} className="overflow-hidden rounded-lg bg-white border border-cream-200">
+                    <ResponsiveImage
+                      src={inst.url || inst.primaryImage}
+                      alt={inst.title ? `${product.name} at ${inst.title}` : `${product.name} installation`}
+                      className="w-full aspect-[4/3] object-cover"
+                      sizes="(min-width: 1024px) 33vw, (min-width: 640px) 50vw, 100vw"
+                    />
+                    {inst.title && <figcaption className="px-4 py-3 text-sm text-slate-700">{inst.title}</figcaption>}
+                  </figure>
+                ))}
+              </div>
+            </div>
+          </section>
+        );
+      })()}
 
       {/* Related Products */}
       {relatedProducts.length > 0 && (

@@ -28,7 +28,7 @@ const FilterSidebar = ({
   return (
     <div
       className={`
-        w-full
+        lg:w-full
         ${showMobileFilters ? 'max-lg:fixed max-lg:inset-4 max-lg:z-50' : 'max-lg:hidden'}
         lg:block lg:sticky lg:top-24 lg:z-0
       `}
@@ -104,7 +104,7 @@ const FilterSidebar = ({
         <div className="pb-4 border-b border-cream-200">
           <button
             onClick={() => toggleFilterSection('category')}
-            className="w-full flex items-center justify-between text-sm font-semibold text-slate-700 mb-3 hover:text-primary-600 transition-colors"
+            className={`w-full flex items-center justify-between text-sm font-semibold text-slate-700 hover:text-primary-600 transition-colors ${expandedSections.category ? 'mb-3' : ''}`}
           >
             <span className="flex items-center gap-2">
               <Grid3x3 className="w-4 h-4" />
@@ -203,7 +203,7 @@ const FilterSidebar = ({
           <div className="pb-4 border-b border-cream-200">
             <button
               onClick={() => toggleFilterSection('family')}
-              className="w-full flex items-center justify-between text-sm font-semibold text-slate-700 mb-3 hover:text-primary-600 transition-colors"
+              className={`w-full flex items-center justify-between text-sm font-semibold text-slate-700 hover:text-primary-600 transition-colors ${expandedSections.family ? 'mb-3' : ''}`}
             >
               <span className="flex items-center gap-2">
                 <Users className="w-4 h-4" />

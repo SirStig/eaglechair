@@ -476,6 +476,11 @@ async def get_sales_reps(
 # Installations (Gallery)
 # ============================================================================
 
+def _product_ids(raw) -> list[int]:
+    """Product ids shown in an installation photo (stored as a JSON list)."""
+    return [int(x) for x in parse_json_list(raw) if str(x).isdigit()]
+
+
 @router.get(
     "/installations",
     response_model=list[InstallationListItemResponse],
@@ -521,7 +526,8 @@ async def get_installations(
             "primaryImage": installation.primary_image,
             "url": installation.primary_image,
             "clientName": installation.client_name,
-            "displayOrder": installation.display_order
+            "displayOrder": installation.display_order,
+            "productsUsed": _product_ids(installation.products_used),
         }
         for installation in installations
     ]

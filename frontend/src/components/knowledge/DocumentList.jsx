@@ -15,7 +15,7 @@ const DocActions = ({ doc, onView, compact = false }) => {
   if (!url) return null;
   const btn = compact ? 'px-3 py-1.5 text-sm' : 'flex-1 px-4 py-2';
   return (
-    <div className={`flex gap-2 ${compact ? '' : 'w-full'}`}>
+    <div className={`flex gap-2 ${compact ? '' : 'w-full flex-col sm:flex-row'}`}>
       {isPdf(doc) && (
         <button
           type="button"
@@ -63,20 +63,20 @@ const DocumentList = ({ documents, variant = 'list', showType = false }) => {
   return (
     <>
       {variant === 'cards' ? (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6">
+        <div className="grid grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-6">
           {documents.map((doc) => (
             <article
               key={doc.id}
               className="bg-white rounded-lg border border-cream-200 overflow-hidden hover:border-primary-500 transition-colors duration-300 group flex flex-col"
             >
               <CatalogCoverImage catalog={doc} imgClassName="group-hover:scale-105" />
-              <div className="p-5 flex flex-col flex-1">
+              <div className="p-3 sm:p-5 flex flex-col flex-1">
                 {metaLine(doc, showType) && (
                   <div className="text-xs font-semibold text-primary-600 uppercase tracking-wide mb-2">
                     {metaLine(doc, showType)}
                   </div>
                 )}
-                <h3 className="text-lg font-bold text-slate-800 mb-2">{doc.title}</h3>
+                <h3 className="text-base sm:text-lg font-bold text-slate-800 mb-2 leading-snug">{doc.title}</h3>
                 {doc.description && (
                   <p className="text-slate-600 text-sm mb-4 line-clamp-3">{doc.description}</p>
                 )}

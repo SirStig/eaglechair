@@ -254,15 +254,15 @@ const QuoteRequestPage = () => {
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="md:col-span-2">
                   <label className="block text-sm font-medium text-slate-700 mb-2">Email *</label>
-                  <input type="email" {...register('contactEmail', { required: true })} placeholder="you@company.com" className={inputClass} />
+                  <input type="email" {...register('contactEmail', { required: true })} autoComplete="email" placeholder="you@company.com" className={inputClass} />
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-slate-700 mb-2">Full Name *</label>
-                  <input type="text" {...register('contactName', { required: true })} placeholder="John Smith" className={inputClass} />
+                  <input type="text" {...register('contactName', { required: true })} autoComplete="name" placeholder="John Smith" className={inputClass} />
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-slate-700 mb-2">Phone *</label>
-                  <input type="tel" {...register('contactPhone', { required: true })} placeholder="(555) 123-4567" className={inputClass} />
+                  <input type="tel" {...register('contactPhone', { required: true })} autoComplete="tel" placeholder="(555) 123-4567" className={inputClass} />
                 </div>
                 <div className="md:col-span-2">
                   <label className="block text-sm font-medium text-slate-700 mb-2">Rep Name <span className="text-slate-500">(optional)</span></label>
@@ -276,27 +276,27 @@ const QuoteRequestPage = () => {
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="md:col-span-2">
                   <label className="block text-sm font-medium text-slate-700 mb-2">Street Address *</label>
-                  <input type="text" {...register('billingLine1', { required: true })} placeholder="123 Main St" className={inputClass} />
+                  <input type="text" {...register('billingLine1', { required: true })} autoComplete="billing address-line1" placeholder="123 Main St" className={inputClass} />
                 </div>
                 <div className="md:col-span-2">
                   <label className="block text-sm font-medium text-slate-700 mb-2">Address Line 2 <span className="text-slate-500">(optional)</span></label>
-                  <input type="text" {...register('billingLine2')} placeholder="Suite 100" className={inputClass} />
+                  <input type="text" {...register('billingLine2')} autoComplete="billing address-line2" placeholder="Suite 100" className={inputClass} />
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-slate-700 mb-2">City *</label>
-                  <input type="text" {...register('billingCity', { required: true })} placeholder="City" className={inputClass} />
+                  <input type="text" {...register('billingCity', { required: true })} autoComplete="billing address-level2" placeholder="City" className={inputClass} />
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-slate-700 mb-2">State *</label>
-                  <input type="text" {...register('billingState', { required: true })} placeholder="State" className={inputClass} />
+                  <input type="text" {...register('billingState', { required: true })} autoComplete="billing address-level1" placeholder="State" className={inputClass} />
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-slate-700 mb-2">ZIP Code *</label>
-                  <input type="text" {...register('billingZip', { required: true })} placeholder="12345" className={inputClass} />
+                  <input type="text" {...register('billingZip', { required: true })} autoComplete="billing postal-code" inputMode="numeric" placeholder="12345" className={inputClass} />
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-slate-700 mb-2">Country</label>
-                  <input type="text" {...register('billingCountry')} placeholder="USA" className={inputClass} />
+                  <input type="text" {...register('billingCountry')} autoComplete="billing country-name" placeholder="USA" className={inputClass} />
                 </div>
               </div>
             </Card>
@@ -314,27 +314,27 @@ const QuoteRequestPage = () => {
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div className="md:col-span-2">
                     <label className="block text-sm font-medium text-slate-700 mb-2">Street Address *</label>
-                    <input type="text" {...register('shippingLine1')} placeholder="123 Main St" className={inputClass} />
+                    <input type="text" {...register('shippingLine1')} autoComplete="shipping address-line1" placeholder="123 Main St" className={inputClass} />
                   </div>
                   <div className="md:col-span-2">
                     <label className="block text-sm font-medium text-slate-700 mb-2">Address Line 2</label>
-                    <input type="text" {...register('shippingLine2')} placeholder="Suite 100" className={inputClass} />
+                    <input type="text" {...register('shippingLine2')} autoComplete="shipping address-line2" placeholder="Suite 100" className={inputClass} />
                   </div>
                   <div>
                     <label className="block text-sm font-medium text-slate-700 mb-2">City *</label>
-                    <input type="text" {...register('shippingCity')} placeholder="City" className={inputClass} />
+                    <input type="text" {...register('shippingCity')} autoComplete="shipping address-level2" placeholder="City" className={inputClass} />
                   </div>
                   <div>
                     <label className="block text-sm font-medium text-slate-700 mb-2">State *</label>
-                    <input type="text" {...register('shippingState')} placeholder="State" className={inputClass} />
+                    <input type="text" {...register('shippingState')} autoComplete="shipping address-level1" placeholder="State" className={inputClass} />
                   </div>
                   <div>
                     <label className="block text-sm font-medium text-slate-700 mb-2">ZIP Code *</label>
-                    <input type="text" {...register('shippingZip')} placeholder="12345" className={inputClass} />
+                    <input type="text" {...register('shippingZip')} autoComplete="shipping postal-code" inputMode="numeric" placeholder="12345" className={inputClass} />
                   </div>
                   <div>
                     <label className="block text-sm font-medium text-slate-700 mb-2">Country</label>
-                    <input type="text" {...register('shippingCountry')} placeholder="USA" className={inputClass} />
+                    <input type="text" {...register('shippingCountry')} autoComplete="shipping country-name" placeholder="USA" className={inputClass} />
                   </div>
                 </div>
               )}
