@@ -59,6 +59,7 @@ const ProductDetailPage = () => {
   const [quantity, setQuantity] = useState(1);
   const [selectedFinish, setSelectedFinish] = useState(null);
   const [selectedUpholstery, setSelectedUpholstery] = useState(null);
+  const [selectedLaminate, setSelectedLaminate] = useState(null);
   const [showSuccessMessage, setShowSuccessMessage] = useState(false);
   const [variations, setVariations] = useState([]);
   const [selectedVariation, setSelectedVariation] = useState(null);
@@ -231,6 +232,7 @@ const ProductDetailPage = () => {
           setSelectedFinish(response.data.customizations.colors[0]);
         }
 
+        setSelectedLaminate(response.data.customizations?.laminates?.[0] || null);
         if (response.data.customizations?.fabrics?.[0]) {
           setSelectedUpholstery(response.data.customizations.fabrics[0]);
         } else if (response.data.customizations?.upholstery?.[0]) {
@@ -283,6 +285,7 @@ const ProductDetailPage = () => {
     const customizations = {
       finish: selectedFinish,
       upholstery: selectedUpholstery,
+      laminate: selectedLaminate ? { id: selectedLaminate.id, name: selectedLaminate.name, brand: selectedLaminate.brand } : null,
       variation: selectedVariation,
       custom_notes: customNotes?.trim() || null,
     };
@@ -1047,6 +1050,36 @@ const ProductDetailPage = () => {
                         >
                           <SwatchImage item={f} size="md" rounded="circle" zoom kind="fabric" />
                           <span className="truncate">{f.name}</span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+
+              {/* Laminates (table tops) */}
+              {product.customizations?.laminates && product.customizations.laminates.length > 0 && (
+                <div className="mb-6">
+                  <label className="block text-sm font-medium text-slate-700 mb-3">
+                    Select Laminate
+                  </label>
+                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 sm:gap-3">
+                    {product.customizations.laminates.map((laminate) => {
+                      const isSelected = selectedLaminate?.id === laminate.id;
+                      return (
+                        <button
+                          key={laminate.id}
+                          onClick={() => {
+                            setSelectedLaminate(laminate);
+                            trackOption('laminate', laminate.name);
+                          }}
+                          className={`p-2 sm:p-3 rounded-lg border-2 transition-all text-sm font-medium min-h-[44px] flex items-center gap-2 ${isSelected
+                            ? 'border-primary-600 bg-primary-50 text-primary-900'
+                            : 'border-cream-300 bg-white text-slate-700 hover:border-primary-400'
+                            }`}
+                        >
+                          <SwatchImage item={laminate} size="md" rounded="circle" zoom kind="laminate" />
+                          <span className="truncate">{laminate.name}</span>
                         </button>
                       );
                     })}

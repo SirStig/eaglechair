@@ -72,11 +72,13 @@ async def _populate_customizations(
     from sqlalchemy import select
 
     from backend.models.chair import Color, Finish, Upholstery
+    from backend.models.content import Laminate
     
     # Collect all IDs from all products
     all_finish_ids = set()
     all_color_ids = set()
     all_upholstery_ids = set()
+    all_laminate_ids = set()
     
     for product in products:
         if hasattr(product, 'available_finishes') and product.available_finishes:
@@ -85,6 +87,8 @@ async def _populate_customizations(
             all_color_ids.update(product.available_colors)
         if hasattr(product, 'available_upholsteries') and product.available_upholsteries:
             all_upholstery_ids.update(product.available_upholsteries)
+        if getattr(product, 'available_laminates', None):
+            all_laminate_ids.update(product.available_laminates)
     
     # Fetch all finishes, colors, and upholsteries in one query each
     finish_map = {}
@@ -127,6 +131,20 @@ async def _populate_customizations(
                 "color_hex": getattr(upholstery, "color_hex", None),
             }
     
+    laminate_map = {}
+    if all_laminate_ids:
+        laminate_result = await db.execute(
+            select(Laminate).where(Laminate.id.in_(list(all_laminate_ids)), Laminate.is_active == True)
+        )
+        for laminate in laminate_result.scalars().all():
+            laminate_map[laminate.id] = {
+                "id": laminate.id,
+                "name": laminate.pattern_name,
+                "brand": laminate.brand,
+                "image_url": laminate.full_image_url,
+                "swatch_image_url": laminate.swatch_image_url,
+            }
+
     # Populate customizations for each product
     for product in products:
         customizations = {}
@@ -147,6 +165,11 @@ async def _populate_customizations(
                 customizations['fabrics'] = upholsteries  # Frontend uses 'fabrics' for upholstery
                 customizations['upholstery'] = upholsteries  # Also include 'upholstery' for compatibility
         
+        if getattr(product, 'available_laminates', None):
+            laminates = [laminate_map[lid] for lid in product.available_laminates if lid in laminate_map]
+            if laminates:
+                customizations['laminates'] = laminates
+
         if customizations:
             product.customizations = customizations
 

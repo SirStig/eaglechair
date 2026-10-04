@@ -439,6 +439,7 @@ class Chair(Base):
     available_finishes = Column(JSON, nullable=True)  # Array of finish IDs
     available_upholsteries = Column(JSON, nullable=True)  # Array of upholstery IDs
     available_colors = Column(JSON, nullable=True)  # Array of color IDs (NEW)
+    available_laminates = Column(JSON, nullable=True)  # Array of laminate IDs (table tops)
     upholstery_amount = Column(Float, nullable=True)  # Yards of upholstery used when product uses it
 
     # Images (stored as JSON array with enhanced structure)

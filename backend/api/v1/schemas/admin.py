@@ -233,6 +233,9 @@ class ProductCreate(BaseModel):
     available_colors: Optional[List[int]] = Field(
         None, description="Available color IDs (JSON array)"
     )
+    available_laminates: Optional[List[int]] = Field(
+        None, description="Available laminate IDs (JSON array, table tops)"
+    )
     upholstery_amount: Optional[float] = Field(
         None, ge=0, description="Upholstery yardage used when product uses upholstery"
     )
@@ -376,6 +379,9 @@ class ProductUpdate(BaseModel):
     )
     available_colors: Optional[List[int]] = Field(
         None, description="Available color IDs (JSON array)"
+    )
+    available_laminates: Optional[List[int]] = Field(
+        None, description="Available laminate IDs (JSON array, table tops)"
     )
     upholstery_amount: Optional[float] = Field(
         None, ge=0, description="Upholstery yardage used when product uses upholstery"

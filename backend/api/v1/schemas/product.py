@@ -438,6 +438,7 @@ class ChairBase(BaseModel):
     available_finishes: Optional[list[int]] = None
     available_upholsteries: Optional[list[int]] = None
     available_colors: Optional[list[int]] = None  # Array of color IDs
+    available_laminates: Optional[list[int]] = None  # Array of laminate IDs
     upholstery_amount: Optional[float] = None  # Yards of upholstery used when product uses it
 
     # Images (accepts either list of URLs or list of structured items)
@@ -492,7 +493,7 @@ class ChairBase(BaseModel):
         return []
 
     @field_validator(
-        "available_finishes", "available_upholsteries", "available_colors", mode="before"
+        "available_finishes", "available_upholsteries", "available_colors", "available_laminates", mode="before"
     )
     @classmethod
     def validate_option_ids(cls, v):
@@ -563,6 +564,7 @@ class ChairUpdate(BaseModel):
     available_finishes: Optional[list[int]] = None
     available_upholsteries: Optional[list[int]] = None
     available_colors: Optional[list[int]] = None
+    available_laminates: Optional[list[int]] = None
     upholstery_amount: Optional[float] = None
     # Accept both URL lists and structured items when updating
     images: Optional[Union[List[str], List[ProductImageItem]]] = None

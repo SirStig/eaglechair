@@ -367,6 +367,7 @@ const QuoteRequestPage = () => {
                           <Badge variant="defaultLight">Qty: {item.quantity}</Badge>
                           {item.customizations?.finish && <Badge variant="secondaryLight" size="sm">Finish: {item.customizations.finish.name || item.customizations.finish}</Badge>}
                           {item.customizations?.upholstery && <Badge variant="secondaryLight" size="sm">Upholstery: {item.customizations.upholstery.name || item.customizations.upholstery}</Badge>}
+                          {item.customizations?.laminate && <Badge variant="secondaryLight" size="sm">Laminate: {item.customizations.laminate.name || item.customizations.laminate}</Badge>}
                         </div>
                         {(item.customizations?.custom_notes ?? item.item_notes) && (
                           <p className="text-sm text-slate-500 mt-2 italic">Note: {item.customizations?.custom_notes ?? item.item_notes}</p>

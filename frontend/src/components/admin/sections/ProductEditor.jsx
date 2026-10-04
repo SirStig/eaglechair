@@ -106,6 +106,8 @@ const ProductEditor = ({ product, onBack }) => {
   const [selectedFinishes, setSelectedFinishes] = useState(product?.available_finishes || []);
   const [selectedUpholsteries, setSelectedUpholsteries] = useState(product?.available_upholsteries || []);
   const [selectedColors, setSelectedColors] = useState(product?.available_colors || []);
+  const [selectedLaminates, setSelectedLaminates] = useState(product?.available_laminates || []);
+  const [laminates, setLaminates] = useState([]);
   const [flameCerts, setFlameCerts] = useState(product?.flame_certifications || []);
   const [greenCerts, setGreenCerts] = useState(product?.green_certifications || []);
 
@@ -128,6 +130,7 @@ const ProductEditor = ({ product, onBack }) => {
     fetchFinishes();
     fetchUpholsteries();
     fetchColors();
+    fetchLaminates();
   }, []);
 
   // Subcategory options follow every selected category, not just the primary
@@ -216,6 +219,15 @@ const ProductEditor = ({ product, onBack }) => {
     }
   };
 
+  const fetchLaminates = async () => {
+    try {
+      const response = await apiClient.get('/api/v1/content/laminates');
+      setLaminates(Array.isArray(response) ? response : (response.items || []));
+    } catch {
+      setLaminates([]);
+    }
+  };
+
   const fetchColors = async () => {
     try {
       // Fetch all active colors - no category filter to show all available colors
@@ -293,6 +305,7 @@ const ProductEditor = ({ product, onBack }) => {
         available_finishes: selectedFinishes,
         available_upholsteries: selectedUpholsteries,
         available_colors: selectedColors,
+        available_laminates: selectedLaminates,
         flame_certifications: flameCerts,
         green_certifications: greenCerts,
       };
@@ -1677,6 +1690,31 @@ const ProductEditor = ({ product, onBack }) => {
                       className="rounded border-dark-500"
                     />
                     <span className="text-sm text-dark-200">{upholstery.name}</span>
+                  </label>
+                ))}
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-dark-200 mb-2">
+                Available Laminates (table tops)
+              </label>
+              <div className="grid grid-cols-2 md:grid-cols-3 gap-3 p-4 bg-dark-700 rounded-lg max-h-64 overflow-y-auto">
+                {laminates.map(laminate => (
+                  <label key={laminate.id} className="flex items-center gap-2 cursor-pointer hover:bg-dark-600 p-2 rounded">
+                    <input
+                      type="checkbox"
+                      checked={selectedLaminates.includes(laminate.id)}
+                      onChange={(e) => {
+                        if (e.target.checked) {
+                          setSelectedLaminates([...selectedLaminates, laminate.id]);
+                        } else {
+                          setSelectedLaminates(selectedLaminates.filter(id => id !== laminate.id));
+                        }
+                      }}
+                      className="rounded border-dark-500"
+                    />
+                    <span className="text-sm text-dark-100">{laminate.brand} {laminate.pattern_name || laminate.patternName || laminate.name}</span>
                   </label>
                 ))}
               </div>
