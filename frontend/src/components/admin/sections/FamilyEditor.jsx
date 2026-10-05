@@ -154,7 +154,7 @@ const FamilyEditor = ({ family, categories, onBack, onSave }) => {
   );
 
   const membersPanel = family?.id && (
-    <aside className="lg:sticky lg:top-6 self-start">
+    <aside className="lg:sticky lg:top-20 self-start">
       <Card className="bg-dark-800 border-dark-700">
         <h3 className="text-lg font-semibold text-dark-50 mb-4 pb-2 border-b border-dark-600">
           In This Family
@@ -162,7 +162,7 @@ const FamilyEditor = ({ family, categories, onBack, onSave }) => {
         {!members ? (
           <p className="text-sm text-dark-400">Loading...</p>
         ) : (
-          <div className="space-y-5 max-h-[70vh] overflow-y-auto pr-1">
+          <div className="space-y-5 lg:max-h-[calc(100vh-11rem)] overflow-y-auto pr-1">
             {renderProductList('Products', members.products)}
             {members.secondary_products.length > 0 &&
               renderProductList('Also Listed Here', members.secondary_products)}

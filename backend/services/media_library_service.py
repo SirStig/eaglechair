@@ -43,6 +43,9 @@ _TYPE_LABELS = {
 }
 
 
+_IMAGE_EXT_RE = re.compile(r"\.(jpe?g|png|gif|webp|svg|tiff?|bmp|avif)$", re.I)
+
+
 def normalize_url(url: str) -> str | None:
     """Reduce an image URL to its '/uploads/images/...' path, or None if it isn't one."""
     if not url or not isinstance(url, str):
@@ -58,17 +61,47 @@ def normalize_url(url: str) -> str | None:
     return path
 
 
-def _collect(value, out: set) -> None:
+def library_key(value: str, image_column: bool) -> str | None:
+    """
+    Library key for an image reference stored on a record, in any form the
+    site has used: '/uploads/images/...' (relative, or absolute on any host,
+    which collapses to the relative path so it matches the file on disk),
+    other site paths like '/images/...', and external URLs. Strings in
+    image-named columns count when they look like a path/URL; elsewhere (JSON
+    blobs) they also need an image file extension.
+    """
+    if not isinstance(value, str):
+        return None
+    raw = value.strip()
+    if not raw or len(raw) > 1000 or raw.startswith("data:"):
+        return None
+    uploads = normalize_url(raw)
+    if uploads:
+        return uploads
+    if not (raw.startswith(("/", "http://", "https://", "//")) or raw.startswith(("images/", "uploads/"))):
+        return None
+    try:
+        path = urlsplit(raw).path
+    except ValueError:
+        return None
+    if path.startswith("/uploads/documents/") or path.startswith("uploads/documents/"):
+        return None
+    if not _IMAGE_EXT_RE.search(path) and not image_column:
+        return None
+    return raw
+
+
+def _collect(value, out: set, image_column: bool) -> None:
     if isinstance(value, str):
-        norm = normalize_url(value)
-        if norm:
-            out.add(norm)
+        key = library_key(value, image_column)
+        if key:
+            out.add(key)
     elif isinstance(value, dict):
         for v in value.values():
-            _collect(v, out)
+            _collect(v, out, image_column)
     elif isinstance(value, (list, tuple)):
         for v in value:
-            _collect(v, out)
+            _collect(v, out, image_column)
 
 
 def _type_label(cls_name: str) -> str:
@@ -88,7 +121,7 @@ def _row_label(cls_name: str, row: dict) -> str:
 
 
 def _scan_targets():
-    """(mapper class, label column names, image column names) for every model with image columns."""
+    """(class, label columns, image columns, image-named columns) for every model with image columns."""
     targets = []
     for mapper in Base.registry.mappers:
         cls = mapper.class_
@@ -102,10 +135,11 @@ def _scan_targets():
                 image_cols.append(key)
             elif isinstance(col.type, JSON) and (scan_json or _IMAGE_COLUMN_RE.search(key)):
                 image_cols.append(key)
+        image_named = {c for c in image_cols if _IMAGE_COLUMN_RE.search(c)}
         if not image_cols:
             continue
         label_cols = [c for c in ("model_number", *_LABEL_COLUMNS) if c in cols and c not in image_cols]
-        targets.append((cls, label_cols, image_cols))
+        targets.append((cls, label_cols, image_cols, image_named))
     return targets
 
 
@@ -120,9 +154,9 @@ class Usage:
 
 
 async def find_usages(db: AsyncSession) -> dict[str, list[Usage]]:
-    """Map each '/uploads/images/...' path to the records that reference it."""
+    """Map each image reference (see library_key) to the records that use it."""
     usages: dict[str, list[Usage]] = {}
-    for cls, label_cols, image_cols in _scan_targets():
+    for cls, label_cols, image_cols, image_named in _scan_targets():
         columns = [cls.id, *(getattr(cls, c) for c in label_cols), *(getattr(cls, c) for c in image_cols)]
         try:
             result = await db.execute(select(*columns))
@@ -134,7 +168,7 @@ async def find_usages(db: AsyncSession) -> dict[str, list[Usage]]:
         for row in result.mappings():
             urls: set[str] = set()
             for c in image_cols:
-                _collect(row.get(c), urls)
+                _collect(row.get(c), urls, c in image_named)
             if not urls:
                 continue
             usage = Usage(type=type_label, id=row["id"], label=_row_label(cls.__name__, dict(row)))
@@ -149,8 +183,9 @@ class ImageFile:
     folder: str
     filename: str
     size: int
-    modified: float
+    modified: float | None
     used_by: list[Usage] = field(default_factory=list)
+    on_disk: bool = True
 
 
 def scan_files(upload_base: Path) -> list[ImageFile]:
@@ -185,8 +220,25 @@ def scan_files(upload_base: Path) -> list[ImageFile]:
     return files
 
 
+def _referenced_only(key: str) -> ImageFile:
+    """Library entry for an image a record uses that isn't in the uploads folder."""
+    parts = urlsplit(key)
+    segments = [p for p in parts.path.split("/") if p]
+    if parts.netloc:
+        folder = parts.netloc
+    elif len(segments) >= 3 and segments[0] in ("uploads", "images"):
+        folder = segments[2] if segments[0] == "uploads" else segments[1]
+    else:
+        folder = segments[0] if len(segments) > 1 else ""
+    return ImageFile(
+        url=key, folder=folder, filename=segments[-1] if segments else key,
+        size=0, modified=None, on_disk=False,
+    )
+
+
 def _matches(image: ImageFile, tokens: list[str]) -> bool:
     haystack = " ".join([
+        image.url,
         image.filename,
         image.folder,
         *(f"{u.type} {u.label}" for u in image.used_by),
@@ -207,24 +259,36 @@ async def list_images(
     q: str = "",
     folder: str = "",
     usage: str = "all",
+    used_by_type: str = "",
     page: int = 1,
     page_size: int = 60,
 ) -> dict:
     files = await run_in_threadpool(scan_files, upload_base)
     usages = await find_usages(db)
+    on_disk = {f.url for f in files}
     for f in files:
         f.used_by = usages.get(f.url, [])
+    # Every image a record uses belongs in the library, wherever the file lives
+    referenced = [_referenced_only(k) for k in usages if k not in on_disk]
+    for f in referenced:
+        f.used_by = usages[f.url]
+    referenced.sort(key=lambda f: (f.folder, f.filename.lower()))
+    images = files + referenced
 
     folders: dict[str, int] = {}
-    for f in files:
+    types: dict[str, int] = {}
+    for f in images:
         folders[f.folder] = folders.get(f.folder, 0) + 1
+        for t in {u.type for u in f.used_by}:
+            types[t] = types.get(t, 0) + 1
 
     tokens = [t for t in (q or "").lower().split() if t]
     filtered = [
-        f for f in files
+        f for f in images
         if (not folder or f.folder == folder)
         and (usage != "used" or f.used_by)
         and (usage != "unused" or not f.used_by)
+        and (not used_by_type or any(u.type == used_by_type for u in f.used_by))
         and (not tokens or _matches(f, tokens))
     ]
 
@@ -240,6 +304,7 @@ async def list_images(
                 "filename": f.filename,
                 "size": f.size,
                 "modified": f.modified,
+                "on_disk": f.on_disk,
                 "used_by": [u.as_dict() for u in f.used_by],
             }
             for f in items
@@ -248,4 +313,5 @@ async def list_images(
         "page": page,
         "page_size": page_size,
         "folders": [{"name": k, "count": v} for k, v in sorted(folders.items())],
+        "types": [{"name": k, "count": v} for k, v in sorted(types.items())],
     }

@@ -195,6 +195,7 @@ async def list_media_images(
     q: str = Query("", max_length=200, description="Search filename, folder, or the product/record using it"),
     folder: str = Query("", max_length=100),
     usage: str = Query("all", pattern="^(all|used|unused)$"),
+    used_by_type: str = Query("", max_length=100, description="Only images used by this record type, e.g. Product"),
     page: int = Query(1, ge=1),
     page_size: int = Query(60, ge=1, le=200),
     db: AsyncSession = Depends(get_db),
@@ -206,6 +207,7 @@ async def list_media_images(
         q=q,
         folder=sanitize_subfolder(folder) if folder else "",
         usage=usage,
+        used_by_type=used_by_type,
         page=page,
         page_size=page_size,
     )

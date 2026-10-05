@@ -4,9 +4,16 @@
  */
 import { api } from '../config/apiClient';
 
-export const listMediaImages = ({ q = '', folder = '', usage = 'all', page = 1, pageSize = 60 } = {}) =>
+export const listMediaImages = ({ q = '', folder = '', usage = 'all', usedByType = '', page = 1, pageSize = 60 } = {}) =>
   api.get('/api/v1/admin/upload/images', {
-    params: { q: q || undefined, folder: folder || undefined, usage, page, page_size: pageSize },
+    params: {
+      q: q || undefined,
+      folder: folder || undefined,
+      used_by_type: usedByType || undefined,
+      usage,
+      page,
+      page_size: pageSize,
+    },
   });
 
 /** Permanently delete an uploaded image. The server refuses (409) while a record still uses it. */
