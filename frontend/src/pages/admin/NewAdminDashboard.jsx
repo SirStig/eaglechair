@@ -66,6 +66,14 @@ const NewAdminDashboardInner = () => {
   const [selectedProduct, setSelectedProduct] = useState(null);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(readCollapsed);
   const railCollapsed = !isDesktop || sidebarCollapsed;
+
+  // Floating docks (batch-edit bars, editor actions) are portalled to <body>
+  // and line up with the content column through this variable.
+  useEffect(() => {
+    const root = document.documentElement;
+    root.style.setProperty('--admin-rail', railCollapsed ? '4.5rem' : '17rem');
+    return () => root.style.removeProperty('--admin-rail');
+  }, [railCollapsed]);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [paletteOpen, setPaletteOpen] = useState(false);
   const [inquiryUnread, setInquiryUnread] = useState(0);

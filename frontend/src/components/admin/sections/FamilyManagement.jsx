@@ -207,6 +207,7 @@ const FamilyManagement = () => {
           },
         }
       : { label: 'Restore', changes: { is_active: true } },
+    ...(tab === 'archived' ? [{ label: 'Delete permanently', tone: 'danger', onClick: (ids) => setPermDeleteTarget({ bulk: [...ids] }) }] : []),
     booleanAction('Featured', 'is_featured', 'Featured', 'Not featured'),
     idAction('Move to category', 'category_id', categories, { none: 'No category' }),
   ], [tab, categories]);
@@ -254,15 +255,6 @@ const FamilyManagement = () => {
         description="Manage product families and collections"
         actions={
           <div className="flex flex-wrap gap-2">
-            {tab === 'archived' && selection.count > 0 && (
-              <Button
-                variant="outline"
-                onClick={() => setPermDeleteTarget({ bulk: [...selection.selectedIds] })}
-                className="text-red-500 border-red-500/50 hover:bg-red-900/20"
-              >
-                Delete {selection.count} permanently
-              </Button>
-            )}
             <Button onClick={handleCreate}>
               + Add Family
             </Button>

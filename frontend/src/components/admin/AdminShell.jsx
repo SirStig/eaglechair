@@ -20,6 +20,13 @@ function AdminPWAWrapper() {
   const showBottomNav = isStandalone && isTabletOrSmaller && !isAIChatPage;
   const { closeChat } = useAIChat();
 
+  // Lets floating docks sit above the PWA bottom nav (52px tall plus safe area)
+  useEffect(() => {
+    const root = document.documentElement;
+    root.style.setProperty('--admin-bottom-nav', showBottomNav ? '52px' : '0px');
+    return () => root.style.removeProperty('--admin-bottom-nav');
+  }, [showBottomNav]);
+
   useEffect(() => {
     if (!isStandalone) return;
     const meta = document.querySelector('meta[name="viewport"]');

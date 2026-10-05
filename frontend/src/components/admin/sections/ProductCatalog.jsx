@@ -236,7 +236,10 @@ const ProductCatalog = ({ onEdit }) => {
           ...ACTIVE_ACTIONS,
           { label: 'Archive', run: archiveSelected, tone: 'danger' },
         ]
-      : [{ label: 'Restore', changes: { is_active: true } }]
+      : [
+          { label: 'Restore', changes: { is_active: true } },
+          { label: 'Delete permanently', tone: 'danger', onClick: (ids) => setPermDeleteTarget({ bulk: [...ids] }) },
+        ]
   ), [tab, categories, subcategories, families]);
 
   return (
@@ -449,19 +452,6 @@ const ProductCatalog = ({ onEdit }) => {
           </>
         )}
       </Card>
-
-      {tab === 'archived' && selection.count > 0 && (
-        <div className="flex justify-end">
-          <Button
-            size="sm"
-            variant="outline"
-            onClick={() => setPermDeleteTarget({ bulk: [...selection.selectedIds] })}
-            className="text-red-500 border-red-500/50 hover:bg-red-900/20"
-          >
-            Delete {selection.count} permanently
-          </Button>
-        </div>
-      )}
 
       <BulkActionBar
         selection={selection}

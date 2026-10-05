@@ -28,7 +28,17 @@ import ResponsiveImage from '../../ui/ResponsiveImage';
 import { AdminPage, AdminPageHeader } from '../ui/AdminPage';
 import ProductAnalyticsPanel from '../ProductAnalyticsPanel';
 import useBulkSelection from '../../../hooks/useBulkSelection';
-import { SelectAllCheckbox, RowCheckbox } from '../bulk/SelectCheckbox';
+import BulkActionBar from '../bulk/BulkActionBar';
+import FloatingDock from '../bulk/FloatingDock';
+import FitLabel from '../bulk/FitLabel';
+import ProductVariationsTab from './ProductVariationsTab';
+import {
+  OPTION_GROUP_SWITCHES,
+  STOCK_STATUS_OPTIONS,
+  useVariationRows,
+  variationAnchor,
+  variationKey,
+} from './productVariations';
 
 /**
  * Comprehensive Product Editor
@@ -44,12 +54,6 @@ import { SelectAllCheckbox, RowCheckbox } from '../bulk/SelectCheckbox';
  * - Certifications & Usage
  * - SEO & Analytics
  */
-const OPTION_GROUP_SWITCHES = [
-  { field: 'upholstery_enabled', label: 'Upholstery' },
-  { field: 'colors_enabled', label: 'Colors' },
-  { field: 'laminates_enabled', label: 'Laminates' },
-];
-
 // Section label with a switch that shows or hides the whole option group on
 // the storefront. Turning it off keeps the selections below.
 const OptionGroupHeading = ({ label, enabled, onChange }) => (
@@ -71,115 +75,13 @@ const OptionGroupHeading = ({ label, enabled, onChange }) => (
   </div>
 );
 
-const STOCK_STATUS_OPTIONS = ['Made to Order', 'Available', 'Low Stock', 'Out of Stock', 'Discontinued'];
-
-// Variations have no id until the product is saved, so new ones key by position
-const variationKey = (variation, index) => variation.id ?? `new-${index}`;
 const rowKey = (row) => row.key;
+// Variations open by default when there are only a few
+const OPEN_ALL_UP_TO = 3;
+let newVariationSeq = 0;
 
-const BULK_SELECT = 'rounded-lg border border-dark-600 bg-dark-700 px-2.5 py-1.5 text-sm text-dark-100 focus:border-primary-500 outline-none';
-
-/**
- * Batch edit bar for the Variations tab. Changes apply to local state only;
- * they're saved with the product like any other edit.
- */
-const VariationBulkBar = ({ selection, finishes, upholsteries, colors, families, onPatch, onRemove }) => {
-  const [price, setPrice] = useState('');
-  if (!selection.count) return null;
-
-  const pick = (label, options, toPatch) => (
-    <select
-      key={label}
-      value=""
-      onChange={(e) => {
-        if (e.target.value === '') return;
-        onPatch(toPatch(e.target.value));
-      }}
-      className={BULK_SELECT}
-      aria-label={label}
-    >
-      <option value="">{label}…</option>
-      {options.map((o) => (
-        <option key={o.value} value={o.value}>{o.label}</option>
-      ))}
-    </select>
-  );
-  const idOptions = (rows, none, getLabel = (r) => r.name) => [
-    { value: 'none', label: none },
-    ...rows.map((r) => ({ value: String(r.id), label: getLabel(r) })),
-  ];
-  const toId = (v) => (v === 'none' ? null : Number(v));
-  const groupOptions = [
-    { value: 'inherit', label: 'Same as product' },
-    { value: 'on', label: 'On' },
-    { value: 'off', label: 'Off' },
-  ];
-  const toGroup = (v) => (v === 'inherit' ? null : v === 'on');
-  const familyOptions = families.map((f) => ({ value: String(f.id), label: f.name }));
-  const plural = `${selection.count} variation${selection.count === 1 ? '' : 's'}`;
-
-  return (
-    <div className="sticky bottom-20 sm:bottom-4 z-30" role="region" aria-label="Batch edit variations">
-      <div className="flex flex-wrap items-center gap-2 rounded-xl border border-primary-500/60 bg-dark-800/95 px-3 py-2.5 shadow-2xl backdrop-blur">
-        <button
-          type="button"
-          onClick={selection.clear}
-          className="inline-flex items-center gap-1.5 rounded-lg px-2 py-1 text-sm font-medium text-dark-50 hover:bg-dark-700"
-          aria-label="Clear selection"
-        >
-          <X className="h-4 w-4" />
-          {plural} selected
-        </button>
-        <span className="hidden sm:block h-5 w-px bg-dark-600" />
-        {pick('Finish', idOptions(finishes, 'No finish'), (v) => () => ({ finish_id: toId(v) }))}
-        {pick('Upholstery', idOptions(upholsteries, 'No upholstery'), (v) => () => ({ upholstery_id: toId(v) }))}
-        {pick('Color', idOptions(colors, 'No color'), (v) => () => ({ color_id: toId(v) }))}
-        {OPTION_GROUP_SWITCHES.map(({ field, label }) =>
-          pick(`${label} options`, groupOptions, (v) => () => ({ [field]: toGroup(v) }))
-        )}
-        {pick('Available', [{ value: 'yes', label: 'Available for sale' }, { value: 'no', label: 'Not available' }],
-          (v) => () => ({ is_available: v === 'yes' }))}
-        {pick('Stock status', STOCK_STATUS_OPTIONS.map((o) => ({ value: o, label: o })), (v) => () => ({ stock_status: v }))}
-        {familyOptions.length > 0 && pick('Add to family', familyOptions, (v) => (variation) => ({
-          family_ids: [...new Set([...(variation.family_ids || []), Number(v)])],
-        }))}
-        {familyOptions.length > 0 && pick('Remove from family', familyOptions, (v) => (variation) => ({
-          family_ids: (variation.family_ids || []).filter((id) => id !== Number(v)),
-        }))}
-        <form
-          className="flex items-center gap-1"
-          onSubmit={(e) => {
-            e.preventDefault();
-            const dollars = parseFloat(price);
-            if (Number.isNaN(dollars)) return;
-            onPatch(() => ({ price_adjustment: Math.round(dollars * 100) }));
-            setPrice('');
-          }}
-        >
-          <input
-            type="number"
-            step="0.01"
-            value={price}
-            onChange={(e) => setPrice(e.target.value)}
-            placeholder="Price adj. $"
-            className={`${BULK_SELECT} w-28`}
-            aria-label="Price adjustment in dollars"
-          />
-          <button type="submit" disabled={price === ''} className="rounded-lg border border-dark-600 px-2.5 py-1.5 text-sm text-dark-100 hover:bg-dark-700 disabled:opacity-50">
-            Set
-          </button>
-        </form>
-        <button
-          type="button"
-          onClick={onRemove}
-          className="rounded-lg border border-red-500/40 px-3 py-1.5 text-sm font-medium text-red-300 hover:bg-red-900/30"
-        >
-          Remove selected
-        </button>
-      </div>
-    </div>
-  );
-};
+const DOCK_BUTTON =
+  'flex h-11 w-[6.5rem] sm:w-36 min-w-0 items-center justify-center gap-1.5 rounded-lg border px-2.5 text-center font-medium transition-colors disabled:opacity-60';
 
 const ProductEditor = ({ product, onBack }) => {
   const toast = useToast();
@@ -249,19 +151,6 @@ const ProductEditor = ({ product, onBack }) => {
   });
   const [uploadingImage, setUploadingImage] = useState(false);
   const [variations, setVariations] = useState(Array.isArray(product?.variations) ? product.variations : []);
-  const variationRows = useMemo(() => variations.map((v, i) => ({ key: variationKey(v, i) })), [variations]);
-  const variationSelection = useBulkSelection(variationRows, rowKey);
-  const variationOrder = variationRows.map(rowKey);
-  // patchFor(variation) returns the fields to change on each selected variation
-  const patchSelectedVariations = (patchFor) => {
-    const picked = new Set(variationSelection.selectedIds);
-    setVariations((prev) => prev.map((v, i) => (picked.has(variationKey(v, i)) ? { ...v, ...patchFor(v) } : v)));
-  };
-  const removeSelectedVariations = () => {
-    const picked = new Set(variationSelection.selectedIds);
-    setVariations((prev) => prev.filter((v, i) => !picked.has(variationKey(v, i))));
-    variationSelection.clear();
-  };
   const [selectedFinishes, setSelectedFinishes] = useState(product?.available_finishes || []);
   const [selectedUpholsteries, setSelectedUpholsteries] = useState(product?.available_upholsteries || []);
   const [selectedColors, setSelectedColors] = useState(product?.available_colors || []);
@@ -439,6 +328,154 @@ const ProductEditor = ({ product, onBack }) => {
       };
     });
   };
+
+  // ---- Variations: filter, open cards, selection and batch edits ----
+  const [variationFilter, setVariationFilter] = useState('');
+  const [expandedVariations, setExpandedVariations] = useState(() =>
+    variations.length <= OPEN_ALL_UP_TO ? new Set(variations.map(variationKey)) : new Set()
+  );
+  const [scrollToVariation, setScrollToVariation] = useState(null);
+  const { rows: variationRows, names: variationNames } = useVariationRows(variations, variationFilter, {
+    finishes,
+    upholsteries,
+    colors,
+  });
+  const variationSelection = useBulkSelection(variationRows, rowKey);
+
+  useEffect(() => {
+    if (scrollToVariation == null) return;
+    document.getElementById(variationAnchor(scrollToVariation))?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    setScrollToVariation(null);
+  }, [scrollToVariation, variations, expandedVariations]);
+
+  const toggleVariation = (key) =>
+    setExpandedVariations((prev) => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
+      return next;
+    });
+  const jumpToVariation = (key) => {
+    setExpandedVariations((prev) => new Set(prev).add(key));
+    setScrollToVariation(key);
+  };
+  const updateVariation = (index, patch) =>
+    setVariations((prev) => prev.map((v, i) => (i === index ? { ...v, ...patch } : v)));
+  // patchFor(variation) returns the fields to change on each variation in keys
+  const patchVariations = (keys, patchFor) => {
+    const picked = new Set(keys);
+    setVariations((prev) => prev.map((v, i) => (picked.has(variationKey(v, i)) ? { ...v, ...patchFor(v) } : v)));
+  };
+  const removeVariations = (keys) => {
+    const picked = new Set(keys);
+    setVariations((prev) => prev.filter((v, i) => !picked.has(variationKey(v, i))));
+  };
+  const removeVariation = (key) => {
+    const variation = variations.find((v, i) => variationKey(v, i) === key);
+    if (variation?.sku && !confirm(`Remove variation ${variation.sku}? This takes effect when you save the product.`)) return;
+    removeVariations([key]);
+  };
+  const addVariation = () => {
+    newVariationSeq += 1;
+    const key = `new-${Date.now()}-${newVariationSeq}`;
+    setVariations((prev) => [
+      ...prev,
+      {
+        _key: key,
+        sku: '',
+        name: '',
+        finish_id: null,
+        upholstery_id: null,
+        color_id: null,
+        price_adjustment: 0,
+        stock_status: 'Made to Order',
+        is_available: true,
+        family_ids: [],
+        width: null,
+        depth: null,
+        height: null,
+        seat_width: null,
+        seat_depth: null,
+        seat_height: null,
+        arm_height: null,
+        back_height: null,
+        weight: null,
+        shipping_weight: null,
+        upholstery_amount: null,
+        upholstery_enabled: null,
+        colors_enabled: null,
+        laminates_enabled: null,
+      },
+    ]);
+    setVariationFilter('');
+    jumpToVariation(key);
+  };
+
+  const variationBulkActions = useMemo(() => {
+    const patch = (patchFor) => async (keys, value) => patchVariations(keys, (v) => patchFor(value, v));
+    const idOptions = (list, none) => [
+      { value: 'none', label: none },
+      ...list.map((r) => ({ value: String(r.id), label: r.name })),
+    ];
+    const toId = (v) => (v === 'none' ? null : Number(v));
+    const groupOptions = [
+      { value: 'inherit', label: 'Same as product' },
+      { value: 'on', label: 'On' },
+      { value: 'off', label: 'Off' },
+    ];
+    const familyOptions = families.map((f) => ({ value: String(f.id), label: f.name }));
+    return [
+      { label: 'Finish', options: idOptions(finishes, 'No finish'), run: patch((v) => ({ finish_id: toId(v) })) },
+      { label: 'Upholstery', options: idOptions(upholsteries, 'No upholstery'), run: patch((v) => ({ upholstery_id: toId(v) })) },
+      { label: 'Color', options: idOptions(colors, 'No color'), run: patch((v) => ({ color_id: toId(v) })) },
+      ...OPTION_GROUP_SWITCHES.map(({ field, label }) => ({
+        label: `${label} options`,
+        options: groupOptions,
+        run: patch((v) => ({ [field]: v === 'inherit' ? null : v === 'on' })),
+      })),
+      {
+        label: 'Available',
+        options: [{ value: 'yes', label: 'Available for sale' }, { value: 'no', label: 'Not for sale' }],
+        run: patch((v) => ({ is_available: v === 'yes' })),
+      },
+      {
+        label: 'Stock status',
+        options: STOCK_STATUS_OPTIONS.map((o) => ({ value: o, label: o })),
+        run: patch((v) => ({ stock_status: v })),
+      },
+      {
+        label: 'Price adjustment',
+        input: { type: 'number', step: '0.01', placeholder: 'Dollars, e.g. 12.50 or -5' },
+        run: patch((v) => ({ price_adjustment: Math.round(parseFloat(v) * 100) || 0 })),
+      },
+      {
+        label: 'Add to family',
+        options: familyOptions,
+        run: patch((v, variation) => ({ family_ids: [...new Set([...(variation.family_ids || []), Number(v)])] })),
+      },
+      {
+        label: 'Remove from family',
+        options: familyOptions,
+        run: patch((v, variation) => ({ family_ids: (variation.family_ids || []).filter((id) => id !== Number(v)) })),
+      },
+      {
+        label: 'Open selected',
+        run: async (keys) => setExpandedVariations((prev) => new Set([...prev, ...keys])),
+      },
+      {
+        label: 'Remove',
+        tone: 'danger',
+        run: async (keys) => {
+          if (!confirm(`Remove ${keys.length} variation${keys.length === 1 ? '' : 's'}? This takes effect when you save the product.`)) {
+            throw new Error('Cancelled');
+          }
+          removeVariations(keys);
+        },
+      },
+    ];
+    // patchVariations / removeVariations only call the stable setVariations
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [finishes, upholsteries, colors, families]);
 
   const handleSave = async () => {
     setSaving(true);
@@ -1395,353 +1432,31 @@ const ProductEditor = ({ product, onBack }) => {
 
       case 'variations':
         return (
-          <div className="space-y-6">
-            <div className="flex items-center justify-between">
+          <div className="space-y-5">
+            <div>
               <h3 className="text-lg font-semibold text-dark-50">Product Variations</h3>
-              <Button
-                onClick={() => setVariations([...variations, {
-                  sku: '',
-                  name: '',
-                  finish_id: null,
-                  upholstery_id: null,
-                  color_id: null,
-                  price_adjustment: 0,
-                  stock_status: 'Made to Order',
-                  is_available: true,
-                  family_ids: [],
-                  width: null,
-                  depth: null,
-                  height: null,
-                  seat_width: null,
-                  seat_depth: null,
-                  seat_height: null,
-                  arm_height: null,
-                  back_height: null,
-                  weight: null,
-                  shipping_weight: null,
-                  upholstery_amount: null,
-                  upholstery_enabled: null,
-                  colors_enabled: null,
-                  laminates_enabled: null
-                }])}
-                variant="outline"
-                className="flex items-center gap-2"
-              >
-                <Plus className="w-4 h-4" />
-                Add Variation
-              </Button>
+              <p className="mt-1 text-sm text-dark-300">
+                Specific combinations of finish, upholstery and color. Click a variation to open it; tick several to batch edit.
+              </p>
             </div>
-
-            <p className="text-sm text-dark-300">
-              Variations represent specific combinations of finish, upholstery, and color options for this product.
-            </p>
-
-            {variations.length === 0 ? (
-              <div className="text-center py-12 bg-dark-700 rounded-lg border-2 border-dashed border-dark-600">
-                <RefreshCw className="w-12 h-12 text-dark-400 mx-auto mb-4" />
-                <p className="text-dark-300">No variations added</p>
-                <p className="text-sm text-dark-400 mt-2">
-                  Add variations for different finish, upholstery, or color combinations
-                </p>
-              </div>
-            ) : (
-              <div className="space-y-4">
-                <label className="inline-flex items-center gap-2 text-sm text-dark-300 cursor-pointer">
-                  <SelectAllCheckbox selection={variationSelection} label="Select all variations" />
-                  Select all to batch edit (shift-click selects a range)
-                </label>
-                {variations.map((variation, index) => (
-                  <Card
-                    key={index}
-                    className={`p-4 ${variationSelection.isSelected(variationKey(variation, index)) ? 'ring-1 ring-primary-500' : ''}`}
-                  >
-                    <div className="flex items-start gap-4">
-                      <div className="pt-1">
-                        <RowCheckbox
-                          selection={variationSelection}
-                          id={variationKey(variation, index)}
-                          orderedIds={variationOrder}
-                          label={`Select variation ${variation.sku || index + 1}`}
-                        />
-                      </div>
-                      <div className="flex-1 space-y-4">
-                        <div>
-                          <label className="block text-sm font-medium text-dark-200 mb-2">
-                            Variation Name <span className="text-dark-400 font-normal">(Optional)</span>
-                          </label>
-                          <input
-                            type="text"
-                            value={variation.name || ''}
-                            onChange={(e) => {
-                              const newVariations = [...variations];
-                              newVariations[index].name = e.target.value;
-                              setVariations(newVariations);
-                            }}
-                            className="w-full px-3 py-2 bg-dark-700 border border-dark-600 rounded-lg text-dark-50"
-                            placeholder="e.g. Walnut Frame / Black Vinyl"
-                          />
-                        </div>
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                          <div>
-                            <label className="block text-sm font-medium text-dark-200 mb-2">
-                              SKU *
-                            </label>
-                            <input
-                              type="text"
-                              value={variation.sku || ''}
-                              onChange={(e) => {
-                                const newVariations = [...variations];
-                                newVariations[index].sku = e.target.value;
-                                setVariations(newVariations);
-                              }}
-                              className="w-full px-3 py-2 bg-dark-700 border border-dark-600 rounded-lg text-dark-50"
-                              placeholder="6246-WB-BLK"
-                            />
-                          </div>
-                          <div>
-                            <label className="block text-sm font-medium text-dark-200 mb-2">
-                              Stock Status
-                            </label>
-                            <select
-                              value={formatStockStatus(variation.stock_status) || 'Made to Order'}
-                              onChange={(e) => {
-                                const newVariations = [...variations];
-                                newVariations[index].stock_status = e.target.value;
-                                setVariations(newVariations);
-                              }}
-                              className="w-full px-3 py-2 bg-dark-700 border border-dark-600 rounded-lg text-dark-50"
-                            >
-                              <option value="Made to Order">Made to Order</option>
-                              <option value="Available">Available</option>
-                              <option value="Low Stock">Low Stock</option>
-                              <option value="Out of Stock">Out of Stock</option>
-                              <option value="Discontinued">Discontinued</option>
-                            </select>
-                          </div>
-                        </div>
-
-                        <div>
-                          <label className="block text-sm font-medium text-dark-200 mb-2">
-                            Show this variation in families
-                          </label>
-                          <p className="text-sm text-dark-400 mb-2">
-                            When this family is viewed, this variation&apos;s image and info are shown. Link opens product with this variation selected.
-                          </p>
-                          <div className="flex flex-wrap gap-3 max-h-32 overflow-y-auto p-3 bg-dark-700 border border-dark-600 rounded-lg">
-                            {families.map(f => (
-                              <label key={f.id} className="inline-flex items-center gap-2 cursor-pointer">
-                                <input
-                                  type="checkbox"
-                                  checked={(variation.family_ids || []).includes(f.id)}
-                                  onChange={(e) => {
-                                    const newVariations = [...variations];
-                                    const current = newVariations[index].family_ids || [];
-                                    const next = e.target.checked
-                                      ? [...current, f.id]
-                                      : current.filter(id => id !== f.id);
-                                    newVariations[index].family_ids = next;
-                                    setVariations(newVariations);
-                                  }}
-                                  className="rounded border-dark-500 bg-dark-600 text-primary-500 focus:ring-primary-500"
-                                />
-                                <span className="text-sm text-dark-100">{f.name}</span>
-                              </label>
-                            ))}
-                            {families.length === 0 && (
-                              <span className="text-sm text-dark-400">No families. Add families in Family Management.</span>
-                            )}
-                          </div>
-                        </div>
-
-                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                          <div>
-                            <label className="block text-sm font-medium text-dark-200 mb-2">
-                              Finish
-                            </label>
-                            <select
-                              value={variation.finish_id || ''}
-                              onChange={(e) => {
-                                const newVariations = [...variations];
-                                newVariations[index].finish_id = parseInt(e.target.value) || null;
-                                setVariations(newVariations);
-                              }}
-                              className="w-full px-3 py-2 bg-dark-700 border border-dark-600 rounded-lg text-dark-50"
-                            >
-                              <option value="">No Finish</option>
-                              {finishes.map(f => (
-                                <option key={f.id} value={f.id}>{f.name}</option>
-                              ))}
-                            </select>
-                          </div>
-
-                          <div>
-                            <label className="block text-sm font-medium text-dark-200 mb-2">
-                              Upholstery
-                            </label>
-                            <select
-                              value={variation.upholstery_id || ''}
-                              onChange={(e) => {
-                                const newVariations = [...variations];
-                                newVariations[index].upholstery_id = parseInt(e.target.value) || null;
-                                setVariations(newVariations);
-                              }}
-                              className="w-full px-3 py-2 bg-dark-700 border border-dark-600 rounded-lg text-dark-50"
-                            >
-                              <option value="">No Upholstery</option>
-                              {upholsteries.map(u => (
-                                <option key={u.id} value={u.id}>{u.name}</option>
-                              ))}
-                            </select>
-                          </div>
-
-                          <div>
-                            <label className="block text-sm font-medium text-dark-200 mb-2">
-                              Color
-                            </label>
-                            <select
-                              value={variation.color_id || ''}
-                              onChange={(e) => {
-                                const newVariations = [...variations];
-                                newVariations[index].color_id = parseInt(e.target.value) || null;
-                                setVariations(newVariations);
-                              }}
-                              className="w-full px-3 py-2 bg-dark-700 border border-dark-600 rounded-lg text-dark-50"
-                            >
-                              <option value="">No Color</option>
-                              {colors.map(c => (
-                                <option key={c.id} value={c.id}>{c.name}</option>
-                              ))}
-                            </select>
-                          </div>
-                        </div>
-
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                          <div>
-                            <label className="block text-sm font-medium text-dark-200 mb-2">
-                              Price Adjustment (USD)
-                            </label>
-                            <div className="relative">
-                              <span className="absolute left-4 top-1/2 -translate-y-1/2 text-dark-400">$</span>
-                              <input
-                                type="number"
-                                step="0.01"
-                                value={(variation.price_adjustment || 0) / 100}
-                                onChange={(e) => {
-                                  const newVariations = [...variations];
-                                  newVariations[index].price_adjustment = Math.round(parseFloat(e.target.value) * 100) || 0;
-                                  setVariations(newVariations);
-                                }}
-                                className="w-full pl-8 pr-4 py-2 bg-dark-700 border border-dark-600 rounded-lg text-dark-50"
-                                placeholder="0.00"
-                              />
-                            </div>
-                          </div>
-
-                          <div className="flex items-end">
-                            <label className="flex items-center gap-2 cursor-pointer pb-2">
-                              <input
-                                type="checkbox"
-                                checked={variation.is_available !== false}
-                                onChange={(e) => {
-                                  const newVariations = [...variations];
-                                  newVariations[index].is_available = e.target.checked;
-                                  setVariations(newVariations);
-                                }}
-                                className="rounded border-dark-500"
-                              />
-                              <span className="text-dark-200">Available for Sale</span>
-                            </label>
-                          </div>
-                        </div>
-
-                        <div className="mt-4 pt-4 border-t border-dark-600">
-                          <p className="text-sm font-medium text-dark-200 mb-3">Option groups for this variation</p>
-                          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                            {OPTION_GROUP_SWITCHES.map(({ field, label }) => (
-                              <div key={field}>
-                                <label className="block text-xs text-dark-400 mb-1">{label}</label>
-                                <select
-                                  value={variation[field] === true ? 'on' : variation[field] === false ? 'off' : ''}
-                                  onChange={(e) => {
-                                    const newVariations = [...variations];
-                                    newVariations[index] = {
-                                      ...newVariations[index],
-                                      [field]: e.target.value === '' ? null : e.target.value === 'on',
-                                    };
-                                    setVariations(newVariations);
-                                  }}
-                                  className="w-full px-3 py-2 bg-dark-700 border border-dark-600 rounded-lg text-dark-50 text-sm"
-                                >
-                                  <option value="">Same as product ({formData[field] !== false ? 'on' : 'off'})</option>
-                                  <option value="on">On</option>
-                                  <option value="off">Off</option>
-                                </select>
-                              </div>
-                            ))}
-                          </div>
-                        </div>
-
-                        <div className="mt-4 pt-4 border-t border-dark-600">
-                          <p className="text-sm font-medium text-dark-200 mb-3">Weight & dimensions override (optional)</p>
-                          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
-                            {[
-                              { key: 'width', label: 'W (in)' },
-                              { key: 'depth', label: 'D (in)' },
-                              { key: 'height', label: 'H (in)' },
-                              { key: 'seat_width', label: 'Seat W' },
-                              { key: 'seat_depth', label: 'Seat D' },
-                              { key: 'seat_height', label: 'Seat H' },
-                              { key: 'arm_height', label: 'Arm H' },
-                              { key: 'back_height', label: 'Back H' },
-                              { key: 'weight', label: 'Weight (lbs)' },
-                              { key: 'shipping_weight', label: 'Ship weight (lbs)' },
-                              { key: 'upholstery_amount', label: 'Uph. (yd)' }
-                            ].map(({ key, label }) => (
-                              <div key={key}>
-                                <label className="block text-xs text-dark-400 mb-1">{label}</label>
-                                <input
-                                  type="number"
-                                  step={key.includes('upholstery') ? '0.1' : '0.01'}
-                                  min="0"
-                                  value={variation[key] ?? ''}
-                                  onChange={(e) => {
-                                    const newVariations = [...variations];
-                                    const val = e.target.value === '' ? null : parseFloat(e.target.value);
-                                    newVariations[index][key] = Number.isFinite(val) ? val : null;
-                                    setVariations(newVariations);
-                                  }}
-                                  className="w-full px-2 py-1.5 text-sm bg-dark-700 border border-dark-600 rounded text-dark-50"
-                                  placeholder="—"
-                                />
-                              </div>
-                            ))}
-                          </div>
-                        </div>
-                      </div>
-                      <button
-                        onClick={() => {
-                          setVariations(variations.filter((_, i) => i !== index));
-                          // New variations key by position, so a removal shifts them
-                          variationSelection.clear();
-                        }}
-                        className="p-2 text-red-400 hover:text-red-500 hover:bg-red-900/20 rounded-lg transition-colors mt-6"
-                      >
-                        <Trash2 className="w-5 h-5" />
-                      </button>
-                    </div>
-                  </Card>
-                ))}
-                <VariationBulkBar
-                  selection={variationSelection}
-                  finishes={finishes}
-                  upholsteries={upholsteries}
-                  colors={colors}
-                  families={families}
-                  onPatch={patchSelectedVariations}
-                  onRemove={removeSelectedVariations}
-                />
-              </div>
-            )}
+            <ProductVariationsTab
+              variations={variations}
+              rows={variationRows}
+              names={variationNames}
+              onChange={updateVariation}
+              onRemove={removeVariation}
+              selection={variationSelection}
+              expanded={expandedVariations}
+              onToggle={toggleVariation}
+              onJump={jumpToVariation}
+              filter={variationFilter}
+              onFilterChange={setVariationFilter}
+              finishes={finishes}
+              upholsteries={upholsteries}
+              colors={colors}
+              families={families}
+              productSwitches={formData}
+            />
           </div>
         );
 
@@ -2257,6 +1972,64 @@ const ProductEditor = ({ product, onBack }) => {
       <Card>
         {renderTabContent()}
       </Card>
+
+      {activeTab === 'variations' && variationSelection.count > 0 ? (
+        <BulkActionBar
+          selection={variationSelection}
+          actions={variationBulkActions}
+          noun="variation"
+          confirm={false}
+          quiet
+        />
+      ) : (
+        <FloatingDock label="Product actions" spacer="h-24">
+          <div className="flex items-center gap-2 p-2.5">
+            {activeTab === 'variations' && (
+              <>
+                <button
+                  type="button"
+                  onClick={addVariation}
+                  className={`${DOCK_BUTTON} border-primary-500/60 bg-primary-900/30 text-primary-300 hover:bg-primary-900/50`}
+                >
+                  <Plus className="h-4 w-4 shrink-0" />
+                  <FitLabel text="Add variation" />
+                </button>
+                {variations.length > 1 && (
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setExpandedVariations((prev) =>
+                        prev.size >= variations.length ? new Set() : new Set(variations.map(variationKey))
+                      )
+                    }
+                    className={`${DOCK_BUTTON} border-dark-600 bg-dark-700/60 text-dark-100 hover:bg-dark-700`}
+                  >
+                    <FitLabel text={expandedVariations.size >= variations.length ? 'Collapse all' : 'Expand all'} />
+                  </button>
+                )}
+              </>
+            )}
+            <div className="ml-auto flex items-center gap-2">
+              <button
+                type="button"
+                onClick={onBack}
+                disabled={saving || uploadingImage}
+                className={`${DOCK_BUTTON} hidden sm:flex border-dark-600 text-dark-200 hover:bg-dark-700`}
+              >
+                <FitLabel text="Cancel" />
+              </button>
+              <button
+                type="button"
+                onClick={handleSave}
+                disabled={saving || uploadingImage}
+                className={`${DOCK_BUTTON} border-primary-500 bg-primary-600 text-white hover:bg-primary-500`}
+              >
+                <FitLabel text={uploadingImage ? 'Uploading…' : saving ? 'Saving…' : 'Save product'} />
+              </button>
+            </div>
+          </div>
+        </FloatingDock>
+      )}
     </AdminPage>
   );
 };
