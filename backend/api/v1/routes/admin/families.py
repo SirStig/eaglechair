@@ -20,6 +20,7 @@ from backend.models.chair import (
     variation_families,
 )
 from backend.models.company import AdminUser
+from backend.services import family_categories as family_categories_service
 
 router = APIRouter()
 
@@ -37,15 +38,16 @@ async def get_families(
     query = select(ProductFamily).where(ProductFamily.is_active)
     
     if category_id is not None:
-        query = query.where(ProductFamily.category_id == category_id)
+        query = query.where(family_categories_service.in_categories([category_id]))
     
     if subcategory_id is not None:
-        query = query.where(ProductFamily.subcategory_id == subcategory_id)
+        query = query.where(family_categories_service.in_subcategories([subcategory_id]))
     
     query = query.order_by(ProductFamily.display_order, ProductFamily.name)
     
     result = await db.execute(query)
     families = result.scalars().all()
+    cats, subs = await family_categories_service.category_id_lists(db, [f.id for f in families])
     
     return {
         "items": [
@@ -55,6 +57,8 @@ async def get_families(
                 "slug": fam.slug,
                 "category_id": fam.category_id,
                 "subcategory_id": fam.subcategory_id,
+                "category_ids": family_categories_service.primary_first(fam.category_id, cats.get(fam.id, [])),
+                "subcategory_ids": family_categories_service.primary_first(fam.subcategory_id, subs.get(fam.id, [])),
                 "description": fam.description,
                 "family_image": fam.family_image,
                 "banner_image_url": fam.banner_image_url,
@@ -86,8 +90,11 @@ async def get_family(
     if not family:
         raise HTTPException(status_code=404, detail="Product family not found")
     
+    cats, subs = await family_categories_service.category_id_lists(db, [family.id])
     return {
         "id": family.id,
+        "category_ids": family_categories_service.primary_first(family.category_id, cats.get(family.id, [])),
+        "subcategory_ids": family_categories_service.primary_first(family.subcategory_id, subs.get(family.id, [])),
         "name": family.name,
         "slug": family.slug,
         "category_id": family.category_id,

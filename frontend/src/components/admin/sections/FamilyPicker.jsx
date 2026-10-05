@@ -132,6 +132,10 @@ const FamilyPicker = ({
               type="search"
               value={query}
               onChange={(e) => setQuery(e.target.value)}
+              autoComplete="off"
+              autoCorrect="off"
+              autoCapitalize="off"
+              spellCheck={false}
               onKeyDown={(e) => {
                 // Enter adds the single match instead of submitting the form
                 if (e.key === 'Enter') {

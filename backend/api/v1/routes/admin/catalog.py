@@ -57,6 +57,7 @@ from backend.models.chair import (
 from backend.models.company import AdminUser
 from backend.models.content import Catalog, CatalogType, Hardware, Laminate
 from backend.utils.serializers import orm_list_to_dict_list, orm_to_dict
+from backend.services import family_categories as family_categories_service
 from backend.services import media_service
 from backend.utils.static_content_exporter import export_content_after_update
 
@@ -877,7 +878,7 @@ async def get_families(
     query = select(ProductFamily)
     
     if category_id:
-        query = query.where(ProductFamily.category_id == category_id)
+        query = query.where(family_categories_service.in_categories([category_id]))
     
     if is_active is not None:
         query = query.where(ProductFamily.is_active == is_active)
@@ -885,9 +886,9 @@ async def get_families(
     query = query.order_by(ProductFamily.display_order, ProductFamily.name)
     
     result = await db.execute(query)
-    families = result.scalars().all()
-    
-    return orm_list_to_dict_list(families)
+    families = orm_list_to_dict_list(result.scalars().all())
+    await family_categories_service.attach_category_ids(db, families)
+    return families
 
 
 @router.post(
@@ -904,13 +905,20 @@ async def create_family(
     """Create a new product family. Admin only."""
     logger.info(f"Admin {admin.username} creating family: {family_data.name}")
     
-    family = ProductFamily(**family_data.dict())
+    data = family_data.dict()
+    category_ids = data.pop("category_ids", None)
+    subcategory_ids = data.pop("subcategory_ids", None)
+    family = ProductFamily(**data)
     
     db.add(family)
+    await db.flush()
+    await family_categories_service.sync_family_categories(db, family, category_ids, subcategory_ids)
     await db.commit()
     await db.refresh(family)
     
-    return orm_to_dict(family)
+    result = orm_to_dict(family)
+    await family_categories_service.attach_category_ids(db, [result])
+    return result
 
 
 @router.post(
@@ -955,13 +963,23 @@ async def update_family(
     
     # Update only provided fields
     update_dict = family_data.dict(exclude_unset=True)
+    category_ids = update_dict.pop("category_ids", None)
+    subcategory_ids = update_dict.pop("subcategory_ids", None)
+    previous_category_id, previous_subcategory_id = family.category_id, family.subcategory_id
     for key, value in update_dict.items():
         setattr(family, key, value)
+    await family_categories_service.sync_family_categories(
+        db, family, category_ids, subcategory_ids,
+        previous_category_id=previous_category_id,
+        previous_subcategory_id=previous_subcategory_id,
+    )
     
     await db.commit()
     await db.refresh(family)
     
-    return orm_to_dict(family)
+    result = orm_to_dict(family)
+    await family_categories_service.attach_category_ids(db, [result])
+    return result
 
 
 @router.delete(

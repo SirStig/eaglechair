@@ -262,8 +262,9 @@ class TestTrackingStatePruning:
                 "headers": [(b"user-agent", ua.encode())], "client": ("10.0.0.5", 1234),
             })
 
-        with pytest.raises(SuspiciousActivityError):
-            await ddos.dispatch(req("/../etc/passwd", "Mozilla/5.0 probe"), ok)
+        # Blocked with a response (not raised: BaseHTTPMiddleware exceptions skip the app's handlers)
+        blocked = await ddos.dispatch(req("/../etc/passwd", "Mozilla/5.0 probe"), ok)
+        assert blocked.status_code == SuspiciousActivityError().status_code == 403
         assert not ddos.banned_ips
 
         # The same IP (e.g. a shared proxy) keeps working for normal requests

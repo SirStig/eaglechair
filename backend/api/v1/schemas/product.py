@@ -204,6 +204,9 @@ class ProductFamilyResponse(ProductFamilyBase, TimestampSchema):
     product_count: Optional[int] = 0
     category_name: Optional[str] = None
     subcategory_name: Optional[str] = None
+    # Full sets, primary first (the family is listed under all of them)
+    category_ids: List[int] = []
+    subcategory_ids: List[int] = []
 
     class Config:
         from_attributes = True

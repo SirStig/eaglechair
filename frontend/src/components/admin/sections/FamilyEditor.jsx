@@ -10,18 +10,22 @@ import { AdminPage, AdminPageHeader } from '../ui/AdminPage';
 import ResponsiveImage from '../../ui/ResponsiveImage';
 import PdfPreviewButton from '../../ui/PdfPreviewButton';
 import ImagePickerField from '../media/ImagePickerField';
+import CategoryAssignmentFields from './CategoryAssignmentFields';
+import { withPrimary } from './categoryAssignment';
 
 /**
  * Product Family Editor Component
  * Separate component for editing/creating product families with image upload
  */
-const FamilyEditor = ({ family, categories, onBack, onSave }) => {
+const FamilyEditor = ({ family, onBack, onSave }) => {
   const [formData, setFormData] = useState({
     name: family?.name || '',
     slug: family?.slug || '',
     description: family?.description || '',
     category_id: family?.category_id || null,
     subcategory_id: family?.subcategory_id || null,
+    category_ids: Array.isArray(family?.category_ids) ? family.category_ids : [],
+    subcategory_ids: Array.isArray(family?.subcategory_ids) ? family.subcategory_ids : [],
     family_image: family?.family_image || '',
     banner_image_url: family?.banner_image_url || '',
     catalog_pdf_url: family?.catalog_pdf_url || '',
@@ -98,10 +102,16 @@ const FamilyEditor = ({ family, categories, onBack, onSave }) => {
     setSaving(true);
     
     try {
+      // Full sets, primary first (the API keeps the primary in the set)
+      const payload = {
+        ...formData,
+        category_ids: withPrimary(formData.category_id, formData.category_ids),
+        subcategory_ids: withPrimary(formData.subcategory_id, formData.subcategory_ids),
+      };
       if (family) {
-        await apiClient.put(`/api/v1/admin/catalog/families/${family.id}`, formData);
+        await apiClient.put(`/api/v1/admin/catalog/families/${family.id}`, payload);
       } else {
-        await apiClient.post('/api/v1/admin/catalog/families', formData);
+        await apiClient.post('/api/v1/admin/catalog/families', payload);
       }
       onSave();
     } catch (error) {
@@ -340,27 +350,23 @@ const FamilyEditor = ({ family, categories, onBack, onSave }) => {
               )}
             </div>
 
+            {/* Categories */}
+            <div>
+              <h3 className="text-lg font-semibold text-dark-50 mb-4 pb-2 border-b border-dark-600">
+                Categories
+              </h3>
+              <CategoryAssignmentFields
+                value={formData}
+                onChange={(patch) => setFormData((prev) => ({ ...prev, ...patch }))}
+              />
+            </div>
+
             {/* Settings */}
             <div>
               <h3 className="text-lg font-semibold text-dark-50 mb-4 pb-2 border-b border-dark-600">
                 Settings
               </h3>
               <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-medium text-dark-200 mb-2">
-                    Category
-                  </label>
-                  <select
-                    value={formData.category_id || ''}
-                    onChange={(e) => handleChange('category_id', e.target.value ? parseInt(e.target.value) : null)}
-                    className="w-full px-4 py-2 bg-dark-700 border border-dark-600 rounded-lg text-dark-50 focus:border-primary-500 focus:ring-1 focus:ring-primary-500 outline-none transition-all"
-                  >
-                    <option value="">None</option>
-                    {categories.map((cat) => (
-                      <option key={cat.id} value={cat.id}>{cat.name}</option>
-                    ))}
-                  </select>
-                </div>
                 <div>
                   <label className="block text-sm font-medium text-dark-200 mb-2">
                     Display Order

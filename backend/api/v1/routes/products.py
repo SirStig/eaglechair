@@ -884,6 +884,10 @@ async def get_families(
         family.category_name = family.category.name if family.category else None
         family.subcategory_name = family.subcategory.name if family.subcategory else None
 
+    from backend.services.family_categories import attach_category_ids
+
+    await attach_category_ids(db, families)
+
     return await public_json_response(request, families, list[ProductFamilyResponse])
 
 
@@ -936,6 +940,9 @@ async def get_family_by_id(
     family.category_name = family.category.name if family.category else None
     family.subcategory_name = family.subcategory.name if family.subcategory else None
 
+    from backend.services.family_categories import attach_category_ids
+
+    await attach_category_ids(db, [family])
     return family
 
 
@@ -988,6 +995,9 @@ async def get_family_by_slug(
     family.category_name = family.category.name if family.category else None
     family.subcategory_name = family.subcategory.name if family.subcategory else None
 
+    from backend.services.family_categories import attach_category_ids
+
+    await attach_category_ids(db, [family])
     return family
 
 

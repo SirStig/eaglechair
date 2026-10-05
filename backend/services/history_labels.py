@@ -19,6 +19,8 @@ TABLES = {
     "categories": ("Category", "/admin/categories"),
     "product_subcategories": ("Subcategory", "/admin/categories"),
     "product_families": ("Product family", "/admin/families"),
+    "family_categories": ("Family category link", "/admin/families"),
+    "family_subcategories": ("Family subcategory link", "/admin/families"),
     "finishes": ("Finish", "/admin/finishes"),
     "colors": ("Color", "/admin/colors"),
     "upholsteries": ("Upholstery", "/admin/upholstery"),

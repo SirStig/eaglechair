@@ -7,6 +7,10 @@ import InitialContentContext from './contexts/InitialContentContext';
 import './index.css';
 
 import './config/axiosConfig';
+import { installSearchInputDefaults } from './utils/searchInputs';
+
+// No autocorrect/spellcheck in search boxes (model numbers, SKUs)
+installSearchInputDefaults();
 
 // Same tree shape as entry-server. The value stays null on the client: the
 // SSR content payload (window.__INITIAL_CONTENT__) is adopted by

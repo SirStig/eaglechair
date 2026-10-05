@@ -479,8 +479,14 @@ class FamilyCreate(BaseModel):
     name: str = Field(..., min_length=1, max_length=255, description="Family name")
     slug: str = Field(..., min_length=1, max_length=255, description="URL slug")
     description: Optional[str] = Field(None, description="Family description")
-    category_id: Optional[int] = Field(None, description="Category ID")
-    subcategory_id: Optional[int] = Field(None, description="Subcategory ID")
+    category_id: Optional[int] = Field(None, description="Primary category ID")
+    subcategory_id: Optional[int] = Field(None, description="Primary subcategory ID")
+    category_ids: Optional[List[int]] = Field(
+        None, description="Every category the family is listed under (primary included)"
+    )
+    subcategory_ids: Optional[List[int]] = Field(
+        None, description="Every subcategory the family is listed under (primary included)"
+    )
     family_image: Optional[str] = Field(
         None, max_length=500, description="Family image URL"
     )
@@ -506,8 +512,14 @@ class FamilyUpdate(BaseModel):
         None, min_length=1, max_length=255, description="URL slug"
     )
     description: Optional[str] = Field(None, description="Family description")
-    category_id: Optional[int] = Field(None, description="Category ID")
-    subcategory_id: Optional[int] = Field(None, description="Subcategory ID")
+    category_id: Optional[int] = Field(None, description="Primary category ID")
+    subcategory_id: Optional[int] = Field(None, description="Primary subcategory ID")
+    category_ids: Optional[List[int]] = Field(
+        None, description="Every category the family is listed under (primary included)"
+    )
+    subcategory_ids: Optional[List[int]] = Field(
+        None, description="Every subcategory the family is listed under (primary included)"
+    )
     family_image: Optional[str] = Field(
         None, max_length=500, description="Family image URL"
     )

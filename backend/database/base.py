@@ -492,6 +492,49 @@ async def ensure_admin_access_schema(target_engine=None) -> bool:
     return added
 
 
+async def ensure_family_category_links(target_engine=None, conn=None) -> int:
+    """
+    Copy each family's primary category / subcategory into the
+    family_categories / family_subcategories link tables when missing.
+    The tables hold the full set, primary included; families created before
+    the tables existed only had the primary column. Idempotent.
+    """
+    from sqlalchemy import text
+
+    eng = target_engine or engine
+    added = 0
+    statements = (
+        "INSERT INTO family_categories (family_id, category_id) "
+        "SELECT pf.id, pf.category_id FROM product_families pf "
+        "WHERE pf.category_id IS NOT NULL AND NOT EXISTS ("
+        "SELECT 1 FROM family_categories fc "
+        "WHERE fc.family_id = pf.id AND fc.category_id = pf.category_id)",
+        "INSERT INTO family_subcategories (family_id, subcategory_id) "
+        "SELECT pf.id, pf.subcategory_id FROM product_families pf "
+        "WHERE pf.subcategory_id IS NOT NULL AND NOT EXISTS ("
+        "SELECT 1 FROM family_subcategories fs "
+        "WHERE fs.family_id = pf.id AND fs.subcategory_id = pf.subcategory_id)",
+    )
+    async def run(conn) -> int:
+        count = 0
+        for sql in statements:
+            result = await conn.execute(text(sql))
+            count += max(result.rowcount or 0, 0)
+        return count
+
+    try:
+        if conn is not None:
+            added = await run(conn)
+        else:
+            async with eng.begin() as new_conn:
+                added = await run(new_conn)
+    except Exception as e:
+        logger.warning(f"[DB] Could not backfill family category links: {e}")
+    if added:
+        logger.info(f"[DB] Backfilled {added} family category link(s)")
+    return added
+
+
 async def init_db() -> None:
     """
     Initialize database - create all tables
@@ -505,6 +548,7 @@ async def init_db() -> None:
     await ensure_analytics_columns()
     await ensure_product_option_columns()
     await ensure_admin_access_schema()
+    await ensure_family_category_links()
 
 
 async def close_db() -> None:

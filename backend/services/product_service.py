@@ -14,6 +14,7 @@ from sqlalchemy.orm.attributes import set_committed_value
 from sqlalchemy.types import String
 
 from backend.core.exceptions import ResourceNotFoundError, ValidationError
+from backend.services import family_categories as family_categories_service
 from backend.models.chair import (
     Category,
     Chair,
@@ -1377,11 +1378,12 @@ class ProductService:
         if featured_only:
             query = query.where(ProductFamily.is_featured == True)
 
+        # A family listed under several categories matches any of them
         if category_id:
-            query = query.where(ProductFamily.category_id == category_id)
+            query = query.where(family_categories_service.in_categories([category_id]))
 
         if category_ids:
-            query = query.where(ProductFamily.category_id.in_(category_ids))
+            query = query.where(family_categories_service.in_categories(category_ids))
 
         query = query.order_by(ProductFamily.display_order, ProductFamily.name)
 

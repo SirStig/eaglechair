@@ -23,6 +23,28 @@ variation_families = Table(
     Column("family_id", Integer, ForeignKey("product_families.id", ondelete="CASCADE"), primary_key=True),
 )
 
+# A family can be listed under several categories / subcategories, same model
+# as products below: ProductFamily.category_id / subcategory_id stay the
+# primary assignment and these tables hold the full set, primary included.
+family_categories = Table(
+    "family_categories",
+    Base.metadata,
+    Column("family_id", Integer, ForeignKey("product_families.id", ondelete="CASCADE"), primary_key=True),
+    Column("category_id", Integer, ForeignKey("categories.id", ondelete="CASCADE"), primary_key=True),
+)
+
+family_subcategories = Table(
+    "family_subcategories",
+    Base.metadata,
+    Column("family_id", Integer, ForeignKey("product_families.id", ondelete="CASCADE"), primary_key=True),
+    Column(
+        "subcategory_id",
+        Integer,
+        ForeignKey("product_subcategories.id", ondelete="CASCADE"),
+        primary_key=True,
+    ),
+)
+
 # A product can live in several categories / subcategories at once.
 # Chair.category_id / Chair.subcategory_id remain the "primary" assignment
 # (used for breadcrumbs, URLs and pricing tiers); these tables hold the full
