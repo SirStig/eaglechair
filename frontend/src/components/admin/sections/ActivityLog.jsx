@@ -7,7 +7,7 @@ import apiClient from '../../../config/apiClient';
 import { AdminPage, AdminPageHeader } from '../ui/AdminPage';
 
 const BASE = '/api/v1/admin/audit-log';
-const PAGE_SIZE = 50;
+const PAGE_SIZE = 100;
 const FILTER_KEYS = ['admin_id', 'resource_type', 'resource_id', 'action', 'q', 'from', 'to'];
 
 const SELECT =

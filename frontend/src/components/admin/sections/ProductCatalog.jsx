@@ -42,7 +42,7 @@ const ProductCatalog = ({ onEdit }) => {
   const [activeTotal, setActiveTotal] = useState(0);
   const [archivedTotal, setArchivedTotal] = useState(0);
   const [page, setPage] = useState(1);
-  const [pageSize, setPageSize] = useState(25);
+  const [pageSize, setPageSize] = useState(100);
   const [totalPages, setTotalPages] = useState(1);
   const [total, setTotal] = useState(0);
   const [categories, setCategories] = useState([]);

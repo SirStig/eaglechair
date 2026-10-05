@@ -94,7 +94,7 @@ class TestAdminRoutes:
         assert len(data["items"]) == 2
         assert data["total"] == 2
         assert data["page"] == 1
-        assert data["page_size"] == 20
+        assert data["page_size"] == 100
         assert data["pages"] == 1
     
     @pytest.mark.asyncio
@@ -354,7 +354,7 @@ class TestAdminRoutes:
         assert len(data["items"]) == 2
         assert data["total"] == 2
         assert data["page"] == 1
-        assert data["page_size"] == 20
+        assert data["page_size"] == 100
         assert data["pages"] == 1
     
     @pytest.mark.asyncio
@@ -454,7 +454,7 @@ class TestAdminRoutes:
         assert len(data["items"]) == 2
         assert data["total"] == 2
         assert data["page"] == 1
-        assert data["page_size"] == 20
+        assert data["page_size"] == 100
         assert data["pages"] == 1
     
     @pytest.mark.asyncio

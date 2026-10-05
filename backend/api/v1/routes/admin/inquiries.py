@@ -53,7 +53,7 @@ async def list_inquiries(
     status: Literal["all", "unread", "open", "responded"] = "all",
     search: Optional[str] = Query(None, max_length=200),
     page: int = Query(1, ge=1),
-    page_size: int = Query(25, ge=1, le=100),
+    page_size: int = Query(100, ge=1, le=500),
     admin: AdminUser = Depends(get_current_admin),
     db: AsyncSession = Depends(get_db),
 ):

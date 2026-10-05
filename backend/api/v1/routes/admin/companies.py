@@ -57,7 +57,7 @@ router = APIRouter(tags=["Admin - Companies"])
 )
 async def get_all_companies(
     page: int = Query(1, ge=1, description="Page number"),
-    page_size: int = Query(20, ge=1, le=100, description="Items per page"),
+    page_size: int = Query(100, ge=1, le=500, description="Items per page"),
     search: Optional[str] = Query(None, description="Search term"),
     status: Optional[CompanyStatus] = Query(None, description="Filter by status"),
     sort_by: Optional[str] = Query(None, description="Sort column: company_name, status, contact, created_at"),

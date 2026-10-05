@@ -1,5 +1,7 @@
 import { ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight } from 'lucide-react';
 
+const PAGE_SIZE_OPTIONS = [50, 100, 150, 250, 500];
+
 function PageButton({ onClick, disabled, label, children, className = 'flex' }) {
   return (
     <button
@@ -41,9 +43,9 @@ const PaginationBar = ({ page, totalPages, total, pageSize, onPageChange, onPage
               }}
               className="h-8 rounded-md border border-white/[0.08] bg-dark-900 px-2 text-sm text-dark-50 outline-none focus:border-primary-500 focus:ring-1 focus:ring-primary-500"
             >
-              <option value={25}>25</option>
-              <option value={50}>50</option>
-              <option value={100}>100</option>
+              {PAGE_SIZE_OPTIONS.map((size) => (
+                <option key={size} value={size}>{size}</option>
+              ))}
             </select>
           </div>
         )}

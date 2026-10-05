@@ -13,7 +13,7 @@ import {
 } from '../timeMachine/format';
 
 const BASE = '/api/v1/admin/time-machine';
-const PAGE_SIZE = 25;
+const PAGE_SIZE = 100;
 const FILTER_KEYS = ['q', 'type', 'op', 'admin_id', 'from', 'to'];
 
 const SELECT =

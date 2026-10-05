@@ -99,7 +99,7 @@ async def _add_category_assignments(
 )
 async def get_all_products(
     page: int = Query(1, ge=1, description="Page number"),
-    page_size: int = Query(20, ge=1, le=100, description="Items per page"),
+    page_size: int = Query(100, ge=1, le=500, description="Items per page"),
     search: Optional[str] = Query(None, description="Search term"),
     category_id: Optional[int] = Query(None, description="Filter by category"),
     is_active: Optional[bool] = Query(None, description="Filter by active status"),

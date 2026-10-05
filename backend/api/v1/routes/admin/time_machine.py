@@ -237,7 +237,7 @@ async def list_changes(
     date_to: Optional[str] = Query(None, description="ISO date/datetime, exclusive"),
     include_reverted: bool = Query(True),
     page: int = Query(1, ge=1),
-    page_size: int = Query(25, ge=1, le=100),
+    page_size: int = Query(100, ge=1, le=500),
     current: AdminUser = Depends(get_current_admin),
     db: AsyncSession = Depends(get_db),
 ):

@@ -22,7 +22,7 @@ import { openOnRowClick } from '../bulk/rowClick';
 import { ACTIVE_ACTIONS, retiredBy } from '../bulk/bulkActions';
 import { productBulkActions, variationBulkActions } from './productBulkActions';
 
-const PAGE_SIZE = 50;
+const PAGE_SIZE = 100;
 const INPUT = 'px-3 py-2 bg-dark-700 border border-dark-600 rounded-lg text-sm text-dark-50 focus:border-primary-500 focus:ring-1 focus:ring-primary-500 outline-none';
 
 const modelLabel = (p) => [p.model_number, p.model_suffix].filter(Boolean).join(' ');

@@ -151,7 +151,7 @@ async def list_audit_log(
     date_from: Optional[str] = Query(None, description="ISO date/datetime, inclusive"),
     date_to: Optional[str] = Query(None, description="ISO date/datetime, exclusive"),
     page: int = Query(1, ge=1),
-    page_size: int = Query(50, ge=1, le=200),
+    page_size: int = Query(50, ge=1, le=500),
     current: AdminUser = Depends(get_current_admin),
     db: AsyncSession = Depends(get_db),
 ):

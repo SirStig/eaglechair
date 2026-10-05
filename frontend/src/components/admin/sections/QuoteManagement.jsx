@@ -34,7 +34,7 @@ const QuoteManagement = () => {
   const [statusFilter, setStatusFilter] = useState('all');
   const [selectedQuoteId, setSelectedQuoteId] = useState(null);
   const [page, setPage] = useState(1);
-  const [pageSize, setPageSize] = useState(25);
+  const [pageSize, setPageSize] = useState(100);
   const [total, setTotal] = useState(0);
   const [totalPages, setTotalPages] = useState(0);
 

@@ -32,7 +32,7 @@ router = APIRouter(tags=["Admin - Upholsteries"])
 )
 async def get_all_upholsteries(
     page: int = Query(1, ge=1, description="Page number"),
-    page_size: int = Query(50, ge=1, le=100, description="Items per page"),
+    page_size: int = Query(50, ge=1, le=500, description="Items per page"),
     material_type: Optional[str] = Query(None, description="Filter by material type"),
     is_active: Optional[bool] = Query(None, description="Filter by active status"),
     admin: AdminUser = Depends(get_current_admin),

@@ -13,7 +13,7 @@ import { SelectAllCheckbox, RowCheckbox } from '../bulk/SelectCheckbox';
 import DeleteGate from '../DeleteGate';
 
 const BASE = '/api/v1/admin/inquiries';
-const PAGE_SIZE = 25;
+const PAGE_SIZE = 100;
 
 const STATUS_TABS = [
   { value: 'all', label: 'All' },

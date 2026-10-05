@@ -48,7 +48,7 @@ _ATTACHMENT_NAME_RE = re.compile(r"^[0-9a-f]{32}\.(pdf|png|jpg|webp)$")
 )
 async def get_all_quotes(
     page: int = Query(1, ge=1, description="Page number"),
-    page_size: int = Query(20, ge=1, le=100, description="Items per page"),
+    page_size: int = Query(100, ge=1, le=500, description="Items per page"),
     status: Optional[QuoteStatus] = Query(None, description="Filter by status"),
     company_id: Optional[int] = Query(None, description="Filter by company"),
     sort_by: Optional[str] = Query(None, description="Sort column: quote_number, status, created_at, company_name, contact_name, items_count"),

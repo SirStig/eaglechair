@@ -36,7 +36,7 @@ const FamilyManagement = () => {
   const [activeTotal, setActiveTotal] = useState(0);
   const [archivedTotal, setArchivedTotal] = useState(0);
   const [page, setPage] = useState(1);
-  const [pageSize, setPageSize] = useState(25);
+  const [pageSize, setPageSize] = useState(100);
   const [permDeleteTarget, setPermDeleteTarget] = useState(null); // { id, name } | { bulk: [...ids] }
   const [permDeleting, setPermDeleting] = useState(false);
 
