@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect } from 'react';
 import { X, ChevronDown, ChevronRight, Search, Check } from 'lucide-react';
-import { getChildren, findCategoryById, findNestedCategoryById } from '../../utils/categoryTree';
+import { getChildren } from '../../utils/categoryTree';
 
 const sameId = (a, b) => String(a) === String(b);
 
@@ -9,7 +9,7 @@ const inputClass =
 
 // Collapsible block. Sections with an active filter start open so a visitor
 // can always see (and undo) what is applied.
-const Section = ({ title, count = 0, open, onToggle, children }) => (
+const Section = ({ title, count = 0, open, onToggle, loading = false, children }) => (
   <div className="border-b border-cream-200 last:border-b-0">
     <button
       type="button"
@@ -23,6 +23,13 @@ const Section = ({ title, count = 0, open, onToggle, children }) => (
           <span className="text-[11px] leading-none bg-primary-600 text-white px-1.5 py-1 rounded-full font-semibold min-w-[20px] text-center">
             {count}
           </span>
+        )}
+        {loading && (
+          <span
+            role="status"
+            aria-label="Updating"
+            className="w-3.5 h-3.5 border-2 border-cream-300 border-t-primary-500 rounded-full animate-spin"
+          />
         )}
       </span>
       <ChevronDown className={`w-4 h-4 text-slate-500 transition-transform ${open ? 'rotate-180' : ''}`} />
@@ -80,46 +87,62 @@ const CheckList = ({ items, selected, onToggle, limit = 8 }) => {
   );
 };
 
-// One tree for categories and their children: picking a category opens its
-// subcategories right underneath it.
-const CategoryTree = ({ categories, activeParent, activeChild, selectCategory }) => {
-  // Explicit open/closed choices; otherwise only the active category is open.
+// One tree for categories and their children. Any mix of categories and
+// children can be picked; products in any of them are shown.
+const CategoryTree = ({ categories, selectedCategoryIds, selectedSubcategoryIds, onToggle, onClear }) => {
+  const isCatPicked = (id) => selectedCategoryIds.some((v) => sameId(v, id));
+  const isChildPicked = (child) =>
+    child.type === 'category'
+      ? isCatPicked(child.id)
+      : selectedSubcategoryIds.some((v) => sameId(v, child.id));
+  const nothingPicked = selectedCategoryIds.length + selectedSubcategoryIds.length === 0;
+
+  // Explicit open/closed choices; otherwise a category is open while it or
+  // one of its children is picked.
   const [openState, setOpenState] = useState({});
-  const isOpen = (cat) => openState[cat.id] ?? sameId(cat.id, activeParent?.id);
-  const toggleOpen = (cat) => setOpenState((prev) => ({ ...prev, [cat.id]: !isOpen(cat) }));
+  const toggleOpen = (cat, open) => setOpenState((prev) => ({ ...prev, [cat.id]: !open }));
 
   const rowBase =
     'w-full flex items-center justify-between gap-2 text-left text-sm rounded-lg transition-colors';
+
+  const Box = ({ checked, inverted }) => (
+    <span
+      aria-hidden="true"
+      className={`flex-shrink-0 w-4 h-4 rounded border flex items-center justify-center ${checked
+        ? inverted ? 'bg-white border-white text-primary-600' : 'bg-primary-600 border-primary-600 text-white'
+        : 'border-cream-400 bg-white'
+      }`}
+    >
+      {checked && <Check className="w-3 h-3" strokeWidth={3} />}
+    </span>
+  );
 
   return (
     <ul className="space-y-0.5">
       <li>
         <button
           type="button"
-          onClick={() => selectCategory(null, null)}
-          className={`${rowBase} px-3 py-2 ${!activeParent ? 'bg-primary-600 text-white font-semibold' : 'text-slate-700 hover:bg-cream-100'}`}
+          onClick={onClear}
+          className={`${rowBase} px-3 py-2 ${nothingPicked ? 'bg-primary-600 text-white font-semibold' : 'text-slate-700 hover:bg-cream-100'}`}
         >
           All Products
         </button>
       </li>
       {categories.map((cat) => {
-        const isParentActive = sameId(cat.id, activeParent?.id);
+        const picked = isCatPicked(cat.id);
         const countsKnown = cat.has_products !== undefined;
         const children = getChildren(cat).filter(
-          (child) =>
-            !countsKnown ||
-            child.product_count > 0 ||
-            (isParentActive && activeChild && child.type === activeChild.type && sameId(child.id, activeChild.id))
+          (child) => !countsKnown || child.product_count > 0 || isChildPicked(child)
         );
-        if (cat.has_products === false && children.length === 0 && !isParentActive) return null;
-        const isSelected = isParentActive && !activeChild;
-        const open = children.length > 0 && isOpen(cat);
+        const childPicked = children.some(isChildPicked);
+        if (cat.has_products === false && children.length === 0 && !picked) return null;
+        const open = children.length > 0 && (openState[cat.id] ?? (picked || childPicked));
         return (
           <li key={cat.id}>
             <div
-              className={`flex items-center rounded-lg ${isSelected
+              className={`flex items-center rounded-lg ${picked
                 ? 'bg-primary-600 text-white'
-                : isParentActive
+                : childPicked
                   ? 'bg-primary-50 text-primary-800'
                   : 'text-slate-700 hover:bg-cream-100'
               }`}
@@ -127,15 +150,18 @@ const CategoryTree = ({ categories, activeParent, activeChild, selectCategory })
               <button
                 type="button"
                 onClick={() => {
-                  setOpenState((prev) => ({ ...prev, [cat.id]: true }));
-                  if (!isSelected) selectCategory(cat, null);
+                  if (!picked) setOpenState((prev) => ({ ...prev, [cat.id]: true }));
+                  onToggle(cat, null);
                 }}
-                aria-current={isSelected ? 'true' : undefined}
-                className={`${rowBase} flex-1 min-w-0 pl-3 pr-1 py-2 ${isParentActive ? 'font-semibold' : ''}`}
+                aria-pressed={picked}
+                className={`${rowBase} flex-1 min-w-0 pl-3 pr-1 py-2 ${picked || childPicked ? 'font-semibold' : ''}`}
               >
-                <span className="truncate">{cat.name}</span>
+                <span className="flex items-center gap-2 min-w-0">
+                  <Box checked={picked} inverted />
+                  <span className="truncate">{cat.name}</span>
+                </span>
                 {cat.product_count > 0 && (
-                  <span className={`text-xs ${isSelected ? 'text-white/80' : 'text-slate-400'}`}>
+                  <span className={`text-xs ${picked ? 'text-white/80' : 'text-slate-400'}`}>
                     {cat.product_count}
                   </span>
                 )}
@@ -143,10 +169,10 @@ const CategoryTree = ({ categories, activeParent, activeChild, selectCategory })
               {children.length > 0 ? (
                 <button
                   type="button"
-                  onClick={() => toggleOpen(cat)}
+                  onClick={() => toggleOpen(cat, open)}
                   aria-expanded={open}
                   aria-label={`${open ? 'Hide' : 'Show'} ${cat.name} subcategories`}
-                  className={`flex-shrink-0 w-9 h-9 flex items-center justify-center rounded-lg ${isSelected ? 'hover:bg-white/15' : 'hover:bg-cream-200'}`}
+                  className={`flex-shrink-0 w-9 h-9 flex items-center justify-center rounded-lg ${picked ? 'hover:bg-white/15' : 'hover:bg-cream-200'}`}
                 >
                   <ChevronRight className={`w-4 h-4 transition-transform ${open ? 'rotate-90' : ''}`} />
                 </button>
@@ -158,31 +184,24 @@ const CategoryTree = ({ categories, activeParent, activeChild, selectCategory })
             {open && (
               <ul className="ml-4 mt-0.5 mb-1.5 pl-2 border-l-2 border-cream-200 space-y-0.5">
                 {children.map((child) => {
-                  const active =
-                    isParentActive &&
-                    !!activeChild &&
-                    child.type === activeChild.type &&
-                    sameId(child.id, activeChild.id);
+                  const active = isChildPicked(child);
                   return (
                     <li key={`${child.type || 'subcategory'}-${child.id}`}>
                       <button
                         type="button"
-                        // Clicking the active child again steps back to its parent
-                        onClick={() => selectCategory(cat, active ? null : child)}
-                        aria-current={active ? 'true' : undefined}
+                        onClick={() => onToggle(cat, child)}
+                        aria-pressed={active}
                         className={`${rowBase} px-3 py-1.5 ${active
-                          ? 'bg-primary-600 text-white font-semibold'
+                          ? 'text-primary-800 font-semibold bg-primary-50'
                           : 'text-slate-600 hover:bg-cream-100 hover:text-slate-900'
                         }`}
                       >
-                        <span className="flex items-center gap-1.5 min-w-0">
-                          {active && <Check className="w-3.5 h-3.5 flex-shrink-0" />}
+                        <span className="flex items-center gap-2 min-w-0">
+                          <Box checked={active} />
                           <span className="truncate">{child.name}</span>
                         </span>
                         {child.product_count > 0 && (
-                          <span className={`text-xs ${active ? 'text-white/80' : 'text-slate-400'}`}>
-                            {child.product_count}
-                          </span>
+                          <span className="text-xs text-slate-400">{child.product_count}</span>
                         )}
                       </button>
                     </li>
@@ -201,12 +220,14 @@ const FilterSidebar = ({
   filters,
   updateFilter,
   updateFilters,
-  selectCategory,
+  toggleCategory,
+  clearCategories,
   clearFilters,
   hasActiveFilters,
   toggleArrayFilter,
   categories,
   families,
+  familiesLoading,
   upholsteries,
   colors,
   showUpholsteryFilter,
@@ -262,14 +283,15 @@ const FilterSidebar = ({
     (family) => family.product_count > 0 || sameId(filters.family_id, family.id)
   );
 
-  // Resolve the selected category / child from the tree
-  const nested = findNestedCategoryById(categories, filters.category_id);
-  const activeParent = nested ? nested.parent : findCategoryById(categories, filters.category_id);
-  const activeChild = nested
-    ? nested.category
-    : getChildren(activeParent).find(
-      (c) => c.type !== 'category' && sameId(c.id, filters.subcategory_id)
-    );
+  // Every picked category / child, with the parent it toggles under
+  const picks = [];
+  categories.forEach((cat) => {
+    if (filters.category_ids.some((id) => sameId(id, cat.id))) picks.push({ parent: cat, child: null, name: cat.name });
+    getChildren(cat).forEach((child) => {
+      const list = child.type === 'category' ? filters.category_ids : filters.subcategory_ids;
+      if (list.some((id) => sameId(id, child.id))) picks.push({ parent: cat, child, name: child.name });
+    });
+  });
 
   const nameOf = (list, id) => list.find((item) => sameId(item.id, id))?.name || id;
   const range = (min, max) =>
@@ -277,8 +299,13 @@ const FilterSidebar = ({
 
   // Removable chips for everything currently applied
   const chips = [];
-  if (activeParent) chips.push({ key: 'cat', label: activeParent.name, onRemove: () => selectCategory(null, null) });
-  if (activeChild) chips.push({ key: 'child', label: activeChild.name, onRemove: () => selectCategory(activeParent, null) });
+  picks.forEach(({ parent, child, name }) =>
+    chips.push({
+      key: `cat-${child ? `${child.type || 'subcategory'}-${child.id}` : parent.id}`,
+      label: name,
+      onRemove: () => toggleCategory(parent, child),
+    })
+  );
   if (filters.search) chips.push({ key: 'search', label: `“${filters.search}”`, onRemove: () => updateFilter('search', '') });
   if (filters.family_id) chips.push({ key: 'family', label: nameOf(families, filters.family_id), onRemove: () => updateFilter('family_id', '') });
   filters.upholstery_ids.forEach((id) => chips.push({ key: `uph-${id}`, label: nameOf(upholsteries, id), onRemove: () => toggleArrayFilter('upholstery_ids', id) }));
@@ -404,20 +431,31 @@ const FilterSidebar = ({
           <h3 className="text-sm font-semibold text-slate-800 mb-2">Category</h3>
           <CategoryTree
             categories={categories}
-            activeParent={activeParent}
-            activeChild={activeChild}
-            selectCategory={selectCategory}
+            selectedCategoryIds={filters.category_ids}
+            selectedSubcategoryIds={filters.subcategory_ids}
+            onToggle={toggleCategory}
+            onClear={clearCategories}
           />
         </div>
 
-        {visibleFamilies.length > 0 && (
+        {(visibleFamilies.length > 0 || familiesLoading) && (
           <Section
             title="Product Family"
             count={filters.family_id ? 1 : 0}
             open={isOpen('family', !!filters.family_id)}
             onToggle={() => toggle('family', !!filters.family_id)}
+            loading={familiesLoading}
           >
-            <div className="space-y-0.5 max-h-72 overflow-y-auto pr-1">
+            {familiesLoading && visibleFamilies.length === 0 && (
+              <div className="flex items-center gap-2 px-3 py-2 text-sm text-slate-500">
+                <span className="w-4 h-4 border-2 border-cream-300 border-t-primary-500 rounded-full animate-spin" />
+                Loading families…
+              </div>
+            )}
+            <div
+              aria-busy={familiesLoading}
+              className={`space-y-0.5 max-h-72 overflow-y-auto pr-1 transition-opacity ${familiesLoading ? 'opacity-50 pointer-events-none' : ''}`}
+            >
               {visibleFamilies.map((family) => {
                 const active = sameId(filters.family_id, family.id);
                 return (

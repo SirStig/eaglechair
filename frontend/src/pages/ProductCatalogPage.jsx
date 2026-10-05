@@ -20,6 +20,7 @@ import {
   resolveCatalogFilters,
   getCatalogPage,
   getCatalogLocation,
+  subcategoryParentId,
 } from '../utils/catalogUrl';
 import {
   findCategoryById,
@@ -86,6 +87,7 @@ const ProductCatalogPage = () => {
 
   const [products, setProducts] = useState([]);
   const [families, setFamilies] = useState([]);
+  const [familiesLoading, setFamiliesLoading] = useState(true);
   const [categories, setCategories] = useState([]);
   const [subcategories, setSubcategories] = useState([]);
   const [upholsteries, setUpholsteries] = useState([]);
@@ -205,6 +207,9 @@ const ProductCatalogPage = () => {
   // categories load; fetching before that returns the unfiltered catalog.
   const waitingForCategorySlug = Boolean(categoryParam) && !categoriesLoaded;
 
+  const categoryIdsKey = filters.category_ids.join(',');
+  const subcategoryIdsKey = filters.subcategory_ids.join(',');
+
   useEffect(() => {
     if (waitingForCategorySlug) return;
     loadFamilies();
@@ -213,8 +218,8 @@ const ProductCatalogPage = () => {
   }, [
     waitingForCategorySlug,
     debouncedSearch,
-    filters.category_id,
-    filters.subcategory_id,
+    categoryIdsKey,
+    subcategoryIdsKey,
     filters.family_id,
     filters.upholstery_ids,
     filters.color_ids,
@@ -280,11 +285,21 @@ const ProductCatalogPage = () => {
 
   const loadFamilies = async () => {
     const requestId = ++familiesRequestRef.current;
+    setFamiliesLoading(true);
     try {
       const params = {};
 
-      if (filters.category_id) {
-        params.category_id = parseInt(filters.category_id, 10);
+      // Families belong to categories; a picked subcategory counts as its parent
+      const familyCategoryIds = [
+        ...new Set([
+          ...filters.category_ids,
+          ...filters.subcategory_ids.map((id) =>
+            String(subcategoryParentId(id, categories, subcategories))
+          ),
+        ].filter(Boolean)),
+      ];
+      if (familyCategoryIds.length) {
+        params.category_ids = familyCategoryIds.join(',');
       }
 
       if (filters.featured) {
@@ -298,6 +313,8 @@ const ProductCatalogPage = () => {
       if (requestId !== familiesRequestRef.current) return;
       logger.error(CONTEXT, 'Error loading families', error);
       setFamilies([]);
+    } finally {
+      if (requestId === familiesRequestRef.current) setFamiliesLoading(false);
     }
   };
 
@@ -312,12 +329,13 @@ const ProductCatalogPage = () => {
         exclude_variations: true,
       };
 
-      if (filters.category_id) {
-        params.category_id = parseInt(filters.category_id, 10);
+      // Several picks match products in any of them
+      if (filters.category_ids.length) {
+        params.category_ids = filters.category_ids.join(',');
       }
 
-      if (filters.subcategory_id) {
-        params.subcategory_id = parseInt(filters.subcategory_id, 10);
+      if (filters.subcategory_ids.length) {
+        params.subcategory_ids = filters.subcategory_ids.join(',');
       }
 
       if (filters.family_id) {
@@ -427,16 +445,39 @@ const ProductCatalogPage = () => {
     goToCatalog({ ...filters, ...changes }, 1);
   };
 
-  // Pick a category and optionally one of its children. A nested category
-  // child filters by category_id; a product subcategory keeps the parent.
-  const selectCategory = (parent, child) => {
-    let next = { category_id: parent?.id ?? '', subcategory_id: '' };
+  // Toggle a category, or one of its children, in the selection. A nested
+  // category child is a category id; a product subcategory is a subcategory
+  // id. A parent and its own children are never picked together: the parent
+  // already covers them.
+  const toggleCategory = (parent, child) => {
+    const has = (list, id) => list.some((v) => String(v) === String(id));
+    let cats = [...filters.category_ids];
+    let subs = [...filters.subcategory_ids];
+
     if (child) {
-      next = isNestedCategoryChild(child)
-        ? { category_id: child.id, subcategory_id: '' }
-        : { category_id: parent.id, subcategory_id: child.id };
+      const nestedChild = isNestedCategoryChild(child);
+      const list = nestedChild ? cats : subs;
+      const next = has(list, child.id)
+        ? list.filter((v) => String(v) !== String(child.id))
+        : [...list, String(child.id)];
+      if (nestedChild) cats = next;
+      else subs = next;
+      cats = cats.filter((v) => String(v) !== String(parent.id));
+    } else if (has(cats, parent.id)) {
+      cats = cats.filter((v) => String(v) !== String(parent.id));
+    } else {
+      const children = getChildren(parent);
+      const isChild = (type, id) =>
+        children.some((c) => (c.type || 'subcategory') === type && String(c.id) === String(id));
+      cats = [...cats.filter((id) => !isChild('category', id)), String(parent.id)];
+      subs = subs.filter((id) => !isChild('subcategory', id));
     }
-    goToCatalog({ ...filters, ...next }, 1);
+
+    goToCatalog({ ...filters, category_ids: cats, subcategory_ids: subs }, 1);
+  };
+
+  const clearCategories = () => {
+    goToCatalog({ ...filters, category_ids: [], subcategory_ids: [] }, 1);
   };
 
   // Clearing filters keeps the visitor's chosen page size
@@ -481,20 +522,20 @@ const ProductCatalogPage = () => {
   // Clearing the child filter falls back to the parent category
   const filtersWithoutChild = {
     ...filters,
-    subcategory_id: '',
-    category_id: activeCategory?.id || '',
+    category_ids: activeCategory ? [String(activeCategory.id)] : [],
+    subcategory_ids: [],
   };
 
   const productsBreadcrumbPath = getCatalogLocation(
-    { ...filters, category_id: '', subcategory_id: '' },
+    { ...filters, category_ids: [], subcategory_ids: [] },
     categories,
     subcategories,
     page
   );
 
   const hasActiveFilters =
-    filters.category_id ||
-    filters.subcategory_id ||
+    filters.category_ids.length > 0 ||
+    filters.subcategory_ids.length > 0 ||
     filters.family_id ||
     filters.search ||
     filters.upholstery_ids.length > 0 ||
@@ -529,7 +570,24 @@ const ProductCatalogPage = () => {
     return categorySeo(seoCategory, activeSubcategory ? activeCategory : null);
   }, [seoCategory, activeSubcategory, activeCategory]);
 
-  const pageTitle = activeSubcategory?.name || activeCategory?.name || 'All Products';
+  // Several categories picked: name them all
+  const selectedCategoryNames = useMemo(() => {
+    const children = categories.flatMap((cat) => getChildren(cat));
+    const nameOf = (id, type) =>
+      (type === 'category'
+        ? findCategoryById(categories, id) || findNestedCategoryById(categories, id)?.category
+        : children.find((c) => (c.type || 'subcategory') === 'subcategory' && String(c.id) === String(id))
+      )?.name;
+    return [
+      ...filters.category_ids.map((id) => nameOf(id, 'category')),
+      ...filters.subcategory_ids.map((id) => nameOf(id, 'subcategory')),
+    ].filter(Boolean);
+  }, [categories, filters.category_ids, filters.subcategory_ids]);
+
+  const pageTitle =
+    activeSubcategory?.name ||
+    activeCategory?.name ||
+    (selectedCategoryNames.length > 1 ? selectedCategoryNames.join(', ') : 'All Products');
 
   return (
     <div className="min-h-screen py-8 bg-gradient-to-br from-cream-50 to-cream-100">
@@ -637,12 +695,14 @@ const ProductCatalogPage = () => {
               filters={filters}
               updateFilter={updateFilter}
               updateFilters={updateFilters}
-              selectCategory={selectCategory}
+              toggleCategory={toggleCategory}
+              clearCategories={clearCategories}
               clearFilters={clearFilters}
               hasActiveFilters={hasActiveFilters}
               toggleArrayFilter={toggleArrayFilter}
               categories={sidebarCategories}
               families={families}
+              familiesLoading={familiesLoading}
               upholsteries={upholsteries}
               colors={colors}
               showUpholsteryFilter={showUpholsteryFilter}

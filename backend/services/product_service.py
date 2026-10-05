@@ -418,6 +418,8 @@ class ProductService:
         db: AsyncSession,
         pagination: PaginationParams,
         category_id: Optional[int] = None,
+        category_ids: Optional[List[int]] = None,
+        subcategory_ids: Optional[List[int]] = None,
         subcategory_id: Optional[int] = None,
         family_id: Optional[int] = None,
         search_query: Optional[str] = None,
@@ -451,6 +453,8 @@ class ProductService:
             category_id: Filter by category
             subcategory_id: Filter by subcategory
             family_id: Filter by product family
+            category_ids / subcategory_ids: Match products in ANY of these
+                categories or subcategories (multi-select catalog filter)
             search_query: Search in name, description, model number (uses fuzzy search)
             is_featured: Filter featured products
             is_new: Filter new products
@@ -490,6 +494,14 @@ class ProductService:
 
         if subcategory_id:
             query = query.where(_chair_in_subcategory(subcategory_id))
+
+        if category_ids or subcategory_ids:
+            query = query.where(
+                or_(
+                    *[_chair_in_category(cid) for cid in category_ids or []],
+                    *[_chair_in_subcategory(sid) for sid in subcategory_ids or []],
+                )
+            )
 
         if family_id:
             chair_in_family = or_(
@@ -1348,6 +1360,7 @@ class ProductService:
         category_id: Optional[int] = None,
         featured_only: bool = False,
         include_inactive: bool = False,
+        category_ids: Optional[List[int]] = None,
     ) -> List[ProductFamily]:
         """Get product families with category and subcategory loaded."""
         query = (
@@ -1366,6 +1379,9 @@ class ProductService:
 
         if category_id:
             query = query.where(ProductFamily.category_id == category_id)
+
+        if category_ids:
+            query = query.where(ProductFamily.category_id.in_(category_ids))
 
         query = query.order_by(ProductFamily.display_order, ProductFamily.name)
 

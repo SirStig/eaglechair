@@ -62,6 +62,36 @@ class TestCategoryHierarchy:
         assert flags == {"chairs": True, "empty": False, "tables": True}
 
     @pytest.mark.asyncio
+    async def test_products_match_any_selected_category(
+        self, async_client: AsyncClient, db_session: AsyncSession
+    ):
+        chairs = await create_category(db_session, name="Chairs", slug="chairs")
+        tables = await create_category(db_session, name="Tables", slug="tables")
+        booths = await create_category(db_session, name="Booths", slug="booths")
+        metal = await create_product_subcategory(
+            db_session, category_id=booths.id, name="Metal Booths", slug="metal-booths"
+        )
+        chair = await create_chair(db_session, category_id=chairs.id)
+        table = await create_chair(db_session, category_id=tables.id)
+        booth = await create_chair(
+            db_session, category_id=booths.id, subcategory_id=metal.id
+        )
+        other_booth = await create_chair(db_session, category_id=booths.id)
+
+        response = await async_client.get(
+            "/api/v1/products",
+            params={
+                "category_ids": f"{chairs.id},{tables.id}",
+                "subcategory_ids": str(metal.id),
+            },
+        )
+
+        assert response.status_code == 200
+        ids = {p["id"] for p in response.json()["items"]}
+        assert ids == {chair.id, table.id, booth.id}
+        assert other_booth.id not in ids
+
+    @pytest.mark.asyncio
     async def test_nested_category_is_returned_as_a_child(
         self, async_client: AsyncClient, db_session: AsyncSession
     ):

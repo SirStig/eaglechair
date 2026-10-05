@@ -4,10 +4,19 @@ import {
   findChildBySlug,
   findNestedCategoryById,
   findNestedCategoryBySlug,
+  getChildren,
   isNestedCategoryChild,
 } from './categoryTree';
 
+const idList = (value) => (value ? String(value).split(',').filter(Boolean) : []);
+const uniq = (ids) => [...new Set(ids.map(String))];
+
+// category_ids / subcategory_ids are the selection (several may be picked).
+// category_id / subcategory_id are derived: set only when exactly one is
+// picked, for the canonical /products/category/... URL, breadcrumbs and SEO.
 export const DEFAULT_CATALOG_FILTERS = {
+  category_ids: [],
+  subcategory_ids: [],
   category_id: '',
   subcategory_id: '',
   family_id: '',
@@ -38,9 +47,20 @@ function parsePerPage(value) {
 }
 
 export function parseCatalogFilters(searchParams) {
+  // Legacy single-value params: a subcategory implies its parent category
+  const legacyCategory = searchParams.get('category_id') || '';
+  const legacySubcategory = searchParams.get('subcategory_id') || '';
   return {
-    category_id: searchParams.get('category_id') || '',
-    subcategory_id: searchParams.get('subcategory_id') || '',
+    category_ids: uniq([
+      ...idList(searchParams.get('category_ids')),
+      ...(legacyCategory && !legacySubcategory ? [legacyCategory] : []),
+    ]),
+    subcategory_ids: uniq([
+      ...idList(searchParams.get('subcategory_ids')),
+      ...(legacySubcategory ? [legacySubcategory] : []),
+    ]),
+    category_id: '',
+    subcategory_id: '',
     family_id: searchParams.get('family_id') || '',
     search: searchParams.get('search') || '',
     upholstery_ids: searchParams.get('upholstery_ids')?.split(',').filter(Boolean) || [],
@@ -73,6 +93,12 @@ export function resolveCatalogFilters({
   subcategories,
 }) {
   const filters = parseCatalogFilters(searchParams);
+  const addCategory = (id) => {
+    filters.category_ids = uniq([...filters.category_ids, id]);
+  };
+  const addSubcategory = (id) => {
+    filters.subcategory_ids = uniq([...filters.subcategory_ids, id]);
+  };
 
   if (categoryParam && categories.length > 0) {
     const category = findCategoryBySlug(categories, categoryParam);
@@ -80,17 +106,8 @@ export function resolveCatalogFilters({
     if (!category) {
       // A nested category addressed directly, e.g. /products/category/wood-chairs
       const nested = findNestedCategoryBySlug(categories, categoryParam);
-      if (nested) {
-        filters.category_id = nested.category.id;
-        filters.subcategory_id = '';
-      }
-      return filters;
-    }
-
-    filters.category_id = category.id;
-    filters.subcategory_id = '';
-
-    if (subcategoryParam) {
+      if (nested) addCategory(nested.category.id);
+    } else if (subcategoryParam) {
       // A child is either a subcategory or a nested category; they share the
       // /products/category/<parent>/<child> URL shape but filter differently.
       const child =
@@ -99,15 +116,41 @@ export function resolveCatalogFilters({
           (s) => (s.slug || '').toLowerCase() === subcategoryParam.toLowerCase()
         );
 
-      if (isNestedCategoryChild(child)) {
-        filters.category_id = child.id;
-      } else if (child) {
-        filters.subcategory_id = child.id;
-      }
+      if (isNestedCategoryChild(child)) addCategory(child.id);
+      else if (child) addSubcategory(child.id);
+      else addCategory(category.id);
+    } else {
+      addCategory(category.id);
     }
   }
 
-  return filters;
+  return { ...filters, ...singleSelection(filters, categories, subcategories) };
+}
+
+/** Parent category id of a product subcategory, looked up in the tree. */
+export function subcategoryParentId(subcategoryId, categories, subcategories = []) {
+  const parent = (categories || []).find((cat) =>
+    getChildren(cat).some((c) => !isNestedCategoryChild(c) && String(c.id) === String(subcategoryId))
+  );
+  if (parent) return parent.id;
+  const sub = (subcategories || []).find((s) => String(s.id) === String(subcategoryId));
+  return sub?.category_id ?? '';
+}
+
+/**
+ * The single category / subcategory picked, in the old category_id +
+ * subcategory_id shape (a subcategory keeps its parent). Empty when none or
+ * several are picked.
+ */
+export function singleSelection(filters, categories, subcategories) {
+  const cats = filters.category_ids || [];
+  const subs = filters.subcategory_ids || [];
+  if (cats.length + subs.length !== 1) return { category_id: '', subcategory_id: '' };
+  if (cats.length) return { category_id: cats[0], subcategory_id: '' };
+  return {
+    category_id: subcategoryParentId(subs[0], categories, subcategories),
+    subcategory_id: subs[0],
+  };
 }
 
 export function buildCatalogPath(categorySlug, subcategorySlug) {
@@ -125,6 +168,14 @@ export function buildCatalogSearchParams(filters, page = 1) {
 
   if (page > 1) {
     params.set('page', String(page));
+  }
+
+  // One pick lives in the path (/products/category/...); several go here
+  const cats = filters.category_ids || [];
+  const subs = filters.subcategory_ids || [];
+  if (cats.length + subs.length > 1) {
+    if (cats.length) params.set('category_ids', cats.join(','));
+    if (subs.length) params.set('subcategory_ids', subs.join(','));
   }
 
   if (filters.search) {
@@ -180,16 +231,22 @@ export function buildCatalogSearchParams(filters, page = 1) {
 }
 
 export function getCatalogLocation(filters, categories, subcategories, page = 1) {
-  const nested = findCategoryById(categories, filters.category_id)
+  const single = singleSelection(filters, categories, subcategories);
+  const nested = findCategoryById(categories, single.category_id)
     ? null
-    : findNestedCategoryById(categories, filters.category_id);
+    : findNestedCategoryById(categories, single.category_id);
 
   const category = nested
     ? nested.parent
-    : findCategoryById(categories, filters.category_id);
+    : findCategoryById(categories, single.category_id);
   const subcategory = nested
     ? nested.category
-    : subcategories.find((s) => String(s.id) === String(filters.subcategory_id));
+    : single.subcategory_id
+      ? subcategories.find((s) => String(s.id) === String(single.subcategory_id)) ||
+        getChildren(category).find(
+          (c) => !isNestedCategoryChild(c) && String(c.id) === String(single.subcategory_id)
+        )
+      : undefined;
 
   const pathname = buildCatalogPath(category?.slug, subcategory?.slug);
   const search = buildCatalogSearchParams(filters, page);

@@ -414,6 +414,8 @@ async def get_products(
     per_page: int = Query(20, ge=1, le=100, description="Items per page"),
     category_id: Optional[int] = Query(None, description="Filter by category ID"),
     subcategory_id: Optional[int] = Query(None, description="Filter by subcategory ID"),
+    category_ids: Optional[str] = Query(None, description="Comma-separated category IDs (match any)"),
+    subcategory_ids: Optional[str] = Query(None, description="Comma-separated subcategory IDs (match any)"),
     family_id: Optional[int] = Query(None, description="Filter by product family ID"),
     search: Optional[str] = Query(None, description="Search in name, model, description"),
     featured: Optional[bool] = Query(None, description="Filter featured products"),
@@ -474,6 +476,8 @@ async def get_products(
     
     # Parse comma-separated IDs
     finish_id_list = _parse_id_list(finish_ids, "finish_ids")
+    category_id_list = _parse_id_list(category_ids, "category_ids")
+    subcategory_id_list = _parse_id_list(subcategory_ids, "subcategory_ids")
     upholstery_id_list = _parse_id_list(upholstery_ids, "upholstery_ids")
     color_id_list = _parse_id_list(color_ids, "color_ids")
     
@@ -484,6 +488,8 @@ async def get_products(
         pagination=pagination,
         category_id=category_id,
         subcategory_id=subcategory_id,
+        category_ids=category_id_list,
+        subcategory_ids=subcategory_id_list,
         family_id=family_id,
         search_query=search,
         is_featured=featured,
@@ -817,6 +823,7 @@ async def get_upholstery(
 async def get_families(
     request: Request,
     category_id: Optional[int] = Query(None, description="Filter by category ID"),
+    category_ids: Optional[str] = Query(None, description="Comma-separated category IDs (match any)"),
     featured_only: bool = Query(False, description="Only show featured families"),
     db: AsyncSession = Depends(get_db)
 ):
@@ -840,6 +847,7 @@ async def get_families(
     families = await ProductService.get_families(
         db=db,
         category_id=category_id,
+        category_ids=_parse_id_list(category_ids, "category_ids"),
         featured_only=featured_only,
         include_inactive=False
     )
