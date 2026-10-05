@@ -4,6 +4,7 @@ import { useSiteSettings } from '../../hooks/useContent';
 import SiteLogo from '../ui/SiteLogo';
 import { safeHref } from '../../utils/safeUrl';
 import { salesContact, telHref, mailtoHref } from '../../utils/contactLinks';
+import { legalPrefetchProps } from '../../utils/legalPrefetch';
 
 const Footer = () => {
   const currentYear = new Date().getFullYear();
@@ -213,7 +214,7 @@ const Footer = () => {
             <ul className="space-y-1">
               {footerLinks.legal.map((link) => (
                 <li key={link.path}>
-                  <Link to={link.path} className="text-xs text-dark-200 hover:text-primary-500">
+                  <Link to={link.path} {...legalPrefetchProps(link.path)} className="text-xs text-dark-200 hover:text-primary-500">
                     {link.name}
                   </Link>
                 </li>

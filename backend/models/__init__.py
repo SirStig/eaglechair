@@ -37,6 +37,9 @@ from backend.models.passkey import AdminPasskeyCredential
 # Catalog Builder
 from backend.models.catalog_project import CatalogProject
 
+# Time Machine
+from backend.models.history import HistoryChangeSet, HistoryEntry
+
 # Site analytics
 from backend.models.analytics import AnalyticsEvent
 
@@ -138,6 +141,9 @@ __all__ = [
     "SavedConfiguration",
     # Catalog Builder
     "CatalogProject",
+    # Time Machine
+    "HistoryChangeSet",
+    "HistoryEntry",
     # Site analytics
     "AnalyticsEvent",
 ]

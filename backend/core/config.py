@@ -284,6 +284,14 @@ class Settings(BaseSettings):
     ANALYTICS_DIGEST_RECIPIENTS: str = ""  # comma-separated; empty = ADMIN_EMAIL
     ANALYTICS_DIGEST_HOUR_UTC: int = 13
 
+    # Time Machine (backend/services/history_service.py): history of admin
+    # changes that super admins can revert, kept this many days. Deleted
+    # upload images wait in UPLOAD_TRASH_DIR for the same time so restored
+    # rows get their pictures back; empty = ".upload-trash" next to uploads/
+    HISTORY_ENABLED: bool = True
+    HISTORY_RETENTION_DAYS: int = Field(default=30, ge=1, le=365)
+    UPLOAD_TRASH_DIR: str = ""
+
     # Performance Configuration
     ENABLE_CACHE: bool = True
     ENABLE_COMPRESSION: bool = True

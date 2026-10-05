@@ -1,85 +1,14 @@
-import { useState, useEffect } from 'react';
-import { Link } from 'react-router-dom';
-import { m } from 'framer-motion';
-import { loadLegalDocuments } from '../utils/legalDocumentsLoader';
-import SEOHead from '../components/SEOHead';
+import LegalDocumentPage from '../components/legal/LegalDocumentPage';
 import { SEO } from '../config/seoConfig';
 
-const PrivacyPolicyPage = () => {
-  const [legalDocuments, setLegalDocuments] = useState([]);
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    const loadData = async () => {
-      const documents = await loadLegalDocuments();
-      if (documents) {
-        setLegalDocuments(documents);
-      }
-      setLoading(false);
-    };
-    loadData();
-  }, []);
-
-  // Get Privacy Policy from legal documents
-  const legalData = legalDocuments;
-  const privacyDoc = legalData.find(doc => doc.slug === 'privacy-policy');
-  
-  if (loading) {
-    return (
-      <div className="min-h-screen bg-gradient-to-br from-dark-900 via-dark-800 to-dark-900 flex items-center justify-center">
-        <div className="text-dark-100">Loading...</div>
-      </div>
-    );
-  }
-  
-  if (!privacyDoc) {
-    return (
-      <div className="min-h-screen bg-gradient-to-br from-dark-900 via-dark-800 to-dark-900 flex items-center justify-center">
-        <div className="text-dark-100">Privacy Policy not found</div>
-      </div>
-    );
-  }
-
-  return (
-    <div className="min-h-screen bg-gradient-to-br from-dark-900 via-dark-800 to-dark-900">
-      <SEOHead {...SEO.pages.privacy} />
-      <m.div
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        className="max-w-[1400px] mx-auto py-12 px-4"
-      >
-        <div className="bg-dark-800 rounded-lg shadow-xl p-8 md:p-12 border border-dark-700">
-          <Link to="/" className="inline-block mb-6 text-primary-500 hover:text-primary-400">
-            ← Back to Home
-          </Link>
-
-          <h1 className="text-4xl font-bold text-dark-50 mb-4">{privacyDoc.title}</h1>
-          <p className="text-dark-300 mb-8">{privacyDoc.short_description || privacyDoc.shortDescription}</p>
-          
-          {(privacyDoc.effective_date || privacyDoc.effectiveDate) && (
-            <div className="text-sm text-dark-400 mb-8">
-              <strong>Effective Date:</strong> {privacyDoc.effective_date || privacyDoc.effectiveDate}
-            </div>
-          )}
-
-          <div className="prose prose-invert max-w-none">
-            <div className="text-dark-200 whitespace-pre-wrap leading-relaxed">
-              {privacyDoc.content}
-            </div>
-          </div>
-
-          <div className="mt-12 pt-8 border-t border-dark-700 flex flex-col sm:flex-row gap-4 justify-between items-center">
-            <Link to="/terms" className="text-primary-500 hover:text-primary-400">
-              View Terms of Service →
-            </Link>
-            <Link to="/general-information" className="text-primary-500 hover:text-primary-400">
-              View All Policies →
-            </Link>
-          </div>
-        </div>
-      </m.div>
-    </div>
-  );
-};
+const PrivacyPolicyPage = () => (
+  <LegalDocumentPage
+    seo={SEO.pages.privacy}
+    type="privacy_policy"
+    slug="privacy-policy"
+    name="Privacy Policy"
+    related={{ name: 'Terms of Service', path: '/terms' }}
+  />
+);
 
 export default PrivacyPolicyPage;

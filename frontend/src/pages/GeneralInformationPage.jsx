@@ -1,40 +1,72 @@
-import { useState, useEffect } from 'react';
-import { Link } from 'react-router-dom';
+import { useState, useEffect, useRef } from 'react';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { m } from 'framer-motion';
-import { loadLegalDocuments } from '../utils/legalDocumentsLoader';
 import SEOHead from '../components/SEOHead';
 import { SEO } from '../config/seoConfig';
+import useLegalDocuments from '../hooks/useLegalDocuments';
+import { LegalPageError, LegalPageLoading, LegalPageMessage } from '../components/legal/LegalPageStatus';
+
+const scrollBehavior = () =>
+  window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth';
 
 const GeneralInformationPage = () => {
+  const { hash } = useLocation();
+  const navigate = useNavigate();
   const [activeSection, setActiveSection] = useState(null);
-  const [legalDocuments, setLegalDocuments] = useState([]);
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    const loadData = async () => {
-      const documents = await loadLegalDocuments();
-      if (documents) {
-        setLegalDocuments(documents);
-      }
-      setLoading(false);
-    };
-    loadData();
-  }, []);
+  // Last section scrolled to, so our own hash updates don't re-trigger a jump
+  const scrolledTo = useRef(null);
+  const { documents: legalDocuments, loading, error, retry } = useLegalDocuments();
 
   // Filter and sort documents
-  const legalData = legalDocuments;
-  const documents = legalData
-    .filter(doc => doc.is_active || doc.isActive)
-    .sort((a, b) => (a.display_order || a.displayOrder || 0) - (b.display_order || b.displayOrder || 0));
+  const documents = legalDocuments
+    .filter(doc => doc.isActive ?? doc.is_active ?? true)
+    .sort((a, b) => (a.displayOrder ?? a.display_order ?? 0) - (b.displayOrder ?? b.display_order ?? 0));
 
-  // Scroll to section
+  // Deep links (/general-information#warranty) only resolve once documents render
+  const targetSlug = hash ? decodeURIComponent(hash.slice(1)) : null;
+  const hasDocuments = documents.length > 0;
+  useEffect(() => {
+    if (!targetSlug || !hasDocuments || scrolledTo.current === targetSlug) return;
+    const element = document.getElementById(targetSlug);
+    if (element) {
+      element.scrollIntoView({ behavior: 'auto', block: 'start' });
+      scrolledTo.current = targetSlug;
+      setActiveSection(targetSlug);
+    }
+  }, [targetSlug, hasDocuments]);
+
+  // Scroll to section and keep it in the URL so it can be shared
   const scrollToSection = (slug) => {
     const element = document.getElementById(slug);
     if (element) {
-      element.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      element.scrollIntoView({ behavior: scrollBehavior(), block: 'start' });
       setActiveSection(slug);
+      scrolledTo.current = slug;
+      navigate({ hash: slug }, { replace: true, preventScrollReset: true });
     }
   };
+
+  const scrollToTop = () => {
+    window.scrollTo({ top: 0, behavior: scrollBehavior() });
+  };
+
+  if (loading || error || !hasDocuments) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-dark-900 via-dark-800 to-dark-900">
+        <SEOHead {...SEO.pages.generalInfo} />
+        {loading ? (
+          <LegalPageLoading />
+        ) : error ? (
+          <LegalPageError onRetry={retry} />
+        ) : (
+          <LegalPageMessage
+            title="General Information"
+            message="Our policies aren't published online right now. Contact us and we'll send you a copy."
+          />
+        )}
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-dark-900 via-dark-800 to-dark-900">
@@ -69,7 +101,9 @@ const GeneralInformationPage = () => {
                 {documents.map((doc) => (
                   <button
                     key={doc.id}
+                    type="button"
                     onClick={() => scrollToSection(doc.slug)}
+                    aria-current={activeSection === doc.slug ? 'location' : undefined}
                     className={`w-full text-left px-3 py-2 rounded-md text-sm transition-colors ${
                       activeSection === doc.slug
                         ? 'bg-primary-600 text-white'
@@ -97,8 +131,8 @@ const GeneralInformationPage = () => {
                   id={doc.slug}
                   initial={{ opacity: 0, y: 20 }}
                   animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: index * 0.05 }}
-                  className="bg-dark-800 border border-dark-700 rounded-lg p-6 md:p-8"
+                  transition={{ delay: Math.min(index, 6) * 0.04 }}
+                  className="scroll-mt-[calc(var(--header-height,0px)+1rem)] bg-dark-800 border border-dark-700 rounded-lg p-6 md:p-8"
                 >
                   <div className="flex items-start justify-between mb-4">
                     <div>
@@ -132,10 +166,10 @@ const GeneralInformationPage = () => {
 
                   <div className="mt-4">
                     <button
-                      onClick={() => scrollToSection(doc.slug)}
+                      onClick={scrollToTop}
                       className="text-primary-500 hover:text-primary-400 text-sm inline-flex items-center gap-1"
                     >
-                      <span>↑</span> Back to Top
+                      <span aria-hidden="true">↑</span> Back to Top
                     </button>
                   </div>
                 </m.section>
@@ -156,15 +190,17 @@ const GeneralInformationPage = () => {
                 Our team is here to help. Contact us for clarification on any of our terms and conditions.
               </p>
               <div className="flex flex-col sm:flex-row gap-4 justify-center">
-                <Link to="/contact">
-                  <button className="px-6 py-3 bg-primary-600 hover:bg-primary-700 text-white font-semibold rounded-lg transition-colors">
-                    Contact Us
-                  </button>
+                <Link
+                  to="/contact"
+                  className="px-6 py-3 bg-primary-600 hover:bg-primary-700 text-white font-semibold rounded-lg transition-colors"
+                >
+                  Contact Us
                 </Link>
-                <Link to="/quote-request">
-                  <button className="px-6 py-3 bg-dark-700 hover:bg-dark-600 text-dark-50 font-semibold rounded-lg transition-colors border border-dark-600">
-                    Request a Quote
-                  </button>
+                <Link
+                  to="/quote-request"
+                  className="px-6 py-3 bg-dark-700 hover:bg-dark-600 text-dark-50 font-semibold rounded-lg transition-colors border border-dark-600"
+                >
+                  Request a Quote
                 </Link>
               </div>
             </m.div>

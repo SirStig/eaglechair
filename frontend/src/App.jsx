@@ -14,6 +14,7 @@ import { useAuthStore, startAuthInit } from './store/authStore';
 import { useCartStore } from './store/cartStore';
 import { installAnalytics, trackPageView } from './utils/analytics';
 import { PageLoader } from './components/ui/LoadingSpinner';
+import { legalPageImports } from './utils/legalPrefetch';
 
 // Animation features (domAnimation) load in a separate chunk; m.* components
 // render their initial state until it arrives. The request starts as soon as
@@ -42,9 +43,10 @@ const LoginPage = lazy(() => import('./pages/LoginPage'));
 const EmailVerificationPage = lazy(() => import('./pages/EmailVerificationPage'));
 const ForgotPasswordPage = lazy(() => import('./pages/ForgotPasswordPage'));
 const ResetPasswordPage = lazy(() => import('./pages/ResetPasswordPage'));
-const TermsOfServicePage = lazy(() => import('./pages/TermsOfServicePage'));
-const PrivacyPolicyPage = lazy(() => import('./pages/PrivacyPolicyPage'));
-const GeneralInformationPage = lazy(() => import('./pages/GeneralInformationPage'));
+// Legal pages fetch their documents alongside the chunk (see legalPrefetch)
+const TermsOfServicePage = lazy(legalPageImports['/terms']);
+const PrivacyPolicyPage = lazy(legalPageImports['/privacy']);
+const GeneralInformationPage = lazy(legalPageImports['/general-information']);
 const NewAdminDashboard = lazy(() => import('./pages/admin/NewAdminDashboard'));
 const AIChatPage = lazy(() => import('./pages/admin/AIChatPage'));
 const AdminSecuritySetupPage = lazy(() => import('./pages/admin/AdminSecuritySetupPage'));

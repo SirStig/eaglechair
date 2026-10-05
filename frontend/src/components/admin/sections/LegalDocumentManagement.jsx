@@ -15,11 +15,17 @@ import { SelectAllCheckbox, SelectCell } from '../bulk/SelectCheckbox';
 import { openOnRowClick } from '../bulk/rowClick';
 import DeleteGate from '../DeleteGate';
 
-// Public pages that render a specific legal document type
+// Types with their own public page; every other published document is a
+// section of /general-information. Keep in sync with TermsOfServicePage /
+// PrivacyPolicyPage.
 const PUBLIC_PATHS = {
   privacy_policy: '/privacy',
-  terms: '/terms',
+  conditions_of_sale: '/terms',
 };
+
+const publicPathFor = (doc) =>
+  PUBLIC_PATHS[doc.documentType] ||
+  (doc.slug ? `/general-information#${encodeURIComponent(doc.slug)}` : null);
 
 const formatDate = (iso) => {
   if (!iso) return '—';
@@ -290,7 +296,7 @@ const LegalDocumentManagement = () => {
                   </tr>
                 ) : (
                   visibleDocuments.map((doc) => {
-                    const publicPath = PUBLIC_PATHS[doc.documentType];
+                    const publicPath = publicPathFor(doc);
                     return (
                       <tr
                         key={doc.id}

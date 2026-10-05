@@ -6,6 +6,10 @@
  * pages need them. Concurrent callers share one request; the server sends
  * no-cache + ETag, so `cache: 'no-cache'` revalidates cheaply (304).
  *
+ * Stale-while-revalidate: once loaded, the documents stay in memory for the
+ * session. Pages render the cached copy instantly and a background refresh
+ * picks up admin edits (getCachedLegalDocuments + loadLegalDocuments).
+ *
  * Falls back to contentData.legalDocuments when the file isn't there yet
  * (e.g. backend not redeployed/re-exported), so deploy order doesn't matter.
  */
@@ -32,12 +36,17 @@ const fetchLegalDocuments = async () => {
   } catch (error) {
     logger.warn(CONTEXT, 'Could not load /data/legalDocuments.json, using contentData', error);
   }
-  const content = await loadContentData();
-  return Array.isArray(content?.legalDocuments) ? content.legalDocuments : null;
+  try {
+    const content = await loadContentData();
+    return Array.isArray(content?.legalDocuments) ? content.legalDocuments : null;
+  } catch (error) {
+    logger.error(CONTEXT, 'Could not load legal documents', error);
+    return null;
+  }
 };
 
 /**
- * Load legal documents (deduplicated, cached for CACHE_DURATION).
+ * Load legal documents (deduplicated, fresh for CACHE_DURATION).
  * Resolves to an array, or null if none could be loaded.
  */
 export const loadLegalDocuments = () => {
@@ -63,6 +72,20 @@ export const loadLegalDocuments = () => {
 };
 
 /**
+ * Last loaded documents, even if stale (null before the first load).
+ */
+export const getCachedLegalDocuments = () => cache;
+
+/**
+ * Warm the cache ahead of navigation (link hover, route chunk load).
+ * No-op during SSR.
+ */
+export const preloadLegalDocuments = () => {
+  if (typeof window === 'undefined') return;
+  loadLegalDocuments().catch(() => {});
+};
+
+/**
  * Drop the cached documents (called after admin CMS writes)
  */
 export const clearLegalDocumentsCache = () => {
@@ -70,6 +93,18 @@ export const clearLegalDocumentsCache = () => {
   cache = null;
   cacheTimestamp = 0;
   inflight = null;
+};
+
+/**
+ * Find a document by type (stable) or slug (admin-editable fallback).
+ */
+export const findLegalDocument = (documents, { type, slug }) => {
+  if (!Array.isArray(documents)) return null;
+  return (
+    documents.find((doc) => (doc.documentType || doc.document_type) === type) ||
+    documents.find((doc) => doc.slug === slug) ||
+    null
+  );
 };
 
 export default loadLegalDocuments;

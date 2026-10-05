@@ -616,11 +616,11 @@ const RegisterPage = () => {
                       />
                       <span className="text-sm text-dark-100">
                         I agree to the{' '}
-                        <Link to="/terms" target="_blank" className="text-primary-500 hover:text-primary-400 underline">
+                        <Link to="/terms" target="_blank" rel="noopener noreferrer" className="text-primary-500 hover:text-primary-400 underline">
                           Terms of Service
                         </Link>
                         {' '}and{' '}
-                        <Link to="/privacy" target="_blank" className="text-primary-500 hover:text-primary-400 underline">
+                        <Link to="/privacy" target="_blank" rel="noopener noreferrer" className="text-primary-500 hover:text-primary-400 underline">
                           Privacy Policy
                         </Link>
                       </span>

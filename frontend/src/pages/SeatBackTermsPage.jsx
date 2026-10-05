@@ -1,6 +1,7 @@
 import { Link } from 'react-router-dom';
 import { SEO } from '../config/seoConfig';
 import KnowledgePageLayout from '../components/knowledge/KnowledgePageLayout';
+import { legalPrefetchProps } from '../utils/legalPrefetch';
 
 // Model-code letters are the ones documented in our price lists and catalog captions.
 const MODEL_CODE = [
@@ -121,7 +122,7 @@ const SeatBackTermsPage = () => (
 
     <p className="mt-10 text-sm text-slate-600">
       Full terms of sale, warranty and care are in{' '}
-      <Link to="/general-information" className="text-primary-600 hover:text-primary-700 font-medium">
+      <Link to="/general-information" {...legalPrefetchProps('/general-information')} className="text-primary-600 hover:text-primary-700 font-medium">
         General Information
       </Link>
       .

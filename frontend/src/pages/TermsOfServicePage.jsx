@@ -1,86 +1,14 @@
-import { useState, useEffect } from 'react';
-import { Link } from 'react-router-dom';
-import { m } from 'framer-motion';
-import { loadLegalDocuments } from '../utils/legalDocumentsLoader';
-import SEOHead from '../components/SEOHead';
+import LegalDocumentPage from '../components/legal/LegalDocumentPage';
 import { SEO } from '../config/seoConfig';
 
-const TermsOfServicePage = () => {
-  const [legalDocuments, setLegalDocuments] = useState([]);
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    const loadData = async () => {
-      const documents = await loadLegalDocuments();
-      if (documents) {
-        setLegalDocuments(documents);
-      }
-      setLoading(false);
-    };
-    loadData();
-  }, []);
-
-  // Get Terms of Service from legal documents
-  const legalData = legalDocuments;
-  const termsDoc = legalData.find(doc => doc.slug === 'conditions-of-sale');
-  
-  if (loading) {
-    return (
-      <div className="min-h-screen bg-gradient-to-br from-dark-900 via-dark-800 to-dark-900 flex items-center justify-center">
-        <div className="text-dark-100">Loading...</div>
-      </div>
-    );
-  }
-  
-  if (!termsDoc) {
-    return (
-      <div className="min-h-screen bg-gradient-to-br from-dark-900 via-dark-800 to-dark-900 flex items-center justify-center">
-        <div className="text-dark-100">Terms of Service not found</div>
-      </div>
-    );
-  }
-
-  return (
-    <div className="min-h-screen bg-gradient-to-br from-dark-900 via-dark-800 to-dark-900">
-      <SEOHead {...SEO.pages.terms} />
-      <m.div
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        className="max-w-[1400px] mx-auto py-12 px-4"
-      >
-        <div className="bg-dark-800 rounded-lg shadow-xl p-8 md:p-12 border border-dark-700">
-          <Link to="/" className="inline-block mb-6 text-primary-500 hover:text-primary-400">
-            ← Back to Home
-          </Link>
-
-          <h1 className="text-4xl font-bold text-dark-50 mb-4">{termsDoc.title}</h1>
-          <p className="text-dark-300 mb-8">{termsDoc.short_description || termsDoc.shortDescription}</p>
-          
-          {(termsDoc.effective_date || termsDoc.effectiveDate) && (
-            <div className="text-sm text-dark-400 mb-8">
-              <strong>Effective Date:</strong> {termsDoc.effective_date || termsDoc.effectiveDate}
-            </div>
-          )}
-
-
-          <div className="prose prose-invert max-w-none">
-            <div className="text-dark-200 whitespace-pre-wrap leading-relaxed">
-              {termsDoc.content}
-            </div>
-          </div>
-
-          <div className="mt-12 pt-8 border-t border-dark-700 flex flex-col sm:flex-row gap-4 justify-between items-center">
-            <Link to="/privacy" className="text-primary-500 hover:text-primary-400">
-              View Privacy Policy →
-            </Link>
-            <Link to="/general-information" className="text-primary-500 hover:text-primary-400">
-              View All Policies →
-            </Link>
-          </div>
-        </div>
-      </m.div>
-    </div>
-  );
-};
+const TermsOfServicePage = () => (
+  <LegalDocumentPage
+    seo={SEO.pages.terms}
+    type="conditions_of_sale"
+    slug="conditions-of-sale"
+    name="Terms of Service"
+    related={{ name: 'Privacy Policy', path: '/privacy' }}
+  />
+);
 
 export default TermsOfServicePage;
