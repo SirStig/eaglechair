@@ -9,7 +9,7 @@ import { useToast } from '../../../contexts/ToastContext';
 import { AdminPage, AdminPageHeader } from '../ui/AdminPage';
 import useBulkSelection from '../../../hooks/useBulkSelection';
 import BulkActionBar from '../bulk/BulkActionBar';
-import { ACTIVE_ACTIONS } from '../bulk/bulkActions';
+import { ACTIVE_ACTIONS, retiredBy } from '../bulk/bulkActions';
 import { SelectAllCheckbox, RowCheckbox, SelectCell } from '../bulk/SelectCheckbox';
 import { openOnRowClick } from '../bulk/rowClick';
 
@@ -488,7 +488,7 @@ const EmailTemplateManagement = () => {
       </Modal>
 
       <BulkActionBar
-        selection={selection}
+        selection={selection} permanentDelete={{ isRetired: retiredBy(sortedTemplates) }}
         resource="email-templates"
         noun="template"
         actions={ACTIVE_ACTIONS}

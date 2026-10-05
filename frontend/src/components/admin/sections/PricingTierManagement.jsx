@@ -11,7 +11,7 @@ import TableSortHead, { compareValues } from '../TableSortHead';
 import { AdminPage, AdminPageHeader } from '../ui/AdminPage';
 import useBulkSelection from '../../../hooks/useBulkSelection';
 import BulkActionBar from '../bulk/BulkActionBar';
-import { ACTIVE_ACTIONS } from '../bulk/bulkActions';
+import { ACTIVE_ACTIONS, retiredBy } from '../bulk/bulkActions';
 import { SelectAllCheckbox, SelectCell } from '../bulk/SelectCheckbox';
 import { openOnRowClick } from '../bulk/rowClick';
 
@@ -302,7 +302,7 @@ const PricingTierManagement = () => {
       )}
 
       <BulkActionBar
-        selection={selection}
+        selection={selection} permanentDelete={{ isRetired: retiredBy(sortedTiers) }}
         resource="pricing-tiers"
         noun="tier"
         actions={ACTIVE_ACTIONS}

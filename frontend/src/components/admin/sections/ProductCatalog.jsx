@@ -14,9 +14,10 @@ import ResponsiveImage from '../../ui/ResponsiveImage';
 import { AdminPage, AdminPageHeader } from '../ui/AdminPage';
 import useBulkSelection from '../../../hooks/useBulkSelection';
 import BulkActionBar from '../bulk/BulkActionBar';
+import { deletePermanently } from '../bulk/permanentDelete';
 import { SelectAllCheckbox, SelectCell } from '../bulk/SelectCheckbox';
 import { openOnRowClick } from '../bulk/rowClick';
-import { ACTIVE_ACTIONS } from '../bulk/bulkActions';
+import { ACTIVE_ACTIONS, retiredBy } from '../bulk/bulkActions';
 import { productBulkActions } from './productBulkActions';
 import PdfPreviewButton from '../../ui/PdfPreviewButton';
 
@@ -175,30 +176,15 @@ const ProductCatalog = ({ onEdit }) => {
     if (!permDeleteTarget) return;
     setPermDeleting(true);
     try {
-      if (permDeleteTarget.bulk) {
-        let successCount = 0;
-        let failCount = 0;
-        for (const id of permDeleteTarget.bulk) {
-          try {
-            await apiClient.delete(`/api/v1/admin/products/${id}?hard=true`);
-            successCount++;
-          } catch {
-            failCount++;
-          }
-        }
-        if (successCount > 0) toast.success(`${successCount} product${successCount !== 1 ? 's' : ''} permanently deleted`);
-        if (failCount > 0) toast.error(`Failed to permanently delete ${failCount} product${failCount !== 1 ? 's' : ''}`);
-        clearSelection();
-      } else {
-        await apiClient.delete(`/api/v1/admin/products/${permDeleteTarget.id}?hard=true`);
-        toast.success('Product permanently deleted');
-      }
+      // Same endpoint as the batch bar: skips products still on a quote and says so
+      await deletePermanently(toast, 'products', permDeleteTarget.bulk || [permDeleteTarget.id], { noun: 'product' });
+      if (permDeleteTarget.bulk) clearSelection();
       setPermDeleteTarget(null);
       await fetchProducts();
       await fetchCounts();
     } catch (error) {
       console.error('Failed to permanently delete product:', error);
-      toast.error('Failed to permanently delete product');
+      toast.error(error.response?.data?.detail || 'Failed to permanently delete product');
     } finally {
       setPermDeleting(false);
     }
@@ -238,10 +224,7 @@ const ProductCatalog = ({ onEdit }) => {
           ...ACTIVE_ACTIONS,
           { label: 'Archive', run: archiveSelected, tone: 'danger' },
         ]
-      : [
-          { label: 'Restore', changes: { is_active: true } },
-          { label: 'Delete permanently', tone: 'danger', onClick: (ids) => setPermDeleteTarget({ bulk: [...ids] }) },
-        ]
+      : [{ label: 'Restore', changes: { is_active: true } }]
   ), [tab, categories, subcategories, families]);
 
   return (
@@ -456,7 +439,7 @@ const ProductCatalog = ({ onEdit }) => {
       </Card>
 
       <BulkActionBar
-        selection={selection}
+        selection={selection} permanentDelete={{ isRetired: retiredBy(products) }}
         resource="products"
         noun="product"
         actions={bulkActions}

@@ -16,6 +16,8 @@ from tests.factories import (
     create_color,
     create_product_family,
     create_product_variation,
+    create_quote,
+    create_quote_item,
 )
 
 UA = {"User-Agent": "Mozilla/5.0 (X11; Linux x86_64) test", "X-Session-Token": "s", "X-Admin-Token": "a"}
@@ -193,3 +195,67 @@ class TestOptionGroupSwitches:
         body = detail.json()
         assert body["colors_enabled"] is False
         assert [c["id"] for c in body["customizations"]["colors"]] == [color.id]
+
+
+@pytest.mark.integration
+@pytest.mark.admin
+class TestPermanentDelete:
+    async def _delete(self, client, resource, ids, confirm="DELETE"):
+        return await client.post(f"{BASE}/{resource}/delete", json={"ids": ids, "confirm": confirm}, headers=UA)
+
+    async def test_requires_super_admin_and_confirm_word(self, async_client, as_role, db_session):
+        catalog = await create_catalog(db_session, is_active=False)
+        as_role(AdminRole.ADMIN)
+        assert (await self._delete(async_client, "catalogs", [catalog.id])).status_code == 403
+        as_role(AdminRole.SUPER_ADMIN)
+        assert (await self._delete(async_client, "catalogs", [catalog.id], confirm="yes")).status_code == 400
+        assert await db_session.get(Catalog, catalog.id) is not None
+
+    async def test_only_retired_rows_are_deleted(self, async_client, as_role, db_session):
+        as_role(AdminRole.SUPER_ADMIN)
+        live = await create_catalog(db_session, is_active=True)
+        retired = await create_catalog(db_session, is_active=False)
+        live_id, retired_id = live.id, retired.id
+        response = await self._delete(async_client, "catalogs", [live_id, retired_id])
+        assert response.status_code == 200, response.text
+        body = response.json()
+        assert body["deleted"] == 1
+        assert [s["id"] for s in body["skipped"]] == [live_id]
+        assert "still active" in body["skipped"][0]["reason"]
+        db_session.expire_all()
+        assert await db_session.get(Catalog, retired_id) is None
+        assert await db_session.get(Catalog, live_id) is not None
+
+    async def test_product_in_a_quote_is_kept_others_take_their_variations(self, async_client, as_role, db_session):
+        as_role(AdminRole.SUPER_ADMIN)
+        quoted = await create_chair(db_session, is_active=False)
+        loose = await create_chair(db_session, is_active=False)
+        variation = await create_product_variation(db_session, loose.id)
+        quote = await create_quote(db_session)
+        await create_quote_item(db_session, quote.id, product_id=quoted.id)
+        quoted_id, loose_id, variation_id = quoted.id, loose.id, variation.id
+
+        response = await self._delete(async_client, "products", [quoted_id, loose_id])
+        assert response.status_code == 200, response.text
+        body = response.json()
+        assert body["deleted"] == 1
+        assert body["skipped"][0]["id"] == quoted_id
+        assert "quote line" in body["skipped"][0]["reason"]
+        db_session.expire_all()
+        assert await db_session.get(Chair, loose_id) is None
+        assert await db_session.get(ProductVariation, variation_id) is None
+        assert await db_session.get(Chair, quoted_id) is not None
+
+    async def test_parent_and_child_categories_go_together(self, async_client, as_role, db_session):
+        from backend.models.chair import Category
+
+        as_role(AdminRole.SUPER_ADMIN)
+        parent = await create_category(db_session, is_active=False)
+        child = await create_category(db_session, parent_id=parent.id, is_active=False)
+        ids = [parent.id, child.id]
+        response = await self._delete(async_client, "categories", ids)
+        assert response.status_code == 200, response.text
+        assert response.json() == {"deleted": 2, "skipped": []}
+        db_session.expire_all()
+        for category_id in ids:
+            assert await db_session.get(Category, category_id) is None

@@ -10,6 +10,7 @@ import PaginationBar from '../PaginationBar';
 import { AdminPage, AdminPageHeader } from '../ui/AdminPage';
 import useBulkSelection from '../../../hooks/useBulkSelection';
 import BulkActionBar from '../bulk/BulkActionBar';
+import { retiredBy } from '../bulk/bulkActions';
 import { SelectAllCheckbox, SelectCell } from '../bulk/SelectCheckbox';
 import { openOnRowClick } from '../bulk/rowClick';
 import { 
@@ -339,7 +340,7 @@ const QuoteManagement = () => {
         )}
       </Card>
       <BulkActionBar
-        selection={selection}
+        selection={selection} permanentDelete={{ resource: 'quotes', isRetired: retiredBy(filteredQuotes, (q) => ['declined', 'expired'].includes(q.status)), retiredLabel: 'declined or expired' }}
         noun="quote"
         actions={bulkActions}
         onDone={fetchQuotes}

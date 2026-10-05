@@ -10,7 +10,7 @@ import { LEGAL_DOCUMENT_TYPES, legalDocumentTypeLabel } from '../legalDocumentTy
 import { AdminPage, AdminPageHeader } from '../ui/AdminPage';
 import useBulkSelection from '../../../hooks/useBulkSelection';
 import BulkActionBar from '../bulk/BulkActionBar';
-import { ACTIVE_ACTIONS } from '../bulk/bulkActions';
+import { ACTIVE_ACTIONS, retiredBy } from '../bulk/bulkActions';
 import { SelectAllCheckbox, SelectCell } from '../bulk/SelectCheckbox';
 import { openOnRowClick } from '../bulk/rowClick';
 
@@ -397,7 +397,7 @@ const LegalDocumentManagement = () => {
       )}
 
       <BulkActionBar
-        selection={selection}
+        selection={selection} permanentDelete={{ isRetired: retiredBy(visibleDocuments) }}
         resource="legal-documents"
         noun="document"
         actions={ACTIVE_ACTIONS}

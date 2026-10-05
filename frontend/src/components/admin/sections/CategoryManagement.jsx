@@ -27,7 +27,7 @@ import PermanentDeleteModal from '../PermanentDeleteModal';
 import { AdminPage, AdminPageHeader } from '../ui/AdminPage';
 import useBulkSelection, { useExclusiveSelections } from '../../../hooks/useBulkSelection';
 import BulkActionBar from '../bulk/BulkActionBar';
-import { idAction } from '../bulk/bulkActions';
+import { idAction, retiredBy } from '../bulk/bulkActions';
 import { SelectAllCheckbox, RowCheckbox, SelectCell } from '../bulk/SelectCheckbox';
 import { openOnRowClick } from '../bulk/rowClick';
 
@@ -742,14 +742,14 @@ const CategoryManagement = () => {
       </Card>
 
       <BulkActionBar
-        selection={catSel}
+        selection={catSel} permanentDelete={{ isRetired: retiredBy(categoryRows) }}
         resource="categories"
         noun="category"
         actions={categoryBulkActions}
         onDone={fetchCategories}
       />
       <BulkActionBar
-        selection={subSel}
+        selection={subSel} permanentDelete={{ isRetired: retiredBy(subcategoryRows) }}
         resource="subcategories"
         noun="subcategory"
         actions={subcategoryBulkActions}

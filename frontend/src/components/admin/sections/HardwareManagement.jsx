@@ -8,7 +8,7 @@ import HardwareEditor from './HardwareEditor';
 import { AdminPage, AdminPageHeader } from '../ui/AdminPage';
 import useBulkSelection from '../../../hooks/useBulkSelection';
 import BulkActionBar from '../bulk/BulkActionBar';
-import { ACTIVE_ACTIONS, booleanAction } from '../bulk/bulkActions';
+import { ACTIVE_ACTIONS, booleanAction, retiredBy } from '../bulk/bulkActions';
 import ReorderableTable from '../ReorderableTable';
 import StatusTabs from '../StatusTabs';
 import PermanentDeleteModal from '../PermanentDeleteModal';
@@ -368,7 +368,7 @@ const HardwareManagement = () => {
       />
 
       <BulkActionBar
-        selection={selection}
+        selection={selection} permanentDelete={{ isRetired: retiredBy(sortedHardware) }}
         resource="hardware"
         noun="hardware item"
         actions={bulkActions}

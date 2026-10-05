@@ -15,7 +15,8 @@ import ResponsiveImage from '../../ui/ResponsiveImage';
 import { AdminPage, AdminPageHeader } from '../ui/AdminPage';
 import useBulkSelection from '../../../hooks/useBulkSelection';
 import BulkActionBar from '../bulk/BulkActionBar';
-import { booleanAction, idAction } from '../bulk/bulkActions';
+import { deletePermanently } from '../bulk/permanentDelete';
+import { booleanAction, idAction, retiredBy } from '../bulk/bulkActions';
 import PdfPreviewButton from '../../ui/PdfPreviewButton';
 
 /**
@@ -145,30 +146,17 @@ const FamilyManagement = () => {
     if (!permDeleteTarget) return;
     setPermDeleting(true);
     try {
-      if (permDeleteTarget.bulk) {
-        let successCount = 0;
-        let failCount = 0;
-        for (const id of permDeleteTarget.bulk) {
-          try {
-            await apiClient.delete(`/api/v1/admin/catalog/families/${id}?hard_delete=true`);
-            successCount++;
-          } catch {
-            failCount++;
-          }
-        }
-        if (successCount > 0) toast.success(`${successCount} famil${successCount !== 1 ? 'ies' : 'y'} permanently deleted`);
-        if (failCount > 0) toast.error(`Failed to permanently delete ${failCount}`);
-        selection.clear();
-      } else {
-        await apiClient.delete(`/api/v1/admin/catalog/families/${permDeleteTarget.id}?hard_delete=true`);
-        toast.success('Family permanently deleted');
-      }
+      await deletePermanently(toast, 'families', permDeleteTarget.bulk || [permDeleteTarget.id], {
+        noun: 'family',
+        pluralNoun: 'families',
+      });
+      if (permDeleteTarget.bulk) selection.clear();
       setPermDeleteTarget(null);
       await fetchFamilies();
       await fetchCounts();
     } catch (error) {
       console.error('Failed to permanently delete family:', error);
-      toast.error('Failed to permanently delete family');
+      toast.error(error.response?.data?.detail || 'Failed to permanently delete family');
     } finally {
       setPermDeleting(false);
     }
@@ -208,7 +196,6 @@ const FamilyManagement = () => {
           },
         }
       : { label: 'Restore', changes: { is_active: true } },
-    ...(tab === 'archived' ? [{ label: 'Delete permanently', tone: 'danger', onClick: (ids) => setPermDeleteTarget({ bulk: [...ids] }) }] : []),
     booleanAction('Featured', 'is_featured', 'Featured', 'Not featured'),
     idAction('Move to category', 'category_id', categories, { none: 'No category' }),
   ], [tab, categories]);
@@ -440,7 +427,7 @@ const FamilyManagement = () => {
       </Card>
 
       <BulkActionBar
-        selection={selection}
+        selection={selection} permanentDelete={{ isRetired: retiredBy(paginatedFamilies) }}
         resource="families"
         noun="family"
         actions={bulkActions}

@@ -12,4 +12,12 @@ import apiClient from '../config/apiClient';
 export const bulkEdit = (resource, ids, changes) =>
   apiClient.post(`/api/v1/admin/bulk/${resource}`, { ids, changes });
 
-export default { bulkEdit };
+/**
+ * Permanently delete rows that are already retired (deactivated, archived,
+ * declined…). Super admin only; active rows and rows still in use (e.g. a
+ * product on a quote) are skipped. Resolves to { deleted, skipped: [{id, name, reason}] }.
+ */
+export const permanentDelete = (resource, ids) =>
+  apiClient.post(`/api/v1/admin/bulk/${resource}/delete`, { ids, confirm: 'DELETE' });
+
+export default { bulkEdit, permanentDelete };

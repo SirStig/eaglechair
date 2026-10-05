@@ -8,7 +8,7 @@ import FinishEditor from './FinishEditor';
 import { AdminPage, AdminPageHeader } from '../ui/AdminPage';
 import useBulkSelection from '../../../hooks/useBulkSelection';
 import BulkActionBar from '../bulk/BulkActionBar';
-import { ACTIVE_ACTIONS, booleanAction, idAction } from '../bulk/bulkActions';
+import { ACTIVE_ACTIONS, booleanAction, idAction, retiredBy } from '../bulk/bulkActions';
 import ReorderableTable from '../ReorderableTable';
 import StatusTabs from '../StatusTabs';
 import PermanentDeleteModal from '../PermanentDeleteModal';
@@ -444,7 +444,7 @@ const FinishManagement = () => {
       />
 
       <BulkActionBar
-        selection={selection}
+        selection={selection} permanentDelete={{ isRetired: retiredBy(sortedFinishes) }}
         resource="finishes"
         noun="finish"
         actions={bulkActions}

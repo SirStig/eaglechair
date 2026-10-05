@@ -10,8 +10,8 @@ foreign key). Products go through AdminService.update_product so category
 assignments and caches stay in sync, and also take list operations
 (add/remove categories and available options).
 
-There is no bulk delete: deactivating (is_active = false) is the
-reversible bulk equivalent.
+Deactivating (is_active = false) is the reversible bulk "delete"; rows that
+are already retired can then be removed for good via bulk_delete.py.
 """
 
 import logging

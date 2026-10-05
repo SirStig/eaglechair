@@ -20,6 +20,9 @@ const PermanentDeleteModal = ({
   title,
   message,
   isLoading = false,
+  // How many items are being deleted; more than one makes the admin type
+  // the count too ("DELETE 12") so a big batch can't go by accident
+  count = 1,
 }) => {
   const [typedValue, setTypedValue] = useState('');
 
@@ -27,7 +30,8 @@ const PermanentDeleteModal = ({
     if (isOpen) setTypedValue('');
   }, [isOpen]);
 
-  const canConfirm = typedValue.trim().toUpperCase() === CONFIRM_WORD && !isLoading;
+  const phrase = count > 1 ? `${CONFIRM_WORD} ${count}` : CONFIRM_WORD;
+  const canConfirm = typedValue.trim().replace(/\s+/g, ' ').toUpperCase() === phrase && !isLoading;
 
   const handleConfirm = () => {
     if (!canConfirm) return;
@@ -60,7 +64,7 @@ const PermanentDeleteModal = ({
         </p>
 
         <p className="text-sm text-dark-400 mb-2">
-          Type <span className="font-mono font-bold text-red-400">{CONFIRM_WORD}</span> to confirm.
+          Type <span className="font-mono font-bold text-red-400">{phrase}</span> to confirm.
         </p>
         <input
           type="text"
@@ -69,7 +73,7 @@ const PermanentDeleteModal = ({
           onKeyDown={(e) => {
             if (e.key === 'Enter' && canConfirm) handleConfirm();
           }}
-          placeholder={CONFIRM_WORD}
+          placeholder={phrase}
           autoFocus
           className="w-full px-4 py-2 mb-6 bg-dark-700 border border-dark-600 rounded-lg text-dark-50 text-center tracking-widest placeholder-dark-500 focus:border-red-500 focus:ring-1 focus:ring-red-500 outline-none"
         />

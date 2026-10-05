@@ -14,7 +14,7 @@ import ResponsiveImage from '../../ui/ResponsiveImage';
 import { AdminPage, AdminPageHeader } from '../ui/AdminPage';
 import useBulkSelection from '../../../hooks/useBulkSelection';
 import BulkActionBar from '../bulk/BulkActionBar';
-import { ACTIVE_ACTIONS } from '../bulk/bulkActions';
+import { ACTIVE_ACTIONS, retiredBy } from '../bulk/bulkActions';
 
 const COLOR_CATEGORY_OPTIONS = [{ value: 'wood', label: 'Wood' }, { value: 'metal', label: 'Metal' }, { value: 'fabric', label: 'Fabric' }, { value: 'paint', label: 'Paint' }, { value: 'leather', label: 'Leather' }, { value: 'vinyl', label: 'Vinyl' }];
 
@@ -389,7 +389,7 @@ const ColorManagement = () => {
       />
 
       <BulkActionBar
-        selection={selection}
+        selection={selection} permanentDelete={{ isRetired: retiredBy(sortedColors) }}
         resource="colors"
         noun="color"
         actions={BULK_ACTIONS}

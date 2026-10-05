@@ -8,7 +8,7 @@ import { useToast } from '../../../contexts/ToastContext';
 import { AdminPage, AdminPageHeader } from '../ui/AdminPage';
 import useBulkSelection from '../../../hooks/useBulkSelection';
 import BulkActionBar from '../bulk/BulkActionBar';
-import { booleanAction } from '../bulk/bulkActions';
+import { booleanAction, retiredBy } from '../bulk/bulkActions';
 import { SelectAllCheckbox, RowCheckbox } from '../bulk/SelectCheckbox';
 
 const BASE = '/api/v1/admin/inquiries';
@@ -387,7 +387,7 @@ const InquiryManagement = ({ onUnreadChange }) => {
       </div>
 
       <BulkActionBar
-        selection={selection}
+        selection={selection} permanentDelete={{ isRetired: retiredBy(data.items, (i) => i.is_read), retiredLabel: 'read' }}
         resource="inquiries"
         noun="message"
         actions={BULK_ACTIONS}

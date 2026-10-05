@@ -12,6 +12,7 @@ import PaginationBar from '../PaginationBar';
 import { AdminPage, AdminPageHeader } from '../ui/AdminPage';
 import useBulkSelection from '../../../hooks/useBulkSelection';
 import BulkActionBar from '../bulk/BulkActionBar';
+import { retiredBy } from '../bulk/bulkActions';
 import { SelectAllCheckbox, SelectCell } from '../bulk/SelectCheckbox';
 import { openOnRowClick } from '../bulk/rowClick';
 
@@ -356,7 +357,7 @@ const CompanyManagement = () => {
       </Modal>
 
       <BulkActionBar
-        selection={selection}
+        selection={selection} permanentDelete={{ resource: 'companies', isRetired: retiredBy(companies, (c) => c.is_active === false || ['inactive', 'suspended'].includes(c.status)), retiredLabel: 'inactive or suspended' }}
         noun="account"
         actions={bulkActions}
         onDone={fetchCompanies}

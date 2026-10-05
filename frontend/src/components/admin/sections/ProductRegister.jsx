@@ -19,7 +19,7 @@ import useBulkSelection, { useExclusiveSelections } from '../../../hooks/useBulk
 import BulkActionBar from '../bulk/BulkActionBar';
 import { SelectAllCheckbox, SelectCell } from '../bulk/SelectCheckbox';
 import { openOnRowClick } from '../bulk/rowClick';
-import { ACTIVE_ACTIONS } from '../bulk/bulkActions';
+import { ACTIVE_ACTIONS, retiredBy } from '../bulk/bulkActions';
 import { productBulkActions, variationBulkActions } from './productBulkActions';
 
 const PAGE_SIZE = 50;
@@ -461,9 +461,9 @@ const ProductRegister = () => {
         <Download className="w-3 h-3" /> Exports always cover the whole product base, not just the filtered rows.
       </p>
 
-      <BulkActionBar selection={selection} resource="products" noun="product" actions={productActions} onDone={load} />
+      <BulkActionBar selection={selection} permanentDelete={{ isRetired: retiredBy(filtered) }} resource="products" noun="product" actions={productActions} onDone={load} />
       <BulkActionBar
-        selection={variationSelection}
+        selection={variationSelection} permanentDelete={{ isRetired: retiredBy(filteredVariations, (v) => v.is_available === false), retiredLabel: 'unavailable' }}
         resource="variations"
         noun="variation"
         actions={variationActions}

@@ -1,9 +1,11 @@
 import { useMemo, useState } from 'react';
-import { X, Loader2, ChevronLeft, ChevronUp, Search } from 'lucide-react';
+import { X, Loader2, ChevronLeft, ChevronUp, Search, Trash2 } from 'lucide-react';
 import { useToast } from '../../../contexts/ToastContext';
 import { bulkEdit } from '../../../services/bulkService';
 import FloatingDock from './FloatingDock';
 import FitLabel from './FitLabel';
+import PermanentDeleteModal from '../PermanentDeleteModal';
+import { deletePermanently } from './permanentDelete';
 
 const pluralize = (noun) => {
   if (/[^aeiou]y$/.test(noun)) return `${noun.slice(0, -1)}ies`;
@@ -38,6 +40,11 @@ const SEARCH_AFTER = 8;
  * Change sets go to POST /admin/bulk/{resource}; onDone runs afterwards so the
  * page can reload. `confirm={false}` skips the confirm step (local edits) and
  * `quiet` skips the success toast.
+ *
+ * permanentDelete: { isRetired: (id) => bool, resource?, retiredLabel? } adds a
+ * "Delete permanently" action for the selected rows that are already
+ * archived / deactivated (super admin, typed confirmation; the server skips
+ * anything still active or in use and says why).
  */
 export default function BulkActionBar({
   selection,
@@ -48,6 +55,7 @@ export default function BulkActionBar({
   pluralNoun,
   confirm = true,
   quiet = false,
+  permanentDelete = null,
 }) {
   const toast = useToast();
   const [busy, setBusy] = useState(false);
@@ -55,6 +63,8 @@ export default function BulkActionBar({
   const [panel, setPanel] = useState(null);
   const [query, setQuery] = useState('');
   const [inputValue, setInputValue] = useState('');
+  const [deleteOpen, setDeleteOpen] = useState(false);
+  const [deleting, setDeleting] = useState(false);
 
   const visibleOptions = useMemo(() => {
     const options = panel?.action.options || [];
@@ -107,6 +117,25 @@ export default function BulkActionBar({
     if (action.options) return setPanel({ action, step: 'pick' });
     if (action.input) return setPanel({ action, step: 'input' });
     return apply(action);
+  };
+
+  const retiredIds = permanentDelete ? ids.filter((id) => permanentDelete.isRetired(id)) : [];
+  const activeCount = ids.length - retiredIds.length;
+  const confirmPermanentDelete = async () => {
+    setDeleting(true);
+    try {
+      await deletePermanently(toast, permanentDelete.resource || resource, retiredIds, {
+        noun,
+        pluralNoun: pluralNoun || pluralize(noun),
+      });
+      setDeleteOpen(false);
+      selection.clear();
+      await onDone?.();
+    } catch (err) {
+      toast.error(err?.response?.data?.detail || err?.message || 'Permanent delete failed');
+    } finally {
+      setDeleting(false);
+    }
   };
 
   const valueLabel = (action, value) =>
@@ -169,6 +198,22 @@ export default function BulkActionBar({
                 </button>
               );
             })}
+            {permanentDelete && (
+              <button
+                type="button"
+                disabled={busy || retiredIds.length === 0}
+                onClick={() => setDeleteOpen(true)}
+                className={`${TILE} ${TONES.danger} border-dashed`}
+                title={
+                  retiredIds.length
+                    ? `Permanently delete ${retiredIds.length} ${nounFor(retiredIds.length)}`
+                    : `Only ${permanentDelete.retiredLabel || 'archived or deactivated'} ${pluralNoun || pluralize(noun)} can be deleted permanently`
+                }
+              >
+                <Trash2 className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+                <FitLabel text={retiredIds.length ? `Delete permanently (${retiredIds.length})` : 'Delete permanently'} />
+              </button>
+            )}
           </div>
         )}
 
@@ -258,6 +303,25 @@ export default function BulkActionBar({
           </div>
         )}
       </div>
+      {permanentDelete && (
+        <PermanentDeleteModal
+          isOpen={deleteOpen}
+          onClose={() => !deleting && setDeleteOpen(false)}
+          onConfirm={confirmPermanentDelete}
+          isLoading={deleting}
+          count={retiredIds.length}
+          itemLabel={noun}
+          title={`Permanently delete ${retiredIds.length} ${nounFor(retiredIds.length)}?`}
+          message={
+            <>
+              {retiredIds.length} {permanentDelete.retiredLabel || 'archived / deactivated'} {nounFor(retiredIds.length)} will be
+              removed from the database, along with their own data (variations, images, links).
+              {activeCount > 0 && ` ${activeCount} selected ${activeCount === 1 ? 'is' : 'are'} still active and will be kept.`}
+              {' '}Anything still used elsewhere, such as a product on a quote, is kept and listed afterwards.
+            </>
+          }
+        />
+      )}
     </FloatingDock>
   );
 }

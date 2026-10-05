@@ -11,7 +11,7 @@ import { CATALOG_TYPE_OPTIONS, formatCatalogType } from '../../../utils/catalogT
 import { AdminPage, AdminPageHeader } from '../ui/AdminPage';
 import useBulkSelection from '../../../hooks/useBulkSelection';
 import BulkActionBar from '../bulk/BulkActionBar';
-import { ACTIVE_ACTIONS, booleanAction } from '../bulk/bulkActions';
+import { ACTIVE_ACTIONS, booleanAction, retiredBy } from '../bulk/bulkActions';
 import PdfPreviewButton from '../../ui/PdfPreviewButton';
 
 const BULK_ACTIONS = [
@@ -276,7 +276,7 @@ const CatalogManagement = () => {
       </Card>
 
       <BulkActionBar
-        selection={selection}
+        selection={selection} permanentDelete={{ isRetired: retiredBy(sortedCatalogs) }}
         resource="catalogs"
         noun="catalog"
         actions={BULK_ACTIONS}

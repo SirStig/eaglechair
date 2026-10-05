@@ -25,3 +25,15 @@ export const idAction = (label, field, rows, { none, getLabel = (r) => r.name } 
   ],
   toChanges: (v) => ({ [field]: v === 'none' ? null : Number(v) }),
 });
+
+/**
+ * For BulkActionBar's permanentDelete.isRetired: id -> whether that row is
+ * already retired (by default: deactivated / archived).
+ */
+export const retiredBy = (rows, test = (row) => row.is_active === false, getId = (row) => row.id) => {
+  const byId = new Map((rows || []).map((row) => [getId(row), row]));
+  return (id) => {
+    const row = byId.get(id);
+    return !!row && test(row);
+  };
+};
