@@ -2,6 +2,7 @@ import { ChevronDown, Search, Trash2, Layers, AlertTriangle } from 'lucide-react
 import { formatStockStatus } from '../../../utils/apiHelpers';
 import { SelectAllCheckbox, RowCheckbox } from '../bulk/SelectCheckbox';
 import { OPTION_GROUP_SWITCHES, STOCK_STATUS_OPTIONS, variationAnchor } from './productVariations';
+import FamilyPicker from './FamilyPicker';
 
 const DIMENSION_FIELDS = [
   { key: 'width', label: 'W (in)' },
@@ -63,6 +64,7 @@ function VariationCard({
   upholsteries,
   colors,
   families,
+  categoryNames,
   productSwitches,
 }) {
   const selected = selection.isSelected(rowKey);
@@ -230,23 +232,12 @@ function VariationCard({
             <p className="-mt-1 text-sm text-dark-400">
               When one of these families is viewed, this variation&apos;s image and info are shown.
             </p>
-            <div className="flex max-h-32 flex-wrap gap-3 overflow-y-auto rounded-lg border border-dark-600 bg-dark-700 p-3">
-              {families.map((f) => (
-                <label key={f.id} className="inline-flex cursor-pointer items-center gap-2">
-                  <input
-                    type="checkbox"
-                    checked={(variation.family_ids || []).includes(f.id)}
-                    onChange={(e) => {
-                      const current = variation.family_ids || [];
-                      set('family_ids', e.target.checked ? [...current, f.id] : current.filter((id) => id !== f.id));
-                    }}
-                    className="rounded border-dark-500 bg-dark-600 text-primary-500 focus:ring-primary-500"
-                  />
-                  <span className="text-sm text-dark-100">{f.name}</span>
-                </label>
-              ))}
-              {families.length === 0 && <span className="text-sm text-dark-400">No families. Add families in Product Families.</span>}
-            </div>
+            <FamilyPicker
+              families={families}
+              selectedIds={variation.family_ids || []}
+              onSelectedChange={(ids) => set('family_ids', ids)}
+              categoryNames={categoryNames}
+            />
           </Section>
 
           <Section title="Weight & dimensions override (optional)">
@@ -298,6 +289,7 @@ export default function ProductVariationsTab({
   upholsteries,
   colors,
   families,
+  categoryNames,
   productSwitches,
 }) {
   const order = rows.map((r) => r.key);
@@ -383,6 +375,7 @@ export default function ProductVariationsTab({
             upholsteries={upholsteries}
             colors={colors}
             families={families}
+            categoryNames={categoryNames}
             productSwitches={productSwitches}
           />
         ))}

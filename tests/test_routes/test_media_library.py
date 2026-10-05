@@ -91,6 +91,34 @@ async def test_lists_originals_with_usage_and_searches_by_product(async_client, 
 
 @pytest.mark.integration
 @pytest.mark.admin
+async def test_includes_images_records_use_from_anywhere(async_client, db_session, as_editor, uploads):
+    from tests.factories import create_product_family, create_product_variation
+
+    chair = await create_chair(db_session, name="Avignon", model_number="5576",
+                               primary_image_url="https://www.eaglechair.com/uploads/images/products/bistro_1.png")
+    await create_product_family(db_session, name="Yuglich", family_image="/images/families/yuglich.jpg")
+    await create_product_variation(db_session, product_id=chair.id,
+                                   primary_image_url="https://cdn.example.com/photos/5576P.webp")
+
+    res = await async_client.get("/api/v1/admin/upload/images", headers=UA)
+    assert res.status_code == 200, res.text
+    items = {i["url"]: i for i in res.json()["items"]}
+
+    # Absolute URL to an uploaded file merges with the file on disk
+    assert items["/uploads/images/products/bistro_1.png"]["on_disk"] is True
+    assert any("5576" in u["label"] for u in items["/uploads/images/products/bistro_1.png"]["used_by"])
+    # Images stored outside the uploads folder are still in the library
+    assert items["/images/families/yuglich.jpg"]["on_disk"] is False
+    assert items["/images/families/yuglich.jpg"]["used_by"][0]["type"] == "Family"
+    assert items["https://cdn.example.com/photos/5576P.webp"]["used_by"][0]["type"] == "Variation"
+    assert {"Product", "Family", "Variation"} <= {t["name"] for t in res.json()["types"]}
+
+    res = await async_client.get("/api/v1/admin/upload/images", params={"used_by_type": "Family"}, headers=UA)
+    assert [i["url"] for i in res.json()["items"]] == ["/images/families/yuglich.jpg"]
+
+
+@pytest.mark.integration
+@pytest.mark.admin
 async def test_delete_refuses_image_in_use(async_client, db_session, as_admin, uploads):
     await create_chair(db_session, primary_image_url="/uploads/images/products/bistro_1.png")
 

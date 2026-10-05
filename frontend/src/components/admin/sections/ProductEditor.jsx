@@ -25,6 +25,7 @@ import {
 import { AdminPage, AdminPageHeader } from '../ui/AdminPage';
 import ImagePickerField from '../media/ImagePickerField';
 import ImageListField from '../media/ImageListField';
+import FamilyPicker from './FamilyPicker';
 import RecordHistoryLink from '../RecordHistoryLink';
 import ProductAnalyticsPanel from '../ProductAnalyticsPanel';
 import useBulkSelection from '../../../hooks/useBulkSelection';
@@ -152,6 +153,15 @@ const ProductEditor = ({ product, onBack }) => {
   const [finishes, setFinishes] = useState([]);
   const [upholsteries, setUpholsteries] = useState([]);
   const [colors, setColors] = useState([]);
+
+  // "Parent › Child" category names, shown next to each family in the pickers
+  const categoryNames = useMemo(() => {
+    const byId = new Map(categories.map((c) => [c.id, c]));
+    return Object.fromEntries(categories.map((c) => {
+      const parent = c.parent_id ? byId.get(c.parent_id) : null;
+      return [c.id, parent ? `${parent.name} › ${c.name}` : c.name];
+    }));
+  }, [categories]);
 
   // Multi-value fields
   const [images, setImages] = useState(() => {
@@ -747,53 +757,21 @@ const ProductEditor = ({ product, onBack }) => {
                 </div>
               </div>
 
-              <div>
-                <label className="block text-sm font-medium text-dark-200 mb-2">
-                  Product Family
-                </label>
-                <select
-                  value={formData.family_id || ''}
-                  onChange={(e) => handleChange('family_id', parseInt(e.target.value) || null)}
-                  className="w-full px-4 py-2 bg-dark-700 border border-dark-600 rounded-lg text-dark-50 focus:border-primary-500 focus:ring-1 focus:ring-primary-500 outline-none"
-                >
-                  <option value="">No Family</option>
-                  {families.map(family => (
-                    <option key={family.id} value={family.id}>{family.name}</option>
-                  ))}
-                </select>
-              </div>
-
               <div className="md:col-span-2">
-                <label className="block text-sm font-medium text-dark-200 mb-2">
-                  Also show in these families
-                </label>
+                <span className="block text-sm font-medium text-dark-200 mb-1">
+                  Product Families
+                </span>
                 <p className="text-sm text-dark-400 mb-2">
-                  Product will appear in these family pages in addition to its main family above.
+                  The primary family is the product&apos;s main family. It also appears on the pages of any other families added here.
                 </p>
-                <div className="flex flex-wrap gap-3 max-h-40 overflow-y-auto p-3 bg-dark-700 border border-dark-600 rounded-lg">
-                  {families
-                    .filter(f => f.id !== formData.family_id)
-                    .map(family => (
-                      <label key={family.id} className="inline-flex items-center gap-2 cursor-pointer">
-                        <input
-                          type="checkbox"
-                          checked={(formData.secondary_family_ids || []).includes(family.id)}
-                          onChange={(e) => {
-                            const current = formData.secondary_family_ids || [];
-                            const next = e.target.checked
-                              ? [...current, family.id]
-                              : current.filter(id => id !== family.id);
-                            handleChange('secondary_family_ids', next);
-                          }}
-                          className="rounded border-dark-500 bg-dark-600 text-primary-500 focus:ring-primary-500"
-                        />
-                        <span className="text-sm text-dark-100">{family.name}</span>
-                      </label>
-                    ))}
-                  {families.filter(f => f.id !== formData.family_id).length === 0 && (
-                    <span className="text-sm text-dark-400">No other families available.</span>
-                  )}
-                </div>
+                <FamilyPicker
+                  families={families}
+                  primaryId={formData.family_id || null}
+                  onPrimaryChange={(id) => handleChange('family_id', id)}
+                  selectedIds={(formData.secondary_family_ids || []).filter((id) => id !== formData.family_id)}
+                  onSelectedChange={(ids) => handleChange('secondary_family_ids', ids)}
+                  categoryNames={categoryNames}
+                />
               </div>
             </div>
 
@@ -1194,6 +1172,7 @@ const ProductEditor = ({ product, onBack }) => {
               upholsteries={upholsteries}
               colors={colors}
               families={families}
+              categoryNames={categoryNames}
               productSwitches={formData}
             />
           </div>
