@@ -14,6 +14,7 @@ export const PERMISSIONS = {
   VIEW_AUDIT: 'view_audit',
   PERMANENT_DELETE: 'permanent_delete',
   MANAGE_ADMINS: 'manage_admins',
+  TIME_MACHINE: 'time_machine', // super admins only
 };
 
 // Role defaults, for profiles cached before `permissions` was sent

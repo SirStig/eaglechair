@@ -40,6 +40,7 @@ import CatalogBuilder from '../../components/admin/sections/CatalogBuilder';
 import AdminManagement from '../../components/admin/sections/AdminManagement';
 import ActivityLog from '../../components/admin/sections/ActivityLog';
 import AccountSecurity from '../../components/admin/sections/AccountSecurity';
+import TimeMachine from '../../components/admin/sections/TimeMachine';
 import { useAdminPermissions } from '../../hooks/useAdminPermissions';
 import apiClient from '../../config/apiClient';
 
@@ -241,6 +242,8 @@ const NewAdminDashboardInner = () => {
         return can('manage_admins') ? <AdminManagement /> : <NoAccess />;
       case 'activity':
         return can('view_audit') ? <ActivityLog /> : <NoAccess />;
+      case 'time-machine':
+        return can('time_machine') ? <TimeMachine /> : <NoAccess />;
       case 'account':
         return <AccountSecurity />;
       default:

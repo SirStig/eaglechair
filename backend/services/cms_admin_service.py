@@ -106,6 +106,9 @@ def _upload_needle(url: str) -> Optional[str]:
     return path if path.startswith("uploads/") else None
 
 
+_NOT_REFERENCES = frozenset({"admin_audit_logs", "history_entries", "history_change_sets"})
+
+
 async def _is_upload_referenced(db: AsyncSession, needle: str) -> bool:
     """True if any text/JSON column of any table still mentions ``needle``."""
     escaped = needle.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
@@ -114,7 +117,8 @@ async def _is_upload_referenced(db: AsyncSession, needle: str) -> bool:
         await db.run_sync(lambda session: inspect(session.connection()).get_table_names())
     )
     for table in Base.metadata.sorted_tables:
-        if table.name not in existing_tables:
+        # Logs and Time Machine history mention old URLs without using them
+        if table.name not in existing_tables or table.name in _NOT_REFERENCES:
             continue
         columns = [
             c

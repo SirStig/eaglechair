@@ -36,6 +36,7 @@ const VERBS = {
   reset_password: 'set a new password for',
   reset_security: 'reset 2FA and passkeys for',
   unlock: 'unlocked',
+  restore: 'undid a change with',
 };
 
 // "tried to …" wording for refused requests (details.attempted)
@@ -73,6 +74,7 @@ const ACTION_LABELS = {
   passkey_added: 'Added passkey',
   '2fa_enabled': 'Turned on 2FA',
   denied: 'Denied',
+  restore: 'Time Machine restore',
 };
 
 const RED_ACTIONS = new Set(['denied', 'login_failed', 'confirm_failed']);
@@ -215,7 +217,7 @@ function Details({ entry }) {
     ['IP address', entry.ip_address],
     ['Browser', entry.user_agent],
   ].filter(([, v]) => v);
-  const known = new Set(['method', 'path', 'outcome', 'reason', 'body', 'query', 'target', 'label', 'count', 'attempted']);
+  const known = new Set(['method', 'path', 'outcome', 'reason', 'body', 'query', 'target', 'label', 'count', 'attempted', 'history_set']);
   const extra = Object.fromEntries(Object.entries(d).filter(([k]) => !known.has(k)));
 
   return (

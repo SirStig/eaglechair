@@ -165,21 +165,19 @@ class TestRestore:
         await async_client.patch(f"{PRODUCTS}/{product.id}", json={"full_description": "v2"}, headers=headers)
         await async_client.patch(f"{PRODUCTS}/{product.id}", json={"full_description": "v3"}, headers=headers)
         first, _ = await _entries(db_session, table_name="chairs")
+        # The refused restore rolls back the shared test session, expiring loaded objects
+        product_id, set_id = product.id, first.change_set_id
 
-        preview = (await async_client.get(
-            f"{TM}/preview", params={"change_set_id": first.change_set_id}, headers=headers
-        )).json()
+        preview = (await async_client.get(f"{TM}/preview", params={"change_set_id": set_id}, headers=headers)).json()
         assert preview["needs_force"] and preview["steps"][0]["conflicts"][0]["current"] == "v3"
 
-        refused = await async_client.post(f"{TM}/restore", json={"change_set_id": first.change_set_id}, headers=headers)
+        refused = await async_client.post(f"{TM}/restore", json={"change_set_id": set_id}, headers=headers)
         assert refused.status_code == 409
-        assert (await _reload(db_session, Chair, product.id)).full_description == "v3"
+        assert (await _reload(db_session, Chair, product_id)).full_description == "v3"
 
-        forced = await async_client.post(
-            f"{TM}/restore", json={"change_set_id": first.change_set_id, "force": True}, headers=headers
-        )
+        forced = await async_client.post(f"{TM}/restore", json={"change_set_id": set_id, "force": True}, headers=headers)
         assert forced.status_code == 200, forced.text
-        assert (await _reload(db_session, Chair, product.id)).full_description == "v1"
+        assert (await _reload(db_session, Chair, product_id)).full_description == "v1"
 
     async def test_undo_a_create_removes_the_row(self, async_client, db_session):
         _, headers = await _super(db_session)

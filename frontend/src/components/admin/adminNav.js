@@ -24,6 +24,7 @@ import {
   UserCog,
   History,
   ShieldCheck,
+  RotateCcw,
 } from 'lucide-react';
 
 /**
@@ -93,6 +94,7 @@ export const ADMIN_NAV = [
       { id: 'settings', label: 'Site Settings', icon: Settings, path: '/admin/settings' },
       { id: 'admins', label: 'Admins', icon: UserCog, path: '/admin/admins', permission: 'manage_admins' },
       { id: 'activity', label: 'Activity Log', icon: History, path: '/admin/activity', permission: 'view_audit' },
+      { id: 'time-machine', label: 'Time Machine', icon: RotateCcw, path: '/admin/time-machine', permission: 'time_machine' },
       { id: 'account', label: 'Account & Security', icon: ShieldCheck, path: '/admin/account', hidden: true },
     ],
   },
