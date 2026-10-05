@@ -24,6 +24,7 @@ frontend/src/utils/apiHelpers.js.
 
 import io
 import logging
+import os
 import re
 from pathlib import Path
 from urllib.parse import urlsplit
@@ -296,10 +297,49 @@ def resolve_uploaded_image_path(
     return file_path
 
 
-def delete_image_files(master: Path) -> None:
-    """Delete a stored image and every rendition derived from it."""
+def delete_image_files(master: Path, upload_base: Path | None = None) -> None:
+    """
+    Delete a stored image and every rendition derived from it. With
+    `upload_base` (and the Time Machine on), the files are moved to the
+    upload trash instead, so restoring the row that used them brings them
+    back (history_service purges the trash after the retention window).
+    """
+    trash_root = None
+    if upload_base is not None:
+        from backend.core.config import settings
+
+        if settings.HISTORY_ENABLED:
+            trash_root = upload_base
     for p in [master, *variant_paths(master)]:
         try:
-            p.unlink(missing_ok=True)
+            target = None
+            if trash_root is not None:
+                from backend.services.history_service import trash_path
+
+                target = trash_path(trash_root, p)
+            if target is not None and p.is_file():
+                target.parent.mkdir(parents=True, exist_ok=True)
+                p.replace(target)
+                os.utime(target)  # trash age counts from the delete
+            else:
+                p.unlink(missing_ok=True)
         except OSError as exc:
             logger.warning(f"Could not delete {p}: {exc}")
+
+
+def restore_trashed_image(master: Path, upload_base: Path) -> bool:
+    """Move an image (and its renditions) back from the upload trash. True if the original came back."""
+    from backend.services.history_service import trash_path
+
+    restored = False
+    for p in [master, *variant_paths(master)]:
+        source = trash_path(upload_base, p)
+        if source is None or not source.is_file() or p.exists():
+            continue
+        try:
+            p.parent.mkdir(parents=True, exist_ok=True)
+            source.replace(p)
+            restored = restored or p == master
+        except OSError as exc:
+            logger.warning(f"Could not restore {p} from trash: {exc}")
+    return restored

@@ -19,6 +19,7 @@ Sign-ins and sign-outs are recorded by the auth routes through record().
 import enum
 import json
 import logging
+from contextlib import nullcontext
 from datetime import date, datetime, timezone
 from decimal import Decimal
 from typing import Any, AsyncGenerator, Optional
@@ -29,6 +30,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from starlette.requests import HTTPConnection, Request
 
 from backend.core.admin_permissions import ADMIN_PREFIX, CMS_PREFIX
+from backend.core.config import settings
 from backend.core.exceptions import InsufficientPermissionsError
 from backend.database.base import get_db
 from backend.models.company import AdminAuditLog
@@ -41,7 +43,7 @@ _READ_METHODS = ("GET", "HEAD", "OPTIONS")
 _VERBS = {
     "reorder", "assign", "duplicate", "invite", "test", "send", "apply",
     "decline", "apply-edit", "export-all", "sample", "batch",
-    "reset-password", "reset-security", "unlock",
+    "reset-password", "reset-security", "unlock", "restore",
 }
 
 _SECRET_KEY_PARTS = ("password", "token", "secret", "two_factor", "credential", "otp")
@@ -374,8 +376,9 @@ async def audit_admin_request(
     get_current_admin stores the admin on request.state.
     """
     recorder = ChangeRecorder(db)
+    history = _history_recorder(conn, db)
     try:
-        with recorder:
+        with recorder, history or nullcontext():
             yield
     except InsufficientPermissionsError as e:
         admin = getattr(conn.state, "admin", None)
@@ -395,6 +398,8 @@ async def audit_admin_request(
         return
     info = describe_request(conn.scope["method"], conn.url.path)
     details = _request_details(conn, info, "success")
+    if history is not None and history.entry_count:
+        details["history_set"] = history.set_id
     changes = recorder.summary()
     if changes:
         details.update(changes)
@@ -403,6 +408,30 @@ async def audit_admin_request(
             if name:
                 details["label"] = name
     await record(db, admin.id, info["action"], info["resource_type"], info["resource_id"], details, conn)
+
+
+def _history_recorder(conn: HTTPConnection, db: AsyncSession):
+    """
+    Time Machine recorder for an admin write (history_service), or None.
+    Stored on request.state.history so the restore route can label its set.
+    """
+    if not settings.HISTORY_ENABLED or conn.scope["type"] != "http" or conn.scope["method"] in _READ_METHODS:
+        return None
+    from backend.services.history_service import HistoryRecorder
+
+    def admin_id():
+        admin = getattr(conn.state, "admin", None)
+        return admin.id if admin is not None else None
+
+    history = HistoryRecorder(
+        db,
+        admin_id,
+        describe_request(conn.scope["method"], conn.url.path),
+        method=conn.scope["method"],
+        path=conn.url.path,
+    )
+    conn.state.history = history
+    return history
 
 
 def _changed_name(rows: list[dict], info: dict) -> Optional[str]:

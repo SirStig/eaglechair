@@ -156,7 +156,7 @@ async def delete_orphaned_uploads(db: AsyncSession, urls: Iterable[str]) -> None
                 continue
             if await _is_upload_referenced(db, needle):
                 continue
-            await asyncio.to_thread(media_service.delete_image_files, path)
+            await asyncio.to_thread(media_service.delete_image_files, path, UPLOAD_BASE_DIR)
             logger.info(f"Deleted orphaned upload {url}")
         except Exception:
             logger.exception(f"Could not clean up upload {url}")

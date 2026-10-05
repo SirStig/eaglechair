@@ -254,6 +254,13 @@ async def lifespan(app: FastAPI):
 
         digest_task = asyncio.create_task(digest_loop())
 
+    # Time Machine: drop history (and trashed uploads) past the retention window
+    history_task = None
+    if settings.HISTORY_ENABLED and not settings.TESTING:
+        from backend.services.history_service import purge_loop
+
+        history_task = asyncio.create_task(purge_loop())
+
     logger.info(f"🎯 API v1 available at: {settings.API_V1_PREFIX}")
     logger.info("✨ EagleChair API is ready!")
 
@@ -266,6 +273,8 @@ async def lifespan(app: FastAPI):
         seo_task.cancel()
     if digest_task is not None:
         digest_task.cancel()
+    if history_task is not None:
+        history_task.cancel()
 
     try:
         # Close cache connections first

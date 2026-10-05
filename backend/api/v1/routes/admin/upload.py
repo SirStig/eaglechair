@@ -293,7 +293,7 @@ async def delete_image(
         if file_path is None:
             raise HTTPException(status_code=400, detail="Invalid file path")
         if file_path.is_file():
-            media_service.delete_image_files(file_path)
+            media_service.delete_image_files(file_path, UPLOAD_BASE_DIR)
             logger.info(f"Image deleted: {url_path} by admin {current_admin.id}")
         return {
             "success": True,

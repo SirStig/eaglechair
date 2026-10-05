@@ -4,7 +4,7 @@ Admin permissions
 Each admin role grants a default set of permissions. A super admin can
 override the set per admin (AdminUser.permissions); NULL means "use the role
 defaults". Super admins always hold every permission, and only they can
-manage other admins or permanently delete rows.
+manage other admins, permanently delete rows or use the Time Machine.
 
 Requests under /api/v1/admin and /api/v1/cms-admin are checked centrally by
 missing_permissions (called from get_current_admin), so every admin route is
@@ -33,6 +33,7 @@ class Permission(str, Enum):
     # Super admin only - not grantable
     PERMANENT_DELETE = "permanent_delete"
     MANAGE_ADMINS = "manage_admins"
+    TIME_MACHINE = "time_machine"  # Browse and undo change history
 
 
 # Permissions a super admin may switch on or off for another admin
@@ -52,6 +53,7 @@ PERMISSION_LABELS = {
     Permission.VIEW_AUDIT: ("View activity log", "See who changed what in the admin panel"),
     Permission.PERMANENT_DELETE: ("Permanently delete", "Super admin only"),
     Permission.MANAGE_ADMINS: ("Manage admins", "Super admin only"),
+    Permission.TIME_MACHINE: ("Time Machine", "Super admin only"),
 }
 
 _EDIT = (Permission.EDIT_CATALOG, Permission.EDIT_SALES, Permission.EDIT_CONTENT)
@@ -168,6 +170,7 @@ _BULK_AREAS = {
 _GATED_SECTIONS = {
     "admins": Permission.MANAGE_ADMINS,
     "audit-log": Permission.VIEW_AUDIT,
+    "time-machine": Permission.TIME_MACHINE,
 }
 
 # Writes that only render or read

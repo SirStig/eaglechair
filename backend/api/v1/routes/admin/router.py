@@ -30,6 +30,7 @@ from backend.api.v1.routes.admin import (
     quotes,
     register,
     subcategories,
+    time_machine,
     upholsteries,
     upload,
 )
@@ -85,6 +86,7 @@ router.include_router(register.router, prefix="/register", tags=["Admin - Produc
 router.include_router(bulk.router, prefix="/bulk", tags=["Admin - Bulk Edit"])
 router.include_router(admins.router, prefix="/admins", tags=["Admin - Admins"])
 router.include_router(audit_log.router, prefix="/audit-log", tags=["Admin - Activity Log"])
+router.include_router(time_machine.router, prefix="/time-machine", tags=["Admin - Time Machine"])
 router.include_router(bulk_delete.router, prefix="/bulk", tags=["Admin - Permanent Delete"])
 router.include_router(material_sources.router, prefix="/material-sources", tags=["Admin - Supplier Links"])
 router.include_router(emails.router, prefix="/emails", tags=["Admin - Email Templates"])
