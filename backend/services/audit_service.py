@@ -7,15 +7,24 @@ routes don't log individually. Each entry records who, what (action +
 resource + id), the request body with secrets removed, and where from.
 Requests refused for lack of permission are recorded too, with action
 "denied" (details.attempted holds what they tried).
+
+details.changes holds before/after values for every row the request
+changed through the ORM, captured from the request's own session by
+ChangeRecorder (SQLAlchemy after_flush), so routes don't have to report
+their changes. Bulk UPDATE/DELETE statements bypass the ORM and show up
+only through the request body.
 Sign-ins and sign-outs are recorded by the auth routes through record().
 """
 
+import enum
 import json
 import logging
-from datetime import datetime, timezone
+from datetime import date, datetime, timezone
+from decimal import Decimal
 from typing import Any, AsyncGenerator, Optional
 
 from fastapi import Depends
+from sqlalchemy import event, inspect
 from sqlalchemy.ext.asyncio import AsyncSession
 from starlette.requests import HTTPConnection, Request
 
@@ -232,6 +241,127 @@ def _request_details(conn: HTTPConnection, info: dict[str, Any], outcome: str) -
     return details
 
 
+# Columns never copied into the audit trail
+_NOISE_COLUMNS = {"updated_at", "created_at", "last_activity", "view_count", "views"}
+_MAX_CHANGED_ROWS = 50
+
+
+def _jsonable(value: Any) -> Any:
+    if isinstance(value, enum.Enum):
+        return value.value
+    if isinstance(value, (datetime, date)):
+        return value.isoformat()
+    if isinstance(value, Decimal):
+        return float(value)
+    if isinstance(value, (bytes, bytearray)):
+        return f"<{len(value)} bytes>"
+    if isinstance(value, (list, tuple)):
+        return [_jsonable(v) for v in value]
+    if isinstance(value, dict):
+        return {str(k): _jsonable(v) for k, v in value.items()}
+    if value is None or isinstance(value, (str, int, float, bool)):
+        return value
+    return str(value)
+
+
+def _value(key: str, value: Any) -> Any:
+    if any(part in key.lower() for part in _SECRET_KEY_PARTS):
+        return "[redacted]"
+    return _redact(_jsonable(value))
+
+
+class ChangeRecorder:
+    """
+    Collects before/after values of ORM rows flushed through one session
+    while attached. Listens on the sync session behind the AsyncSession.
+    """
+
+    def __init__(self, db: AsyncSession):
+        self._session = db.sync_session
+        self._rows: dict[tuple[str, Any], dict] = {}
+        self._overflow = 0
+
+    def __enter__(self) -> "ChangeRecorder":
+        event.listen(self._session, "after_flush", self._after_flush)
+        return self
+
+    def __exit__(self, *exc) -> None:
+        if event.contains(self._session, "after_flush", self._after_flush):
+            event.remove(self._session, "after_flush", self._after_flush)
+
+    def _entry(self, obj, kind: str) -> Optional[dict]:
+        state = inspect(obj)
+        identity = state.identity
+        key = (obj.__tablename__, identity[0] if identity and len(identity) == 1 else identity)
+        if key not in self._rows:
+            if len(self._rows) >= _MAX_CHANGED_ROWS:
+                self._overflow += 1
+                return None
+            row = {"table": key[0], "id": _jsonable(key[1]), "change": kind, "fields": {}}
+            name = next(
+                (getattr(obj, a, None) for a in _LABEL_KEYS if isinstance(getattr(obj, a, None), str) and getattr(obj, a)),
+                None,
+            )
+            if name:
+                row["name"] = name[:120]
+            self._rows[key] = row
+        return self._rows[key]
+
+    def _after_flush(self, session, flush_context) -> None:
+        for obj in session.new:
+            if isinstance(obj, AdminAuditLog):
+                continue
+            entry = self._entry(obj, "created")
+            if entry is None:
+                continue
+            for attr in inspect(obj).mapper.column_attrs:
+                key = attr.key
+                value = getattr(obj, key, None)
+                if key in _NOISE_COLUMNS or value is None:
+                    continue
+                entry["fields"][key] = [None, _value(key, value)]
+        for obj in session.dirty:
+            if isinstance(obj, AdminAuditLog) or not session.is_modified(obj, include_collections=False):
+                continue
+            state = inspect(obj)
+            changed = {}
+            for attr in state.mapper.column_attrs:
+                key = attr.key
+                if key in _NOISE_COLUMNS:
+                    continue
+                history = state.attrs[key].history
+                if not history.has_changes():
+                    continue
+                old = history.deleted[0] if history.deleted else None
+                new = history.added[0] if history.added else None
+                if old == new:
+                    continue
+                changed[key] = [_value(key, old), _value(key, new)]
+            if changed:
+                entry = self._entry(obj, "updated")
+                if entry is not None:
+                    for key, (old, new) in changed.items():
+                        # Keep the first "before" when a row is flushed more than once
+                        before = entry["fields"].get(key, [old])[0]
+                        entry["fields"][key] = [before, new]
+        for obj in session.deleted:
+            if isinstance(obj, AdminAuditLog):
+                continue
+            entry = self._entry(obj, "deleted")
+            if entry is None:
+                continue
+            entry["change"] = "deleted"
+
+    def summary(self) -> Optional[dict]:
+        rows = [r for r in self._rows.values() if r["fields"] or r["change"] != "updated"]
+        if not rows:
+            return None
+        out = {"changes": rows}
+        if self._overflow:
+            out["changes_omitted"] = self._overflow
+        return out
+
+
 async def audit_admin_request(
     conn: HTTPConnection,
     db: AsyncSession = Depends(get_db),
@@ -243,8 +373,10 @@ async def audit_admin_request(
     entry lands only once the route's work has been committed.
     get_current_admin stores the admin on request.state.
     """
+    recorder = ChangeRecorder(db)
     try:
-        yield
+        with recorder:
+            yield
     except InsufficientPermissionsError as e:
         admin = getattr(conn.state, "admin", None)
         if admin is not None and conn.scope["type"] == "http":
@@ -263,4 +395,21 @@ async def audit_admin_request(
         return
     info = describe_request(conn.scope["method"], conn.url.path)
     details = _request_details(conn, info, "success")
+    changes = recorder.summary()
+    if changes:
+        details.update(changes)
+        if "label" not in details:
+            name = _changed_name(changes["changes"], info)
+            if name:
+                details["label"] = name
     await record(db, admin.id, info["action"], info["resource_type"], info["resource_id"], details, conn)
+
+
+def _changed_name(rows: list[dict], info: dict) -> Optional[str]:
+    """Name of the request's main record, from its captured values"""
+    for row in rows:
+        if info["resource_id"] is not None and row["id"] != info["resource_id"]:
+            continue
+        if row.get("name"):
+            return row["name"]
+    return None

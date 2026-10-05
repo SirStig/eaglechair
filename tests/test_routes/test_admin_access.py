@@ -418,3 +418,98 @@ class TestAdminManagement:
             "last_name": "B", "password": "Sup3rSecretPass",
         }, headers=headers)
         assert response.status_code == 409
+
+
+# ============================================================================
+# Before/after values, own password change, AI delete approvals
+# ============================================================================
+
+@pytest.mark.integration
+@pytest.mark.admin
+class TestChangeDetails:
+    async def test_update_records_before_and_after(self, async_client, db_session):
+        editor = await create_admin(db_session, role=AdminRole.EDITOR)
+        headers = await _headers(db_session, editor)
+        category = await create_category(db_session, name="Stools", description="Old text")
+
+        response = await async_client.put(
+            f"/api/v1/admin/categories/{category.id}", json={"description": "New text"}, headers=headers
+        )
+        assert response.status_code == 200, response.text
+
+        [entry] = await _logs(db_session, admin_id=editor.id)
+        rows = {(r["table"], r["id"]): r for r in entry.details["changes"]}
+        row = rows[("categories", category.id)]
+        assert row["change"] == "updated"
+        assert row["fields"]["description"] == ["Old text", "New text"]
+        assert "updated_at" not in row["fields"]
+        # The record's name is filled in from the captured row when the body has none
+        assert entry.details["label"] == "Stools"
+
+    async def test_create_records_new_values(self, async_client, db_session):
+        editor = await create_admin(db_session, role=AdminRole.EDITOR)
+        headers = await _headers(db_session, editor)
+        response = await async_client.post(
+            "/api/v1/admin/categories", json={"name": "Benches", "slug": "benches"}, headers=headers
+        )
+        assert response.status_code in (200, 201), response.text
+        [entry] = await _logs(db_session, admin_id=editor.id)
+        created = [r for r in entry.details["changes"] if r["table"] == "categories"]
+        assert created and created[0]["change"] == "created"
+        assert created[0]["fields"]["name"] == [None, "Benches"]
+
+    async def test_admin_password_hash_never_logged(self, async_client, db_session):
+        admin = await create_admin(db_session, role=AdminRole.SUPER_ADMIN)
+        target = await create_admin(db_session, role=AdminRole.EDITOR)
+        headers = await _headers(db_session, admin)
+        await async_client.post("/api/v1/auth/admin/confirm", json={"password": PASSWORD}, headers=headers)
+        response = await async_client.post(
+            f"{ADMINS}/{target.id}/reset-password", json={"new_password": "BrandNewPass9"}, headers=headers
+        )
+        assert response.status_code == 200, response.text
+        [entry] = await _logs(db_session, admin_id=admin.id, action="reset_password")
+        fields = entry.details["changes"][0]["fields"]
+        assert fields["hashed_password"] == ["[redacted]", "[redacted]"]
+        assert "$2b$" not in str(entry.details)
+
+    async def test_own_password_change_is_recorded(self, async_client, db_session):
+        admin = await create_admin(db_session)
+        headers = await _headers(db_session, admin)
+        bad = await async_client.post(
+            "/api/v1/auth/password/change",
+            json={"current_password": "Nope12345", "new_password": "BrandNewPass9"},
+            headers=headers,
+        )
+        assert bad.status_code == 401
+        ok = await async_client.post(
+            "/api/v1/auth/password/change",
+            json={"current_password": PASSWORD, "new_password": "BrandNewPass9"},
+            headers=headers,
+        )
+        assert ok.status_code == 200, ok.text
+        actions = [e.action for e in await _logs(db_session, admin_id=admin.id)]
+        assert actions == ["password_change_failed", "password_changed"]
+
+    async def test_ai_delete_approval_needs_delete_permission(self, async_client, db_session):
+        import uuid
+
+        from backend.models.ai_chat import AIProposedEdit
+
+        editor = await create_admin(db_session, role=AdminRole.EDITOR)
+        category = await create_category(db_session)
+        proposal = AIProposedEdit(
+            id=str(uuid.uuid4()), batch_id="b1", session_id=str(uuid.uuid4()), admin_user_id=editor.id,
+            entity_type="category",
+            entity_id=category.id, action="delete", changes={}, status="pending", position=0,
+        )
+        db_session.add(proposal)
+        await db_session.commit()
+
+        headers = await _headers(db_session, editor)
+        response = await async_client.post(
+            "/api/v1/admin/ai/edits/apply", json={"ids": [proposal.id]}, headers=headers
+        )
+        assert response.status_code == 200, response.text
+        [result] = response.json()["results"]
+        assert result["status"] == "failed"
+        assert "permission to delete" in result["error"]

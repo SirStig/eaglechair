@@ -498,14 +498,23 @@ async def change_password(
     logger.info(f"Password change request for {user_type} user: {user_id}")
     
     # Change password
-    await AuthService.change_password(
-        db=db,
-        user_id=user_id,
-        current_password=password_data.current_password,
-        new_password=password_data.new_password,
-        user_type=user_type
-    )
-    
+    try:
+        await AuthService.change_password(
+            db=db,
+            user_id=user_id,
+            current_password=password_data.current_password,
+            new_password=password_data.new_password,
+            user_type=user_type
+        )
+    except InvalidCredentialsError as e:
+        if user_type == "admin":
+            await audit_service.record(
+                db, user_id, "password_change_failed", "admin_users", user_id, {"reason": e.message}, request
+            )
+        raise
+    if user_type == "admin":
+        await audit_service.record(db, user_id, "password_changed", "admin_users", user_id, conn=request)
+
     logger.info(f"Password changed successfully for {user_type} user: {user_id}")
 
     # Re-issue tokens for this session (all other sessions stay revoked)

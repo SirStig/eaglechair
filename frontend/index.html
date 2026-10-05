@@ -52,9 +52,12 @@
     <!--seo:end-->
 
     <!-- Company and site identity on every page (same @ids as the page-level JSON-LD) -->
+    <!-- One object with @graph, not a top-level array: some browser extensions
+         read data["@context"] directly and throw on arrays -->
     <script type="application/ld+json">
-      [{"@context":"https://schema.org","@type":"Organization","@id":"__SITE_URL__/#organization","name":"Eagle Chair","legalName":"Eagle Chair, Inc.","url":"__SITE_URL__/","logo":"__MEDIA_BASE_URL__/assets/eagle-chair-logo.png","foundingDate":"1984","address":{"@type":"PostalAddress","addressLocality":"Houston","addressRegion":"TX","addressCountry":"US"}},
-       {"@context":"https://schema.org","@type":"WebSite","@id":"__SITE_URL__/#website","name":"Eagle Chair","url":"__SITE_URL__/","publisher":{"@id":"__SITE_URL__/#organization"}}]
+      {"@context":"https://schema.org","@graph":[
+       {"@type":"Organization","@id":"__SITE_URL__/#organization","name":"Eagle Chair","legalName":"Eagle Chair, Inc.","url":"__SITE_URL__/","logo":"__MEDIA_BASE_URL__/assets/eagle-chair-logo.png","foundingDate":"1984","address":{"@type":"PostalAddress","addressLocality":"Houston","addressRegion":"TX","addressCountry":"US"}},
+       {"@type":"WebSite","@id":"__SITE_URL__/#website","name":"Eagle Chair","url":"__SITE_URL__/","publisher":{"@id":"__SITE_URL__/#organization"}}]}
     </script>
 
     <!-- Theme Color -->

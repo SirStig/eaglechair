@@ -639,6 +639,13 @@ async def apply_proposed_edits(
         if p.status != ProposalStatus.PENDING.value:
             results.append({"id": pid, "status": p.status, "error": p.error, "conflict": False, "entity_id": p.entity_id})
             continue
+        # Approving an AI delete is a delete: same permission as the delete routes
+        if p.action == "delete" and not has_permission(admin, Permission.DELETE):
+            results.append({
+                "id": pid, "status": "failed", "conflict": False, "entity_id": p.entity_id,
+                "error": "You don't have permission to delete. Ask a super admin.",
+            })
+            continue
         try:
             outcome = await apply_proposal(db, p, force=force)
         except Exception as e:  # never let one bad row abort the whole batch
