@@ -47,6 +47,7 @@ const ProductCatalog = ({ onEdit }) => {
   const [categories, setCategories] = useState([]);
   const [subcategories, setSubcategories] = useState([]);
   const [families, setFamilies] = useState([]);
+  const [supplierLinks, setSupplierLinks] = useState([]);
   const [sortBy, setSortBy] = useState('name');
   const [sortDir, setSortDir] = useState('asc');
   const [permDeleteTarget, setPermDeleteTarget] = useState(null); // { id, name } | { bulk: [...ids] }
@@ -71,6 +72,10 @@ const ProductCatalog = ({ onEdit }) => {
     fetchCategories();
     fetchSubcategories();
     fetchFamilies();
+    apiClient
+      .get('/api/v1/admin/material-sources')
+      .then((r) => setSupplierLinks((r || []).filter((s) => s.is_active)))
+      .catch(() => {});
     fetchCounts();
   }, [page, pageSize, search, categoryFilter, tab, sortBy, sortDir, refreshKeys.catalog]);
 
@@ -220,12 +225,12 @@ const ProductCatalog = ({ onEdit }) => {
   const bulkActions = useMemo(() => (
     tab === 'active'
       ? [
-          ...productBulkActions({ categories, subcategories, families }),
+          ...productBulkActions({ categories, subcategories, families, supplierLinks }),
           ...ACTIVE_ACTIONS,
           { label: 'Archive', run: archiveSelected, tone: 'danger' },
         ]
       : [{ label: 'Restore', changes: { is_active: true } }]
-  ), [tab, categories, subcategories, families]);
+  ), [tab, categories, subcategories, families, supplierLinks]);
 
   return (
     <AdminPage>

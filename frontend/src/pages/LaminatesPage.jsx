@@ -2,7 +2,8 @@ import { useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Layers, SearchX } from 'lucide-react';
 import EmptyResults from '../components/ui/EmptyResults';
-import { useLaminates } from '../hooks/useContent';
+import { useLaminates , useMaterialSources } from '../hooks/useContent';
+import SupplierLinks from '../components/ui/SupplierLinks';
 import { SEO } from '../config/seoConfig';
 import KnowledgePageLayout from '../components/knowledge/KnowledgePageLayout';
 import SwatchCard from '../components/knowledge/SwatchCard';
@@ -13,6 +14,7 @@ import { useTrackedQuery } from '../hooks/useMaterialInterest';
 
 const LaminatesPage = () => {
   const { data: laminates = [], loading } = useLaminates();
+  const { data: suppliers = [] } = useMaterialSources('laminate');
   const [query, setQuery] = useState('');
   useTrackedQuery('Laminate search', query);
   const [detail, setDetail] = useState(null); // { items, index } while the overlay is open
@@ -56,8 +58,9 @@ const LaminatesPage = () => {
         </label>
       }
     >
+      <SupplierLinks variant="cards" sources={suppliers} className="mb-12" />
       {groups.length === 0 ? (
-        <EmptyResults
+        suppliers.length > 0 && !query ? null : <EmptyResults
           icon={query ? SearchX : Layers}
           title={query ? 'No laminates found' : 'No laminates listed yet'}
           message={query ? 'Try a different laminate name or code.' : undefined}

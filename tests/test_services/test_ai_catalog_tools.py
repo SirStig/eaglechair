@@ -250,7 +250,7 @@ class TestEndpoints:
     HEADERS = {"User-Agent": "Mozilla/5.0 test", "X-Session-Token": "s", "X-Admin-Token": "a"}
 
     async def test_apply_and_decline_endpoints(self, async_client, db_session):
-        from backend.api.dependencies import get_current_admin
+        from backend.api.dependencies import authenticate_admin
         from tests.conftest import get_app
 
         admin = await create_admin(db_session)
@@ -270,7 +270,7 @@ class TestEndpoints:
         await db_session.commit()
 
         app = get_app()
-        app.dependency_overrides[get_current_admin] = lambda: admin
+        app.dependency_overrides[authenticate_admin] = lambda: admin
         try:
             resp = await async_client.post(
                 "/api/v1/admin/ai/edits/apply", json={"ids": [v1_id, price_id]}, headers=self.HEADERS,
@@ -291,13 +291,13 @@ class TestEndpoints:
             }
 
             # Another admin can't apply someone else's proposals
-            app.dependency_overrides[get_current_admin] = lambda: other
+            app.dependency_overrides[authenticate_admin] = lambda: other
             resp = await async_client.post(
                 "/api/v1/admin/ai/edits/apply", json={"ids": [v2_id]}, headers=self.HEADERS,
             )
             assert resp.json()["results"][0]["error"] == "Proposal not found"
         finally:
-            app.dependency_overrides.pop(get_current_admin, None)
+            app.dependency_overrides.pop(authenticate_admin, None)
 
         await db_session.refresh(product)
         assert product.base_price == 7500

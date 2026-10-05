@@ -6,7 +6,7 @@ Models for company accounts (B2B customers) and admin users with enhanced securi
 
 import enum
 
-from sqlalchemy import JSON, Boolean, Column, Date, ForeignKey, Integer, String, Text
+from sqlalchemy import JSON, Boolean, Column, Date, ForeignKey, Index, Integer, String, Text
 from sqlalchemy import Enum as SQLEnum
 from sqlalchemy.orm import relationship
 
@@ -199,6 +199,9 @@ class AdminUser(Base):
     
     # Role and Permissions
     role = Column(SQLEnum(AdminRole), default=AdminRole.EDITOR, nullable=False)
+    # Per-admin permission override (list of backend.core.admin_permissions
+    # values); NULL = the role's defaults
+    permissions = Column(JSON, nullable=True)
     
     # Security
     is_active = Column(Boolean, default=True, nullable=False)
@@ -249,6 +252,11 @@ class AdminAuditLog(Base):
     Tracks all admin activities for security and compliance
     """
     __tablename__ = "admin_audit_logs"
+    __table_args__ = (
+        Index("ix_admin_audit_logs_admin_created", "admin_id", "created_at"),
+        Index("ix_admin_audit_logs_created_at", "created_at"),
+        Index("ix_admin_audit_logs_resource", "resource_type", "resource_id"),
+    )
     
     id = Column(Integer, primary_key=True, index=True)
     admin_id = Column(Integer, ForeignKey("admin_users.id"), nullable=False)

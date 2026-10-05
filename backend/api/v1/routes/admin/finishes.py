@@ -63,7 +63,7 @@ async def get_finishes(
 )
 async def create_finish(
     finish_data: FinishCreate,
-    admin: AdminUser = Depends(require_role(AdminRole.ADMIN)),
+    admin: AdminUser = Depends(get_current_admin),
     db: AsyncSession = Depends(get_db),
 ):
     """Create a new finish. Admin only."""
@@ -84,7 +84,7 @@ async def create_finish(
 async def update_finish(
     finish_id: int,
     finish_data: FinishUpdate,
-    admin: AdminUser = Depends(require_role(AdminRole.ADMIN)),
+    admin: AdminUser = Depends(get_current_admin),
     db: AsyncSession = Depends(get_db),
 ):
     stmt = select(Finish).where(Finish.id == finish_id)

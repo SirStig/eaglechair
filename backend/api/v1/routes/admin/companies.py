@@ -13,7 +13,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
-from backend.api.dependencies import get_current_admin, require_role
+from backend.api.dependencies import get_current_admin
 from backend.api.v1.schemas.admin import (
     CompanyInviteRequest,
     CompanyListResponse,
@@ -35,7 +35,6 @@ from backend.core.exceptions import (
 )
 from backend.database.base import get_db
 from backend.models.company import (
-    AdminRole,
     AdminUser,
     Company,
     CompanyPricing,
@@ -137,7 +136,7 @@ async def get_company(
 async def update_company_status(
     company_id: int,
     status_data: CompanyStatusUpdate,
-    admin: AdminUser = Depends(require_role(AdminRole.ADMIN)),
+    admin: AdminUser = Depends(get_current_admin),
     db: AsyncSession = Depends(get_db)
 ):
     """
@@ -171,7 +170,7 @@ async def update_company_status(
 async def update_company(
     company_id: int,
     update_data: CompanyAdminUpdate,
-    admin: AdminUser = Depends(require_role(AdminRole.ADMIN)),
+    admin: AdminUser = Depends(get_current_admin),
     db: AsyncSession = Depends(get_db)
 ):
     """
@@ -242,7 +241,7 @@ async def update_company(
 async def admin_create_company_shipping_address(
     company_id: int,
     data: CompanyShippingAddressCreate,
-    admin: AdminUser = Depends(require_role(AdminRole.ADMIN)),
+    admin: AdminUser = Depends(get_current_admin),
     db: AsyncSession = Depends(get_db),
 ):
     result = await db.execute(select(Company).where(Company.id == company_id))
@@ -275,7 +274,7 @@ async def admin_update_company_shipping_address(
     company_id: int,
     address_id: int,
     data: CompanyShippingAddressUpdate,
-    admin: AdminUser = Depends(require_role(AdminRole.ADMIN)),
+    admin: AdminUser = Depends(get_current_admin),
     db: AsyncSession = Depends(get_db),
 ):
     result = await db.execute(
@@ -302,7 +301,7 @@ async def admin_update_company_shipping_address(
 async def admin_delete_company_shipping_address(
     company_id: int,
     address_id: int,
-    admin: AdminUser = Depends(require_role(AdminRole.ADMIN)),
+    admin: AdminUser = Depends(get_current_admin),
     db: AsyncSession = Depends(get_db),
 ):
     result = await db.execute(
@@ -326,7 +325,7 @@ async def admin_delete_company_shipping_address(
 )
 async def suspend_company(
     company_id: int,
-    admin: AdminUser = Depends(require_role(AdminRole.ADMIN)),
+    admin: AdminUser = Depends(get_current_admin),
     db: AsyncSession = Depends(get_db)
 ):
     """
@@ -413,7 +412,7 @@ async def assign_pricing_tier(
     effective_from: Optional[str] = None,
     expires_at: Optional[str] = None,
     admin_notes: Optional[str] = None,
-    admin: AdminUser = Depends(require_role(AdminRole.ADMIN)),
+    admin: AdminUser = Depends(get_current_admin),
     db: AsyncSession = Depends(get_db)
 ):
     """
@@ -501,7 +500,7 @@ async def update_pricing_tier(
     expires_at: Optional[str] = None,
     is_active: Optional[bool] = None,
     admin_notes: Optional[str] = None,
-    admin: AdminUser = Depends(require_role(AdminRole.ADMIN)),
+    admin: AdminUser = Depends(get_current_admin),
     db: AsyncSession = Depends(get_db)
 ):
     """
@@ -570,7 +569,7 @@ async def update_pricing_tier(
 async def remove_pricing_tier(
     company_id: int,
     delete_tier: bool = Query(False, description="Also delete the pricing tier record"),
-    admin: AdminUser = Depends(require_role(AdminRole.ADMIN)),
+    admin: AdminUser = Depends(get_current_admin),
     db: AsyncSession = Depends(get_db)
 ):
     """
@@ -667,7 +666,7 @@ async def list_all_pricing_tiers(
 )
 async def invite_company(
     invite_data: CompanyInviteRequest,
-    admin: AdminUser = Depends(require_role(AdminRole.ADMIN)),
+    admin: AdminUser = Depends(get_current_admin),
     db: AsyncSession = Depends(get_db)
 ):
     """

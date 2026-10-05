@@ -26,17 +26,22 @@ BASE = "/api/v1/admin/bulk"
 
 @pytest.fixture
 def as_role():
-    from backend.api.dependencies import get_current_admin
+    from backend.api.dependencies import authenticate_admin
     from tests.conftest import get_app
 
     app = get_app()
 
     def _set(role=AdminRole.ADMIN):
         admin = AdminUser(id=626262, username=f"bulk-{role.value}", email="bulk@example.com", role=role, is_active=True)
-        app.dependency_overrides[get_current_admin] = lambda: admin
+        app.dependency_overrides[authenticate_admin] = lambda: admin
 
+    # Step-up identity confirmation (permanent deletes) has its own tests
+    from backend.services.admin_confirmation import require_recent_confirmation
+
+    app.dependency_overrides[require_recent_confirmation] = lambda: None
     yield _set
-    app.dependency_overrides.pop(get_current_admin, None)
+    app.dependency_overrides.pop(authenticate_admin, None)
+    app.dependency_overrides.pop(require_recent_confirmation, None)
 
 
 async def _product(db_session, product_id):
@@ -90,13 +95,23 @@ class TestBulkEdit:
         unknown = await async_client.post(f"{BASE}/nope", json={"ids": [1], "changes": {"is_active": True}}, headers=UA)
         assert unknown.status_code == 404
 
-    async def test_requires_admin_role(self, async_client, as_role, db_session):
-        as_role(AdminRole.EDITOR)
-        catalog = await create_catalog(db_session)
-        response = await async_client.post(
-            f"{BASE}/catalogs", json={"ids": [catalog.id], "changes": {"is_active": False}}, headers=UA
+    def test_permission_policy(self):
+        """Checked centrally in get_current_admin (overridden in these tests), so assert the policy itself"""
+        from backend.core.admin_permissions import Permission, missing_permissions
+
+        viewer = AdminUser(id=1, username="v", role=AdminRole.VIEWER, permissions=None, is_active=True)
+        editor = AdminUser(id=2, username="e", role=AdminRole.EDITOR, permissions=None, is_active=True)
+        admin = AdminUser(id=3, username="a", role=AdminRole.ADMIN, permissions=None, is_active=True)
+
+        assert Permission.EDIT_CATALOG in missing_permissions(viewer, "POST", "/api/v1/admin/bulk/catalogs")
+        assert not missing_permissions(editor, "POST", "/api/v1/admin/bulk/catalogs")
+        assert not missing_permissions(editor, "POST", "/api/v1/admin/material-sources")
+        assert Permission.EDIT_SALES in missing_permissions(
+            AdminUser(id=4, username="c", role=AdminRole.EDITOR, permissions=["edit_catalog"], is_active=True),
+            "POST",
+            "/api/v1/admin/bulk/quotes",
         )
-        assert response.status_code == 403
+        assert Permission.PERMANENT_DELETE in missing_permissions(admin, "POST", "/api/v1/admin/bulk/catalogs/delete")
 
     async def test_move_products_to_category(self, async_client, as_role, db_session):
         as_role()
@@ -259,3 +274,55 @@ class TestPermanentDelete:
         db_session.expire_all()
         for category_id in ids:
             assert await db_session.get(Category, category_id) is None
+
+
+@pytest.mark.integration
+@pytest.mark.admin
+class TestSupplierLinks:
+    async def _create(self, client, **overrides):
+        body = {"name": "Wilsonart", "material_type": "laminate", "url": "www.wilsonart.com/laminate", **overrides}
+        return await client.post("/api/v1/admin/material-sources", json=body, headers=UA)
+
+    async def test_create_normalises_url_and_validates(self, async_client, as_role):
+        as_role()
+        created = await self._create(async_client)
+        assert created.status_code == 200, created.text
+        assert created.json()["url"] == "https://www.wilsonart.com/laminate"
+        assert (await self._create(async_client, material_type="wallpaper")).status_code == 422
+        assert (await self._create(async_client, url="   ")).status_code == 422
+
+    async def test_links_show_on_products_and_follow_switches(self, async_client, as_role, db_session):
+        as_role()
+        laminate = (await self._create(async_client)).json()
+        fabric = (await self._create(async_client, name="Momentum", material_type="upholstery", url="https://memosamples.com")).json()
+        product = await create_chair(db_session, laminates_enabled=False)
+        product_id = product.id
+
+        added = await async_client.post(
+            f"{BASE}/products",
+            json={"ids": [product_id], "changes": {"add_material_sources": [laminate["id"], fabric["id"]]}},
+            headers=UA,
+        )
+        assert added.status_code == 200, added.text
+
+        listing = await async_client.get("/api/v1/products", params={"limit": 50}, headers=UA)
+        items = listing.json().get("items") or listing.json().get("products") or []
+        sources = next(p for p in items if p["id"] == product_id)["customizations"]["sources"]
+        # Laminates are switched off for this product, so only the fabric supplier shows in lists
+        assert list(sources) == ["upholstery"]
+        assert sources["upholstery"][0]["name"] == "Momentum"
+
+        detail = (await async_client.get(f"/api/v1/products/{product_id}", headers=UA)).json()
+        assert set(detail["customizations"]["sources"]) == {"laminate", "upholstery"}
+        assert detail["material_sources"] == [laminate["id"], fabric["id"]]
+
+    async def test_exported_for_resource_pages(self, db_session):
+        from backend.models.content import MaterialSource
+        from backend.utils.static_content_exporter import SECTION_BUILDERS
+
+        db_session.add(MaterialSource(name="Formica", material_type="laminate", url="https://formica.com"))
+        db_session.add(MaterialSource(name="Old", material_type="laminate", url="https://old.example", is_active=False))
+        await db_session.flush()
+        exported = await SECTION_BUILDERS["materialSources"](db_session)
+        assert [s["name"] for s in exported] == ["Formica"]
+        assert exported[0]["materialType"] == "laminate"

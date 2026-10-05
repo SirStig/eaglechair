@@ -85,7 +85,8 @@ async def _populate_customizations(
     all_color_ids = set()
     all_upholstery_ids = set()
     all_laminate_ids = set()
-    
+    all_source_ids = set()
+
     for product in products:
         if hasattr(product, 'available_finishes') and product.available_finishes:
             all_finish_ids.update(product.available_finishes)
@@ -95,6 +96,8 @@ async def _populate_customizations(
             all_upholstery_ids.update(product.available_upholsteries)
         if getattr(product, 'available_laminates', None):
             all_laminate_ids.update(product.available_laminates)
+        if getattr(product, 'material_sources', None):
+            all_source_ids.update(product.material_sources)
     
     # Fetch all finishes, colors, and upholsteries in one query each
     finish_map = {}
@@ -151,6 +154,28 @@ async def _populate_customizations(
                 "swatch_image_url": laminate.swatch_image_url,
             }
 
+    # Supplier catalogs ("order any pattern from ...") by id
+    source_map = {}
+    if all_source_ids:
+        from backend.models.content import MaterialSource
+
+        source_result = await db.execute(
+            select(MaterialSource)
+            .where(MaterialSource.id.in_(list(all_source_ids)), MaterialSource.is_active == True)
+            .order_by(MaterialSource.display_order, MaterialSource.name)
+        )
+        for source in source_result.scalars().all():
+            source_map[source.id] = {
+                "id": source.id,
+                "name": source.name,
+                "material_type": source.material_type,
+                "url": source.url,
+                "description": source.description,
+                "logo_url": source.logo_url,
+            }
+    # Supplier types that belong to a switchable option group
+    source_switch = {"upholstery": "upholstery_enabled", "laminate": "laminates_enabled"}
+
     # Populate customizations for each product
     for product in products:
         customizations = {}
@@ -175,6 +200,18 @@ async def _populate_customizations(
             laminates = [laminate_map[lid] for lid in product.available_laminates if lid in laminate_map]
             if laminates:
                 customizations['laminates'] = laminates
+
+        sources = {}
+        for sid in getattr(product, 'material_sources', None) or []:
+            source = source_map.get(sid)
+            if not source:
+                continue
+            switch = source_switch.get(source["material_type"])
+            if respect_switches and switch and not getattr(product, switch, True):
+                continue
+            sources.setdefault(source["material_type"], []).append(source)
+        if sources:
+            customizations['sources'] = sources
 
         if customizations:
             product.customizations = customizations

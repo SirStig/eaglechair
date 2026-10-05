@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect, useLayoutEffect, useMemo, useId } from 'react';
 import { AnimatePresence, m } from 'framer-motion';
 import SwatchImage from './SwatchImage';
+import SupplierLinks from './SupplierLinks';
 
 // Above this many options a section gets a filter box
 const SEARCH_THRESHOLD = 20;
@@ -186,11 +187,15 @@ const SwatchStrip = ({ section, compact }) => {
  * Accordion of option pickers (finish, upholstery, laminate...). Only one
  * section is open at a time; closed sections show the current selection.
  *
- * sections: [{ key, label, kind, options, selected, onSelect }]
+ * sections: [{ key, label, kind, options, selected, onSelect, sources? }]
+ *
+ * `sources` are outside supplier catalogs for that option (special order,
+ * e.g. any Wilsonart laminate). A section shows when it has swatches, supplier
+ * links or both; the links sit under the swatches.
  */
-const OptionPicker = ({ sections, compact = false, className = '' }) => {
+const OptionPicker = ({ sections, compact = false, className = '', productId }) => {
   const baseId = useId();
-  const visible = sections.filter((s) => s.options?.length > 0);
+  const visible = sections.filter((s) => s.options?.length > 0 || s.sources?.length > 0);
   const [openKey, setOpenKey] = useState(null);
 
   if (visible.length === 0) return null;
@@ -201,6 +206,12 @@ const OptionPicker = ({ sections, compact = false, className = '' }) => {
         const isOpen = openKey === section.key;
         const selected = section.selected ? normalize(section.selected) : null;
         const panelId = `${baseId}-${section.key}`;
+        const optionCount = section.options?.length || 0;
+        const supplierNames = (section.sources || []).map((src) => src.name).join(', ');
+        let subtitle = `${optionCount} option${optionCount === 1 ? '' : 's'}`;
+        if (supplierNames) {
+          subtitle = optionCount ? `${subtitle} · or special order from ${supplierNames}` : `Special order from ${supplierNames}`;
+        }
         return (
           <div key={section.key} className={compact ? 'px-3' : 'px-3 sm:px-4'}>
             <button
@@ -212,9 +223,7 @@ const OptionPicker = ({ sections, compact = false, className = '' }) => {
             >
               <span className="flex-shrink-0">
                 <span className="block text-sm font-medium text-slate-800">{section.label}</span>
-                <span className="block text-xs text-slate-500">
-                  {section.options.length} option{section.options.length === 1 ? '' : 's'}
-                </span>
+                <span className="block text-xs text-slate-500">{subtitle}</span>
               </span>
               <span className="ml-auto flex items-center gap-2 min-w-0">
                 {selected ? (
@@ -223,7 +232,7 @@ const OptionPicker = ({ sections, compact = false, className = '' }) => {
                     <SwatchImage item={selected} size="sm" rounded="circle" zoom kind={section.kind} />
                   </>
                 ) : (
-                  <span className="text-sm text-slate-400">None</span>
+                  <span className="text-sm text-slate-400">{optionCount ? 'None' : 'View'}</span>
                 )}
                 <Chevron className={`w-4 h-4 flex-shrink-0 text-slate-500 transition-transform duration-200 ${isOpen ? 'rotate-180' : ''}`} />
               </span>
@@ -241,7 +250,15 @@ const OptionPicker = ({ sections, compact = false, className = '' }) => {
                   className="overflow-hidden"
                 >
                   <div className="pb-3 -mt-1">
-                    <SwatchStrip section={section} compact={compact} />
+                    {optionCount > 0 && <SwatchStrip section={section} compact={compact} />}
+                    {section.sources?.length > 0 && (
+                      <SupplierLinks
+                        sources={section.sources}
+                        productId={productId}
+                        className={optionCount > 0 ? 'mt-3' : 'mt-2'}
+                        title={optionCount > 0 ? 'Or special order' : 'Special order'}
+                      />
+                    )}
                   </div>
                 </m.div>
               )}

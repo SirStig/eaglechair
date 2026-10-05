@@ -1,7 +1,8 @@
 import { useMemo, useState } from 'react';
 import { Palette, SearchX } from 'lucide-react';
 import EmptyResults from '../components/ui/EmptyResults';
-import { useCatalogs, useFinishes } from '../hooks/useContent';
+import { useCatalogs, useFinishes , useMaterialSources } from '../hooks/useContent';
+import SupplierLinks from '../components/ui/SupplierLinks';
 import { SEO } from '../config/seoConfig';
 import KnowledgePageLayout from '../components/knowledge/KnowledgePageLayout';
 import SwatchCard from '../components/knowledge/SwatchCard';
@@ -18,6 +19,7 @@ const isMetal = (f) => METAL_TYPES.includes(f.finishType);
 
 const WoodFinishesPage = () => {
   const { data: finishes = [], loading } = useFinishes();
+  const { data: suppliers = [] } = useMaterialSources('finish');
   const { data: catalogs = [] } = useCatalogs();
   const [query, setQuery] = useState('');
   useTrackedQuery('Wood finish search', query);
@@ -68,8 +70,9 @@ const WoodFinishesPage = () => {
       }
       footerNote={{ title: 'Want to see it in person?', text: 'Ask us for finish samples or about matching a custom finish.', cta: 'Request samples' }}
     >
+      <SupplierLinks variant="cards" sources={suppliers} className="mb-12" />
       {groups.length === 0 && metalGroups.length === 0 ? (
-        <EmptyResults
+        suppliers.length > 0 && !query ? null : <EmptyResults
           icon={query ? SearchX : Palette}
           title={query ? 'No finishes found' : 'No finishes available'}
           message={query ? 'Try a finish name or code, like 14-210.' : undefined}

@@ -701,3 +701,32 @@ class EmailTemplate(Base):
     
     def __repr__(self) -> str:
         return f"<EmailTemplate(id={self.id}, type={self.template_type})>"
+
+
+# Material types a supplier link can cover; the storefront maps them to the
+# product option groups (laminate -> laminates, upholstery -> upholstery)
+MATERIAL_SOURCE_TYPES = ("laminate", "upholstery", "finish", "hardware", "other")
+
+
+class MaterialSource(Base):
+    """
+    An outside supplier's catalog we order from on request, e.g. "any
+    Wilsonart HPL pattern". Instead of keeping our own swatch list for these,
+    the site links out to the supplier and tells the customer what to note on
+    their quote. Products opt in through Chair.material_sources.
+    """
+
+    __tablename__ = "material_sources"
+
+    id = Column(Integer, primary_key=True, index=True)
+    name = Column(String(255), nullable=False)  # e.g. "Wilsonart"
+    material_type = Column(String(50), nullable=False, index=True)  # one of MATERIAL_SOURCE_TYPES
+    url = Column(String(500), nullable=False)
+    # Shown with the link, e.g. "Pick any HPL pattern and give its number in your quote request"
+    description = Column(Text, nullable=True)
+    logo_url = Column(String(500), nullable=True)
+    display_order = Column(Integer, default=0, nullable=False)
+    is_active = Column(Boolean, default=True, nullable=False)
+
+    def __repr__(self) -> str:
+        return f"<MaterialSource(id={self.id}, name={self.name}, type={self.material_type})>"

@@ -42,6 +42,7 @@ from backend.models.content import (
     HeroSlide,
     Installation,
     Laminate,
+    MaterialSource,
     PageContent,
     SalesRepresentative,
     SiteSettings,
@@ -970,6 +971,26 @@ async def _build_company_info(db: "AsyncSession") -> List[Dict[str, Any]]:
     ]
 
 
+async def _build_material_sources(db: "AsyncSession") -> List[Dict[str, Any]]:
+    result = await db.execute(
+        select(MaterialSource)
+        .where(MaterialSource.is_active == True)
+        .order_by(MaterialSource.material_type, MaterialSource.display_order, MaterialSource.name)
+    )
+    return [
+        {
+            "id": src.id,
+            "name": src.name,
+            "materialType": src.material_type,
+            "url": src.url,
+            "description": src.description,
+            "logoUrl": src.logo_url,
+            "displayOrder": src.display_order,
+        }
+        for src in result.scalars().all()
+    ]
+
+
 # Content type (also the contentData.json key) -> section builder.
 # Order matches the key order of a full export.
 SECTION_BUILDERS: Dict[str, Callable[["AsyncSession"], Awaitable[Any]]] = {
@@ -994,6 +1015,7 @@ SECTION_BUILDERS: Dict[str, Callable[["AsyncSession"], Awaitable[Any]]] = {
     "upholsteries": _build_upholsteries,
     "hardware": _build_hardware,
     "laminates": _build_laminates,
+    "materialSources": _build_material_sources,
     "contactLocations": _build_contact_locations,
     "companyInfo": _build_company_info,
 }

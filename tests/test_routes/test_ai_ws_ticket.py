@@ -50,17 +50,17 @@ class TestWsTicket:
 
     @pytest.mark.asyncio
     async def test_ticket_endpoint(self, async_client, db_session):
-        from backend.api.dependencies import get_current_admin
+        from backend.api.dependencies import authenticate_admin
         from tests.conftest import get_app
 
         admin = await create_admin(db_session)
         chat = await _make_chat(db_session, admin)
         app = get_app()
-        app.dependency_overrides[get_current_admin] = lambda: admin
+        app.dependency_overrides[authenticate_admin] = lambda: admin
         try:
             await self._check_ticket_endpoint(async_client, chat)
         finally:
-            app.dependency_overrides.pop(get_current_admin, None)
+            app.dependency_overrides.pop(authenticate_admin, None)
 
     async def _check_ticket_endpoint(self, async_client, chat):
         headers = {"User-Agent": "Mozilla/5.0 test", "X-Session-Token": "s", "X-Admin-Token": "a"}

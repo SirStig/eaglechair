@@ -134,7 +134,7 @@ async def create_color(
     image_url: Optional[str] = None,
     display_order: int = 0,
     is_active: bool = True,
-    admin: AdminUser = Depends(require_role(AdminRole.ADMIN)),
+    admin: AdminUser = Depends(get_current_admin),
     db: AsyncSession = Depends(get_db)
 ):
     """Create a new color. Admin only."""
@@ -171,7 +171,7 @@ async def update_color(
     image_url: Optional[str] = None,
     display_order: Optional[int] = None,
     is_active: Optional[bool] = None,
-    admin: AdminUser = Depends(require_role(AdminRole.ADMIN)),
+    admin: AdminUser = Depends(get_current_admin),
     db: AsyncSession = Depends(get_db)
 ):
     """Update a color. Admin only."""
@@ -295,7 +295,7 @@ async def create_finish(
     additional_cost: int = 0,
     display_order: int = 0,
     is_active: bool = True,
-    admin: AdminUser = Depends(require_role(AdminRole.ADMIN)),
+    admin: AdminUser = Depends(get_current_admin),
     db: AsyncSession = Depends(get_db)
 ):
     """Create a new finish. Admin only."""
@@ -331,7 +331,7 @@ async def create_finish(
 )
 async def reorder_finishes(
     body: ReorderBody,
-    admin: AdminUser = Depends(require_role(AdminRole.ADMIN)),
+    admin: AdminUser = Depends(get_current_admin),
     db: AsyncSession = Depends(get_db),
 ):
     for item in body.order:
@@ -363,7 +363,7 @@ async def update_finish(
     additional_cost: Optional[int] = None,
     display_order: Optional[int] = None,
     is_active: Optional[bool] = None,
-    admin: AdminUser = Depends(require_role(AdminRole.ADMIN)),
+    admin: AdminUser = Depends(get_current_admin),
     db: AsyncSession = Depends(get_db)
 ):
     """Update a finish. Admin only."""
@@ -515,7 +515,7 @@ async def create_upholstery(
     premium_cost: int = 0,
     display_order: int = 0,
     is_active: bool = True,
-    admin: AdminUser = Depends(require_role(AdminRole.ADMIN)),
+    admin: AdminUser = Depends(get_current_admin),
     db: AsyncSession = Depends(get_db)
 ):
     """Create a new upholstery. Admin only."""
@@ -565,7 +565,7 @@ async def create_upholstery(
 )
 async def reorder_upholsteries(
     body: ReorderBody,
-    admin: AdminUser = Depends(require_role(AdminRole.ADMIN)),
+    admin: AdminUser = Depends(get_current_admin),
     db: AsyncSession = Depends(get_db),
 ):
     for item in body.order:
@@ -600,7 +600,7 @@ async def update_upholstery(
     premium_cost: Optional[int] = None,
     display_order: Optional[int] = None,
     is_active: Optional[bool] = None,
-    admin: AdminUser = Depends(require_role(AdminRole.ADMIN)),
+    admin: AdminUser = Depends(get_current_admin),
     db: AsyncSession = Depends(get_db)
 ):
     """Update an upholstery. Admin only."""
@@ -739,7 +739,7 @@ async def create_custom_option(
     admin_notes: Optional[str] = None,
     display_order: int = 0,
     is_active: bool = True,
-    admin: AdminUser = Depends(require_role(AdminRole.ADMIN)),
+    admin: AdminUser = Depends(get_current_admin),
     db: AsyncSession = Depends(get_db)
 ):
     """Create a new custom option. Admin only."""
@@ -782,7 +782,7 @@ async def update_custom_option(
     admin_notes: Optional[str] = None,
     display_order: Optional[int] = None,
     is_active: Optional[bool] = None,
-    admin: AdminUser = Depends(require_role(AdminRole.ADMIN)),
+    admin: AdminUser = Depends(get_current_admin),
     db: AsyncSession = Depends(get_db)
 ):
     """Update a custom option. Admin only."""
@@ -898,7 +898,7 @@ async def get_families(
 )
 async def create_family(
     family_data: FamilyCreate,
-    admin: AdminUser = Depends(require_role(AdminRole.ADMIN)),
+    admin: AdminUser = Depends(get_current_admin),
     db: AsyncSession = Depends(get_db)
 ):
     """Create a new product family. Admin only."""
@@ -919,7 +919,7 @@ async def create_family(
 )
 async def reorder_families(
     body: ReorderBody,
-    admin: AdminUser = Depends(require_role(AdminRole.ADMIN)),
+    admin: AdminUser = Depends(get_current_admin),
     db: AsyncSession = Depends(get_db),
 ):
     for item in body.order:
@@ -940,7 +940,7 @@ async def reorder_families(
 async def update_family(
     family_id: int,
     family_data: FamilyUpdate,
-    admin: AdminUser = Depends(require_role(AdminRole.ADMIN)),
+    admin: AdminUser = Depends(get_current_admin),
     db: AsyncSession = Depends(get_db)
 ):
     """Update a product family. Admin only."""
@@ -1040,7 +1040,7 @@ async def get_subcategories(
 )
 async def create_subcategory(
     subcategory_data: SubcategoryCreate,
-    admin: AdminUser = Depends(require_role(AdminRole.ADMIN)),
+    admin: AdminUser = Depends(get_current_admin),
     db: AsyncSession = Depends(get_db)
 ):
     """Create a new subcategory. Admin only."""
@@ -1065,7 +1065,7 @@ async def create_subcategory(
 async def update_subcategory(
     subcategory_id: int,
     subcategory_data: SubcategoryUpdate,
-    admin: AdminUser = Depends(require_role(AdminRole.ADMIN)),
+    admin: AdminUser = Depends(get_current_admin),
     db: AsyncSession = Depends(get_db)
 ):
     """Update a subcategory. Admin only."""
@@ -1169,7 +1169,7 @@ async def get_laminates(
 )
 async def create_laminate(
     laminate_data: LaminateCreate,
-    admin: AdminUser = Depends(require_role(AdminRole.ADMIN)),
+    admin: AdminUser = Depends(get_current_admin),
     db: AsyncSession = Depends(get_db)
 ):
     """Create a new laminate. Admin only."""
@@ -1219,7 +1219,7 @@ async def create_laminate(
 )
 async def reorder_laminates(
     body: ReorderBody,
-    admin: AdminUser = Depends(require_role(AdminRole.ADMIN)),
+    admin: AdminUser = Depends(get_current_admin),
     db: AsyncSession = Depends(get_db),
 ):
     for item in body.order:
@@ -1241,7 +1241,7 @@ async def reorder_laminates(
 async def update_laminate(
     laminate_id: int,
     laminate_data: LaminateUpdate,
-    admin: AdminUser = Depends(require_role(AdminRole.ADMIN)),
+    admin: AdminUser = Depends(get_current_admin),
     db: AsyncSession = Depends(get_db)
 ):
     """Update a laminate. Admin only."""
@@ -1359,7 +1359,7 @@ async def create_catalog(
     thumbnail: Optional[UploadFile] = File(None, description="Thumbnail/cover image"),
     thumbnail_url: Optional[str] = Form(None, description="Thumbnail URL (if already uploaded)"),
     file_url: Optional[str] = Form(None, description="Existing file URL (if file not uploaded)"),
-    admin: AdminUser = Depends(require_role(AdminRole.ADMIN)),
+    admin: AdminUser = Depends(get_current_admin),
     db: AsyncSession = Depends(get_db)
 ):
     """Create a new catalog. Admin only."""
@@ -1514,7 +1514,7 @@ async def create_catalog(
 )
 async def reorder_catalogs(
     body: ReorderBody,
-    admin: AdminUser = Depends(require_role(AdminRole.ADMIN)),
+    admin: AdminUser = Depends(get_current_admin),
     db: AsyncSession = Depends(get_db),
 ):
     for item in body.order:
@@ -1548,7 +1548,7 @@ async def update_catalog(
     thumbnail: Optional[UploadFile] = File(None, description="New thumbnail/cover image (optional)"),
     thumbnail_url: Optional[str] = Form(None, description="Thumbnail URL (if already uploaded)"),
     file_url: Optional[str] = Form(None, description="New file URL (if file not uploaded)"),
-    admin: AdminUser = Depends(require_role(AdminRole.ADMIN)),
+    admin: AdminUser = Depends(get_current_admin),
     db: AsyncSession = Depends(get_db)
 ):
     """Update a catalog. Admin only."""
@@ -1759,7 +1759,7 @@ async def get_hardware(
 )
 async def create_hardware(
     hardware_data: HardwareCreate,
-    admin: AdminUser = Depends(require_role(AdminRole.ADMIN)),
+    admin: AdminUser = Depends(get_current_admin),
     db: AsyncSession = Depends(get_db)
 ):
     """Create a new hardware item. Admin only."""
@@ -1802,7 +1802,7 @@ async def create_hardware(
 )
 async def reorder_hardware(
     body: ReorderBody,
-    admin: AdminUser = Depends(require_role(AdminRole.ADMIN)),
+    admin: AdminUser = Depends(get_current_admin),
     db: AsyncSession = Depends(get_db),
 ):
     for item in body.order:
@@ -1824,7 +1824,7 @@ async def reorder_hardware(
 async def update_hardware(
     hardware_id: int,
     hardware_data: HardwareUpdate,
-    admin: AdminUser = Depends(require_role(AdminRole.ADMIN)),
+    admin: AdminUser = Depends(get_current_admin),
     db: AsyncSession = Depends(get_db)
 ):
     """Update a hardware item. Admin only."""

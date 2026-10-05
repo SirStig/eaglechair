@@ -2,7 +2,8 @@ import { useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Cog, SearchX } from 'lucide-react';
 import EmptyResults from '../components/ui/EmptyResults';
-import { useHardware } from '../hooks/useContent';
+import { useHardware , useMaterialSources } from '../hooks/useContent';
+import SupplierLinks from '../components/ui/SupplierLinks';
 import { SEO } from '../config/seoConfig';
 import KnowledgePageLayout from '../components/knowledge/KnowledgePageLayout';
 import ResponsiveImage from '../components/ui/ResponsiveImage';
@@ -79,6 +80,7 @@ const HardwareCard = ({ item, onOpen }) => {
 
 const HardwarePage = () => {
   const { data: hardware = [], loading } = useHardware();
+  const { data: suppliers = [] } = useMaterialSources('hardware');
   const [query, setQuery] = useState('');
   useTrackedQuery('Hardware search', query);
   const [category, setCategory] = useState('all');
@@ -148,8 +150,9 @@ const HardwarePage = () => {
         </div>
       }
     >
+      <SupplierLinks variant="cards" sources={suppliers} className="mb-12" />
       {groups.length === 0 ? (
-        <EmptyResults
+        suppliers.length > 0 && !query ? null : <EmptyResults
           icon={query ? SearchX : Cog}
           title={query ? 'No hardware found' : 'No hardware listed yet'}
           message={query ? 'Try a different name or part number.' : undefined}

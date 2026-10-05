@@ -35,7 +35,7 @@ class TestAdminWriteRoles:
 
     @pytest.fixture
     def as_role(self, async_client):
-        from backend.api.dependencies import get_current_admin
+        from backend.api.dependencies import authenticate_admin
         from tests.conftest import get_app
 
         app = get_app()
@@ -43,10 +43,10 @@ class TestAdminWriteRoles:
         def _set(role: AdminRole):
             admin = AdminUser(id=424242, username=f"rbac-{role.value}", email="rbac@example.com",
                               role=role, is_active=True)
-            app.dependency_overrides[get_current_admin] = lambda: admin
+            app.dependency_overrides[authenticate_admin] = lambda: admin
 
         yield _set
-        app.dependency_overrides.pop(get_current_admin, None)
+        app.dependency_overrides.pop(authenticate_admin, None)
 
     @pytest.fixture
     def stub_cms_write(self, monkeypatch):
@@ -89,12 +89,26 @@ class TestAdminWriteRoles:
 
     @pytest.mark.asyncio
     @pytest.mark.parametrize("method,url", [
-        ("put", "/api/v1/admin/upholsteries/1"),
+        ("delete", "/api/v1/admin/upholsteries/1"),
         ("delete", "/api/v1/admin/ai/training/1"),
+        ("delete", "/api/v1/cms-admin/team-members/1"),
     ])
-    async def test_editor_forbidden_on_admin_level_routes(self, async_client, as_role, method, url):
+    async def test_editor_forbidden_on_delete_routes(self, async_client, as_role, method, url):
+        """Editors edit but can't delete (backend/core/admin_permissions.py)"""
         as_role(AdminRole.EDITOR)
         response = await getattr(async_client, method)(url, headers=UA)
+        assert_role_forbidden(response)
+
+    @pytest.mark.asyncio
+    async def test_custom_permissions_override_role(self, async_client, as_role):
+        """An editor granted only edit_sales can't touch the catalog"""
+        from backend.api.dependencies import authenticate_admin
+        from tests.conftest import get_app
+
+        admin = AdminUser(id=424243, username="rbac-sales", email="sales@example.com",
+                          role=AdminRole.EDITOR, permissions=["edit_sales"], is_active=True)
+        get_app().dependency_overrides[authenticate_admin] = lambda: admin
+        response = await async_client.put("/api/v1/admin/upholsteries/1", json={}, headers=UA)
         assert_role_forbidden(response)
 
 

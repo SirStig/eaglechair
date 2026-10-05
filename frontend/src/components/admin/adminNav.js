@@ -20,6 +20,7 @@ import {
   Building2,
   Scale,
   Library,
+  Link2,
 } from 'lucide-react';
 
 /**
@@ -63,6 +64,7 @@ export const ADMIN_NAV = [
       { id: 'colors', label: 'Colors', icon: Droplet, path: '/admin/colors' },
       { id: 'upholstery', label: 'Upholstery', icon: Armchair, path: '/admin/upholstery' },
       { id: 'laminates', label: 'Laminates', icon: Layers, path: '/admin/laminates' },
+      { id: 'supplier-links', label: 'Supplier Links', icon: Link2, path: '/admin/supplier-links' },
       { id: 'hardware', label: 'Hardware', icon: Wrench, path: '/admin/hardware' },
     ],
   },

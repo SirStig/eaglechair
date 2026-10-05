@@ -289,6 +289,7 @@ PRODUCT_OPTION_COLUMNS = {
         "upholstery_enabled": "BOOLEAN NOT NULL DEFAULT TRUE",
         "colors_enabled": "BOOLEAN NOT NULL DEFAULT TRUE",
         "laminates_enabled": "BOOLEAN NOT NULL DEFAULT TRUE",
+        "material_sources": "JSON",
     },
     "product_variations": {
         "upholstery_amount": "FLOAT",
@@ -427,6 +428,68 @@ def _ensure_analytics_indexes(sync_conn) -> None:
             logger.info(f"[DB] Added index {index.name}")
 
 
+def _admin_permissions_column_missing(sync_conn) -> bool:
+    from sqlalchemy import inspect
+
+    inspector = inspect(sync_conn)
+    if "admin_users" not in inspector.get_table_names():
+        return False
+    return not any(col["name"] == "permissions" for col in inspector.get_columns("admin_users"))
+
+
+def _add_admin_permissions_column(sync_conn) -> bool:
+    from sqlalchemy import text
+
+    if not _admin_permissions_column_missing(sync_conn):
+        return False
+    sync_conn.execute(text("ALTER TABLE admin_users ADD COLUMN permissions JSON"))
+    return True
+
+
+def _ensure_admin_audit_indexes(sync_conn) -> None:
+    from sqlalchemy import inspect
+
+    from backend.models.company import AdminAuditLog
+
+    inspector = inspect(sync_conn)
+    if "admin_audit_logs" not in inspector.get_table_names():
+        return
+    present = {ix["name"] for ix in inspector.get_indexes("admin_audit_logs")}
+    for index in AdminAuditLog.__table__.indexes:
+        if index.name not in present:
+            index.create(sync_conn)
+            logger.info(f"[DB] Added index {index.name}")
+
+
+async def ensure_admin_access_schema(target_engine=None) -> bool:
+    """
+    Idempotently add admin_users.permissions and the admin_audit_logs
+    indexes to existing tables. Same approach as ensure_token_version_columns.
+
+    Returns:
+        True if the permissions column was added
+    """
+    target_engine = target_engine or engine
+    added = False
+    try:
+        async with target_engine.begin() as conn:
+            added = await conn.run_sync(_add_admin_permissions_column)
+            if added:
+                logger.info("[DB] Added admin_users.permissions")
+    except Exception as e:
+        # Another worker may have added it concurrently - re-check
+        async with target_engine.connect() as conn:
+            if await conn.run_sync(_admin_permissions_column_missing):
+                logger.error(f"[DB] Failed to add admin_users.permissions: {e}")
+                raise
+    try:
+        async with target_engine.begin() as conn:
+            await conn.run_sync(_ensure_admin_audit_indexes)
+    except Exception as e:
+        logger.warning(f"[DB] Could not add admin_audit_logs indexes: {e}")
+    return added
+
+
 async def init_db() -> None:
     """
     Initialize database - create all tables
@@ -439,6 +502,7 @@ async def init_db() -> None:
     await ensure_spec_profile_columns()
     await ensure_analytics_columns()
     await ensure_product_option_columns()
+    await ensure_admin_access_schema()
 
 
 async def close_db() -> None:

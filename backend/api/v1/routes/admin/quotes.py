@@ -15,7 +15,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
-from backend.api.dependencies import get_current_admin, require_role
+from backend.api.dependencies import get_current_admin
 from backend.api.v1.schemas.admin import QuoteStatusUpdate
 from backend.api.v1.schemas.common import MessageResponse
 from backend.api.v1.schemas.quote import (
@@ -26,7 +26,7 @@ from backend.api.v1.schemas.quote import (
 )
 from backend.core.exceptions import ResourceNotFoundError, ValidationError
 from backend.database.base import get_db
-from backend.models.company import AdminRole, AdminUser
+from backend.models.company import AdminUser
 from backend.models.quote import Quote, QuoteAttachment, QuoteItem, QuoteShippingDestination, QuoteItemAllocation, QuoteStatus
 from backend.services.admin_service import AdminService
 from backend.services.quote_service import QUOTE_ATTACHMENT_DIR, QUOTE_ATTACHMENT_URL_PREFIX
@@ -222,7 +222,7 @@ async def get_quote(
 async def update_quote_status(
     quote_id: int,
     status_data: QuoteStatusUpdate,
-    admin: AdminUser = Depends(require_role(AdminRole.ADMIN)),
+    admin: AdminUser = Depends(get_current_admin),
     db: AsyncSession = Depends(get_db),
 ):
     """
@@ -319,7 +319,7 @@ async def update_quote_status(
 async def update_quote(
     quote_id: int,
     update_data: QuoteAdminUpdate,
-    admin: AdminUser = Depends(require_role(AdminRole.ADMIN)),
+    admin: AdminUser = Depends(get_current_admin),
     db: AsyncSession = Depends(get_db),
 ):
     """
@@ -440,7 +440,7 @@ async def update_quote(
 )
 async def assign_quote(
     quote_id: int,
-    admin: AdminUser = Depends(require_role(AdminRole.ADMIN)),
+    admin: AdminUser = Depends(get_current_admin),
     db: AsyncSession = Depends(get_db),
 ):
     """
@@ -543,7 +543,7 @@ async def assign_quote(
 async def add_quote_item(
     quote_id: int,
     item_data: QuoteItemAdminCreate,
-    admin: AdminUser = Depends(require_role(AdminRole.ADMIN)),
+    admin: AdminUser = Depends(get_current_admin),
     db: AsyncSession = Depends(get_db),
 ):
     """
@@ -651,7 +651,7 @@ async def update_quote_item(
     quote_id: int,
     item_id: int,
     item_data: QuoteItemAdminUpdate,
-    admin: AdminUser = Depends(require_role(AdminRole.ADMIN)),
+    admin: AdminUser = Depends(get_current_admin),
     db: AsyncSession = Depends(get_db),
 ):
     """
@@ -743,7 +743,7 @@ async def update_quote_item(
 async def delete_quote_item(
     quote_id: int,
     item_id: int,
-    admin: AdminUser = Depends(require_role(AdminRole.ADMIN)),
+    admin: AdminUser = Depends(get_current_admin),
     db: AsyncSession = Depends(get_db),
 ):
     """
@@ -803,7 +803,7 @@ class QuoteAllocationInput(BaseModel):
 async def replace_quote_shipping_destinations(
     quote_id: int,
     destinations: list[QuoteDestinationInput],
-    admin: AdminUser = Depends(require_role(AdminRole.ADMIN)),
+    admin: AdminUser = Depends(get_current_admin),
     db: AsyncSession = Depends(get_db),
 ):
     if not destinations:
@@ -848,7 +848,7 @@ async def replace_quote_item_allocations(
     quote_id: int,
     item_id: int,
     allocations: list[QuoteAllocationInput],
-    admin: AdminUser = Depends(require_role(AdminRole.ADMIN)),
+    admin: AdminUser = Depends(get_current_admin),
     db: AsyncSession = Depends(get_db),
 ):
     result = await db.execute(

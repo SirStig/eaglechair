@@ -31,15 +31,15 @@ def _assert_renditions_exist(master):
 
 @pytest.fixture
 def as_editor(async_client):
-    from backend.api.dependencies import get_current_admin
+    from backend.api.dependencies import authenticate_admin
     from tests.conftest import get_app
 
     app = get_app()
     admin = AdminUser(id=424243, username="upload-editor", email="upload@example.com",
                       role=AdminRole.EDITOR, is_active=True)
-    app.dependency_overrides[get_current_admin] = lambda: admin
+    app.dependency_overrides[authenticate_admin] = lambda: admin
     yield
-    app.dependency_overrides.pop(get_current_admin, None)
+    app.dependency_overrides.pop(authenticate_admin, None)
 
 
 @pytest.mark.integration

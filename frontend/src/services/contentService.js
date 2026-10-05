@@ -59,6 +59,7 @@ export const staticSelectors = {
   finishes: (content) => content.finishes || [],
   upholsteries: (content) => content.upholsteries || [],
   laminates: (content) => content.laminates || [],
+  materialSources: (content) => content.materialSources || [],
   hardware: (content) => content.hardware || [],
   catalogs: (content, catalogType = null) => {
     const catalogs = content.catalogs || [];
@@ -343,6 +344,16 @@ export const getLaminates = async () => {
   );
 };
 
+// Supplier catalogs we special-order from (contentData.json only; there is
+// no public API for them, so without static content the list is empty)
+export const getMaterialSources = async () => {
+  return getStaticOrAPI(
+    staticSelectors.materialSources,
+    async () => [],
+    'Fetching supplier links'
+  );
+};
+
 // Hardware
 export const getHardware = async () => {
   return getStaticOrAPI(
@@ -480,6 +491,7 @@ export default {
   getFinishes,
   getUpholsteries,
   getLaminates,
+  getMaterialSources,
   getHardware,
   getCatalogs,
   getPageContent,

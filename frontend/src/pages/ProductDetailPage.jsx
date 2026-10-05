@@ -27,7 +27,8 @@ const HERO_IMAGE_SIZES = '(min-width: 1280px) 600px, (min-width: 1024px) 50vw, 1
 // Variations listed before "Show all" on phones (plus the base model row).
 const MOBILE_VARIATIONS_SHOWN = 3;
 import OptionPicker from '../components/ui/OptionPicker';
-import { optionsIfEnabled } from '../utils/productOptions';
+import { optionsIfEnabled, sourcesFor, hasAnySources } from '../utils/productOptions';
+import SupplierLinks from '../components/ui/SupplierLinks';
 import { useToast } from '../contexts/ToastContext';
 import logger from '../utils/logger';
 import PdfPreviewButton from '../components/ui/PdfPreviewButton';
@@ -994,12 +995,14 @@ const ProductDetailPage = () => {
               {/* Finish / upholstery / laminate / color pickers */}
               <OptionPicker
                 className="mb-6"
+                productId={product.id}
                 sections={[
                   {
                     key: 'finish',
                     label: 'Finish',
                     kind: 'wood',
                     options: product.customizations?.finishes,
+                    sources: sourcesFor(product, selectedVariation, 'finish'),
                     selected: selectedFinish,
                     onSelect: (f) => { setSelectedFinish(f); if (f) trackOption('finish', f.name); },
                   },
@@ -1008,6 +1011,7 @@ const ProductDetailPage = () => {
                     label: 'Upholstery',
                     kind: 'fabric',
                     options: optionsIfEnabled(product, selectedVariation, 'upholstery', product.customizations?.fabrics),
+                    sources: sourcesFor(product, selectedVariation, 'upholstery'),
                     selected: selectedUpholstery,
                     onSelect: (f) => { setSelectedUpholstery(f); if (f) trackOption('upholstery', f.name); },
                   },
@@ -1016,6 +1020,7 @@ const ProductDetailPage = () => {
                     label: 'Laminate',
                     kind: 'laminate',
                     options: optionsIfEnabled(product, selectedVariation, 'laminates', product.customizations?.laminates),
+                    sources: sourcesFor(product, selectedVariation, 'laminate'),
                     selected: selectedLaminate,
                     onSelect: (l) => { setSelectedLaminate(l); if (l) trackOption('laminate', l.name); },
                   },
@@ -1028,6 +1033,18 @@ const ProductDetailPage = () => {
                   },
                 ]}
               />
+
+              {/* Hardware / other special-order catalogs have no option group */}
+              {(sourcesFor(product, selectedVariation, 'hardware') || sourcesFor(product, selectedVariation, 'other')) && (
+                <SupplierLinks
+                  className="mb-6"
+                  productId={product.id}
+                  sources={[
+                    ...(sourcesFor(product, selectedVariation, 'hardware') || []),
+                    ...(sourcesFor(product, selectedVariation, 'other') || []),
+                  ]}
+                />
+              )}
 
               {/* Custom Requests / Notes */}
               <div className="mb-6">
@@ -1046,11 +1063,18 @@ const ProductDetailPage = () => {
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
                   </svg>
                 </button>
+                {hasAnySources(product, selectedVariation) && (
+                  <p className="px-3 text-xs text-slate-500">
+                    Ordering from a supplier catalog? Add the pattern name/number here.
+                  </p>
+                )}
                 {notesExpanded && (
                   <textarea
                     value={customNotes}
                     onChange={(e) => setCustomNotes(e.target.value)}
-                    placeholder="Add custom requests, special instructions, or notes for this product..."
+                    placeholder={hasAnySources(product, selectedVariation)
+                      ? 'e.g. Wilsonart 7960K-07 Natural Ash laminate. Add any other requests or notes for this product…'
+                      : 'Add custom requests, special instructions, or notes for this product...'}
                     rows={4}
                     className="w-full mt-2 px-4 py-3 border border-cream-300 bg-white text-slate-800 placeholder-slate-400 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 text-base resize-y min-h-[100px]"
                   />

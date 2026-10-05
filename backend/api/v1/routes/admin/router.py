@@ -8,7 +8,9 @@ from fastapi import APIRouter, Depends
 from starlette.requests import HTTPConnection
 
 from backend.api.v1.routes.admin import (
+    admins,
     ai_chat,
+    audit_log,
     bulk,
     bulk_delete,
     catalog,
@@ -22,6 +24,7 @@ from backend.api.v1.routes.admin import (
     families,
     finishes,
     inquiries,
+    material_sources,
     pricing_tiers,
     products,
     quotes,
@@ -31,10 +34,11 @@ from backend.api.v1.routes.admin import (
     upload,
 )
 
+from backend.services.audit_service import audit_admin_request
 from backend.services.catalog_cache import bump_catalog_version
 
 # Admin sections whose writes never change public catalog data
-_NON_CATALOG_SECTIONS = ("/companies", "/quotes", "/dashboard", "/emails", "/ai", "/catalog-builder", "/exports")
+_NON_CATALOG_SECTIONS = ("/admins", "/audit-log", "/companies", "/quotes", "/dashboard", "/emails", "/ai", "/catalog-builder", "/exports")
 
 
 async def _bump_catalog_version_after_write(conn: HTTPConnection):
@@ -57,7 +61,8 @@ async def _bump_catalog_version_after_write(conn: HTTPConnection):
 router = APIRouter(
     prefix="/admin",
     tags=["Admin"],
-    dependencies=[Depends(_bump_catalog_version_after_write)],
+    # audit_admin_request records every admin write in admin_audit_logs
+    dependencies=[Depends(audit_admin_request), Depends(_bump_catalog_version_after_write)],
 )
 
 # Include admin route modules
@@ -78,7 +83,10 @@ router.include_router(catalog_builder.router, prefix="/catalog-builder", tags=["
 router.include_router(exports.router, prefix="/exports", tags=["Admin - Exports"])
 router.include_router(register.router, prefix="/register", tags=["Admin - Product Register"])
 router.include_router(bulk.router, prefix="/bulk", tags=["Admin - Bulk Edit"])
+router.include_router(admins.router, prefix="/admins", tags=["Admin - Admins"])
+router.include_router(audit_log.router, prefix="/audit-log", tags=["Admin - Activity Log"])
 router.include_router(bulk_delete.router, prefix="/bulk", tags=["Admin - Permanent Delete"])
+router.include_router(material_sources.router, prefix="/material-sources", tags=["Admin - Supplier Links"])
 router.include_router(emails.router, prefix="/emails", tags=["Admin - Email Templates"])
 router.include_router(inquiries.router, prefix="/inquiries", tags=["Admin - Inquiries"])
 router.include_router(ai_chat.router, prefix="/ai", tags=["Admin - AI Chat"])

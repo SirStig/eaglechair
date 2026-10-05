@@ -12,6 +12,7 @@ from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from backend.core.admin_permissions import PERMISSION_LABELS, missing_permissions
 from backend.core.exceptions import (
     AuthenticationError,
     AuthorizationError,
@@ -326,13 +327,14 @@ async def get_current_company(
         raise AuthenticationError("Invalid token type. Company or admin authentication required.")
 
 
-async def get_current_admin(
+async def authenticate_admin(
     request: Request,
     token_payload: dict = Depends(get_current_token_payload),
     db: AsyncSession = Depends(get_db)
 ) -> AdminUser:
     """
-    Get current authenticated admin from token
+    Get current authenticated admin from token (no permission check - routes
+    use get_current_admin)
     
     Requires additional validation (session token, admin token)
     
@@ -366,6 +368,34 @@ async def get_current_admin(
 
     # Validate session_token and admin_token from cookies (preferred) or headers (fallback)
     await verify_admin_session_tokens(request, admin, db)
+
+    return admin
+
+
+async def get_current_admin(
+    request: Request,
+    admin: AdminUser = Depends(authenticate_admin),
+) -> AdminUser:
+    """
+    The authenticated admin, after the central permission check for /admin
+    and /cms-admin routes. Every admin route depends on this.
+    """
+    # Read by the audit trail (backend/services/audit_service.py)
+    request.state.admin = admin
+
+    # Central permission policy for /admin and /cms-admin routes
+    # (backend/core/admin_permissions.py)
+    missing = missing_permissions(admin, request.method, request.url.path)
+    if missing:
+        labels = sorted(PERMISSION_LABELS[p][0] for p in missing)
+        logger.warning(
+            f"Permission denied: Admin {admin.id} ({admin.role.value}) "
+            f"{request.method} {request.url.path} missing {', '.join(labels)}"
+        )
+        raise InsufficientPermissionsError(
+            required_role=" + ".join(labels),
+            details={"missing_permissions": sorted(p.value for p in missing)},
+        )
 
     return admin
 

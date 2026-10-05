@@ -13,7 +13,7 @@ from fastapi.responses import JSONResponse
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from backend.api.dependencies import get_current_admin, require_role
+from backend.api.dependencies import get_current_admin
 from backend.api.v1.schemas.admin import (
     ProductCreate,
     ProductListResponse,
@@ -197,7 +197,7 @@ async def get_all_products(
 )
 async def create_product(
     product_data: ProductCreate,
-    admin: AdminUser = Depends(require_role(AdminRole.ADMIN)),
+    admin: AdminUser = Depends(get_current_admin),
     db: AsyncSession = Depends(get_db),
 ):
     """
@@ -299,7 +299,7 @@ async def get_product(
 async def update_product(
     product_id: int,
     update_data: ProductUpdate,
-    admin: AdminUser = Depends(require_role(AdminRole.ADMIN)),
+    admin: AdminUser = Depends(get_current_admin),
     db: AsyncSession = Depends(get_db),
 ):
     """
@@ -340,7 +340,7 @@ async def update_product(
 async def delete_product(
     product_id: int,
     hard: bool = Query(False, description="Permanently delete (removes product and variations, frees SKUs)"),
-    admin: AdminUser = Depends(require_role(AdminRole.ADMIN)),
+    admin: AdminUser = Depends(get_current_admin),
     db: AsyncSession = Depends(get_db),
 ):
     """
@@ -415,7 +415,7 @@ async def create_product_variation(
     price_adjustment: float = 0.0,
     display_order: int = 0,
     is_available: bool = True,
-    admin: AdminUser = Depends(require_role(AdminRole.ADMIN)),
+    admin: AdminUser = Depends(get_current_admin),
     db: AsyncSession = Depends(get_db),
 ):
     """
@@ -480,7 +480,7 @@ async def update_product_variation(
     price_adjustment: Optional[float] = None,
     display_order: Optional[int] = None,
     is_available: Optional[bool] = None,
-    admin: AdminUser = Depends(require_role(AdminRole.ADMIN)),
+    admin: AdminUser = Depends(get_current_admin),
     db: AsyncSession = Depends(get_db),
 ):
     """
@@ -544,7 +544,7 @@ async def delete_product_variation(
     hard_delete: bool = Query(
         False, description="Permanently delete (super admin only)"
     ),
-    admin: AdminUser = Depends(require_role(AdminRole.ADMIN)),
+    admin: AdminUser = Depends(get_current_admin),
     db: AsyncSession = Depends(get_db),
 ):
     """
@@ -646,7 +646,7 @@ async def add_product_image(
     variation_id: Optional[int] = None,
     display_order: int = 0,
     alt_text: Optional[str] = None,
-    admin: AdminUser = Depends(require_role(AdminRole.ADMIN)),
+    admin: AdminUser = Depends(get_current_admin),
     db: AsyncSession = Depends(get_db),
 ):
     """
@@ -724,7 +724,7 @@ async def update_product_image(
     variation_id: Optional[int] = None,
     display_order: Optional[int] = None,
     alt_text: Optional[str] = None,
-    admin: AdminUser = Depends(require_role(AdminRole.ADMIN)),
+    admin: AdminUser = Depends(get_current_admin),
     db: AsyncSession = Depends(get_db),
 ):
     """
@@ -777,7 +777,7 @@ async def update_product_image(
 async def delete_product_image(
     product_id: int,
     image_id: int,
-    admin: AdminUser = Depends(require_role(AdminRole.ADMIN)),
+    admin: AdminUser = Depends(get_current_admin),
     db: AsyncSession = Depends(get_db),
 ):
     """

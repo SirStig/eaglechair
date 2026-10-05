@@ -23,7 +23,7 @@ BASE = "/api/v1/admin"
 
 @pytest.fixture
 def as_role():
-    from backend.api.dependencies import get_current_admin
+    from backend.api.dependencies import authenticate_admin
     from tests.conftest import get_app
 
     app = get_app()
@@ -31,10 +31,10 @@ def as_role():
     def _set(role=AdminRole.ADMIN):
         admin = AdminUser(id=525252, username=f"catalog-{role.value}", email="catalog@example.com",
                           role=role, is_active=True)
-        app.dependency_overrides[get_current_admin] = lambda: admin
+        app.dependency_overrides[authenticate_admin] = lambda: admin
 
     yield _set
-    app.dependency_overrides.pop(get_current_admin, None)
+    app.dependency_overrides.pop(authenticate_admin, None)
 
 
 @pytest.fixture
@@ -328,8 +328,8 @@ class TestProductRegister:
             await db_session.refresh(product)
             assert product.is_active is True
 
-    async def test_bulk_update_requires_admin(self, async_client, as_role, lobo):
-        as_role(AdminRole.EDITOR)
+    async def test_bulk_update_needs_edit_permission(self, async_client, as_role, lobo):
+        as_role(AdminRole.VIEWER)
         response = await async_client.post(
             f"{BASE}/register/bulk", json={"product_ids": [lobo["side"].id], "is_active": False}, headers=UA
         )

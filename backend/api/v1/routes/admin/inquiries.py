@@ -11,12 +11,12 @@ from fastapi import APIRouter, Depends, Query
 from sqlalchemy import func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from backend.api.dependencies import get_current_admin, require_role
+from backend.api.dependencies import get_current_admin
 from backend.api.v1.schemas.common import MessageResponse
 from backend.api.v1.schemas.content import FeedbackUpdate
 from backend.core.exceptions import ResourceNotFoundError
 from backend.database.base import get_db
-from backend.models.company import AdminRole, AdminUser
+from backend.models.company import AdminUser
 from backend.models.content import Feedback
 
 logger = logging.getLogger(__name__)
@@ -100,7 +100,7 @@ async def list_inquiries(
 async def update_inquiry(
     inquiry_id: int,
     data: FeedbackUpdate,
-    admin: AdminUser = Depends(require_role(AdminRole.EDITOR)),
+    admin: AdminUser = Depends(get_current_admin),
     db: AsyncSession = Depends(get_db),
 ):
     item = await _get_or_404(db, inquiry_id)
@@ -118,7 +118,7 @@ async def update_inquiry(
 @router.delete("/{inquiry_id}", response_model=MessageResponse, summary="Delete inquiry (Admin)")
 async def delete_inquiry(
     inquiry_id: int,
-    admin: AdminUser = Depends(require_role(AdminRole.ADMIN)),
+    admin: AdminUser = Depends(get_current_admin),
     db: AsyncSession = Depends(get_db),
 ):
     item = await _get_or_404(db, inquiry_id)

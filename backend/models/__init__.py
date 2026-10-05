@@ -69,6 +69,7 @@ from backend.models.content import (
     SiteSettings,
     PageContent,
     EmailTemplate,
+    MaterialSource,
 )
 
 # Quote and Cart models
@@ -123,6 +124,7 @@ __all__ = [
     "SiteSettings",
     "PageContent",
     "EmailTemplate",
+    "MaterialSource",
     # Quotes & Cart
     "Quote",
     "QuoteStatus",

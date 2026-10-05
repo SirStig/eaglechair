@@ -23,6 +23,7 @@ import ColorManagement from '../../components/admin/sections/ColorManagement';
 import FinishManagement from '../../components/admin/sections/FinishManagement';
 import UpholsteryManagement from '../../components/admin/sections/UpholsteryManagement';
 import LaminateManagement from '../../components/admin/sections/LaminateManagement';
+import SupplierLinkManagement from '../../components/admin/sections/SupplierLinkManagement';
 import CatalogManagement from '../../components/admin/sections/CatalogManagement';
 import HardwareManagement from '../../components/admin/sections/HardwareManagement';
 import CompanyManagement from '../../components/admin/sections/CompanyManagement';
@@ -197,6 +198,8 @@ const NewAdminDashboardInner = () => {
         return <UpholsteryManagement />;
       case 'laminates':
         return <LaminateManagement />;
+      case 'supplier-links':
+        return <SupplierLinkManagement />;
       case 'catalogs':
         return <CatalogManagement />;
       case 'register':

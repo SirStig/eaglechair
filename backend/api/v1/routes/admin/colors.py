@@ -121,7 +121,7 @@ async def get_color(
 @router.post("")
 async def create_color(
     color_data: ColorCreate,
-    admin: AdminUser = Depends(require_role(AdminRole.ADMIN)),
+    admin: AdminUser = Depends(get_current_admin),
     db: AsyncSession = Depends(get_db),
 ):
     """
@@ -164,7 +164,7 @@ async def create_color(
 @router.post("/reorder")
 async def reorder_colors(
     body: ReorderBody,
-    admin: AdminUser = Depends(require_role(AdminRole.ADMIN)),
+    admin: AdminUser = Depends(get_current_admin),
     db: AsyncSession = Depends(get_db),
 ):
     for item in body.order:
@@ -181,7 +181,7 @@ async def reorder_colors(
 async def update_color(
     color_id: int,
     color_data: ColorUpdate,
-    admin: AdminUser = Depends(require_role(AdminRole.ADMIN)),
+    admin: AdminUser = Depends(get_current_admin),
     db: AsyncSession = Depends(get_db),
 ):
     """

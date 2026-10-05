@@ -242,6 +242,7 @@ class ProductCreate(BaseModel):
     upholstery_enabled: bool = Field(True, description="Show upholstery options")
     colors_enabled: bool = Field(True, description="Show color options")
     laminates_enabled: bool = Field(True, description="Show laminate options")
+    material_sources: Optional[List[int]] = Field(None, description="Supplier catalog (MaterialSource) IDs")
 
     # Images
     images: Optional[List[Any]] = Field(None, description="Images JSON array")
@@ -392,6 +393,7 @@ class ProductUpdate(BaseModel):
     upholstery_enabled: Optional[bool] = Field(None, description="Show upholstery options")
     colors_enabled: Optional[bool] = Field(None, description="Show color options")
     laminates_enabled: Optional[bool] = Field(None, description="Show laminate options")
+    material_sources: Optional[List[int]] = Field(None, description="Supplier catalog (MaterialSource) IDs")
 
     # Images
     images: Optional[List[Any]] = Field(None, description="Images JSON array")

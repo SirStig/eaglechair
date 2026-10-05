@@ -14,9 +14,8 @@ from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
 from pydantic import BaseModel
 from starlette.concurrency import run_in_threadpool
 
-from backend.api.dependencies import require_role
+from backend.api.dependencies import get_current_admin
 from backend.core.config import settings
-from backend.models.company import AdminRole
 from backend.services import media_service
 
 logger = logging.getLogger(__name__)
@@ -191,7 +190,7 @@ class DeleteImageRequest(BaseModel):
 async def upload_image(
     file: UploadFile = File(...),
     subfolder: str = Form("products"),
-    current_admin = Depends(require_role(AdminRole.EDITOR))
+    current_admin = Depends(get_current_admin)
 ):
     """
     Upload an image file.
@@ -281,7 +280,7 @@ async def upload_image(
 )
 async def delete_image(
     request: DeleteImageRequest,
-    current_admin = Depends(require_role(AdminRole.EDITOR))
+    current_admin = Depends(get_current_admin)
 ):
     """
     Delete an image file.
@@ -316,7 +315,7 @@ async def delete_image(
 async def upload_document(
     file: UploadFile = File(...),
     subfolder: str = Form("catalogs"),
-    current_admin = Depends(require_role(AdminRole.EDITOR))
+    current_admin = Depends(get_current_admin)
 ):
     """
     Upload a document file (PDF, etc.).

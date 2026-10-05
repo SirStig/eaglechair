@@ -14,11 +14,11 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
-from backend.api.dependencies import get_current_admin, require_role
+from backend.api.dependencies import get_current_admin
 from backend.api.v1.schemas.common import MessageResponse
 from backend.core.exceptions import ResourceNotFoundError
 from backend.database.base import get_db
-from backend.models.company import AdminRole, AdminUser, Company, CompanyPricing
+from backend.models.company import AdminUser, Company, CompanyPricing
 from backend.utils.serializers import orm_list_to_dict_list, orm_to_dict
 
 logger = logging.getLogger(__name__)
@@ -146,7 +146,7 @@ async def create_pricing_tier(
     expires_at: Optional[str] = None,
     is_active: bool = True,
     admin_notes: Optional[str] = None,
-    admin: AdminUser = Depends(require_role(AdminRole.ADMIN)),
+    admin: AdminUser = Depends(get_current_admin),
     db: AsyncSession = Depends(get_db)
 ):
     """
@@ -254,7 +254,7 @@ async def update_pricing_tier(
     expires_at: Optional[str] = None,
     is_active: Optional[bool] = None,
     admin_notes: Optional[str] = None,
-    admin: AdminUser = Depends(require_role(AdminRole.ADMIN)),
+    admin: AdminUser = Depends(get_current_admin),
     db: AsyncSession = Depends(get_db)
 ):
     """
@@ -367,7 +367,7 @@ async def update_pricing_tier(
 async def delete_pricing_tier(
     tier_id: int,
     force: bool = Query(False, description="Force delete even if companies are using it"),
-    admin: AdminUser = Depends(require_role(AdminRole.ADMIN)),
+    admin: AdminUser = Depends(get_current_admin),
     db: AsyncSession = Depends(get_db)
 ):
     """

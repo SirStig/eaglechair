@@ -14,11 +14,11 @@ from pydantic import BaseModel, Field
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from backend.api.dependencies import get_current_admin, require_role
+from backend.api.dependencies import get_current_admin
 from backend.core.exceptions import ResourceNotFoundError
 from backend.database.base import get_db
 from backend.models.chair import ProductFamily, ProductVariation
-from backend.models.company import AdminRole, AdminUser
+from backend.models.company import AdminUser
 from backend.services.admin_service import AdminService
 from backend.services.catalog_pdf.data import load_products
 
@@ -100,7 +100,7 @@ class BulkUpdate(BaseModel):
 @router.post("/bulk", summary="Bulk update products")
 async def bulk_update(
     body: BulkUpdate,
-    admin: AdminUser = Depends(require_role(AdminRole.ADMIN)),
+    admin: AdminUser = Depends(get_current_admin),
     db: AsyncSession = Depends(get_db),
 ):
     changes = {}
@@ -140,7 +140,7 @@ class VariationPatch(BaseModel):
 async def patch_variation(
     variation_id: int,
     body: VariationPatch,
-    admin: AdminUser = Depends(require_role(AdminRole.ADMIN)),
+    admin: AdminUser = Depends(get_current_admin),
     db: AsyncSession = Depends(get_db),
 ):
     variation = await db.get(ProductVariation, variation_id)

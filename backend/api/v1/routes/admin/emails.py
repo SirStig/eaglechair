@@ -12,7 +12,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from backend.api.dependencies import get_current_admin, require_role
+from backend.api.dependencies import get_current_admin
 from backend.api.v1.schemas.admin import (
     EmailTemplateCreate,
     EmailTemplateResponse,
@@ -22,7 +22,7 @@ from backend.api.v1.schemas.admin import (
 from backend.api.v1.schemas.common import MessageResponse
 from backend.core.exceptions import ResourceNotFoundError, ValidationError
 from backend.database.base import get_db
-from backend.models.company import AdminRole, AdminUser
+from backend.models.company import AdminUser
 from backend.models.content import EmailTemplate
 from backend.services.email_service import EmailService
 from backend.utils.serializers import orm_to_dict
@@ -120,7 +120,7 @@ async def get_email_template(
 )
 async def create_email_template(
     template_data: EmailTemplateCreate,
-    admin: AdminUser = Depends(require_role(AdminRole.ADMIN)),
+    admin: AdminUser = Depends(get_current_admin),
     db: AsyncSession = Depends(get_db)
 ):
     """
@@ -173,7 +173,7 @@ async def create_email_template(
 async def update_email_template(
     template_id: int,
     template_data: EmailTemplateUpdate,
-    admin: AdminUser = Depends(require_role(AdminRole.ADMIN)),
+    admin: AdminUser = Depends(get_current_admin),
     db: AsyncSession = Depends(get_db)
 ):
     """
@@ -217,7 +217,7 @@ async def update_email_template(
 )
 async def delete_email_template(
     template_id: int,
-    admin: AdminUser = Depends(require_role(AdminRole.ADMIN)),
+    admin: AdminUser = Depends(get_current_admin),
     db: AsyncSession = Depends(get_db)
 ):
     """
@@ -250,7 +250,7 @@ async def delete_email_template(
 )
 async def send_test_email(
     test_data: EmailTestRequest,
-    admin: AdminUser = Depends(require_role(AdminRole.ADMIN)),
+    admin: AdminUser = Depends(get_current_admin),
     db: AsyncSession = Depends(get_db)
 ):
     """

@@ -90,6 +90,7 @@ const ProductRegister = () => {
   const [expanded, setExpanded] = useState(() => new Set());
   const [categoryRows, setCategoryRows] = useState([]);
   const [subcategoryRows, setSubcategoryRows] = useState([]);
+  const [supplierLinks, setSupplierLinks] = useState([]);
   const [busy, setBusy] = useState(null);
   const [includeInactive, setIncludeInactive] = useState(true);
 
@@ -108,6 +109,10 @@ const ProductRegister = () => {
   useEffect(() => {
     apiClient.get('/api/v1/categories').then((r) => setCategoryRows(Array.isArray(r) ? r : r?.items || [])).catch(() => {});
     apiClient.get('/api/v1/admin/subcategories').then((r) => setSubcategoryRows(r?.items || [])).catch(() => {});
+    apiClient
+      .get('/api/v1/admin/material-sources')
+      .then((r) => setSupplierLinks((r || []).filter((s) => s.is_active)))
+      .catch(() => {});
   }, []);
   useEffect(() => { setPage(0); }, [search, status, familyFilter, categoryFilter, issueFilter]);
 
@@ -188,9 +193,9 @@ const ProductRegister = () => {
   useExclusiveSelections(selection, variationSelection);
 
   const productActions = useMemo(() => [
-    ...productBulkActions({ categories: categoryRows, subcategories: subcategoryRows, families: data.families }),
+    ...productBulkActions({ categories: categoryRows, subcategories: subcategoryRows, families: data.families, supplierLinks }),
     ...ACTIVE_ACTIONS,
-  ], [categoryRows, subcategoryRows, data.families]);
+  ], [categoryRows, subcategoryRows, data.families, supplierLinks]);
   const variationActions = useMemo(() => variationBulkActions({ families: data.families }), [data.families]);
 
   const runExport = async (kind) => {

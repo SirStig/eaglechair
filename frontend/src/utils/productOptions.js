@@ -21,3 +21,23 @@ export function isOptionGroupEnabled(product, variation, group) {
 export function optionsIfEnabled(product, variation, group, options) {
   return isOptionGroupEnabled(product, variation, group) ? options : undefined;
 }
+
+// Supplier-link types that belong to a switchable option group
+const SOURCE_GROUPS = { laminate: 'laminates', upholstery: 'upholstery' };
+
+/**
+ * Supplier catalogs ("special order from Wilsonart") of one material type for
+ * a product, or undefined. Laminate and upholstery links follow the same
+ * product / variation switches as those option groups.
+ */
+export function sourcesFor(product, variation, type) {
+  const list = product?.customizations?.sources?.[type];
+  if (!list?.length) return undefined;
+  const group = SOURCE_GROUPS[type];
+  return group ? optionsIfEnabled(product, variation, group, list) : list;
+}
+
+/** Whether a product has any supplier links showing for this variation */
+export function hasAnySources(product, variation) {
+  return ['laminate', 'upholstery', 'finish', 'hardware', 'other'].some((t) => sourcesFor(product, variation, t)?.length);
+}

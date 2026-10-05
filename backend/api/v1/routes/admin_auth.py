@@ -8,8 +8,11 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from backend.api.dependencies import get_current_admin
 from backend.api.v1.schemas.common import MessageResponse
 from backend.database.base import get_db
+from backend.core.admin_permissions import admin_profile
 from backend.models.company import AdminUser
 from backend.models.passkey import AdminPasskeyCredential
+from backend.core.exceptions import InvalidCredentialsError
+from backend.services import admin_confirmation, audit_service
 from backend.services.auth_service import AuthService
 from backend.services.mfa_service import MFAService
 from backend.services.passkey_service import PasskeyService
@@ -58,6 +61,9 @@ async def passkey_authenticate(
         ip_address=request.client.host if request.client else None,
         strong_session=True,
     )
+    await audit_service.record(
+        db, admin.id, "login", "admin_users", admin.id, {"method": "passkey"}, request
+    )
     set_auth_cookies(
         response=response,
         access_token=tokens["access_token"],
@@ -76,15 +82,7 @@ async def passkey_authenticate(
     return {
         **tokens_for_response_body(request, tokens),
         "requiresSetup": requires_setup,
-        "user": {
-            "id": admin.id,
-            "username": admin.username,
-            "email": admin.email,
-            "firstName": admin.first_name,
-            "lastName": admin.last_name,
-            "role": admin.role.value,
-            "type": "admin",
-        },
+        "user": admin_profile(admin),
     }
 
 
@@ -107,6 +105,7 @@ async def passkey_register_options(
     description="Requires admin auth. Completes passkey registration.",
 )
 async def passkey_register(
+    request: Request,
     credential: dict,
     admin: AdminUser = Depends(get_current_admin),
     db: AsyncSession = Depends(get_db),
@@ -114,6 +113,10 @@ async def passkey_register(
     await PasskeyService.verify_registration(
         db, admin, credential,
         device_name=credential.get("device_name"),
+    )
+    await audit_service.record(
+        db, admin.id, "passkey_added", "admin_users", admin.id,
+        {"device_name": credential.get("device_name")}, request,
     )
     return MessageResponse(
         message="Passkey registered successfully",
@@ -149,6 +152,7 @@ async def mfa_setup_options(
     description="Requires admin auth. Verifies code and enables 2FA.",
 )
 async def mfa_setup_verify(
+    request: Request,
     code_data: dict,
     admin: AdminUser = Depends(get_current_admin),
     db: AsyncSession = Depends(get_db),
@@ -158,6 +162,7 @@ async def mfa_setup_verify(
         from fastapi import HTTPException
         raise HTTPException(status_code=400, detail="Verification code required")
     await MFAService.setup_2fa(db, admin, code)
+    await audit_service.record(db, admin.id, "2fa_enabled", "admin_users", admin.id, conn=request)
     return MessageResponse(
         message="Two-factor authentication enabled",
         detail="You will need to enter a code from your authenticator app when signing in.",
@@ -186,3 +191,79 @@ async def admin_setup_status(
         "needsPasskey": not has_passkey,
         "needsMfa": not admin.is_2fa_enabled,
     }
+
+
+# ============================================================================
+# Step-up confirmation (backend/services/admin_confirmation.py)
+# ============================================================================
+
+async def _has_passkey(db: AsyncSession, admin: AdminUser) -> bool:
+    result = await db.execute(
+        select(AdminPasskeyCredential.id).where(AdminPasskeyCredential.admin_user_id == admin.id)
+    )
+    return result.first() is not None
+
+
+@router.get(
+    "/confirm",
+    summary="Identity confirmation status",
+    description="Requires admin auth. Whether the admin recently confirmed it's them, and which methods they can use.",
+)
+async def confirmation_status(
+    admin: AdminUser = Depends(get_current_admin),
+    db: AsyncSession = Depends(get_db),
+):
+    return {
+        "confirmedUntil": await admin_confirmation.confirmation_expires_at(admin),
+        "hasPasskey": await _has_passkey(db, admin),
+        "hasMfa": admin.is_2fa_enabled,
+    }
+
+
+@router.post(
+    "/confirm/options",
+    summary="Passkey options for confirming identity",
+    description="Requires admin auth. WebAuthn options limited to the signed-in admin's passkeys.",
+)
+async def confirmation_passkey_options(
+    admin: AdminUser = Depends(get_current_admin),
+    db: AsyncSession = Depends(get_db),
+):
+    return await PasskeyService.get_authentication_options(db, admin.username)
+
+
+@router.post(
+    "/confirm",
+    summary="Confirm identity before a dangerous action",
+    description=(
+        "Requires admin auth. Body: {\"passkey\": {challengeId, credential}} or "
+        "{\"password\": \"...\", \"two_factor_code\": \"123456\"}. "
+        "Unlocks admin management and permanent deletes for 5 minutes."
+    ),
+)
+async def confirm_identity(
+    request: Request,
+    body: dict,
+    admin: AdminUser = Depends(get_current_admin),
+    db: AsyncSession = Depends(get_db),
+):
+    passkey = body.get("passkey") if isinstance(body, dict) else None
+    method = "passkey" if passkey else "password"
+    try:
+        if passkey:
+            verified = await PasskeyService.verify_authentication(db, passkey)
+            expires_at = await admin_confirmation.confirm_with_passkey(admin, verified)
+        else:
+            expires_at = await admin_confirmation.confirm_with_password(
+                admin, body.get("password") or "", body.get("two_factor_code")
+            )
+    except InvalidCredentialsError as e:
+        await audit_service.record(
+            db, admin.id, "confirm_failed", "admin_users", admin.id,
+            {"method": method, "reason": e.message}, request,
+        )
+        raise
+    await audit_service.record(
+        db, admin.id, "confirm_identity", "admin_users", admin.id, {"method": method}, request
+    )
+    return {"confirmedUntil": expires_at}

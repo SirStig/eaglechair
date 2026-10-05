@@ -32,6 +32,7 @@ import BulkActionBar from '../bulk/BulkActionBar';
 import FloatingDock from '../bulk/FloatingDock';
 import FitLabel from '../bulk/FitLabel';
 import ProductVariationsTab from './ProductVariationsTab';
+import { groupSupplierLinks } from './supplierLinkTypes';
 import {
   OPTION_GROUP_SWITCHES,
   STOCK_STATUS_OPTIONS,
@@ -132,6 +133,7 @@ const ProductEditor = ({ product, onBack }) => {
     secondary_family_ids: Array.isArray(product?.secondary_family_ids) ? product.secondary_family_ids : [],
     category_ids: Array.isArray(product?.category_ids) ? product.category_ids : [],
     subcategory_ids: Array.isArray(product?.subcategory_ids) ? product.subcategory_ids : [],
+    material_sources: Array.isArray(product?.material_sources) ? product.material_sources : [],
   });
   const [saving, setSaving] = useState(false);
 
@@ -156,6 +158,8 @@ const ProductEditor = ({ product, onBack }) => {
   const [selectedColors, setSelectedColors] = useState(product?.available_colors || []);
   const [selectedLaminates, setSelectedLaminates] = useState(product?.available_laminates || []);
   const [laminates, setLaminates] = useState([]);
+  // Outside supplier catalogs (Supplier Links) this product can be ordered with
+  const [supplierLinks, setSupplierLinks] = useState([]);
   const [flameCerts, setFlameCerts] = useState(product?.flame_certifications || []);
   const [greenCerts, setGreenCerts] = useState(product?.green_certifications || []);
 
@@ -171,6 +175,7 @@ const ProductEditor = ({ product, onBack }) => {
     fetchUpholsteries();
     fetchColors();
     fetchLaminates();
+    fetchSupplierLinks();
   }, []);
 
   // Subcategory options follow every selected category, not just the primary
@@ -266,6 +271,34 @@ const ProductEditor = ({ product, onBack }) => {
     } catch {
       setLaminates([]);
     }
+  };
+
+  const fetchSupplierLinks = async () => {
+    try {
+      const response = await apiClient.get('/api/v1/admin/material-sources');
+      setSupplierLinks((response || []).filter((s) => s.is_active));
+    } catch {
+      setSupplierLinks([]);
+    }
+  };
+
+  const toggleSupplierLink = (id, on) =>
+    setFormData((prev) => {
+      const current = prev.material_sources || [];
+      return { ...prev, material_sources: on ? [...new Set([...current, id])] : current.filter((x) => x !== id) };
+    });
+
+  // "Also orderable from Wilsonart" note under a swatch list, so an empty list reads as intended
+  const supplierHint = (type) => {
+    const names = supplierLinks
+      .filter((s) => s.material_type === type && (formData.material_sources || []).includes(s.id))
+      .map((s) => s.name);
+    if (!names.length) return null;
+    return (
+      <p className="mb-2 text-xs text-primary-300">
+        Supplier links: {names.join(', ')}. Customers can order any pattern from them, so this list can stay empty.
+      </p>
+    );
   };
 
   const fetchColors = async () => {
@@ -1541,6 +1574,7 @@ const ProductEditor = ({ product, onBack }) => {
                 enabled={formData.upholstery_enabled !== false}
                 onChange={(on) => handleChange('upholstery_enabled', on)}
               />
+              {supplierHint('upholstery')}
               <div className="grid grid-cols-2 md:grid-cols-4 gap-3 p-4 bg-dark-700 rounded-lg max-h-64 overflow-y-auto">
                 {upholsteries.map(upholstery => (
                   <label key={upholstery.id} className="flex items-center gap-2 cursor-pointer hover:bg-dark-600 p-2 rounded">
@@ -1568,6 +1602,7 @@ const ProductEditor = ({ product, onBack }) => {
                 enabled={formData.laminates_enabled !== false}
                 onChange={(on) => handleChange('laminates_enabled', on)}
               />
+              {supplierHint('laminate')}
               <div className="grid grid-cols-2 md:grid-cols-3 gap-3 p-4 bg-dark-700 rounded-lg max-h-64 overflow-y-auto">
                 {laminates.map(laminate => (
                   <label key={laminate.id} className="flex items-center gap-2 cursor-pointer hover:bg-dark-600 p-2 rounded">
@@ -1622,6 +1657,52 @@ const ProductEditor = ({ product, onBack }) => {
                   </label>
                 ))}
               </div>
+            </div>
+
+            <div>
+              <div className="mb-2 flex flex-wrap items-baseline justify-between gap-2">
+                <span className="text-sm font-medium text-dark-200">Order from supplier catalogs</span>
+                <a href="/admin/supplier-links" target="_blank" rel="noopener noreferrer" className="text-xs text-primary-400 hover:text-primary-300">
+                  Manage supplier links
+                </a>
+              </div>
+              <p className="mb-3 text-xs text-dark-400">
+                Outside catalogs this product can be ordered with (e.g. any Wilsonart laminate). Ticked links show on the
+                product page with their note.
+              </p>
+              {supplierLinks.length === 0 ? (
+                <p className="rounded-lg bg-dark-700 p-4 text-sm text-dark-400">
+                  No supplier links yet. Add them under Materials &amp; Options › Supplier Links.
+                </p>
+              ) : (
+                <div className="space-y-3 rounded-lg bg-dark-700 p-4">
+                  {groupSupplierLinks(supplierLinks).map((group) => (
+                    <div key={group.type}>
+                      <p className="mb-1.5 text-xs font-semibold uppercase tracking-wider text-dark-400">{group.label}</p>
+                      <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 md:grid-cols-3">
+                        {group.links.map((link) => (
+                          <label key={link.id} className="flex cursor-pointer items-start gap-2 rounded p-2 hover:bg-dark-600">
+                            <input
+                              type="checkbox"
+                              checked={(formData.material_sources || []).includes(link.id)}
+                              onChange={(e) => toggleSupplierLink(link.id, e.target.checked)}
+                              className="mt-0.5 rounded border-dark-500"
+                            />
+                            <span className="min-w-0">
+                              <span className="block text-sm text-dark-100">{link.name}</span>
+                              {link.description && (
+                                <span className="block truncate text-xs text-dark-400" title={link.description}>
+                                  {link.description}
+                                </span>
+                              )}
+                            </span>
+                          </label>
+                        ))}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
           </div>
         );

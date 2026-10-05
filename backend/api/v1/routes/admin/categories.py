@@ -181,7 +181,7 @@ async def get_categories_admin(
 )
 async def create_category(
     category_data: CategoryCreate,
-    admin: AdminUser = Depends(require_role(AdminRole.ADMIN)),
+    admin: AdminUser = Depends(get_current_admin),
     db: AsyncSession = Depends(get_db)
 ):
     """Create a new category. Admin only."""
@@ -244,7 +244,7 @@ async def create_category(
 async def update_category(
     category_id: int,
     category_data: CategoryUpdate,
-    admin: AdminUser = Depends(require_role(AdminRole.ADMIN)),
+    admin: AdminUser = Depends(get_current_admin),
     db: AsyncSession = Depends(get_db)
 ):
     """Update a category. Admin only."""
@@ -376,7 +376,7 @@ async def delete_category(
 )
 async def batch_reorder_categories(
     body: ReorderBody,
-    admin: AdminUser = Depends(require_role(AdminRole.ADMIN)),
+    admin: AdminUser = Depends(get_current_admin),
     db: AsyncSession = Depends(get_db),
 ):
     for item in body.order:
@@ -398,7 +398,7 @@ async def batch_reorder_categories(
 async def reorder_categories(
     category_id: int,
     new_order: int,
-    admin: AdminUser = Depends(require_role(AdminRole.ADMIN)),
+    admin: AdminUser = Depends(get_current_admin),
     db: AsyncSession = Depends(get_db)
 ):
     """Update category display order. Admin only."""

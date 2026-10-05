@@ -1,7 +1,8 @@
 import { useMemo, useState } from 'react';
 import { Spool, SearchX } from 'lucide-react';
 import EmptyResults from '../components/ui/EmptyResults';
-import { useCatalogs, useUpholsteries } from '../hooks/useContent';
+import { useCatalogs, useUpholsteries , useMaterialSources } from '../hooks/useContent';
+import SupplierLinks from '../components/ui/SupplierLinks';
 import { SEO } from '../config/seoConfig';
 import KnowledgePageLayout from '../components/knowledge/KnowledgePageLayout';
 import SwatchCard from '../components/knowledge/SwatchCard';
@@ -16,6 +17,7 @@ const groupOf = (u) => u.manufacturer || (u.grade ? `${u.grade} ${u.materialType
 
 const UpholsteryPage = () => {
   const { data: upholsteries = [], loading } = useUpholsteries();
+  const { data: suppliers = [] } = useMaterialSources('upholstery');
   const { data: catalogs = [] } = useCatalogs();
   const [query, setQuery] = useState('');
   useTrackedQuery('Upholstery search', query);
@@ -84,8 +86,9 @@ const UpholsteryPage = () => {
       }
       footerNote={{ title: 'Need a sample or using your own material?', text: 'Ask us for vinyl samples or yardage for customer-supplied material.', cta: 'Contact us' }}
     >
+      <SupplierLinks variant="cards" sources={suppliers} className="mb-12" />
       {groups.length === 0 ? (
-        <EmptyResults
+        suppliers.length > 0 && !query ? null : <EmptyResults
           icon={query ? SearchX : Spool}
           title={query ? 'No materials found' : 'No materials listed yet'}
           message={query ? 'Try a different material, grade, or supplier.' : undefined}

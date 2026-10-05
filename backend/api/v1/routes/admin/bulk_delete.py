@@ -5,7 +5,8 @@ POST /admin/bulk/{resource}/delete with {"ids": [...], "confirm": "DELETE"}
 permanently removes rows that are already retired: deactivated / archived
 (is_active = false), unavailable variations, read inquiries, inactive or
 suspended companies, declined or expired quotes. Active rows are skipped, so
-deleting always takes two deliberate steps. Super admin only.
+deleting always takes two deliberate steps. Super admin only, with a recent
+identity confirmation (backend/services/admin_confirmation.py).
 
 Rows linked through ON DELETE CASCADE / SET NULL foreign keys are removed or
 cleared with the item (done explicitly, so it works the same whatever the
@@ -39,9 +40,10 @@ from backend.models.chair import (
     Upholstery,
 )
 from backend.models.company import AdminRole, AdminUser, Company, CompanyPricing, CompanyStatus
-from backend.models.content import Catalog, EmailTemplate, Feedback, Hardware, Laminate
+from backend.models.content import Catalog, EmailTemplate, Feedback, Hardware, Laminate, MaterialSource
 from backend.models.legal import LegalDocument
 from backend.models.quote import Quote, QuoteStatus
+from backend.services.admin_confirmation import require_recent_confirmation
 from backend.utils.static_content_exporter import export_content_after_update
 
 logger = logging.getLogger(__name__)
@@ -90,6 +92,7 @@ SPECS: dict[str, DeleteSpec] = {
     ),
     "laminates": DeleteSpec(Laminate, export_section="laminates", name=lambda r: f"{r.brand} {r.pattern_name}"),
     "hardware": DeleteSpec(Hardware, export_section="hardware"),
+    "material-sources": DeleteSpec(MaterialSource, export_section="materialSources"),
     "catalogs": DeleteSpec(Catalog, export_section="catalogs", name=lambda r: r.title),
     "pricing-tiers": DeleteSpec(CompanyPricing, name=lambda r: r.pricing_tier_name),
     "inquiries": DeleteSpec(
@@ -186,7 +189,13 @@ async def _blockers(db: AsyncSession, spec: DeleteSpec, row_id: int) -> list[str
     return found
 
 
-@router.post("/{resource}/delete", response_model=DeleteResponse, summary="Permanently delete retired rows")
+@router.post(
+    "/{resource}/delete",
+    response_model=DeleteResponse,
+    summary="Permanently delete retired rows",
+    # Irreversible: needs a recent passkey/password confirmation
+    dependencies=[Depends(require_recent_confirmation)],
+)
 async def permanent_delete(
     resource: str,
     body: DeleteRequest,

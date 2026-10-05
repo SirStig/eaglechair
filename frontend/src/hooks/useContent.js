@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback, useContext, useSyncExternalStore } from 'react';
+import { useState, useEffect, useRef, useCallback, useContext, useSyncExternalStore, useMemo } from 'react';
 import { cachedFetch, peekCache } from '../utils/cache';
 import { peekContentData, isContentFresh } from '../utils/contentDataLoader';
 import {
@@ -417,6 +417,28 @@ export const useLaminates = () => {
     [],
     staticSelectors.laminates
   );
+};
+
+/**
+ * Hook for supplier catalogs we special-order from (e.g. Wilsonart laminates).
+ * Pass a material type ('laminate', 'upholstery', 'finish', 'hardware',
+ * 'other') to get only those.
+ */
+export const useMaterialSources = (materialType) => {
+  const result = useContent(
+    contentService.getMaterialSources,
+    [],
+    'materialSources',
+    30 * 60 * 1000,
+    [],
+    staticSelectors.materialSources
+  );
+  const all = result.data;
+  const data = useMemo(
+    () => (materialType ? (all || []).filter((s) => s.materialType === materialType) : all || []),
+    [all, materialType]
+  );
+  return { ...result, data };
 };
 
 /**

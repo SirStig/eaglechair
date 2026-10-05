@@ -13,7 +13,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from backend.api.dependencies import (
-    get_current_admin,
+    authenticate_admin,
     get_current_company,
     get_current_token_and_payload,
     get_current_token_payload,
@@ -31,10 +31,13 @@ from backend.api.v1.schemas.company import (
     PasswordResetRequest,
     TokenResponse,
 )
+from backend.core.admin_permissions import admin_profile
+from backend.core.exceptions import AccountSuspendedError, InvalidCredentialsError
 from backend.core.security import tokens_for_response_body
 from backend.database.base import get_db
 from backend.models.company import AdminUser, Company
 from backend.models.passkey import AdminPasskeyCredential
+from backend.services import audit_service
 from backend.services.auth_service import AuthService, revoke_user_tokens
 
 logger = logging.getLogger(__name__)
@@ -151,12 +154,22 @@ async def unified_login(
     if admin_user:
         # User is an admin, authenticate as admin
         logger.info(f"Detected admin user: {admin_user.username}")
-        admin, tokens = await AuthService.authenticate_admin(
-            db=db,
-            username=admin_user.username,
-            password=login_data.password,
-            ip_address=client_ip,
-            two_factor_code=login_data.two_factor_code
+        try:
+            admin, tokens = await AuthService.authenticate_admin(
+                db=db,
+                username=admin_user.username,
+                password=login_data.password,
+                ip_address=client_ip,
+                two_factor_code=login_data.two_factor_code
+            )
+        except (InvalidCredentialsError, AccountSuspendedError) as e:
+            await audit_service.record(
+                db, admin_user.id, "login_failed", "admin_users", admin_user.id,
+                {"method": "password", "reason": e.message}, request,
+            )
+            raise
+        await audit_service.record(
+            db, admin.id, "login", "admin_users", admin.id, {"method": "password"}, request
         )
         
         # Set cookies
@@ -180,15 +193,7 @@ async def unified_login(
         return {
             **tokens_for_response_body(request, tokens),
             "requiresSetup": requires_setup,
-            "user": {
-                "id": admin.id,
-                "username": admin.username,
-                "email": admin.email,
-                "firstName": admin.first_name,
-                "lastName": admin.last_name,
-                "role": admin.role.value,
-                "type": "admin"
-            }
+            "user": admin_profile(admin),
         }
     
     # Not an admin, try company authentication
@@ -322,12 +327,27 @@ async def login_admin(
     logger.info(f"Admin login attempt: {login_data.username} from {client_ip}")
     
     # Authenticate admin
-    admin, tokens = await AuthService.authenticate_admin(
-        db=db,
-        username=login_data.username,
-        password=login_data.password,
-        ip_address=client_ip,
-        two_factor_code=login_data.two_factor_code
+    try:
+        admin, tokens = await AuthService.authenticate_admin(
+            db=db,
+            username=login_data.username,
+            password=login_data.password,
+            ip_address=client_ip,
+            two_factor_code=login_data.two_factor_code
+        )
+    except (InvalidCredentialsError, AccountSuspendedError) as e:
+        result = await db.execute(
+            select(AdminUser.id).where(AdminUser.username == login_data.username)
+        )
+        admin_id = result.scalar_one_or_none()
+        if admin_id is not None:
+            await audit_service.record(
+                db, admin_id, "login_failed", "admin_users", admin_id,
+                {"method": "password", "reason": e.message}, request,
+            )
+        raise
+    await audit_service.record(
+        db, admin.id, "login", "admin_users", admin.id, {"method": "password"}, request
     )
     
     # Set cookies
@@ -351,15 +371,7 @@ async def login_admin(
     return {
         **tokens_for_response_body(request, tokens),
         "requiresSetup": requires_setup,
-        "user": {
-            "id": admin.id,
-            "username": admin.username,
-            "email": admin.email,
-            "firstName": admin.first_name,
-            "lastName": admin.last_name,
-            "role": admin.role.value,
-            "type": "admin",
-        },
+        "user": admin_profile(admin),
     }
 
 
@@ -474,7 +486,7 @@ async def change_password(
     # Authenticate the caller fully (token version, admin session tokens)
     # before allowing the change
     if user_type == "admin":
-        caller = await get_current_admin(request, token_payload, db)
+        caller = await authenticate_admin(request, token_payload, db)
     else:
         caller = await get_current_company(request, token_payload, db)
     if caller.id != user_id:
@@ -632,17 +644,9 @@ async def get_current_user_profile(
     # Handle admin token
     if token_type == "admin":
         try:
-            admin = await get_current_admin(request, token_payload, db)
+            admin = await authenticate_admin(request, token_payload, db)
             logger.info(f"Profile retrieved for admin: {admin.username}")
-            return {
-                "id": admin.id,
-                "username": admin.username,
-                "email": admin.email,
-                "firstName": admin.first_name,
-                "lastName": admin.last_name,
-                "role": admin.role.value,
-                "type": "admin"
-            }
+            return admin_profile(admin)
         except Exception as e:
             logger.warning(f"Failed to get admin profile: {str(e)}")
             raise
@@ -747,6 +751,7 @@ async def logout(
             if user_type == "admin":
                 user.session_token = None
                 user.admin_token = None
+                db.add(audit_service.build_entry(user.id, "logout", "admin_users", user.id, conn=request))
             await db.commit()
             logger.info(f"All tokens revoked for {user_type} user: {user_id}")
 

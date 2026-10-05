@@ -1,4 +1,5 @@
 import { booleanAction, idAction } from '../bulk/bulkActions';
+import { supplierLinkOptions } from './supplierLinkTypes';
 
 // Same list ProductEditor offers
 export const STOCK_STATUS_OPTIONS = ['Made to Order', 'Available', 'Low Stock', 'Out of Stock', 'Discontinued'];
@@ -12,7 +13,7 @@ const stockAction = {
 const shownAction = (label, field) => booleanAction(label, field, 'Shown', 'Hidden');
 
 /** Product bulk actions (POST /admin/bulk/products) for the catalog and register */
-export function productBulkActions({ categories = [], subcategories = [], families = [] }) {
+export function productBulkActions({ categories = [], subcategories = [], families = [], supplierLinks = [] }) {
   const categoryName = (id) => categories.find((c) => c.id === id)?.name;
   return [
     idAction('Move to category', 'category_id', categories),
@@ -45,6 +46,17 @@ export function productBulkActions({ categories = [], subcategories = [], famili
     shownAction('Colors', 'colors_enabled'),
     shownAction('Laminates', 'laminates_enabled'),
     stockAction,
+    // Outside catalogs the product can be ordered with (Supplier Links)
+    {
+      label: 'Add supplier link',
+      options: supplierLinkOptions(supplierLinks),
+      toChanges: (v) => ({ add_material_sources: [Number(v)] }),
+    },
+    {
+      label: 'Remove supplier link',
+      options: supplierLinkOptions(supplierLinks),
+      toChanges: (v) => ({ remove_material_sources: [Number(v)] }),
+    },
   ];
 }
 

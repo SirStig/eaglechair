@@ -443,6 +443,7 @@ class ChairBase(BaseModel):
     upholstery_enabled: bool = True
     colors_enabled: bool = True
     laminates_enabled: bool = True
+    material_sources: Optional[list[int]] = None  # Supplier catalog (MaterialSource) IDs
 
     # Images (accepts either list of URLs or list of structured items)
     images: Union[List[str], List[ProductImageItem]]
@@ -572,6 +573,7 @@ class ChairUpdate(BaseModel):
     upholstery_enabled: Optional[bool] = None
     colors_enabled: Optional[bool] = None
     laminates_enabled: Optional[bool] = None
+    material_sources: Optional[list[int]] = None
     # Accept both URL lists and structured items when updating
     images: Optional[Union[List[str], List[ProductImageItem]]] = None
     primary_image: Optional[str] = Field(None, max_length=500)

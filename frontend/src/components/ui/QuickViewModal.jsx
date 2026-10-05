@@ -5,7 +5,7 @@ import Tag from './Tag';
 import { useCartStore } from '../../store/cartStore';
 import { getProductImages, buildProductUrl, resolveImageUrl, variationHasOwnImage, formatStockStatus, isInStock } from '../../utils/apiHelpers';
 import OptionPicker from './OptionPicker';
-import { optionsIfEnabled } from '../../utils/productOptions';
+import { optionsIfEnabled, sourcesFor } from '../../utils/productOptions';
 import ResponsiveImage from './ResponsiveImage';
 import VariationImageDisclaimer from './VariationImageDisclaimer';
 import SpecSymbols, { SpecIcon } from './SpecSymbols';
@@ -317,10 +317,11 @@ const QuickViewModal = ({ product, isOpen, onClose }) => {
             <OptionPicker
               compact
               className="mt-4"
+              productId={product.id}
               sections={[
-                { key: 'finish', label: 'Finish', kind: 'wood', options: product.customizations?.finishes, selected: selectedFinish, onSelect: setSelectedFinish },
-                { key: 'upholstery', label: 'Upholstery', kind: 'fabric', options: optionsIfEnabled(product, selectedVariation, 'upholstery', product.customizations?.fabrics), selected: selectedUpholstery, onSelect: setSelectedUpholstery },
-                { key: 'laminate', label: 'Laminate', kind: 'laminate', options: optionsIfEnabled(product, selectedVariation, 'laminates', product.customizations?.laminates), selected: selectedLaminate, onSelect: setSelectedLaminate },
+                { key: 'finish', label: 'Finish', kind: 'wood', options: product.customizations?.finishes, sources: sourcesFor(product, selectedVariation, 'finish'), selected: selectedFinish, onSelect: setSelectedFinish },
+                { key: 'upholstery', label: 'Upholstery', kind: 'fabric', options: optionsIfEnabled(product, selectedVariation, 'upholstery', product.customizations?.fabrics), sources: sourcesFor(product, selectedVariation, 'upholstery'), selected: selectedUpholstery, onSelect: setSelectedUpholstery },
+                { key: 'laminate', label: 'Laminate', kind: 'laminate', options: optionsIfEnabled(product, selectedVariation, 'laminates', product.customizations?.laminates), sources: sourcesFor(product, selectedVariation, 'laminate'), selected: selectedLaminate, onSelect: setSelectedLaminate },
                 { key: 'color', label: 'Color', options: optionsIfEnabled(product, selectedVariation, 'colors', product.customizations?.colors), selected: selectedColor, onSelect: setSelectedColor },
               ]}
             />

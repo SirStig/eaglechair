@@ -18,7 +18,7 @@ from sqlalchemy import func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from starlette.concurrency import run_in_threadpool
 
-from backend.api.dependencies import get_current_admin, require_role
+from backend.api.dependencies import get_current_admin
 from backend.api.v1.routes.admin.upload import get_upload_base_dir
 from backend.api.v1.schemas.catalog_builder import (
     CatalogDocument,
@@ -31,7 +31,7 @@ from backend.api.v1.schemas.catalog_builder import (
 from backend.database.base import get_db
 from backend.models.catalog_project import CatalogProject
 from backend.models.chair import Chair, ProductFamily
-from backend.models.company import AdminRole, AdminUser
+from backend.models.company import AdminUser
 from backend.models.content import Installation
 from backend.services.catalog_pdf.data import load_catalog_data, load_products, sample_document, suggest_pages
 from backend.services.catalog_pdf.images import EXPORT_MAX_PX, PREVIEW_MAX_PX, ImageLoader
@@ -84,7 +84,7 @@ async def list_projects(
 @router.post("/projects", status_code=201, summary="Create a catalog project")
 async def create_project(
     body: CatalogProjectCreate,
-    admin: AdminUser = Depends(require_role(AdminRole.EDITOR)),
+    admin: AdminUser = Depends(get_current_admin),
     db: AsyncSession = Depends(get_db),
 ):
     document = body.document or CatalogDocument()
@@ -104,7 +104,7 @@ async def create_project(
 
 @router.post("/projects/sample", status_code=201, summary="Create a sample catalog from live data")
 async def create_sample_project(
-    admin: AdminUser = Depends(require_role(AdminRole.EDITOR)),
+    admin: AdminUser = Depends(get_current_admin),
     db: AsyncSession = Depends(get_db),
 ):
     """
@@ -154,7 +154,7 @@ async def get_project(
 async def update_project(
     project_id: int,
     body: CatalogProjectUpdate,
-    admin: AdminUser = Depends(require_role(AdminRole.EDITOR)),
+    admin: AdminUser = Depends(get_current_admin),
     db: AsyncSession = Depends(get_db),
 ):
     project = await _get_project(db, project_id)
@@ -173,7 +173,7 @@ async def update_project(
 @router.post("/projects/{project_id}/duplicate", status_code=201, summary="Duplicate a catalog project")
 async def duplicate_project(
     project_id: int,
-    admin: AdminUser = Depends(require_role(AdminRole.EDITOR)),
+    admin: AdminUser = Depends(get_current_admin),
     db: AsyncSession = Depends(get_db),
 ):
     source = await _get_project(db, project_id)
@@ -193,7 +193,7 @@ async def duplicate_project(
 @router.delete("/projects/{project_id}", summary="Delete a catalog project")
 async def delete_project(
     project_id: int,
-    admin: AdminUser = Depends(require_role(AdminRole.ADMIN)),
+    admin: AdminUser = Depends(get_current_admin),
     db: AsyncSession = Depends(get_db),
 ):
     project = await _get_project(db, project_id)

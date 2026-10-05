@@ -447,6 +447,8 @@ class Chair(Base):
     upholstery_enabled = Column(Boolean, default=True, server_default=true(), nullable=False)
     colors_enabled = Column(Boolean, default=True, server_default=true(), nullable=False)
     laminates_enabled = Column(Boolean, default=True, server_default=true(), nullable=False)
+    # Supplier catalogs this product can be ordered with (MaterialSource IDs)
+    material_sources = Column(JSON, nullable=True)
 
     # Images (stored as JSON array with enhanced structure)
     # Structure: [{"url": "...", "type": "side|front|gallery", "order": 1, "alt": "..."}, ...]

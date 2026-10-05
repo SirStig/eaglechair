@@ -49,10 +49,11 @@ from sqlalchemy import select, delete, update, desc, func
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
-from backend.api.dependencies import get_current_admin, require_role
+from backend.api.dependencies import get_current_admin
+from backend.core.admin_permissions import Permission, has_permission
 from backend.core.config import settings
 from backend.core.ephemeral_store import ephemeral_store
-from backend.models.company import AdminAuditLog, AdminRole, AdminUser
+from backend.models.company import AdminAuditLog, AdminUser
 from backend.core.security import SecurityManager
 from backend.database.base import get_db, AsyncSessionLocal
 from backend.utils.file_validation import PRIVATE_UPLOAD_DIR
@@ -553,7 +554,7 @@ async def upsert_memory(
 async def apply_edit(
     body: dict,
     db: AsyncSession = Depends(get_db),
-    admin=Depends(require_role(AdminRole.ADMIN)),
+    admin=Depends(get_current_admin),
 ):
     """
     Apply a legacy single suggested edit (messages from before proposal batches).
@@ -619,7 +620,7 @@ async def list_proposed_edits(
 async def apply_proposed_edits(
     body: dict,
     db: AsyncSession = Depends(get_db),
-    admin=Depends(require_role(AdminRole.ADMIN)),
+    admin=Depends(get_current_admin),
 ):
     """
     Approve and apply proposals in order. Each one commits on its own, so one
@@ -781,7 +782,7 @@ async def upload_training_document(
     description: str = Form(""),
     tags: str = Form(""),
     db: AsyncSession = Depends(get_db),
-    admin=Depends(require_role(AdminRole.ADMIN)),
+    admin=Depends(get_current_admin),
 ):
     file_type = detect_file_type(file.filename or "", file.content_type or "")
     doc_id = str(uuid.uuid4())
@@ -867,7 +868,7 @@ async def upload_training_document(
 async def upload_training_batch(
     files: list[UploadFile] = File(..., description="Multiple files; names will be derived from filenames"),
     db: AsyncSession = Depends(get_db),
-    admin=Depends(require_role(AdminRole.ADMIN)),
+    admin=Depends(get_current_admin),
 ):
     if not files or len(files) > 200:
         raise HTTPException(status_code=400, detail="Provide 1–200 files")
@@ -952,7 +953,7 @@ async def upload_training_batch(
 async def delete_training_doc(
     doc_id: str,
     db: AsyncSession = Depends(get_db),
-    admin=Depends(require_role(AdminRole.ADMIN)),
+    admin=Depends(get_current_admin),
 ):
     await db.execute(
         update(AITrainingDocument)
@@ -1128,7 +1129,7 @@ async def websocket_chat(websocket: WebSocket, session_id: str):
                 return
             # Edit/agent modes can create products directly (create_product tool);
             # same bar as the product create/apply-edit routes.
-            can_write = ws_admin.role in (AdminRole.ADMIN, AdminRole.SUPER_ADMIN)
+            can_write = has_permission(ws_admin, Permission.EDIT_CATALOG)
             result = await db.execute(
                 select(AIChatSession)
                 .where(AIChatSession.id == session_id, AIChatSession.admin_user_id == admin_id)

@@ -24,7 +24,7 @@ from sqlalchemy import Boolean, Enum as SQLEnum, Float, Integer, String, delete,
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
-from backend.api.dependencies import require_role
+from backend.api.dependencies import get_current_admin
 from backend.core.exceptions import ResourceNotFoundError, ValidationError
 from backend.database.base import get_db
 from backend.models.chair import (
@@ -38,8 +38,8 @@ from backend.models.chair import (
     Upholstery,
     variation_families,
 )
-from backend.models.company import AdminRole, AdminUser, CompanyPricing
-from backend.models.content import Catalog, EmailTemplate, Feedback, Hardware, Laminate
+from backend.models.company import AdminUser, CompanyPricing
+from backend.models.content import Catalog, EmailTemplate, Feedback, Hardware, Laminate, MaterialSource
 from backend.models.legal import LegalDocument
 from backend.services.admin_service import AdminService
 from backend.utils.static_content_exporter import export_content_after_update
@@ -97,6 +97,7 @@ RESOURCES: dict[str, BulkResource] = {
         "catalogs",
     ),
     "pricing-tiers": BulkResource(CompanyPricing, ("is_active",)),
+    "material-sources": BulkResource(MaterialSource, ("is_active", "material_type"), "materialSources"),
     "inquiries": BulkResource(Feedback, ("is_read", "is_responded")),
     "email-templates": BulkResource(EmailTemplate, ("is_active",)),
     "legal-documents": BulkResource(LegalDocument, ("is_active",), "legalDocuments"),
@@ -115,6 +116,9 @@ PRODUCT_LIST_OPS = {
     for verb in ("add", "remove")
     for group in ("finishes", "upholsteries", "colors", "laminates")
 }
+# Supplier catalog links ride on the same list machinery
+PRODUCT_LIST_OPS["add_material_sources"] = ("material_sources", True)
+PRODUCT_LIST_OPS["remove_material_sources"] = ("material_sources", False)
 PRODUCT_CATEGORY_OPS = ("add_category_id", "remove_category_id")
 # Family membership: on products, add sets the main family when there is none
 # and a secondary family otherwise; remove takes it off either way.
@@ -364,7 +368,7 @@ async def _apply_variation_family_ops(db: AsyncSession, variation_ids: list[int]
 async def bulk_edit(
     resource: str,
     body: BulkEditRequest,
-    admin: AdminUser = Depends(require_role(AdminRole.ADMIN)),
+    admin: AdminUser = Depends(get_current_admin),
     db: AsyncSession = Depends(get_db),
 ):
     ids = list(dict.fromkeys(body.ids))
