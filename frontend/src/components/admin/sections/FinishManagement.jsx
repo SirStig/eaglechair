@@ -291,6 +291,7 @@ const FinishManagement = () => {
           </div>
         ) : (
           <ReorderableTable
+            onRowClick={handleEdit}
             items={sortedFinishes}
             setItems={(next) => setFinishes(next.map((item, i) => ({ ...item, display_order: i })))}
             getItemId={(item) => item.id}

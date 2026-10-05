@@ -16,7 +16,8 @@ import {
 } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import { GripVertical, ChevronUp, ChevronDown } from 'lucide-react';
-import { SelectAllCheckbox, RowCheckbox } from './bulk/SelectCheckbox';
+import { SelectAllCheckbox, SelectCell } from './bulk/SelectCheckbox';
+import { openOnRowClick } from './bulk/rowClick';
 
 const ORDER_COLUMN_KEY = 'display_order';
 
@@ -50,7 +51,7 @@ function SortableTh({ label, sortKey, activeSortBy, sortDir, onSort, className =
   );
 }
 
-function SortableRow({ id, index, children, disabled, selected }) {
+function SortableRow({ id, index, children, disabled, selected, onClick }) {
   const {
     attributes,
     listeners,
@@ -69,7 +70,8 @@ function SortableRow({ id, index, children, disabled, selected }) {
     <tr
       ref={setNodeRef}
       style={style}
-      className={`transition-colors ${isDragging ? 'opacity-50 bg-dark-700 z-10' : ''} ${selected ? 'bg-primary-900/15' : ''}`}
+      onClick={onClick}
+      className={`transition-colors ${isDragging ? 'opacity-50 bg-dark-700 z-10' : ''} ${selected ? 'bg-primary-900/15' : ''} ${onClick ? 'cursor-pointer hover:bg-dark-700/40' : ''}`}
     >
       {children({ dragHandleProps: { ...attributes, ...listeners }, isDragging, index })}
     </tr>
@@ -89,6 +91,8 @@ export default function ReorderableTable({
   disabled = false,
   // Optional useBulkSelection() result: adds a checkbox column
   selection = null,
+  // Optional: clicking a row (outside its controls) opens the item
+  onRowClick = null,
 }) {
   const [saving, setSaving] = useState(false);
   const [sortBy, setSortBy] = useState(ORDER_COLUMN_KEY);
@@ -183,17 +187,17 @@ export default function ReorderableTable({
                   index={index}
                   disabled={disabled || saving || dragDisabled}
                   selected={selection?.isSelected(getItemId(item))}
+                  onClick={onRowClick ? openOnRowClick(() => onRowClick(item)) : undefined}
                 >
                   {({ dragHandleProps, isDragging, index: rowIndex }) => (
                     <>
                       {selection && (
-                        <td className="px-2 sm:px-3 py-3 align-top">
-                          <RowCheckbox
-                            selection={selection}
-                            id={getItemId(item)}
-                            orderedIds={sortedItems.map(getItemId)}
-                          />
-                        </td>
+                        <SelectCell
+                          selection={selection}
+                          id={getItemId(item)}
+                          orderedIds={sortedItems.map(getItemId)}
+                          className="px-2 sm:px-3 py-3 align-top"
+                        />
                       )}
                       <td className="px-2 sm:px-3 py-3 align-top">
                         <div className="flex items-center gap-1">

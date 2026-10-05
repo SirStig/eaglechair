@@ -247,6 +247,7 @@ const HardwareManagement = () => {
           </div>
         ) : (
           <ReorderableTable
+            onRowClick={handleEdit}
             items={sortedHardware}
             setItems={(next) => setHardware(next.map((item, i) => ({ ...item, display_order: i })))}
             getItemId={(item) => item.id}

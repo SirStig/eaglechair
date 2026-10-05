@@ -10,7 +10,8 @@ import PaginationBar from '../PaginationBar';
 import { AdminPage, AdminPageHeader } from '../ui/AdminPage';
 import useBulkSelection from '../../../hooks/useBulkSelection';
 import BulkActionBar from '../bulk/BulkActionBar';
-import { SelectAllCheckbox, RowCheckbox } from '../bulk/SelectCheckbox';
+import { SelectAllCheckbox, SelectCell } from '../bulk/SelectCheckbox';
+import { openOnRowClick } from '../bulk/rowClick';
 import { 
   FileText, 
   Search, 
@@ -258,16 +259,15 @@ const QuoteManagement = () => {
                 {filteredQuotes.map((quote) => (
                   <tr
                     key={quote.id}
-                    className={`border-b border-dark-700 hover:bg-dark-700/50 transition-colors cursor-pointer select-none ${selection.isSelected(quote.id) ? 'bg-primary-900/10' : ''}`}
-                    onClick={(e) => {
-                      if (!e.target.closest('button') && !e.target.closest('[data-no-select]')) {
-                        selection.toggle(quote.id, e);
-                      }
-                    }}
+                    className={`border-b border-dark-700 hover:bg-dark-700/50 transition-colors cursor-pointer ${selection.isSelected(quote.id) ? 'bg-primary-900/10' : ''}`}
+                    onClick={openOnRowClick(() => handleViewQuote(quote.id))}
                   >
-                    <td className="px-3 sm:p-4 py-3">
-                      <RowCheckbox selection={selection} id={quote.id} label={`Select quote ${quote.quote_number}`} />
-                    </td>
+                    <SelectCell
+                      selection={selection}
+                      id={quote.id}
+                      label={`Select quote ${quote.quote_number}`}
+                      className="px-3 sm:p-4 py-3"
+                    />
                     <td className="px-3 sm:p-4 py-3">
                       <span className="font-medium text-xs sm:text-sm text-accent-500">
                         #{quote.quote_number}

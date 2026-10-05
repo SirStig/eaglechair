@@ -11,7 +11,8 @@ import { AdminPage, AdminPageHeader } from '../ui/AdminPage';
 import useBulkSelection from '../../../hooks/useBulkSelection';
 import BulkActionBar from '../bulk/BulkActionBar';
 import { ACTIVE_ACTIONS } from '../bulk/bulkActions';
-import { SelectAllCheckbox, RowCheckbox } from '../bulk/SelectCheckbox';
+import { SelectAllCheckbox, SelectCell } from '../bulk/SelectCheckbox';
+import { openOnRowClick } from '../bulk/rowClick';
 
 // Public pages that render a specific legal document type
 const PUBLIC_PATHS = {
@@ -290,10 +291,12 @@ const LegalDocumentManagement = () => {
                   visibleDocuments.map((doc) => {
                     const publicPath = PUBLIC_PATHS[doc.documentType];
                     return (
-                      <tr key={doc.id} className={`transition-colors hover:bg-dark-750 ${selection.isSelected(doc.id) ? 'bg-primary-900/15' : ''}`}>
-                        <td className="px-4 py-3">
-                          <RowCheckbox selection={selection} id={doc.id} orderedIds={orderedIds} label={`Select ${doc.title}`} />
-                        </td>
+                      <tr
+                        key={doc.id}
+                        className={`cursor-pointer transition-colors hover:bg-dark-750 ${selection.isSelected(doc.id) ? 'bg-primary-900/15' : ''}`}
+                        onClick={openOnRowClick(() => handleEdit(doc))}
+                      >
+                        <SelectCell selection={selection} id={doc.id} orderedIds={orderedIds} label={`Select ${doc.title}`} className="px-4 py-3" />
                         <td className="px-4 py-3">
                           <button
                             type="button"

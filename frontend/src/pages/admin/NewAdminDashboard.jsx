@@ -278,7 +278,7 @@ const NewAdminDashboardInner = () => {
           onLogout={handleLogout}
         />
 
-        <div ref={contentRef} className="flex-1 overflow-x-hidden">
+        <div ref={contentRef} className="flex-1 overflow-x-clip">
           <div key={selectedProduct ? 'editor' : activeSection} className="animate-admin-in">
             {renderSection()}
           </div>

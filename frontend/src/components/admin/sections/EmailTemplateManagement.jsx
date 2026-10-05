@@ -10,7 +10,8 @@ import { AdminPage, AdminPageHeader } from '../ui/AdminPage';
 import useBulkSelection from '../../../hooks/useBulkSelection';
 import BulkActionBar from '../bulk/BulkActionBar';
 import { ACTIVE_ACTIONS } from '../bulk/bulkActions';
-import { SelectAllCheckbox, RowCheckbox } from '../bulk/SelectCheckbox';
+import { SelectAllCheckbox, RowCheckbox, SelectCell } from '../bulk/SelectCheckbox';
+import { openOnRowClick } from '../bulk/rowClick';
 
 const EMPTY_FORM = {
   template_type: '',
@@ -247,8 +248,22 @@ const EmailTemplateManagement = () => {
             <span>Select all</span>
           </li>
           {sortedTemplates.map((template) => (
-            <li key={template.id} className={`flex flex-col gap-3 px-4 py-4 sm:flex-row sm:items-center sm:px-5 ${template.is_active ? '' : 'opacity-70'} ${selection.isSelected(template.id) ? 'bg-primary-900/15' : ''}`}>
-              <RowCheckbox selection={selection} id={template.id} label={`Select ${template.name}`} />
+            <li
+              key={template.id}
+              className={`flex cursor-pointer flex-col gap-3 px-4 py-4 hover:bg-dark-700/40 sm:flex-row sm:items-center sm:px-5 ${template.is_active ? '' : 'opacity-70'} ${selection.isSelected(template.id) ? 'bg-primary-900/15' : ''}`}
+              onClick={openOnRowClick(() => openEditor(template))}
+            >
+              <span
+                data-select-cell
+                onMouseDown={(e) => e.shiftKey && e.preventDefault()}
+                className="-m-2 self-start p-2 sm:self-center"
+                onClick={(e) => {
+                  if (e.target.closest('input')) return;
+                  selection.toggle(template.id, e);
+                }}
+              >
+                <RowCheckbox selection={selection} id={template.id} label={`Select ${template.name}`} />
+              </span>
               <div className="min-w-0 flex-1">
                 <div className="flex flex-wrap items-center gap-2">
                   <h3 className="font-semibold text-dark-50">{template.name}</h3>

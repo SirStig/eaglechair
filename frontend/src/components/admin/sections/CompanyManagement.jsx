@@ -12,7 +12,8 @@ import PaginationBar from '../PaginationBar';
 import { AdminPage, AdminPageHeader } from '../ui/AdminPage';
 import useBulkSelection from '../../../hooks/useBulkSelection';
 import BulkActionBar from '../bulk/BulkActionBar';
-import { SelectAllCheckbox, RowCheckbox } from '../bulk/SelectCheckbox';
+import { SelectAllCheckbox, SelectCell } from '../bulk/SelectCheckbox';
+import { openOnRowClick } from '../bulk/rowClick';
 
 const CompanyManagement = () => {
   const { refreshKeys } = useAdminRefresh();
@@ -242,16 +243,15 @@ const CompanyManagement = () => {
                 {companies.map((company) => (
                   <tr
                     key={company.id}
-                    className={`border-b border-dark-700 hover:bg-dark-700/50 cursor-pointer select-none ${selection.isSelected(company.id) ? 'bg-primary-900/10' : ''}`}
-                    onClick={(e) => {
-                      if (!e.target.closest('button') && !e.target.closest('[data-no-select]')) {
-                        selection.toggle(company.id, e);
-                      }
-                    }}
+                    className={`border-b border-dark-700 hover:bg-dark-700/50 cursor-pointer ${selection.isSelected(company.id) ? 'bg-primary-900/10' : ''}`}
+                    onClick={openOnRowClick(() => handleViewCompany(company.id))}
                   >
-                    <td className="px-3 sm:px-4 py-3 sm:py-4">
-                      <RowCheckbox selection={selection} id={company.id} label={`Select ${company.company_name}`} />
-                    </td>
+                    <SelectCell
+                      selection={selection}
+                      id={company.id}
+                      label={`Select ${company.company_name}`}
+                      className="px-3 sm:px-4 py-3 sm:py-4"
+                    />
                     <td className="px-3 sm:px-4 py-3 sm:py-4">
                       <p className="font-medium text-xs sm:text-sm md:text-base text-dark-50">{company.company_name}</p>
                       <p className="text-xs sm:text-sm text-dark-400">{company.industry}</p>

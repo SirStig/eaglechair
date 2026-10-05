@@ -318,9 +318,10 @@ export default function ProductVariationsTab({
 
   return (
     <div className="grid gap-6 lg:grid-cols-[15rem_minmax(0,1fr)]">
-      {/* Filter + jump list */}
+      {/* Filter + jump list: follows the page below the top bar, stops at the
+          ends of the variations section and never runs under the bottom dock */}
       <aside className="lg:sticky lg:top-20 lg:self-start">
-        <div className="space-y-3 rounded-xl border border-dark-600 bg-dark-800/60 p-3">
+        <div className="flex flex-col gap-3 rounded-xl border border-dark-600 bg-dark-800/95 p-3 lg:max-h-[calc(100dvh-12.5rem)]">
           <label className="flex items-center gap-2 rounded-lg border border-dark-600 bg-dark-700 px-2.5">
             <Search className="h-4 w-4 text-dark-400" />
             <input
@@ -335,7 +336,7 @@ export default function ProductVariationsTab({
             {unavailable > 0 && ` · ${unavailable} not for sale`}
             {missingSku > 0 && <span className="text-amber-300"> · {missingSku} missing SKU</span>}
           </p>
-          <nav className="hidden max-h-[calc(100vh-16rem)] space-y-0.5 overflow-y-auto lg:block" aria-label="Jump to variation">
+          <nav className="hidden min-h-0 flex-1 space-y-0.5 overflow-y-auto overscroll-contain lg:block" aria-label="Jump to variation">
             {rows.map(({ variation, index, key }) => (
               <button
                 key={key}

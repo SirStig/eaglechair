@@ -14,7 +14,8 @@ import ResponsiveImage from '../../ui/ResponsiveImage';
 import { AdminPage, AdminPageHeader } from '../ui/AdminPage';
 import useBulkSelection from '../../../hooks/useBulkSelection';
 import BulkActionBar from '../bulk/BulkActionBar';
-import { SelectAllCheckbox, RowCheckbox } from '../bulk/SelectCheckbox';
+import { SelectAllCheckbox, SelectCell } from '../bulk/SelectCheckbox';
+import { openOnRowClick } from '../bulk/rowClick';
 import { ACTIVE_ACTIONS } from '../bulk/bulkActions';
 import { productBulkActions } from './productBulkActions';
 
@@ -353,16 +354,15 @@ const ProductCatalog = ({ onEdit }) => {
                 {products.map((product) => (
                   <tr
                     key={product.id}
-                    className={`border-b border-dark-700 hover:bg-dark-700/50 transition-colors cursor-pointer select-none ${selection.isSelected(product.id) ? 'bg-primary-900/10' : ''}`}
-                    onClick={(e) => {
-                      if (!e.target.closest('button') && !e.target.closest('input') && !e.target.closest('[data-no-select]')) {
-                        selection.toggle(product.id, e);
-                      }
-                    }}
+                    className={`border-b border-dark-700 hover:bg-dark-700/50 transition-colors cursor-pointer ${selection.isSelected(product.id) ? 'bg-primary-900/10' : ''}`}
+                    onClick={openOnRowClick(() => onEdit(product))}
                   >
-                    <td className="px-4 py-4">
-                      <RowCheckbox selection={selection} id={product.id} label={`Select ${product.name}`} />
-                    </td>
+                    <SelectCell
+                      selection={selection}
+                      id={product.id}
+                      label={`Select ${product.name}`}
+                      className="px-4 py-4"
+                    />
                     <td className="px-4 py-4">
                       {product.primary_image_url ? (
                         <ResponsiveImage

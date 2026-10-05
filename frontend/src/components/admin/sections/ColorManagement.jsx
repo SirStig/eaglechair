@@ -249,6 +249,7 @@ const ColorManagement = () => {
           </div>
         ) : (
           <ReorderableTable
+            onRowClick={handleEdit}
             items={sortedColors}
             setItems={(next) => setColors(next.map((item, i) => ({ ...item, display_order: i })))}
             getItemId={(item) => item.id}

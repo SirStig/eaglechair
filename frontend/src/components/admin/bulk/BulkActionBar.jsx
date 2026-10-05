@@ -130,6 +130,11 @@ export default function BulkActionBar({
           {panel ? panel.action.label : `${plural} selected`}
         </span>
         {panel && <span className="hidden sm:inline text-sm text-dark-400">· {plural}</span>}
+        {!panel && ids.length === 1 && (
+          <span className="hidden md:inline text-xs text-dark-400">
+            Shift-click another row&apos;s checkbox to select everything in between
+          </span>
+        )}
         {busy && <Loader2 className="h-4 w-4 animate-spin text-primary-400" />}
         <button
           type="button"

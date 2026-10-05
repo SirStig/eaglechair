@@ -17,7 +17,8 @@ import apiClient from '../../../config/apiClient';
 import { AdminPage, AdminPageHeader } from '../ui/AdminPage';
 import useBulkSelection, { useExclusiveSelections } from '../../../hooks/useBulkSelection';
 import BulkActionBar from '../bulk/BulkActionBar';
-import { SelectAllCheckbox, RowCheckbox } from '../bulk/SelectCheckbox';
+import { SelectAllCheckbox, SelectCell } from '../bulk/SelectCheckbox';
+import { openOnRowClick } from '../bulk/rowClick';
 import { ACTIVE_ACTIONS } from '../bulk/bulkActions';
 import { productBulkActions, variationBulkActions } from './productBulkActions';
 
@@ -316,10 +317,17 @@ const ProductRegister = () => {
                 const open = expanded.has(p.id);
                 return (
                   <Fragment key={p.id}>
-                    <tr className={`hover:bg-dark-700/40 ${selection.isSelected(p.id) ? 'bg-primary-500/5' : ''}`}>
-                      <td className="p-3">
-                        <RowCheckbox selection={selection} id={p.id} orderedIds={visible.map((row) => row.id)} label={`Select ${modelLabel(p)}`} />
-                      </td>
+                    <tr
+                      className={`cursor-pointer hover:bg-dark-700/40 ${selection.isSelected(p.id) ? 'bg-primary-500/5' : ''}`}
+                      onClick={openOnRowClick(() => navigate(`/admin/catalog?edit=${p.id}`))}
+                    >
+                      <SelectCell
+                        selection={selection}
+                        id={p.id}
+                        orderedIds={visible.map((row) => row.id)}
+                        label={`Select ${modelLabel(p)}`}
+                        className="p-3"
+                      />
                       <td className="p-2">
                         {p.default_image ? (
                           <ResponsiveImage
@@ -387,15 +395,18 @@ const ProductRegister = () => {
                       </td>
                     </tr>
                     {open && p.variations.map((v) => (
-                      <tr key={`v${v.id}`} className={`text-xs ${variationSelection.isSelected(v.id) ? 'bg-primary-500/10' : 'bg-dark-900/40'}`}>
-                        <td className="p-2 pl-6">
-                          <RowCheckbox
-                            selection={variationSelection}
-                            id={v.id}
-                            orderedIds={p.variations.map((row) => row.id)}
-                            label={`Select variation ${v.sku}`}
-                          />
-                        </td>
+                      <tr
+                        key={`v${v.id}`}
+                        className={`cursor-pointer text-xs ${variationSelection.isSelected(v.id) ? 'bg-primary-500/10' : 'bg-dark-900/40'}`}
+                        onClick={openOnRowClick(() => navigate(`/admin/catalog?edit=${p.id}`))}
+                      >
+                        <SelectCell
+                          selection={variationSelection}
+                          id={v.id}
+                          orderedIds={p.variations.map((row) => row.id)}
+                          label={`Select variation ${v.sku}`}
+                          className="p-2 pl-6"
+                        />
                         <td className="p-2">
                           {v.default_image && (
                             <ResponsiveImage sizes="32px" fullResolution={false} src={resolveImageUrl(v.default_image)} alt="" className="w-8 h-8 object-contain rounded bg-dark-700 ml-1" />

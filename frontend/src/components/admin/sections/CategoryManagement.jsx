@@ -28,7 +28,8 @@ import { AdminPage, AdminPageHeader } from '../ui/AdminPage';
 import useBulkSelection, { useExclusiveSelections } from '../../../hooks/useBulkSelection';
 import BulkActionBar from '../bulk/BulkActionBar';
 import { idAction } from '../bulk/bulkActions';
-import { SelectAllCheckbox, RowCheckbox } from '../bulk/SelectCheckbox';
+import { SelectAllCheckbox, RowCheckbox, SelectCell } from '../bulk/SelectCheckbox';
+import { openOnRowClick } from '../bulk/rowClick';
 
 function compareValues(a, b, dir) {
   const va = a == null ? '' : a;
@@ -77,11 +78,10 @@ function SortableCategoryRow({ category, index, isExpanded, hasSubcategories, on
       <tr
         ref={setNodeRef}
         style={style}
-        className={`hover:bg-dark-750 transition-colors ${isDragging ? 'opacity-50 bg-dark-700 z-10' : ''} ${catSel.isSelected(category.id) ? 'bg-primary-900/15' : ''}`}
+        className={`cursor-pointer hover:bg-dark-750 transition-colors ${isDragging ? 'opacity-50 bg-dark-700 z-10' : ''} ${catSel.isSelected(category.id) ? 'bg-primary-900/15' : ''}`}
+        onClick={openOnRowClick(() => handleEdit(category))}
       >
-        <td className="px-2 sm:px-3 py-3 align-top">
-          <RowCheckbox selection={catSel} id={category.id} label={`Select ${category.name}`} />
-        </td>
+        <SelectCell selection={catSel} id={category.id} label={`Select ${category.name}`} className="px-2 sm:px-3 py-3 align-top" />
         <td className="px-2 sm:px-3 py-3 align-top">
           <div className="flex items-center gap-1">
             <span className="text-dark-400 font-mono text-xs sm:text-sm tabular-nums w-6">{index}</span>
@@ -189,11 +189,18 @@ function SortableCategoryRow({ category, index, isExpanded, hasSubcategories, on
         </td>
       </tr>
       {hasSubcategories && isExpanded && category.subcategories.map((subcat) => (
-        <tr key={`sub-${subcat.id}`} className={`bg-dark-750/50 hover:bg-dark-700 transition-colors ${(subcat.type === 'category' ? catSel : subSel).isSelected(subcat.id) ? 'bg-primary-900/15' : ''}`}>
-          <td className="px-2 sm:px-3 py-3">
-            {/* Nested categories live in the categories table, subcategories in their own */}
-            <RowCheckbox selection={subcat.type === 'category' ? catSel : subSel} id={subcat.id} label={`Select ${subcat.name}`} />
-          </td>
+        <tr
+          key={`sub-${subcat.id}`}
+          className={`cursor-pointer bg-dark-750/50 hover:bg-dark-700 transition-colors ${(subcat.type === 'category' ? catSel : subSel).isSelected(subcat.id) ? 'bg-primary-900/15' : ''}`}
+          onClick={openOnRowClick(() => handleEditSubcategory(subcat))}
+        >
+          {/* Nested categories live in the categories table, subcategories in their own */}
+          <SelectCell
+            selection={subcat.type === 'category' ? catSel : subSel}
+            id={subcat.id}
+            label={`Select ${subcat.name}`}
+            className="px-2 sm:px-3 py-3"
+          />
           <td className="px-6 py-3" />
           <td className="px-6 py-3">
             <div className="flex items-center gap-2 pl-8">
@@ -493,8 +500,13 @@ const CategoryManagement = () => {
   const categoryRows = useMemo(
     () => (tab === 'archived'
       ? archivedItems.filter((i) => i.type === 'category')
-      : [...sortedTopLevel, ...visibleChildren.filter((c) => c.type === 'category')]),
-    [tab, archivedItems, sortedTopLevel, visibleChildren]
+      // Table order (each parent, then its open nested categories) so
+      // shift-click ranges match what's on screen
+      : sortedTopLevel.flatMap((c) => [
+          c,
+          ...(expandedCategories.has(c.id) ? (c.subcategories || []).filter((s) => s.type === 'category') : []),
+        ])),
+    [tab, archivedItems, sortedTopLevel, expandedCategories]
   );
   const subcategoryRows = useMemo(
     () => (tab === 'archived'

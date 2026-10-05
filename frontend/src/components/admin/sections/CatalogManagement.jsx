@@ -194,6 +194,7 @@ const CatalogManagement = () => {
           </div>
         ) : (
           <ReorderableTable
+            onRowClick={handleEdit}
             items={sortedCatalogs}
             setItems={(next) => setCatalogs(next.map((item, i) => ({ ...item, display_order: i })))}
             getItemId={(item) => item.id}

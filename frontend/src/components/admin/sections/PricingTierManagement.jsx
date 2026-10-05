@@ -12,7 +12,8 @@ import { AdminPage, AdminPageHeader } from '../ui/AdminPage';
 import useBulkSelection from '../../../hooks/useBulkSelection';
 import BulkActionBar from '../bulk/BulkActionBar';
 import { ACTIVE_ACTIONS } from '../bulk/bulkActions';
-import { SelectAllCheckbox, RowCheckbox } from '../bulk/SelectCheckbox';
+import { SelectAllCheckbox, SelectCell } from '../bulk/SelectCheckbox';
+import { openOnRowClick } from '../bulk/rowClick';
 
 /**
  * Pricing Tier Management Component
@@ -199,10 +200,18 @@ const PricingTierManagement = () => {
               </thead>
               <tbody className="bg-dark-800 divide-y divide-dark-700">
                 {sortedTiers.map((tier) => (
-                  <tr key={tier.id} className={`hover:bg-dark-700 transition-colors ${selection.isSelected(tier.id) ? 'bg-primary-900/15' : ''}`}>
-                    <td className="px-3 sm:px-4 py-4">
-                      <RowCheckbox selection={selection} id={tier.id} orderedIds={orderedIds} />
-                    </td>
+                  <tr
+                    key={tier.id}
+                    className={`cursor-pointer hover:bg-dark-700 transition-colors ${selection.isSelected(tier.id) ? 'bg-primary-900/15' : ''}`}
+                    onClick={openOnRowClick(() => handleEdit(tier))}
+                  >
+                    <SelectCell
+                      selection={selection}
+                      id={tier.id}
+                      orderedIds={orderedIds}
+                      label={`Select ${tier.pricing_tier_name}`}
+                      className="px-3 sm:px-4 py-4"
+                    />
                     <td className="px-6 py-4 whitespace-nowrap">
                       <div className="text-sm font-medium text-dark-50">
                         {tier.pricing_tier_name}

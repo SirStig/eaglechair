@@ -252,6 +252,7 @@ const LaminateManagement = () => {
           </div>
         ) : (
           <ReorderableTable
+            onRowClick={handleEdit}
             items={sortedLaminates}
             setItems={(next) => setLaminates(next.map((item, i) => ({ ...item, display_order: i })))}
             getItemId={(item) => item.id}

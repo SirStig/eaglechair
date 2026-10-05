@@ -310,6 +310,7 @@ const FamilyManagement = () => {
               position="top"
             />
             <ReorderableTable
+              onRowClick={handleEdit}
               items={paginatedFamilies}
               setItems={(next) => {
                 const start = (page - 1) * pageSize;
