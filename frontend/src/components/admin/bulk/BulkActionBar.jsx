@@ -30,7 +30,8 @@ const SEARCH_AFTER = 8;
  *   { label, options: [{value, label}], toChanges }    pick a value, confirm, apply
  *   { label, input: {type, placeholder, step}, toChanges }  type a value, apply
  *   { label, run: async (ids, value) => {...}, tone? } custom handler; may also
- *                                                      take options or input
+ *                                                      take options or input;
+ *                                                      return false to cancel
  *   { label, onClick: (ids) => {...}, tone? }          just call (e.g. open a
  *                                                      confirm dialog)
  *
@@ -77,7 +78,8 @@ export default function BulkActionBar({
     setBusy(true);
     try {
       if (action.run) {
-        await action.run(ids, value);
+        // A run handler returns false when the user backed out: keep the selection
+        if ((await action.run(ids, value)) === false) return;
         if (!quiet) toast.success(`${action.label}: ${plural}`);
       } else {
         const changes = action.toChanges ? action.toChanges(value) : action.changes;

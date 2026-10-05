@@ -467,14 +467,13 @@ const ProductEditor = ({ product, onBack }) => {
         tone: 'danger',
         run: async (keys) => {
           if (!confirm(`Remove ${keys.length} variation${keys.length === 1 ? '' : 's'}? This takes effect when you save the product.`)) {
-            throw new Error('Cancelled');
+            return false;
           }
           removeVariations(keys);
         },
       },
     ];
     // patchVariations / removeVariations only call the stable setVariations
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [finishes, upholsteries, colors, families]);
 
   const handleSave = async () => {

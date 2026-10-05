@@ -15,7 +15,7 @@ import {
 } from '../../../services/catalogToolsService';
 import apiClient from '../../../config/apiClient';
 import { AdminPage, AdminPageHeader } from '../ui/AdminPage';
-import useBulkSelection from '../../../hooks/useBulkSelection';
+import useBulkSelection, { useExclusiveSelections } from '../../../hooks/useBulkSelection';
 import BulkActionBar from '../bulk/BulkActionBar';
 import { SelectAllCheckbox, RowCheckbox } from '../bulk/SelectCheckbox';
 import { ACTIVE_ACTIONS } from '../bulk/bulkActions';
@@ -184,6 +184,7 @@ const ProductRegister = () => {
   const selection = useBulkSelection(filtered);
   const filteredVariations = useMemo(() => filtered.flatMap((p) => p.variations), [filtered]);
   const variationSelection = useBulkSelection(filteredVariations);
+  useExclusiveSelections(selection, variationSelection);
 
   const productActions = useMemo(() => [
     ...productBulkActions({ categories: categoryRows, subcategories: subcategoryRows, families: data.families }),

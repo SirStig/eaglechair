@@ -25,7 +25,7 @@ import CategoryEditor from './CategoryEditor';
 import StatusTabs from '../StatusTabs';
 import PermanentDeleteModal from '../PermanentDeleteModal';
 import { AdminPage, AdminPageHeader } from '../ui/AdminPage';
-import useBulkSelection from '../../../hooks/useBulkSelection';
+import useBulkSelection, { useExclusiveSelections } from '../../../hooks/useBulkSelection';
 import BulkActionBar from '../bulk/BulkActionBar';
 import { idAction } from '../bulk/bulkActions';
 import { SelectAllCheckbox, RowCheckbox } from '../bulk/SelectCheckbox';
@@ -504,6 +504,7 @@ const CategoryManagement = () => {
   );
   const catSel = useBulkSelection(categoryRows);
   const subSel = useBulkSelection(subcategoryRows);
+  useExclusiveSelections(catSel, subSel);
 
   const statusAction = tab === 'archived'
     ? { label: 'Restore', changes: { is_active: true } }

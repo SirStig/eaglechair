@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 /**
  * Row selection for admin lists: click toggles a row, shift-click selects the
@@ -63,4 +63,23 @@ export default function useBulkSelection(items, getId = (item) => item.id) {
     someSelected,
     clear,
   };
+}
+
+/**
+ * For pages with two selectable lists (products + variations, categories +
+ * subcategories): their batch bars share one spot at the bottom of the
+ * window, so starting a selection in one list clears the others.
+ */
+export function useExclusiveSelections(...selections) {
+  const previous = useRef([]);
+  useEffect(() => {
+    const active = selections.map((s) => s.count > 0);
+    const started = active.findIndex((on, i) => on && !previous.current[i]);
+    if (started !== -1) {
+      selections.forEach((s, i) => {
+        if (i !== started && s.count) s.clear();
+      });
+    }
+    previous.current = active;
+  });
 }
