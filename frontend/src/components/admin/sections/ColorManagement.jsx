@@ -12,6 +12,16 @@ import { useToast } from '../../../contexts/ToastContext';
 import { useAdminRefresh } from '../../../contexts/AdminRefreshContext';
 import ResponsiveImage from '../../ui/ResponsiveImage';
 import { AdminPage, AdminPageHeader } from '../ui/AdminPage';
+import useBulkSelection from '../../../hooks/useBulkSelection';
+import BulkActionBar from '../bulk/BulkActionBar';
+import { ACTIVE_ACTIONS } from '../bulk/bulkActions';
+
+const COLOR_CATEGORY_OPTIONS = [{ value: 'wood', label: 'Wood' }, { value: 'metal', label: 'Metal' }, { value: 'fabric', label: 'Fabric' }, { value: 'paint', label: 'Paint' }, { value: 'leather', label: 'Leather' }, { value: 'vinyl', label: 'Vinyl' }];
+
+const BULK_ACTIONS = [
+  ...ACTIVE_ACTIONS,
+  { label: 'Category', options: COLOR_CATEGORY_OPTIONS, toChanges: (v) => ({ category: v }) },
+];
 
 /**
  * Color Management Component
@@ -134,6 +144,7 @@ const ColorManagement = () => {
     () => [...(colors || [])].sort((a, b) => (a.display_order ?? 0) - (b.display_order ?? 0)),
     [colors]
   );
+  const selection = useBulkSelection(sortedColors);
 
   const handleReorder = useCallback(
     async (ordered) => {
@@ -242,6 +253,7 @@ const ColorManagement = () => {
             setItems={(next) => setColors(next.map((item, i) => ({ ...item, display_order: i })))}
             getItemId={(item) => item.id}
             onReorder={handleReorder}
+            selection={selection}
             disabled={tab === 'archived'}
             minWidth="900px"
             columns={[
@@ -373,6 +385,14 @@ const ColorManagement = () => {
         itemLabel="color"
         itemName={permDeleteTarget?.name}
         isLoading={permDeleting}
+      />
+
+      <BulkActionBar
+        selection={selection}
+        resource="colors"
+        noun="color"
+        actions={BULK_ACTIONS}
+        onDone={() => Promise.all([fetchColors(), fetchCounts()])}
       />
     </AdminPage>
   );

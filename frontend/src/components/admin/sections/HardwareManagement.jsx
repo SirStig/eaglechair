@@ -6,12 +6,22 @@ import { resolveImageUrl } from '../../../utils/apiHelpers';
 import { Edit, Trash2, Wrench, X, Plus, RotateCcw } from 'lucide-react';
 import HardwareEditor from './HardwareEditor';
 import { AdminPage, AdminPageHeader } from '../ui/AdminPage';
+import useBulkSelection from '../../../hooks/useBulkSelection';
+import BulkActionBar from '../bulk/BulkActionBar';
+import { ACTIVE_ACTIONS, booleanAction } from '../bulk/bulkActions';
 import ReorderableTable from '../ReorderableTable';
 import StatusTabs from '../StatusTabs';
 import PermanentDeleteModal from '../PermanentDeleteModal';
 import { useToast } from '../../../contexts/ToastContext';
 import { useAdminRefresh } from '../../../contexts/AdminRefreshContext';
 import ResponsiveImage from '../../ui/ResponsiveImage';
+
+
+// Pick-list options from the distinct non-empty values of `field` in the loaded rows
+const distinctOptions = (rows, field) =>
+  [...new Set((rows || []).map((r) => r[field]).filter((v) => v && String(v).trim()))]
+    .sort((a, b) => String(a).localeCompare(String(b)))
+    .map((v) => ({ value: v, label: v }));
 
 /**
  * Hardware Management - Table Layout
@@ -138,6 +148,12 @@ const HardwareManagement = () => {
     () => [...(hardware || [])].sort((a, b) => (a.display_order ?? 0) - (b.display_order ?? 0)),
     [hardware]
   );
+  const selection = useBulkSelection(sortedHardware);
+  const bulkActions = useMemo(() => [
+    ...ACTIVE_ACTIONS,
+    booleanAction('Featured', 'is_featured', 'Featured', 'Not featured'),
+    { label: 'Category', options: distinctOptions(hardware, 'category'), toChanges: (v) => ({ category: v }) },
+  ], [hardware]);
 
   const handleReorder = useCallback(
     async (ordered) => {
@@ -235,6 +251,7 @@ const HardwareManagement = () => {
             setItems={(next) => setHardware(next.map((item, i) => ({ ...item, display_order: i })))}
             getItemId={(item) => item.id}
             onReorder={handleReorder}
+            selection={selection}
             disabled={tab === 'archived'}
             minWidth="800px"
             columns={[
@@ -347,6 +364,14 @@ const HardwareManagement = () => {
         itemLabel="hardware item"
         itemName={permDeleteTarget?.name}
         isLoading={permDeleting}
+      />
+
+      <BulkActionBar
+        selection={selection}
+        resource="hardware"
+        noun="hardware item"
+        actions={bulkActions}
+        onDone={() => Promise.all([fetchHardware(), fetchCounts()])}
       />
     </AdminPage>
   );

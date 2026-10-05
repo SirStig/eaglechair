@@ -8,6 +8,10 @@ import { useToast } from '../../../contexts/ToastContext';
 import TableSortHead, { compareValues } from '../TableSortHead';
 import { LEGAL_DOCUMENT_TYPES, legalDocumentTypeLabel } from '../legalDocumentTypes';
 import { AdminPage, AdminPageHeader } from '../ui/AdminPage';
+import useBulkSelection from '../../../hooks/useBulkSelection';
+import BulkActionBar from '../bulk/BulkActionBar';
+import { ACTIVE_ACTIONS } from '../bulk/bulkActions';
+import { SelectAllCheckbox, RowCheckbox } from '../bulk/SelectCheckbox';
 
 // Public pages that render a specific legal document type
 const PUBLIC_PATHS = {
@@ -85,6 +89,8 @@ const LegalDocumentManagement = () => {
   }, [sortBy]);
 
   const usedTypes = useMemo(() => new Set(documents.map((d) => d.documentType)), [documents]);
+  const selection = useBulkSelection(visibleDocuments);
+  const orderedIds = useMemo(() => visibleDocuments.map((d) => d.id), [visibleDocuments]);
   const allTypesUsed = usedTypes.size >= LEGAL_DOCUMENT_TYPES.length;
 
   // Type options: types used by other documents are disabled
@@ -249,6 +255,7 @@ const LegalDocumentManagement = () => {
             <table className="w-full min-w-[720px]">
               <thead className="border-b border-dark-600 bg-dark-900/60">
                 <tr>
+                  <th className="px-4 py-3 w-0"><SelectAllCheckbox selection={selection} label="Select all documents" /></th>
                   <TableSortHead label="Document" sortKey="title" activeSortBy={sortBy} sortDir={sortDir} onSort={handleSort} className={headClass} />
                   <TableSortHead label="Type" sortKey="document_type" activeSortBy={sortBy} sortDir={sortDir} onSort={handleSort} className={headClass} />
                   <th className={headClass}>Version</th>
@@ -261,14 +268,14 @@ const LegalDocumentManagement = () => {
                 {loading ? (
                   [0, 1, 2].map((i) => (
                     <tr key={i}>
-                      <td colSpan={6} className="px-4 py-4">
+                      <td colSpan={7} className="px-4 py-4">
                         <div className="h-4 w-1/2 animate-pulse rounded bg-dark-700" />
                       </td>
                     </tr>
                   ))
                 ) : visibleDocuments.length === 0 ? (
                   <tr>
-                    <td colSpan={6} className="px-4 py-12 text-center">
+                    <td colSpan={7} className="px-4 py-12 text-center">
                       <p className="font-medium text-dark-50">
                         {documents.length === 0 ? 'No legal documents yet' : 'No documents match your filters'}
                       </p>
@@ -283,7 +290,10 @@ const LegalDocumentManagement = () => {
                   visibleDocuments.map((doc) => {
                     const publicPath = PUBLIC_PATHS[doc.documentType];
                     return (
-                      <tr key={doc.id} className="transition-colors hover:bg-dark-750">
+                      <tr key={doc.id} className={`transition-colors hover:bg-dark-750 ${selection.isSelected(doc.id) ? 'bg-primary-900/15' : ''}`}>
+                        <td className="px-4 py-3">
+                          <RowCheckbox selection={selection} id={doc.id} orderedIds={orderedIds} label={`Select ${doc.title}`} />
+                        </td>
                         <td className="px-4 py-3">
                           <button
                             type="button"
@@ -382,6 +392,14 @@ const LegalDocumentManagement = () => {
           fieldSchemaOverrides={fieldSchemaFor(editing)}
         />
       )}
+
+      <BulkActionBar
+        selection={selection}
+        resource="legal-documents"
+        noun="document"
+        actions={ACTIVE_ACTIONS}
+        onDone={fetchDocuments}
+      />
 
       <ConfirmModal
         isOpen={!!pendingDelete}

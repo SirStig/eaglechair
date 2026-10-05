@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import Card from '../../ui/Card';
 import Button from '../../ui/Button';
 import apiClient from '../../../config/apiClient';
@@ -8,6 +8,9 @@ import { useToast } from '../../../contexts/ToastContext';
 import TableSortHead from '../TableSortHead';
 import PaginationBar from '../PaginationBar';
 import { AdminPage, AdminPageHeader } from '../ui/AdminPage';
+import useBulkSelection from '../../../hooks/useBulkSelection';
+import BulkActionBar from '../bulk/BulkActionBar';
+import { SelectAllCheckbox, RowCheckbox } from '../bulk/SelectCheckbox';
 import { 
   FileText, 
   Search, 
@@ -28,8 +31,6 @@ const QuoteManagement = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
   const [selectedQuoteId, setSelectedQuoteId] = useState(null);
-  const [selectedQuotes, setSelectedQuotes] = useState([]);
-  const lastSelectedIndexRef = useRef(null);
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(25);
   const [total, setTotal] = useState(0);
@@ -52,10 +53,7 @@ const QuoteManagement = () => {
     );
   });
 
-  useEffect(() => {
-    lastSelectedIndexRef.current = null;
-    setSelectedQuotes([]);
-  }, [page]);
+  const selection = useBulkSelection(filteredQuotes);
 
   const fetchQuotes = useCallback(async () => {
     try {
@@ -82,60 +80,26 @@ const QuoteManagement = () => {
     }
   }, [page, pageSize, statusFilter, sortBy, sortDir]);
 
-  const handleSelectQuote = useCallback((quoteId, index, event) => {
-    if (event?.shiftKey && lastSelectedIndexRef.current !== null) {
-      const start = Math.min(lastSelectedIndexRef.current, index);
-      const end = Math.max(lastSelectedIndexRef.current, index);
-      const rangeIds = filteredQuotes.slice(start, end + 1).map(q => q.id);
-      setSelectedQuotes(rangeIds);
-      lastSelectedIndexRef.current = index;
-    } else {
-      lastSelectedIndexRef.current = index;
-      setSelectedQuotes(prev =>
-        prev.includes(quoteId)
-          ? prev.filter(id => id !== quoteId)
-          : [...prev, quoteId]
-      );
-    }
-  }, [filteredQuotes]);
-
-  const handleSelectAll = () => {
-    if (selectedQuotes.length === filteredQuotes.length) {
-      setSelectedQuotes([]);
-      lastSelectedIndexRef.current = null;
-    } else {
-      setSelectedQuotes(filteredQuotes.map(q => q.id));
-      lastSelectedIndexRef.current = 0;
-    }
-  };
-
-  const handleBulkStatus = async (newStatus) => {
-    if (selectedQuotes.length === 0) {
-      toast.warning('Please select quotes first');
-      return;
-    }
-    setLoading(true);
-    const ids = [...selectedQuotes];
-    setSelectedQuotes([]);
-    try {
-      let successCount = 0;
-      let failCount = 0;
-      for (const id of ids) {
-        try {
-          await apiClient.patch(`/api/v1/admin/quotes/${id}/status`, { status: newStatus });
-          successCount++;
-        } catch { failCount++; }
+  // Status changes go through the per-quote endpoint (history, notifications)
+  const setStatus = (status) => async (ids) => {
+    let failCount = 0;
+    for (const id of ids) {
+      try {
+        await apiClient.patch(`/api/v1/admin/quotes/${id}/status`, { status });
+      } catch {
+        failCount++;
       }
-      if (successCount > 0) toast.success(`${successCount} quote(s) status updated`);
-      if (failCount > 0) toast.error(`Failed to update ${failCount}`);
-      await fetchQuotes();
-    } catch (error) {
-      toast.error('Bulk action failed');
-      setSelectedQuotes(ids);
-    } finally {
-      setLoading(false);
     }
+    if (failCount === ids.length) throw new Error('Failed to update quote status');
+    if (failCount > 0) toast.error(`Failed to update ${failCount}`);
   };
+
+  const bulkActions = [
+    { label: 'Under review', run: setStatus('under_review') },
+    { label: 'Set to Quoted', run: setStatus('quoted') },
+    { label: 'Decline', run: setStatus('declined'), tone: 'danger' },
+    { label: 'Expire', run: setStatus('expired'), tone: 'danger' },
+  ];
 
   const getStatusBadge = (status) => {
     const badges = {
@@ -249,24 +213,6 @@ const QuoteManagement = () => {
         </div>
       </Card>
 
-      {selectedQuotes.length > 0 && (
-        <Card className="bg-primary-900/20 border-primary-500">
-          <div className="flex flex-wrap items-center justify-between gap-4">
-            <p className="text-dark-50 font-medium">
-              {selectedQuotes.length} quote(s) selected
-            </p>
-            <div className="flex flex-wrap gap-2">
-              <Button size="sm" variant="outline" onClick={() => handleBulkStatus('quoted')}>
-                Set to Quoted
-              </Button>
-              <Button size="sm" variant="outline" onClick={() => handleBulkStatus('declined')}>
-                Decline
-              </Button>
-            </div>
-          </div>
-        </Card>
-      )}
-
       {/* Quotes List */}
       <Card>
         {loading ? (
@@ -297,7 +243,7 @@ const QuoteManagement = () => {
               <thead>
                 <tr className="border-b border-dark-600">
                   <th className="px-3 sm:p-4 py-3 text-left">
-                    <input type="checkbox" checked={filteredQuotes.length > 0 && selectedQuotes.length === filteredQuotes.length} onChange={handleSelectAll} className="rounded border-dark-600 bg-dark-700" />
+                    <SelectAllCheckbox selection={selection} label="Select all quotes" />
                   </th>
                   <TableSortHead label="Quote #" sortKey="quote_number" activeSortBy={sortBy} sortDir={sortDir} onSort={handleSort} className="text-left px-3 sm:p-4 py-3 text-xs sm:text-sm text-dark-300 font-medium" />
                   <TableSortHead label="Company" sortKey="company_name" activeSortBy={sortBy} sortDir={sortDir} onSort={handleSort} className="text-left px-3 sm:p-4 py-3 text-xs sm:text-sm text-dark-300 font-medium" />
@@ -309,24 +255,18 @@ const QuoteManagement = () => {
                 </tr>
               </thead>
               <tbody>
-                {filteredQuotes.map((quote, index) => (
+                {filteredQuotes.map((quote) => (
                   <tr
                     key={quote.id}
-                    className={`border-b border-dark-700 hover:bg-dark-700/50 transition-colors cursor-pointer select-none ${selectedQuotes.includes(quote.id) ? 'bg-primary-900/10' : ''}`}
+                    className={`border-b border-dark-700 hover:bg-dark-700/50 transition-colors cursor-pointer select-none ${selection.isSelected(quote.id) ? 'bg-primary-900/10' : ''}`}
                     onClick={(e) => {
                       if (!e.target.closest('button') && !e.target.closest('[data-no-select]')) {
-                        handleSelectQuote(quote.id, index, e);
+                        selection.toggle(quote.id, e);
                       }
                     }}
                   >
                     <td className="px-3 sm:p-4 py-3">
-                      <input
-                        type="checkbox"
-                        checked={selectedQuotes.includes(quote.id)}
-                        readOnly
-                        onClick={(e) => { e.stopPropagation(); handleSelectQuote(quote.id, index, e); }}
-                        className="rounded border-dark-600 bg-dark-700 cursor-pointer"
-                      />
+                      <RowCheckbox selection={selection} id={quote.id} label={`Select quote ${quote.quote_number}`} />
                     </td>
                     <td className="px-3 sm:p-4 py-3">
                       <span className="font-medium text-xs sm:text-sm text-accent-500">
@@ -398,6 +338,12 @@ const QuoteManagement = () => {
           </>
         )}
       </Card>
+      <BulkActionBar
+        selection={selection}
+        noun="quote"
+        actions={bulkActions}
+        onDone={fetchQuotes}
+      />
     </AdminPage>
   );
 };

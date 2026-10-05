@@ -6,12 +6,22 @@ import { resolveImageUrl } from '../../../utils/apiHelpers';
 import { Edit, Trash2, Layers, X, Plus, RotateCcw } from 'lucide-react';
 import LaminateEditor from './LaminateEditor';
 import { AdminPage, AdminPageHeader } from '../ui/AdminPage';
+import useBulkSelection from '../../../hooks/useBulkSelection';
+import BulkActionBar from '../bulk/BulkActionBar';
+import { ACTIVE_ACTIONS, booleanAction } from '../bulk/bulkActions';
 import ReorderableTable from '../ReorderableTable';
 import StatusTabs from '../StatusTabs';
 import PermanentDeleteModal from '../PermanentDeleteModal';
 import { useToast } from '../../../contexts/ToastContext';
 import { useAdminRefresh } from '../../../contexts/AdminRefreshContext';
 import ResponsiveImage from '../../ui/ResponsiveImage';
+
+
+// Pick-list options from the distinct non-empty values of `field` in the loaded rows
+const distinctOptions = (rows, field) =>
+  [...new Set((rows || []).map((r) => r[field]).filter((v) => v && String(v).trim()))]
+    .sort((a, b) => String(a).localeCompare(String(b)))
+    .map((v) => ({ value: v, label: v }));
 
 /**
  * Laminate Management - Table Layout
@@ -138,6 +148,17 @@ const LaminateManagement = () => {
     () => [...(laminates || [])].sort((a, b) => (a.display_order ?? 0) - (b.display_order ?? 0)),
     [laminates]
   );
+  const selection = useBulkSelection(sortedLaminates);
+  const bulkActions = useMemo(() => [
+    ...ACTIVE_ACTIONS,
+    booleanAction('Featured', 'is_featured', 'Featured', 'Not featured'),
+    booleanAction('Popular', 'is_popular', 'Popular', 'Not popular'),
+    booleanAction('In stock', 'is_in_stock', 'In stock', 'Out of stock'),
+    { label: 'Brand', options: distinctOptions(laminates, 'brand'), toChanges: (v) => ({ brand: v }) },
+    { label: 'Color family', options: distinctOptions(laminates, 'color_family'), toChanges: (v) => ({ color_family: v }) },
+    { label: 'Finish type', options: distinctOptions(laminates, 'finish_type'), toChanges: (v) => ({ finish_type: v }) },
+    { label: 'Grade', options: distinctOptions(laminates, 'grade'), toChanges: (v) => ({ grade: v }) },
+  ], [laminates]);
 
   const handleReorder = useCallback(
     async (ordered) => {
@@ -235,6 +256,7 @@ const LaminateManagement = () => {
             setItems={(next) => setLaminates(next.map((item, i) => ({ ...item, display_order: i })))}
             getItemId={(item) => item.id}
             onReorder={handleReorder}
+            selection={selection}
             disabled={tab === 'archived'}
             minWidth="800px"
             columns={[
@@ -341,6 +363,14 @@ const LaminateManagement = () => {
         itemLabel="laminate"
         itemName={permDeleteTarget?.name}
         isLoading={permDeleting}
+      />
+
+      <BulkActionBar
+        selection={selection}
+        resource="laminates"
+        noun="laminate"
+        actions={bulkActions}
+        onDone={() => Promise.all([fetchLaminates(), fetchCounts()])}
       />
     </AdminPage>
   );

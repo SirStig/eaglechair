@@ -6,12 +6,18 @@ import { resolveImageUrl } from '../../../utils/apiHelpers';
 import { Edit, Trash2, Palette, X, RotateCcw } from 'lucide-react';
 import FinishEditor from './FinishEditor';
 import { AdminPage, AdminPageHeader } from '../ui/AdminPage';
+import useBulkSelection from '../../../hooks/useBulkSelection';
+import BulkActionBar from '../bulk/BulkActionBar';
+import { ACTIVE_ACTIONS, booleanAction, idAction } from '../bulk/bulkActions';
 import ReorderableTable from '../ReorderableTable';
 import StatusTabs from '../StatusTabs';
 import PermanentDeleteModal from '../PermanentDeleteModal';
 import { useToast } from '../../../contexts/ToastContext';
 import { useAdminRefresh } from '../../../contexts/AdminRefreshContext';
 import ResponsiveImage from '../../ui/ResponsiveImage';
+
+const FINISH_TYPE_OPTIONS = [{ value: 'Wood Stain', label: 'Wood Stain' }, { value: 'Paint', label: 'Paint' }, { value: 'Metal', label: 'Metal' }, { value: 'Powder Coat', label: 'Powder Coat' }, { value: 'Lacquer', label: 'Lacquer' }, { value: 'Veneer', label: 'Veneer' }, { value: 'Chrome', label: 'Chrome' }];
+const FINISH_GRADE_OPTIONS = [{ value: 'Standard', label: 'Standard' }, { value: 'Premium', label: 'Premium' }, { value: 'Premium Plus', label: 'Premium Plus' }, { value: 'Artisan', label: 'Artisan' }];
 
 /**
  * Finish Management - Table Layout with Separate Editor
@@ -157,6 +163,15 @@ const FinishManagement = () => {
     () => [...(finishes || [])].sort((a, b) => (a.display_order ?? 0) - (b.display_order ?? 0)),
     [finishes]
   );
+  const selection = useBulkSelection(sortedFinishes);
+  const bulkActions = useMemo(() => [
+    ...ACTIVE_ACTIONS,
+    { label: 'Grade', options: FINISH_GRADE_OPTIONS, toChanges: (v) => ({ grade: v }) },
+    { label: 'Finish type', options: FINISH_TYPE_OPTIONS, toChanges: (v) => ({ finish_type: v }) },
+    booleanAction('Custom', 'is_custom', 'Custom', 'Not custom'),
+    booleanAction('To match', 'is_to_match', 'To match', 'Not to match'),
+    idAction('Color', 'color_id', colors, { none: 'No color' }),
+  ], [colors]);
 
   const handleReorder = useCallback(
     async (ordered) => {
@@ -280,6 +295,7 @@ const FinishManagement = () => {
             setItems={(next) => setFinishes(next.map((item, i) => ({ ...item, display_order: i })))}
             getItemId={(item) => item.id}
             onReorder={handleReorder}
+            selection={selection}
             disabled={tab === 'archived'}
             minWidth="1000px"
             columns={[
@@ -424,6 +440,14 @@ const FinishManagement = () => {
         itemLabel="finish"
         itemName={permDeleteTarget?.name}
         isLoading={permDeleting}
+      />
+
+      <BulkActionBar
+        selection={selection}
+        resource="finishes"
+        noun="finish"
+        actions={bulkActions}
+        onDone={() => Promise.all([fetchFinishes(), fetchCounts()])}
       />
     </AdminPage>
   );

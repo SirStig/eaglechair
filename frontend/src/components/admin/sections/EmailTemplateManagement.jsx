@@ -7,6 +7,10 @@ import ConfirmModal from '../../ui/ConfirmModal';
 import apiClient from '../../../config/apiClient';
 import { useToast } from '../../../contexts/ToastContext';
 import { AdminPage, AdminPageHeader } from '../ui/AdminPage';
+import useBulkSelection from '../../../hooks/useBulkSelection';
+import BulkActionBar from '../bulk/BulkActionBar';
+import { ACTIVE_ACTIONS } from '../bulk/bulkActions';
+import { SelectAllCheckbox, RowCheckbox } from '../bulk/SelectCheckbox';
 
 const EMPTY_FORM = {
   template_type: '',
@@ -76,6 +80,7 @@ const EmailTemplateManagement = () => {
     () => [...templates].sort((a, b) => (b.is_active - a.is_active) || a.name.localeCompare(b.name)),
     [templates]
   );
+  const selection = useBulkSelection(sortedTemplates);
 
   const setField = (key, value) => setFormData((prev) => ({ ...prev, [key]: value }));
 
@@ -237,8 +242,13 @@ const EmailTemplateManagement = () => {
         </div>
       ) : (
         <ul className="divide-y divide-dark-700 overflow-hidden rounded-xl border border-dark-600 bg-dark-800">
+          <li className="flex items-center gap-3 px-4 py-2 text-xs text-dark-200 sm:px-5">
+            <SelectAllCheckbox selection={selection} label="Select all templates" />
+            <span>Select all</span>
+          </li>
           {sortedTemplates.map((template) => (
-            <li key={template.id} className={`flex flex-col gap-3 px-4 py-4 sm:flex-row sm:items-center sm:px-5 ${template.is_active ? '' : 'opacity-70'}`}>
+            <li key={template.id} className={`flex flex-col gap-3 px-4 py-4 sm:flex-row sm:items-center sm:px-5 ${template.is_active ? '' : 'opacity-70'} ${selection.isSelected(template.id) ? 'bg-primary-900/15' : ''}`}>
+              <RowCheckbox selection={selection} id={template.id} label={`Select ${template.name}`} />
               <div className="min-w-0 flex-1">
                 <div className="flex flex-wrap items-center gap-2">
                   <h3 className="font-semibold text-dark-50">{template.name}</h3>
@@ -461,6 +471,14 @@ const EmailTemplateManagement = () => {
           </div>
         </form>
       </Modal>
+
+      <BulkActionBar
+        selection={selection}
+        resource="email-templates"
+        noun="template"
+        actions={ACTIVE_ACTIONS}
+        onDone={loadTemplates}
+      />
 
       <ConfirmModal
         isOpen={!!pendingDeactivate}

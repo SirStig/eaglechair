@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import Card from '../../ui/Card';
 import Button from '../../ui/Button';
 import { useToast } from '../../../contexts/ToastContext';
@@ -27,6 +27,8 @@ import {
 import ResponsiveImage from '../../ui/ResponsiveImage';
 import { AdminPage, AdminPageHeader } from '../ui/AdminPage';
 import ProductAnalyticsPanel from '../ProductAnalyticsPanel';
+import useBulkSelection from '../../../hooks/useBulkSelection';
+import { SelectAllCheckbox, RowCheckbox } from '../bulk/SelectCheckbox';
 
 /**
  * Comprehensive Product Editor
@@ -68,6 +70,116 @@ const OptionGroupHeading = ({ label, enabled, onChange }) => (
     </label>
   </div>
 );
+
+const STOCK_STATUS_OPTIONS = ['Made to Order', 'Available', 'Low Stock', 'Out of Stock', 'Discontinued'];
+
+// Variations have no id until the product is saved, so new ones key by position
+const variationKey = (variation, index) => variation.id ?? `new-${index}`;
+const rowKey = (row) => row.key;
+
+const BULK_SELECT = 'rounded-lg border border-dark-600 bg-dark-700 px-2.5 py-1.5 text-sm text-dark-100 focus:border-primary-500 outline-none';
+
+/**
+ * Batch edit bar for the Variations tab. Changes apply to local state only;
+ * they're saved with the product like any other edit.
+ */
+const VariationBulkBar = ({ selection, finishes, upholsteries, colors, families, onPatch, onRemove }) => {
+  const [price, setPrice] = useState('');
+  if (!selection.count) return null;
+
+  const pick = (label, options, toPatch) => (
+    <select
+      key={label}
+      value=""
+      onChange={(e) => {
+        if (e.target.value === '') return;
+        onPatch(toPatch(e.target.value));
+      }}
+      className={BULK_SELECT}
+      aria-label={label}
+    >
+      <option value="">{label}…</option>
+      {options.map((o) => (
+        <option key={o.value} value={o.value}>{o.label}</option>
+      ))}
+    </select>
+  );
+  const idOptions = (rows, none, getLabel = (r) => r.name) => [
+    { value: 'none', label: none },
+    ...rows.map((r) => ({ value: String(r.id), label: getLabel(r) })),
+  ];
+  const toId = (v) => (v === 'none' ? null : Number(v));
+  const groupOptions = [
+    { value: 'inherit', label: 'Same as product' },
+    { value: 'on', label: 'On' },
+    { value: 'off', label: 'Off' },
+  ];
+  const toGroup = (v) => (v === 'inherit' ? null : v === 'on');
+  const familyOptions = families.map((f) => ({ value: String(f.id), label: f.name }));
+  const plural = `${selection.count} variation${selection.count === 1 ? '' : 's'}`;
+
+  return (
+    <div className="sticky bottom-20 sm:bottom-4 z-30" role="region" aria-label="Batch edit variations">
+      <div className="flex flex-wrap items-center gap-2 rounded-xl border border-primary-500/60 bg-dark-800/95 px-3 py-2.5 shadow-2xl backdrop-blur">
+        <button
+          type="button"
+          onClick={selection.clear}
+          className="inline-flex items-center gap-1.5 rounded-lg px-2 py-1 text-sm font-medium text-dark-50 hover:bg-dark-700"
+          aria-label="Clear selection"
+        >
+          <X className="h-4 w-4" />
+          {plural} selected
+        </button>
+        <span className="hidden sm:block h-5 w-px bg-dark-600" />
+        {pick('Finish', idOptions(finishes, 'No finish'), (v) => () => ({ finish_id: toId(v) }))}
+        {pick('Upholstery', idOptions(upholsteries, 'No upholstery'), (v) => () => ({ upholstery_id: toId(v) }))}
+        {pick('Color', idOptions(colors, 'No color'), (v) => () => ({ color_id: toId(v) }))}
+        {OPTION_GROUP_SWITCHES.map(({ field, label }) =>
+          pick(`${label} options`, groupOptions, (v) => () => ({ [field]: toGroup(v) }))
+        )}
+        {pick('Available', [{ value: 'yes', label: 'Available for sale' }, { value: 'no', label: 'Not available' }],
+          (v) => () => ({ is_available: v === 'yes' }))}
+        {pick('Stock status', STOCK_STATUS_OPTIONS.map((o) => ({ value: o, label: o })), (v) => () => ({ stock_status: v }))}
+        {familyOptions.length > 0 && pick('Add to family', familyOptions, (v) => (variation) => ({
+          family_ids: [...new Set([...(variation.family_ids || []), Number(v)])],
+        }))}
+        {familyOptions.length > 0 && pick('Remove from family', familyOptions, (v) => (variation) => ({
+          family_ids: (variation.family_ids || []).filter((id) => id !== Number(v)),
+        }))}
+        <form
+          className="flex items-center gap-1"
+          onSubmit={(e) => {
+            e.preventDefault();
+            const dollars = parseFloat(price);
+            if (Number.isNaN(dollars)) return;
+            onPatch(() => ({ price_adjustment: Math.round(dollars * 100) }));
+            setPrice('');
+          }}
+        >
+          <input
+            type="number"
+            step="0.01"
+            value={price}
+            onChange={(e) => setPrice(e.target.value)}
+            placeholder="Price adj. $"
+            className={`${BULK_SELECT} w-28`}
+            aria-label="Price adjustment in dollars"
+          />
+          <button type="submit" disabled={price === ''} className="rounded-lg border border-dark-600 px-2.5 py-1.5 text-sm text-dark-100 hover:bg-dark-700 disabled:opacity-50">
+            Set
+          </button>
+        </form>
+        <button
+          type="button"
+          onClick={onRemove}
+          className="rounded-lg border border-red-500/40 px-3 py-1.5 text-sm font-medium text-red-300 hover:bg-red-900/30"
+        >
+          Remove selected
+        </button>
+      </div>
+    </div>
+  );
+};
 
 const ProductEditor = ({ product, onBack }) => {
   const toast = useToast();
@@ -137,6 +249,19 @@ const ProductEditor = ({ product, onBack }) => {
   });
   const [uploadingImage, setUploadingImage] = useState(false);
   const [variations, setVariations] = useState(Array.isArray(product?.variations) ? product.variations : []);
+  const variationRows = useMemo(() => variations.map((v, i) => ({ key: variationKey(v, i) })), [variations]);
+  const variationSelection = useBulkSelection(variationRows, rowKey);
+  const variationOrder = variationRows.map(rowKey);
+  // patchFor(variation) returns the fields to change on each selected variation
+  const patchSelectedVariations = (patchFor) => {
+    const picked = new Set(variationSelection.selectedIds);
+    setVariations((prev) => prev.map((v, i) => (picked.has(variationKey(v, i)) ? { ...v, ...patchFor(v) } : v)));
+  };
+  const removeSelectedVariations = () => {
+    const picked = new Set(variationSelection.selectedIds);
+    setVariations((prev) => prev.filter((v, i) => !picked.has(variationKey(v, i))));
+    variationSelection.clear();
+  };
   const [selectedFinishes, setSelectedFinishes] = useState(product?.available_finishes || []);
   const [selectedUpholsteries, setSelectedUpholsteries] = useState(product?.available_upholsteries || []);
   const [selectedColors, setSelectedColors] = useState(product?.available_colors || []);
@@ -1321,9 +1446,24 @@ const ProductEditor = ({ product, onBack }) => {
               </div>
             ) : (
               <div className="space-y-4">
+                <label className="inline-flex items-center gap-2 text-sm text-dark-300 cursor-pointer">
+                  <SelectAllCheckbox selection={variationSelection} label="Select all variations" />
+                  Select all to batch edit (shift-click selects a range)
+                </label>
                 {variations.map((variation, index) => (
-                  <Card key={index} className="p-4">
+                  <Card
+                    key={index}
+                    className={`p-4 ${variationSelection.isSelected(variationKey(variation, index)) ? 'ring-1 ring-primary-500' : ''}`}
+                  >
                     <div className="flex items-start gap-4">
+                      <div className="pt-1">
+                        <RowCheckbox
+                          selection={variationSelection}
+                          id={variationKey(variation, index)}
+                          orderedIds={variationOrder}
+                          label={`Select variation ${variation.sku || index + 1}`}
+                        />
+                      </div>
                       <div className="flex-1 space-y-4">
                         <div>
                           <label className="block text-sm font-medium text-dark-200 mb-2">
@@ -1579,7 +1719,11 @@ const ProductEditor = ({ product, onBack }) => {
                         </div>
                       </div>
                       <button
-                        onClick={() => setVariations(variations.filter((_, i) => i !== index))}
+                        onClick={() => {
+                          setVariations(variations.filter((_, i) => i !== index));
+                          // New variations key by position, so a removal shifts them
+                          variationSelection.clear();
+                        }}
                         className="p-2 text-red-400 hover:text-red-500 hover:bg-red-900/20 rounded-lg transition-colors mt-6"
                       >
                         <Trash2 className="w-5 h-5" />
@@ -1587,6 +1731,15 @@ const ProductEditor = ({ product, onBack }) => {
                     </div>
                   </Card>
                 ))}
+                <VariationBulkBar
+                  selection={variationSelection}
+                  finishes={finishes}
+                  upholsteries={upholsteries}
+                  colors={colors}
+                  families={families}
+                  onPatch={patchSelectedVariations}
+                  onRemove={removeSelectedVariations}
+                />
               </div>
             )}
           </div>

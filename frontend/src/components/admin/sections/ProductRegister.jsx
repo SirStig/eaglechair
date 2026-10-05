@@ -1,8 +1,8 @@
 import { Fragment, useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
-  AlertTriangle, CheckSquare, ChevronDown, ChevronRight, Download, Edit, FileSpreadsheet,
-  FileText, Loader2, Search, Square, X,
+  AlertTriangle, ChevronDown, ChevronRight, Download, Edit, FileSpreadsheet,
+  FileText, Loader2, Search, X,
 } from 'lucide-react';
 import Card from '../../ui/Card';
 import Button from '../../ui/Button';
@@ -11,9 +11,15 @@ import { resolveImageUrl, formatStockStatus } from '../../../utils/apiHelpers';
 import { useToast } from '../../../contexts/ToastContext';
 import { useAdminRefresh } from '../../../contexts/AdminRefreshContext';
 import {
-  bulkUpdateProducts, downloadProductIndex, downloadProductsExcel, getRegister, updateProduct, updateVariation,
+  downloadProductIndex, downloadProductsExcel, getRegister, updateProduct, updateVariation,
 } from '../../../services/catalogToolsService';
+import apiClient from '../../../config/apiClient';
 import { AdminPage, AdminPageHeader } from '../ui/AdminPage';
+import useBulkSelection from '../../../hooks/useBulkSelection';
+import BulkActionBar from '../bulk/BulkActionBar';
+import { SelectAllCheckbox, RowCheckbox } from '../bulk/SelectCheckbox';
+import { ACTIVE_ACTIONS } from '../bulk/bulkActions';
+import { productBulkActions, variationBulkActions } from './productBulkActions';
 
 const PAGE_SIZE = 50;
 const INPUT = 'px-3 py-2 bg-dark-700 border border-dark-600 rounded-lg text-sm text-dark-50 focus:border-primary-500 focus:ring-1 focus:ring-primary-500 outline-none';
@@ -81,8 +87,8 @@ const ProductRegister = () => {
   const [issueFilter, setIssueFilter] = useState('');
   const [page, setPage] = useState(0);
   const [expanded, setExpanded] = useState(() => new Set());
-  const [selected, setSelected] = useState(() => new Set());
-  const [bulkFamily, setBulkFamily] = useState('');
+  const [categoryRows, setCategoryRows] = useState([]);
+  const [subcategoryRows, setSubcategoryRows] = useState([]);
   const [busy, setBusy] = useState(null);
   const [includeInactive, setIncludeInactive] = useState(true);
 
@@ -97,6 +103,11 @@ const ProductRegister = () => {
   }, [toastError]);
 
   useEffect(() => { load(); }, [load, refreshKeys.register]);
+  // Category / subcategory lists for the bulk "move" pickers
+  useEffect(() => {
+    apiClient.get('/api/v1/categories').then((r) => setCategoryRows(Array.isArray(r) ? r : r?.items || [])).catch(() => {});
+    apiClient.get('/api/v1/admin/subcategories').then((r) => setSubcategoryRows(r?.items || [])).catch(() => {});
+  }, []);
   useEffect(() => { setPage(0); }, [search, status, familyFilter, categoryFilter, issueFilter]);
 
   const categories = useMemo(
@@ -169,26 +180,16 @@ const ProductRegister = () => {
     return next;
   });
 
-  const allVisibleSelected = visible.length > 0 && visible.every((p) => selected.has(p.id));
-  const toggleAllVisible = () => setSelected((prev) => {
-    const next = new Set(prev);
-    visible.forEach((p) => (allVisibleSelected ? next.delete(p.id) : next.add(p.id)));
-    return next;
-  });
+  // Selection spans every product matching the filters, not just this page
+  const selection = useBulkSelection(filtered);
+  const filteredVariations = useMemo(() => filtered.flatMap((p) => p.variations), [filtered]);
+  const variationSelection = useBulkSelection(filteredVariations);
 
-  const runBulk = async (changes, label) => {
-    setBusy('bulk');
-    try {
-      const { updated } = await bulkUpdateProducts({ product_ids: [...selected], ...changes });
-      toast.success(`${label}: ${updated} product${updated === 1 ? '' : 's'}`);
-      setSelected(new Set());
-      await load();
-    } catch (error) {
-      toast.error(errorText(error, 'Bulk update failed'));
-    } finally {
-      setBusy(null);
-    }
-  };
+  const productActions = useMemo(() => [
+    ...productBulkActions({ categories: categoryRows, subcategories: subcategoryRows, families: data.families }),
+    ...ACTIVE_ACTIONS,
+  ], [categoryRows, subcategoryRows, data.families]);
+  const variationActions = useMemo(() => variationBulkActions({ families: data.families }), [data.families]);
 
   const runExport = async (kind) => {
     setBusy(kind);
@@ -290,41 +291,13 @@ const ProductRegister = () => {
         </div>
       </Card>
 
-      {selected.size > 0 && (
-        <Card className="bg-dark-800 border-primary-500/50 sticky top-2 z-10">
-          <div className="flex flex-wrap items-center gap-2">
-            <span className="text-sm text-dark-100 font-medium mr-2">{selected.size} selected</span>
-            <Button size="xs" variant="success" disabled={!!busy} onClick={() => runBulk({ is_active: true }, 'Activated')}>Activate</Button>
-            <Button size="xs" variant="danger" disabled={!!busy} onClick={() => runBulk({ is_active: false }, 'Deactivated')}>Deactivate</Button>
-            <select className={`${INPUT} py-1`} value={bulkFamily} onChange={(e) => setBulkFamily(e.target.value)} aria-label="Family to set">
-              <option value="">Set family…</option>
-              <option value="0">(No family)</option>
-              {data.families.map((f) => <option key={f.id} value={String(f.id)}>{f.name}</option>)}
-            </select>
-            <Button
-              size="xs"
-              variant="outline"
-              disabled={!!busy || bulkFamily === ''}
-              onClick={() => runBulk({ family_id: Number(bulkFamily) }, 'Family set')}
-            >
-              Apply
-            </Button>
-            <button type="button" className="ml-auto text-dark-300 hover:text-dark-50" onClick={() => setSelected(new Set())} aria-label="Clear selection">
-              <X className="w-4 h-4" />
-            </button>
-          </div>
-        </Card>
-      )}
-
       <Card className="bg-dark-800 border-dark-700 p-0 overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead className="bg-dark-900/60 text-dark-300 text-xs uppercase tracking-wide">
               <tr>
                 <th className="p-3 w-10">
-                  <button type="button" onClick={toggleAllVisible} aria-label="Select page">
-                    {allVisibleSelected ? <CheckSquare className="w-4 h-4 text-primary-500" /> : <Square className="w-4 h-4" />}
-                  </button>
+                  <SelectAllCheckbox selection={selection} label="Select all matching products" />
                 </th>
                 <th className="p-3 w-14" />
                 <th className="p-3 text-left">Model</th>
@@ -342,11 +315,9 @@ const ProductRegister = () => {
                 const open = expanded.has(p.id);
                 return (
                   <Fragment key={p.id}>
-                    <tr className={`hover:bg-dark-700/40 ${selected.has(p.id) ? 'bg-primary-500/5' : ''}`}>
+                    <tr className={`hover:bg-dark-700/40 ${selection.isSelected(p.id) ? 'bg-primary-500/5' : ''}`}>
                       <td className="p-3">
-                        <button type="button" onClick={() => toggle(setSelected, p.id)} aria-label={`Select ${modelLabel(p)}`}>
-                          {selected.has(p.id) ? <CheckSquare className="w-4 h-4 text-primary-500" /> : <Square className="w-4 h-4 text-dark-400" />}
-                        </button>
+                        <RowCheckbox selection={selection} id={p.id} orderedIds={visible.map((row) => row.id)} label={`Select ${modelLabel(p)}`} />
                       </td>
                       <td className="p-2">
                         {p.default_image ? (
@@ -415,8 +386,15 @@ const ProductRegister = () => {
                       </td>
                     </tr>
                     {open && p.variations.map((v) => (
-                      <tr key={`v${v.id}`} className="bg-dark-900/40 text-xs">
-                        <td />
+                      <tr key={`v${v.id}`} className={`text-xs ${variationSelection.isSelected(v.id) ? 'bg-primary-500/10' : 'bg-dark-900/40'}`}>
+                        <td className="p-2 pl-6">
+                          <RowCheckbox
+                            selection={variationSelection}
+                            id={v.id}
+                            orderedIds={p.variations.map((row) => row.id)}
+                            label={`Select variation ${v.sku}`}
+                          />
+                        </td>
                         <td className="p-2">
                           {v.default_image && (
                             <ResponsiveImage sizes="32px" fullResolution={false} src={resolveImageUrl(v.default_image)} alt="" className="w-8 h-8 object-contain rounded bg-dark-700 ml-1" />
@@ -470,6 +448,15 @@ const ProductRegister = () => {
       <p className="text-xs text-dark-400 flex items-center gap-1">
         <Download className="w-3 h-3" /> Exports always cover the whole product base, not just the filtered rows.
       </p>
+
+      <BulkActionBar selection={selection} resource="products" noun="product" actions={productActions} onDone={load} />
+      <BulkActionBar
+        selection={variationSelection}
+        resource="variations"
+        noun="variation"
+        actions={variationActions}
+        onDone={load}
+      />
     </AdminPage>
   );
 };

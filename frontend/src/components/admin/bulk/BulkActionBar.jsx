@@ -14,7 +14,13 @@ import { bulkEdit } from '../../../services/bulkService';
  * Change sets go to POST /admin/bulk/{resource}; onDone runs afterwards so
  * the page can reload.
  */
-export default function BulkActionBar({ selection, resource, actions, onDone, noun = 'item' }) {
+const pluralize = (noun) => {
+  if (/[^aeiou]y$/.test(noun)) return `${noun.slice(0, -1)}ies`;
+  if (/(s|x|z|ch|sh)$/.test(noun)) return `${noun}es`;
+  return `${noun}s`;
+};
+
+export default function BulkActionBar({ selection, resource, actions, onDone, noun = 'item', pluralNoun }) {
   const toast = useToast();
   const [busy, setBusy] = useState(false);
   const [pending, setPending] = useState(null); // { action, value }
@@ -22,7 +28,8 @@ export default function BulkActionBar({ selection, resource, actions, onDone, no
   if (!selection.count) return null;
 
   const ids = selection.selectedIds;
-  const plural = `${ids.length} ${noun}${ids.length === 1 ? '' : 's'}`;
+  const nounFor = (n) => (n === 1 ? noun : pluralNoun || pluralize(noun));
+  const plural = `${ids.length} ${nounFor(ids.length)}`;
 
   const apply = async (action, value) => {
     setBusy(true);
@@ -34,7 +41,7 @@ export default function BulkActionBar({ selection, resource, actions, onDone, no
         const changes = action.toChanges ? action.toChanges(value) : action.changes;
         const result = await bulkEdit(resource, ids, changes);
         const updated = result?.updated ?? ids.length;
-        toast.success(`Updated ${updated} ${noun}${updated === 1 ? '' : 's'}`);
+        toast.success(`Updated ${updated} ${nounFor(updated)}`);
       }
       setPending(null);
       selection.clear();

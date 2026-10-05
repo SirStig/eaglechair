@@ -9,10 +9,16 @@ import { resolveImageUrl } from '../../../utils/apiHelpers';
 import { Edit, Trash2, Armchair, X, RotateCcw } from 'lucide-react';
 import UpholsteryEditor from './UpholsteryEditor';
 import { AdminPage, AdminPageHeader } from '../ui/AdminPage';
+import useBulkSelection from '../../../hooks/useBulkSelection';
+import BulkActionBar from '../bulk/BulkActionBar';
+import { ACTIVE_ACTIONS, booleanAction, idAction } from '../bulk/bulkActions';
 import ReorderableTable from '../ReorderableTable';
 import StatusTabs from '../StatusTabs';
 import PermanentDeleteModal from '../PermanentDeleteModal';
 import ResponsiveImage from '../../ui/ResponsiveImage';
+
+const MATERIAL_TYPE_OPTIONS = [{ value: 'Vinyl', label: 'Vinyl' }, { value: 'Fabric', label: 'Fabric' }, { value: 'Leather', label: 'Leather' }, { value: 'Faux Leather', label: 'Faux Leather' }, { value: 'Mesh', label: 'Mesh' }];
+const UPHOLSTERY_GRADE_OPTIONS = [{ value: 'A', label: 'Grade A' }, { value: 'B', label: 'Grade B' }, { value: 'C', label: 'Grade C' }, { value: 'Premium', label: 'Premium' }, { value: 'Luxury', label: 'Luxury' }];
 
 /**
  * Upholstery Management - Table Layout with Separate Editor
@@ -163,6 +169,15 @@ const UpholsteryManagement = () => {
     () => [...(upholsteries || [])].sort((a, b) => (a.display_order ?? 0) - (b.display_order ?? 0)),
     [upholsteries]
   );
+  const selection = useBulkSelection(sortedUpholsteries);
+  const bulkActions = useMemo(() => [
+    ...ACTIVE_ACTIONS,
+    { label: 'Grade', options: UPHOLSTERY_GRADE_OPTIONS, toChanges: (v) => ({ grade: v }) },
+    { label: 'Material type', options: MATERIAL_TYPE_OPTIONS, toChanges: (v) => ({ material_type: v }) },
+    booleanAction('COM', 'is_com', 'COM', 'Not COM'),
+    booleanAction('Seat option only', 'is_seat_option_only', 'Seat option only', 'Any use'),
+    idAction('Color', 'color_id', colors, { none: 'No color' }),
+  ], [colors]);
 
   const handleReorder = useCallback(
     async (ordered) => {
@@ -285,6 +300,7 @@ const UpholsteryManagement = () => {
             setItems={(next) => setUpholsteries(next.map((item, i) => ({ ...item, display_order: i })))}
             getItemId={(item) => item.id}
             onReorder={handleReorder}
+            selection={selection}
             disabled={tab === 'archived'}
             minWidth="1000px"
             columns={[
@@ -429,6 +445,14 @@ const UpholsteryManagement = () => {
         itemLabel="upholstery"
         itemName={permDeleteTarget?.name}
         isLoading={permDeleting}
+      />
+
+      <BulkActionBar
+        selection={selection}
+        resource="upholsteries"
+        noun="upholstery"
+        actions={bulkActions}
+        onDone={() => Promise.all([fetchUpholsteries(), fetchCounts()])}
       />
     </AdminPage>
   );

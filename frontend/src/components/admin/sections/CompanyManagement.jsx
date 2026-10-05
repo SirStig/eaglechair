@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import Card from '../../ui/Card';
 import Button from '../../ui/Button';
 import Input from '../../ui/Input';
@@ -10,6 +10,9 @@ import { useToast } from '../../../contexts/ToastContext';
 import TableSortHead from '../TableSortHead';
 import PaginationBar from '../PaginationBar';
 import { AdminPage, AdminPageHeader } from '../ui/AdminPage';
+import useBulkSelection from '../../../hooks/useBulkSelection';
+import BulkActionBar from '../bulk/BulkActionBar';
+import { SelectAllCheckbox, RowCheckbox } from '../bulk/SelectCheckbox';
 
 const CompanyManagement = () => {
   const { refreshKeys } = useAdminRefresh();
@@ -20,9 +23,7 @@ const CompanyManagement = () => {
   const [pageSize, setPageSize] = useState(25);
   const [totalPages, setTotalPages] = useState(1);
   const [total, setTotal] = useState(0);
-  const [selectedCompanies, setSelectedCompanies] = useState([]);
   const [selectedCompanyId, setSelectedCompanyId] = useState(null);
-  const lastSelectedIndexRef = useRef(null);
   const [isInviteModalOpen, setIsInviteModalOpen] = useState(false);
   const [inviteFormData, setInviteFormData] = useState({ company_name: '', email: '' });
   const [inviteErrors, setInviteErrors] = useState({});
@@ -65,65 +66,27 @@ const CompanyManagement = () => {
     }
   };
 
-  useEffect(() => {
-    lastSelectedIndexRef.current = null;
-    setSelectedCompanies([]);
-  }, [page]);
+  const selection = useBulkSelection(companies);
 
-  const handleSelectCompany = useCallback((companyId, index, event) => {
-    if (event?.shiftKey && lastSelectedIndexRef.current !== null) {
-      const start = Math.min(lastSelectedIndexRef.current, index);
-      const end = Math.max(lastSelectedIndexRef.current, index);
-      const rangeIds = companies.slice(start, end + 1).map(c => c.id);
-      setSelectedCompanies(rangeIds);
-      lastSelectedIndexRef.current = index;
-    } else {
-      lastSelectedIndexRef.current = index;
-      setSelectedCompanies(prev =>
-        prev.includes(companyId)
-          ? prev.filter(id => id !== companyId)
-          : [...prev, companyId]
-      );
-    }
-  }, [companies]);
-
-  const handleSelectAll = () => {
-    if (selectedCompanies.length === companies.length) {
-      setSelectedCompanies([]);
-      lastSelectedIndexRef.current = null;
-    } else {
-      setSelectedCompanies(companies.map(c => c.id));
-      lastSelectedIndexRef.current = 0;
-    }
-  };
-
-  const handleBulkStatus = async (status) => {
-    if (selectedCompanies.length === 0) {
-      toast.warning('Please select companies first');
-      return;
-    }
-    setLoading(true);
-    const ids = [...selectedCompanies];
-    setSelectedCompanies([]);
-    try {
-      let successCount = 0;
-      let failCount = 0;
-      for (const id of ids) {
-        try {
-          await apiClient.patch(`/api/v1/admin/companies/${id}/status`, { status });
-          successCount++;
-        } catch { failCount++; }
+  // Status changes go through the per-company endpoint (it handles side effects)
+  const setStatus = (status) => async (ids) => {
+    let failCount = 0;
+    for (const id of ids) {
+      try {
+        await apiClient.patch(`/api/v1/admin/companies/${id}/status`, { status });
+      } catch {
+        failCount++;
       }
-      if (successCount > 0) toast.success(`${successCount} compan${successCount !== 1 ? 'ies' : 'y'} status updated`);
-      if (failCount > 0) toast.error(`Failed to update ${failCount}`);
-      await fetchCompanies();
-    } catch (error) {
-      toast.error('Bulk action failed');
-      setSelectedCompanies(ids);
-    } finally {
-      setLoading(false);
     }
+    if (failCount === ids.length) throw new Error('Failed to update company status');
+    if (failCount > 0) toast.error(`Failed to update ${failCount}`);
   };
+
+  const bulkActions = [
+    { label: 'Activate', run: setStatus('active') },
+    { label: 'Suspend', run: setStatus('suspended'), tone: 'danger' },
+    { label: 'Set inactive', run: setStatus('inactive'), tone: 'danger' },
+  ];
 
   const handleViewCompany = (companyId) => {
     setSelectedCompanyId(companyId);
@@ -242,24 +205,6 @@ const CompanyManagement = () => {
         }
       />
       
-      {selectedCompanies.length > 0 && (
-        <Card className="bg-primary-900/20 border-primary-500">
-          <div className="flex flex-wrap items-center justify-between gap-4">
-            <p className="text-dark-50 font-medium">
-              {selectedCompanies.length} compan{selectedCompanies.length !== 1 ? 'ies' : 'y'} selected
-            </p>
-            <div className="flex flex-wrap gap-2">
-              <Button size="sm" variant="outline" onClick={() => handleBulkStatus('active')}>
-                Activate
-              </Button>
-              <Button size="sm" variant="outline" onClick={() => handleBulkStatus('suspended')}>
-                Suspend
-              </Button>
-            </div>
-          </div>
-        </Card>
-      )}
-
       <Card>
         {loading ? (
           <div className="flex justify-center py-12">
@@ -285,7 +230,7 @@ const CompanyManagement = () => {
               <thead>
                 <tr className="border-b border-dark-600">
                   <th className="px-3 sm:px-4 py-3 text-left">
-                    <input type="checkbox" checked={companies.length > 0 && selectedCompanies.length === companies.length} onChange={handleSelectAll} className="rounded border-dark-600 bg-dark-700" />
+                    <SelectAllCheckbox selection={selection} label="Select all companies" />
                   </th>
                   <TableSortHead label="Company" sortKey="company_name" activeSortBy={sortBy} sortDir={sortDir} onSort={handleSort} className="px-3 sm:px-4 py-3 text-left text-xs sm:text-sm font-medium text-dark-300" />
                   <TableSortHead label="Contact" sortKey="contact" activeSortBy={sortBy} sortDir={sortDir} onSort={handleSort} className="px-3 sm:px-4 py-3 text-left text-xs sm:text-sm font-medium text-dark-300" />
@@ -294,24 +239,18 @@ const CompanyManagement = () => {
                 </tr>
               </thead>
               <tbody>
-                {companies.map((company, index) => (
+                {companies.map((company) => (
                   <tr
                     key={company.id}
-                    className={`border-b border-dark-700 hover:bg-dark-700/50 cursor-pointer select-none ${selectedCompanies.includes(company.id) ? 'bg-primary-900/10' : ''}`}
+                    className={`border-b border-dark-700 hover:bg-dark-700/50 cursor-pointer select-none ${selection.isSelected(company.id) ? 'bg-primary-900/10' : ''}`}
                     onClick={(e) => {
                       if (!e.target.closest('button') && !e.target.closest('[data-no-select]')) {
-                        handleSelectCompany(company.id, index, e);
+                        selection.toggle(company.id, e);
                       }
                     }}
                   >
                     <td className="px-3 sm:px-4 py-3 sm:py-4">
-                      <input
-                        type="checkbox"
-                        checked={selectedCompanies.includes(company.id)}
-                        readOnly
-                        onClick={(e) => { e.stopPropagation(); handleSelectCompany(company.id, index, e); }}
-                        className="rounded border-dark-600 bg-dark-700 cursor-pointer"
-                      />
+                      <RowCheckbox selection={selection} id={company.id} label={`Select ${company.company_name}`} />
                     </td>
                     <td className="px-3 sm:px-4 py-3 sm:py-4">
                       <p className="font-medium text-xs sm:text-sm md:text-base text-dark-50">{company.company_name}</p>
@@ -415,6 +354,13 @@ const CompanyManagement = () => {
           )}
         </form>
       </Modal>
+
+      <BulkActionBar
+        selection={selection}
+        noun="account"
+        actions={bulkActions}
+        onDone={fetchCompanies}
+      />
     </AdminPage>
   );
 };

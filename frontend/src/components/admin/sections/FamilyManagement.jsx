@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { RotateCcw, Trash2 } from 'lucide-react';
 import Card from '../../ui/Card';
 import Button from '../../ui/Button';
@@ -13,6 +13,9 @@ import { useToast } from '../../../contexts/ToastContext';
 import { useAdminRefresh } from '../../../contexts/AdminRefreshContext';
 import ResponsiveImage from '../../ui/ResponsiveImage';
 import { AdminPage, AdminPageHeader } from '../ui/AdminPage';
+import useBulkSelection from '../../../hooks/useBulkSelection';
+import BulkActionBar from '../bulk/BulkActionBar';
+import { booleanAction, idAction } from '../bulk/bulkActions';
 
 /**
  * Product Family Management with Full CRUD
@@ -31,15 +34,12 @@ const FamilyManagement = () => {
   const [archivedTotal, setArchivedTotal] = useState(0);
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(25);
-  const [selectedFamilies, setSelectedFamilies] = useState([]);
   const [permDeleteTarget, setPermDeleteTarget] = useState(null); // { id, name } | { bulk: [...ids] }
   const [permDeleting, setPermDeleting] = useState(false);
-  const lastSelectedIndexRef = useRef(null);
 
   const handleTabChange = (newTab) => {
     setTab(newTab);
     setPage(1);
-    setSelectedFamilies([]);
   };
 
   useEffect(() => {
@@ -157,7 +157,7 @@ const FamilyManagement = () => {
         }
         if (successCount > 0) toast.success(`${successCount} famil${successCount !== 1 ? 'ies' : 'y'} permanently deleted`);
         if (failCount > 0) toast.error(`Failed to permanently delete ${failCount}`);
-        setSelectedFamilies([]);
+        selection.clear();
       } else {
         await apiClient.delete(`/api/v1/admin/catalog/families/${permDeleteTarget.id}?hard_delete=true`);
         toast.success('Family permanently deleted');
@@ -190,77 +190,30 @@ const FamilyManagement = () => {
     [sortedFamilies, page, pageSize]
   );
 
-  useEffect(() => {
-    lastSelectedIndexRef.current = null;
-    setSelectedFamilies([]);
-  }, [page]);
+  const selection = useBulkSelection(paginatedFamilies);
 
-  const handleSelectFamily = useCallback((familyId, index, event) => {
-    if (event?.shiftKey && lastSelectedIndexRef.current !== null) {
-      const start = Math.min(lastSelectedIndexRef.current, index);
-      const end = Math.max(lastSelectedIndexRef.current, index);
-      const rangeIds = paginatedFamilies.slice(start, end + 1).map(f => f.id);
-      setSelectedFamilies(rangeIds);
-      lastSelectedIndexRef.current = index;
-    } else {
-      lastSelectedIndexRef.current = index;
-      setSelectedFamilies(prev =>
-        prev.includes(familyId)
-          ? prev.filter(id => id !== familyId)
-          : [...prev, familyId]
-      );
-    }
-  }, [paginatedFamilies]);
-
-  const handleSelectAll = () => {
-    if (selectedFamilies.length === paginatedFamilies.length) {
-      setSelectedFamilies([]);
-      lastSelectedIndexRef.current = null;
-    } else {
-      setSelectedFamilies(paginatedFamilies.map(f => f.id));
-      lastSelectedIndexRef.current = 0;
-    }
-  };
-
-  const handleBulkAction = async (action) => {
-    if (selectedFamilies.length === 0) {
-      toast.warning('Please select families first');
-      return;
-    }
-    if (action === 'delete' && !confirm(`Move ${selectedFamilies.length} families to Archived? They'll be hidden from the active list but can be restored or permanently deleted later.`)) return;
-    setLoading(true);
-    const ids = [...selectedFamilies];
-    setSelectedFamilies([]);
-    try {
-      let successCount = 0;
-      let failCount = 0;
-      if (action === 'restore') {
-        for (const id of ids) {
-          try {
-            await apiClient.put(`/api/v1/admin/catalog/families/${id}`, { is_active: true });
-            successCount++;
-          } catch { failCount++; }
+  const bulkActions = useMemo(() => [
+    tab === 'active'
+      ? {
+          label: 'Archive',
+          tone: 'danger',
+          // Same soft delete as the row action, which hides the family from the active list
+          run: async (ids) => {
+            const results = await Promise.allSettled(
+              ids.map((id) => apiClient.delete(`/api/v1/admin/catalog/families/${id}`))
+            );
+            const failed = results.filter((r) => r.status === 'rejected').length;
+            if (failed) throw new Error(`Failed to archive ${failed} of ${ids.length}`);
+          },
         }
-        if (successCount > 0) toast.success(`${successCount} famil${successCount !== 1 ? 'ies' : 'y'} restored`);
-        if (failCount > 0) toast.error(`Failed to restore ${failCount}`);
-      } else if (action === 'delete') {
-        for (const id of ids) {
-          try {
-            await apiClient.delete(`/api/v1/admin/catalog/families/${id}`);
-            successCount++;
-          } catch { failCount++; }
-        }
-        if (successCount > 0) toast.success(`${successCount} famil${successCount !== 1 ? 'ies' : 'y'} archived`);
-        if (failCount > 0) toast.error(`Failed to archive ${failCount}`);
-      }
-      await fetchFamilies();
-      await fetchCounts();
-    } catch (error) {
-      toast.error('Bulk action failed');
-      setSelectedFamilies(ids);
-    } finally {
-      setLoading(false);
-    }
+      : { label: 'Restore', changes: { is_active: true } },
+    booleanAction('Featured', 'is_featured', 'Featured', 'Not featured'),
+    idAction('Move to category', 'category_id', categories, { none: 'No category' }),
+  ], [tab, categories]);
+
+  const refreshAfterBulk = async () => {
+    await fetchFamilies();
+    await fetchCounts();
   };
 
   const handleReorder = useCallback(
@@ -300,9 +253,20 @@ const FamilyManagement = () => {
         title="Product Families"
         description="Manage product families and collections"
         actions={
-          <Button onClick={handleCreate}>
-            + Add Family
-          </Button>
+          <div className="flex flex-wrap gap-2">
+            {tab === 'archived' && selection.count > 0 && (
+              <Button
+                variant="outline"
+                onClick={() => setPermDeleteTarget({ bulk: [...selection.selectedIds] })}
+                className="text-red-500 border-red-500/50 hover:bg-red-900/20"
+              >
+                Delete {selection.count} permanently
+              </Button>
+            )}
+            <Button onClick={handleCreate}>
+              + Add Family
+            </Button>
+          </div>
         }
       />
 
@@ -328,37 +292,6 @@ const FamilyManagement = () => {
           </div>
         </div>
       </Card>
-
-      {selectedFamilies.length > 0 && (
-        <Card className="bg-primary-900/20 border-primary-500">
-          <div className="flex flex-wrap items-center justify-between gap-4">
-            <p className="text-dark-50 font-medium">
-              {selectedFamilies.length} family/families selected
-            </p>
-            <div className="flex flex-wrap gap-2">
-              {tab === 'active' ? (
-                <Button size="sm" variant="outline" onClick={() => handleBulkAction('delete')} className="text-red-500 border-red-500/50 hover:bg-red-900/20">
-                  Archive selected
-                </Button>
-              ) : (
-                <>
-                  <Button size="sm" variant="outline" onClick={() => handleBulkAction('restore')}>
-                    Restore selected
-                  </Button>
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    onClick={() => setPermDeleteTarget({ bulk: [...selectedFamilies] })}
-                    className="text-red-500 border-red-500/50 hover:bg-red-900/20"
-                  >
-                    Delete Permanently
-                  </Button>
-                </>
-              )}
-            </div>
-          </div>
-        </Card>
-      )}
 
       {/* Family List */}
       <Card>
@@ -395,9 +328,9 @@ const FamilyManagement = () => {
             getItemId={(item) => item.id}
             onReorder={handleReorder}
             disabled={tab === 'archived'}
+            selection={selection}
             minWidth="900px"
             columns={[
-              { key: 'select', label: <input type="checkbox" checked={paginatedFamilies.length > 0 && selectedFamilies.length === paginatedFamilies.length} onChange={handleSelectAll} className="rounded border-dark-600 bg-dark-700" />, sortKey: null },
               { key: 'image', label: 'Image' },
               { key: 'name', label: 'Family Name', sortKey: 'name' },
               { key: 'slug', label: 'Slug', sortKey: 'slug' },
@@ -405,27 +338,8 @@ const FamilyManagement = () => {
               { key: 'status', label: 'Status', sortKey: 'is_active' },
               { key: 'actions', label: 'Actions' },
             ]}
-            renderRow={(family, rowIndex) => (
+            renderRow={(family) => (
               <>
-                <td className="px-3 sm:px-4 py-3 sm:py-4">
-                  <input
-                    type="checkbox"
-                    checked={selectedFamilies.includes(family.id)}
-                    readOnly
-                    tabIndex={0}
-                    onKeyDown={(e) => {
-                      if (e.key === ' ' || e.key === 'Enter') {
-                        e.preventDefault();
-                        handleSelectFamily(family.id, rowIndex, e);
-                      }
-                    }}
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      handleSelectFamily(family.id, rowIndex, e);
-                    }}
-                    className="rounded border-dark-600 bg-dark-700 cursor-pointer"
-                  />
-                </td>
                 <td className="px-3 sm:px-4 py-3 sm:py-4">
                   {family.family_image ? (
                     <ResponsiveImage
@@ -529,6 +443,14 @@ const FamilyManagement = () => {
           </>
         )}
       </Card>
+
+      <BulkActionBar
+        selection={selection}
+        resource="families"
+        noun="family"
+        actions={bulkActions}
+        onDone={refreshAfterBulk}
+      />
 
       <PermanentDeleteModal
         isOpen={!!permDeleteTarget}

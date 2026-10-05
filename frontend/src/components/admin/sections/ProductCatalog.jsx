@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { Package, Edit2, Trash2, RotateCcw, TrendingUp, MessageSquareQuote } from 'lucide-react';
 import Card from '../../ui/Card';
 import Button from '../../ui/Button';
@@ -12,6 +12,11 @@ import StatusTabs from '../StatusTabs';
 import PermanentDeleteModal from '../PermanentDeleteModal';
 import ResponsiveImage from '../../ui/ResponsiveImage';
 import { AdminPage, AdminPageHeader } from '../ui/AdminPage';
+import useBulkSelection from '../../../hooks/useBulkSelection';
+import BulkActionBar from '../bulk/BulkActionBar';
+import { SelectAllCheckbox, RowCheckbox } from '../bulk/SelectCheckbox';
+import { ACTIVE_ACTIONS } from '../bulk/bulkActions';
+import { productBulkActions } from './productBulkActions';
 
 /**
  * Product Catalog Management
@@ -38,19 +43,18 @@ const ProductCatalog = ({ onEdit }) => {
   const [total, setTotal] = useState(0);
   const [categories, setCategories] = useState([]);
   const [subcategories, setSubcategories] = useState([]);
-  const [bulkCategoryId, setBulkCategoryId] = useState('');
-  const [bulkSubcategoryId, setBulkSubcategoryId] = useState('');
-  const [selectedProducts, setSelectedProducts] = useState([]);
+  const [families, setFamilies] = useState([]);
   const [sortBy, setSortBy] = useState('name');
   const [sortDir, setSortDir] = useState('asc');
   const [permDeleteTarget, setPermDeleteTarget] = useState(null); // { id, name } | { bulk: [...ids] }
   const [permDeleting, setPermDeleting] = useState(false);
-  const lastSelectedIndexRef = useRef(null);
+  const selection = useBulkSelection(products);
+  const { clear: clearSelection } = selection;
 
   const handleTabChange = (newTab) => {
     setTab(newTab);
     setPage(1);
-    setSelectedProducts([]);
+    clearSelection();
   };
 
   const handleSort = useCallback((key) => {
@@ -63,13 +67,13 @@ const ProductCatalog = ({ onEdit }) => {
     fetchProducts();
     fetchCategories();
     fetchSubcategories();
+    fetchFamilies();
     fetchCounts();
   }, [page, pageSize, search, categoryFilter, tab, sortBy, sortDir, refreshKeys.catalog]);
 
   useEffect(() => {
-    lastSelectedIndexRef.current = null;
-    setSelectedProducts([]);
-  }, [page]);
+    clearSelection();
+  }, [page, clearSelection]);
 
   const fetchProducts = async () => {
     setLoading(true);
@@ -114,6 +118,15 @@ const ProductCatalog = ({ onEdit }) => {
       setCategories(response || []);
     } catch (error) {
       console.error('Failed to fetch categories:', error);
+    }
+  };
+
+  const fetchFamilies = async () => {
+    try {
+      const response = await apiClient.get('/api/v1/admin/families');
+      setFamilies(Array.isArray(response) ? response : response?.items || []);
+    } catch (error) {
+      console.error('Failed to fetch families:', error);
     }
   };
 
@@ -173,7 +186,7 @@ const ProductCatalog = ({ onEdit }) => {
         }
         if (successCount > 0) toast.success(`${successCount} product${successCount !== 1 ? 's' : ''} permanently deleted`);
         if (failCount > 0) toast.error(`Failed to permanently delete ${failCount} product${failCount !== 1 ? 's' : ''}`);
-        setSelectedProducts([]);
+        clearSelection();
       } else {
         await apiClient.delete(`/api/v1/admin/products/${permDeleteTarget.id}?hard=true`);
         toast.success('Product permanently deleted');
@@ -189,33 +202,6 @@ const ProductCatalog = ({ onEdit }) => {
     }
   };
 
-  const handleSelectProduct = useCallback((productId, index, event) => {
-    if (event?.shiftKey && lastSelectedIndexRef.current !== null) {
-      const start = Math.min(lastSelectedIndexRef.current, index);
-      const end = Math.max(lastSelectedIndexRef.current, index);
-      const rangeIds = products.slice(start, end + 1).map(p => p.id);
-      setSelectedProducts(rangeIds);
-      lastSelectedIndexRef.current = index;
-    } else {
-      lastSelectedIndexRef.current = index;
-      setSelectedProducts(prev =>
-        prev.includes(productId)
-          ? prev.filter(id => id !== productId)
-          : [...prev, productId]
-      );
-    }
-  }, [products]);
-
-  const handleSelectAll = () => {
-    if (selectedProducts.length === products.length) {
-      setSelectedProducts([]);
-      lastSelectedIndexRef.current = null;
-    } else {
-      setSelectedProducts(products.map(p => p.id));
-      lastSelectedIndexRef.current = 0;
-    }
-  };
-
   const paginationBar = (position) => (
     <PaginationBar
       page={page}
@@ -228,163 +214,30 @@ const ProductCatalog = ({ onEdit }) => {
     />
   );
 
-  const handleBulkChangeCategory = async () => {
-    if (selectedProducts.length === 0) {
-      toast.warning('Please select products first');
-      return;
-    }
-    if (!bulkCategoryId) {
-      toast.warning('Please select a category');
-      return;
-    }
-    setLoading(true);
-    const ids = [...selectedProducts];
-    setSelectedProducts([]);
-    try {
-      let successCount = 0;
-      let failCount = 0;
-      for (const id of ids) {
-        try {
-          await apiClient.patch(`/api/v1/admin/products/${id}`, {
-            category_id: Number(bulkCategoryId),
-            subcategory_id: null
-          });
-          successCount++;
-        } catch {
-          failCount++;
-        }
-      }
-      if (successCount > 0) toast.success(`${successCount} product${successCount !== 1 ? 's' : ''} category updated`);
-      if (failCount > 0) toast.error(`Failed to update ${failCount} product${failCount !== 1 ? 's' : ''}`);
-      setBulkCategoryId('');
-      await fetchProducts();
-    } catch {
-      toast.error('Bulk category update failed');
-      setSelectedProducts(ids);
-    } finally {
-      setLoading(false);
-    }
+  const reload = async () => {
+    await fetchProducts();
+    await fetchCounts();
   };
 
-  const handleBulkChangeSubcategory = async () => {
-    if (selectedProducts.length === 0) {
-      toast.warning('Please select products first');
-      return;
+  // Archive = the per-row soft delete; there is no bulk-API equivalent
+  const archiveSelected = async (ids) => {
+    if (!confirm(`Move ${ids.length} products to Archived? They'll be hidden from the active list but can be restored or permanently deleted later.`)) {
+      throw new Error('Cancelled');
     }
-    if (!bulkSubcategoryId) {
-      toast.warning('Please select a subcategory');
-      return;
-    }
-    const subcat = subcategories.find(s => s.id === Number(bulkSubcategoryId));
-    if (!subcat?.category_id) {
-      toast.error('Invalid subcategory');
-      return;
-    }
-    setLoading(true);
-    const ids = [...selectedProducts];
-    setSelectedProducts([]);
-    try {
-      let successCount = 0;
-      let failCount = 0;
-      for (const id of ids) {
-        try {
-          await apiClient.patch(`/api/v1/admin/products/${id}`, {
-            category_id: subcat.category_id,
-            subcategory_id: subcat.id
-          });
-          successCount++;
-        } catch {
-          failCount++;
-        }
-      }
-      if (successCount > 0) toast.success(`${successCount} product${successCount !== 1 ? 's' : ''} subcategory updated`);
-      if (failCount > 0) toast.error(`Failed to update ${failCount} product${failCount !== 1 ? 's' : ''}`);
-      setBulkSubcategoryId('');
-      await fetchProducts();
-    } catch {
-      toast.error('Bulk subcategory update failed');
-      setSelectedProducts(ids);
-    } finally {
-      setLoading(false);
-    }
+    const results = await Promise.allSettled(ids.map((id) => apiClient.delete(`/api/v1/admin/products/${id}`)));
+    const failed = results.filter((r) => r.status === 'rejected').length;
+    if (failed) throw new Error(`Failed to archive ${failed} of ${ids.length} products`);
   };
 
-  const handleBulkAction = async (action) => {
-    if (selectedProducts.length === 0) {
-      toast.warning('Please select products first');
-      return;
-    }
-
-    if (action === 'delete' && !confirm(`Move ${selectedProducts.length} products to Archived? They'll be hidden from the active list but can be restored or permanently deleted later.`)) {
-      return;
-    }
-
-    setLoading(true);
-    const ids = [...selectedProducts];
-    setSelectedProducts([]);
-
-    try {
-      let successCount = 0;
-      let failCount = 0;
-
-      if (action === 'activate' || action === 'deactivate') {
-        const isActive = action === 'activate';
-        for (const id of ids) {
-          try {
-            await apiClient.patch(`/api/v1/admin/products/${id}`, { is_active: isActive });
-            successCount++;
-          } catch {
-            failCount++;
-          }
-        }
-        if (successCount > 0) {
-          toast.success(`${successCount} product${successCount !== 1 ? 's' : ''} ${action === 'activate' ? 'activated' : 'deactivated'}`);
-        }
-        if (failCount > 0) {
-          toast.error(`Failed to update ${failCount} product${failCount !== 1 ? 's' : ''}`);
-        }
-      } else if (action === 'delete') {
-        for (const id of ids) {
-          try {
-            await apiClient.delete(`/api/v1/admin/products/${id}`);
-            successCount++;
-          } catch {
-            failCount++;
-          }
-        }
-        if (successCount > 0) {
-          toast.success(`${successCount} product${successCount !== 1 ? 's' : ''} archived`);
-        }
-        if (failCount > 0) {
-          toast.error(`Failed to archive ${failCount} product${failCount !== 1 ? 's' : ''}`);
-        }
-      } else if (action === 'restore') {
-        for (const id of ids) {
-          try {
-            await apiClient.patch(`/api/v1/admin/products/${id}`, { is_active: true });
-            successCount++;
-          } catch {
-            failCount++;
-          }
-        }
-        if (successCount > 0) {
-          toast.success(`${successCount} product${successCount !== 1 ? 's' : ''} restored`);
-        }
-        if (failCount > 0) {
-          toast.error(`Failed to restore ${failCount} product${failCount !== 1 ? 's' : ''}`);
-        }
-      }
-
-      await fetchProducts();
-      await fetchCounts();
-    } catch (error) {
-      console.error('Bulk action failed:', error);
-      toast.error('Bulk action failed. Please try again.');
-      setSelectedProducts(ids);
-    } finally {
-      setLoading(false);
-    }
-  };
+  const bulkActions = useMemo(() => (
+    tab === 'active'
+      ? [
+          ...productBulkActions({ categories, subcategories, families }),
+          ...ACTIVE_ACTIONS,
+          { label: 'Archive', run: archiveSelected, tone: 'danger' },
+        ]
+      : [{ label: 'Restore', changes: { is_active: true } }]
+  ), [tab, categories, subcategories, families]);
 
   return (
     <AdminPage>
@@ -459,81 +312,6 @@ const ProductCatalog = ({ onEdit }) => {
         </div>
       </Card>
 
-      {/* Bulk Actions */}
-      {selectedProducts.length > 0 && (
-        <Card className="bg-primary-900/20 border-primary-500">
-          <div className="flex flex-col gap-4">
-            <div className="flex flex-wrap items-center justify-between gap-4">
-              <p className="text-dark-50 font-medium">
-                {selectedProducts.length} product{selectedProducts.length !== 1 ? 's' : ''} selected
-              </p>
-              <div className="flex flex-wrap gap-2">
-                <div className="flex items-center gap-2">
-                  <select
-                    value={bulkCategoryId}
-                    onChange={(e) => setBulkCategoryId(e.target.value)}
-                    className="px-3 py-1.5 bg-dark-700 border border-dark-600 rounded-lg text-dark-50 text-sm focus:border-primary-500 focus:ring-1 focus:ring-primary-500 outline-none min-w-[140px]"
-                  >
-                    <option value="">Change category...</option>
-                    {categories.map(cat => (
-                      <option key={cat.id} value={cat.id}>{cat.name}</option>
-                    ))}
-                  </select>
-                  <Button size="sm" variant="outline" onClick={handleBulkChangeCategory} disabled={!bulkCategoryId}>
-                    Apply
-                  </Button>
-                </div>
-                <div className="flex items-center gap-2">
-                  <select
-                    value={bulkSubcategoryId}
-                    onChange={(e) => setBulkSubcategoryId(e.target.value)}
-                    className="px-3 py-1.5 bg-dark-700 border border-dark-600 rounded-lg text-dark-50 text-sm focus:border-primary-500 focus:ring-1 focus:ring-primary-500 outline-none min-w-[140px]"
-                  >
-                    <option value="">Change subcategory...</option>
-                    {subcategories.map(sc => (
-                      <option key={sc.id} value={sc.id}>
-                        {categories.find(c => c.id === sc.category_id)?.name ? `${categories.find(c => c.id === sc.category_id).name} › ` : ''}{sc.name}
-                      </option>
-                    ))}
-                  </select>
-                  <Button size="sm" variant="outline" onClick={handleBulkChangeSubcategory} disabled={!bulkSubcategoryId}>
-                    Apply
-                  </Button>
-                </div>
-                <div className="w-px h-6 bg-dark-600 self-center" />
-                {tab === 'active' ? (
-                  <>
-                    <Button size="sm" variant="outline" onClick={() => handleBulkAction('activate')}>
-                      Activate
-                    </Button>
-                    <Button size="sm" variant="outline" onClick={() => handleBulkAction('deactivate')}>
-                      Deactivate
-                    </Button>
-                    <Button size="sm" variant="outline" onClick={() => handleBulkAction('delete')}>
-                      Archive selected
-                    </Button>
-                  </>
-                ) : (
-                  <>
-                    <Button size="sm" variant="outline" onClick={() => handleBulkAction('restore')}>
-                      Restore selected
-                    </Button>
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      onClick={() => setPermDeleteTarget({ bulk: [...selectedProducts] })}
-                      className="text-red-500 border-red-500/50 hover:bg-red-900/20"
-                    >
-                      Delete Permanently
-                    </Button>
-                  </>
-                )}
-              </div>
-            </div>
-          </div>
-        </Card>
-      )}
-
       {/* Products Table */}
       <Card>
         {loading ? (
@@ -555,12 +333,7 @@ const ProductCatalog = ({ onEdit }) => {
               <thead>
                 <tr className="border-b border-dark-600">
                   <th className="px-3 sm:px-4 py-3 text-left">
-                    <input
-                      type="checkbox"
-                      checked={products.length > 0 && selectedProducts.length === products.length}
-                      onChange={handleSelectAll}
-                      className="rounded border-dark-600 bg-dark-700"
-                    />
+                    <SelectAllCheckbox selection={selection} label="Select all products on this page" />
                   </th>
                   <th className="px-3 sm:px-4 py-3 text-left text-xs sm:text-sm font-medium text-dark-300">Image</th>
                   <TableSortHead label="Product" sortKey="name" activeSortBy={sortBy} sortDir={sortDir} onSort={handleSort} className="px-3 sm:px-4 py-3 text-left text-xs sm:text-sm font-medium text-dark-300" />
@@ -574,35 +347,18 @@ const ProductCatalog = ({ onEdit }) => {
                 </tr>
               </thead>
               <tbody>
-                {products.map((product, index) => (
+                {products.map((product) => (
                   <tr
                     key={product.id}
-                    className={`border-b border-dark-700 hover:bg-dark-700/50 transition-colors cursor-pointer select-none ${selectedProducts.includes(product.id) ? 'bg-primary-900/10' : ''}`}
+                    className={`border-b border-dark-700 hover:bg-dark-700/50 transition-colors cursor-pointer select-none ${selection.isSelected(product.id) ? 'bg-primary-900/10' : ''}`}
                     onClick={(e) => {
-                      if (!e.target.closest('button') && !e.target.closest('[data-no-select]')) {
-                        handleSelectProduct(product.id, index, e);
+                      if (!e.target.closest('button') && !e.target.closest('input') && !e.target.closest('[data-no-select]')) {
+                        selection.toggle(product.id, e);
                       }
                     }}
                   >
                     <td className="px-4 py-4">
-                      <input
-                        type="checkbox"
-                        checked={selectedProducts.includes(product.id)}
-                        readOnly
-                        tabIndex={0}
-                        onKeyDown={(e) => {
-                          if (e.key === ' ' || e.key === 'Enter') {
-                            e.preventDefault();
-                            handleSelectProduct(product.id, index, e);
-                          }
-                        }}
-                        onClick={(e) => {
-                          e.preventDefault();
-                          e.stopPropagation();
-                          handleSelectProduct(product.id, index, e);
-                        }}
-                        className="rounded border-dark-600 bg-dark-700 cursor-pointer"
-                      />
+                      <RowCheckbox selection={selection} id={product.id} label={`Select ${product.name}`} />
                     </td>
                     <td className="px-4 py-4">
                       {product.primary_image_url ? (
@@ -693,6 +449,27 @@ const ProductCatalog = ({ onEdit }) => {
           </>
         )}
       </Card>
+
+      {tab === 'archived' && selection.count > 0 && (
+        <div className="flex justify-end">
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={() => setPermDeleteTarget({ bulk: [...selection.selectedIds] })}
+            className="text-red-500 border-red-500/50 hover:bg-red-900/20"
+          >
+            Delete {selection.count} permanently
+          </Button>
+        </div>
+      )}
+
+      <BulkActionBar
+        selection={selection}
+        resource="products"
+        noun="product"
+        actions={bulkActions}
+        onDone={reload}
+      />
 
       <PermanentDeleteModal
         isOpen={!!permDeleteTarget}
