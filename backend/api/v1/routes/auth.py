@@ -529,9 +529,6 @@ async def change_password(
             user_agent=request.headers.get("user-agent"),
             login_method="password",
         )
-        await audit_service.record(
-            db, caller.id, "password_changed", "admin_users", caller.id, conn=request
-        )
     else:
         tokens = await AuthService.create_company_tokens(db, caller)
     set_auth_cookies(
