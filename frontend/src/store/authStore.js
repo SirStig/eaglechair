@@ -205,6 +205,24 @@ export const useAuthStore = create(
         logger.info(AUTH_CONTEXT, 'Logout successful');
       },
 
+      // Re-read the admin profile (role / permissions) after it may have changed
+      refreshUser: async () => {
+        const { user } = get();
+        if (!user || user.type !== 'admin') return user;
+        try {
+          const profile = await apiClient.get('/api/v1/auth/me');
+          if (profile && profile.type === 'admin' && isValidUser(profile)) {
+            const updatedUser = { ...user, ...profile };
+            safeSetItem(USER_KEY, JSON.stringify(updatedUser));
+            set({ user: updatedUser });
+            return updatedUser;
+          }
+        } catch (error) {
+          logger.warn(AUTH_CONTEXT, 'Could not refresh admin profile', error);
+        }
+        return user;
+      },
+
       updateUser: (userData) => {
         const updatedUser = { ...get().user, ...userData };
         set({ user: updatedUser });
@@ -263,6 +281,7 @@ export const useAuthStore = create(
                 firstName: responseData.firstName,
                 lastName: responseData.lastName,
                 role: responseData.role,
+                permissions: Array.isArray(responseData.permissions) ? responseData.permissions : undefined,
                 type: 'admin'
               };
             } else if (responseData && (responseData.company_name || (!responseData.type && !responseData.username))) {

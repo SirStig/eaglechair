@@ -8,11 +8,11 @@ from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from backend.api.dependencies import get_current_admin, require_role
+from backend.api.dependencies import get_current_admin
 from backend.api.v1.schemas.admin import FinishCreate, FinishUpdate
 from backend.database.base import get_db
 from backend.models.chair import Finish
-from backend.models.company import AdminRole, AdminUser
+from backend.models.company import AdminUser
 from backend.utils.serializers import orm_to_dict
 from backend.utils.static_content_exporter import export_content_after_update
 
@@ -114,7 +114,7 @@ async def update_finish(
 async def delete_finish(
     finish_id: int,
     hard_delete: bool = Query(False, description="Permanently delete (use with caution)"),
-    admin: AdminUser = Depends(require_role(AdminRole.SUPER_ADMIN)),
+    admin: AdminUser = Depends(get_current_admin),
     db: AsyncSession = Depends(get_db),
 ):
     stmt = select(Finish).where(Finish.id == finish_id)

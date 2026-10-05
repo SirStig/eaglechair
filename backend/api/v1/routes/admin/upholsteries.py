@@ -12,11 +12,11 @@ from pydantic import BaseModel
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from backend.api.dependencies import get_current_admin, require_role
+from backend.api.dependencies import get_current_admin
 from backend.api.v1.schemas.admin import UpholsteryCreate, UpholsteryUpdate
 from backend.database.base import get_db
 from backend.models.chair import Upholstery
-from backend.models.company import AdminRole, AdminUser
+from backend.models.company import AdminUser
 from backend.utils.serializers import orm_list_to_dict_list, orm_to_dict
 from backend.utils.static_content_exporter import export_content_after_update
 
@@ -213,7 +213,7 @@ async def update_upholstery(
 async def delete_upholstery(
     upholstery_id: int,
     hard_delete: bool = Query(False, description="Permanently delete (use with caution)"),
-    admin: AdminUser = Depends(require_role(AdminRole.SUPER_ADMIN)),
+    admin: AdminUser = Depends(get_current_admin),
     db: AsyncSession = Depends(get_db)
 ):
     """

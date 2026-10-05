@@ -13,11 +13,13 @@ covered without each one declaring what it needs:
   - GET / HEAD / OPTIONS            any active admin
   - POST / PUT / PATCH              the edit permission for that area
   - DELETE                          that edit permission plus "delete"
+  - DELETE ?hard=true (or hard_delete / permanent)
+                                    also "permanent_delete" (super admins)
 """
 
 import re
 from enum import Enum
-from typing import Iterable, Optional
+from typing import Iterable, Mapping, Optional
 
 from backend.models.company import AdminRole, AdminUser
 
@@ -178,9 +180,22 @@ _AI_PERSONAL = re.compile(r"^ai/(chats|memory|ws-ticket|edits/decline)(/|$)")
 _AI_APPLY = re.compile(r"^ai/(apply-edit|edits/apply)$")
 
 
-def required_permissions(method: str, path: str) -> set[Permission]:
+# Query flags that turn a (soft) DELETE into a permanent one
+_HARD_DELETE_FLAGS = ("hard", "hard_delete", "permanent")
+
+
+def _delete_permissions(query: Optional[Mapping[str, str]]) -> set[Permission]:
+    needed = {Permission.DELETE}
+    if query and any(str(query.get(flag, "")).lower() in ("1", "true", "yes") for flag in _HARD_DELETE_FLAGS):
+        needed.add(Permission.PERMANENT_DELETE)
+    return needed
+
+
+def required_permissions(
+    method: str, path: str, query: Optional[Mapping[str, str]] = None
+) -> set[Permission]:
     """
-    Permissions needed to call `method path`. Empty set = any admin.
+    Permissions needed to call `method path?query`. Empty set = any admin.
     Paths outside /admin and /cms-admin need nothing here.
     """
     method = method.upper()
@@ -189,7 +204,7 @@ def required_permissions(method: str, path: str) -> set[Permission]:
             return set()
         needed = {Permission.EDIT_CONTENT}
         if method == "DELETE":
-            needed.add(Permission.DELETE)
+            needed |= _delete_permissions(query)
         return needed
     if not path.startswith(ADMIN_PREFIX):
         return set()
@@ -219,9 +234,11 @@ def required_permissions(method: str, path: str) -> set[Permission]:
 
     needed = {area}
     if method == "DELETE":
-        needed.add(Permission.DELETE)
+        needed |= _delete_permissions(query)
     return needed
 
 
-def missing_permissions(admin: AdminUser, method: str, path: str) -> set[Permission]:
-    return required_permissions(method, path) - effective_permissions(admin)
+def missing_permissions(
+    admin: AdminUser, method: str, path: str, query: Optional[Mapping[str, str]] = None
+) -> set[Permission]:
+    return required_permissions(method, path, query) - effective_permissions(admin)

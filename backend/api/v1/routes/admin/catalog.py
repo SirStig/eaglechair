@@ -32,7 +32,7 @@ from starlette.concurrency import run_in_threadpool
 from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from backend.api.dependencies import get_current_admin, require_role
+from backend.api.dependencies import get_current_admin
 from backend.api.v1.schemas.admin import (
     FamilyCreate,
     FamilyUpdate,
@@ -54,7 +54,7 @@ from backend.models.chair import (
     ProductSubcategory,
     Upholstery,
 )
-from backend.models.company import AdminRole, AdminUser
+from backend.models.company import AdminUser
 from backend.models.content import Catalog, CatalogType, Hardware, Laminate
 from backend.utils.serializers import orm_list_to_dict_list, orm_to_dict
 from backend.services import media_service
@@ -214,10 +214,10 @@ async def update_color(
 async def delete_color(
     color_id: int,
     hard_delete: bool = Query(False, description="Permanently delete (use with caution)"),
-    admin: AdminUser = Depends(require_role(AdminRole.SUPER_ADMIN)),
+    admin: AdminUser = Depends(get_current_admin),
     db: AsyncSession = Depends(get_db)
 ):
-    """Delete a color. Super admin only."""
+    """Delete a color. Hard delete needs permanent_delete (admin_permissions)."""
     logger.info(f"Admin {admin.username} deleting color {color_id} (hard={hard_delete})")
     
     stmt = select(Color).where(Color.id == color_id)
@@ -417,7 +417,7 @@ async def update_finish(
 async def delete_finish(
     finish_id: int,
     hard_delete: bool = Query(False, description="Permanently delete (use with caution)"),
-    admin: AdminUser = Depends(require_role(AdminRole.SUPER_ADMIN)),
+    admin: AdminUser = Depends(get_current_admin),
     db: AsyncSession = Depends(get_db)
 ):
     """Delete a finish. Super admin only."""
@@ -660,7 +660,7 @@ async def update_upholstery(
 async def delete_upholstery(
     upholstery_id: int,
     hard_delete: bool = Query(False, description="Permanently delete (use with caution)"),
-    admin: AdminUser = Depends(require_role(AdminRole.SUPER_ADMIN)),
+    admin: AdminUser = Depends(get_current_admin),
     db: AsyncSession = Depends(get_db)
 ):
     """Delete an upholstery. Super admin only."""
@@ -831,7 +831,7 @@ async def update_custom_option(
 async def delete_custom_option(
     option_id: int,
     hard_delete: bool = Query(False, description="Permanently delete (use with caution)"),
-    admin: AdminUser = Depends(require_role(AdminRole.SUPER_ADMIN)),
+    admin: AdminUser = Depends(get_current_admin),
     db: AsyncSession = Depends(get_db)
 ):
     """Delete a custom option. Super admin only."""
@@ -973,7 +973,7 @@ async def update_family(
 async def delete_family(
     family_id: int,
     hard_delete: bool = Query(False, description="Permanently delete (use with caution)"),
-    admin: AdminUser = Depends(require_role(AdminRole.SUPER_ADMIN)),
+    admin: AdminUser = Depends(get_current_admin),
     db: AsyncSession = Depends(get_db)
 ):
     """Delete a product family. Super admin only."""
@@ -1100,7 +1100,7 @@ async def update_subcategory(
 async def delete_subcategory(
     subcategory_id: int,
     hard_delete: bool = Query(False, description="Permanently delete (use with caution)"),
-    admin: AdminUser = Depends(require_role(AdminRole.SUPER_ADMIN)),
+    admin: AdminUser = Depends(get_current_admin),
     db: AsyncSession = Depends(get_db)
 ):
     """Delete a subcategory. Super admin only."""
@@ -1277,7 +1277,7 @@ async def update_laminate(
 async def delete_laminate(
     laminate_id: int,
     hard_delete: bool = Query(False, description="Permanently delete (use with caution)"),
-    admin: AdminUser = Depends(require_role(AdminRole.SUPER_ADMIN)),
+    admin: AdminUser = Depends(get_current_admin),
     db: AsyncSession = Depends(get_db)
 ):
     """Delete a laminate. Super admin only."""
@@ -1689,7 +1689,7 @@ async def update_catalog(
 async def delete_catalog(
     catalog_id: int,
     hard_delete: bool = Query(False, description="Permanently delete (use with caution)"),
-    admin: AdminUser = Depends(require_role(AdminRole.SUPER_ADMIN)),
+    admin: AdminUser = Depends(get_current_admin),
     db: AsyncSession = Depends(get_db)
 ):
     """Delete a catalog. Super admin only."""
@@ -1860,7 +1860,7 @@ async def update_hardware(
 async def delete_hardware(
     hardware_id: int,
     hard_delete: bool = Query(False, description="Permanently delete (use with caution)"),
-    admin: AdminUser = Depends(require_role(AdminRole.SUPER_ADMIN)),
+    admin: AdminUser = Depends(get_current_admin),
     db: AsyncSession = Depends(get_db)
 ):
     """Delete a hardware item. Super admin only."""

@@ -12,10 +12,10 @@ from pydantic import BaseModel
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from backend.api.dependencies import get_current_admin, require_role
+from backend.api.dependencies import get_current_admin
 from backend.database.base import get_db
 from backend.models.chair import Color
-from backend.models.company import AdminRole, AdminUser
+from backend.models.company import AdminUser
 
 logger = logging.getLogger(__name__)
 
@@ -237,7 +237,7 @@ async def update_color(
 async def delete_color(
     color_id: int,
     hard_delete: bool = Query(False, description="Permanently delete (use with caution)"),
-    admin: AdminUser = Depends(require_role(AdminRole.SUPER_ADMIN)),
+    admin: AdminUser = Depends(get_current_admin),
     db: AsyncSession = Depends(get_db),
 ):
     """

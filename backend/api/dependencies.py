@@ -385,7 +385,7 @@ async def get_current_admin(
 
     # Central permission policy for /admin and /cms-admin routes
     # (backend/core/admin_permissions.py)
-    missing = missing_permissions(admin, request.method, request.url.path)
+    missing = missing_permissions(admin, request.method, request.url.path, request.query_params)
     if missing:
         labels = sorted(PERMISSION_LABELS[p][0] for p in missing)
         logger.warning(
