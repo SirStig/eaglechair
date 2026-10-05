@@ -13,7 +13,7 @@ covered without each one declaring what it needs:
   - GET / HEAD / OPTIONS            any active admin
   - POST / PUT / PATCH              the edit permission for that area
   - DELETE                          that edit permission plus "delete"
-  - DELETE ?hard=true (or hard_delete / permanent)
+  - DELETE ?hard=… (or hard_delete / permanent / force / delete_tier)
                                     also "permanent_delete" (super admins)
 """
 
@@ -180,13 +180,20 @@ _AI_PERSONAL = re.compile(r"^ai/(chats|memory|ws-ticket|edits/decline)(/|$)")
 _AI_APPLY = re.compile(r"^ai/(apply-edit|edits/apply)$")
 
 
-# Query flags that turn a (soft) DELETE into a permanent one
-_HARD_DELETE_FLAGS = ("hard", "hard_delete", "permanent")
+# Query flags that turn a (soft) DELETE into a permanent one. `force` and
+# `delete_tier` also remove rows for good (pricing tiers).
+_HARD_DELETE_FLAGS = ("hard", "hard_delete", "permanent", "force", "delete_tier")
+# Fail closed: FastAPI reads true/1/yes/on/t/y (any case) as True, so any
+# value that isn't explicitly false counts as a hard delete
+_FALSE_VALUES = ("", "0", "false", "no", "off", "f", "n")
 
 
 def _delete_permissions(query: Optional[Mapping[str, str]]) -> set[Permission]:
     needed = {Permission.DELETE}
-    if query and any(str(query.get(flag, "")).lower() in ("1", "true", "yes") for flag in _HARD_DELETE_FLAGS):
+    if query and any(
+        flag in query and str(query.get(flag)).strip().lower() not in _FALSE_VALUES
+        for flag in _HARD_DELETE_FLAGS
+    ):
         needed.add(Permission.PERMANENT_DELETE)
     return needed
 

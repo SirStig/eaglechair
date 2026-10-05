@@ -272,6 +272,13 @@ class Settings(BaseSettings):
     # region (needs the geoip2 package). Without it, country comes only from a
     # CDN header (CF-IPCountry etc.) when one is present.
     GEOIP_DB_PATH: Optional[str] = None
+
+    # Admin device sessions: location (city, region, country, network) of
+    # each sign-in's public IP via ipinfo.io, looked up when sessions are
+    # listed and cached per IP. No local database. A free token raises the
+    # unauthenticated limit; lookups are off in tests.
+    IP_LOCATION_LOOKUP_ENABLED: bool = True
+    IPINFO_TOKEN: Optional[str] = None
     # Weekly traffic digest email to staff (Mondays, UTC)
     ANALYTICS_DIGEST_ENABLED: bool = True
     ANALYTICS_DIGEST_RECIPIENTS: str = ""  # comma-separated; empty = ADMIN_EMAIL

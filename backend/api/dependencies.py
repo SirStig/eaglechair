@@ -12,7 +12,12 @@ from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from backend.core.admin_permissions import PERMISSION_LABELS, missing_permissions
+from backend.core.admin_permissions import (
+    PERMISSION_LABELS,
+    Permission,
+    effective_permissions,
+    missing_permissions,
+)
 from backend.core.exceptions import (
     AuthenticationError,
     AuthorizationError,
@@ -259,6 +264,11 @@ async def get_current_company(
 
         # Validate session and admin tokens against stored digests
         await verify_admin_session_tokens(request, admin, db, token_payload)
+
+        # Acting as a company (carts, quotes) changes sales data: same
+        # permission as the admin quote/company routes
+        if request.method not in ("GET", "HEAD", "OPTIONS") and Permission.EDIT_SALES not in effective_permissions(admin):
+            raise InsufficientPermissionsError(required_role=PERMISSION_LABELS[Permission.EDIT_SALES][0])
 
         # Check for optional company_id query param for admin access (highest priority)
         company_id_param = request.query_params.get("company_id")

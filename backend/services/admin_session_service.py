@@ -59,35 +59,91 @@ def device_label(user_agent: Optional[str]) -> Optional[str]:
     return browser or system
 
 
-def locate(ip: Optional[str]) -> Optional[str]:
-    """'City, Region, CC' from the analytics GeoIP database, if configured"""
-    if not ip:
-        return None
+# IP -> "City, Region, CC · Network" via ipinfo.io (no local database).
+# Looked up lazily when sessions are listed, cached per IP, never at sign-in.
+IP_LOOKUP_URL = "https://ipinfo.io/{ip}/json"
+IP_LOOKUP_TIMEOUT_SECONDS = 3
+IP_LOOKUP_CACHE_SECONDS = 30 * 24 * 3600
+IP_LOOKUP_MISS_CACHE_SECONDS = 24 * 3600
+MAX_LOOKUPS_PER_LIST = 10
+_AS_PREFIX = re.compile(r"^AS\d+\s+")
+
+
+def _public_ip(ip: Optional[str]) -> Optional[str]:
+    import ipaddress
+
     try:
-        import ipaddress
-
-        from backend.services.site_analytics_service import _geoip_reader
-
-        parsed = ipaddress.ip_address(ip)
-        if parsed.is_private or parsed.is_loopback:
-            return None
-        reader = _geoip_reader()
-        if reader is None:
-            return None
-        try:
-            hit = reader.city(ip)
-            parts = [
-                hit.city.name,
-                hit.subdivisions.most_specific.name if hit.subdivisions else None,
-                hit.country.iso_code,
-            ]
-        except Exception:
-            hit = reader.country(ip)
-            parts = [hit.country.iso_code]
-        label = ", ".join(p for p in parts if p)
-        return label[:150] or None
-    except Exception:
+        parsed = ipaddress.ip_address(ip or "")
+    except ValueError:
         return None
+    if parsed.is_private or parsed.is_loopback or parsed.is_reserved or parsed.is_link_local:
+        return None
+    return str(parsed)
+
+
+def _fetch_ip_info(ip: str) -> Optional[dict]:
+    """Blocking HTTP lookup; run in a thread"""
+    import json
+    import urllib.request
+
+    from backend.core.config import settings
+
+    url = IP_LOOKUP_URL.format(ip=ip)
+    if settings.IPINFO_TOKEN:
+        url += f"?token={settings.IPINFO_TOKEN}"
+    request = urllib.request.Request(url, headers={"Accept": "application/json", "User-Agent": "EagleChair-Admin"})
+    with urllib.request.urlopen(request, timeout=IP_LOOKUP_TIMEOUT_SECONDS) as response:
+        return json.loads(response.read().decode("utf-8"))
+
+
+def format_location(info: Optional[dict]) -> Optional[str]:
+    if not isinstance(info, dict) or info.get("bogon"):
+        return None
+    place = ", ".join(p for p in (info.get("city"), info.get("region"), info.get("country")) if p)
+    network = _AS_PREFIX.sub("", info.get("org") or "").strip()
+    label = " · ".join(p for p in (place, network) if p)
+    return label[:150] or None
+
+
+async def lookup_location(ip: Optional[str]) -> Optional[str]:
+    """Location label for a public IP, cached. Never raises."""
+    import asyncio
+
+    from backend.core.config import settings
+    from backend.core.ephemeral_store import ephemeral_store
+
+    ip = _public_ip(ip)
+    if not ip or not settings.IP_LOCATION_LOOKUP_ENABLED:
+        return None
+    cache_key = f"ipgeo:{ip}"
+    try:
+        cached = await ephemeral_store.get(cache_key)
+        if cached is not None:
+            return cached or None
+        label = format_location(await asyncio.to_thread(_fetch_ip_info, ip))
+        ttl = IP_LOOKUP_CACHE_SECONDS if label else IP_LOOKUP_MISS_CACHE_SECONDS
+        await ephemeral_store.set(cache_key, label or "", ttl)
+        return label
+    except Exception as e:
+        logger.info(f"IP location lookup failed for {ip}: {e}")
+        return None
+
+
+async def fill_locations(db: AsyncSession, sessions: list[AdminSession]) -> None:
+    """Look up and save locations for sessions that don't have one yet"""
+    pending = [s for s in sessions if not s.location and _public_ip(s.ip_address)][:MAX_LOOKUPS_PER_LIST]
+    changed = False
+    for session in pending:
+        label = await lookup_location(session.ip_address)
+        if label:
+            session.location = label
+            changed = True
+    if changed:
+        try:
+            await db.commit()
+        except Exception as e:
+            logger.warning(f"Could not save admin session locations: {e}")
+            await db.rollback()
 
 
 def _now() -> datetime:
@@ -111,7 +167,7 @@ async def create_session(
         ip_address=ip_address,
         user_agent=(user_agent or "")[:500] or None,
         device_label=device_label(user_agent),
-        location=locate(ip_address),
+        location=None,  # filled in lazily by fill_locations()
         last_seen_at=_now(),
     )
     db.add(session)
@@ -154,7 +210,7 @@ async def touch(db: AsyncSession, session: AdminSession, ip_address: Optional[st
         session.last_seen_at = now
         if ip_address and ip_address != session.ip_address:
             session.ip_address = ip_address
-            session.location = locate(ip_address)
+            session.location = None  # looked up again next time sessions are listed
         await db.commit()
     except Exception as e:
         logger.warning(f"Could not update admin session {session.id} last_seen: {e}")
@@ -194,7 +250,9 @@ async def list_sessions(db: AsyncSession, admin_id: int, include_revoked_days: i
         )
         .order_by(AdminSession.revoked_at.is_not(None), AdminSession.last_seen_at.desc(), AdminSession.id.desc())
     )
-    return list(result.scalars().all())
+    sessions = list(result.scalars().all())
+    await fill_locations(db, sessions)
+    return sessions
 
 
 def _iso(value: Optional[datetime]) -> Optional[str]:

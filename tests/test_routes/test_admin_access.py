@@ -123,6 +123,22 @@ class TestPermissionPolicy:
             _admin(AdminRole.SUPER_ADMIN), "DELETE", "/api/v1/admin/products/1", {"hard": "true"}
         )
 
+    @pytest.mark.parametrize("flag,value", [
+        ("hard_delete", "on"), ("hard_delete", "t"), ("hard_delete", "Y"), ("hard", "TRUE"),
+        ("force", "true"), ("delete_tier", "1"),
+    ])
+    def test_hard_delete_flag_spellings_fail_closed(self, flag, value):
+        admin = _admin(AdminRole.ADMIN)
+        assert Permission.PERMANENT_DELETE in missing_permissions(
+            admin, "DELETE", "/api/v1/admin/catalog/colors/1", {flag: value}
+        )
+
+    @pytest.mark.parametrize("value", ["false", "0", "off", "no", "F"])
+    def test_explicit_false_is_soft(self, value):
+        assert not missing_permissions(
+            _admin(AdminRole.ADMIN), "DELETE", "/api/v1/admin/catalog/colors/1", {"hard_delete": value}
+        )
+
     def test_missing_permissions(self):
         sales_only = _admin(AdminRole.EDITOR, ["edit_sales"])
         assert missing_permissions(sales_only, "PATCH", "/api/v1/admin/products/1") == {Permission.EDIT_CATALOG}
@@ -512,4 +528,36 @@ class TestChangeDetails:
         assert response.status_code == 200, response.text
         [result] = response.json()["results"]
         assert result["status"] == "failed"
-        assert "permission to delete" in result["error"]
+        assert "only super admins" in result["error"]
+
+    async def test_ai_delete_by_super_admin_needs_confirmation(self, async_client, db_session):
+        import uuid
+
+        from backend.models.ai_chat import AIProposedEdit
+
+        admin = await create_admin(db_session, role=AdminRole.SUPER_ADMIN)
+        category = await create_category(db_session)
+        proposal = AIProposedEdit(
+            id=str(uuid.uuid4()), batch_id="b1", session_id=str(uuid.uuid4()), admin_user_id=admin.id,
+            entity_type="category", entity_id=category.id, action="delete", changes={}, status="pending",
+            position=0,
+        )
+        db_session.add(proposal)
+        await db_session.commit()
+        headers = await _headers(db_session, admin)
+        response = await async_client.post(
+            "/api/v1/admin/ai/edits/apply", json={"ids": [proposal.id]}, headers=headers
+        )
+        assert response.status_code == 403
+        assert response.json()["error"] == "REAUTH_REQUIRED"
+
+    async def test_viewer_cannot_act_as_company(self, async_client, db_session):
+        from tests.factories import create_company
+
+        viewer = await create_admin(db_session, role=AdminRole.VIEWER)
+        company = await create_company(db_session)
+        headers = await _headers(db_session, viewer)
+        response = await async_client.delete(
+            f"/api/v1/quotes/cart/clear?company_id={company.id}", headers=headers
+        )
+        assert response.status_code == 403

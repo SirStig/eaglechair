@@ -41,6 +41,7 @@ from fastapi import (
     File,
     Form,
     HTTPException,
+    Request,
     UploadFile,
     WebSocket,
     WebSocketDisconnect,
@@ -51,6 +52,11 @@ from sqlalchemy.orm import selectinload
 
 from backend.api.dependencies import get_current_admin
 from backend.core.admin_permissions import Permission, has_permission
+from backend.services.admin_confirmation import (
+    ConfirmationRequiredError,
+    confirmation_expires_at,
+    session_id_of,
+)
 from backend.core.config import settings
 from backend.core.ephemeral_store import ephemeral_store
 from backend.models.company import AdminAuditLog, AdminUser
@@ -618,6 +624,7 @@ async def list_proposed_edits(
 
 @router.post("/edits/apply")
 async def apply_proposed_edits(
+    request: Request,
     body: dict,
     db: AsyncSession = Depends(get_db),
     admin=Depends(get_current_admin),
@@ -630,6 +637,18 @@ async def apply_proposed_edits(
     force = bool(body.get("force"))
     results = []
     proposals = await _load_own_proposals(db, ids, admin.id)
+    # AI deletes remove rows for good (apply_proposal hard-deletes), so they
+    # need permanent_delete and a fresh identity confirmation, like the
+    # permanent bulk delete
+    has_deletes = any(
+        p.action == "delete" and p.status == ProposalStatus.PENDING.value for p in proposals.values()
+    )
+    if (
+        has_deletes
+        and has_permission(admin, Permission.PERMANENT_DELETE)
+        and await confirmation_expires_at(admin, session_id_of(request)) is None
+    ):
+        raise ConfirmationRequiredError()
     for pid in ids:
         if pid not in proposals:
             results.append({"id": pid, "status": "failed", "error": "Proposal not found", "conflict": False})
@@ -639,11 +658,10 @@ async def apply_proposed_edits(
         if p.status != ProposalStatus.PENDING.value:
             results.append({"id": pid, "status": p.status, "error": p.error, "conflict": False, "entity_id": p.entity_id})
             continue
-        # Approving an AI delete is a delete: same permission as the delete routes
-        if p.action == "delete" and not has_permission(admin, Permission.DELETE):
+        if p.action == "delete" and not has_permission(admin, Permission.PERMANENT_DELETE):
             results.append({
                 "id": pid, "status": "failed", "conflict": False, "entity_id": p.entity_id,
-                "error": "You don't have permission to delete. Ask a super admin.",
+                "error": "AI deletes are permanent, so only super admins can approve them.",
             })
             continue
         try:
@@ -1134,8 +1152,19 @@ async def websocket_chat(websocket: WebSocket, session_id: str):
                 await websocket.send_json(AIStreamEvent.error("Invalid or expired token"))
                 await websocket.close(code=4001)
                 return
-            # Edit/agent modes can create products directly (create_product tool);
-            # same bar as the product create/apply-edit routes.
+            # A token from a signed-out device must not open the socket (REST
+            # checks this in authenticate_admin). Tickets carry no sid: they
+            # are issued by an authenticated request and expire in seconds.
+            if payload.get("sid") is not None:
+                from backend.services import admin_session_service
+
+                device = await admin_session_service.get_session(db, payload["sid"])
+                if not admin_session_service.is_active(device) or device.admin_id != ws_admin.id:
+                    await websocket.send_json(AIStreamEvent.error("This device has been signed out"))
+                    await websocket.close(code=4001)
+                    return
+            # Edit/agent modes only propose changes; applying them goes
+            # through /edits/apply, which checks permissions per change
             can_write = has_permission(ws_admin, Permission.EDIT_CATALOG)
             result = await db.execute(
                 select(AIChatSession)

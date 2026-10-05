@@ -212,11 +212,14 @@ async def _has_passkey(db: AsyncSession, admin: AdminUser) -> bool:
     description="Requires admin auth. Whether the admin recently confirmed it's them, and which methods they can use.",
 )
 async def confirmation_status(
+    request: Request,
     admin: AdminUser = Depends(get_current_admin),
     db: AsyncSession = Depends(get_db),
 ):
     return {
-        "confirmedUntil": await admin_confirmation.confirmation_expires_at(admin),
+        "confirmedUntil": await admin_confirmation.confirmation_expires_at(
+            admin, admin_confirmation.session_id_of(request)
+        ),
         "hasPasskey": await _has_passkey(db, admin),
         "hasMfa": admin.is_2fa_enabled,
     }
@@ -251,13 +254,15 @@ async def confirm_identity(
 ):
     passkey = body.get("passkey") if isinstance(body, dict) else None
     method = "passkey" if passkey else "password"
+    session_id = admin_confirmation.session_id_of(request)
     try:
         if passkey:
+            await admin_confirmation.take_attempt(admin)
             verified = await PasskeyService.verify_authentication(db, passkey)
-            expires_at = await admin_confirmation.confirm_with_passkey(admin, verified)
+            expires_at = await admin_confirmation.confirm_with_passkey(admin, verified, session_id)
         else:
             expires_at = await admin_confirmation.confirm_with_password(
-                admin, body.get("password") or "", body.get("two_factor_code")
+                admin, body.get("password") or "", body.get("two_factor_code"), session_id
             )
     except InvalidCredentialsError as e:
         await audit_service.record(

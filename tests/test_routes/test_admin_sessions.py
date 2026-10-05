@@ -176,3 +176,56 @@ class TestAdminSessions:
         staff_device = await _login(async_client, staff)
         forbidden = await async_client.get(f"/api/v1/admin/admins/{boss.id}/sessions", headers=_h(staff_device))
         assert forbidden.status_code == 403
+
+
+# ============================================================================
+# IP location (ipinfo.io, cached, filled in when sessions are listed)
+# ============================================================================
+
+class TestIpLocation:
+    def test_format_location(self):
+        from backend.services.admin_session_service import format_location
+
+        info = {"city": "Houston", "region": "Texas", "country": "US", "org": "AS7922 Comcast Cable"}
+        assert format_location(info) == "Houston, Texas, US · Comcast Cable"
+        assert format_location({"bogon": True}) is None
+        assert format_location(None) is None
+
+    @pytest.mark.asyncio
+    async def test_lookup_is_cached_and_skips_private_ips(self, monkeypatch):
+        from backend.core.config import settings
+        from backend.core.ephemeral_store import ephemeral_store
+        from backend.services import admin_session_service as svc
+
+        ephemeral_store.clear_memory()
+        monkeypatch.setattr(settings, "IP_LOCATION_LOOKUP_ENABLED", True)
+        calls = []
+
+        def fake_fetch(ip):
+            calls.append(ip)
+            return {"city": "Austin", "region": "Texas", "country": "US"}
+
+        monkeypatch.setattr(svc, "_fetch_ip_info", fake_fetch)
+        assert await svc.lookup_location("8.8.8.8") == "Austin, Texas, US"
+        assert await svc.lookup_location("8.8.8.8") == "Austin, Texas, US"
+        assert calls == ["8.8.8.8"]
+        assert await svc.lookup_location("192.168.1.5") is None
+        assert await svc.lookup_location("127.0.0.1") is None
+        assert calls == ["8.8.8.8"]
+        ephemeral_store.clear_memory()
+
+    @pytest.mark.asyncio
+    async def test_lookup_failure_never_raises(self, monkeypatch):
+        from backend.core.config import settings
+        from backend.core.ephemeral_store import ephemeral_store
+        from backend.services import admin_session_service as svc
+
+        ephemeral_store.clear_memory()
+        monkeypatch.setattr(settings, "IP_LOCATION_LOOKUP_ENABLED", True)
+
+        def boom(ip):
+            raise TimeoutError("slow")
+
+        monkeypatch.setattr(svc, "_fetch_ip_info", boom)
+        assert await svc.lookup_location("1.1.1.1") is None
+        ephemeral_store.clear_memory()

@@ -18,6 +18,7 @@ TEST_DATABASE_URL = "sqlite+aiosqlite:///./test.db"
 # (local Postgres/Redis, DEBUG, CORS origins) never leaks into test settings.
 os.environ["RATE_LIMIT_ENABLED"] = "false"
 os.environ["TESTING"] = "true"
+os.environ["IP_LOCATION_LOOKUP_ENABLED"] = "false"  # no network calls from tests
 os.environ["ENVIRONMENT"] = "test"
 os.environ["DEBUG"] = "false"
 # The app's own engine (used by the lifespan startup tasks) points at the test
