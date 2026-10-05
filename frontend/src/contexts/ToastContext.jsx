@@ -22,8 +22,10 @@ export const ToastProvider = ({ children }) => {
   const showToast = useCallback((message, variant = 'info', duration = 5000) => {
     const id = ++toastId;
     const newToast = { id, message, variant, duration };
-    
-    setToasts((prev) => [...prev, newToast]);
+
+    // Only one toast at a time: a new one replaces whatever is showing
+    // (its new id remounts it, restarting the timer and progress bar)
+    setToasts([newToast]);
     
     return id;
   }, []);

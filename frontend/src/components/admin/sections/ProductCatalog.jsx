@@ -18,6 +18,7 @@ import { SelectAllCheckbox, SelectCell } from '../bulk/SelectCheckbox';
 import { openOnRowClick } from '../bulk/rowClick';
 import { ACTIVE_ACTIONS } from '../bulk/bulkActions';
 import { productBulkActions } from './productBulkActions';
+import PdfPreviewButton from '../../ui/PdfPreviewButton';
 
 /**
  * Product Catalog Management
@@ -408,6 +409,7 @@ const ProductCatalog = ({ onEdit }) => {
                     </td>
                     <td className="px-4 py-4" data-no-select onClick={(e) => e.stopPropagation()}>
                       <div className="flex items-center justify-end gap-2">
+                        <PdfPreviewButton url={product.spec_sheet_url} title={`${product.name} spec sheet`} />
                         <button
                           onClick={() => onEdit(product)}
                           className="p-2 text-primary-500 hover:bg-primary-900/20 rounded-lg transition-colors"

@@ -12,6 +12,7 @@ import { AdminPage, AdminPageHeader } from '../ui/AdminPage';
 import useBulkSelection from '../../../hooks/useBulkSelection';
 import BulkActionBar from '../bulk/BulkActionBar';
 import { ACTIVE_ACTIONS, booleanAction } from '../bulk/bulkActions';
+import PdfPreviewButton from '../../ui/PdfPreviewButton';
 
 const BULK_ACTIONS = [
   { label: 'Move to type', options: CATALOG_TYPE_OPTIONS, toChanges: (v) => ({ catalog_type: v }) },
@@ -251,6 +252,7 @@ const CatalogManagement = () => {
                 </td>
                 <td className="px-3 sm:px-4 py-3 text-right">
                   <div className="flex justify-end gap-2">
+                    <PdfPreviewButton url={catalog.file_url} title={catalog.title} fileType={catalog.file_type || 'PDF'} />
                     <button
                       onClick={() => handleEdit(catalog)}
                       className="p-2 text-primary-400 hover:bg-primary-900/20 rounded transition-colors"

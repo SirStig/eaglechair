@@ -1,4 +1,5 @@
 import { useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { X, Download, ExternalLink } from 'lucide-react';
 import { resolveFileUrl } from '../../utils/apiHelpers';
 import { trackCatalogRead } from '../../utils/analytics';
@@ -38,11 +39,22 @@ function useReadingTime(isOpen, title) {
  * PDF Viewer Modal Component
  * Displays PDF files in an iframe for in-browser viewing
  */
+const IMAGE_FILE = /\.(png|jpe?g|webp|gif|avif|svg)(\?|#|$)/i;
+
 const PDFViewerModal = ({ isOpen, onClose, fileUrl, fileName, fileType = 'PDF' }) => {
   useReadingTime(isOpen, fileName);
-  if (!isOpen) return null;
+
+  useEffect(() => {
+    if (!isOpen) return undefined;
+    const onKey = (e) => { if (e.key === 'Escape') onClose(); };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [isOpen, onClose]);
+
+  if (!isOpen || typeof document === 'undefined') return null;
 
   const resolvedUrl = resolveFileUrl(fileUrl);
+  const isImage = String(fileType).toUpperCase() === 'IMAGE' || IMAGE_FILE.test(resolvedUrl || '');
 
   const handleDownload = () => {
     const link = document.createElement('a');
@@ -58,13 +70,21 @@ const PDFViewerModal = ({ isOpen, onClose, fileUrl, fileName, fileType = 'PDF' }
     window.open(resolvedUrl, '_blank');
   };
 
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm">
-      <div className="relative w-full h-full max-w-7xl mx-4 my-4 flex flex-col bg-dark-900 rounded-lg shadow-2xl border border-dark-700">
+  // Portalled to <body> so a transformed / overflow-clipped ancestor (admin
+  // layout, table rows) can't trap the fixed overlay
+  return createPortal(
+    <div
+      className="fixed inset-0 z-[10000] flex items-center justify-center bg-black/80 p-2 backdrop-blur-sm sm:p-4"
+      onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
+      role="dialog"
+      aria-modal="true"
+      aria-label={fileName || 'Document preview'}
+    >
+      <div className="relative flex h-full w-full max-w-7xl flex-col rounded-lg border border-dark-700 bg-dark-900 shadow-2xl">
         {/* Header */}
         <div className="flex items-center justify-between p-4 border-b border-dark-700">
-          <div className="flex items-center gap-3">
-            <h2 className="text-xl font-semibold text-dark-50 truncate max-w-md">
+          <div className="flex min-w-0 items-center gap-3">
+            <h2 className="truncate text-base font-semibold text-dark-50 sm:text-xl">
               {fileName || 'PDF Viewer'}
             </h2>
             <span className="text-xs text-dark-400 bg-dark-800 px-2 py-1 rounded">
@@ -98,6 +118,11 @@ const PDFViewerModal = ({ isOpen, onClose, fileUrl, fileName, fileType = 'PDF' }
 
         {/* PDF Viewer */}
         <div className="flex-1 relative overflow-hidden">
+          {isImage ? (
+            <div className="flex h-full w-full items-center justify-center overflow-auto bg-dark-950 p-4">
+              <img src={resolvedUrl} alt={fileName || ''} className="max-h-full max-w-full object-contain" />
+            </div>
+          ) : (
           <object
             data={resolvedUrl}
             type="application/pdf"
@@ -117,10 +142,11 @@ const PDFViewerModal = ({ isOpen, onClose, fileUrl, fileName, fileType = 'PDF' }
               </a>
             </p>
           </object>
+          )}
         </div>
 
         {/* Footer with close button */}
-        <div className="p-4 border-t border-dark-700 flex items-center justify-end">
+        <div className="hidden p-3 border-t border-dark-700 sm:flex items-center justify-end">
           <button
             onClick={onClose}
             className="px-4 py-2 bg-dark-800 hover:bg-dark-700 text-dark-200 rounded-lg transition-colors"
@@ -129,7 +155,8 @@ const PDFViewerModal = ({ isOpen, onClose, fileUrl, fileName, fileType = 'PDF' }
           </button>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 };
 

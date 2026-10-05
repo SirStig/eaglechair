@@ -16,6 +16,7 @@ import { AdminPage, AdminPageHeader } from '../ui/AdminPage';
 import useBulkSelection from '../../../hooks/useBulkSelection';
 import BulkActionBar from '../bulk/BulkActionBar';
 import { booleanAction, idAction } from '../bulk/bulkActions';
+import PdfPreviewButton from '../../ui/PdfPreviewButton';
 
 /**
  * Product Family Management with Full CRUD
@@ -384,6 +385,7 @@ const FamilyManagement = () => {
                 </td>
                 <td className="px-3 sm:px-4 py-3 sm:py-4">
                   <div className="flex items-center justify-end gap-2">
+                    <PdfPreviewButton url={family.catalog_pdf_url} title={`${family.name} catalog`} />
                     <button
                       onClick={() => handleEdit(family)}
                       className="p-2 text-primary-400 hover:bg-primary-900/20 rounded-lg transition-colors"

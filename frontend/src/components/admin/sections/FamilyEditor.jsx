@@ -7,6 +7,7 @@ import { slugify } from '../../../utils/slugify';
 import { FileText, Upload, X } from 'lucide-react';
 import { AdminPage, AdminPageHeader } from '../ui/AdminPage';
 import ResponsiveImage from '../../ui/ResponsiveImage';
+import PdfPreviewButton from '../../ui/PdfPreviewButton';
 
 /**
  * Product Family Editor Component
@@ -291,6 +292,7 @@ const FamilyEditor = ({ family, categories, onBack, onSave }) => {
                       View catalog PDF
                     </a>
                   </div>
+                  <PdfPreviewButton variant="pill" url={formData.catalog_pdf_url} title={`${formData.name || 'Family'} catalog`} />
                   <button
                     type="button"
                     onClick={() => handleChange('catalog_pdf_url', '')}

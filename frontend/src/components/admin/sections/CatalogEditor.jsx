@@ -7,6 +7,7 @@ import { Upload, X, FileText } from 'lucide-react';
 import ResponsiveImage from '../../ui/ResponsiveImage';
 import { CATALOG_TYPE_OPTIONS } from '../../../utils/catalogTypes';
 import { AdminPage, AdminPageHeader } from '../ui/AdminPage';
+import PdfPreviewButton from '../../ui/PdfPreviewButton';
 
 /**
  * Catalog Editor Component
@@ -293,6 +294,14 @@ const CatalogEditor = ({ catalog, onBack, onSave }) => {
                         </div>
                       )}
                     </div>
+                    {formData.file_url && !filePreview && (
+                      <PdfPreviewButton
+                        variant="pill"
+                        url={formData.file_url}
+                        title={formData.title || 'Catalog'}
+                        fileType={formData.file_type || 'PDF'}
+                      />
+                    )}
                     {filePreview && (
                       <button
                         type="button"

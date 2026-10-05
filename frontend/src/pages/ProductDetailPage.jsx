@@ -30,6 +30,7 @@ import OptionPicker from '../components/ui/OptionPicker';
 import { optionsIfEnabled } from '../utils/productOptions';
 import { useToast } from '../contexts/ToastContext';
 import logger from '../utils/logger';
+import PdfPreviewButton from '../components/ui/PdfPreviewButton';
 
 const CONTEXT = 'ProductDetailPage';
 
@@ -713,26 +714,32 @@ const ProductDetailPage = () => {
                     <p className="text-slate-500 text-sm mb-2">Resources</p>
                     <div className="flex flex-col gap-2 text-[15px]">
                       {product.spec_sheet_url && (
-                        <a
-                          href={resolveFileUrl(product.spec_sheet_url)}
-                          download
-                          data-track-label={`${product.name} – Spec Sheet`}
-                          data-track-type="spec_sheet"
-                          data-track-product={product.id}
-                          className="text-slate-700 hover:text-slate-900 underline">
-                          Spec Sheet
-                        </a>
+                        <span className="flex flex-wrap items-center gap-x-3">
+                          <a
+                            href={resolveFileUrl(product.spec_sheet_url)}
+                            download
+                            data-track-label={`${product.name} – Spec Sheet`}
+                            data-track-type="spec_sheet"
+                            data-track-product={product.id}
+                            className="text-slate-700 hover:text-slate-900 underline">
+                            Spec Sheet
+                          </a>
+                          <PdfPreviewButton variant="link" url={product.spec_sheet_url} title={`${product.name} spec sheet`} />
+                        </span>
                       )}
                       {product.dimensional_drawing_url && (
-                        <a
-                          href={resolveFileUrl(product.dimensional_drawing_url)}
-                          download
-                          data-track-label={`${product.name} – Line Drawing`}
-                          data-track-type="line_drawing"
-                          data-track-product={product.id}
-                          className="text-slate-700 hover:text-slate-900 underline">
-                          Line Drawing
-                        </a>
+                        <span className="flex flex-wrap items-center gap-x-3">
+                          <a
+                            href={resolveFileUrl(product.dimensional_drawing_url)}
+                            download
+                            data-track-label={`${product.name} – Line Drawing`}
+                            data-track-type="line_drawing"
+                            data-track-product={product.id}
+                            className="text-slate-700 hover:text-slate-900 underline">
+                            Line Drawing
+                          </a>
+                          <PdfPreviewButton variant="link" url={product.dimensional_drawing_url} title={`${product.name} line drawing`} />
+                        </span>
                       )}
                       {product.cad_file_url && (
                         <a
@@ -1111,17 +1118,18 @@ const ProductDetailPage = () => {
               <h2 className="text-2xl sm:text-3xl font-bold text-slate-800">More from this Family</h2>
               <div className="flex flex-wrap items-center gap-x-4 gap-y-3">
                 {currentFamily?.catalog_pdf_url && (
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => {
-                      const url = resolveFileUrl(currentFamily.catalog_pdf_url);
-                      trackDownload({ url, label: `${currentFamily.name} family catalog`, type: 'catalog', productId: product.id });
-                      window.open(url, '_blank', 'noopener,noreferrer');
-                    }}
-                  >
-                    View Product Family Catalog
-                  </Button>
+                  <PdfPreviewButton
+                    url={currentFamily.catalog_pdf_url}
+                    title={`${currentFamily.name} family catalog`}
+                    label="View Product Family Catalog"
+                    className="inline-flex items-center justify-center gap-2 rounded-md border-2 border-primary-500 bg-transparent px-4 py-2 text-sm font-medium text-primary-500 transition-colors hover:bg-primary-500/10 min-h-[44px] sm:min-h-[40px]"
+                    onOpen={() => trackDownload({
+                      url: resolveFileUrl(currentFamily.catalog_pdf_url),
+                      label: `${currentFamily.name} family catalog`,
+                      type: 'catalog',
+                      productId: product.id,
+                    })}
+                  />
                 )}
                 {currentFamily && (
                   <Link

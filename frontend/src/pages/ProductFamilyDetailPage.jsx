@@ -13,6 +13,7 @@ import productService from '../services/productService';
 import { resolveFileUrl, resolveImageUrl } from '../utils/apiHelpers';
 import logger from '../utils/logger';
 import { trackDownload } from '../utils/analytics';
+import PdfPreviewButton from '../components/ui/PdfPreviewButton';
 
 const CONTEXT = 'ProductFamilyDetailPage';
 
@@ -161,19 +162,17 @@ const ProductFamilyDetailPage = () => {
                     </span>
                   </div>
                   {family.catalog_pdf_url && (
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => {
-                        const url = resolveFileUrl(family.catalog_pdf_url);
-                        trackDownload({ url, label: `${family.name} family catalog`, type: 'catalog' });
-                        window.open(url, '_blank', 'noopener,noreferrer');
-                      }}
-                      className="inline-flex items-center gap-2"
-                    >
-                      <FileText className="w-4 h-4" />
-                      View Product Family Catalog
-                    </Button>
+                    <PdfPreviewButton
+                      url={family.catalog_pdf_url}
+                      title={`${family.name} family catalog`}
+                      label="View Product Family Catalog"
+                      className="inline-flex items-center justify-center gap-2 rounded-md border-2 border-primary-500 bg-transparent px-4 py-2 text-sm font-medium text-primary-500 transition-colors hover:bg-primary-500/10 min-h-[44px] sm:min-h-[40px]"
+                      onOpen={() => trackDownload({
+                        url: resolveFileUrl(family.catalog_pdf_url),
+                        label: `${family.name} family catalog`,
+                        type: 'catalog',
+                      })}
+                    />
                   )}
                 </div>
               </div>
