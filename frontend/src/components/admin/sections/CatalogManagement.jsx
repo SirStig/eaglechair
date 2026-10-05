@@ -9,6 +9,15 @@ import { useToast } from '../../../contexts/ToastContext';
 import { useAdminRefresh } from '../../../contexts/AdminRefreshContext';
 import { CATALOG_TYPE_OPTIONS, formatCatalogType } from '../../../utils/catalogTypes';
 import { AdminPage, AdminPageHeader } from '../ui/AdminPage';
+import useBulkSelection from '../../../hooks/useBulkSelection';
+import BulkActionBar from '../bulk/BulkActionBar';
+import { ACTIVE_ACTIONS, booleanAction } from '../bulk/bulkActions';
+
+const BULK_ACTIONS = [
+  { label: 'Move to type', options: CATALOG_TYPE_OPTIONS, toChanges: (v) => ({ catalog_type: v }) },
+  ...ACTIVE_ACTIONS,
+  booleanAction('Featured', 'is_featured', 'Featured', 'Not featured'),
+];
 
 /**
  * Catalog Management - Table Layout
@@ -81,6 +90,7 @@ const CatalogManagement = () => {
     () => [...(catalogs || [])].sort((a, b) => (a.display_order ?? 0) - (b.display_order ?? 0)),
     [catalogs]
   );
+  const selection = useBulkSelection(sortedCatalogs);
 
   const handleReorder = useCallback(
     async (ordered) => {
@@ -188,6 +198,7 @@ const CatalogManagement = () => {
             setItems={(next) => setCatalogs(next.map((item, i) => ({ ...item, display_order: i })))}
             getItemId={(item) => item.id}
             onReorder={handleReorder}
+            selection={selection}
             minWidth="800px"
             columns={[
               { key: 'title', label: 'Title', sortKey: 'title' },
@@ -260,6 +271,14 @@ const CatalogManagement = () => {
           />
         )}
       </Card>
+
+      <BulkActionBar
+        selection={selection}
+        resource="catalogs"
+        noun="catalog"
+        actions={BULK_ACTIONS}
+        onDone={fetchCatalogs}
+      />
     </AdminPage>
   );
 };

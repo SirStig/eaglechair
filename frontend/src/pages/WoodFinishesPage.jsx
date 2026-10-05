@@ -5,6 +5,8 @@ import { useCatalogs, useFinishes } from '../hooks/useContent';
 import { SEO } from '../config/seoConfig';
 import KnowledgePageLayout from '../components/knowledge/KnowledgePageLayout';
 import SwatchCard from '../components/knowledge/SwatchCard';
+import MaterialDetailOverlay from '../components/knowledge/MaterialDetailOverlay';
+import { finishDetail } from '../components/knowledge/materialDetails';
 import DocumentList from '../components/knowledge/DocumentList';
 import { FINISH_GUIDE_TYPES, filterByTypes } from '../utils/catalogTypes';
 import { useTrackedQuery } from '../hooks/useMaterialInterest';
@@ -19,6 +21,7 @@ const WoodFinishesPage = () => {
   const { data: catalogs = [] } = useCatalogs();
   const [query, setQuery] = useState('');
   useTrackedQuery('Wood finish search', query);
+  const [detail, setDetail] = useState(null); // { items, index } while the overlay is open
 
   const { groups, metalGroups } = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -91,9 +94,10 @@ const WoodFinishesPage = () => {
             <section key={g.grade} id={`grade-${g.grade.replace(/\s+/g, '-')}`} className="scroll-mt-24">
               <h2 className="text-2xl font-bold text-slate-800 mb-4">{g.grade}</h2>
               <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 xl:grid-cols-6 gap-3 sm:gap-4">
-                {g.items.map((f) => (
+                {g.items.map((f, i) => (
                   <SwatchCard
                     key={f.id}
+                    onOpen={() => setDetail({ items: g.items.map((x) => finishDetail(x)), index: i })}
                     item={f}
                     kind="wood"
                     title={f.name}
@@ -118,9 +122,10 @@ const WoodFinishesPage = () => {
                 <section key={g.type} id={`metal-${g.type.replace(/\s+/g, '-')}`} className="scroll-mt-24">
                   <h3 className="text-xl font-semibold text-slate-800 mb-4">{g.type}</h3>
                   <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 xl:grid-cols-6 gap-3 sm:gap-4">
-                    {g.items.map((f) => (
+                    {g.items.map((f, i) => (
                       <SwatchCard
                         key={f.id}
+                        onOpen={() => setDetail({ items: g.items.map((x) => finishDetail(x, { metal: true })), index: i })}
                         item={f}
                         kind="metal"
                         title={f.name}
@@ -144,6 +149,12 @@ const WoodFinishesPage = () => {
           <DocumentList documents={guides} />
         </section>
       )}
+      <MaterialDetailOverlay
+        items={detail?.items}
+        index={detail?.index}
+        onIndexChange={(index) => setDetail((d) => ({ ...d, index }))}
+        onClose={() => setDetail(null)}
+      />
     </KnowledgePageLayout>
   );
 };

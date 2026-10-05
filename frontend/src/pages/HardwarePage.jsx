@@ -9,6 +9,8 @@ import ResponsiveImage from '../components/ui/ResponsiveImage';
 import ImagePlaceholder from '../components/ui/ImagePlaceholder';
 import { resolveImageUrl } from '../utils/apiHelpers';
 import { useMaterialInterest, useTrackedQuery } from '../hooks/useMaterialInterest';
+import MaterialDetailOverlay from '../components/knowledge/MaterialDetailOverlay';
+import { hardwareDetail } from '../components/knowledge/materialDetails';
 import { trackFilter } from '../utils/analytics';
 
 const CATEGORY_ORDER = [
@@ -23,7 +25,7 @@ const CATEGORY_ORDER = [
   'Other Hardware',
 ];
 
-const HardwareCard = ({ item }) => {
+const HardwareCard = ({ item, onOpen }) => {
   const img = item.imageUrl || item.thumbnailUrl;
   const facts = [
     item.material && ['Material', item.material],
@@ -35,7 +37,7 @@ const HardwareCard = ({ item }) => {
   const interest = useMaterialInterest('hardware', [item.name, item.modelNumber].filter(Boolean).join(' · '));
 
   return (
-    <article {...interest} className="bg-white rounded-lg border border-cream-200 overflow-hidden hover:border-primary-500 transition-colors duration-300 flex flex-col">
+    <article {...interest} className="relative bg-white rounded-lg border border-cream-200 overflow-hidden hover:border-primary-500 transition-colors duration-300 flex flex-col">
       {img ? (
         <div className="relative aspect-[4/3] overflow-hidden bg-white border-b border-cream-100">
           <ResponsiveImage
@@ -64,6 +66,13 @@ const HardwareCard = ({ item }) => {
           </dl>
         )}
       </div>
+      <button
+        type="button"
+        onClick={onOpen}
+        aria-haspopup="dialog"
+        aria-label={`View ${item.name}${item.modelNumber ? ` (${item.modelNumber})` : ''}`}
+        className="absolute inset-0 rounded-lg focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 focus-visible:ring-inset"
+      />
     </article>
   );
 };
@@ -73,6 +82,7 @@ const HardwarePage = () => {
   const [query, setQuery] = useState('');
   useTrackedQuery('Hardware search', query);
   const [category, setCategory] = useState('all');
+  const [detail, setDetail] = useState(null); // { items, index } while the overlay is open
 
   const active = useMemo(() => (hardware || []).filter((h) => h.isActive !== false), [hardware]);
   const categories = useMemo(() => {
@@ -150,8 +160,8 @@ const HardwarePage = () => {
             <section key={cat}>
               <h2 className="text-2xl font-bold text-slate-800 mb-4">{cat}</h2>
               <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3 sm:gap-4">
-                {items.map((h) => (
-                  <HardwareCard key={h.id} item={h} />
+                {items.map((h, i) => (
+                  <HardwareCard key={h.id} item={h} onOpen={() => setDetail({ items: items.map(hardwareDetail), index: i })} />
                 ))}
               </div>
             </section>
@@ -165,6 +175,12 @@ const HardwarePage = () => {
           See the installation guides →
         </Link>
       </p>
+      <MaterialDetailOverlay
+        items={detail?.items}
+        index={detail?.index}
+        onIndexChange={(index) => setDetail((d) => ({ ...d, index }))}
+        onClose={() => setDetail(null)}
+      />
     </KnowledgePageLayout>
   );
 };

@@ -6,6 +6,10 @@ import PaginationBar from '../PaginationBar';
 import apiClient from '../../../config/apiClient';
 import { useToast } from '../../../contexts/ToastContext';
 import { AdminPage, AdminPageHeader } from '../ui/AdminPage';
+import useBulkSelection from '../../../hooks/useBulkSelection';
+import BulkActionBar from '../bulk/BulkActionBar';
+import { booleanAction } from '../bulk/bulkActions';
+import { SelectAllCheckbox, RowCheckbox } from '../bulk/SelectCheckbox';
 
 const BASE = '/api/v1/admin/inquiries';
 const PAGE_SIZE = 25;
@@ -25,6 +29,12 @@ const SUBJECT_LABELS = {
   dealer: 'Become a Dealer',
   other: 'Other',
 };
+
+const BULK_ACTIONS = [
+  { label: 'Mark read', changes: { is_read: true } },
+  { label: 'Mark unread', changes: { is_read: false } },
+  booleanAction('Responded', 'is_responded', 'Responded', 'Needs reply'),
+];
 
 const subjectLabel = (value) => SUBJECT_LABELS[value] || value || 'General Inquiry';
 
@@ -90,6 +100,7 @@ const InquiryManagement = ({ onUnreadChange }) => {
   }, [status, debouncedSearch]);
 
   const selected = data.items.find((i) => i.id === selectedId) || null;
+  const selection = useBulkSelection(data.items);
 
   const patch = async (id, body) => {
     const updated = await apiClient.patch(`${BASE}/${id}`, body);
@@ -230,8 +241,15 @@ const InquiryManagement = ({ onUnreadChange }) => {
             </div>
           ) : (
             <ul className="divide-y divide-dark-700">
+              <li className="flex items-center gap-3 px-4 py-2 text-xs text-dark-200">
+                <SelectAllCheckbox selection={selection} label="Select all inquiries" />
+                <span>Select all on this page</span>
+              </li>
               {data.items.map((item) => (
-                <li key={item.id}>
+                <li key={item.id} className={`flex items-start ${selection.isSelected(item.id) ? 'bg-primary-900/15' : ''}`}>
+                  <span className="pl-4 pt-4">
+                    <RowCheckbox selection={selection} id={item.id} label={`Select inquiry from ${item.name}`} />
+                  </span>
                   <button
                     type="button"
                     onClick={() => openInquiry(item)}
@@ -367,6 +385,14 @@ const InquiryManagement = ({ onUnreadChange }) => {
           )}
         </div>
       </div>
+
+      <BulkActionBar
+        selection={selection}
+        resource="inquiries"
+        noun="message"
+        actions={BULK_ACTIONS}
+        onDone={load}
+      />
 
       <ConfirmModal
         isOpen={!!pendingDelete}

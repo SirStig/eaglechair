@@ -1,0 +1,15 @@
+import apiClient from '../config/apiClient';
+
+/**
+ * Apply one change set to many admin rows.
+ *
+ * resource: products | variations | categories | subcategories | families |
+ *   finishes | colors | upholsteries | laminates | hardware | catalogs |
+ *   pricing-tiers | inquiries | email-templates | legal-documents
+ *
+ * Resolves to { updated, missing }.
+ */
+export const bulkEdit = (resource, ids, changes) =>
+  apiClient.post(`/api/v1/admin/bulk/${resource}`, { ids, changes });
+
+export default { bulkEdit };

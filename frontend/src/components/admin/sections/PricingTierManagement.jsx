@@ -9,6 +9,10 @@ import { useToast } from '../../../contexts/ToastContext';
 import { useAdminRefresh } from '../../../contexts/AdminRefreshContext';
 import TableSortHead, { compareValues } from '../TableSortHead';
 import { AdminPage, AdminPageHeader } from '../ui/AdminPage';
+import useBulkSelection from '../../../hooks/useBulkSelection';
+import BulkActionBar from '../bulk/BulkActionBar';
+import { ACTIVE_ACTIONS } from '../bulk/bulkActions';
+import { SelectAllCheckbox, RowCheckbox } from '../bulk/SelectCheckbox';
 
 /**
  * Pricing Tier Management Component
@@ -32,6 +36,8 @@ const PricingTierManagement = () => {
       return compareValues(va, vb, sortDir);
     });
   }, [tiers, sortBy, sortDir]);
+  const selection = useBulkSelection(sortedTiers);
+  const orderedIds = useMemo(() => sortedTiers.map((t) => t.id), [sortedTiers]);
 
   const handleSort = useCallback((key) => {
     setSortBy(key);
@@ -181,6 +187,7 @@ const PricingTierManagement = () => {
             <table className="w-full min-w-[1000px]">
               <thead className="bg-dark-700 border-b border-dark-600">
                 <tr>
+                  <th className="px-3 sm:px-4 py-3 w-0"><SelectAllCheckbox selection={selection} /></th>
                   <TableSortHead label="Tier Name" sortKey="pricing_tier_name" activeSortBy={sortBy} sortDir={sortDir} onSort={handleSort} className="px-3 sm:px-6 py-3 text-left text-[10px] sm:text-xs font-medium text-dark-200 uppercase tracking-wider" />
                   <TableSortHead label="Adjustment" sortKey="percentage_adjustment" activeSortBy={sortBy} sortDir={sortDir} onSort={handleSort} className="px-3 sm:px-6 py-3 text-left text-[10px] sm:text-xs font-medium text-dark-200 uppercase tracking-wider" />
                   <TableSortHead label="Scope" sortKey="applies_to_all_products" activeSortBy={sortBy} sortDir={sortDir} onSort={handleSort} className="px-3 sm:px-6 py-3 text-left text-[10px] sm:text-xs font-medium text-dark-200 uppercase tracking-wider" />
@@ -192,7 +199,10 @@ const PricingTierManagement = () => {
               </thead>
               <tbody className="bg-dark-800 divide-y divide-dark-700">
                 {sortedTiers.map((tier) => (
-                  <tr key={tier.id} className="hover:bg-dark-700 transition-colors">
+                  <tr key={tier.id} className={`hover:bg-dark-700 transition-colors ${selection.isSelected(tier.id) ? 'bg-primary-900/15' : ''}`}>
+                    <td className="px-3 sm:px-4 py-4">
+                      <RowCheckbox selection={selection} id={tier.id} orderedIds={orderedIds} />
+                    </td>
                     <td className="px-6 py-4 whitespace-nowrap">
                       <div className="text-sm font-medium text-dark-50">
                         {tier.pricing_tier_name}
@@ -281,6 +291,14 @@ const PricingTierManagement = () => {
           </div>
         </Card>
       )}
+
+      <BulkActionBar
+        selection={selection}
+        resource="pricing-tiers"
+        noun="tier"
+        actions={ACTIVE_ACTIONS}
+        onDone={fetchTiers}
+      />
     </AdminPage>
   );
 };

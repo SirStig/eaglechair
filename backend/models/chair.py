@@ -4,7 +4,7 @@ EagleChair Product Models
 Comprehensive models for chairs, booths, tables with categories, finishes, materials, etc.
 """
 
-from sqlalchemy import JSON, Boolean, Column, Float, ForeignKey, Index, Integer, String, Table, Text
+from sqlalchemy import JSON, Boolean, Column, Float, ForeignKey, Index, Integer, String, Table, Text, true
 from sqlalchemy.orm import relationship, validates
 
 from backend.database.base import Base
@@ -442,6 +442,12 @@ class Chair(Base):
     available_laminates = Column(JSON, nullable=True)  # Array of laminate IDs (table tops)
     upholstery_amount = Column(Float, nullable=True)  # Yards of upholstery used when product uses it
 
+    # Option group switches. Off hides the group on the storefront without
+    # clearing its available_* list, so it can be turned back on later.
+    upholstery_enabled = Column(Boolean, default=True, server_default=true(), nullable=False)
+    colors_enabled = Column(Boolean, default=True, server_default=true(), nullable=False)
+    laminates_enabled = Column(Boolean, default=True, server_default=true(), nullable=False)
+
     # Images (stored as JSON array with enhanced structure)
     # Structure: [{"url": "...", "type": "side|front|gallery", "order": 1, "alt": "..."}, ...]
     images = Column(JSON, nullable=False, default=list)
@@ -657,6 +663,11 @@ class ProductVariation(Base):
     weight = Column(Float, nullable=True)
     shipping_weight = Column(Float, nullable=True)
     upholstery_amount = Column(Float, nullable=True)
+
+    # Per-variation option group overrides: None follows the product's switch
+    upholstery_enabled = Column(Boolean, nullable=True)
+    colors_enabled = Column(Boolean, nullable=True)
+    laminates_enabled = Column(Boolean, nullable=True)
 
     # Display
     display_order = Column(Integer, default=0, nullable=False)

@@ -239,6 +239,9 @@ class ProductCreate(BaseModel):
     upholstery_amount: Optional[float] = Field(
         None, ge=0, description="Upholstery yardage used when product uses upholstery"
     )
+    upholstery_enabled: bool = Field(True, description="Show upholstery options")
+    colors_enabled: bool = Field(True, description="Show color options")
+    laminates_enabled: bool = Field(True, description="Show laminate options")
 
     # Images
     images: Optional[List[Any]] = Field(None, description="Images JSON array")
@@ -386,6 +389,9 @@ class ProductUpdate(BaseModel):
     upholstery_amount: Optional[float] = Field(
         None, ge=0, description="Upholstery yardage used when product uses upholstery"
     )
+    upholstery_enabled: Optional[bool] = Field(None, description="Show upholstery options")
+    colors_enabled: Optional[bool] = Field(None, description="Show color options")
+    laminates_enabled: Optional[bool] = Field(None, description="Show laminate options")
 
     # Images
     images: Optional[List[Any]] = Field(None, description="Images JSON array")

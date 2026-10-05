@@ -27,6 +27,7 @@ const HERO_IMAGE_SIZES = '(min-width: 1280px) 600px, (min-width: 1024px) 50vw, 1
 // Variations listed before "Show all" on phones (plus the base model row).
 const MOBILE_VARIATIONS_SHOWN = 3;
 import OptionPicker from '../components/ui/OptionPicker';
+import { optionsIfEnabled } from '../utils/productOptions';
 import { useToast } from '../contexts/ToastContext';
 import logger from '../utils/logger';
 
@@ -272,8 +273,8 @@ const ProductDetailPage = () => {
   const handleAddToCart = () => {
     const customizations = {
       finish: selectedFinish,
-      upholstery: selectedUpholstery,
-      laminate: selectedLaminate ? { id: selectedLaminate.id, name: selectedLaminate.name, brand: selectedLaminate.brand } : null,
+      upholstery: optionsIfEnabled(product, selectedVariation, 'upholstery', selectedUpholstery) ?? null,
+      laminate: selectedLaminate && optionsIfEnabled(product, selectedVariation, 'laminates', true) ? { id: selectedLaminate.id, name: selectedLaminate.name, brand: selectedLaminate.brand } : null,
       variation: selectedVariation,
       custom_notes: customNotes?.trim() || null,
     };
@@ -999,7 +1000,7 @@ const ProductDetailPage = () => {
                     key: 'upholstery',
                     label: 'Upholstery',
                     kind: 'fabric',
-                    options: product.customizations?.fabrics,
+                    options: optionsIfEnabled(product, selectedVariation, 'upholstery', product.customizations?.fabrics),
                     selected: selectedUpholstery,
                     onSelect: (f) => { setSelectedUpholstery(f); if (f) trackOption('upholstery', f.name); },
                   },
@@ -1007,14 +1008,14 @@ const ProductDetailPage = () => {
                     key: 'laminate',
                     label: 'Laminate',
                     kind: 'laminate',
-                    options: product.customizations?.laminates,
+                    options: optionsIfEnabled(product, selectedVariation, 'laminates', product.customizations?.laminates),
                     selected: selectedLaminate,
                     onSelect: (l) => { setSelectedLaminate(l); if (l) trackOption('laminate', l.name); },
                   },
                   {
                     key: 'color',
                     label: 'Color',
-                    options: product.customizations?.colors,
+                    options: optionsIfEnabled(product, selectedVariation, 'colors', product.customizations?.colors),
                     selected: selectedFinish,
                     onSelect: (c) => { setSelectedFinish(c); if (c) trackOption('color', c.name); },
                   },

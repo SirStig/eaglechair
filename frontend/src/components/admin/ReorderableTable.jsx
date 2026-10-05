@@ -16,6 +16,7 @@ import {
 } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import { GripVertical, ChevronUp, ChevronDown } from 'lucide-react';
+import { SelectAllCheckbox, RowCheckbox } from './bulk/SelectCheckbox';
 
 const ORDER_COLUMN_KEY = 'display_order';
 
@@ -49,7 +50,7 @@ function SortableTh({ label, sortKey, activeSortBy, sortDir, onSort, className =
   );
 }
 
-function SortableRow({ id, index, children, disabled }) {
+function SortableRow({ id, index, children, disabled, selected }) {
   const {
     attributes,
     listeners,
@@ -68,7 +69,7 @@ function SortableRow({ id, index, children, disabled }) {
     <tr
       ref={setNodeRef}
       style={style}
-      className={`transition-colors ${isDragging ? 'opacity-50 bg-dark-700 z-10' : ''}`}
+      className={`transition-colors ${isDragging ? 'opacity-50 bg-dark-700 z-10' : ''} ${selected ? 'bg-primary-900/15' : ''}`}
     >
       {children({ dragHandleProps: { ...attributes, ...listeners }, isDragging, index })}
     </tr>
@@ -86,6 +87,8 @@ export default function ReorderableTable({
   minWidth = '800px',
   orderLabel = 'Order',
   disabled = false,
+  // Optional useBulkSelection() result: adds a checkbox column
+  selection = null,
 }) {
   const [saving, setSaving] = useState(false);
   const [sortBy, setSortBy] = useState(ORDER_COLUMN_KEY);
@@ -143,6 +146,11 @@ export default function ReorderableTable({
 
   const thClass = 'px-2 sm:px-3 py-3 text-left text-xs sm:text-sm font-semibold text-dark-300 uppercase tracking-wider';
   const thClassW0 = thClass + ' w-0';
+  const selectTh = selection ? (
+    <th className="px-2 sm:px-3 py-3 w-0">
+      <SelectAllCheckbox selection={selection} />
+    </th>
+  ) : null;
 
   return (
     <div className="overflow-x-auto -mx-4 sm:mx-0">
@@ -150,6 +158,7 @@ export default function ReorderableTable({
         <table className="w-full" style={{ minWidth }}>
           <thead>
             <tr className="border-b border-dark-700">
+              {selectTh}
               {columns ? (
                 <>
                   <SortableTh label={orderLabel} sortKey={ORDER_COLUMN_KEY} activeSortBy={sortBy} sortDir={sortDir} onSort={handleSort} className={thClassW0} />
@@ -173,9 +182,19 @@ export default function ReorderableTable({
                   id={String(getItemId(item))}
                   index={index}
                   disabled={disabled || saving || dragDisabled}
+                  selected={selection?.isSelected(getItemId(item))}
                 >
                   {({ dragHandleProps, isDragging, index: rowIndex }) => (
                     <>
+                      {selection && (
+                        <td className="px-2 sm:px-3 py-3 align-top">
+                          <RowCheckbox
+                            selection={selection}
+                            id={getItemId(item)}
+                            orderedIds={sortedItems.map(getItemId)}
+                          />
+                        </td>
+                      )}
                       <td className="px-2 sm:px-3 py-3 align-top">
                         <div className="flex items-center gap-1">
                           <span className="text-dark-400 font-mono text-xs sm:text-sm tabular-nums w-6">

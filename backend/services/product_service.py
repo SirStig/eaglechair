@@ -1075,6 +1075,8 @@ class ProductService:
         colors_query = colors_query.order_by(Color.display_order, Color.name)
         colors_result = await db.execute(colors_query)
         colors = list(colors_result.scalars().all())
+        if not product.colors_enabled:
+            colors = []
 
         # Get active finishes
         finishes_query = (
@@ -1093,6 +1095,8 @@ class ProductService:
         )
         upholsteries_result = await db.execute(upholsteries_query)
         upholsteries = list(upholsteries_result.scalars().all())
+        if not product.upholstery_enabled:
+            upholsteries = []
 
         # Get custom options applicable to this product's category
         options_query = select(CustomOption).where(CustomOption.is_active == True)

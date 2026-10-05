@@ -6,6 +6,8 @@ import { useLaminates } from '../hooks/useContent';
 import { SEO } from '../config/seoConfig';
 import KnowledgePageLayout from '../components/knowledge/KnowledgePageLayout';
 import SwatchCard from '../components/knowledge/SwatchCard';
+import MaterialDetailOverlay from '../components/knowledge/MaterialDetailOverlay';
+import { laminateDetail } from '../components/knowledge/materialDetails';
 import { safeHref } from '../utils/safeUrl';
 import { useTrackedQuery } from '../hooks/useMaterialInterest';
 
@@ -13,6 +15,7 @@ const LaminatesPage = () => {
   const { data: laminates = [], loading } = useLaminates();
   const [query, setQuery] = useState('');
   useTrackedQuery('Laminate search', query);
+  const [detail, setDetail] = useState(null); // { items, index } while the overlay is open
 
   const groups = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -74,9 +77,10 @@ const LaminatesPage = () => {
                   )}
                 </div>
                 <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 xl:grid-cols-6 gap-3 sm:gap-4">
-                  {items.map((l) => (
+                  {items.map((l, i) => (
                     <SwatchCard
                       key={l.id}
+                      onOpen={() => setDetail({ items: items.map(laminateDetail), index: i })}
                       item={l}
                       kind="laminate"
                       title={l.patternName}
@@ -99,6 +103,12 @@ const LaminatesPage = () => {
           See the care guides →
         </Link>
       </p>
+      <MaterialDetailOverlay
+        items={detail?.items}
+        index={detail?.index}
+        onIndexChange={(index) => setDetail((d) => ({ ...d, index }))}
+        onClose={() => setDetail(null)}
+      />
     </KnowledgePageLayout>
   );
 };

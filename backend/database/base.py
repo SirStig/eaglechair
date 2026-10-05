@@ -279,6 +279,80 @@ async def ensure_spec_profile_columns(target_engine=None) -> list[str]:
     return added
 
 
+# Product option columns added after chairs / product_variations first shipped.
+# Listed in add order; each is a plain ADD COLUMN that MySQL, SQLite and
+# PostgreSQL all accept.
+PRODUCT_OPTION_COLUMNS = {
+    "chairs": {
+        "available_laminates": "JSON",
+        "upholstery_amount": "FLOAT",
+        "upholstery_enabled": "BOOLEAN NOT NULL DEFAULT TRUE",
+        "colors_enabled": "BOOLEAN NOT NULL DEFAULT TRUE",
+        "laminates_enabled": "BOOLEAN NOT NULL DEFAULT TRUE",
+    },
+    "product_variations": {
+        "upholstery_amount": "FLOAT",
+        "upholstery_enabled": "BOOLEAN",
+        "colors_enabled": "BOOLEAN",
+        "laminates_enabled": "BOOLEAN",
+    },
+}
+
+
+def _missing_product_option_columns(sync_conn) -> list[tuple[str, str]]:
+    """(table, column) pairs of PRODUCT_OPTION_COLUMNS that don't exist yet"""
+    from sqlalchemy import inspect
+
+    inspector = inspect(sync_conn)
+    tables = set(inspector.get_table_names())
+    missing = []
+    for table, columns in PRODUCT_OPTION_COLUMNS.items():
+        if table not in tables:
+            continue
+        present = {col["name"] for col in inspector.get_columns(table)}
+        missing.extend((table, column) for column in columns if column not in present)
+    return missing
+
+
+def _add_product_option_column(sync_conn, table: str, column: str) -> bool:
+    from sqlalchemy import text
+
+    if (table, column) not in _missing_product_option_columns(sync_conn):
+        return False
+    quoted = sync_conn.dialect.identifier_preparer.quote(table)
+    sync_conn.execute(
+        text(f"ALTER TABLE {quoted} ADD COLUMN {column} {PRODUCT_OPTION_COLUMNS[table][column]}")
+    )
+    return True
+
+
+async def ensure_product_option_columns(target_engine=None) -> list[str]:
+    """
+    Idempotently add product option columns to existing tables.
+
+    Same approach as ensure_token_version_columns. Returns "table.column"
+    names that were added.
+    """
+    target_engine = target_engine or engine
+    async with target_engine.connect() as conn:
+        missing = await conn.run_sync(_missing_product_option_columns)
+    added = []
+    for table, column in missing:
+        try:
+            async with target_engine.begin() as conn:
+                if await conn.run_sync(_add_product_option_column, table, column):
+                    added.append(f"{table}.{column}")
+                    logger.info(f"[DB] Added {table}.{column}")
+        except Exception as e:
+            # Another worker may have added it concurrently - re-check
+            async with target_engine.connect() as conn:
+                still_missing = (table, column) in await conn.run_sync(_missing_product_option_columns)
+            if still_missing:
+                logger.error(f"[DB] Failed to add {table}.{column}: {e}")
+                raise
+    return added
+
+
 def _missing_analytics_columns(sync_conn) -> list[str]:
     """Columns of ANALYTICS_ADDED_COLUMNS the analytics_events table lacks"""
     from sqlalchemy import inspect
@@ -364,6 +438,7 @@ async def init_db() -> None:
     await ensure_token_version_columns()
     await ensure_spec_profile_columns()
     await ensure_analytics_columns()
+    await ensure_product_option_columns()
 
 
 async def close_db() -> None:

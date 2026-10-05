@@ -42,6 +42,33 @@ import ProductAnalyticsPanel from '../ProductAnalyticsPanel';
  * - Certifications & Usage
  * - SEO & Analytics
  */
+const OPTION_GROUP_SWITCHES = [
+  { field: 'upholstery_enabled', label: 'Upholstery' },
+  { field: 'colors_enabled', label: 'Colors' },
+  { field: 'laminates_enabled', label: 'Laminates' },
+];
+
+// Section label with a switch that shows or hides the whole option group on
+// the storefront. Turning it off keeps the selections below.
+const OptionGroupHeading = ({ label, enabled, onChange }) => (
+  <div className="flex items-center justify-between gap-3 mb-2">
+    <span className="text-sm font-medium text-dark-200">{label}</span>
+    <label className="flex items-center gap-2 cursor-pointer text-xs text-dark-300">
+      <span>{enabled ? 'Shown on site' : 'Hidden on site'}</span>
+      <button
+        type="button"
+        role="switch"
+        aria-checked={enabled}
+        aria-label={`Show ${label} on site`}
+        onClick={() => onChange(!enabled)}
+        className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors ${enabled ? 'bg-primary-600' : 'bg-dark-600'}`}
+      >
+        <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${enabled ? 'translate-x-4' : 'translate-x-0.5'}`} />
+      </button>
+    </label>
+  </div>
+);
+
 const ProductEditor = ({ product, onBack }) => {
   const toast = useToast();
   const [activeTab, setActiveTab] = useState('basic');
@@ -68,6 +95,9 @@ const ProductEditor = ({ product, onBack }) => {
     weight: null,
     shipping_weight: null,
     upholstery_amount: null,
+    upholstery_enabled: true,
+    colors_enabled: true,
+    laminates_enabled: true,
     frame_material: '',
     construction_details: '',
     features: [],
@@ -1264,7 +1294,10 @@ const ProductEditor = ({ product, onBack }) => {
                   back_height: null,
                   weight: null,
                   shipping_weight: null,
-                  upholstery_amount: null
+                  upholstery_amount: null,
+                  upholstery_enabled: null,
+                  colors_enabled: null,
+                  laminates_enabled: null
                 }])}
                 variant="outline"
                 className="flex items-center gap-2"
@@ -1482,6 +1515,33 @@ const ProductEditor = ({ product, onBack }) => {
                         </div>
 
                         <div className="mt-4 pt-4 border-t border-dark-600">
+                          <p className="text-sm font-medium text-dark-200 mb-3">Option groups for this variation</p>
+                          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                            {OPTION_GROUP_SWITCHES.map(({ field, label }) => (
+                              <div key={field}>
+                                <label className="block text-xs text-dark-400 mb-1">{label}</label>
+                                <select
+                                  value={variation[field] === true ? 'on' : variation[field] === false ? 'off' : ''}
+                                  onChange={(e) => {
+                                    const newVariations = [...variations];
+                                    newVariations[index] = {
+                                      ...newVariations[index],
+                                      [field]: e.target.value === '' ? null : e.target.value === 'on',
+                                    };
+                                    setVariations(newVariations);
+                                  }}
+                                  className="w-full px-3 py-2 bg-dark-700 border border-dark-600 rounded-lg text-dark-50 text-sm"
+                                >
+                                  <option value="">Same as product ({formData[field] !== false ? 'on' : 'off'})</option>
+                                  <option value="on">On</option>
+                                  <option value="off">Off</option>
+                                </select>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+
+                        <div className="mt-4 pt-4 border-t border-dark-600">
                           <p className="text-sm font-medium text-dark-200 mb-3">Weight & dimensions override (optional)</p>
                           <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
                             {[
@@ -1609,9 +1669,11 @@ const ProductEditor = ({ product, onBack }) => {
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-dark-200 mb-2">
-                Available Upholsteries
-              </label>
+              <OptionGroupHeading
+                label="Available Upholsteries"
+                enabled={formData.upholstery_enabled !== false}
+                onChange={(on) => handleChange('upholstery_enabled', on)}
+              />
               <div className="grid grid-cols-2 md:grid-cols-4 gap-3 p-4 bg-dark-700 rounded-lg max-h-64 overflow-y-auto">
                 {upholsteries.map(upholstery => (
                   <label key={upholstery.id} className="flex items-center gap-2 cursor-pointer hover:bg-dark-600 p-2 rounded">
@@ -1634,9 +1696,11 @@ const ProductEditor = ({ product, onBack }) => {
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-dark-200 mb-2">
-                Available Laminates (table tops)
-              </label>
+              <OptionGroupHeading
+                label="Available Laminates (table tops)"
+                enabled={formData.laminates_enabled !== false}
+                onChange={(on) => handleChange('laminates_enabled', on)}
+              />
               <div className="grid grid-cols-2 md:grid-cols-3 gap-3 p-4 bg-dark-700 rounded-lg max-h-64 overflow-y-auto">
                 {laminates.map(laminate => (
                   <label key={laminate.id} className="flex items-center gap-2 cursor-pointer hover:bg-dark-600 p-2 rounded">
@@ -1659,9 +1723,11 @@ const ProductEditor = ({ product, onBack }) => {
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-dark-200 mb-2">
-                Available Colors
-              </label>
+              <OptionGroupHeading
+                label="Available Colors"
+                enabled={formData.colors_enabled !== false}
+                onChange={(on) => handleChange('colors_enabled', on)}
+              />
               <div className="grid grid-cols-2 md:grid-cols-4 gap-3 p-4 bg-dark-700 rounded-lg max-h-64 overflow-y-auto">
                 {colors.map(color => (
                   <label key={color.id} className="flex items-center gap-2 cursor-pointer hover:bg-dark-600 p-2 rounded">

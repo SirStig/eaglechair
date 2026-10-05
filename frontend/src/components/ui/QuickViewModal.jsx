@@ -5,6 +5,7 @@ import Tag from './Tag';
 import { useCartStore } from '../../store/cartStore';
 import { getProductImages, buildProductUrl, resolveImageUrl, variationHasOwnImage, formatStockStatus, isInStock } from '../../utils/apiHelpers';
 import OptionPicker from './OptionPicker';
+import { optionsIfEnabled } from '../../utils/productOptions';
 import ResponsiveImage from './ResponsiveImage';
 import VariationImageDisclaimer from './VariationImageDisclaimer';
 import SpecSymbols, { SpecIcon } from './SpecSymbols';
@@ -82,9 +83,9 @@ const QuickViewModal = ({ product, isOpen, onClose }) => {
   const handleAddToCart = () => {
     const customizations = {
       finish: selectedFinish,
-      upholstery: selectedUpholstery,
-      color: selectedColor,
-      laminate: selectedLaminate ? { id: selectedLaminate.id, name: selectedLaminate.name, brand: selectedLaminate.brand } : null,
+      upholstery: optionsIfEnabled(product, selectedVariation, 'upholstery', selectedUpholstery) ?? null,
+      color: optionsIfEnabled(product, selectedVariation, 'colors', selectedColor) ?? null,
+      laminate: selectedLaminate && optionsIfEnabled(product, selectedVariation, 'laminates', true) ? { id: selectedLaminate.id, name: selectedLaminate.name, brand: selectedLaminate.brand } : null,
       variation: selectedVariation,
     };
     addItem(product, quantity, customizations);
@@ -383,9 +384,9 @@ const QuickViewModal = ({ product, isOpen, onClose }) => {
                         compact
                         sections={[
                           { key: 'finish', label: 'Finish', kind: 'wood', options: product.customizations?.finishes, selected: selectedFinish, onSelect: setSelectedFinish },
-                          { key: 'upholstery', label: 'Upholstery', kind: 'fabric', options: product.customizations?.fabrics, selected: selectedUpholstery, onSelect: setSelectedUpholstery },
-                          { key: 'laminate', label: 'Laminate', kind: 'laminate', options: product.customizations?.laminates, selected: selectedLaminate, onSelect: setSelectedLaminate },
-                          { key: 'color', label: 'Color', options: product.customizations?.colors, selected: selectedColor, onSelect: setSelectedColor },
+                          { key: 'upholstery', label: 'Upholstery', kind: 'fabric', options: optionsIfEnabled(product, selectedVariation, 'upholstery', product.customizations?.fabrics), selected: selectedUpholstery, onSelect: setSelectedUpholstery },
+                          { key: 'laminate', label: 'Laminate', kind: 'laminate', options: optionsIfEnabled(product, selectedVariation, 'laminates', product.customizations?.laminates), selected: selectedLaminate, onSelect: setSelectedLaminate },
+                          { key: 'color', label: 'Color', options: optionsIfEnabled(product, selectedVariation, 'colors', product.customizations?.colors), selected: selectedColor, onSelect: setSelectedColor },
                         ]}
                       />
 

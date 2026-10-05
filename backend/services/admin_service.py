@@ -554,7 +554,8 @@ class AdminService:
                     "width", "depth", "height", "seat_width", "seat_depth",
                     "seat_height", "arm_height", "back_height",
                     "additional_dimensions", "weight", "shipping_weight",
-                    "upholstery_amount",
+                    "upholstery_amount", "upholstery_enabled", "colors_enabled",
+                    "laminates_enabled",
                 ):
                     if attr in var_data:
                         setattr(variation_to_update, attr, var_data[attr])
@@ -622,6 +623,9 @@ class AdminService:
                 weight=var_data.get("weight"),
                 shipping_weight=var_data.get("shipping_weight"),
                 upholstery_amount=var_data.get("upholstery_amount"),
+                upholstery_enabled=var_data.get("upholstery_enabled"),
+                colors_enabled=var_data.get("colors_enabled"),
+                laminates_enabled=var_data.get("laminates_enabled"),
             )
             db.add(new_variation)
             await db.flush()
@@ -689,6 +693,9 @@ class AdminService:
                 weight=var_data.get("weight"),
                 shipping_weight=var_data.get("shipping_weight"),
                 upholstery_amount=var_data.get("upholstery_amount"),
+                upholstery_enabled=var_data.get("upholstery_enabled"),
+                colors_enabled=var_data.get("colors_enabled"),
+                laminates_enabled=var_data.get("laminates_enabled"),
             )
             db.add(new_variation)
             await db.flush()

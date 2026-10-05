@@ -58,11 +58,17 @@ def _parse_id_list(raw: Optional[str], param: str) -> Optional[List[int]]:
 
 async def _populate_customizations(
     db: AsyncSession,
-    products: List
+    products: List,
+    respect_switches: bool = True,
 ) -> None:
     """
     Populate customizations object for products with finish, color, and upholstery names.
     Modifies products in-place by adding customizations dict.
+
+    With respect_switches, option groups a product has switched off
+    (upholstery_enabled / colors_enabled / laminates_enabled) are left out.
+    Single-product responses pass False so the detail page can apply a
+    variation's override, which may turn a group back on.
     
     Note: This modifies SQLAlchemy model instances, which Pydantic will include when using from_attributes=True.
     """
@@ -154,18 +160,18 @@ async def _populate_customizations(
             if finishes:
                 customizations['finishes'] = finishes
         
-        if hasattr(product, 'available_colors') and product.available_colors:
+        if (not respect_switches or getattr(product, 'colors_enabled', True)) and getattr(product, 'available_colors', None):
             colors = [color_map[cid] for cid in product.available_colors if cid in color_map]
             if colors:
                 customizations['colors'] = colors
         
-        if hasattr(product, 'available_upholsteries') and product.available_upholsteries:
+        if (not respect_switches or getattr(product, 'upholstery_enabled', True)) and getattr(product, 'available_upholsteries', None):
             upholsteries = [upholstery_map[uid] for uid in product.available_upholsteries if uid in upholstery_map]
             if upholsteries:
                 customizations['fabrics'] = upholsteries  # Frontend uses 'fabrics' for upholstery
                 customizations['upholstery'] = upholsteries  # Also include 'upholstery' for compatibility
         
-        if getattr(product, 'available_laminates', None):
+        if (not respect_switches or getattr(product, 'laminates_enabled', True)) and getattr(product, 'available_laminates', None):
             laminates = [laminate_map[lid] for lid in product.available_laminates if lid in laminate_map]
             if laminates:
                 customizations['laminates'] = laminates
@@ -550,7 +556,7 @@ async def get_product(
         increment_view=True  # Track popularity
     )
     
-    await _populate_customizations(db, [product])
+    await _populate_customizations(db, [product], respect_switches=False)
 
     if company:
         await _apply_pricing_tiers_to_products(db, company, [product])
@@ -596,7 +602,7 @@ async def get_product_by_slug(
         increment_view=True  # Track popularity
     )
     
-    await _populate_customizations(db, [product])
+    await _populate_customizations(db, [product], respect_switches=False)
 
     if company:
         await _apply_pricing_tiers_to_products(db, company, [product])
@@ -634,7 +640,7 @@ async def get_product_by_model(
         increment_view=True  # Track popularity
     )
 
-    await _populate_customizations(db, [product])
+    await _populate_customizations(db, [product], respect_switches=False)
 
     related = await ProductService.get_related_products(db, product.id, limit=100)
     sa_attributes.set_committed_value(product, "related_products", related)

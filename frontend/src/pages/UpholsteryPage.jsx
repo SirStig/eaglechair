@@ -5,6 +5,8 @@ import { useCatalogs, useUpholsteries } from '../hooks/useContent';
 import { SEO } from '../config/seoConfig';
 import KnowledgePageLayout from '../components/knowledge/KnowledgePageLayout';
 import SwatchCard from '../components/knowledge/SwatchCard';
+import MaterialDetailOverlay from '../components/knowledge/MaterialDetailOverlay';
+import { upholsteryDetail } from '../components/knowledge/materialDetails';
 import DocumentList from '../components/knowledge/DocumentList';
 import { UPHOLSTERY_GUIDE_TYPES, filterByTypes } from '../utils/catalogTypes';
 import { useTrackedQuery } from '../hooks/useMaterialInterest';
@@ -18,6 +20,7 @@ const UpholsteryPage = () => {
   const [query, setQuery] = useState('');
   useTrackedQuery('Upholstery search', query);
   const [type, setType] = useState('all');
+  const [detail, setDetail] = useState(null); // { items, index } while the overlay is open
 
   const active = useMemo(() => (upholsteries || []).filter((u) => u.isActive !== false), [upholsteries]);
   const types = useMemo(() => [...new Set(active.map((u) => u.materialType).filter(Boolean))], [active]);
@@ -93,9 +96,10 @@ const UpholsteryPage = () => {
             <section key={group}>
               <h2 className="text-2xl font-bold text-slate-800 mb-4">{group}</h2>
               <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 xl:grid-cols-6 gap-3 sm:gap-4">
-                {items.map((u) => (
+                {items.map((u, i) => (
                   <SwatchCard
                     key={u.id}
+                    onOpen={() => setDetail({ items: items.map(upholsteryDetail), index: i })}
                     item={u}
                     kind="fabric"
                     title={u.name}
@@ -117,6 +121,12 @@ const UpholsteryPage = () => {
           <DocumentList documents={guides} />
         </section>
       )}
+      <MaterialDetailOverlay
+        items={detail?.items}
+        index={detail?.index}
+        onIndexChange={(index) => setDetail((d) => ({ ...d, index }))}
+        onClose={() => setDetail(null)}
+      />
     </KnowledgePageLayout>
   );
 };

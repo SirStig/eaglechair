@@ -4,13 +4,16 @@ import { useMaterialInterest } from '../../hooks/useMaterialInterest';
 // Swatch kinds as analytics material types
 const MATERIAL_TYPES = { wood: 'finish', fabric: 'upholstery', laminate: 'laminate' };
 
-/** One material swatch (finish, vinyl, laminate) with its name, code and a few facts. */
-const SwatchCard = ({ item, kind, title, code, facts: rawFacts = [], description, badges = [] }) => {
+/**
+ * One material swatch (finish, vinyl, laminate) with its name, code and a few facts.
+ * With `onOpen`, a full-card button opens the detail overlay.
+ */
+const SwatchCard = ({ item, kind, title, code, facts: rawFacts = [], description, badges = [], onOpen }) => {
   // Skip facts the title already says (e.g. pattern "Milled" on "Milled Claret Red").
   const facts = rawFacts.filter((f) => f && !title?.toLowerCase().includes(String(f).toLowerCase()));
   const interest = useMaterialInterest(MATERIAL_TYPES[kind] || kind, [title, code].filter(Boolean).join(' · '));
   return (
-  <article {...interest} className="bg-white rounded-lg border border-cream-200 overflow-hidden hover:border-primary-500 transition-colors duration-300">
+  <article {...interest} className="relative bg-white rounded-lg border border-cream-200 overflow-hidden hover:border-primary-500 transition-colors duration-300">
     <SwatchImage item={item} size="card" rounded="none" kind={kind} alt={title} className="w-full rounded-none" />
     <div className="p-3 sm:p-4">
       <h3 className="font-semibold text-slate-800 leading-snug">{title}</h3>
@@ -29,6 +32,15 @@ const SwatchCard = ({ item, kind, title, code, facts: rawFacts = [], description
         </div>
       )}
     </div>
+    {onOpen && (
+      <button
+        type="button"
+        onClick={onOpen}
+        aria-haspopup="dialog"
+        aria-label={`View ${title}${code ? ` (${code})` : ''}`}
+        className="absolute inset-0 rounded-lg focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 focus-visible:ring-inset"
+      />
+    )}
   </article>
   );
 };
