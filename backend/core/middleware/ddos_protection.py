@@ -10,6 +10,7 @@ from collections import defaultdict, deque
 from typing import Callable, Dict, Set
 
 from fastapi import Request, Response
+from fastapi.responses import JSONResponse
 from starlette.middleware.base import BaseHTTPMiddleware
 
 from backend.core.config import settings
@@ -71,20 +72,29 @@ class DDoSProtectionMiddleware(BaseHTTPMiddleware):
         # Skip OPTIONS requests (CORS preflight)
         if request.method == "OPTIONS":
             return await call_next(request)
-        
+
+        # Images, built assets and content JSON don't count toward the request
+        # budget: one image-heavy page (product grid, media library) loads
+        # hundreds of them and would otherwise ban the viewer's IP.
+        if self._is_static_path(request.url.path):
+            return await call_next(request)
+
         client_ip = self._get_client_ip(request)
         current_time = time.time()
         self._maybe_cleanup(current_time)
 
-        # Check if IP is banned
+        # Blocks are returned as responses, not raised: exceptions raised in
+        # a BaseHTTPMiddleware skip the app's exception handlers and surface
+        # in outer middleware as tracebacks.
         if self._is_banned(client_ip, current_time):
+            remaining = int(self.banned_ips[client_ip] - current_time)
             security_logger.log_suspicious_activity(
-                client_ip, 
+                client_ip,
                 "Attempted access from banned IP",
-                {"remaining_ban_time": int(self.banned_ips[client_ip] - current_time)}
+                {"remaining_ban_time": remaining}
             )
-            raise IPBannedError()
-        
+            return self._error_response(IPBannedError(), retry_after=max(remaining, 1))
+
         # Check for attack patterns in URL and headers. Block only this request:
         # banning the IP lets one bot probe lock out everyone who shares it
         # (office NAT, a proxy whose forwarded IP isn't trusted).
@@ -94,14 +104,14 @@ class DDoSProtectionMiddleware(BaseHTTPMiddleware):
                 "Attack pattern detected",
                 {"path": str(request.url.path), "method": request.method}
             )
-            raise SuspiciousActivityError()
-        
+            return self._error_response(SuspiciousActivityError())
+
         # Track request
         self.request_counts[client_ip].append(current_time)
-        
+
         # Check request rate
         recent_requests = self._count_recent_requests(client_ip, current_time)
-        
+
         if recent_requests > self.max_requests_per_window:
             security_logger.log_ip_banned(
                 client_ip,
@@ -109,7 +119,9 @@ class DDoSProtectionMiddleware(BaseHTTPMiddleware):
                 self.ban_duration
             )
             self._ban_ip(client_ip, current_time)
-            raise RateLimitExceededError(retry_after=self.ban_duration)
+            return self._error_response(
+                RateLimitExceededError(retry_after=self.ban_duration), retry_after=self.ban_duration
+            )
         
         # Mark as suspicious if nearing limit
         if recent_requests > self.suspicious_threshold:
@@ -137,6 +149,18 @@ class DDoSProtectionMiddleware(BaseHTTPMiddleware):
                 request.state.error_logged = True
             raise
     
+    STATIC_PREFIXES = ("/uploads/", "/assets/", "/data/", "/images/", "/fonts/")
+    STATIC_FILES = ("/favicon.ico", "/robots.txt", "/manifest.json", "/site.webmanifest")
+
+    def _is_static_path(self, path: str) -> bool:
+        """Static files: served from disk, no auth/DB work, never part of an attack surface we rate."""
+        return path.startswith(self.STATIC_PREFIXES) or path in self.STATIC_FILES or path.startswith("/sitemap")
+
+    @staticmethod
+    def _error_response(exc, retry_after: int | None = None) -> JSONResponse:
+        headers = {"Retry-After": str(retry_after)} if retry_after else None
+        return JSONResponse(status_code=exc.status_code, content=exc.to_dict(), headers=headers)
+
     def _get_client_ip(self, request: Request) -> str:
         """Extract client IP address"""
         # Proxy headers are client-controlled; uvicorn/gunicorn already set

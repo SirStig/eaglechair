@@ -187,18 +187,15 @@ class InputSanitizerMiddleware(BaseHTTPMiddleware):
             
             # 3. Request body sanitization disabled - consumes stream and breaks
             # downstream parsing behind reverse proxies (e.g. DreamHost)
-            
-            # Process the request
-            response = await call_next(request)
-            return response
-            
+
         except Exception as e:
-            # Only log if not already logged (to prevent duplicates)
-            if not hasattr(request.state, "error_logged"):
-                logger.error(f"Error in InputSanitizerMiddleware: {str(e)}", exc_info=True)
-                request.state.error_logged = True
-            # Don't block the request on middleware errors - fail open
-            return await call_next(request)
+            # A bug in sanitizing must not block the request - fail open
+            logger.error(f"Error in InputSanitizerMiddleware: {str(e)}", exc_info=True)
+
+        # Outside the try: an error further down the stack must propagate, not
+        # re-run the request (that executed handlers twice and re-counted it
+        # in the DDoS limiter, logging every blocked request as a traceback)
+        return await call_next(request)
     
     def _should_skip_sanitization(self, request: Request) -> bool:
         """Determine if request should skip sanitization"""
