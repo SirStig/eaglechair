@@ -10,13 +10,15 @@ import secrets
 import time
 from pathlib import Path
 
-from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
+from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, UploadFile
 from pydantic import BaseModel
+from sqlalchemy.ext.asyncio import AsyncSession
 from starlette.concurrency import run_in_threadpool
 
 from backend.api.dependencies import get_current_admin
 from backend.core.config import settings
-from backend.services import media_service
+from backend.database.base import get_db
+from backend.services import media_library_service, media_service
 
 logger = logging.getLogger(__name__)
 
@@ -180,6 +182,33 @@ def unique_stem(base_name: str) -> str:
 class DeleteImageRequest(BaseModel):
     """Request to delete an image"""
     url: str
+    # Delete even when records still reference the image
+    force: bool = False
+
+
+@router.get(
+    "/images",
+    summary="List uploaded images",
+    description="Media library: uploaded originals with the records that use them (Admin only)"
+)
+async def list_media_images(
+    q: str = Query("", max_length=200, description="Search filename, folder, or the product/record using it"),
+    folder: str = Query("", max_length=100),
+    usage: str = Query("all", pattern="^(all|used|unused)$"),
+    page: int = Query(1, ge=1),
+    page_size: int = Query(60, ge=1, le=200),
+    db: AsyncSession = Depends(get_db),
+    current_admin = Depends(get_current_admin)
+):
+    return await media_library_service.list_images(
+        db,
+        UPLOAD_BASE_DIR,
+        q=q,
+        folder=sanitize_subfolder(folder) if folder else "",
+        usage=usage,
+        page=page,
+        page_size=page_size,
+    )
 
 
 @router.post(
@@ -280,6 +309,7 @@ async def upload_image(
 )
 async def delete_image(
     request: DeleteImageRequest,
+    db: AsyncSession = Depends(get_db),
     current_admin = Depends(get_current_admin)
 ):
     """
@@ -292,6 +322,13 @@ async def delete_image(
         file_path = media_service.resolve_uploaded_image_path(url_path, UPLOAD_BASE_DIR)
         if file_path is None:
             raise HTTPException(status_code=400, detail="Invalid file path")
+        if not request.force:
+            used_by = (await media_library_service.find_usages(db)).get(
+                media_library_service.normalize_url(url_path) or "", []
+            )
+            if used_by:
+                labels = ", ".join(f"{u.type} {u.label}" for u in used_by[:5])
+                raise HTTPException(status_code=409, detail=f"Image is still used by: {labels}")
         if file_path.is_file():
             media_service.delete_image_files(file_path, UPLOAD_BASE_DIR)
             logger.info(f"Image deleted: {url_path} by admin {current_admin.id}")

@@ -1,4 +1,5 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
+import { Link } from 'react-router-dom';
 import Card from '../../ui/Card';
 import Button from '../../ui/Button';
 import apiClient from '../../../config/apiClient';
@@ -31,6 +32,20 @@ const FamilyEditor = ({ family, categories, onBack, onSave }) => {
   const [saving, setSaving] = useState(false);
   const [uploadingImage, setUploadingImage] = useState(null);
   const [uploadingPdf, setUploadingPdf] = useState(false);
+  const [members, setMembers] = useState(null);
+
+  useEffect(() => {
+    if (!family?.id) return;
+    let cancelled = false;
+    apiClient
+      .get(`/api/v1/admin/families/${family.id}/members`)
+      .then((data) => { if (!cancelled) setMembers(data); })
+      .catch((error) => {
+        console.error('Failed to load family members:', error);
+        if (!cancelled) setMembers({ products: [], secondary_products: [], variations: [] });
+      });
+    return () => { cancelled = true; };
+  }, [family?.id]);
 
   const handleChange = (field, value) => {
     setFormData(prev => {
@@ -182,8 +197,88 @@ const FamilyEditor = ({ family, categories, onBack, onSave }) => {
     }
   };
 
+  const renderProductList = (title, items) => (
+    <div>
+      <h4 className="text-xs font-semibold uppercase tracking-wide text-dark-400 mb-2">
+        {title} ({items.length})
+      </h4>
+      {items.length === 0 ? (
+        <p className="text-sm text-dark-500">None</p>
+      ) : (
+        <ul className="space-y-1">
+          {items.map((p) => (
+            <li key={p.id}>
+              <Link
+                to={`/admin/catalog?edit=${p.id}`}
+                className="flex items-center gap-3 rounded-lg p-2 hover:bg-dark-700 transition-colors"
+              >
+                {p.primary_image_url ? (
+                  <ResponsiveImage
+                    sizes="40px"
+                    fullResolution={false}
+                    src={resolveImageUrl(p.primary_image_url)}
+                    alt=""
+                    className="w-10 h-10 object-contain bg-white rounded flex-shrink-0"
+                  />
+                ) : (
+                  <div className="w-10 h-10 rounded bg-dark-700 flex-shrink-0" />
+                )}
+                <div className="min-w-0">
+                  <p className="text-sm text-dark-50 truncate">{p.name}</p>
+                  <p className="text-xs text-dark-400">
+                    {[p.model_number, p.model_suffix].filter(Boolean).join('')}
+                    {!p.is_active && <span className="ml-2 text-amber-400">Inactive</span>}
+                  </p>
+                </div>
+              </Link>
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
+
+  const membersPanel = family?.id && (
+    <aside className="lg:sticky lg:top-6 self-start">
+      <Card className="bg-dark-800 border-dark-700">
+        <h3 className="text-lg font-semibold text-dark-50 mb-4 pb-2 border-b border-dark-600">
+          In This Family
+        </h3>
+        {!members ? (
+          <p className="text-sm text-dark-400">Loading...</p>
+        ) : (
+          <div className="space-y-5 max-h-[70vh] overflow-y-auto pr-1">
+            {renderProductList('Products', members.products)}
+            {members.secondary_products.length > 0 &&
+              renderProductList('Also Listed Here', members.secondary_products)}
+            {members.variations.length > 0 && (
+              <div>
+                <h4 className="text-xs font-semibold uppercase tracking-wide text-dark-400 mb-2">
+                  Variations ({members.variations.length})
+                </h4>
+                <ul className="space-y-1">
+                  {members.variations.map((v) => (
+                    <li key={v.id}>
+                      <Link
+                        to={`/admin/catalog?edit=${v.product_id}`}
+                        className="block rounded-lg px-2 py-1.5 hover:bg-dark-700 transition-colors"
+                      >
+                        <span className="text-sm text-dark-50 font-mono">{v.sku}</span>
+                        <span className="block text-xs text-dark-400 truncate">{v.product_name}</span>
+                      </Link>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+          </div>
+        )}
+      </Card>
+    </aside>
+  );
+
   return (
-    <AdminPage width="default">
+    <AdminPage width={family?.id ? 'wide' : 'default'}>
       <AdminPageHeader
         eyebrow="Products"
         title={family ? `Edit ${family.name}` : 'New Product Family'}
@@ -193,6 +288,7 @@ const FamilyEditor = ({ family, categories, onBack, onSave }) => {
         backLabel="Back to Product Families"
       />
 
+      <div className={family?.id ? 'grid gap-6 lg:grid-cols-[minmax(0,1fr)_320px]' : undefined}>
       {/* Form */}
       <form onSubmit={handleSubmit}>
         <Card className="bg-dark-800 border-dark-700">
@@ -407,6 +503,8 @@ const FamilyEditor = ({ family, categories, onBack, onSave }) => {
           </Button>
         </div>
       </form>
+      {membersPanel}
+      </div>
     </AdminPage>
   );
 };

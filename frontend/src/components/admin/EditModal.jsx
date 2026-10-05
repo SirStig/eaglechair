@@ -2,9 +2,8 @@ import { useState, useEffect, useRef, useContext, useId, useCallback } from 'rea
 // eslint-disable-next-line no-unused-vars
 import { m, AnimatePresence } from 'framer-motion';
 import Button from '../ui/Button';
-import { uploadImage, previewImage } from '../../utils/imageUpload';
 import logger from '../../utils/logger';
-import ResponsiveImage from '../ui/ResponsiveImage';
+import ImagePickerField from './media/ImagePickerField';
 import EditModeContext from '../../contexts/EditModeContext';
 import DiscardChangesDialog from './DiscardChangesDialog';
 import { isSafeUrl, URL_POLICY_MESSAGE } from '../../utils/safeUrl';
@@ -126,10 +125,7 @@ const EditModal = ({ isOpen, onClose, onSave, elementData, elementType, elementI
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const [fieldErrors, setFieldErrors] = useState({});
-  const [imagePreview, setImagePreview] = useState(null);
-  const [uploadingImage, setUploadingImage] = useState(false);
   const [confirmDiscardOpen, setConfirmDiscardOpen] = useState(false);
-  const uploadSeqRef = useRef({});
   const initialRef = useRef({ data: {}, snapshot: '' });
   const initKeyRef = useRef(null);
   const elementDataRef = useRef(elementData);
@@ -165,14 +161,13 @@ const EditModal = ({ isOpen, onClose, onSave, elementData, elementType, elementI
     setFormData(data);
     setError(null);
     setFieldErrors({});
-    setImagePreview(null);
     setConfirmDiscardOpen(false);
     logger.debug(CONTEXT, `Modal opened with elementType: ${elementType}, data:`, data);
   }, [initKey, elementType]);
 
   const isDirty = !!initKey && initKeyRef.current === initKey &&
     stableStringify(formData) !== initialRef.current.snapshot;
-  const busy = loading || uploadingImage;
+  const busy = loading;
 
   // Let the edit-mode toggle know there are unsaved changes
   useEffect(() => {
@@ -221,6 +216,9 @@ const EditModal = ({ isOpen, onClose, onSave, elementData, elementType, elementI
     if (!isOpen) return undefined;
     const handleKeyDown = (e) => {
       if (confirmDiscardOpen) return;
+      // Leave keys alone while another dialog (e.g. the media library) is on top
+      const otherDialog = e.target instanceof Element ? e.target.closest('[role="dialog"]') : null;
+      if (otherDialog && !dialogRef.current?.contains(otherDialog)) return;
       if ((e.metaKey || e.ctrlKey) && (e.key === 'Enter' || e.key.toLowerCase() === 's')) {
         e.preventDefault();
         handleSubmitRef.current?.();
@@ -281,40 +279,6 @@ const EditModal = ({ isOpen, onClose, onSave, elementData, elementType, elementI
       }
     } else {
       setField(name, value);
-    }
-  };
-
-  const handleImageSelect = async (e, fieldName) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-
-    // Guard against out-of-order resolution when multiple uploads are
-    // kicked off for the same field before an earlier one finishes.
-    const seq = (uploadSeqRef.current[fieldName] || 0) + 1;
-    uploadSeqRef.current[fieldName] = seq;
-    const isLatest = () => uploadSeqRef.current[fieldName] === seq;
-
-    setUploadingImage(true);
-    setError(null);
-    previewImage(file).then(preview => {
-      if (!isLatest()) return;
-      setImagePreview(prev => ({ ...prev, [fieldName]: preview }));
-    }).catch(() => {});
-
-    try {
-      const subfolder = elementType || 'general';
-      const imageUrl = await uploadImage(file, subfolder);
-      if (!isLatest()) return;
-      setField(fieldName, imageUrl);
-      logger.info(CONTEXT, `Image uploaded for ${fieldName}: ${imageUrl}`);
-    } catch (err) {
-      if (!isLatest()) return;
-      logger.error(CONTEXT, 'Image upload failed', err);
-      setError(err.message || 'Failed to upload image');
-    } finally {
-      if (isLatest()) {
-        setUploadingImage(false);
-      }
     }
   };
 
@@ -500,82 +464,18 @@ const EditModal = ({ isOpen, onClose, onSave, elementData, elementType, elementI
     );
   };
 
-  const handleImageDrop = (e, fieldName) => {
-    e.preventDefault();
-    const file = e.dataTransfer?.files?.[0];
-    if (file && file.type.startsWith('image/')) {
-      handleImageSelect({ target: { files: [file] } }, fieldName);
-    }
-  };
-
-  const renderImageField = (key, label) => {
-    const pendingPreview = imagePreview?.[key];
-    const currentImage = pendingPreview || formData[key];
-    const help = schemaByKey[key]?.help;
-
-    return (
-      <div key={key} className="space-y-2">
-        <span className="block text-sm font-medium text-dark-50">{label}</span>
-
-        <div
-          onDragOver={(e) => e.preventDefault()}
-          onDrop={(e) => handleImageDrop(e, key)}
-          className="overflow-hidden rounded-lg border border-dashed border-dark-400 bg-dark-900/60"
-        >
-          {currentImage ? (
-            <div className="relative flex items-center justify-center bg-[length:16px_16px] bg-[linear-gradient(45deg,#1f1f1f_25%,transparent_25%),linear-gradient(-45deg,#1f1f1f_25%,transparent_25%),linear-gradient(45deg,transparent_75%,#1f1f1f_75%),linear-gradient(-45deg,transparent_75%,#1f1f1f_75%)]">
-              <ResponsiveImage
-                sizes="448px"
-                fullResolution={false}
-                src={currentImage}
-                alt=""
-                className="max-h-56 w-auto object-contain"
-                onError={(e) => {
-                  e.target.style.display = 'none';
-                }}
-              />
-              <span className="absolute left-2 top-2 rounded bg-dark-950/80 px-2 py-0.5 text-[11px] font-medium text-dark-50">
-                {pendingPreview ? (uploadingImage ? 'Uploading…' : 'New image') : 'Current image'}
-              </span>
-            </div>
-          ) : (
-            <div className="px-4 py-8 text-center text-sm text-dark-200">
-              Drop an image here, or use the button below
-            </div>
-          )}
-        </div>
-
-        <div className="flex flex-wrap items-center gap-2">
-          <label className="cursor-pointer rounded-lg focus-within:ring-2 focus-within:ring-accent-500">
-            <input
-              type="file"
-              accept="image/*"
-              onChange={(e) => handleImageSelect(e, key)}
-              className="sr-only"
-              disabled={uploadingImage}
-              aria-label={`${currentImage ? 'Replace' : 'Upload'} ${label}`}
-            />
-            <span className="inline-flex min-h-[36px] items-center rounded-lg bg-dark-600 px-3 text-sm font-medium text-dark-50 transition-colors hover:bg-dark-500">
-              {uploadingImage ? 'Uploading…' : currentImage ? 'Replace image' : 'Upload image'}
-            </span>
-          </label>
-          {formData[key] && (
-            <button
-              type="button"
-              onClick={() => {
-                setField(key, '');
-                setImagePreview(prev => ({ ...prev, [key]: null }));
-              }}
-              className="inline-flex min-h-[36px] items-center rounded-lg px-3 text-sm font-medium text-red-300 transition-colors hover:bg-red-900/30"
-            >
-              Remove
-            </button>
-          )}
-        </div>
-        {help && <p className="text-xs text-dark-200">{help}</p>}
-      </div>
-    );
-  };
+  const renderImageField = (key, label) => (
+    <ImagePickerField
+      key={key}
+      value={formData[key] || ''}
+      onChange={(url) => setField(key, url)}
+      subfolder={elementType || 'general'}
+      label={label}
+      help={schemaByKey[key]?.help}
+      previewClassName="h-56 w-full"
+      disabled={loading}
+    />
+  );
 
   // Label, help text, character counter and error message around one input
   const FieldShell = ({ fieldKey, inputId, label, children }) => {
@@ -815,7 +715,7 @@ const EditModal = ({ isOpen, onClose, onSave, elementData, elementType, elementI
                 onClick={handleSubmit}
                 disabled={busy || (!isNew && !isDirty)}
               >
-                {loading ? 'Saving…' : uploadingImage ? 'Uploading…' : isNew ? 'Create' : 'Save changes'}
+                {loading ? 'Saving…' : isNew ? 'Create' : 'Save changes'}
               </Button>
             </div>
           </div>

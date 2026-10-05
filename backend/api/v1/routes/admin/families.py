@@ -12,7 +12,13 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from backend.api.dependencies import get_current_admin
 from backend.database.base import get_db
-from backend.models.chair import ProductFamily
+from backend.models.chair import (
+    Chair,
+    ProductFamily,
+    ProductVariation,
+    chair_secondary_families,
+    variation_families,
+)
 from backend.models.company import AdminUser
 
 router = APIRouter()
@@ -94,4 +100,60 @@ async def get_family(
         "is_featured": family.is_featured,
         "is_active": family.is_active,
         "display_order": family.display_order,
+    }
+
+
+@router.get("/{family_id}/members")
+async def get_family_members(
+    family_id: int,
+    admin: AdminUser = Depends(get_current_admin),
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Everything that belongs to a family: products whose primary family it is,
+    products listed in it as a secondary family, and variations assigned to it.
+    """
+    if not await db.get(ProductFamily, family_id):
+        raise HTTPException(status_code=404, detail="Product family not found")
+
+    def product_row(p: Chair) -> dict:
+        return {
+            "id": p.id,
+            "name": p.name,
+            "model_number": p.model_number,
+            "model_suffix": p.model_suffix,
+            "primary_image_url": p.primary_image_url,
+            "is_active": p.is_active,
+        }
+
+    primary = (
+        await db.execute(
+            select(Chair).where(Chair.family_id == family_id).order_by(Chair.model_number)
+        )
+    ).scalars().all()
+    secondary = (
+        await db.execute(
+            select(Chair)
+            .join(chair_secondary_families, chair_secondary_families.c.chair_id == Chair.id)
+            .where(chair_secondary_families.c.family_id == family_id)
+            .order_by(Chair.model_number)
+        )
+    ).scalars().all()
+    variations = (
+        await db.execute(
+            select(ProductVariation.id, ProductVariation.sku, ProductVariation.product_id, Chair.name)
+            .join(variation_families, variation_families.c.variation_id == ProductVariation.id)
+            .join(Chair, Chair.id == ProductVariation.product_id)
+            .where(variation_families.c.family_id == family_id)
+            .order_by(ProductVariation.sku)
+        )
+    ).all()
+
+    return {
+        "products": [product_row(p) for p in primary],
+        "secondary_products": [product_row(p) for p in secondary],
+        "variations": [
+            {"id": v.id, "sku": v.sku, "product_id": v.product_id, "product_name": v.name}
+            for v in variations
+        ],
     }

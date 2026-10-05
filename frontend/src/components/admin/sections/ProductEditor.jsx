@@ -3,9 +3,8 @@ import Card from '../../ui/Card';
 import Button from '../../ui/Button';
 import { useToast } from '../../../contexts/ToastContext';
 import apiClient from '../../../config/apiClient';
-import { resolveImageUrl, formatStockStatus } from '../../../utils/apiHelpers';
+import { formatStockStatus } from '../../../utils/apiHelpers';
 import { slugify } from '../../../utils/slugify';
-import { uploadImage } from '../../../utils/imageUpload';
 import {
   FileText,
   DollarSign,
@@ -14,7 +13,6 @@ import {
   RefreshCw,
   Settings,
   Search,
-  Upload,
   X,
   Plus,
   Trash2,
@@ -24,8 +22,9 @@ import {
   Package,
   BarChart3,
 } from 'lucide-react';
-import ResponsiveImage from '../../ui/ResponsiveImage';
 import { AdminPage, AdminPageHeader } from '../ui/AdminPage';
+import ImagePickerField from '../media/ImagePickerField';
+import ImageListField from '../media/ImageListField';
 import RecordHistoryLink from '../RecordHistoryLink';
 import ProductAnalyticsPanel from '../ProductAnalyticsPanel';
 import useBulkSelection from '../../../hooks/useBulkSelection';
@@ -42,9 +41,17 @@ import {
   variationKey,
 } from './productVariations';
 
+// Gallery entries may be plain URLs or objects like { url, ... }.
+const imageUrlOf = (img) => (typeof img === 'string' ? img : img?.url);
+
+// Rebuild a gallery from the picker's URL list, keeping any existing object
+// entries intact so their extra fields survive a reorder or removal.
+const mergeImageList = (items, urls) =>
+  urls.map((url) => (items || []).find((img) => imageUrlOf(img) === url) ?? url);
+
 /**
  * Comprehensive Product Editor
- * 
+ *
  * Full product editing with tabs for:
  * - Basic Info
  * - Pricing
@@ -152,7 +159,6 @@ const ProductEditor = ({ product, onBack }) => {
     return (Array.isArray(product?.images) ? product.images : [])
       .filter((img) => !notGallery.has(typeof img === 'string' ? img : img?.url));
   });
-  const [uploadingImage, setUploadingImage] = useState(false);
   const [variations, setVariations] = useState(Array.isArray(product?.variations) ? product.variations : []);
   const [selectedFinishes, setSelectedFinishes] = useState(product?.available_finishes || []);
   const [selectedUpholsteries, setSelectedUpholsteries] = useState(product?.available_upholsteries || []);
@@ -165,8 +171,6 @@ const ProductEditor = ({ product, onBack }) => {
   const [greenCerts, setGreenCerts] = useState(product?.green_certifications || []);
 
   const [keywordInput, setKeywordInput] = useState('');
-
-  const uploadProductImage = (file) => uploadImage(file, 'products');
 
 
   useEffect(() => {
@@ -1074,195 +1078,37 @@ const ProductEditor = ({ product, onBack }) => {
               <h3 className="text-lg font-semibold text-dark-50 mb-4">Key Product Images</h3>
               <p className="text-sm text-dark-400 mb-4">These images are used in product catalog views and cards</p>
 
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
-                {/* Primary Image */}
-                <div>
-                  <label className="block text-sm font-medium text-dark-200 mb-2">
-                    Primary Image *
-                    <span className="block text-xs text-dark-400 font-normal">Main catalog image</span>
-                  </label>
-                  <div className="relative">
-                    {formData.primary_image_url ? (
-                      <div className="relative group">
-                        <ResponsiveImage
-                          sizes="(min-width: 768px) 33vw, 100vw"
-                          fullResolution={false}
-                          src={resolveImageUrl(formData.primary_image_url)}
-                          alt="Primary"
-                          className="w-full h-48 object-contain bg-dark-700 rounded-lg border-2 border-primary-500"
-                        />
-                        <button
-                          type="button"
-                          onClick={async () => {
-                            handleChange('primary_image_url', null);
-                          }}
-                          className="absolute top-2 right-2 p-2 bg-red-500 text-white rounded-lg transition-colors"
-                        >
-                          <X className="w-4 h-4" />
-                        </button>
-                      </div>
-                    ) : (
-                      <div className="border-2 border-dashed border-dark-600 rounded-lg p-4 text-center hover:border-primary-500 transition-colors cursor-pointer relative">
-                        <Upload className="w-8 h-8 text-dark-400 mx-auto mb-2" />
-                        <p className="text-sm text-dark-400 mb-2">Click to upload</p>
-                        <input
-                          type="file"
-                          accept="image/*"
-                          onChange={async (e) => {
-                            const file = e.target.files?.[0];
-                            if (file) {
-                              setUploadingImage(true);
-                              try {
-                                const url = await uploadProductImage(file);
-                                handleChange('primary_image_url', url);
-                              } catch (error) {
-                                console.error('Upload failed:', error);
-                                alert('Failed to upload image');
-                              } finally {
-                                setUploadingImage(false);
-                              }
-                            }
-                          }}
-                          className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
-                        />
-                      </div>
-                    )}
-                  </div>
-                </div>
-
-                {/* Hover Images: card rollover, shown in this order after the primary */}
-                {[...(formData.hover_images || []).filter(Boolean), null].map((url, index) => (
-                  <div key={url || `add-hover-${index}`}>
-                    <label className="block text-sm font-medium text-dark-200 mb-2">
-                      {url ? `Hover Image ${index + 1}` : 'Add Hover Image'}
-                      <span className="block text-xs text-dark-400 font-normal">
-                        {url ? 'Card rollover, in this order' : 'Product angles only, not gallery photos'}
-                      </span>
-                    </label>
-                    {url ? (
-                      <div className="relative group">
-                        <ResponsiveImage
-                          sizes="(min-width: 768px) 33vw, 100vw"
-                          fullResolution={false}
-                          src={resolveImageUrl(url)}
-                          alt={`Hover ${index + 1}`}
-                          className="w-full h-48 object-contain bg-dark-700 rounded-lg border-2 border-dark-600"
-                        />
-                        <div className="absolute top-2 right-2 flex gap-1">
-                          {index > 0 && (
-                            <button
-                              type="button"
-                              title="Move earlier"
-                              onClick={() => setFormData(prev => {
-                                const next = (prev.hover_images || []).filter(Boolean);
-                                [next[index - 1], next[index]] = [next[index], next[index - 1]];
-                                return { ...prev, hover_images: next };
-                              })}
-                              className="px-2 py-1 bg-dark-900/80 text-dark-100 rounded-lg text-sm"
-                            >
-                              &larr;
-                            </button>
-                          )}
-                          <button
-                            type="button"
-                            title="Remove"
-                            onClick={() => setFormData(prev => ({
-                              ...prev,
-                              hover_images: (prev.hover_images || []).filter((u) => u && u !== url),
-                            }))}
-                            className="p-2 bg-red-500 text-white rounded-lg transition-colors"
-                          >
-                            <X className="w-4 h-4" />
-                          </button>
-                        </div>
-                      </div>
-                    ) : (
-                      <div className="border-2 border-dashed border-dark-600 rounded-lg p-4 text-center hover:border-primary-500 transition-colors cursor-pointer relative h-48 flex flex-col items-center justify-center">
-                        <Upload className="w-8 h-8 text-dark-400 mx-auto mb-2" />
-                        <p className="text-sm text-dark-400">{uploadingImage ? 'Uploading...' : 'Upload hover image'}</p>
-                        <input
-                          type="file"
-                          accept="image/*"
-                          disabled={uploadingImage}
-                          onChange={async (e) => {
-                            const file = e.target.files?.[0];
-                            if (!file) return;
-                            setUploadingImage(true);
-                            try {
-                              const uploaded = await uploadProductImage(file);
-                              setFormData(prev => ({
-                                ...prev,
-                                hover_images: [...(prev.hover_images || []).filter(Boolean), uploaded],
-                              }));
-                            } catch (error) {
-                              console.error('Upload failed:', error);
-                              alert('Failed to upload image');
-                            } finally {
-                              setUploadingImage(false);
-                            }
-                          }}
-                          className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
-                        />
-                      </div>
-                    )}
-                  </div>
-                ))}
-
-                {/* Thumbnail */}
-                <div>
-                  <label className="block text-sm font-medium text-dark-200 mb-2">
-                    Thumbnail
-                    <span className="block text-xs text-dark-400 font-normal">Small preview image</span>
-                  </label>
-                  <div className="relative">
-                    {formData.thumbnail ? (
-                      <div className="relative group">
-                        <ResponsiveImage
-                          sizes="(min-width: 768px) 33vw, 100vw"
-                          fullResolution={false}
-                          src={resolveImageUrl(formData.thumbnail)}
-                          alt="Thumbnail"
-                          className="w-full h-48 object-contain bg-dark-700 rounded-lg border-2 border-dark-600"
-                        />
-                        <button
-                          type="button"
-                          onClick={async () => {
-                            handleChange('thumbnail', null);
-                          }}
-                          className="absolute top-2 right-2 p-2 bg-red-500 text-white rounded-lg transition-colors"
-                        >
-                          <X className="w-4 h-4" />
-                        </button>
-                      </div>
-                    ) : (
-                      <div className="border-2 border-dashed border-dark-600 rounded-lg p-4 text-center hover:border-primary-500 transition-colors cursor-pointer relative">
-                        <Upload className="w-8 h-8 text-dark-400 mx-auto mb-2" />
-                        <p className="text-sm text-dark-400 mb-2">Click to upload</p>
-                        <input
-                          type="file"
-                          accept="image/*"
-                          onChange={async (e) => {
-                            const file = e.target.files?.[0];
-                            if (file) {
-                              setUploadingImage(true);
-                              try {
-                                const url = await uploadProductImage(file);
-                                handleChange('thumbnail', url);
-                              } catch (error) {
-                                console.error('Upload failed:', error);
-                                alert('Failed to upload image');
-                              } finally {
-                                setUploadingImage(false);
-                              }
-                            }
-                          }}
-                          className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
-                        />
-                      </div>
-                    )}
-                  </div>
-                </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+                <ImagePickerField
+                  label="Primary Image *"
+                  help="Main catalog image"
+                  value={formData.primary_image_url || ''}
+                  onChange={(url) => handleChange('primary_image_url', url || null)}
+                  subfolder="products"
+                  previewClassName="h-48 w-full"
+                  libraryTitle="Choose primary image"
+                />
+                <ImagePickerField
+                  label="Thumbnail"
+                  help="Small preview image"
+                  value={formData.thumbnail || ''}
+                  onChange={(url) => handleChange('thumbnail', url || null)}
+                  subfolder="products"
+                  previewClassName="h-48 w-full"
+                  libraryTitle="Choose thumbnail"
+                />
               </div>
+
+              {/* Hover Images: card rollover, shown in this order after the primary */}
+              <ImageListField
+                label="Hover Images"
+                help="Card rollover, shown in this order after the primary. Product angles only, not gallery photos."
+                value={(formData.hover_images || []).filter(Boolean)}
+                onChange={(urls) => setFormData((prev) => ({ ...prev, hover_images: urls }))}
+                subfolder="products"
+                tileClassName="h-36 w-36"
+                libraryTitle="Add hover images"
+              />
             </div>
 
             {/* Gallery Images */}
@@ -1270,62 +1116,13 @@ const ProductEditor = ({ product, onBack }) => {
               <h3 className="text-lg font-semibold text-dark-50 mb-4">Gallery Images</h3>
               <p className="text-sm text-dark-400 mb-4">Shown in the Gallery section of the product page (below description and features). Never used for hover.</p>
 
-              <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 mb-4">
-                {images.map((img, index) => (
-                  <div key={(typeof img === 'string' ? img : img.url) || index} className="relative group">
-                    <ResponsiveImage
-                      sizes="(min-width: 1024px) 25vw, (min-width: 768px) 33vw, 50vw"
-                      fullResolution={false}
-                      src={resolveImageUrl(typeof img === 'string' ? img : img.url)}
-                      alt={`Gallery ${index + 1}`}
-                      className="w-full h-48 object-contain bg-dark-700 rounded-lg border-2 border-dark-600"
-                    />
-                    <button
-                      type="button"
-                      onClick={async () => {
-                        setImages(images.filter((_, i) => i !== index));
-                      }}
-                      className="absolute top-2 right-2 p-2 bg-red-500 text-white rounded-lg transition-colors"
-                    >
-                      <X className="w-4 h-4" />
-                    </button>
-                    <div className="absolute bottom-2 left-2 px-2 py-1 bg-dark-900/80 text-dark-200 text-xs rounded">
-                      #{index + 1}
-                    </div>
-                  </div>
-                ))}
-              </div>
-
-              <div className="border-2 border-dashed border-dark-600 rounded-lg p-6 text-center hover:border-primary-500 transition-colors cursor-pointer relative">
-                <Upload className="w-10 h-10 text-dark-400 mx-auto mb-3" />
-                <p className="text-dark-200 mb-2">Add Gallery Images</p>
-                <p className="text-sm text-dark-400 mb-4">
-                  {uploadingImage ? 'Uploading...' : 'Click or drag & drop images'}
-                </p>
-                <input
-                  type="file"
-                  accept="image/*"
-                  multiple
-                  onChange={async (e) => {
-                    const files = Array.from(e.target.files || []);
-                    if (files.length === 0) return;
-
-                    setUploadingImage(true);
-                    try {
-                      const uploadPromises = files.map(file => uploadProductImage(file));
-                      const urls = await Promise.all(uploadPromises);
-                      setImages([...images, ...urls]);
-                    } catch (error) {
-                      console.error('Upload failed:', error);
-                      alert('Failed to upload one or more images');
-                    } finally {
-                      setUploadingImage(false);
-                    }
-                  }}
-                  className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
-                  disabled={uploadingImage}
-                />
-              </div>
+              <ImageListField
+                value={images.map(imageUrlOf)}
+                onChange={(urls) => setImages((prev) => mergeImageList(prev, urls))}
+                subfolder="products"
+                tileClassName="h-36 w-36"
+                libraryTitle="Add gallery images"
+              />
             </div>
 
             {/* Variation Images */}
@@ -1341,120 +1138,29 @@ const ProductEditor = ({ product, onBack }) => {
                     </h4>
 
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                      {/* Variation Primary Image */}
-                      <div>
-                        <label className="block text-sm font-medium text-dark-200 mb-2">
-                          Primary Image
-                        </label>
-                        <div className="relative">
-                          {variation.primary_image_url ? (
-                            <div className="relative group">
-                              <ResponsiveImage
-                                sizes="(min-width: 768px) 50vw, 100vw"
-                                fullResolution={false}
-                                src={resolveImageUrl(variation.primary_image_url)}
-                                alt={`Variation ${index + 1} Primary`}
-                                className="w-full h-40 object-contain bg-dark-700 rounded-lg border-2 border-dark-600"
-                              />
-                              <button
-                                type="button"
-                                onClick={async () => {
-                                  const newVariations = [...variations];
-                                  newVariations[index].primary_image_url = null;
-                                  setVariations(newVariations);
-                                }}
-                                className="absolute top-2 right-2 p-2 bg-red-500 text-white rounded-lg transition-colors"
-                              >
-                                <X className="w-4 h-4" />
-                              </button>
-                            </div>
-                          ) : (
-                            <div className="border-2 border-dashed border-dark-600 rounded-lg p-3 text-center hover:border-primary-500 transition-colors cursor-pointer relative">
-                              <Upload className="w-6 h-6 text-dark-400 mx-auto mb-2" />
-                              <p className="text-xs text-dark-400">Click to upload</p>
-                              <input
-                                type="file"
-                                accept="image/*"
-                                onChange={async (e) => {
-                                  const file = e.target.files?.[0];
-                                  if (file) {
-                                    try {
-                                      const url = await uploadProductImage(file);
-                                      const newVariations = [...variations];
-                                      newVariations[index].primary_image_url = url;
-                                      setVariations(newVariations);
-                                    } catch (error) {
-                                      console.error('Upload failed:', error);
-                                      alert('Failed to upload image');
-                                    }
-                                  }
-                                }}
-                                className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
-                              />
-                            </div>
-                          )}
-                        </div>
-                      </div>
-
-                      {/* Variation Gallery Images */}
-                      <div>
-                        <label className="block text-sm font-medium text-dark-200 mb-2">
-                          Gallery Images ({(variation.images || []).length})
-                        </label>
-                        <div className="space-y-2">
-                          {Array.isArray(variation.images) && variation.images.length > 0 && (
-                            <div className="grid grid-cols-3 gap-2">
-                              {variation.images.map((img, imgIndex) => (
-                                <div key={imgIndex} className="relative group">
-                                  <ResponsiveImage
-                                    sizes="(min-width: 768px) 17vw, 33vw"
-                                    fullResolution={false}
-                                    src={resolveImageUrl(typeof img === 'string' ? img : img.url)}
-                                    alt={`Variation ${index + 1} Image ${imgIndex + 1}`}
-                                    className="w-full h-20 object-contain bg-dark-700 rounded border border-dark-600"
-                                  />
-                                  <button
-                                    type="button"
-                                    onClick={async () => {
-                                      const newVariations = [...variations];
-                                      newVariations[index].images = newVariations[index].images.filter((_, i) => i !== imgIndex);
-                                      setVariations(newVariations);
-                                    }}
-                                    className="absolute top-1 right-1 p-1 bg-red-500 text-white rounded transition-colors"
-                                  >
-                                    <X className="w-3 h-3" />
-                                  </button>
-                                </div>
-                              ))}
-                            </div>
-                          )}
-                          <div className="border-2 border-dashed border-dark-600 rounded-lg p-2 text-center hover:border-primary-500 transition-colors cursor-pointer relative">
-                            <Upload className="w-5 h-5 text-dark-400 mx-auto mb-1" />
-                            <p className="text-xs text-dark-400 mb-1">Upload images</p>
-                            <input
-                              type="file"
-                              accept="image/*"
-                              multiple
-                              onChange={async (e) => {
-                                const files = Array.from(e.target.files || []);
-                                if (files.length === 0) return;
-
-                                try {
-                                  const uploadPromises = files.map(file => uploadProductImage(file));
-                                  const urls = await Promise.all(uploadPromises);
-                                  const newVariations = [...variations];
-                                  newVariations[index].images = [...(newVariations[index].images || []), ...urls];
-                                  setVariations(newVariations);
-                                } catch (error) {
-                                  console.error('Upload failed:', error);
-                                  alert('Failed to upload images');
-                                }
-                              }}
-                              className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
-                            />
-                          </div>
-                        </div>
-                      </div>
+                      <ImagePickerField
+                        label="Primary Image"
+                        value={variation.primary_image_url || ''}
+                        onChange={(url) =>
+                          setVariations((prev) =>
+                            prev.map((v, i) => (i === index ? { ...v, primary_image_url: url || null } : v))
+                          )
+                        }
+                        subfolder="products"
+                        libraryTitle={`Choose image for ${variation.sku || `variation ${index + 1}`}`}
+                      />
+                      <ImageListField
+                        label="Gallery Images"
+                        value={(Array.isArray(variation.images) ? variation.images : []).map(imageUrlOf)}
+                        onChange={(urls) =>
+                          setVariations((prev) =>
+                            prev.map((v, i) => (i === index ? { ...v, images: mergeImageList(v.images, urls) } : v))
+                          )
+                        }
+                        subfolder="products"
+                        tileClassName="h-20 w-20"
+                        libraryTitle={`Add gallery images for ${variation.sku || `variation ${index + 1}`}`}
+                      />
                     </div>
                   </div>
                 ))}
@@ -2010,16 +1716,16 @@ const ProductEditor = ({ product, onBack }) => {
         title={product?._isNew ? 'New Product' : (product?.name || 'Edit product')}
         description={product?._isNew ? 'Create a new product' : 'Edit product details, pricing, images and variations'}
         onBack={onBack}
-        backDisabled={saving || uploadingImage}
+        backDisabled={saving}
         backLabel="Back to Product Catalog"
         actions={
           <>
             {!product?._isNew && <RecordHistoryLink resourceType="products" resourceId={product?.id} />}
-            <Button variant="outline" onClick={onBack} disabled={saving || uploadingImage}>
+            <Button variant="outline" onClick={onBack} disabled={saving}>
               Cancel
             </Button>
-            <Button onClick={handleSave} disabled={saving || uploadingImage}>
-              {uploadingImage ? 'Uploading...' : saving ? 'Saving...' : 'Save Product'}
+            <Button onClick={handleSave} disabled={saving}>
+              {saving ? 'Saving...' : 'Save Product'}
             </Button>
           </>
         }
@@ -2095,7 +1801,7 @@ const ProductEditor = ({ product, onBack }) => {
               <button
                 type="button"
                 onClick={onBack}
-                disabled={saving || uploadingImage}
+                disabled={saving}
                 className={`${DOCK_BUTTON} hidden sm:flex border-dark-600 text-dark-200 hover:bg-dark-700`}
               >
                 <FitLabel text="Cancel" />
@@ -2103,10 +1809,10 @@ const ProductEditor = ({ product, onBack }) => {
               <button
                 type="button"
                 onClick={handleSave}
-                disabled={saving || uploadingImage}
+                disabled={saving}
                 className={`${DOCK_BUTTON} border-primary-500 bg-primary-600 text-white hover:bg-primary-500`}
               >
-                <FitLabel text={uploadingImage ? 'Uploading…' : saving ? 'Saving…' : 'Save product'} />
+                <FitLabel text={saving ? 'Saving…' : 'Save product'} />
               </button>
             </div>
           </div>

@@ -23,7 +23,9 @@ def orjson_serializer(obj):
     """
     Serialize object to JSON using orjson
     """
-    return orjson.dumps(obj).decode("utf-8")
+    # OPT_NON_STR_KEYS: column names are str subclasses (quoted_name), which
+    # orjson otherwise rejects as dict keys
+    return orjson.dumps(obj, option=orjson.OPT_NON_STR_KEYS).decode("utf-8")
 
 
 def orjson_deserializer(obj):
