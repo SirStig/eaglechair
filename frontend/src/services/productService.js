@@ -129,6 +129,16 @@ export const productService = {
   },
 
   /**
+   * Categories straight from the API, which carries live product counts
+   * (the static content export does not).
+   * @returns {Promise<Array>} Categories with has_products and child product_count
+   */
+  getCategoriesWithCounts: async () => {
+    const response = await api.get('/api/v1/categories');
+    return (Array.isArray(response) ? response : []).map(normalizeCategory);
+  },
+
+  /**
    * Get product families
    * @param {Object} params - Query parameters (category_id, featured_only)
    * @returns {Promise<Array>} Product families with counts

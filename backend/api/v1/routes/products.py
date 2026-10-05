@@ -305,6 +305,7 @@ async def get_categories(
     children = await ProductService.get_category_children(
         db=db, include_inactive=False, with_counts=True
     )
+    category_counts = await ProductService.get_category_product_counts(db)
 
     data = [
         {
@@ -323,6 +324,9 @@ async def get_categories(
             "created_at": category.created_at,
             "updated_at": category.updated_at,
             "subcategories": children.get(category.id, []),
+            # Lets the catalog filter panel hide empty categories
+            "has_products": category_counts.get(category.id, 0) > 0
+            or any(c["product_count"] > 0 for c in children.get(category.id, [])),
         }
         for category in categories
     ]
@@ -419,6 +423,8 @@ async def get_products(
     color_ids: Optional[str] = Query(None, description="Comma-separated color IDs"),
     min_seat_height: Optional[float] = Query(None, description="Minimum seat height"),
     max_seat_height: Optional[float] = Query(None, description="Maximum seat height"),
+    min_height: Optional[float] = Query(None, description="Minimum overall height"),
+    max_height: Optional[float] = Query(None, description="Maximum overall height"),
     min_width: Optional[float] = Query(None, description="Minimum width"),
     max_width: Optional[float] = Query(None, description="Maximum width"),
     stackable: Optional[bool] = Query(None, description="Filter stackable products"),
@@ -427,7 +433,7 @@ async def get_products(
     max_lead_time: Optional[int] = Query(None, description="Maximum lead time in days"),
     in_stock_only: bool = Query(False, description="Show only in-stock products"),
     exclude_variations: bool = Query(False, description="Exclude variations, show only base products"),
-    smart_sort: bool = Query(False, description="Use smart sorting (featured→new→popular)"),
+    smart_sort: bool = Query(False, description="Use smart sorting (new→with image→popular)"),
     sort: Optional[str] = Query(None, description="Sort order: name-asc, name-desc, featured (ignored when smart_sort=true)"),
     company: Optional[Company] = Depends(get_optional_company),
     db: AsyncSession = Depends(get_db)
@@ -448,11 +454,10 @@ async def get_products(
     
     **Smart Sorting:**
     When smart_sort=true, products are ordered by:
-    1. Featured products first
-    2. New products second
-    3. Products with catalog images (primary, gallery, or hover)
-    4. Popular products (by view count)
-    5. Then by display order and name
+    1. New products first
+    2. Products with catalog images (primary, gallery, or hover)
+    3. Popular products (by view count)
+    4. Then by display order and name
 
     Default ordering (smart_sort=false) also deprioritizes products without images.
     """
@@ -488,6 +493,8 @@ async def get_products(
         color_ids=color_id_list,
         min_seat_height=min_seat_height,
         max_seat_height=max_seat_height,
+        min_height=min_height,
+        max_height=max_height,
         min_width=min_width,
         max_width=max_width,
         is_stackable=stackable,

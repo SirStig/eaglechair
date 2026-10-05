@@ -428,6 +428,8 @@ class ProductService:
         color_ids: Optional[List[int]] = None,
         min_seat_height: Optional[float] = None,
         max_seat_height: Optional[float] = None,
+        min_height: Optional[float] = None,
+        max_height: Optional[float] = None,
         min_width: Optional[float] = None,
         max_width: Optional[float] = None,
         is_stackable: Optional[bool] = None,
@@ -457,6 +459,8 @@ class ProductService:
             color_ids: Filter by color IDs
             min_seat_height: Minimum seat height filter
             max_seat_height: Maximum seat height filter
+            min_height: Minimum overall height filter
+            max_height: Maximum overall height filter
             min_width: Minimum width filter
             max_width: Maximum width filter
             is_stackable: Filter stackable products
@@ -465,7 +469,7 @@ class ProductService:
             max_lead_time_days: Maximum lead time in days
             in_stock_only: Show only in-stock products
             exclude_variations: Exclude product variations, show only base products
-            smart_sort: Use smart sorting (featured → new → with image → popular → rest)
+            smart_sort: Use smart sorting (new → with image → popular → rest)
             sort: Explicit sort order (name-asc, name-desc, featured); ignored when smart_sort is True
             include_inactive: Include inactive products
 
@@ -549,6 +553,12 @@ class ProductService:
         if max_seat_height is not None:
             query = query.where(Chair.seat_height <= max_seat_height)
 
+        if min_height is not None:
+            query = query.where(Chair.height >= min_height)
+
+        if max_height is not None:
+            query = query.where(Chair.height <= max_height)
+
         if min_width is not None:
             query = query.where(Chair.width >= min_width)
 
@@ -604,7 +614,6 @@ class ProductService:
         has_image = _has_displayable_image_rank()
         if smart_sort:
             query = query.order_by(
-                Chair.is_featured.desc(),
                 Chair.is_new.desc(),
                 has_image.desc(),
                 Chair.view_count.desc(),

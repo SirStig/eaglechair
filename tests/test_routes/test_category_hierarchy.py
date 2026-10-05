@@ -43,6 +43,25 @@ class TestCategoryHierarchy:
         assert slugs == ["chairs"]
 
     @pytest.mark.asyncio
+    async def test_has_products_flags_empty_categories(
+        self, async_client: AsyncClient, db_session: AsyncSession
+    ):
+        stocked = await create_category(db_session, name="Chairs", slug="chairs")
+        await create_category(db_session, name="Empty", slug="empty")
+        child_only = await create_category(db_session, name="Tables", slug="tables")
+        nested = await create_category(
+            db_session, name="Bases", slug="bases", parent_id=child_only.id
+        )
+        await create_chair(db_session, category_id=stocked.id)
+        await create_chair(db_session, category_id=nested.id)
+
+        response = await async_client.get("/api/v1/categories")
+
+        assert response.status_code == 200
+        flags = {c["slug"]: c["has_products"] for c in response.json()}
+        assert flags == {"chairs": True, "empty": False, "tables": True}
+
+    @pytest.mark.asyncio
     async def test_nested_category_is_returned_as_a_child(
         self, async_client: AsyncClient, db_session: AsyncSession
     ):

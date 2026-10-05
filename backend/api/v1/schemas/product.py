@@ -146,6 +146,7 @@ class CategoryWithChildren(CategoryResponse):
     """Top-level category with its children (subcategories + nested categories)"""
 
     subcategories: list[CategoryChildResponse] = []
+    has_products: bool = True
 
 
 # ============================================================================

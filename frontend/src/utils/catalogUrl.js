@@ -12,17 +12,15 @@ export const DEFAULT_CATALOG_FILTERS = {
   subcategory_id: '',
   family_id: '',
   search: '',
-  finish_ids: [],
   upholstery_ids: [],
   color_ids: [],
   is_stackable: null,
   is_outdoor_suitable: null,
   ada_compliant: null,
-  min_seat_height: '',
-  max_seat_height: '',
+  min_height: '',
+  max_height: '',
   min_width: '',
   max_width: '',
-  max_lead_time: '',
   stock_status: '',
   featured: false,
   new: false,
@@ -45,17 +43,15 @@ export function parseCatalogFilters(searchParams) {
     subcategory_id: searchParams.get('subcategory_id') || '',
     family_id: searchParams.get('family_id') || '',
     search: searchParams.get('search') || '',
-    finish_ids: searchParams.get('finish_ids')?.split(',').filter(Boolean) || [],
     upholstery_ids: searchParams.get('upholstery_ids')?.split(',').filter(Boolean) || [],
     color_ids: searchParams.get('color_ids')?.split(',').filter(Boolean) || [],
     is_stackable: searchParams.get('is_stackable') === 'true' ? true : null,
     is_outdoor_suitable: searchParams.get('is_outdoor_suitable') === 'true' ? true : null,
     ada_compliant: searchParams.get('ada_compliant') === 'true' ? true : null,
-    min_seat_height: searchParams.get('min_seat_height') || '',
-    max_seat_height: searchParams.get('max_seat_height') || '',
+    min_height: searchParams.get('min_height') || '',
+    max_height: searchParams.get('max_height') || '',
     min_width: searchParams.get('min_width') || '',
     max_width: searchParams.get('max_width') || '',
-    max_lead_time: searchParams.get('max_lead_time') || '',
     stock_status: searchParams.get('stock_status') || '',
     featured: searchParams.get('featured') === 'true',
     new: searchParams.get('new') === 'true',
@@ -137,9 +133,6 @@ export function buildCatalogSearchParams(filters, page = 1) {
   if (filters.family_id) {
     params.set('family_id', String(filters.family_id));
   }
-  if (filters.finish_ids?.length > 0) {
-    params.set('finish_ids', filters.finish_ids.join(','));
-  }
   if (filters.upholstery_ids?.length > 0) {
     params.set('upholstery_ids', filters.upholstery_ids.join(','));
   }
@@ -155,20 +148,17 @@ export function buildCatalogSearchParams(filters, page = 1) {
   if (filters.ada_compliant === true) {
     params.set('ada_compliant', 'true');
   }
-  if (filters.min_seat_height) {
-    params.set('min_seat_height', filters.min_seat_height);
+  if (filters.min_height) {
+    params.set('min_height', filters.min_height);
   }
-  if (filters.max_seat_height) {
-    params.set('max_seat_height', filters.max_seat_height);
+  if (filters.max_height) {
+    params.set('max_height', filters.max_height);
   }
   if (filters.min_width) {
     params.set('min_width', filters.min_width);
   }
   if (filters.max_width) {
     params.set('max_width', filters.max_width);
-  }
-  if (filters.max_lead_time) {
-    params.set('max_lead_time', filters.max_lead_time);
   }
   if (filters.stock_status) {
     params.set('stock_status', filters.stock_status);

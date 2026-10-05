@@ -258,6 +258,67 @@ class TestProductService:
         assert ids.index(with_image.id) < ids.index(no_image.id)
 
     @pytest.mark.asyncio
+    async def test_smart_sort_ignores_featured(self, db_session: AsyncSession):
+        """Featured products get no boost in smart sort."""
+        from backend.utils.pagination import PaginationParams
+
+        category = await create_category(db_session)
+        featured = await create_chair(
+            db_session,
+            category_id=category.id,
+            name="Featured",
+            is_featured=True,
+            is_new=False,
+            view_count=0,
+            primary_image_url="/uploads/images/products/a.webp",
+        )
+        popular = await create_chair(
+            db_session,
+            category_id=category.id,
+            name="Popular",
+            is_featured=False,
+            is_new=False,
+            view_count=500,
+            primary_image_url="/uploads/images/products/b.webp",
+        )
+
+        result = await ProductService.get_products(
+            db_session,
+            pagination=PaginationParams(page=1, per_page=50),
+            category_id=category.id,
+            smart_sort=True,
+            include_inactive=True,
+        )
+
+        ids = [p.id for p in result["items"]]
+        assert ids.index(popular.id) < ids.index(featured.id)
+
+    @pytest.mark.asyncio
+    async def test_filter_by_overall_height(self, db_session: AsyncSession):
+        """min_height / max_height filter on overall height, not seat height."""
+        from backend.utils.pagination import PaginationParams
+
+        category = await create_category(db_session)
+        short = await create_chair(
+            db_session, category_id=category.id, name="Short", height=30.0, seat_height=18.0
+        )
+        tall = await create_chair(
+            db_session, category_id=category.id, name="Tall", height=44.0, seat_height=30.0
+        )
+
+        result = await ProductService.get_products(
+            db_session,
+            pagination=PaginationParams(page=1, per_page=50),
+            category_id=category.id,
+            min_height=35,
+            max_height=50,
+        )
+
+        ids = [p.id for p in result["items"]]
+        assert tall.id in ids
+        assert short.id not in ids
+
+    @pytest.mark.asyncio
     async def test_get_product_by_id_success(self, db_session: AsyncSession):
         """Test successful product retrieval by ID."""
         category = await create_category(db_session)

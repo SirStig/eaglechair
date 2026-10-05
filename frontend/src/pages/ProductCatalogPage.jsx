@@ -47,26 +47,24 @@ const PAGE_SIZE_LABELS = { all: 'All' };
 // typing settles, so neither is repeated here.
 const FILTER_FACETS = {
   family_id: 'Family',
-  finish_ids: 'Finish',
   upholstery_ids: 'Upholstery',
   color_ids: 'Color',
   is_stackable: 'Stackable',
   is_outdoor_suitable: 'Outdoor',
   ada_compliant: 'ADA compliant',
-  min_seat_height: 'Min seat height',
-  max_seat_height: 'Max seat height',
+  min_height: 'Min height',
+  max_height: 'Max height',
   min_width: 'Min width',
   max_width: 'Max width',
-  max_lead_time: 'Max lead time',
   stock_status: 'Stock status',
   featured: 'Featured',
   new: 'New',
   sortBy: 'Sort',
 };
 
-function trackFilterChanges(prev, next, { families, finishes, upholsteries, colors }) {
+function trackFilterChanges(prev, next, { families, upholsteries, colors }) {
   const nameOf = (list, id) => list.find((item) => String(item.id) === String(id))?.name || `#${id}`;
-  const lists = { family_id: families, finish_ids: finishes, upholstery_ids: upholsteries, color_ids: colors };
+  const lists = { family_id: families, upholstery_ids: upholsteries, color_ids: colors };
   Object.entries(FILTER_FACETS).forEach(([key, facet]) => {
     const before = prev?.[key];
     const after = next?.[key];
@@ -90,7 +88,6 @@ const ProductCatalogPage = () => {
   const [families, setFamilies] = useState([]);
   const [categories, setCategories] = useState([]);
   const [subcategories, setSubcategories] = useState([]);
-  const [finishes, setFinishes] = useState([]);
   const [upholsteries, setUpholsteries] = useState([]);
   const [colors, setColors] = useState([]);
 
@@ -119,7 +116,7 @@ const ProductCatalogPage = () => {
 
   const goToCatalog = useCallback(
     (nextFilters, nextPage = 1, options = {}) => {
-      trackFilterChanges(filters, nextFilters, { families, finishes, upholsteries, colors });
+      trackFilterChanges(filters, nextFilters, { families, upholsteries, colors });
       // Include every category's children so a subcategory picked under a
       // different parent than the current one still resolves to its slug.
       const { pathname, search } = getCatalogLocation(
@@ -130,7 +127,7 @@ const ProductCatalogPage = () => {
       );
       navigate({ pathname, search }, options);
     },
-    [navigate, categories, subcategories, filters, families, finishes, upholsteries, colors]
+    [navigate, categories, subcategories, filters, families, upholsteries, colors]
   );
 
   // Catalog search box: one event once typing settles
@@ -144,6 +141,28 @@ const ProductCatalogPage = () => {
   const productsRequestRef = useRef(0);
   const familiesRequestRef = useRef(0);
   const [categoriesLoaded, setCategoriesLoaded] = useState(false);
+  const [categoryCounts, setCategoryCounts] = useState(null);
+
+  // Categories for the filter panel, with live product counts merged in
+  const sidebarCategories = useMemo(() => {
+    if (!categoryCounts) return categories;
+    const live = new Map(categoryCounts.map((c) => [String(c.id), c]));
+    return categories.map((cat) => {
+      const liveCat = live.get(String(cat.id));
+      if (!liveCat) return cat;
+      const childCounts = new Map(
+        (liveCat.subcategories || []).map((c) => [`${c.type}-${c.id}`, c.product_count])
+      );
+      return {
+        ...cat,
+        has_products: liveCat.has_products,
+        subcategories: (cat.subcategories || []).map((child) => ({
+          ...child,
+          product_count: childCounts.get(`${child.type}-${child.id}`) ?? child.product_count,
+        })),
+      };
+    });
+  }, [categories, categoryCounts]);
 
   useEffect(() => {
     loadCategories();
@@ -197,17 +216,15 @@ const ProductCatalogPage = () => {
     filters.category_id,
     filters.subcategory_id,
     filters.family_id,
-    filters.finish_ids,
     filters.upholstery_ids,
     filters.color_ids,
     filters.is_stackable,
     filters.is_outdoor_suitable,
     filters.ada_compliant,
-    filters.min_seat_height,
-    filters.max_seat_height,
+    filters.min_height,
+    filters.max_height,
     filters.min_width,
     filters.max_width,
-    filters.max_lead_time,
     filters.stock_status,
     filters.featured,
     filters.new,
@@ -226,6 +243,13 @@ const ProductCatalogPage = () => {
     } finally {
       setCategoriesLoaded(true);
     }
+    // Live counts only feed the filter panel's hiding of empty categories;
+    // without them every category stays visible.
+    try {
+      setCategoryCounts(await productService.getCategoriesWithCounts());
+    } catch (error) {
+      logger.error(CONTEXT, 'Error loading category counts', error);
+    }
   };
 
   const loadSubcategories = async (categoryId) => {
@@ -242,13 +266,11 @@ const ProductCatalogPage = () => {
 
   const loadFilterOptions = async () => {
     try {
-      const [finishesData, upholsteriesData, colorsData] = await Promise.all([
-        productService.getFinishes(),
+      const [upholsteriesData, colorsData] = await Promise.all([
         productService.getUpholsteries(),
         productService.getColors(),
       ]);
 
-      setFinishes(Array.isArray(finishesData) ? finishesData : []);
       setUpholsteries(Array.isArray(upholsteriesData) ? upholsteriesData : []);
       setColors(Array.isArray(colorsData) ? colorsData : []);
     } catch (error) {
@@ -306,10 +328,6 @@ const ProductCatalogPage = () => {
         params.search = debouncedSearch.trim();
       }
 
-      if (filters.finish_ids.length > 0) {
-        params.finish_ids = filters.finish_ids.join(',');
-      }
-
       if (filters.upholstery_ids.length > 0) {
         params.upholstery_ids = filters.upholstery_ids.join(',');
       }
@@ -330,12 +348,12 @@ const ProductCatalogPage = () => {
         params.ada_compliant = filters.ada_compliant;
       }
 
-      if (filters.min_seat_height) {
-        params.min_seat_height = parseFloat(filters.min_seat_height);
+      if (filters.min_height) {
+        params.min_height = parseFloat(filters.min_height);
       }
 
-      if (filters.max_seat_height) {
-        params.max_seat_height = parseFloat(filters.max_seat_height);
+      if (filters.max_height) {
+        params.max_height = parseFloat(filters.max_height);
       }
 
       if (filters.min_width) {
@@ -344,10 +362,6 @@ const ProductCatalogPage = () => {
 
       if (filters.max_width) {
         params.max_width = parseFloat(filters.max_width);
-      }
-
-      if (filters.max_lead_time) {
-        params.max_lead_time = parseInt(filters.max_lead_time, 10);
       }
 
       if (filters.stock_status === 'In Stock') {
@@ -483,23 +497,20 @@ const ProductCatalogPage = () => {
     filters.subcategory_id ||
     filters.family_id ||
     filters.search ||
-    filters.finish_ids.length > 0 ||
     filters.upholstery_ids.length > 0 ||
     filters.color_ids.length > 0 ||
     filters.is_stackable !== null ||
     filters.is_outdoor_suitable !== null ||
     filters.ada_compliant !== null ||
-    filters.min_seat_height ||
-    filters.max_seat_height ||
+    filters.min_height ||
+    filters.max_height ||
     filters.min_width ||
     filters.max_width ||
-    filters.max_lead_time ||
     filters.stock_status ||
     filters.featured ||
     filters.new ||
     filters.sortBy !== 'smart';
 
-  const showFinishFilter = !filters.category_id || activeCategory?.name !== 'Tables';
   const showUpholsteryFilter =
     !filters.category_id || ['Chairs', 'Booths', 'Bar Stools'].includes(activeCategory?.name);
   const showStackableFilter = !filters.category_id || activeCategory?.name === 'Chairs';
@@ -630,12 +641,10 @@ const ProductCatalogPage = () => {
               clearFilters={clearFilters}
               hasActiveFilters={hasActiveFilters}
               toggleArrayFilter={toggleArrayFilter}
-              categories={categories}
+              categories={sidebarCategories}
               families={families}
-              finishes={finishes}
               upholsteries={upholsteries}
               colors={colors}
-              showFinishFilter={showFinishFilter}
               showUpholsteryFilter={showUpholsteryFilter}
               showStackableFilter={showStackableFilter}
               showOutdoorFilter={showOutdoorFilter}

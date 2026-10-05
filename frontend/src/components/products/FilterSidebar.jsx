@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { X, ChevronDown, ChevronRight, Search, Check } from 'lucide-react';
 import { getChildren, findCategoryById, findNestedCategoryById } from '../../utils/categoryTree';
 
@@ -103,8 +103,15 @@ const CategoryTree = ({ categories, activeParent, activeChild, selectCategory })
         </button>
       </li>
       {categories.map((cat) => {
-        const children = getChildren(cat);
         const isParentActive = sameId(cat.id, activeParent?.id);
+        const countsKnown = cat.has_products !== undefined;
+        const children = getChildren(cat).filter(
+          (child) =>
+            !countsKnown ||
+            child.product_count > 0 ||
+            (isParentActive && activeChild && child.type === activeChild.type && sameId(child.id, activeChild.id))
+        );
+        if (cat.has_products === false && children.length === 0 && !isParentActive) return null;
         const isSelected = isParentActive && !activeChild;
         const open = children.length > 0 && isOpen(cat);
         return (
@@ -200,10 +207,8 @@ const FilterSidebar = ({
   toggleArrayFilter,
   categories,
   families,
-  finishes,
   upholsteries,
   colors,
-  showFinishFilter,
   showUpholsteryFilter,
   showStackableFilter,
   showOutdoorFilter,
@@ -213,9 +218,49 @@ const FilterSidebar = ({
   loading,
 }) => {
   const [openSections, setOpenSections] = useState({});
+  const cardRef = useRef(null);
+
+  // Desktop: until the panel sticks it sits lower than its sticky offset, so
+  // a fixed viewport-based max-height pushes its bottom off screen. Fit it to
+  // the space actually left below its current top instead.
+  useEffect(() => {
+    const card = cardRef.current;
+    if (!card || typeof window === 'undefined') return undefined;
+    const desktop = window.matchMedia('(min-width: 1024px)');
+    let frame = 0;
+    const fit = () => {
+      frame = 0;
+      if (!desktop.matches) {
+        card.style.maxHeight = '';
+        return;
+      }
+      const top = Math.max(card.getBoundingClientRect().top, 96);
+      card.style.maxHeight = `${Math.max(window.innerHeight - top - 16, 240)}px`;
+    };
+    const schedule = () => {
+      if (!frame) frame = requestAnimationFrame(fit);
+    };
+    fit();
+    window.addEventListener('scroll', schedule, { passive: true });
+    window.addEventListener('resize', schedule);
+    desktop.addEventListener('change', schedule);
+    return () => {
+      if (frame) cancelAnimationFrame(frame);
+      window.removeEventListener('scroll', schedule);
+      window.removeEventListener('resize', schedule);
+      desktop.removeEventListener('change', schedule);
+      card.style.maxHeight = '';
+    };
+  }, []);
+
   const isOpen = (key, active) => openSections[key] ?? active;
   const toggle = (key, active) =>
     setOpenSections((prev) => ({ ...prev, [key]: !isOpen(key, active) }));
+
+  // Families with no products are hidden unless one is the current filter
+  const visibleFamilies = families.filter(
+    (family) => family.product_count > 0 || sameId(filters.family_id, family.id)
+  );
 
   // Resolve the selected category / child from the tree
   const nested = findNestedCategoryById(categories, filters.category_id);
@@ -236,7 +281,6 @@ const FilterSidebar = ({
   if (activeChild) chips.push({ key: 'child', label: activeChild.name, onRemove: () => selectCategory(activeParent, null) });
   if (filters.search) chips.push({ key: 'search', label: `“${filters.search}”`, onRemove: () => updateFilter('search', '') });
   if (filters.family_id) chips.push({ key: 'family', label: nameOf(families, filters.family_id), onRemove: () => updateFilter('family_id', '') });
-  filters.finish_ids.forEach((id) => chips.push({ key: `fin-${id}`, label: nameOf(finishes, id), onRemove: () => toggleArrayFilter('finish_ids', id) }));
   filters.upholstery_ids.forEach((id) => chips.push({ key: `uph-${id}`, label: nameOf(upholsteries, id), onRemove: () => toggleArrayFilter('upholstery_ids', id) }));
   filters.color_ids.forEach((id) => chips.push({ key: `col-${id}`, label: nameOf(colors, id), onRemove: () => toggleArrayFilter('color_ids', id) }));
   if (filters.is_stackable) chips.push({ key: 'stack', label: 'Stackable', onRemove: () => updateFilter('is_stackable', null) });
@@ -244,11 +288,11 @@ const FilterSidebar = ({
   if (filters.ada_compliant) chips.push({ key: 'ada', label: 'ADA compliant', onRemove: () => updateFilter('ada_compliant', null) });
   if (filters.featured) chips.push({ key: 'featured', label: 'Featured', onRemove: () => updateFilter('featured', false) });
   if (filters.new) chips.push({ key: 'new', label: 'New', onRemove: () => updateFilter('new', false) });
-  if (filters.min_seat_height || filters.max_seat_height) {
+  if (filters.min_height || filters.max_height) {
     chips.push({
-      key: 'seat',
-      label: `Seat ${range(filters.min_seat_height, filters.max_seat_height)}`,
-      onRemove: () => updateFilters({ min_seat_height: '', max_seat_height: '' }),
+      key: 'height',
+      label: `Height ${range(filters.min_height, filters.max_height)}`,
+      onRemove: () => updateFilters({ min_height: '', max_height: '' }),
     });
   }
   if (filters.min_width || filters.max_width) {
@@ -258,15 +302,13 @@ const FilterSidebar = ({
       onRemove: () => updateFilters({ min_width: '', max_width: '' }),
     });
   }
-  if (filters.max_lead_time) chips.push({ key: 'lead', label: `≤ ${filters.max_lead_time} days`, onRemove: () => updateFilter('max_lead_time', '') });
   if (filters.stock_status) chips.push({ key: 'stock', label: filters.stock_status, onRemove: () => updateFilter('stock_status', '') });
 
-  const materialsCount = filters.finish_ids.length + filters.upholstery_ids.length + filters.color_ids.length;
+  const materialsCount = filters.upholstery_ids.length + filters.color_ids.length;
   const featureCount = [filters.is_stackable, filters.is_outdoor_suitable, filters.ada_compliant, filters.featured, filters.new].filter(Boolean).length;
-  const sizeCount = [filters.min_seat_height || filters.max_seat_height, filters.min_width || filters.max_width].filter(Boolean).length;
-  const availabilityCount = [filters.max_lead_time, filters.stock_status].filter(Boolean).length;
+  const sizeCount = [filters.min_height || filters.max_height, filters.min_width || filters.max_width].filter(Boolean).length;
+  const availabilityCount = filters.stock_status ? 1 : 0;
   const showMaterials =
-    (showFinishFilter && finishes.length > 0) ||
     (showUpholsteryFilter && upholsteries.length > 0) ||
     colors.length > 0;
 
@@ -281,11 +323,12 @@ const FilterSidebar = ({
       `}
     >
     <div
+      ref={cardRef}
       className={`
         rounded-xl shadow-lg bg-white border border-cream-200
         flex flex-col w-full h-full overflow-hidden
         ${showMobileFilters ? 'max-lg:max-h-[90dvh]' : ''}
-        lg:max-h-[calc(100dvh-6rem)]
+        lg:max-h-[calc(100dvh-7rem)]
       `}
     >
       <div className="flex items-center justify-between px-4 sm:px-5 py-3.5 border-b border-cream-200 bg-cream-50 flex-shrink-0">
@@ -311,7 +354,7 @@ const FilterSidebar = ({
         </div>
       </div>
 
-      <div className="px-4 sm:px-5 pt-4 filter-sidebar-scroll flex-1 min-h-0 overflow-y-auto overflow-x-hidden overscroll-contain [-webkit-overflow-scrolling:touch]">
+      <div className="px-4 sm:px-5 pt-4 filter-sidebar-scroll flex-1 min-h-0 overflow-y-auto overflow-x-hidden max-lg:overscroll-contain [-webkit-overflow-scrolling:touch]">
         {chips.length > 0 && (
           <div className="mb-4">
             <p className="text-xs font-semibold uppercase tracking-wide text-slate-500 mb-2">Applied</p>
@@ -367,7 +410,7 @@ const FilterSidebar = ({
           />
         </div>
 
-        {families.length > 0 && (
+        {visibleFamilies.length > 0 && (
           <Section
             title="Product Family"
             count={filters.family_id ? 1 : 0}
@@ -375,7 +418,7 @@ const FilterSidebar = ({
             onToggle={() => toggle('family', !!filters.family_id)}
           >
             <div className="space-y-0.5 max-h-72 overflow-y-auto pr-1">
-              {families.map((family) => {
+              {visibleFamilies.map((family) => {
                 const active = sameId(filters.family_id, family.id);
                 return (
                   <button
@@ -420,18 +463,12 @@ const FilterSidebar = ({
 
         {showMaterials && (
           <Section
-            title="Materials & Finishes"
+            title="Materials"
             count={materialsCount}
             open={isOpen('materials', materialsCount > 0)}
             onToggle={() => toggle('materials', materialsCount > 0)}
           >
             <div className="space-y-4">
-              {showFinishFilter && finishes.length > 0 && (
-                <div>
-                  <span className="block text-xs font-semibold uppercase tracking-wide text-slate-500 mb-1">Finish</span>
-                  <CheckList items={finishes} selected={filters.finish_ids} onToggle={(id) => toggleArrayFilter('finish_ids', id)} />
-                </div>
-              )}
               {showUpholsteryFilter && upholsteries.length > 0 && (
                 <div>
                   <span className="block text-xs font-semibold uppercase tracking-wide text-slate-500 mb-1">Upholstery</span>
@@ -475,14 +512,14 @@ const FilterSidebar = ({
         >
           <div className="space-y-3">
             <RangeInputs
-              label="Seat height (in)"
-              minValue={filters.min_seat_height}
-              maxValue={filters.max_seat_height}
-              onMin={(v) => updateFilter('min_seat_height', v)}
-              onMax={(v) => updateFilter('max_seat_height', v)}
+              label="Overall height (in)"
+              minValue={filters.min_height}
+              maxValue={filters.max_height}
+              onMin={(v) => updateFilter('min_height', v)}
+              onMax={(v) => updateFilter('max_height', v)}
             />
             <RangeInputs
-              label="Width (in)"
+              label="Overall width (in)"
               minValue={filters.min_width}
               maxValue={filters.max_width}
               onMin={(v) => updateFilter('min_width', v)}
@@ -498,18 +535,6 @@ const FilterSidebar = ({
           onToggle={() => toggle('availability', availabilityCount > 0)}
         >
           <div className="space-y-3">
-            <div>
-              <span className="block text-xs font-medium text-slate-600 mb-1.5">Max lead time (days)</span>
-              <input
-                type="number"
-                inputMode="numeric"
-                placeholder="e.g. 30"
-                aria-label="Max lead time in days"
-                value={filters.max_lead_time}
-                onChange={(e) => updateFilter('max_lead_time', e.target.value)}
-                className={inputClass}
-              />
-            </div>
             <div>
               <span className="block text-xs font-medium text-slate-600 mb-1.5">Stock status</span>
               <select
