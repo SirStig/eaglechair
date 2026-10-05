@@ -15,6 +15,7 @@ import { AdminPage, AdminPageHeader } from '../ui/AdminPage';
 import useBulkSelection from '../../../hooks/useBulkSelection';
 import BulkActionBar from '../bulk/BulkActionBar';
 import { ACTIVE_ACTIONS, retiredBy } from '../bulk/bulkActions';
+import DeleteGate from '../DeleteGate';
 
 const COLOR_CATEGORY_OPTIONS = [{ value: 'wood', label: 'Wood' }, { value: 'metal', label: 'Metal' }, { value: 'fabric', label: 'Fabric' }, { value: 'paint', label: 'Paint' }, { value: 'leather', label: 'Leather' }, { value: 'vinyl', label: 'Vinyl' }];
 
@@ -346,6 +347,7 @@ const ColorManagement = () => {
                       <Edit2 className="w-4 h-4" />
                     </button>
                     {tab === 'active' ? (
+                      <DeleteGate>
                       <button
                         onClick={() => handleDelete(color.id)}
                         className="p-2 text-red-400 hover:bg-red-900/20 rounded-lg transition-colors"
@@ -353,6 +355,7 @@ const ColorManagement = () => {
                       >
                         <Trash2 className="w-4 h-4" />
                       </button>
+                      </DeleteGate>
                     ) : (
                       <>
                         <button
@@ -362,6 +365,7 @@ const ColorManagement = () => {
                         >
                           <RotateCcw className="w-4 h-4" />
                         </button>
+                        <DeleteGate permanent>
                         <button
                           onClick={() => setPermDeleteTarget({ id: color.id, name: color.name })}
                           className="p-2 text-red-400 hover:bg-red-900/20 rounded-lg transition-colors"
@@ -369,6 +373,7 @@ const ColorManagement = () => {
                         >
                           <Trash2 className="w-4 h-4" />
                         </button>
+                        </DeleteGate>
                       </>
                     )}
                   </div>

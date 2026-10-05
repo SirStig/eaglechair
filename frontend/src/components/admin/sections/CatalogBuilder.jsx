@@ -11,6 +11,7 @@ import {
 import CatalogBuilderEditor from './catalogBuilder/CatalogBuilderEditor';
 import { newPage } from './catalogBuilder/pageModel';
 import { AdminPage, AdminPageHeader } from '../ui/AdminPage';
+import DeleteGate from '../DeleteGate';
 
 const formatDate = (iso) => (iso ? new Date(iso).toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' }) : '—');
 
@@ -163,6 +164,7 @@ const CatalogBuilder = () => {
               <div className="flex gap-2 mt-4 pt-3 border-t border-dark-700">
                 <Button size="xs" variant="outline" onClick={() => openProject(project.id)}>Open</Button>
                 <Button size="xs" variant="ghost" onClick={() => duplicate(project.id)}><Copy className="w-3.5 h-3.5 mr-1" />Duplicate</Button>
+                <DeleteGate>
                 <Button
                   size="xs"
                   variant="ghost"
@@ -172,6 +174,7 @@ const CatalogBuilder = () => {
                 >
                   <Trash2 className="w-3.5 h-3.5" />
                 </Button>
+                </DeleteGate>
               </div>
             </Card>
           ))}

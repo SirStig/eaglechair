@@ -16,6 +16,7 @@ import ReorderableTable from '../ReorderableTable';
 import StatusTabs from '../StatusTabs';
 import PermanentDeleteModal from '../PermanentDeleteModal';
 import ResponsiveImage from '../../ui/ResponsiveImage';
+import DeleteGate from '../DeleteGate';
 
 const MATERIAL_TYPE_OPTIONS = [{ value: 'Vinyl', label: 'Vinyl' }, { value: 'Fabric', label: 'Fabric' }, { value: 'Leather', label: 'Leather' }, { value: 'Faux Leather', label: 'Faux Leather' }, { value: 'Mesh', label: 'Mesh' }];
 const UPHOLSTERY_GRADE_OPTIONS = [{ value: 'A', label: 'Grade A' }, { value: 'B', label: 'Grade B' }, { value: 'C', label: 'Grade C' }, { value: 'Premium', label: 'Premium' }, { value: 'Luxury', label: 'Luxury' }];
@@ -395,6 +396,7 @@ const UpholsteryManagement = () => {
                       <Edit className="w-4 h-4" />
                     </button>
                     {tab === 'active' ? (
+                      <DeleteGate>
                       <button
                         onClick={() => handleDelete(upholstery)}
                         className="p-2 text-red-400 hover:bg-red-900/20 rounded transition-colors"
@@ -402,6 +404,7 @@ const UpholsteryManagement = () => {
                       >
                         <Trash2 className="w-4 h-4" />
                       </button>
+                      </DeleteGate>
                     ) : (
                       <>
                         <button
@@ -411,6 +414,7 @@ const UpholsteryManagement = () => {
                         >
                           <RotateCcw className="w-4 h-4" />
                         </button>
+                        <DeleteGate permanent>
                         <button
                           onClick={() => setPermDeleteTarget({ id: upholstery.id, name: upholstery.name })}
                           className="p-2 text-red-400 hover:bg-red-900/20 rounded transition-colors"
@@ -418,6 +422,7 @@ const UpholsteryManagement = () => {
                         >
                           <Trash2 className="w-4 h-4" />
                         </button>
+                        </DeleteGate>
                       </>
                     )}
                   </div>

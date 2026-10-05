@@ -3,6 +3,7 @@ import logger from '../utils/logger';
 import { useSiteSettings } from '../hooks/useContent';
 import { getStateName } from '../utils/usStates';
 import LoadingSpinner from './ui/LoadingSpinner';
+import { salesContact, telHref, mailtoHref } from '../utils/contactLinks';
 
 const CONTEXT = 'USMapInteractive';
 const SVG_NS = 'http://www.w3.org/2000/svg';
@@ -375,8 +376,14 @@ const USMapInteractive = ({
                 <strong className="text-primary-500">Need Help?</strong>
               </p>
               <p className="text-sm text-dark-200">
-                Call us at <span className="text-primary-500 font-semibold">{siteSettings?.primaryPhone || 'N/A'}</span> or email{' '}
-                <span className="text-primary-500 font-semibold">{siteSettings?.primaryEmail || 'N/A'}</span>
+                Call us at{' '}
+                <a href={telHref(salesContact(siteSettings).phone) || undefined} className="text-primary-500 font-semibold hover:underline">
+                  {salesContact(siteSettings).phone || 'N/A'}
+                </a>{' '}
+                or email{' '}
+                <a href={mailtoHref(salesContact(siteSettings).email) || undefined} className="text-primary-500 font-semibold hover:underline break-all">
+                  {salesContact(siteSettings).email || 'N/A'}
+                </a>
               </p>
             </div>
           </div>

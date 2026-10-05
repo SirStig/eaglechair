@@ -30,6 +30,7 @@ from backend.models.company import (
     AdminUser,
     AdminRole,
     AdminAuditLog,
+    AdminSession,
 )
 from backend.models.passkey import AdminPasskeyCredential
 
@@ -97,6 +98,7 @@ __all__ = [
     "AdminUser",
     "AdminRole",
     "AdminAuditLog",
+    "AdminSession",
     "AdminPasskeyCredential",
     # Products
     "Category",

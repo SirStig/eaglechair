@@ -6,7 +6,7 @@ Models for company accounts (B2B customers) and admin users with enhanced securi
 
 import enum
 
-from sqlalchemy import JSON, Boolean, Column, Date, ForeignKey, Index, Integer, String, Text
+from sqlalchemy import JSON, Boolean, Column, Date, DateTime, ForeignKey, Index, Integer, String, Text
 from sqlalchemy import Enum as SQLEnum
 from sqlalchemy.orm import relationship
 
@@ -271,3 +271,33 @@ class AdminAuditLog(Base):
     def __repr__(self) -> str:
         return f"<AdminAuditLog(id={self.id}, admin_id={self.admin_id}, action={self.action})>"
 
+
+class AdminSession(Base):
+    """
+    One row per admin sign-in (device). Holds that login's session / admin /
+    refresh token digests, so several devices can be signed in at once and
+    each can be listed and signed out on its own. JWTs carry the row id as
+    the "sid" claim (backend/services/admin_session_service.py).
+    """
+    __tablename__ = "admin_sessions"
+    __table_args__ = (
+        Index("ix_admin_sessions_admin_revoked", "admin_id", "revoked_at"),
+    )
+
+    id = Column(Integer, primary_key=True, index=True)
+    admin_id = Column(Integer, ForeignKey("admin_users.id", ondelete="CASCADE"), nullable=False)
+    session_token_hash = Column(String(128), nullable=False)
+    admin_token_hash = Column(String(128), nullable=False)
+    refresh_token_hash = Column(String(128), nullable=True)
+    refresh_expires_at = Column(DateTime, nullable=True)
+    login_method = Column(String(20), nullable=False, default="password")
+    ip_address = Column(String(50), nullable=True)
+    user_agent = Column(String(500), nullable=True)
+    device_label = Column(String(100), nullable=True)  # e.g. "Chrome on macOS"
+    location = Column(String(150), nullable=True)  # e.g. "Austin, Texas, US"
+    last_seen_at = Column(DateTime, nullable=True)
+    revoked_at = Column(DateTime, nullable=True)
+    revoked_reason = Column(String(50), nullable=True)
+
+    def __repr__(self) -> str:
+        return f"<AdminSession(id={self.id}, admin_id={self.admin_id}, revoked={self.revoked_at is not None})>"

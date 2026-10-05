@@ -37,7 +37,7 @@ from backend.core.security import tokens_for_response_body
 from backend.database.base import get_db
 from backend.models.company import AdminUser, Company
 from backend.models.passkey import AdminPasskeyCredential
-from backend.services import audit_service
+from backend.services import admin_session_service, audit_service
 from backend.services.auth_service import AuthService, revoke_user_tokens
 
 logger = logging.getLogger(__name__)
@@ -160,7 +160,8 @@ async def unified_login(
                 username=admin_user.username,
                 password=login_data.password,
                 ip_address=client_ip,
-                two_factor_code=login_data.two_factor_code
+                two_factor_code=login_data.two_factor_code,
+                user_agent=request.headers.get("user-agent"),
             )
         except (InvalidCredentialsError, AccountSuspendedError) as e:
             await audit_service.record(
@@ -333,7 +334,8 @@ async def login_admin(
             username=login_data.username,
             password=login_data.password,
             ip_address=client_ip,
-            two_factor_code=login_data.two_factor_code
+            two_factor_code=login_data.two_factor_code,
+            user_agent=request.headers.get("user-agent"),
         )
     except (InvalidCredentialsError, AccountSuspendedError) as e:
         result = await db.execute(
@@ -509,10 +511,17 @@ async def change_password(
     # Re-issue tokens for this session (all other sessions stay revoked)
     await db.refresh(caller)
     if user_type == "admin":
+        # Every device is signed out; this one gets a fresh session
+        await admin_session_service.revoke_all(db, caller.id, "password_changed")
         tokens = await AuthService.create_admin_tokens(
             db, caller,
             ip_address=request.client.host if request.client else None,
             strong_session=bool(caller.is_2fa_enabled),
+            user_agent=request.headers.get("user-agent"),
+            login_method="password",
+        )
+        await audit_service.record(
+            db, caller.id, "password_changed", "admin_users", caller.id, conn=request
         )
     else:
         tokens = await AuthService.create_company_tokens(db, caller)
@@ -747,13 +756,24 @@ async def logout(
 
         # Only a current (non-revoked) token can revoke the user's sessions
         if user and security_manager.token_version_matches(token_payload, user):
-            revoke_user_tokens(user)
+            session = None
             if user_type == "admin":
-                user.session_token = None
-                user.admin_token = None
+                session = await admin_session_service.get_session(db, token_payload.get("sid"))
+                if session is not None and session.admin_id != user.id:
+                    session = None
+            if session is not None:
+                # Device session: sign out this device only
+                admin_session_service.revoke(session, "logout")
+                logger.info(f"Admin {user_id} signed out session {session.id}")
+            else:
+                revoke_user_tokens(user)
+                if user_type == "admin":
+                    user.session_token = None
+                    user.admin_token = None
+                logger.info(f"All tokens revoked for {user_type} user: {user_id}")
+            if user_type == "admin":
                 db.add(audit_service.build_entry(user.id, "logout", "admin_users", user.id, conn=request))
             await db.commit()
-            logger.info(f"All tokens revoked for {user_type} user: {user_id}")
 
     # Clear all authentication cookies
     clear_auth_cookies(response, is_production=settings.is_production)

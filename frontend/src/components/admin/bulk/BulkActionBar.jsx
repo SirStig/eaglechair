@@ -6,6 +6,7 @@ import FloatingDock from './FloatingDock';
 import FitLabel from './FitLabel';
 import PermanentDeleteModal from '../PermanentDeleteModal';
 import { deletePermanently } from './permanentDelete';
+import { PERMISSIONS, useAdminPermissions } from '../../../hooks/useAdminPermissions';
 
 const pluralize = (noun) => {
   if (/[^aeiou]y$/.test(noun)) return `${noun.slice(0, -1)}ies`;
@@ -45,6 +46,11 @@ const SEARCH_AFTER = 8;
  * "Delete permanently" action for the selected rows that are already
  * archived / deactivated (super admin, typed confirmation; the server skips
  * anything still active or in use and says why).
+ *
+ * Permissions (hooks/useAdminPermissions.js; the server enforces them too):
+ * delete actions (label starting "Delete", or `requires: 'delete'`) need
+ * "delete", the permanent delete needs "permanent_delete", and viewers with
+ * no edit permission get no bar.
  */
 export default function BulkActionBar({
   selection,
@@ -65,6 +71,7 @@ export default function BulkActionBar({
   const [inputValue, setInputValue] = useState('');
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const { can, permissions } = useAdminPermissions();
 
   const visibleOptions = useMemo(() => {
     const options = panel?.action.options || [];
@@ -72,7 +79,14 @@ export default function BulkActionBar({
     return q ? options.filter((o) => String(o.label).toLowerCase().includes(q)) : options;
   }, [panel, query]);
 
-  if (!selection.count) return null;
+  if (!selection.count || permissions.size === 0) return null;
+
+  const isDeleteAction = (action) =>
+    action.requires === PERMISSIONS.DELETE || (!action.changes && /^delete\b/i.test(action.label));
+  const visibleActions = actions.filter(
+    (action) => (!action.requires || can(action.requires)) && (can(PERMISSIONS.DELETE) || !isDeleteAction(action))
+  );
+  const allowPermanentDelete = permanentDelete && can(PERMISSIONS.PERMANENT_DELETE);
 
   const ids = selection.selectedIds;
   const nounFor = (n) => (n === 1 ? noun : pluralNoun || pluralize(noun));
@@ -182,7 +196,7 @@ export default function BulkActionBar({
       <div className="max-h-[38vh] overflow-y-auto p-2.5">
         {!panel && (
           <div className={ACTION_GRID}>
-            {actions.map((action) => {
+            {visibleActions.map((action) => {
               const opensPanel = action.options || action.input;
               return (
                 <button
@@ -198,7 +212,7 @@ export default function BulkActionBar({
                 </button>
               );
             })}
-            {permanentDelete && (
+            {allowPermanentDelete && (
               <button
                 type="button"
                 disabled={busy || retiredIds.length === 0}
@@ -303,7 +317,7 @@ export default function BulkActionBar({
           </div>
         )}
       </div>
-      {permanentDelete && (
+      {allowPermanentDelete && (
         <PermanentDeleteModal
           isOpen={deleteOpen}
           onClose={() => !deleting && setDeleteOpen(false)}

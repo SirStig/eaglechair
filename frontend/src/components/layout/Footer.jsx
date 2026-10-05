@@ -3,6 +3,7 @@ import { m } from 'framer-motion';
 import { useSiteSettings } from '../../hooks/useContent';
 import SiteLogo from '../ui/SiteLogo';
 import { safeHref } from '../../utils/safeUrl';
+import { salesContact, telHref, mailtoHref } from '../../utils/contactLinks';
 
 const Footer = () => {
   const currentYear = new Date().getFullYear();
@@ -47,8 +48,8 @@ const Footer = () => {
   const city = siteSettings?.city || '';
   const state = siteSettings?.state || '';
   const zipCode = siteSettings?.zipCode || '';
-  const primaryPhone = siteSettings?.primaryPhone || '';
-  const primaryEmail = siteSettings?.primaryEmail || '';
+  // Customers reach sales first; falls back to the main office
+  const { phone: contactPhone, email: contactEmail } = salesContact(siteSettings);
   // CMS links only render when they pass the URL policy
   const facebookUrl = safeHref(siteSettings?.facebookUrl);
   const instagramUrl = safeHref(siteSettings?.instagramUrl);
@@ -196,14 +197,16 @@ const Footer = () => {
                   {[city, state, zipCode].filter(Boolean).join(', ')}
                 </p>
               )}
-              {primaryPhone && (
+              {contactPhone && (
                 <p className="text-sm mb-1 text-dark-200">
-                  Phone: <span className="text-primary-500">{primaryPhone}</span>
+                  Phone:{' '}
+                  <a href={telHref(contactPhone) || undefined} className="text-primary-500 hover:text-primary-400 hover:underline">{contactPhone}</a>
                 </p>
               )}
-              {primaryEmail && (
+              {contactEmail && (
                 <p className="text-sm mb-2 text-dark-200">
-                  Email: <span className="text-primary-500">{primaryEmail}</span>
+                  Email:{' '}
+                  <a href={mailtoHref(contactEmail) || undefined} className="text-primary-500 hover:text-primary-400 hover:underline break-all">{contactEmail}</a>
                 </p>
               )}
             </div>

@@ -57,6 +57,7 @@ function SortableTh({ label, sortKey, activeSortBy, sortDir, onSort, className =
 }
 import { useToast } from '../../../contexts/ToastContext';
 import { useAdminRefresh } from '../../../contexts/AdminRefreshContext';
+import DeleteGate from '../DeleteGate';
 
 function SortableCategoryRow({ category, index, isExpanded, hasSubcategories, onToggle, getSubcategoryCount, getCategoryName, handleEdit, handleDelete, handleCreateSubcategory, handleEditSubcategory, handleDeleteSubcategory, expandedCategories, dragDisabled, catSel, subSel }) {
   const {
@@ -178,6 +179,7 @@ function SortableCategoryRow({ category, index, isExpanded, hasSubcategories, on
             >
               <Edit2 className="w-4 h-4" />
             </button>
+            <DeleteGate>
             <button
               onClick={() => handleDelete(category.id)}
               className="p-2 text-red-400 hover:bg-red-900/20 rounded-lg transition-colors"
@@ -185,6 +187,7 @@ function SortableCategoryRow({ category, index, isExpanded, hasSubcategories, on
             >
               <Trash2 className="w-4 h-4" />
             </button>
+            </DeleteGate>
           </div>
         </td>
       </tr>
@@ -259,6 +262,7 @@ function SortableCategoryRow({ category, index, isExpanded, hasSubcategories, on
               >
                 <Edit2 className="w-3.5 h-3.5" />
               </button>
+              <DeleteGate>
               <button
                 onClick={() => handleDeleteSubcategory(subcat)}
                 className="p-1.5 text-red-400 hover:bg-red-900/20 rounded-lg transition-colors"
@@ -266,6 +270,7 @@ function SortableCategoryRow({ category, index, isExpanded, hasSubcategories, on
               >
                 <Trash2 className="w-3.5 h-3.5" />
               </button>
+              </DeleteGate>
             </div>
           </td>
         </tr>
@@ -678,6 +683,7 @@ const CategoryManagement = () => {
                           >
                             <RotateCcw className="w-4 h-4" />
                           </button>
+                          <DeleteGate permanent>
                           <button
                             onClick={() => setPermDeleteTarget(item)}
                             className="p-2 text-red-400 hover:bg-red-900/20 rounded-lg transition-colors"
@@ -685,6 +691,7 @@ const CategoryManagement = () => {
                           >
                             <Trash2 className="w-4 h-4" />
                           </button>
+                          </DeleteGate>
                         </div>
                       </td>
                     </tr>

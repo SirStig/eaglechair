@@ -21,6 +21,8 @@ import {
 } from 'lucide-react';
 import { formatPrice } from '../../../utils/apiHelpers';
 import { AdminPage, AdminPageHeader } from '../ui/AdminPage';
+import RecordHistoryLink from '../RecordHistoryLink';
+import DeleteGate from '../DeleteGate';
 
 const AdminCompanyDetailView = ({ companyId, onBack, onUpdated }) => {
   const [company, setCompany] = useState(null);
@@ -282,10 +284,13 @@ const AdminCompanyDetailView = ({ companyId, onBack, onUpdated }) => {
         onBack={onBack}
         backLabel="Back to Companies"
         actions={!isEditing ? (
-          <Button onClick={() => setIsEditing(true)} className="flex items-center gap-2">
-            <Edit2 className="w-4 h-4" />
-            Edit
-          </Button>
+          <div className="flex items-center gap-2">
+            <RecordHistoryLink resourceType="companies" resourceId={company?.id} />
+            <Button onClick={() => setIsEditing(true)} className="flex items-center gap-2">
+              <Edit2 className="w-4 h-4" />
+              Edit
+            </Button>
+          </div>
         ) : (
           <div className="flex items-center gap-2">
             <Button variant="outline" onClick={handleCancel} className="flex items-center gap-2">
@@ -555,9 +560,11 @@ const AdminCompanyDetailView = ({ companyId, onBack, onUpdated }) => {
                     </div>
                     <div className="flex items-center gap-2 shrink-0">
                       <Button variant="ghost" size="sm" onClick={() => openEditAddress(addr)}>Edit</Button>
+                      <DeleteGate>
                       <Button variant="ghost" size="sm" onClick={() => deleteAddress(addr.id)} className="text-red-400 hover:text-red-300">
                         <Trash2 className="w-4 h-4" />
                       </Button>
+                      </DeleteGate>
                     </div>
                   </div>
                 ))

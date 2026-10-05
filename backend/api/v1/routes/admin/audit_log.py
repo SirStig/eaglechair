@@ -46,6 +46,31 @@ _NAMED_RESOURCES = {
 }
 _NAME_ATTRS = ("company_name", "quote_number", "name", "title", "tier_name")
 
+# AI edits (routes/admin/ai_chat.py) log singular entity names; treat them as
+# the plural resource types the request audit uses
+_ALIASES = {
+    "product": "products",
+    "variation": "variations",
+    "family": "families",
+    "category": "categories",
+    "subcategory": "subcategories",
+    "finish": "finishes",
+    "upholstery": "upholsteries",
+    "color": "colors",
+    "laminate": "laminates",
+    "catalog": "catalogs",
+    "admin_users": "admins",
+}
+
+
+def _canonical(resource_type: Optional[str]) -> Optional[str]:
+    return _ALIASES.get(resource_type, resource_type)
+
+
+def _variants(resource_type: str) -> list[str]:
+    canonical = _canonical(resource_type)
+    return [canonical, *(alias for alias, target in _ALIASES.items() if target == canonical)]
+
 
 def _admin_name(admin: Optional[AdminUser]) -> Optional[str]:
     if admin is None:
@@ -66,8 +91,9 @@ def _record_name(row) -> Optional[str]:
 async def _resource_names(db: AsyncSession, entries: list[AdminAuditLog]) -> dict[tuple[str, int], str]:
     wanted: dict[str, set[int]] = defaultdict(set)
     for entry in entries:
-        if entry.resource_id is not None and entry.resource_type in _NAMED_RESOURCES:
-            wanted[entry.resource_type].add(entry.resource_id)
+        resource_type = _canonical(entry.resource_type)
+        if entry.resource_id is not None and resource_type in _NAMED_RESOURCES:
+            wanted[resource_type].add(entry.resource_id)
     names = {}
     for resource_type, ids in wanted.items():
         model = _NAMED_RESOURCES[resource_type]
@@ -102,7 +128,7 @@ def _serialize(entry: AdminAuditLog, admin: Optional[AdminUser], resource_name: 
             "role": admin.role.value if admin else None,
         },
         "action": entry.action,
-        "resource_type": entry.resource_type,
+        "resource_type": _canonical(entry.resource_type),
         "resource_id": entry.resource_id,
         "resource_name": resource_name,
         "details": entry.details or {},
@@ -133,7 +159,7 @@ async def list_audit_log(
     if admin_id is not None:
         conditions.append(AdminAuditLog.admin_id == admin_id)
     if resource_type:
-        conditions.append(AdminAuditLog.resource_type == resource_type)
+        conditions.append(AdminAuditLog.resource_type.in_(_variants(resource_type)))
     if resource_id is not None:
         conditions.append(AdminAuditLog.resource_id == resource_id)
     if action:
@@ -165,7 +191,7 @@ async def list_audit_log(
 
     return {
         "items": [
-            _serialize(entry, admin, names.get((entry.resource_type, entry.resource_id)))
+            _serialize(entry, admin, names.get((_canonical(entry.resource_type), entry.resource_id)))
             for entry, admin in rows
         ],
         "total": total,
@@ -194,6 +220,6 @@ async def audit_log_filters(
             {"id": a.id, "name": _admin_name(a), "email": a.email, "is_active": a.is_active}
             for a in admins
         ],
-        "resource_types": [r for r in resource_types if r],
+        "resource_types": sorted({_canonical(r) for r in resource_types if r}),
         "actions": [a for a in actions if a],
     }

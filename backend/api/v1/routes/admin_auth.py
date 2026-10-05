@@ -12,7 +12,7 @@ from backend.core.admin_permissions import admin_profile
 from backend.models.company import AdminUser
 from backend.models.passkey import AdminPasskeyCredential
 from backend.core.exceptions import InvalidCredentialsError
-from backend.services import admin_confirmation, audit_service
+from backend.services import admin_confirmation, admin_session_service, audit_service
 from backend.services.auth_service import AuthService
 from backend.services.mfa_service import MFAService
 from backend.services.passkey_service import PasskeyService
@@ -60,6 +60,8 @@ async def passkey_authenticate(
         db, admin,
         ip_address=request.client.host if request.client else None,
         strong_session=True,
+        user_agent=request.headers.get("user-agent"),
+        login_method="passkey",
     )
     await audit_service.record(
         db, admin.id, "login", "admin_users", admin.id, {"method": "passkey"}, request
@@ -267,3 +269,70 @@ async def confirm_identity(
         db, admin.id, "confirm_identity", "admin_users", admin.id, {"method": method}, request
     )
     return {"confirmedUntil": expires_at}
+
+
+# ============================================================================
+# Device sessions (backend/services/admin_session_service.py)
+# ============================================================================
+
+@router.get(
+    "/sessions",
+    summary="Where you're signed in",
+    description="Requires admin auth. The caller's device sessions (active first, plus ones signed out in the last 7 days).",
+)
+async def list_my_sessions(
+    request: Request,
+    admin: AdminUser = Depends(get_current_admin),
+    db: AsyncSession = Depends(get_db),
+):
+    current_id = getattr(request.state, "admin_session_id", None)
+    sessions = await admin_session_service.list_sessions(db, admin.id)
+    return {
+        "items": [admin_session_service.serialize(s, current_id) for s in sessions],
+        "current_session_id": current_id,
+    }
+
+
+@router.delete(
+    "/sessions/{session_id}",
+    summary="Sign out one device",
+    description="Requires admin auth. Signs out one of the caller's own sessions.",
+)
+async def revoke_my_session(
+    session_id: int,
+    request: Request,
+    admin: AdminUser = Depends(get_current_admin),
+    db: AsyncSession = Depends(get_db),
+):
+    from fastapi import HTTPException
+
+    session = await admin_session_service.get_session(db, session_id)
+    if session is None or session.admin_id != admin.id:
+        raise HTTPException(status_code=404, detail="Session not found")
+    admin_session_service.revoke(session, "signed_out_remotely")
+    await db.commit()
+    await audit_service.record(
+        db, admin.id, "session_revoked", "admin_users", admin.id,
+        {"session_id": session.id, "device": session.device_label, "ip": session.ip_address}, request,
+    )
+    is_current = session.id == getattr(request.state, "admin_session_id", None)
+    return {"message": "Signed out that device.", "current": is_current}
+
+
+@router.post(
+    "/sessions/revoke-others",
+    summary="Sign out all other devices",
+    description="Requires admin auth. Signs out every session except the one making the request.",
+)
+async def revoke_other_sessions(
+    request: Request,
+    admin: AdminUser = Depends(get_current_admin),
+    db: AsyncSession = Depends(get_db),
+):
+    current_id = getattr(request.state, "admin_session_id", None)
+    count = await admin_session_service.revoke_all(db, admin.id, "signed_out_remotely", except_id=current_id)
+    await db.commit()
+    await audit_service.record(
+        db, admin.id, "sessions_revoked", "admin_users", admin.id, {"count": count}, request
+    )
+    return {"message": f"Signed out {count} other device{'s' if count != 1 else ''}.", "count": count}

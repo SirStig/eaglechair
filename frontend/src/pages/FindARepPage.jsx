@@ -11,6 +11,7 @@ import { useSalesReps, useSiteSettings } from '../hooks/useContent';
 import logger from '../utils/logger';
 import { getStateName } from '../utils/usStates';
 import { trackRepSearch } from '../utils/analytics';
+import { salesContact, telHref, mailtoHref } from '../utils/contactLinks';
 
 const CONTEXT = 'FindARepPage';
 
@@ -292,8 +293,18 @@ const FindARepPage = () => {
                 Our main office is available to assist you.
               </p>
               <div className="space-y-2 text-sm text-dark-100">
-                <p><strong className="text-primary-500">Phone:</strong> {siteSettings?.primaryPhone || 'N/A'}</p>
-                <p><strong className="text-primary-500">Email:</strong> {siteSettings?.primaryEmail || 'N/A'}</p>
+                <p>
+                  <strong className="text-primary-500">Phone:</strong>{' '}
+                  <a href={telHref(salesContact(siteSettings).phone) || undefined} className="hover:text-primary-400 hover:underline">
+                    {salesContact(siteSettings).phone || 'N/A'}
+                  </a>
+                </p>
+                <p>
+                  <strong className="text-primary-500">Email:</strong>{' '}
+                  <a href={mailtoHref(salesContact(siteSettings).email) || undefined} className="hover:text-primary-400 hover:underline break-all">
+                    {salesContact(siteSettings).email || 'N/A'}
+                  </a>
+                </p>
               </div>
             </Card>
           </div>

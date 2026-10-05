@@ -13,6 +13,7 @@ import BulkActionBar from '../bulk/BulkActionBar';
 import { ACTIVE_ACTIONS, retiredBy } from '../bulk/bulkActions';
 import { SelectAllCheckbox, SelectCell } from '../bulk/SelectCheckbox';
 import { openOnRowClick } from '../bulk/rowClick';
+import DeleteGate from '../DeleteGate';
 
 // Public pages that render a specific legal document type
 const PUBLIC_PATHS = {
@@ -358,6 +359,7 @@ const LegalDocumentManagement = () => {
                             >
                               <Pencil className="h-4 w-4" aria-hidden="true" />
                             </button>
+                            <DeleteGate>
                             <button
                               type="button"
                               onClick={() => setPendingDelete(doc)}
@@ -367,6 +369,7 @@ const LegalDocumentManagement = () => {
                             >
                               <Trash2 className="h-4 w-4" aria-hidden="true" />
                             </button>
+                            </DeleteGate>
                           </div>
                         </td>
                       </tr>

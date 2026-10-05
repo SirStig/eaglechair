@@ -26,6 +26,7 @@ import {
 } from 'lucide-react';
 import ResponsiveImage from '../../ui/ResponsiveImage';
 import { AdminPage, AdminPageHeader } from '../ui/AdminPage';
+import RecordHistoryLink from '../RecordHistoryLink';
 import ProductAnalyticsPanel from '../ProductAnalyticsPanel';
 import useBulkSelection from '../../../hooks/useBulkSelection';
 import BulkActionBar from '../bulk/BulkActionBar';
@@ -2013,6 +2014,7 @@ const ProductEditor = ({ product, onBack }) => {
         backLabel="Back to Product Catalog"
         actions={
           <>
+            {!product?._isNew && <RecordHistoryLink resourceType="products" resourceId={product?.id} />}
             <Button variant="outline" onClick={onBack} disabled={saving || uploadingImage}>
               Cancel
             </Button>

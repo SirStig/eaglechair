@@ -7,6 +7,7 @@ PATCH  /admin/admins/{id}                   - Edit name, email, role, permission
 POST   /admin/admins/{id}/reset-password    - Set a new password (signs them out)
 POST   /admin/admins/{id}/reset-security    - Clear 2FA and passkeys (set up again at next sign-in)
 POST   /admin/admins/{id}/unlock            - Clear failed sign-in lockout
+GET    /admin/admins/{id}/sessions          - Where they're signed in
 
 Every write needs a recent identity confirmation (passkey or password, see
 backend/services/admin_confirmation.py). Admins are deactivated, never
@@ -36,6 +37,7 @@ from backend.core.security import SecurityManager
 from backend.database.base import get_db
 from backend.models.company import AdminRole, AdminUser
 from backend.models.passkey import AdminPasskeyCredential
+from backend.services import admin_session_service
 from backend.services.admin_confirmation import require_recent_confirmation
 from backend.services.auth_service import revoke_user_tokens
 
@@ -122,10 +124,11 @@ async def _ensure_unique(
         raise HTTPException(status_code=409, detail=f"Another admin already uses that {field}")
 
 
-def _sign_out_everywhere(admin: AdminUser) -> None:
+async def _sign_out_everywhere(db: AsyncSession, admin: AdminUser, reason: str) -> None:
     revoke_user_tokens(admin)
     admin.session_token = None
     admin.admin_token = None
+    await admin_session_service.revoke_all(db, admin.id, reason)
 
 
 def _serialize(admin: AdminUser, has_passkey: bool) -> dict:
@@ -254,7 +257,7 @@ async def update_admin(
 
     if "is_active" in changes and changes["is_active"] is not None:
         if deactivating:
-            _sign_out_everywhere(admin)
+            await _sign_out_everywhere(db, admin, "deactivated")
         admin.is_active = changes["is_active"]
 
     await db.commit()
@@ -275,7 +278,7 @@ async def reset_admin_password(
     admin.hashed_password = SecurityManager.hash_password(body.new_password)
     admin.failed_login_attempts = 0
     admin.locked_until = None
-    _sign_out_everywhere(admin)
+    await _sign_out_everywhere(db, admin, "password_reset")
     await db.commit()
     logger.info(f"Super admin {current.username} reset the password of admin {admin.username}")
     return {"message": f"Password updated. {admin.first_name} has been signed out everywhere."}
@@ -291,7 +294,7 @@ async def reset_admin_security(
     admin.is_2fa_enabled = False
     admin.two_factor_secret = None
     await db.execute(delete(AdminPasskeyCredential).where(AdminPasskeyCredential.admin_user_id == admin.id))
-    _sign_out_everywhere(admin)
+    await _sign_out_everywhere(db, admin, "security_reset")
     await db.commit()
     logger.info(f"Super admin {current.username} reset 2FA/passkeys of admin {admin.username}")
     return {"message": f"2FA and passkeys cleared. {admin.first_name} will set them up again at next sign-in."}
@@ -308,3 +311,14 @@ async def unlock_admin(
     admin.locked_until = None
     await db.commit()
     return {"message": f"{admin.first_name} can sign in again."}
+
+
+@router.get("/{admin_id}/sessions", summary="An admin's device sessions (super admin)")
+async def list_admin_sessions(
+    admin_id: int,
+    current: AdminUser = Depends(require_role(AdminRole.SUPER_ADMIN)),
+    db: AsyncSession = Depends(get_db),
+):
+    await _get_admin(db, admin_id)
+    sessions = await admin_session_service.list_sessions(db, admin_id)
+    return {"items": [admin_session_service.serialize(s) for s in sessions]}

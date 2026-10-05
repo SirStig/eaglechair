@@ -1,7 +1,8 @@
 import { useState } from 'react';
 import { ChevronsLeft, ChevronsRight, ExternalLink } from 'lucide-react';
 import { clsx } from 'clsx';
-import { ADMIN_NAV } from '../adminNav';
+import { ADMIN_NAV, canSeeNavItem } from '../adminNav';
+import { useAdminPermissions } from '../../../hooks/useAdminPermissions';
 import { useSiteSettings } from '../../../hooks/useContent';
 
 function SidebarBrand({ collapsed }) {
@@ -44,6 +45,11 @@ export default function AdminSidebar({
   onNavigate,
   bottomPadding,
 }) {
+  const { permissions } = useAdminPermissions();
+  const visibleGroups = ADMIN_NAV
+    .map((group) => ({ ...group, items: group.items.filter((item) => canSeeNavItem(item, permissions)) }))
+    .filter((group) => group.items.length > 0);
+
   return (
     <aside
       aria-label="Admin navigation"
@@ -59,7 +65,7 @@ export default function AdminSidebar({
       <SidebarBrand collapsed={collapsed} />
 
       <nav className="admin-scrollbar flex-1 overflow-y-auto overflow-x-hidden px-3 py-4">
-        {ADMIN_NAV.map((group) => (
+        {visibleGroups.map((group) => (
           <div key={group.id} className="mb-5 last:mb-0">
             {collapsed && <div className="mx-auto mb-2 hidden h-px w-6 bg-white/[0.08] md:block" aria-hidden="true" />}
             <p

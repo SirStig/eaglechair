@@ -13,6 +13,7 @@ import useBulkSelection from '../../../hooks/useBulkSelection';
 import BulkActionBar from '../bulk/BulkActionBar';
 import { ACTIVE_ACTIONS, booleanAction, retiredBy } from '../bulk/bulkActions';
 import PdfPreviewButton from '../../ui/PdfPreviewButton';
+import DeleteGate from '../DeleteGate';
 
 const BULK_ACTIONS = [
   { label: 'Move to type', options: CATALOG_TYPE_OPTIONS, toChanges: (v) => ({ catalog_type: v }) },
@@ -260,6 +261,7 @@ const CatalogManagement = () => {
                     >
                       <Edit className="w-4 h-4" />
                     </button>
+                    <DeleteGate>
                     <button
                       onClick={() => handleDelete(catalog.id)}
                       className="p-2 text-red-400 hover:bg-red-900/20 rounded transition-colors"
@@ -267,6 +269,7 @@ const CatalogManagement = () => {
                     >
                       <Trash2 className="w-4 h-4" />
                     </button>
+                    </DeleteGate>
                   </div>
                 </td>
               </>

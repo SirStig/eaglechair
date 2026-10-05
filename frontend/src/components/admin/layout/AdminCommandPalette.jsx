@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { CornerDownLeft, Search } from 'lucide-react';
 import { clsx } from 'clsx';
-import { ADMIN_NAV_ITEMS } from '../adminNav';
+import { ADMIN_NAV_ITEMS, canSeeNavItem } from '../adminNav';
+import { useAdminPermissions } from '../../../hooks/useAdminPermissions';
 
 /**
  * ⌘K / Ctrl+K quick switcher for admin sections.
@@ -12,13 +13,15 @@ export default function AdminCommandPalette({ open, onClose, onSelect }) {
   const inputRef = useRef(null);
   const listRef = useRef(null);
 
+  const { permissions } = useAdminPermissions();
   const results = useMemo(() => {
+    const items = ADMIN_NAV_ITEMS.filter((item) => canSeeNavItem(item, permissions));
     const q = query.trim().toLowerCase();
-    if (!q) return ADMIN_NAV_ITEMS;
-    return ADMIN_NAV_ITEMS.filter(
+    if (!q) return items;
+    return items.filter(
       (item) => item.label.toLowerCase().includes(q) || item.group.toLowerCase().includes(q)
     );
-  }, [query]);
+  }, [query, permissions]);
 
   useEffect(() => {
     if (!open) return;

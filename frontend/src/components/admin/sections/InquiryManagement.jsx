@@ -10,6 +10,7 @@ import useBulkSelection from '../../../hooks/useBulkSelection';
 import BulkActionBar from '../bulk/BulkActionBar';
 import { booleanAction, retiredBy } from '../bulk/bulkActions';
 import { SelectAllCheckbox, RowCheckbox } from '../bulk/SelectCheckbox';
+import DeleteGate from '../DeleteGate';
 
 const BASE = '/api/v1/admin/inquiries';
 const PAGE_SIZE = 25;
@@ -375,9 +376,11 @@ const InquiryManagement = ({ onUnreadChange }) => {
                   </Button>
                   <Button variant="ghost" size="xs" onClick={markUnread}>Mark unread</Button>
                 </div>
+                <DeleteGate>
                 <Button variant="ghost" size="xs" onClick={() => setPendingDelete(selected)} className="gap-1.5 hover:!text-red-300">
                   <Trash2 className="h-4 w-4" aria-hidden="true" /> Delete
                 </Button>
+                </DeleteGate>
               </footer>
             </article>
           ) : (

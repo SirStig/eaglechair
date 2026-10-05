@@ -14,6 +14,7 @@ import BulkActionBar from '../bulk/BulkActionBar';
 import { ACTIVE_ACTIONS, retiredBy } from '../bulk/bulkActions';
 import { SelectAllCheckbox, SelectCell } from '../bulk/SelectCheckbox';
 import { openOnRowClick } from '../bulk/rowClick';
+import DeleteGate from '../DeleteGate';
 
 /**
  * Pricing Tier Management Component
@@ -284,6 +285,7 @@ const PricingTierManagement = () => {
                         >
                           <Edit2 className="w-4 h-4" />
                         </button>
+                        <DeleteGate>
                         <button
                           onClick={() => handleDelete(tier.id, tier.pricing_tier_name)}
                           className="text-red-400 hover:text-red-300 p-2 hover:bg-dark-700 rounded transition-colors"
@@ -291,6 +293,7 @@ const PricingTierManagement = () => {
                         >
                           <Trash2 className="w-4 h-4" />
                         </button>
+                        </DeleteGate>
                       </div>
                     </td>
                   </tr>

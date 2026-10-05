@@ -18,6 +18,7 @@ import BulkActionBar from '../bulk/BulkActionBar';
 import { deletePermanently } from '../bulk/permanentDelete';
 import { booleanAction, idAction, retiredBy } from '../bulk/bulkActions';
 import PdfPreviewButton from '../../ui/PdfPreviewButton';
+import DeleteGate from '../DeleteGate';
 
 /**
  * Product Family Management with Full CRUD
@@ -383,6 +384,7 @@ const FamilyManagement = () => {
                       </svg>
                     </button>
                     {tab === 'active' ? (
+                      <DeleteGate>
                       <button
                         onClick={() => handleDelete(family.id)}
                         className="p-2 text-red-400 hover:bg-red-900/20 rounded-lg transition-colors"
@@ -390,6 +392,7 @@ const FamilyManagement = () => {
                       >
                         <Trash2 className="w-4 h-4" />
                       </button>
+                      </DeleteGate>
                     ) : (
                       <>
                         <button
@@ -399,6 +402,7 @@ const FamilyManagement = () => {
                         >
                           <RotateCcw className="w-4 h-4" />
                         </button>
+                        <DeleteGate permanent>
                         <button
                           onClick={() => setPermDeleteTarget({ id: family.id, name: family.name })}
                           className="p-2 text-red-400 hover:bg-red-900/20 rounded-lg transition-colors"
@@ -406,6 +410,7 @@ const FamilyManagement = () => {
                         >
                           <Trash2 className="w-4 h-4" />
                         </button>
+                        </DeleteGate>
                       </>
                     )}
                   </div>

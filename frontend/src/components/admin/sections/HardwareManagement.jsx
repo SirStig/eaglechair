@@ -15,6 +15,7 @@ import PermanentDeleteModal from '../PermanentDeleteModal';
 import { useToast } from '../../../contexts/ToastContext';
 import { useAdminRefresh } from '../../../contexts/AdminRefreshContext';
 import ResponsiveImage from '../../ui/ResponsiveImage';
+import DeleteGate from '../DeleteGate';
 
 
 // Pick-list options from the distinct non-empty values of `field` in the loaded rows
@@ -325,6 +326,7 @@ const HardwareManagement = () => {
                       <Edit className="w-4 h-4" />
                     </button>
                     {tab === 'active' ? (
+                      <DeleteGate>
                       <button
                         onClick={() => handleDelete(item.id)}
                         className="p-2 text-red-400 hover:bg-red-900/20 rounded transition-colors"
@@ -332,6 +334,7 @@ const HardwareManagement = () => {
                       >
                         <Trash2 className="w-4 h-4" />
                       </button>
+                      </DeleteGate>
                     ) : (
                       <>
                         <button
@@ -341,6 +344,7 @@ const HardwareManagement = () => {
                         >
                           <RotateCcw className="w-4 h-4" />
                         </button>
+                        <DeleteGate permanent>
                         <button
                           onClick={() => setPermDeleteTarget({ id: item.id, name: item.name })}
                           className="p-2 text-red-400 hover:bg-red-900/20 rounded transition-colors"
@@ -348,6 +352,7 @@ const HardwareManagement = () => {
                         >
                           <Trash2 className="w-4 h-4" />
                         </button>
+                        </DeleteGate>
                       </>
                     )}
                   </div>

@@ -15,6 +15,7 @@ import PermanentDeleteModal from '../PermanentDeleteModal';
 import { useToast } from '../../../contexts/ToastContext';
 import { useAdminRefresh } from '../../../contexts/AdminRefreshContext';
 import ResponsiveImage from '../../ui/ResponsiveImage';
+import DeleteGate from '../DeleteGate';
 
 const FINISH_TYPE_OPTIONS = [{ value: 'Wood Stain', label: 'Wood Stain' }, { value: 'Paint', label: 'Paint' }, { value: 'Metal', label: 'Metal' }, { value: 'Powder Coat', label: 'Powder Coat' }, { value: 'Lacquer', label: 'Lacquer' }, { value: 'Veneer', label: 'Veneer' }, { value: 'Chrome', label: 'Chrome' }];
 const FINISH_GRADE_OPTIONS = [{ value: 'Standard', label: 'Standard' }, { value: 'Premium', label: 'Premium' }, { value: 'Premium Plus', label: 'Premium Plus' }, { value: 'Artisan', label: 'Artisan' }];
@@ -401,6 +402,7 @@ const FinishManagement = () => {
                       <Edit className="w-4 h-4" />
                     </button>
                     {tab === 'active' ? (
+                      <DeleteGate>
                       <button
                         onClick={() => handleDelete(finish.id)}
                         className="p-2 text-red-400 hover:bg-red-900/20 rounded transition-colors"
@@ -408,6 +410,7 @@ const FinishManagement = () => {
                       >
                         <Trash2 className="w-4 h-4" />
                       </button>
+                      </DeleteGate>
                     ) : (
                       <>
                         <button
@@ -417,6 +420,7 @@ const FinishManagement = () => {
                         >
                           <RotateCcw className="w-4 h-4" />
                         </button>
+                        <DeleteGate permanent>
                         <button
                           onClick={() => setPermDeleteTarget({ id: finish.id, name: finish.name })}
                           className="p-2 text-red-400 hover:bg-red-900/20 rounded transition-colors"
@@ -424,6 +428,7 @@ const FinishManagement = () => {
                         >
                           <Trash2 className="w-4 h-4" />
                         </button>
+                        </DeleteGate>
                       </>
                     )}
                   </div>

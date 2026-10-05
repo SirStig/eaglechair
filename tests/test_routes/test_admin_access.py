@@ -259,6 +259,24 @@ class TestAuditTrail:
         filters = await async_client.get("/api/v1/admin/audit-log/filters", headers=headers)
         assert "categories" in filters.json()["resource_types"]
 
+    async def test_ai_edit_entries_join_record_history(self, async_client, db_session):
+        from tests.factories import create_admin_audit_log
+
+        admin = await create_admin(db_session, role=AdminRole.ADMIN)
+        category = await create_category(db_session, name="Booths")
+        await create_admin_audit_log(
+            db_session, admin.id, action="AI_UPDATE_CATEGORY", resource_type="category", resource_id=category.id
+        )
+        headers = await _headers(db_session, admin)
+        response = await async_client.get(
+            "/api/v1/admin/audit-log",
+            params={"resource_type": "categories", "resource_id": category.id},
+            headers=headers,
+        )
+        [item] = response.json()["items"]
+        assert item["resource_type"] == "categories"
+        assert item["resource_name"] == "Booths"
+
 
 # ============================================================================
 # Admin management + step-up confirmation

@@ -21,11 +21,18 @@ import {
   Scale,
   Library,
   Link2,
+  UserCog,
+  History,
+  ShieldCheck,
 } from 'lucide-react';
 
 /**
  * Admin navigation — the single source of truth for sidebar groups, section
  * ids, URLs, breadcrumbs and the command palette.
+ *
+ * Optional item fields: `permission` (hooks/useAdminPermissions PERMISSIONS
+ * value the admin needs to see it) and `hidden` (routable, but not listed in
+ * the sidebar / palette).
  */
 export const ADMIN_NAV = [
   {
@@ -84,9 +91,17 @@ export const ADMIN_NAV = [
       { id: 'emails', label: 'Email Templates', icon: Mail, path: '/admin/emails' },
       { id: 'downloads', label: 'Downloads', icon: Download, path: '/admin/downloads' },
       { id: 'settings', label: 'Site Settings', icon: Settings, path: '/admin/settings' },
+      { id: 'admins', label: 'Admins', icon: UserCog, path: '/admin/admins', permission: 'manage_admins' },
+      { id: 'activity', label: 'Activity Log', icon: History, path: '/admin/activity', permission: 'view_audit' },
+      { id: 'account', label: 'Account & Security', icon: ShieldCheck, path: '/admin/account', hidden: true },
     ],
   },
 ];
+
+/** Whether the admin with `permissions` (a Set) should see nav `item` listed */
+export function canSeeNavItem(item, permissions) {
+  return !item.hidden && (!item.permission || permissions.has(item.permission));
+}
 
 export const ADMIN_NAV_ITEMS = ADMIN_NAV.flatMap((group) =>
   group.items.map((item) => ({ ...item, group: group.title }))

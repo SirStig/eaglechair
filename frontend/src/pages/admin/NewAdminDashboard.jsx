@@ -37,9 +37,21 @@ import InquiryManagement from '../../components/admin/sections/InquiryManagement
 import AdminDownloads from '../../components/admin/sections/AdminDownloads';
 import ProductRegister from '../../components/admin/sections/ProductRegister';
 import CatalogBuilder from '../../components/admin/sections/CatalogBuilder';
+import AdminManagement from '../../components/admin/sections/AdminManagement';
+import ActivityLog from '../../components/admin/sections/ActivityLog';
+import AccountSecurity from '../../components/admin/sections/AccountSecurity';
+import { useAdminPermissions } from '../../hooks/useAdminPermissions';
 import apiClient from '../../config/apiClient';
 
 const SIDEBAR_COLLAPSED_KEY = 'ec-admin-sidebar-collapsed';
+
+// Shown for sections the signed-in admin's permissions don't include
+const NoAccess = () => (
+  <div className="mx-auto max-w-xl px-4 py-20 text-center">
+    <p className="font-serif text-xl font-bold text-dark-50">You don't have access to this page</p>
+    <p className="mt-2 text-sm text-dark-200">Ask a super admin if you need it.</p>
+  </div>
+);
 
 function readCollapsed() {
   try {
@@ -56,6 +68,7 @@ function readCollapsed() {
  */
 const NewAdminDashboardInner = () => {
   const { user, logout } = useAuthStore();
+  const { can } = useAdminPermissions();
   const navigate = useNavigate();
   const location = useLocation();
   const { invalidate } = useAdminRefresh();
@@ -224,6 +237,12 @@ const NewAdminDashboardInner = () => {
         return <EmailTemplateManagement />;
       case 'downloads':
         return <AdminDownloads />;
+      case 'admins':
+        return can('manage_admins') ? <AdminManagement /> : <NoAccess />;
+      case 'activity':
+        return can('view_audit') ? <ActivityLog /> : <NoAccess />;
+      case 'account':
+        return <AccountSecurity />;
       default:
         return <DashboardOverview onNavigate={navigateToSection} inquiryUnread={inquiryUnread} />;
     }

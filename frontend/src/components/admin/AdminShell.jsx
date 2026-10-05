@@ -9,6 +9,7 @@ import { useEffect } from 'react';
 import { Outlet, useLocation } from 'react-router-dom';
 import { AIChatProvider, useAIChat } from '../../contexts/AIChatContext';
 import AdminBottomNav from './AdminBottomNav';
+import ConfirmIdentityDialog from './ConfirmIdentityDialog';
 import { useStandalone } from '../../hooks/useStandalone';
 import { useMediaQuery } from '../../hooks/useMediaQuery';
 
@@ -39,6 +40,8 @@ function AdminPWAWrapper() {
   return (
     <>
       <Outlet />
+      {/* Step-up "Confirm it's you" prompt, opened by apiClient on REAUTH_REQUIRED */}
+      <ConfirmIdentityDialog />
       {showBottomNav && <AdminBottomNav onNavigate={closeChat} />}
     </>
   );

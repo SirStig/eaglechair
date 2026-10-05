@@ -25,6 +25,7 @@ import {
 import { formatPrice } from '../../../utils/apiHelpers';
 import ResponsiveImage from '../../ui/ResponsiveImage';
 import { AdminPage, AdminPageHeader } from '../ui/AdminPage';
+import DeleteGate from '../DeleteGate';
 
 const AdminQuoteDetailView = ({ quoteId, onBack, onUpdated }) => {
   const [quote, setQuote] = useState(null);
@@ -890,9 +891,11 @@ const AdminQuoteDetailView = ({ quoteId, onBack, onUpdated }) => {
                             <Edit2 className="w-4 h-4" />
                             Edit
                           </Button>
+                          <DeleteGate>
                           <Button variant="outline" size="sm" onClick={() => handleDeleteItem(item.id)} className="text-red-500 hover:text-red-400 flex items-center gap-1">
                             <Trash2 className="w-4 h-4" />
                           </Button>
+                          </DeleteGate>
                         </div>
                       </div>
                     )}

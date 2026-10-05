@@ -20,6 +20,7 @@ import { openOnRowClick } from '../bulk/rowClick';
 import { ACTIVE_ACTIONS, retiredBy } from '../bulk/bulkActions';
 import { productBulkActions } from './productBulkActions';
 import PdfPreviewButton from '../../ui/PdfPreviewButton';
+import DeleteGate from '../DeleteGate';
 
 /**
  * Product Catalog Management
@@ -406,6 +407,7 @@ const ProductCatalog = ({ onEdit }) => {
                           <Edit2 className="w-4 h-4" />
                         </button>
                         {tab === 'active' ? (
+                          <DeleteGate>
                           <button
                             onClick={() => handleDelete(product.id)}
                             className="p-2 text-red-500 hover:bg-red-900/20 rounded-lg transition-colors"
@@ -413,6 +415,7 @@ const ProductCatalog = ({ onEdit }) => {
                           >
                             <Trash2 className="w-4 h-4" />
                           </button>
+                          </DeleteGate>
                         ) : (
                           <>
                             <button
@@ -422,6 +425,7 @@ const ProductCatalog = ({ onEdit }) => {
                             >
                               <RotateCcw className="w-4 h-4" />
                             </button>
+                            <DeleteGate permanent>
                             <button
                               onClick={() => setPermDeleteTarget({ id: product.id, name: product.name })}
                               className="p-2 text-red-500 hover:bg-red-900/20 rounded-lg transition-colors"
@@ -429,6 +433,7 @@ const ProductCatalog = ({ onEdit }) => {
                             >
                               <Trash2 className="w-4 h-4" />
                             </button>
+                            </DeleteGate>
                           </>
                         )}
                       </div>

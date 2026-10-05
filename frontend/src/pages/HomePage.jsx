@@ -26,6 +26,7 @@ import logger from '../utils/logger';
 import { safeHref } from '../utils/safeUrl';
 import { isPublishFailed } from '../utils/cmsContentStore';
 import LoadingSpinner from '../components/ui/LoadingSpinner';
+import SmartLink from '../components/ui/SmartLink';
 
 const CONTEXT = 'HomePage';
 
@@ -875,16 +876,16 @@ const HomePage = () => {
               label="CTA Buttons"
             >
               <div className="flex flex-col sm:flex-row gap-3 sm:gap-4 justify-center px-4 sm:px-0">
-                <Link to={ctaPrimaryLink} className="w-full sm:w-auto">
+                <SmartLink to={ctaPrimaryLink} className="w-full sm:w-auto">
                   <button className="w-full sm:w-auto px-6 sm:px-8 py-3 sm:py-3 bg-primary-600 text-dark-900 rounded-lg font-semibold hover:bg-primary-500 transition-colors shadow-lg hover:shadow-primary-500/50 min-h-[48px] text-center">
                     {ctaPrimaryText}
                   </button>
-                </Link>
-                <Link to={ctaSecondaryLink} className="w-full sm:w-auto">
+                </SmartLink>
+                <SmartLink to={ctaSecondaryLink} className="w-full sm:w-auto">
                   <button className="w-full sm:w-auto px-6 sm:px-8 py-3 sm:py-3 border-2 border-primary-500 text-primary-600 rounded-lg font-semibold hover:bg-primary-500/10 transition-colors min-h-[48px] text-center">
                     {ctaSecondaryText}
                   </button>
-                </Link>
+                </SmartLink>
               </div>
             </EditableWrapper>
           </div>

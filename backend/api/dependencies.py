@@ -50,6 +50,7 @@ async def verify_admin_session_tokens(
     request: Request,
     admin: AdminUser,
     db: AsyncSession,
+    token_payload: Optional[dict] = None,
 ) -> None:
     """
     Validate the admin session_token/admin_token pair (cookies preferred,
@@ -70,6 +71,23 @@ async def verify_admin_session_tokens(
         raise AuthenticationError(
             "Admin access requires both session token and admin token (from cookies or headers)."
         )
+
+    # Device-session tokens (JWT "sid"): check that sign-in's own digests and
+    # that it hasn't been signed out (backend/services/admin_session_service.py)
+    sid = (token_payload or {}).get("sid")
+    if sid is not None:
+        from backend.services import admin_session_service
+
+        session = await admin_session_service.get_session(db, sid)
+        if not admin_session_service.is_active(session) or session.admin_id != admin.id:
+            logger.warning(f"Signed-out admin session {sid} used for admin {admin.id}")
+            raise AuthenticationError("This device has been signed out. Please log in again.")
+        if not admin_session_service.tokens_match(session, session_token, admin_token):
+            logger.warning(f"Invalid admin tokens for admin {admin.id} session {sid}")
+            raise AuthenticationError("Invalid admin tokens")
+        request.state.admin_session_id = session.id
+        await admin_session_service.touch(db, session, request.client.host if request.client else None)
+        return
 
     session_valid = security_manager.verify_token_digest(session_token, admin.session_token)
     admin_token_valid = security_manager.verify_token_digest(admin_token, admin.admin_token)
@@ -240,7 +258,7 @@ async def get_current_company(
         _check_token_version(token_payload, admin)
 
         # Validate session and admin tokens against stored digests
-        await verify_admin_session_tokens(request, admin, db)
+        await verify_admin_session_tokens(request, admin, db, token_payload)
 
         # Check for optional company_id query param for admin access (highest priority)
         company_id_param = request.query_params.get("company_id")
@@ -367,7 +385,7 @@ async def authenticate_admin(
     _check_token_version(token_payload, admin)
 
     # Validate session_token and admin_token from cookies (preferred) or headers (fallback)
-    await verify_admin_session_tokens(request, admin, db)
+    await verify_admin_session_tokens(request, admin, db, token_payload)
 
     return admin
 

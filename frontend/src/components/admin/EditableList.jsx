@@ -7,6 +7,7 @@ import { useToast } from '../../contexts/ToastContext';
 import Button from '../ui/Button';
 import DiscardChangesDialog from './DiscardChangesDialog';
 import logger from '../../utils/logger';
+import DeleteGate from './DeleteGate';
 
 const CONTEXT = 'EditableList';
 
@@ -298,6 +299,7 @@ const EditableList = ({
                   </button>
                 )}
                 {onDelete && (
+                  <DeleteGate>
                   <button
                     type="button"
                     onClick={(e) => handleDeleteClick(e, item)}
@@ -307,6 +309,7 @@ const EditableList = ({
                   >
                     <Trash2 className="h-4 w-4" aria-hidden="true" />
                   </button>
+                  </DeleteGate>
                 )}
               </div>
             )}

@@ -11,6 +11,7 @@ import { useSiteSettings, usePageContent } from '../hooks/useContent';
 import { submitFeedback } from '../services/contentService';
 import logger from '../utils/logger';
 import { trackContactSubmit } from '../utils/analytics';
+import { salesContact, telHref, mailtoHref } from '../utils/contactLinks';
 
 const CONTEXT = 'ContactPage';
 
@@ -88,10 +89,10 @@ const ContactPage = () => {
       saturday: siteSettings.businessHoursSaturday
     }
   } : {
-    phone: siteSettings?.primaryPhone || 'N/A',
-    salesPhone: siteSettings?.primaryPhone || 'N/A',
-    email: siteSettings?.primaryEmail || 'N/A',
-    salesEmail: siteSettings?.primaryEmail || 'N/A',
+    phone: 'N/A',
+    salesPhone: 'N/A',
+    email: 'N/A',
+    salesEmail: 'N/A',
     address: {
       street: siteSettings?.addressLine1 || 'N/A',
       city: siteSettings?.city || 'N/A',
@@ -110,7 +111,14 @@ const ContactPage = () => {
     const t = text ?? '';
     return { text: t, href: href && t && !/N\/A|undefined/.test(t) ? href : null };
   };
-  const telHref = (phone) => (phone ? `tel:${phone.replace(/[^\d+]/g, '')}` : null);
+  // Sales leads; the main office line only shows when it's different
+  const sales = salesContact(contact.salesPhone || contact.salesEmail
+    ? { salesPhone: contact.salesPhone, salesEmail: contact.salesEmail, primaryPhone: contact.phone, primaryEmail: contact.email }
+    : { primaryPhone: contact.phone, primaryEmail: contact.email });
+  const phoneDetails = [linked(`Sales: ${sales.phone}`, telHref(sales.phone))];
+  if (contact.phone && contact.phone !== sales.phone) phoneDetails.push(linked(`Main office: ${contact.phone}`, telHref(contact.phone)));
+  const emailDetails = [linked(sales.email, mailtoHref(sales.email))];
+  if (contact.email && contact.email !== sales.email) emailDetails.push(linked(contact.email, mailtoHref(contact.email)));
 
   const contactInfo = [
     {
@@ -120,10 +128,7 @@ const ContactPage = () => {
         </svg>
       ),
       title: 'Phone',
-      details: [
-        linked(`Main: ${contact.phone}`, telHref(contact.phone)),
-        linked(`Sales: ${contact.salesPhone}`, telHref(contact.salesPhone)),
-      ]
+      details: phoneDetails
     },
     {
       icon: (
@@ -132,10 +137,7 @@ const ContactPage = () => {
         </svg>
       ),
       title: 'Email',
-      details: [
-        linked(contact.email, `mailto:${contact.email}`),
-        linked(contact.salesEmail, `mailto:${contact.salesEmail}`),
-      ]
+      details: emailDetails
     },
     {
       icon: (

@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { ChevronRight, ExternalLink, LogOut, Menu, MessageSquare, Search, ShieldCheck, X } from 'lucide-react';
+import { ChevronRight, ExternalLink, Fingerprint, LogOut, Menu, MessageSquare, Search, ShieldCheck, X } from 'lucide-react';
 import { clsx } from 'clsx';
 
 const isMac = typeof navigator !== 'undefined' && /Mac|iPhone|iPad/.test(navigator.platform || navigator.userAgent);
@@ -60,15 +60,24 @@ function UserMenu({ user, onLogout }) {
           <div className="border-b border-white/[0.06] px-4 py-3">
             <p className="truncate text-sm font-medium text-dark-50">{displayName}</p>
             {user?.email && <p className="truncate text-xs text-dark-200">{user.email}</p>}
+            <p className="mt-1 text-[11px] font-medium uppercase tracking-wide text-primary-400">{formatRole(user?.role)}</p>
           </div>
           <div className="p-1.5">
+            <Link
+              role="menuitem"
+              to="/admin/account"
+              onClick={() => setOpen(false)}
+              className="flex items-center gap-2.5 rounded-md px-2.5 py-2 text-sm text-dark-100 hover:bg-white/[0.05] hover:text-dark-50"
+            >
+              <ShieldCheck className="h-4 w-4" /> Account &amp; security
+            </Link>
             <Link
               role="menuitem"
               to="/admin/setup-security"
               onClick={() => setOpen(false)}
               className="flex items-center gap-2.5 rounded-md px-2.5 py-2 text-sm text-dark-100 hover:bg-white/[0.05] hover:text-dark-50"
             >
-              <ShieldCheck className="h-4 w-4" /> Account security
+              <Fingerprint className="h-4 w-4" /> Passkey &amp; 2FA
             </Link>
             <a
               role="menuitem"

@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { AlertTriangle } from 'lucide-react';
 import Modal from '../ui/Modal';
 import Button from '../ui/Button';
+import { PERMISSIONS, useAdminPermissions } from '../../hooks/useAdminPermissions';
 
 const CONFIRM_WORD = 'DELETE';
 
@@ -10,6 +11,9 @@ const CONFIRM_WORD = 'DELETE';
  *
  * Unlike a normal soft-delete confirm(), this action cannot be undone,
  * so the admin must type "DELETE" before the confirm button enables.
+ * Only admins with the permanent_delete permission (super admins) can
+ * confirm; others are told why. The server may also ask them to confirm
+ * their identity first (ConfirmIdentityDialog, via apiClient).
  */
 const PermanentDeleteModal = ({
   isOpen,
@@ -25,13 +29,15 @@ const PermanentDeleteModal = ({
   count = 1,
 }) => {
   const [typedValue, setTypedValue] = useState('');
+  const { can } = useAdminPermissions();
+  const allowed = can(PERMISSIONS.PERMANENT_DELETE);
 
   useEffect(() => {
     if (isOpen) setTypedValue('');
   }, [isOpen]);
 
   const phrase = count > 1 ? `${CONFIRM_WORD} ${count}` : CONFIRM_WORD;
-  const canConfirm = typedValue.trim().replace(/\s+/g, ' ').toUpperCase() === phrase && !isLoading;
+  const canConfirm = allowed && typedValue.trim().replace(/\s+/g, ' ').toUpperCase() === phrase && !isLoading;
 
   const handleConfirm = () => {
     if (!canConfirm) return;
@@ -63,6 +69,12 @@ const PermanentDeleteModal = ({
           This cannot be undone.
         </p>
 
+        {!allowed ? (
+          <p className="text-sm text-dark-300 mb-6">
+            Only super admins can permanently delete. Ask a super admin, or deactivate it instead.
+          </p>
+        ) : (
+          <>
         <p className="text-sm text-dark-400 mb-2">
           Type <span className="font-mono font-bold text-red-400">{phrase}</span> to confirm.
         </p>
@@ -77,6 +89,8 @@ const PermanentDeleteModal = ({
           autoFocus
           className="w-full px-4 py-2 mb-6 bg-dark-700 border border-dark-600 rounded-lg text-dark-50 text-center tracking-widest placeholder-dark-500 focus:border-red-500 focus:ring-1 focus:ring-red-500 outline-none"
         />
+          </>
+        )}
 
         <div className="flex gap-3 justify-center">
           <Button variant="outline" onClick={onClose} disabled={isLoading}>

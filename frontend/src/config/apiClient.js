@@ -2,6 +2,7 @@
 import axios from 'axios';
 import logger from '../utils/logger';
 import { notifyAdminWrite } from '../utils/cmsContentStore';
+import { isReauthRequired, requestIdentityConfirmation } from '../services/identityConfirmation';
 
 const CONTEXT = 'APIClient';
 
@@ -130,6 +131,26 @@ apiClient.interceptors.response.use(
   },
   async (error) => {
     const originalRequest = error.config;
+
+    // Dangerous admin writes need a fresh passkey/password confirmation:
+    // prompt once, then retry the request (services/identityConfirmation.js)
+    if (originalRequest && !originalRequest._reauthRetry && isReauthRequired(error)) {
+      originalRequest._reauthRetry = true;
+      if (await requestIdentityConfirmation()) {
+        return apiClient(originalRequest);
+      }
+      return handleNonAuthError(error);
+    }
+
+    // Wrong password while confirming identity / changing password: a 401
+    // here is not an expired session, so don't refresh or sign out
+    if (
+      error.response?.status === 401 &&
+      (originalRequest?.url?.includes('/auth/admin/confirm') ||
+        originalRequest?.url?.includes('/auth/password/change'))
+    ) {
+      return handleNonAuthError(error);
+    }
 
     // Handle 401 errors with token refresh
     if (error.response?.status === 401 && originalRequest && !originalRequest._retry) {
@@ -275,12 +296,13 @@ function handleNonAuthError(error) {
         normalizedError.message = error.response.data?.message || 'Bad request';
         break;
       case 403:
-        // Preserve original message for verification errors, otherwise generic message
-        if (isVerificationError && error.response.data?.message) {
-          normalizedError.message = error.response.data.message;
-        } else {
-          normalizedError.message = 'Access forbidden';
-        }
+        // Server messages are human readable (verification, missing
+        // permissions such as "This action requires Delete permissions.")
+        normalizedError.message = error.response.data?.message
+          || (isVerificationError ? 'Account not verified' : 'Access forbidden');
+        break;
+      case 401:
+        normalizedError.message = error.response.data?.message || 'Unauthorized';
         break;
       case 404:
         normalizedError.message = 'Resource not found';

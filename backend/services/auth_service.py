@@ -299,7 +299,8 @@ class AuthService:
         username: str,
         password: str,
         ip_address: Optional[str] = None,
-        two_factor_code: Optional[str] = None
+        two_factor_code: Optional[str] = None,
+        user_agent: Optional[str] = None,
     ) -> tuple[AdminUser, dict]:
         """
         Authenticate admin user with enhanced security
@@ -373,49 +374,17 @@ class AuthService:
         admin.last_login_ip = ip_address
         await db.commit()
         
-        # Generate tokens (including admin-specific tokens)
-        token_data = _admin_token_data(admin)
-        
-        from backend.core.config import settings
-        refresh_days = (
-            settings.ADMIN_REFRESH_TOKEN_EXPIRE_DAYS_STRONG
-            if strong_session
-            else settings.ADMIN_REFRESH_TOKEN_EXPIRE_DAYS
+        # Tokens + a device session row (backend/services/admin_session_service.py)
+        tokens = await AuthService.create_admin_tokens(
+            db,
+            admin,
+            ip_address=ip_address,
+            strong_session=bool(strong_session),
+            user_agent=user_agent,
+            login_method="password",
         )
-        access_token = security_manager.create_access_token(token_data)
-        refresh_token = security_manager.create_refresh_token(
-            token_data,
-            expires_delta=timedelta(days=refresh_days),
-        )
-
-        import secrets
-        session_token = secrets.token_urlsafe(32)
-        admin_token = secrets.token_urlsafe(32)
-        # High-entropy random tokens: HMAC digest (not bcrypt) keeps per-request checks cheap
-        hashed_session_token = security_manager.hash_token(session_token)
-        hashed_admin_token = security_manager.hash_token(admin_token)
-        refresh_expires = datetime.utcnow() + timedelta(days=refresh_days)
-        admin.session_token = hashed_session_token
-        admin.admin_token = hashed_admin_token
-        admin.refresh_token = refresh_token
-        admin.refresh_token_expires = refresh_expires.isoformat()
-        await db.commit()
-        
         logger.info(f"Successful admin login: {username} (ID: {admin.id}, Role: {admin.role.value})")
-        security_logger.log_admin_action(
-            admin_id=admin.id,
-            action="LOGIN",
-            resource="auth",
-            ip_address=ip_address or "unknown"
-        )
-        
-        return admin, {
-            "access_token": access_token,
-            "refresh_token": refresh_token,
-            "session_token": session_token,
-            "admin_token": admin_token,
-            "token_type": "bearer"
-        }
+        return admin, tokens
 
     @staticmethod
     async def _record_admin_failure(
@@ -450,15 +419,27 @@ class AuthService:
         admin: AdminUser,
         ip_address: Optional[str] = None,
         strong_session: bool = True,
+        user_agent: Optional[str] = None,
+        login_method: str = "password",
     ) -> dict:
+        """
+        Issue tokens for a new admin sign-in. Each sign-in gets its own
+        AdminSession row (JWT claim "sid") holding its token digests, so
+        devices can be listed and signed out individually.
+        """
         import secrets
         from backend.core.config import settings
+        from backend.services import admin_session_service
+
         refresh_days = (
             settings.ADMIN_REFRESH_TOKEN_EXPIRE_DAYS_STRONG
             if strong_session
             else settings.ADMIN_REFRESH_TOKEN_EXPIRE_DAYS
         )
-        token_data = _admin_token_data(admin)
+        session = await admin_session_service.create_session(
+            db, admin.id, ip_address=ip_address, user_agent=user_agent, login_method=login_method
+        )
+        token_data = {**_admin_token_data(admin), "sid": session.id}
         access_token = security_manager.create_access_token(token_data)
         refresh_token = security_manager.create_refresh_token(
             token_data,
@@ -468,10 +449,16 @@ class AuthService:
         admin_token = secrets.token_urlsafe(32)
         hashed_session_token = security_manager.hash_token(session_token)
         hashed_admin_token = security_manager.hash_token(admin_token)
+        refresh_expires = datetime.utcnow() + timedelta(days=refresh_days)
+        session.session_token_hash = hashed_session_token
+        session.admin_token_hash = hashed_admin_token
+        session.refresh_token_hash = security_manager.hash_token(refresh_token)
+        session.refresh_expires_at = refresh_expires
+        # Legacy single-session fields (tokens without a "sid")
         admin.session_token = hashed_session_token
         admin.admin_token = hashed_admin_token
         admin.refresh_token = refresh_token
-        admin.refresh_token_expires = (datetime.utcnow() + timedelta(days=refresh_days)).isoformat()
+        admin.refresh_token_expires = refresh_expires.isoformat()
         admin.last_login = datetime.utcnow().isoformat()
         admin.last_login_ip = ip_address
         await db.commit()
@@ -538,6 +525,20 @@ class AuthService:
             logger.warning(f"Token refresh failed: Revoked refresh token for user {user_id}")
             raise InvalidCredentialsError("Session has been revoked. Please log in again.")
 
+        session = None
+        if user_type == "admin" and token_payload.get("sid") is not None:
+            from backend.services import admin_session_service
+
+            session = await admin_session_service.get_session(db, token_payload.get("sid"))
+            if (
+                not admin_session_service.is_active(session)
+                or session.admin_id != user.id
+                or not admin_session_service.refresh_matches(session, provided_refresh_token)
+            ):
+                logger.warning(f"Token refresh failed: signed-out or invalid admin session for user {user_id}")
+                raise InvalidCredentialsError("Session has been signed out. Please log in again.")
+            return await AuthService._refresh_admin_session(db, user, session)
+
         # Validate the refresh token matches the stored one
         if user.refresh_token != provided_refresh_token:
             logger.warning(f"Token refresh failed: Invalid refresh token for user {user_id}")
@@ -591,6 +592,26 @@ class AuthService:
             "token_type": "bearer"
         }
     
+    @staticmethod
+    async def _refresh_admin_session(db: AsyncSession, admin: AdminUser, session) -> dict:
+        """New access/refresh tokens for a device session; keeps its expiry and sid"""
+        remaining = (session.refresh_expires_at - datetime.utcnow()) if session.refresh_expires_at else None
+        remaining_days = max(1, remaining.days) if remaining else 1
+        token_data = {**_admin_token_data(admin), "sid": session.id}
+        refresh_token = security_manager.create_refresh_token(
+            token_data, expires_delta=timedelta(days=remaining_days)
+        )
+        access_token = security_manager.create_access_token(token_data)
+        session.refresh_token_hash = security_manager.hash_token(refresh_token)
+        session.last_seen_at = datetime.utcnow()
+        await db.commit()
+        logger.info(f"Token refreshed for admin user ID: {admin.id} (session {session.id})")
+        return {
+            "access_token": access_token,
+            "refresh_token": refresh_token,
+            "token_type": "bearer",
+        }
+
     @staticmethod
     async def change_password(
         db: AsyncSession,

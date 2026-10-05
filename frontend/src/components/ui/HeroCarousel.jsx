@@ -6,6 +6,7 @@ import EditableWrapper from '../admin/EditableWrapper';
 import ResponsiveImage from './ResponsiveImage';
 import { ensureResolvedImageUrl } from '../../utils/apiHelpers';
 import { safeHref } from '../../utils/safeUrl';
+import SmartLink from './SmartLink';
 
 const SLIDE_DURATION_MS = 9000;
 const FADE_DURATION_MS = 1800;
@@ -91,18 +92,18 @@ const HeroCarousel = ({ slides, onUpdateSlide, loading, renderSkeleton }) => {
                       </p>
                       <div className="flex flex-wrap justify-start gap-3 mt-5 sm:mt-6">
                         {ctaText && (
-                          <Link to={ctaLink || '#'}>
+                          <SmartLink to={ctaLink || '#'}>
                             <Button size="lg" variant={ctaVariant} className="px-8 sm:px-10 py-3.5 text-base">
                               {ctaText}
                             </Button>
-                          </Link>
+                          </SmartLink>
                         )}
                         {secondaryText && secondaryLink && (
-                          <Link to={secondaryLink}>
+                          <SmartLink to={secondaryLink}>
                             <Button size="lg" variant="outline" className="px-8 sm:px-10 py-3.5 text-base">
                               {secondaryText}
                             </Button>
-                          </Link>
+                          </SmartLink>
                         )}
                       </div>
                     </m.div>
