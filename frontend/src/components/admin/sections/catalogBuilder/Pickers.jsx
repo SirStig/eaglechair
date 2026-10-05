@@ -1,8 +1,9 @@
 import { useEffect, useRef, useState } from 'react';
-import { Check, ImagePlus, Layers, Loader2, Plus, Search, Upload } from 'lucide-react';
+import { Check, ImagePlus, Images, Layers, Loader2, Plus, Search, Upload } from 'lucide-react';
 import Modal from '../../../ui/Modal';
 import Button from '../../../ui/Button';
 import ResponsiveImage from '../../../ui/ResponsiveImage';
+import MediaLibraryModal from '../../media/MediaLibraryModal';
 import { resolveImageUrl } from '../../../../utils/apiHelpers';
 import { getInstallations } from '../../../../services/contentService';
 import { listFamilies, searchProducts, uploadCatalogImage } from '../../../../services/catalogToolsService';
@@ -211,10 +212,12 @@ export const ImagePicker = ({ isOpen, onClose, onPick, productImages = [], allow
   const [gallery, setGallery] = useState(null);
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState(null);
+  const [libraryOpen, setLibraryOpen] = useState(false);
   const fileRef = useRef(null);
 
   useEffect(() => {
     if (isOpen) setTab(productImages.length ? 'product' : 'gallery');
+    else setLibraryOpen(false);
   }, [isOpen, productImages.length]);
 
   useEffect(() => {
@@ -263,6 +266,14 @@ export const ImagePicker = ({ isOpen, onClose, onPick, productImages = [], allow
               {label}
             </button>
           ))}
+          <button
+            type="button"
+            onClick={() => setLibraryOpen(true)}
+            className="ml-auto inline-flex items-center gap-1.5 px-3 py-2 text-sm -mb-px border-b-2 border-transparent text-dark-300 hover:text-dark-100"
+          >
+            <Images className="w-4 h-4" />
+            Media library…
+          </button>
         </div>
 
         {tab === 'upload' && (
@@ -306,6 +317,13 @@ export const ImagePicker = ({ isOpen, onClose, onPick, productImages = [], allow
           <Button size="sm" variant="ghost" onClick={onClose}>Cancel</Button>
         </div>
       </div>
+      <MediaLibraryModal
+        isOpen={libraryOpen}
+        onClose={() => setLibraryOpen(false)}
+        onSelect={(url) => choose(url)}
+        subfolder="catalog"
+        title="Choose a photo"
+      />
     </Modal>
   );
 };

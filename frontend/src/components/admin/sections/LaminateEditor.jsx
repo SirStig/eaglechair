@@ -2,10 +2,8 @@ import { useState } from 'react';
 import Card from '../../ui/Card';
 import Button from '../../ui/Button';
 import apiClient from '../../../config/apiClient';
-import { resolveImageUrl } from '../../../utils/apiHelpers';
-import { Upload, X } from 'lucide-react';
 import { AdminPage, AdminPageHeader } from '../ui/AdminPage';
-import ResponsiveImage from '../../ui/ResponsiveImage';
+import ImagePickerField from '../media/ImagePickerField';
 
 /**
  * Laminate Editor Component
@@ -38,67 +36,9 @@ const LaminateEditor = ({ laminate, onBack, onSave }) => {
     is_popular: laminate?.is_popular || false
   });
   const [saving, setSaving] = useState(false);
-  const [uploadingSwatch, setUploadingSwatch] = useState(false);
-  const [uploadingFullImage, setUploadingFullImage] = useState(false);
 
   const handleChange = (field, value) => {
     setFormData(prev => ({ ...prev, [field]: value }));
-  };
-
-  const handleImageUpload = async (event, imageType) => {
-    const file = event.target.files?.[0];
-    if (!file) return;
-
-    if (imageType === 'swatch') {
-      setUploadingSwatch(true);
-    } else {
-      setUploadingFullImage(true);
-    }
-    
-    try {
-      const formDataUpload = new FormData();
-      formDataUpload.append('file', file);
-      formDataUpload.append('subfolder', 'laminates');
-      
-      const response = await apiClient.post('/api/v1/admin/upload/image', formDataUpload, {
-        headers: { 'Content-Type': 'multipart/form-data' }
-      });
-      
-      if (imageType === 'swatch') {
-        handleChange('swatch_image_url', response.url);
-      } else {
-        handleChange('full_image_url', response.url);
-      }
-    } catch (error) {
-      console.error('Failed to upload image:', error);
-      alert('Failed to upload image');
-    } finally {
-      if (imageType === 'swatch') {
-        setUploadingSwatch(false);
-      } else {
-        setUploadingFullImage(false);
-      }
-    }
-  };
-
-  const deleteImage = async (imageType) => {
-    if (!confirm(`Delete this ${imageType} image?`)) return;
-    
-    try {
-      const url = imageType === 'swatch' ? formData.swatch_image_url : formData.full_image_url;
-      if (url) {
-        await apiClient.delete('/api/v1/admin/upload/image', {
-          data: { url }
-        });
-      }
-      if (imageType === 'swatch') {
-        handleChange('swatch_image_url', '');
-      } else {
-        handleChange('full_image_url', '');
-      }
-    } catch (error) {
-      console.error('Failed to delete image:', error);
-    }
   };
 
   const handleSubmit = async (e) => {
@@ -126,13 +66,11 @@ const LaminateEditor = ({ laminate, onBack, onSave }) => {
     }
   };
 
-  const isUploading = uploadingSwatch || uploadingFullImage;
-
   return (
     <AdminPage>
       <AdminPageHeader
         onBack={onBack}
-        backDisabled={saving || isUploading}
+        backDisabled={saving}
         backLabel="Back to Laminates"
         eyebrow="Materials & Options"
         title={laminate ? `Edit: ${laminate.brand} - ${laminate.pattern_name}` : 'Create Laminate'}
@@ -307,98 +245,26 @@ const LaminateEditor = ({ laminate, onBack, onSave }) => {
                 Images
               </h3>
               <div className="grid grid-cols-2 gap-6">
-                <div>
-                  <label className="block text-sm font-medium text-dark-200 mb-2">
-                    Swatch Image
-                  </label>
-                  {formData.swatch_image_url ? (
-                    <div className="relative group inline-block">
-                      <ResponsiveImage 
-                        sizes="128px"
-                        fullResolution={false}
-                        src={resolveImageUrl(formData.swatch_image_url)} 
-                        alt="Swatch"
-                        className="w-32 h-32 object-cover rounded-lg border border-dark-600"
-                      />
-                      <button
-                        onClick={() => deleteImage('swatch')}
-                        className="absolute top-2 right-2 p-2 bg-red-600 hover:bg-red-500 text-white rounded-lg transition-colors"
-                        type="button"
-                      >
-                        <X className="w-4 h-4" />
-                      </button>
-                    </div>
-                  ) : (
-                    <label className="relative block">
-                      <input
-                        type="file"
-                        accept="image/*"
-                        onChange={(e) => handleImageUpload(e, 'swatch')}
-                        className="sr-only"
-                        disabled={uploadingSwatch}
-                      />
-                      <div className={`flex flex-col items-center justify-center w-32 h-32 border-2 border-dashed border-dark-600 hover:border-primary-500 rounded-lg cursor-pointer transition-all ${uploadingSwatch ? 'opacity-50' : ''}`}>
-                        {uploadingSwatch ? (
-                          <>
-                            <div className="w-8 h-8 border-2 border-dark-600 border-t-primary-500 rounded-full animate-spin mb-2" />
-                            <span className="text-sm text-primary-400 font-medium">Uploading...</span>
-                          </>
-                        ) : (
-                          <>
-                            <Upload className="w-10 h-10 text-dark-500 mb-2" />
-                            <span className="text-xs text-dark-400">Swatch</span>
-                          </>
-                        )}
-                      </div>
-                    </label>
-                  )}
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-dark-200 mb-2">
-                    Full Image
-                  </label>
-                  {formData.full_image_url ? (
-                    <div className="relative group inline-block">
-                      <ResponsiveImage 
-                        sizes="128px"
-                        fullResolution={false}
-                        src={resolveImageUrl(formData.full_image_url)} 
-                        alt="Full sample"
-                        className="w-32 h-32 object-cover rounded-lg border border-dark-600"
-                      />
-                      <button
-                        onClick={() => deleteImage('full')}
-                        className="absolute top-2 right-2 p-2 bg-red-600 hover:bg-red-500 text-white rounded-lg transition-colors"
-                        type="button"
-                      >
-                        <X className="w-4 h-4" />
-                      </button>
-                    </div>
-                  ) : (
-                    <label className="relative block">
-                      <input
-                        type="file"
-                        accept="image/*"
-                        onChange={(e) => handleImageUpload(e, 'full')}
-                        className="sr-only"
-                        disabled={uploadingFullImage}
-                      />
-                      <div className={`flex flex-col items-center justify-center w-32 h-32 border-2 border-dashed border-dark-600 hover:border-primary-500 rounded-lg cursor-pointer transition-all ${uploadingFullImage ? 'opacity-50' : ''}`}>
-                        {uploadingFullImage ? (
-                          <>
-                            <div className="w-8 h-8 border-2 border-dark-600 border-t-primary-500 rounded-full animate-spin mb-2" />
-                            <span className="text-sm text-primary-400 font-medium">Uploading...</span>
-                          </>
-                        ) : (
-                          <>
-                            <Upload className="w-10 h-10 text-dark-500 mb-2" />
-                            <span className="text-xs text-dark-400">Full</span>
-                          </>
-                        )}
-                      </div>
-                    </label>
-                  )}
-                </div>
+                <ImagePickerField
+                  label="Swatch Image"
+                  value={formData.swatch_image_url}
+                  onChange={(url) => handleChange('swatch_image_url', url)}
+                  subfolder="laminates"
+                  previewClassName="h-32 w-32"
+                  objectFit="cover"
+                  disabled={saving}
+                  libraryTitle="Choose laminate swatch"
+                />
+                <ImagePickerField
+                  label="Full Image"
+                  value={formData.full_image_url}
+                  onChange={(url) => handleChange('full_image_url', url)}
+                  subfolder="laminates"
+                  previewClassName="h-32 w-32"
+                  objectFit="cover"
+                  disabled={saving}
+                  libraryTitle="Choose laminate full image"
+                />
               </div>
             </div>
 
@@ -549,17 +415,17 @@ const LaminateEditor = ({ laminate, onBack, onSave }) => {
           <Button
             type="button"
             onClick={onBack}
-            disabled={saving || isUploading}
+            disabled={saving}
             className="bg-dark-600 hover:bg-dark-500 text-dark-200 px-6 py-3"
           >
             Cancel
           </Button>
           <Button
             type="submit"
-            disabled={saving || isUploading || !formData.brand || !formData.pattern_name}
+            disabled={saving || !formData.brand || !formData.pattern_name}
             className="bg-primary-600 hover:bg-primary-500 px-6 py-3"
           >
-            {isUploading ? 'Uploading...' : saving ? 'Saving...' : laminate ? 'Update Laminate' : 'Create Laminate'}
+            {saving ? 'Saving...' : laminate ? 'Update Laminate' : 'Create Laminate'}
           </Button>
         </div>
       </form>

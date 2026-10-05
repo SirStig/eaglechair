@@ -1,14 +1,13 @@
 import { useState, useEffect, useMemo, useCallback } from 'react';
-import { Building2, Phone, MapPin, Clock, Share2, Search, Upload, X } from 'lucide-react';
+import { Building2, Phone, MapPin, Clock, Share2, Search } from 'lucide-react';
 import Button from '../ui/Button';
 import Input from '../ui/Input';
 import { getSiteSettingsAdmin, updateSiteSettings } from '../../services/cmsAdminService';
 import { isPublishFailed } from '../../utils/cmsContentStore';
 import { isSafeUrl, URL_POLICY_MESSAGE } from '../../utils/safeUrl';
-import { uploadImage } from '../../utils/imageUpload';
 import { useToast } from '../../contexts/ToastContext';
 import logger from '../../utils/logger';
-import ResponsiveImage from '../ui/ResponsiveImage';
+import ImagePickerField from './media/ImagePickerField';
 
 const CONTEXT = 'SiteSettingsManager';
 
@@ -51,7 +50,6 @@ const SiteSettingsManager = () => {
   const [formData, setFormData] = useState({});
   const [savedData, setSavedData] = useState({});
   const [saving, setSaving] = useState(false);
-  const [uploading, setUploading] = useState({});
   const [fieldErrors, setFieldErrors] = useState({});
   const toast = useToast();
 
@@ -77,7 +75,6 @@ const SiteSettingsManager = () => {
     () => Object.keys({ ...formData, ...savedData }).some((key) => (formData[key] ?? '') !== (savedData[key] ?? '')),
     [formData, savedData]
   );
-  const isUploading = Object.values(uploading).some(Boolean);
 
   // Warn before leaving the page with unsaved changes
   useEffect(() => {
@@ -109,22 +106,6 @@ const SiteSettingsManager = () => {
     error: fieldErrors[name],
   });
 
-  const handleLogoUpload = async (e, fieldName) => {
-    const file = e.target.files?.[0];
-    e.target.value = '';
-    if (!file) return;
-    try {
-      setUploading((prev) => ({ ...prev, [fieldName]: true }));
-      const url = await uploadImage(file, 'logos');
-      setField(fieldName, url);
-    } catch (error) {
-      logger.error(CONTEXT, 'Logo upload failed', error);
-      toast.error(`Logo upload failed: ${error.message}`);
-    } finally {
-      setUploading((prev) => ({ ...prev, [fieldName]: false }));
-    }
-  };
-
   const handleSubmit = async (e) => {
     e?.preventDefault();
 
@@ -154,43 +135,15 @@ const SiteSettingsManager = () => {
   };
 
   const renderLogoField = (name, label, hint) => (
-    <div>
-      <span className="mb-1.5 block text-sm font-medium text-dark-100">{label}</span>
-      <div className={`flex h-24 items-center justify-center rounded-lg border border-dashed border-dark-500 p-4 bg-dark-900`}>
-        {formData[name] ? (
-          <ResponsiveImage sizes="240px" fullResolution={false} placeholder={false} src={formData[name]} alt="" className="max-h-14 object-contain" />
-        ) : (
-          <span className="text-sm text-dark-200">No logo uploaded</span>
-        )}
-      </div>
-      <div className="mt-2 flex items-center gap-2">
-        <label className="cursor-pointer rounded-lg focus-within:ring-2 focus-within:ring-primary-500">
-          <input
-            type="file"
-            accept="image/*"
-            onChange={(e) => handleLogoUpload(e, name)}
-            className="sr-only"
-            disabled={uploading[name]}
-            aria-label={`Upload ${label}`}
-          />
-          <span className="inline-flex min-h-[36px] items-center gap-1.5 rounded-lg bg-dark-600 px-3 text-sm font-medium text-dark-50 transition-colors hover:bg-dark-500">
-            <Upload className="h-4 w-4" aria-hidden="true" />
-            {uploading[name] ? 'Uploading…' : formData[name] ? 'Replace' : 'Upload'}
-          </span>
-        </label>
-        {formData[name] && (
-          <button
-            type="button"
-            onClick={() => setField(name, '')}
-            className="inline-flex min-h-[36px] items-center gap-1 rounded-lg px-3 text-sm text-dark-100 transition-colors hover:bg-dark-700 hover:text-red-300"
-          >
-            <X className="h-4 w-4" aria-hidden="true" />
-            Remove
-          </button>
-        )}
-      </div>
-      {hint && <p className="mt-1.5 text-xs text-dark-200">{hint}</p>}
-    </div>
+    <ImagePickerField
+      value={formData[name]}
+      onChange={(url) => setField(name, url)}
+      subfolder="logos"
+      label={label}
+      help={hint}
+      previewClassName="h-24 w-full"
+      disabled={saving}
+    />
   );
 
   if (loading) {
@@ -299,7 +252,7 @@ const SiteSettingsManager = () => {
               Discard
             </Button>
           )}
-          <Button type="submit" variant="primary" size="sm" disabled={saving || isUploading || !isDirty}>
+          <Button type="submit" variant="primary" size="sm" disabled={saving || !isDirty}>
             {saving ? 'Saving…' : 'Save changes'}
           </Button>
         </div>

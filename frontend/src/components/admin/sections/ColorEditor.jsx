@@ -2,10 +2,8 @@ import { useState } from 'react';
 import Card from '../../ui/Card';
 import Button from '../../ui/Button';
 import apiClient from '../../../config/apiClient';
-import { resolveImageUrl } from '../../../utils/apiHelpers';
-import { Upload, X } from 'lucide-react';
 import { AdminPage, AdminPageHeader } from '../ui/AdminPage';
-import ResponsiveImage from '../../ui/ResponsiveImage';
+import ImagePickerField from '../media/ImagePickerField';
 
 /**
  * Color Editor Component
@@ -22,50 +20,9 @@ const ColorEditor = ({ color, onBack, onSave }) => {
     is_active: color?.is_active !== false
   });
   const [saving, setSaving] = useState(false);
-  const [uploadingImage, setUploadingImage] = useState(false);
 
   const handleChange = (field, value) => {
     setFormData(prev => ({ ...prev, [field]: value }));
-  };
-
-  const handleImageUpload = async (event) => {
-    const file = event.target.files?.[0];
-    if (!file) return;
-
-    setUploadingImage(true);
-    
-    try {
-      const formDataUpload = new FormData();
-      formDataUpload.append('file', file);
-      formDataUpload.append('subfolder', 'colors');
-      
-      const response = await apiClient.post('/api/v1/admin/upload/image', formDataUpload, {
-        headers: { 'Content-Type': 'multipart/form-data' }
-      });
-      
-      const imageUrl = response.url;
-      handleChange('image_url', imageUrl);
-    } catch (error) {
-      console.error('Failed to upload image:', error);
-      alert('Failed to upload image');
-    } finally {
-      setUploadingImage(false);
-    }
-  };
-
-  const deleteImage = async () => {
-    if (!confirm('Delete this swatch image?')) return;
-    
-    try {
-      if (formData.image_url) {
-        await apiClient.delete('/api/v1/admin/upload/image', {
-          data: { url: formData.image_url }
-        });
-      }
-      handleChange('image_url', '');
-    } catch (error) {
-      console.error('Failed to delete image:', error);
-    }
   };
 
   const handleSubmit = async (e) => {
@@ -87,8 +44,6 @@ const ColorEditor = ({ color, onBack, onSave }) => {
     }
   };
 
-  const isUploading = uploadingImage;
-
   return (
     <AdminPage>
       <AdminPageHeader
@@ -96,7 +51,7 @@ const ColorEditor = ({ color, onBack, onSave }) => {
         title={color ? `Edit ${color.name}` : 'New Color'}
         description={color ? 'Update color details and swatch' : 'Add a new color option'}
         onBack={onBack}
-        backDisabled={saving || isUploading}
+        backDisabled={saving}
         backLabel="Back to Colors"
       />
 
@@ -184,57 +139,17 @@ const ColorEditor = ({ color, onBack, onSave }) => {
               <h3 className="text-lg font-semibold text-dark-50 mb-4 pb-2 border-b border-dark-600">
                 Swatch Image (Optional)
               </h3>
-              <div>
-                <label className="block text-sm font-medium text-dark-200 mb-2">
-                  Upload Swatch
-                </label>
-                {formData.image_url ? (
-                  <div className="relative group inline-block">
-                    <ResponsiveImage 
-                      sizes="128px"
-                      fullResolution={false}
-                      src={resolveImageUrl(formData.image_url)} 
-                      alt="Color swatch"
-                      className="w-32 h-32 object-cover rounded-lg border border-dark-600"
-                    />
-                    <button
-                      onClick={deleteImage}
-                      className="absolute top-2 right-2 p-2 bg-red-600 hover:bg-red-500 text-white rounded-lg transition-colors"
-                      type="button"
-                      title="Delete swatch"
-                    >
-                      <X className="w-4 h-4" />
-                    </button>
-                  </div>
-                ) : (
-                  <label className="relative block">
-                    <input
-                      type="file"
-                      accept="image/*"
-                      onChange={handleImageUpload}
-                      className="sr-only"
-                      disabled={uploadingImage}
-                    />
-                    <div className={`flex flex-col items-center justify-center w-32 h-32 border-2 border-dashed border-dark-600 hover:border-primary-500 rounded-lg cursor-pointer transition-all ${uploadingImage ? 'opacity-50' : ''}`}>
-                      {uploadingImage ? (
-                        <>
-                          <div className="w-8 h-8 border-2 border-dark-600 border-t-primary-500 rounded-full animate-spin mb-2" />
-                          <span className="text-sm text-accent-400 font-medium">Uploading...</span>
-                        </>
-                      ) : (
-                        <>
-                          <Upload className="w-10 h-10 text-dark-500 mb-2" />
-                          <span className="text-sm text-dark-400">Upload swatch</span>
-                          <span className="text-xs text-dark-500 mt-1">PNG, JPG</span>
-                        </>
-                      )}
-                    </div>
-                  </label>
-                )}
-                <p className="text-xs text-dark-400 mt-2">
-                  Optional: Upload a photo/texture swatch for materials like wood or fabric
-                </p>
-              </div>
+              <ImagePickerField
+                label="Swatch"
+                value={formData.image_url}
+                onChange={(url) => handleChange('image_url', url)}
+                subfolder="colors"
+                previewClassName="h-32 w-32"
+                objectFit="cover"
+                disabled={saving}
+                help="Optional: a photo/texture swatch for materials like wood or fabric"
+                libraryTitle="Choose color swatch"
+              />
             </div>
 
             {/* Settings */}
@@ -295,17 +210,17 @@ const ColorEditor = ({ color, onBack, onSave }) => {
           <Button
             type="button"
             onClick={onBack}
-            disabled={saving || isUploading}
+            disabled={saving}
             className="bg-dark-600 hover:bg-dark-500 text-dark-200 px-6 py-3"
           >
             Cancel
           </Button>
           <Button
             type="submit"
-            disabled={saving || isUploading || !formData.name}
+            disabled={saving || !formData.name}
             className="bg-primary-600 hover:bg-primary-500 px-6 py-3"
           >
-            {isUploading ? 'Uploading...' : saving ? 'Saving...' : color ? 'Update Color' : 'Create Color'}
+            {saving ? 'Saving...' : color ? 'Update Color' : 'Create Color'}
           </Button>
         </div>
       </form>

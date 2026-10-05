@@ -2,10 +2,8 @@ import { useState } from 'react';
 import Card from '../../ui/Card';
 import Button from '../../ui/Button';
 import apiClient from '../../../config/apiClient';
-import { resolveImageUrl } from '../../../utils/apiHelpers';
-import { Upload, X } from 'lucide-react';
 import { AdminPage, AdminPageHeader } from '../ui/AdminPage';
-import ResponsiveImage from '../../ui/ResponsiveImage';
+import ImagePickerField from '../media/ImagePickerField';
 
 /**
  * Hardware Editor Component
@@ -32,67 +30,9 @@ const HardwareEditor = ({ hardware, onBack, onSave }) => {
     is_featured: hardware?.is_featured || false
   });
   const [saving, setSaving] = useState(false);
-  const [uploadingImage, setUploadingImage] = useState(false);
-  const [uploadingThumbnail, setUploadingThumbnail] = useState(false);
 
   const handleChange = (field, value) => {
     setFormData(prev => ({ ...prev, [field]: value }));
-  };
-
-  const handleImageUpload = async (event, imageType) => {
-    const file = event.target.files?.[0];
-    if (!file) return;
-
-    if (imageType === 'main') {
-      setUploadingImage(true);
-    } else {
-      setUploadingThumbnail(true);
-    }
-    
-    try {
-      const formDataUpload = new FormData();
-      formDataUpload.append('file', file);
-      formDataUpload.append('subfolder', 'hardware');
-      
-      const response = await apiClient.post('/api/v1/admin/upload/image', formDataUpload, {
-        headers: { 'Content-Type': 'multipart/form-data' }
-      });
-      
-      if (imageType === 'main') {
-        handleChange('image_url', response.url);
-      } else {
-        handleChange('thumbnail_url', response.url);
-      }
-    } catch (error) {
-      console.error('Failed to upload image:', error);
-      alert('Failed to upload image');
-    } finally {
-      if (imageType === 'main') {
-        setUploadingImage(false);
-      } else {
-        setUploadingThumbnail(false);
-      }
-    }
-  };
-
-  const deleteImage = async (imageType) => {
-    if (!confirm(`Delete this ${imageType} image?`)) return;
-    
-    try {
-      const url = imageType === 'main' ? formData.image_url : formData.thumbnail_url;
-      if (url) {
-        await apiClient.delete('/api/v1/admin/upload/image', {
-          data: { url }
-        });
-      }
-      if (imageType === 'main') {
-        handleChange('image_url', '');
-      } else {
-        handleChange('thumbnail_url', '');
-      }
-    } catch (error) {
-      console.error('Failed to delete image:', error);
-    }
   };
 
   const handleSubmit = async (e) => {
@@ -119,13 +59,11 @@ const HardwareEditor = ({ hardware, onBack, onSave }) => {
     }
   };
 
-  const isUploading = uploadingImage || uploadingThumbnail;
-
   return (
     <AdminPage>
       <AdminPageHeader
         onBack={onBack}
-        backDisabled={saving || isUploading}
+        backDisabled={saving}
         backLabel="Back to Hardware"
         eyebrow="Materials & Options"
         title={hardware ? `Edit: ${hardware.name}` : 'Create Hardware'}
@@ -269,98 +207,26 @@ const HardwareEditor = ({ hardware, onBack, onSave }) => {
                 Images
               </h3>
               <div className="grid grid-cols-2 gap-6">
-                <div>
-                  <label className="block text-sm font-medium text-dark-200 mb-2">
-                    Main Image
-                  </label>
-                  {formData.image_url ? (
-                    <div className="relative group inline-block">
-                      <ResponsiveImage 
-                        sizes="192px"
-                        fullResolution={false}
-                        src={resolveImageUrl(formData.image_url)} 
-                        alt="Hardware"
-                        className="w-48 h-32 object-cover rounded-lg border border-dark-600"
-                      />
-                      <button
-                        onClick={() => deleteImage('main')}
-                        className="absolute top-2 right-2 p-2 bg-red-600 hover:bg-red-500 text-white rounded-lg transition-colors"
-                        type="button"
-                      >
-                        <X className="w-4 h-4" />
-                      </button>
-                    </div>
-                  ) : (
-                    <label className="relative block">
-                      <input
-                        type="file"
-                        accept="image/*"
-                        onChange={(e) => handleImageUpload(e, 'main')}
-                        className="sr-only"
-                        disabled={uploadingImage}
-                      />
-                      <div className={`flex flex-col items-center justify-center w-48 h-32 border-2 border-dashed border-dark-600 hover:border-primary-500 rounded-lg cursor-pointer transition-all ${uploadingImage ? 'opacity-50' : ''}`}>
-                        {uploadingImage ? (
-                          <>
-                            <div className="w-8 h-8 border-2 border-dark-600 border-t-primary-500 rounded-full animate-spin mb-2" />
-                            <span className="text-sm text-primary-400 font-medium">Uploading...</span>
-                          </>
-                        ) : (
-                          <>
-                            <Upload className="w-10 h-10 text-dark-500 mb-2" />
-                            <span className="text-sm text-dark-400">Upload image</span>
-                          </>
-                        )}
-                      </div>
-                    </label>
-                  )}
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-dark-200 mb-2">
-                    Thumbnail Image
-                  </label>
-                  {formData.thumbnail_url ? (
-                    <div className="relative group inline-block">
-                      <ResponsiveImage 
-                        sizes="192px"
-                        fullResolution={false}
-                        src={resolveImageUrl(formData.thumbnail_url)} 
-                        alt="Thumbnail"
-                        className="w-48 h-32 object-cover rounded-lg border border-dark-600"
-                      />
-                      <button
-                        onClick={() => deleteImage('thumbnail')}
-                        className="absolute top-2 right-2 p-2 bg-red-600 hover:bg-red-500 text-white rounded-lg transition-colors"
-                        type="button"
-                      >
-                        <X className="w-4 h-4" />
-                      </button>
-                    </div>
-                  ) : (
-                    <label className="relative block">
-                      <input
-                        type="file"
-                        accept="image/*"
-                        onChange={(e) => handleImageUpload(e, 'thumbnail')}
-                        className="sr-only"
-                        disabled={uploadingThumbnail}
-                      />
-                      <div className={`flex flex-col items-center justify-center w-48 h-32 border-2 border-dashed border-dark-600 hover:border-primary-500 rounded-lg cursor-pointer transition-all ${uploadingThumbnail ? 'opacity-50' : ''}`}>
-                        {uploadingThumbnail ? (
-                          <>
-                            <div className="w-8 h-8 border-2 border-dark-600 border-t-primary-500 rounded-full animate-spin mb-2" />
-                            <span className="text-sm text-primary-400 font-medium">Uploading...</span>
-                          </>
-                        ) : (
-                          <>
-                            <Upload className="w-10 h-10 text-dark-500 mb-2" />
-                            <span className="text-sm text-dark-400">Upload thumbnail</span>
-                          </>
-                        )}
-                      </div>
-                    </label>
-                  )}
-                </div>
+                <ImagePickerField
+                  label="Main Image"
+                  value={formData.image_url}
+                  onChange={(url) => handleChange('image_url', url)}
+                  subfolder="hardware"
+                  previewClassName="h-32 w-48"
+                  objectFit="cover"
+                  disabled={saving}
+                  libraryTitle="Choose hardware image"
+                />
+                <ImagePickerField
+                  label="Thumbnail Image"
+                  value={formData.thumbnail_url}
+                  onChange={(url) => handleChange('thumbnail_url', url)}
+                  subfolder="hardware"
+                  previewClassName="h-32 w-48"
+                  objectFit="cover"
+                  disabled={saving}
+                  libraryTitle="Choose hardware thumbnail"
+                />
               </div>
             </div>
 
@@ -459,17 +325,17 @@ const HardwareEditor = ({ hardware, onBack, onSave }) => {
           <Button
             type="button"
             onClick={onBack}
-            disabled={saving || isUploading}
+            disabled={saving}
             className="bg-dark-600 hover:bg-dark-500 text-dark-200 px-6 py-3"
           >
             Cancel
           </Button>
           <Button
             type="submit"
-            disabled={saving || isUploading || !formData.name}
+            disabled={saving || !formData.name}
             className="bg-primary-600 hover:bg-primary-500 px-6 py-3"
           >
-            {isUploading ? 'Uploading...' : saving ? 'Saving...' : hardware ? 'Update Hardware' : 'Create Hardware'}
+            {saving ? 'Saving...' : hardware ? 'Update Hardware' : 'Create Hardware'}
           </Button>
         </div>
       </form>

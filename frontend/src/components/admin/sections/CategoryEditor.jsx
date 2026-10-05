@@ -2,11 +2,9 @@ import { useState } from 'react';
 import Card from '../../ui/Card';
 import Button from '../../ui/Button';
 import apiClient from '../../../config/apiClient';
-import { resolveImageUrl } from '../../../utils/apiHelpers';
 import { slugify } from '../../../utils/slugify';
-import { Upload, X } from 'lucide-react';
 import { AdminPage, AdminPageHeader } from '../ui/AdminPage';
-import ResponsiveImage from '../../ui/ResponsiveImage';
+import ImagePickerField from '../media/ImagePickerField';
 import { SPEC_PROFILES } from '../../../utils/specSymbols';
 
 /**
@@ -43,7 +41,6 @@ const CategoryEditor = ({ category, categories, parentCategory, isSubcategory, o
     };
   });
   const [saving, setSaving] = useState(false);
-  const [uploadingImage, setUploadingImage] = useState(null);
 
   const handleChange = (field, value) => {
     setFormData(prev => {
@@ -53,122 +50,17 @@ const CategoryEditor = ({ category, categories, parentCategory, isSubcategory, o
     });
   };
 
-  const handleImageUpload = async (event, field) => {
-    const file = event.target.files?.[0];
-    if (!file) return;
-
-    setUploadingImage(field);
-    
-    try {
-      const formDataUpload = new FormData();
-      formDataUpload.append('file', file);
-      formDataUpload.append('subfolder', 'categories');
-      
-      const response = await apiClient.post('/api/v1/admin/upload/image', formDataUpload, {
-        headers: { 'Content-Type': 'multipart/form-data' }
-      });
-      
-      const imageUrl = response.url;
-      handleChange(field, imageUrl);
-    } catch (error) {
-      console.error('Failed to upload image:', error);
-      alert('Failed to upload image');
-    } finally {
-      setUploadingImage(null);
-    }
-  };
-
-  const urlPathForDelete = (url) => {
-    if (!url || typeof url !== 'string') return '';
-    const s = url.trim();
-    if (s.startsWith('http://') || s.startsWith('https://')) {
-      try {
-        return new URL(s).pathname || s;
-      } catch {
-        return s;
-      }
-    }
-    return s.startsWith('/') ? s : `/${s}`;
-  };
-
-  const deleteImage = async (field, currentUrl) => {
-    if (!confirm('Delete this image?')) return;
-    try {
-      if (currentUrl) {
-        const path = urlPathForDelete(currentUrl);
-        await apiClient.delete('/api/v1/admin/upload/image', {
-          data: { url: path }
-        });
-      }
-      handleChange(field, '');
-    } catch (error) {
-      const is404 = error?.status === 404 || error?.response?.status === 404;
-      if (is404) {
-        handleChange(field, '');
-        return;
-      }
-      console.error('Failed to delete image:', error);
-    }
-  };
-
-  const isUploading = uploadingImage !== null;
-
-  const renderImageControl = (field, label) => {
-    const fieldUploading = uploadingImage === field;
-    const currentValue = formData[field];
-    const isIcon = field === 'icon_url';
-
-    return (
-      <div>
-        <label className="block text-sm font-medium text-dark-200 mb-2">
-          {label}
-        </label>
-        {currentValue ? (
-          <div className="relative group">
-            <ResponsiveImage 
-              sizes={isIcon ? '128px' : '(min-width: 1024px) 480px, 50vw'}
-              fullResolution={false}
-              src={resolveImageUrl(currentValue)} 
-              alt={label}
-              className={`object-cover rounded-lg border border-dark-600 ${isIcon ? 'w-32 h-32' : 'w-full h-32'}`}
-            />
-            <button
-              onClick={() => deleteImage(field, currentValue)}
-              className="absolute top-2 right-2 p-2 bg-red-600 hover:bg-red-500 text-white rounded-lg transition-colors"
-              type="button"
-              title="Delete image"
-            >
-              <X className="w-4 h-4" />
-            </button>
-          </div>
-        ) : (
-          <label className="relative block">
-            <input
-              type="file"
-              accept="image/*"
-              onChange={(e) => handleImageUpload(e, field)}
-              className="sr-only"
-              disabled={fieldUploading}
-            />
-            <div className={`flex flex-col items-center justify-center border-2 border-dashed border-dark-600 hover:border-primary-500 rounded-lg cursor-pointer transition-all ${isIcon ? 'h-32 w-32' : 'h-32 w-full'} ${fieldUploading ? 'opacity-50' : ''}`}>
-              {fieldUploading ? (
-                <>
-                  <div className="w-8 h-8 border-2 border-dark-600 border-t-primary-500 rounded-full animate-spin mb-2" />
-                  <span className="text-sm text-primary-400 font-medium">Uploading...</span>
-                </>
-              ) : (
-                <>
-                  <Upload className="w-10 h-10 text-dark-500 mb-2" />
-                  <span className="text-sm text-dark-400">Upload {label.toLowerCase()}</span>
-                  <span className="text-xs text-dark-500 mt-1">PNG, JPG</span>
-                </>
-              )}
-            </div>
-          </label>
-        )}
-      </div>
-    );
-  };
+  const renderImageControl = (field, label) => (
+    <ImagePickerField
+      value={formData[field]}
+      onChange={(url) => handleChange(field, url)}
+      subfolder="categories"
+      label={label}
+      objectFit="cover"
+      previewClassName={field === 'icon_url' ? 'w-32 h-32' : 'w-full h-32'}
+      disabled={saving}
+    />
+  );
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -224,7 +116,7 @@ const CategoryEditor = ({ category, categories, parentCategory, isSubcategory, o
           ? (category ? 'Update subcategory details' : 'Add a new subcategory under this category')
           : (category ? 'Update category details and images' : 'Add a new product category')}
         onBack={onBack}
-        backDisabled={saving || isUploading}
+        backDisabled={saving}
         backLabel="Back to Categories"
       />
 
@@ -421,17 +313,17 @@ const CategoryEditor = ({ category, categories, parentCategory, isSubcategory, o
           <Button
             type="button"
             onClick={onBack}
-            disabled={saving || isUploading}
+            disabled={saving}
             className="bg-dark-600 hover:bg-dark-500 text-dark-200 px-6 py-3"
           >
             Cancel
           </Button>
           <Button
             type="submit"
-            disabled={saving || isUploading || !formData.name || !formData.slug}
+            disabled={saving || !formData.name || !formData.slug}
             className="bg-primary-600 hover:bg-primary-500 px-6 py-3"
           >
-            {isUploading ? 'Uploading...' : saving ? 'Saving...' : subcategoryMode ? (category ? 'Update Subcategory' : 'Create Subcategory') : (category ? 'Update Category' : 'Create Category')}
+            {saving ? 'Saving...' : subcategoryMode ? (category ? 'Update Subcategory' : 'Create Subcategory') : (category ? 'Update Category' : 'Create Category')}
           </Button>
         </div>
       </form>

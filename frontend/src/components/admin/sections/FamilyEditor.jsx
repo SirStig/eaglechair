@@ -9,6 +9,7 @@ import { FileText, Upload, X } from 'lucide-react';
 import { AdminPage, AdminPageHeader } from '../ui/AdminPage';
 import ResponsiveImage from '../../ui/ResponsiveImage';
 import PdfPreviewButton from '../../ui/PdfPreviewButton';
+import ImagePickerField from '../media/ImagePickerField';
 
 /**
  * Product Family Editor Component
@@ -30,7 +31,6 @@ const FamilyEditor = ({ family, categories, onBack, onSave }) => {
     is_featured: family?.is_featured === true
   });
   const [saving, setSaving] = useState(false);
-  const [uploadingImage, setUploadingImage] = useState(null);
   const [uploadingPdf, setUploadingPdf] = useState(false);
   const [members, setMembers] = useState(null);
 
@@ -53,46 +53,6 @@ const FamilyEditor = ({ family, categories, onBack, onSave }) => {
       if (field === 'name') next.slug = slugify(value);
       return next;
     });
-  };
-
-  const handleImageUpload = async (event, field) => {
-    const file = event.target.files?.[0];
-    if (!file) return;
-
-    setUploadingImage(field);
-    
-    try {
-      const formDataUpload = new FormData();
-      formDataUpload.append('file', file);
-      formDataUpload.append('subfolder', 'families');
-      
-      const response = await apiClient.post('/api/v1/admin/upload/image', formDataUpload, {
-        headers: { 'Content-Type': 'multipart/form-data' }
-      });
-      
-      const imageUrl = response.url;
-      handleChange(field, imageUrl);
-    } catch (error) {
-      console.error('Failed to upload image:', error);
-      alert('Failed to upload image');
-    } finally {
-      setUploadingImage(null);
-    }
-  };
-
-  const deleteImage = async (field, currentUrl) => {
-    if (!confirm('Delete this image?')) return;
-    
-    try {
-      if (currentUrl) {
-        await apiClient.delete('/api/v1/admin/upload/image', {
-          data: { url: currentUrl }
-        });
-      }
-      handleChange(field, '');
-    } catch (error) {
-      console.error('Failed to delete image:', error);
-    }
   };
 
   const handlePdfUpload = async (event) => {
@@ -119,64 +79,19 @@ const FamilyEditor = ({ family, categories, onBack, onSave }) => {
     }
   };
 
-  const isUploading = uploadingImage !== null || uploadingPdf;
+  const isUploading = uploadingPdf;
 
-  const renderImageControl = (field, label) => {
-    const fieldUploading = uploadingImage === field;
-    const currentValue = formData[field];
-    const isFamilyImage = field === 'family_image';
-
-    return (
-      <div>
-        <label className="block text-sm font-medium text-dark-200 mb-2">
-          {label}
-        </label>
-        {currentValue ? (
-          <div className="relative group">
-            <ResponsiveImage 
-              sizes="(min-width: 1024px) 480px, 50vw"
-              fullResolution={false}
-              src={resolveImageUrl(currentValue)} 
-              alt={label}
-              className={`object-cover rounded-lg border border-dark-600 ${isFamilyImage ? 'w-full h-48' : 'w-full h-32'}`}
-            />
-            <button
-              onClick={() => deleteImage(field, currentValue)}
-              className="absolute top-2 right-2 p-2 bg-red-600 hover:bg-red-500 text-white rounded-lg transition-colors"
-              type="button"
-              title="Delete image"
-            >
-              <X className="w-4 h-4" />
-            </button>
-          </div>
-        ) : (
-          <label className="relative block">
-            <input
-              type="file"
-              accept="image/*"
-              onChange={(e) => handleImageUpload(e, field)}
-              className="sr-only"
-              disabled={fieldUploading}
-            />
-            <div className={`flex flex-col items-center justify-center border-2 border-dashed border-dark-600 hover:border-primary-500 rounded-lg cursor-pointer transition-all ${isFamilyImage ? 'h-48' : 'h-32'} ${fieldUploading ? 'opacity-50' : ''}`}>
-              {fieldUploading ? (
-                <>
-                  <div className="w-8 h-8 border-2 border-dark-600 border-t-primary-500 rounded-full animate-spin mb-2" />
-                  <span className="text-sm text-primary-400 font-medium">Uploading...</span>
-                </>
-              ) : (
-                <>
-                  <Upload className="w-10 h-10 text-dark-500 mb-2" />
-                  <span className="text-sm text-dark-400">Click to upload {label.toLowerCase()}</span>
-                  <span className="text-xs text-dark-500 mt-1">PNG, JPG up to 50MB</span>
-                </>
-              )}
-            </div>
-          </label>
-        )}
-      </div>
-    );
-  };
+  const renderImageControl = (field, label) => (
+    <ImagePickerField
+      value={formData[field]}
+      onChange={(url) => handleChange(field, url)}
+      subfolder="families"
+      label={label}
+      objectFit="cover"
+      previewClassName={field === 'family_image' ? 'w-full h-48' : 'w-full h-32'}
+      disabled={saving}
+    />
+  );
 
   const handleSubmit = async (e) => {
     e.preventDefault();

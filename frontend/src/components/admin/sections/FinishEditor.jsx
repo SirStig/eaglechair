@@ -27,7 +27,6 @@ const FinishEditor = ({ finish, onBack, onSave }) => {
     is_active: finish?.is_active !== false
   });
   const [saving, setSaving] = useState(false);
-  const [uploadingImage, setUploadingImage] = useState(false);
 
   useEffect(() => {
     fetchColors();
@@ -44,47 +43,6 @@ const FinishEditor = ({ finish, onBack, onSave }) => {
 
   const handleChange = (field, value) => {
     setFormData(prev => ({ ...prev, [field]: value }));
-  };
-
-  const handleImageUpload = async (event) => {
-    const file = event.target.files?.[0];
-    if (!file) return;
-
-    setUploadingImage(true);
-    
-    try {
-      const formDataUpload = new FormData();
-      formDataUpload.append('file', file);
-      formDataUpload.append('subfolder', 'finishes');
-      
-      const response = await apiClient.post('/api/v1/admin/upload/image', formDataUpload, {
-        headers: { 'Content-Type': 'multipart/form-data' }
-      });
-      
-      const imageUrl = response.url;
-      handleChange('image_url', imageUrl);
-    } catch (error) {
-      console.error('Failed to upload image:', error);
-      alert('Failed to upload image');
-    } finally {
-      setUploadingImage(false);
-    }
-  };
-
-  const deleteImage = async () => {
-    if (!confirm('Delete this sample image?')) return;
-    
-    try {
-      if (formData.image_url) {
-        await apiClient.delete('/api/v1/admin/upload/image', {
-          data: { url: formData.image_url }
-        });
-      }
-      handleChange('image_url', '');
-    } catch (error) {
-      console.error('Failed to delete image:', error);
-      alert('Failed to delete image');
-    }
   };
 
   const handleSubmit = async (e) => {
@@ -106,13 +64,11 @@ const FinishEditor = ({ finish, onBack, onSave }) => {
     }
   };
 
-  const isUploading = uploadingImage;
-
   return (
     <AdminPage>
       <AdminPageHeader
         onBack={onBack}
-        backDisabled={saving || isUploading}
+        backDisabled={saving}
         backLabel="Back to Finishes"
         eyebrow="Materials & Options"
         title={finish ? `Edit: ${finish.name}` : 'Create Finish'}
@@ -257,54 +213,16 @@ const FinishEditor = ({ finish, onBack, onSave }) => {
               <h3 className="text-lg font-semibold text-dark-50 mb-4 pb-2 border-b border-dark-600">
                 Finish Sample
               </h3>
-              <div>
-                <label className="block text-sm font-medium text-dark-200 mb-2">
-                  Sample Image
-                </label>
-                {formData.image_url ? (
-                  <div className="relative group inline-block">
-                    <ResponsiveImage 
-                      sizes="192px"
-                      fullResolution={false}
-                      src={resolveImageUrl(formData.image_url)} 
-                      alt="Finish sample"
-                      className="w-48 h-32 object-cover rounded-lg border border-dark-600"
-                    />
-                    <button
-                      onClick={deleteImage}
-                      className="absolute top-2 right-2 p-2 bg-red-600 hover:bg-red-500 text-white rounded-lg transition-colors"
-                      type="button"
-                      title="Delete sample"
-                    >
-                      <X className="w-4 h-4" />
-                    </button>
-                  </div>
-                ) : (
-                  <label className="relative block">
-                    <input
-                      type="file"
-                      accept="image/*"
-                      onChange={handleImageUpload}
-                      className="sr-only"
-                      disabled={uploadingImage}
-                    />
-                    <div className={`flex flex-col items-center justify-center w-48 h-32 border-2 border-dashed border-dark-600 hover:border-primary-500 rounded-lg cursor-pointer transition-all ${uploadingImage ? 'opacity-50' : ''}`}>
-                      {uploadingImage ? (
-                        <>
-                          <div className="w-8 h-8 border-2 border-dark-600 border-t-primary-500 rounded-full animate-spin mb-2" />
-                          <span className="text-sm text-primary-400 font-medium">Uploading...</span>
-                        </>
-                      ) : (
-                        <>
-                          <Upload className="w-10 h-10 text-dark-500 mb-2" />
-                          <span className="text-sm text-dark-400">Upload sample</span>
-                          <span className="text-xs text-dark-500 mt-1">PNG, JPG</span>
-                        </>
-                      )}
-                    </div>
-                  </label>
-                )}
-              </div>
+              <ImagePickerField
+                label="Sample Image"
+                value={formData.image_url}
+                onChange={(url) => handleChange('image_url', url)}
+                subfolder="finishes"
+                previewClassName="h-32 w-48"
+                objectFit="cover"
+                disabled={saving}
+                libraryTitle="Choose finish sample"
+              />
             </div>
 
             {/* Pricing & Flags */}
@@ -378,17 +296,17 @@ const FinishEditor = ({ finish, onBack, onSave }) => {
           <Button
             type="button"
             onClick={onBack}
-            disabled={saving || isUploading}
+            disabled={saving}
             className="bg-dark-600 hover:bg-dark-500 text-dark-200 px-6 py-3"
           >
             Cancel
           </Button>
           <Button
             type="submit"
-            disabled={saving || isUploading || !formData.name}
+            disabled={saving || !formData.name}
             className="bg-primary-600 hover:bg-primary-500 px-6 py-3"
           >
-            {isUploading ? 'Uploading...' : saving ? 'Saving...' : finish ? 'Update Finish' : 'Create Finish'}
+            {saving ? 'Saving...' : finish ? 'Update Finish' : 'Create Finish'}
           </Button>
         </div>
       </form>

@@ -2,11 +2,10 @@ import { useState } from 'react';
 import Card from '../../ui/Card';
 import Button from '../../ui/Button';
 import apiClient from '../../../config/apiClient';
-import { resolveImageUrl } from '../../../utils/apiHelpers';
-import { uploadImage } from '../../../utils/imageUpload';
-import { Upload, X, ExternalLink } from 'lucide-react';
+import { ExternalLink } from 'lucide-react';
 import { AdminPage, AdminPageHeader } from '../ui/AdminPage';
 import { SUPPLIER_TYPE_OPTIONS } from './supplierLinkTypes';
+import ImagePickerField from '../media/ImagePickerField';
 
 const INPUT =
   'w-full px-4 py-2 bg-dark-700 border border-dark-600 rounded-lg text-dark-50 focus:border-primary-500 focus:ring-1 focus:ring-primary-500 outline-none transition-all';
@@ -36,25 +35,9 @@ const SupplierLinkEditor = ({ source, onBack, onSave }) => {
     is_active: source?.is_active !== false,
   });
   const [saving, setSaving] = useState(false);
-  const [uploading, setUploading] = useState(false);
   const [error, setError] = useState('');
 
   const handleChange = (field, value) => setFormData((prev) => ({ ...prev, [field]: value }));
-
-  const handleLogoUpload = async (event) => {
-    const file = event.target.files?.[0];
-    if (!file) return;
-    setUploading(true);
-    setError('');
-    try {
-      handleChange('logo_url', await uploadImage(file, 'suppliers'));
-    } catch (err) {
-      setError(err?.message || 'Failed to upload logo');
-    } finally {
-      setUploading(false);
-      event.target.value = '';
-    }
-  };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -81,7 +64,7 @@ const SupplierLinkEditor = ({ source, onBack, onSave }) => {
     }
   };
 
-  const busy = saving || uploading;
+  const busy = saving;
 
   return (
     <AdminPage width="default">
@@ -171,38 +154,24 @@ const SupplierLinkEditor = ({ source, onBack, onSave }) => {
               <p className="mt-1 text-xs text-dark-400">Shown next to the link on product and materials pages.</p>
             </div>
 
-            <div>
-              <label className={LABEL} htmlFor="supplier-logo">Logo (optional)</label>
-              <div className="flex flex-wrap items-center gap-3">
-                {formData.logo_url && (
-                  <div className="relative">
-                    <img
-                      src={resolveImageUrl(formData.logo_url)}
-                      alt=""
-                      className="h-14 w-28 rounded border border-dark-600 bg-white object-contain p-1"
-                    />
-                    <button
-                      type="button"
-                      onClick={() => handleChange('logo_url', '')}
-                      className="absolute -right-2 -top-2 rounded-full bg-red-600 p-1 text-white hover:bg-red-500"
-                      title="Remove logo"
-                    >
-                      <X className="h-3 w-3" />
-                    </button>
-                  </div>
-                )}
+            <div className="space-y-3">
+              <ImagePickerField
+                value={formData.logo_url}
+                onChange={(url) => handleChange('logo_url', url)}
+                subfolder="suppliers"
+                label="Logo (optional)"
+                previewClassName="h-24 w-56"
+                disabled={saving}
+              />
+              <div>
+                <label className="mb-1 block text-xs text-dark-300" htmlFor="supplier-logo">Or paste an image URL</label>
                 <input
                   id="supplier-logo"
                   value={formData.logo_url}
                   onChange={(e) => handleChange('logo_url', e.target.value)}
-                  className={`${INPUT} min-w-0 flex-1`}
-                  placeholder="Image URL, or upload"
+                  className={INPUT}
+                  placeholder="https://…"
                 />
-                <label className="inline-flex cursor-pointer items-center gap-2 rounded-lg border border-dark-600 px-3 py-2 text-sm text-dark-100 hover:bg-dark-700">
-                  <Upload className="h-4 w-4" />
-                  {uploading ? 'Uploading…' : 'Upload'}
-                  <input type="file" accept="image/*" className="hidden" onChange={handleLogoUpload} disabled={busy} />
-                </label>
               </div>
             </div>
 

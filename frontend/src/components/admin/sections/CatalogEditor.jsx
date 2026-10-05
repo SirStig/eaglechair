@@ -2,9 +2,8 @@ import { useState } from 'react';
 import Card from '../../ui/Card';
 import Button from '../../ui/Button';
 import apiClient from '../../../config/apiClient';
-import { resolveImageUrl } from '../../../utils/apiHelpers';
 import { Upload, X, FileText } from 'lucide-react';
-import ResponsiveImage from '../../ui/ResponsiveImage';
+import ImagePickerField from '../media/ImagePickerField';
 import { CATALOG_TYPE_OPTIONS } from '../../../utils/catalogTypes';
 import { AdminPage, AdminPageHeader } from '../ui/AdminPage';
 import PdfPreviewButton from '../../ui/PdfPreviewButton';
@@ -27,7 +26,6 @@ const CatalogEditor = ({ catalog, onBack, onSave }) => {
     thumbnail_url: catalog?.thumbnail_url || ''
   });
   const [saving, setSaving] = useState(false);
-  const [uploadingThumbnail, setUploadingThumbnail] = useState(false);
   const [selectedFile, setSelectedFile] = useState(null);
   const [filePreview, setFilePreview] = useState(null);
 
@@ -46,45 +44,6 @@ const CatalogEditor = ({ catalog, onBack, onSave }) => {
 
     setSelectedFile(file);
     setFilePreview(file.name);
-  };
-
-  const handleThumbnailUpload = async (event) => {
-    const file = event.target.files?.[0];
-    if (!file) return;
-
-    setUploadingThumbnail(true);
-    
-    try {
-      const formDataUpload = new FormData();
-      formDataUpload.append('file', file);
-      formDataUpload.append('subfolder', 'catalogs');
-      
-      const response = await apiClient.post('/api/v1/admin/upload/image', formDataUpload, {
-        headers: { 'Content-Type': 'multipart/form-data' }
-      });
-      
-      handleChange('thumbnail_url', response.url);
-    } catch (error) {
-      console.error('Failed to upload thumbnail:', error);
-      alert('Failed to upload thumbnail');
-    } finally {
-      setUploadingThumbnail(false);
-    }
-  };
-
-  const deleteThumbnail = async () => {
-    if (!confirm('Delete this thumbnail?')) return;
-    
-    try {
-      if (formData.thumbnail_url) {
-        await apiClient.delete('/api/v1/admin/upload/image', {
-          data: { url: formData.thumbnail_url }
-        });
-      }
-      handleChange('thumbnail_url', '');
-    } catch (error) {
-      console.error('Failed to delete thumbnail:', error);
-    }
   };
 
   const handleSubmit = async (e) => {
@@ -179,8 +138,6 @@ const CatalogEditor = ({ catalog, onBack, onSave }) => {
     }
   };
 
-  const isUploading = uploadingThumbnail;
-
   return (
     <AdminPage>
       <AdminPageHeader
@@ -188,7 +145,7 @@ const CatalogEditor = ({ catalog, onBack, onSave }) => {
         title={catalog ? `Edit: ${catalog.title}` : 'Create Catalog'}
         description={catalog ? 'Update catalog details and files' : 'Add a new virtual catalog or guide'}
         onBack={onBack}
-        backDisabled={saving || isUploading}
+        backDisabled={saving}
         backLabel="Back to Virtual Catalogs"
       />
 
@@ -345,54 +302,15 @@ const CatalogEditor = ({ catalog, onBack, onSave }) => {
               <h3 className="text-lg font-semibold text-dark-50 mb-4 pb-2 border-b border-dark-600">
                 Cover Image (Thumbnail)
               </h3>
-              <div>
-                <label className="block text-sm font-medium text-dark-200 mb-2">
-                  Thumbnail Image
-                </label>
-                {formData.thumbnail_url ? (
-                  <div className="relative group inline-block">
-                    <ResponsiveImage 
-                      sizes="192px"
-                      fullResolution={false}
-                      src={resolveImageUrl(formData.thumbnail_url)} 
-                      alt="Catalog thumbnail"
-                      className="w-48 h-32 object-cover rounded-lg border border-dark-600"
-                    />
-                    <button
-                      onClick={deleteThumbnail}
-                      className="absolute top-2 right-2 p-2 bg-red-600 hover:bg-red-500 text-white rounded-lg transition-colors"
-                      type="button"
-                      title="Delete thumbnail"
-                    >
-                      <X className="w-4 h-4" />
-                    </button>
-                  </div>
-                ) : (
-                  <label className="relative block">
-                    <input
-                      type="file"
-                      accept="image/*"
-                      onChange={handleThumbnailUpload}
-                      className="sr-only"
-                      disabled={uploadingThumbnail}
-                    />
-                    <div className={`flex flex-col items-center justify-center w-48 h-32 border-2 border-dashed border-dark-600 hover:border-primary-500 rounded-lg cursor-pointer transition-all ${uploadingThumbnail ? 'opacity-50' : ''}`}>
-                      {uploadingThumbnail ? (
-                        <>
-                          <div className="w-8 h-8 border-2 border-dark-600 border-t-primary-500 rounded-full animate-spin mb-2" />
-                          <span className="text-sm text-primary-400 font-medium">Uploading...</span>
-                        </>
-                      ) : (
-                        <>
-                          <Upload className="w-10 h-10 text-dark-500 mb-2" />
-                          <span className="text-sm text-dark-400">Upload thumbnail</span>
-                          <span className="text-xs text-dark-500 mt-1">PNG, JPG</span>
-                        </>
-                      )}
-                    </div>
-                  </label>
-                )}
-              </div>
+              <ImagePickerField
+                value={formData.thumbnail_url}
+                onChange={(url) => handleChange('thumbnail_url', url)}
+                subfolder="catalogs"
+                label="Thumbnail Image"
+                objectFit="cover"
+                previewClassName="w-48 h-32"
+                disabled={saving}
+              />
             </div>
 
             {/* Display Options */}
@@ -444,17 +362,17 @@ const CatalogEditor = ({ catalog, onBack, onSave }) => {
           <Button
             type="button"
             onClick={onBack}
-            disabled={saving || isUploading}
+            disabled={saving}
             className="bg-dark-600 hover:bg-dark-500 text-dark-200 px-6 py-3"
           >
             Cancel
           </Button>
           <Button
             type="submit"
-            disabled={saving || isUploading || !formData.title || (!catalog && !selectedFile && !formData.file_url)}
+            disabled={saving || !formData.title || (!catalog && !selectedFile && !formData.file_url)}
             className="bg-primary-600 hover:bg-primary-500 px-6 py-3"
           >
-            {isUploading ? 'Uploading...' : saving ? 'Saving...' : catalog ? 'Update Catalog' : 'Create Catalog'}
+            {saving ? 'Saving...' : catalog ? 'Update Catalog' : 'Create Catalog'}
           </Button>
         </div>
       </form>
