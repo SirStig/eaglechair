@@ -147,6 +147,57 @@ class TestCMSContentRoutes:
         assert response.status_code == 200
         data = response.json()
         assert len(data) >= 2
+
+    @pytest.mark.asyncio
+    async def test_get_sales_reps_includes_state_areas(
+        self,
+        async_client: AsyncClient,
+        db_session: AsyncSession
+    ):
+        """A rep covering only part of a state (e.g. Memphis) keeps that area."""
+        await create_sales_representative(
+            db_session,
+            name="Memphis Rep",
+            states_covered=["TN", "MS"],
+            state_areas={"TN": "Memphis"},
+            is_active=True
+        )
+        await create_sales_representative(db_session, name="Statewide Rep", is_active=True)
+
+        response = await async_client.get("/api/v1/content/sales-reps")
+
+        assert response.status_code == 200
+        reps = {rep["name"]: rep for rep in response.json()}
+        assert reps["Memphis Rep"]["stateAreas"] == {"TN": "Memphis"}
+        assert reps["Statewide Rep"]["stateAreas"] == {}
+
+    @pytest.mark.asyncio
+    async def test_ensure_sales_rep_areas_column_upgrades_existing_table(self, tmp_path):
+        """Startup adds state_areas to a sales_representatives table that predates it."""
+        from sqlalchemy import text
+        from sqlalchemy.ext.asyncio import create_async_engine
+
+        from backend.database.base import ensure_sales_rep_areas_column
+
+        engine = create_async_engine(f"sqlite+aiosqlite:///{tmp_path / 'legacy.db'}")
+        try:
+            async with engine.begin() as conn:
+                await conn.execute(
+                    text("CREATE TABLE sales_representatives (id INTEGER PRIMARY KEY, name TEXT)")
+                )
+                await conn.execute(text("INSERT INTO sales_representatives (id, name) VALUES (1, 'Rep')"))
+
+            assert await ensure_sales_rep_areas_column(engine) is True
+            # Idempotent
+            assert await ensure_sales_rep_areas_column(engine) is False
+
+            async with engine.connect() as conn:
+                area = (
+                    await conn.execute(text("SELECT state_areas FROM sales_representatives"))
+                ).scalar()
+            assert area is None
+        finally:
+            await engine.dispose()
     
     @pytest.mark.asyncio
     async def test_get_installations_success(
