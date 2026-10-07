@@ -19,11 +19,20 @@ import { ensureResolvedImageUrl, getImageRenditions } from '../../utils/apiHelpe
  * priority (use for the LCP image); `fullResolution` = 'auto' | true | false;
  * `placeholder={false}` skips the blurred stage (use where the image sizes
  * itself from its intrinsic width, since the placeholder is only 32px wide).
+ *
+ * Images already loaded this session (gallery thumbnails, back navigation,
+ * a card remounting) skip the blurred stage and start sharp.
  */
 
 const LAZY_ROOT_MARGIN = '300px';
 const BLUR_STYLE = { filter: 'blur(12px)' };
 const SHARP_STYLE = { filter: 'none', transition: 'filter 300ms ease-out' };
+
+// Stages reached this session. 'full' is the same file at any size, so it is
+// keyed by src alone; the sized pick depends on `sizes`, so it is keyed by both.
+const loadedFull = new Set();
+const loadedSized = new Set();
+const sizedKey = (src, sizes) => `${src}|${sizes || ''}`;
 
 const widthFromUrl = (url) => {
   const match = /\.w(\d+)\.webp(?:$|\?)/i.exec(url || '');
@@ -67,12 +76,19 @@ const ResponsiveImage = ({
 
   // placeholder -> sized -> full, or 'original' when renditions are missing.
   // Tied to the src it belongs to so a new src starts over in the same render.
-  const initialStage = !renditions ? 'original' : placeholder ? 'placeholder' : 'sized';
-  const [state, setState] = useState({ forSrc: resolvedSrc, stage: initialStage, stageSrc: resolvedSrc });
-  if (state.forSrc !== resolvedSrc) {
-    setState({ forSrc: resolvedSrc, stage: initialStage, stageSrc: resolvedSrc });
+  let initialStage = !renditions ? 'original' : placeholder ? 'placeholder' : 'sized';
+  let initialSrc = resolvedSrc;
+  if (renditions && loadedFull.has(resolvedSrc)) {
+    initialStage = 'full';
+    initialSrc = renditions.full;
+  } else if (renditions && loadedSized.has(sizedKey(resolvedSrc, sizes))) {
+    initialStage = 'sized';
   }
-  const current = state.forSrc === resolvedSrc ? state : { stage: initialStage, stageSrc: resolvedSrc };
+  const [state, setState] = useState({ forSrc: resolvedSrc, stage: initialStage, stageSrc: initialSrc });
+  if (state.forSrc !== resolvedSrc) {
+    setState({ forSrc: resolvedSrc, stage: initialStage, stageSrc: initialSrc });
+  }
+  const current = state.forSrc === resolvedSrc ? state : { stage: initialStage, stageSrc: initialSrc };
   const { stage, stageSrc } = current;
   const setStage = useCallback(
     (next, nextSrc) => setState((prev) => (
@@ -96,7 +112,10 @@ const ResponsiveImage = ({
         sizes,
         fetchPriority: priority ? 'high' : undefined,
       })
-        .then(() => { if (!cancelled) setStage('sized'); })
+        .then(() => {
+          loadedSized.add(sizedKey(resolvedSrc, sizes));
+          if (!cancelled) setStage('sized');
+        })
         .catch(() => { if (!cancelled) setStage('original'); });
     };
 
@@ -142,11 +161,12 @@ const ResponsiveImage = ({
       .then((pixels) => {
         if (fullResolution !== true && pixels && pixels < loadedWidth) return null;
         return preload({ src: renditions.full }).then(() => {
+          loadedFull.add(resolvedSrc);
           if (imgRef.current === el) setStage('full', renditions.full);
         });
       })
       .catch(() => { /* keep the sized rendition */ });
-  }, [renditions, fullResolution, setStage]);
+  }, [renditions, fullResolution, resolvedSrc, setStage]);
 
   const handleLoad = (e) => {
     if (stage === 'sized') maybeUpgrade();
