@@ -463,6 +463,7 @@ async def get_sales_reps(
             "territory": rep.territory_name,
             "statesCovered": rep.states_covered,
             "states": rep.states_covered,
+            "stateAreas": rep.state_areas or {},
             "email": rep.email,
             "phone": rep.phone,
             "photoUrl": rep.photo_url,

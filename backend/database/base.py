@@ -535,6 +535,48 @@ async def ensure_family_category_links(target_engine=None, conn=None) -> int:
     return added
 
 
+def _sales_rep_areas_column_missing(sync_conn) -> bool:
+    from sqlalchemy import inspect
+
+    inspector = inspect(sync_conn)
+    if "sales_representatives" not in inspector.get_table_names():
+        return False
+    return not any(
+        col["name"] == "state_areas" for col in inspector.get_columns("sales_representatives")
+    )
+
+
+def _add_sales_rep_areas_column(sync_conn) -> bool:
+    from sqlalchemy import text
+
+    if not _sales_rep_areas_column_missing(sync_conn):
+        return False
+    sync_conn.execute(text("ALTER TABLE sales_representatives ADD COLUMN state_areas JSON"))
+    return True
+
+
+async def ensure_sales_rep_areas_column(target_engine=None) -> bool:
+    """
+    Idempotently add sales_representatives.state_areas (partial-state
+    coverage, e.g. a rep who covers only Memphis, TN). Same approach as
+    ensure_admin_access_schema. Returns True if the column was added.
+    """
+    target_engine = target_engine or engine
+    added = False
+    try:
+        async with target_engine.begin() as conn:
+            added = await conn.run_sync(_add_sales_rep_areas_column)
+            if added:
+                logger.info("[DB] Added sales_representatives.state_areas")
+    except Exception as e:
+        # Another worker may have added it concurrently - re-check
+        async with target_engine.connect() as conn:
+            if await conn.run_sync(_sales_rep_areas_column_missing):
+                logger.error(f"[DB] Failed to add sales_representatives.state_areas: {e}")
+                raise
+    return added
+
+
 async def init_db() -> None:
     """
     Initialize database - create all tables
@@ -549,6 +591,7 @@ async def init_db() -> None:
     await ensure_product_option_columns()
     await ensure_admin_access_schema()
     await ensure_family_category_links()
+    await ensure_sales_rep_areas_column()
 
 
 async def close_db() -> None:

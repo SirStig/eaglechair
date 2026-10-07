@@ -20,6 +20,12 @@ const loadCmsAdmin = () => import('../services/cmsAdminService');
 
 const getRepStates = (rep) => rep.states_covered || rep.statesCovered || rep.states || [];
 const getRepTerritory = (rep) => rep.territoryName || rep.territory_name || rep.territory || '';
+// { TN: 'Memphis' } - states the rep covers only part of
+const getRepAreas = (rep) => rep.stateAreas || rep.state_areas || {};
+const formatCoverage = (rep, code) => {
+  const area = getRepAreas(rep)[code];
+  return area ? `${getStateName(code)} (${area} only)` : getStateName(code);
+};
 
 const FindARepPage = () => {
   const [selectedState, setSelectedState] = useState(null);
@@ -44,15 +50,28 @@ const FindARepPage = () => {
     };
   }, [siteSettings]);
 
-  // Get rep for selected/hovered state
-  const getRep = useCallback((stateCode) => {
-    if (!stateCode) return null;
-    return reps.find(rep => getRepStates(rep).includes(stateCode)) || houseRep;
+  // Everyone serving a state: reps limited to an area of it first (most
+  // specific), then the statewide rep - or the main office, which covers the
+  // rest of the state when no rep covers all of it
+  const getStateCoverage = useCallback((stateCode) => {
+    if (!stateCode) return [];
+    const covering = reps.filter(rep => getRepStates(rep).includes(stateCode));
+    const partial = covering
+      .filter(rep => getRepAreas(rep)[stateCode])
+      .map(rep => ({ rep, area: `${getRepAreas(rep)[stateCode]} only` }));
+    const statewide = covering.find(rep => !getRepAreas(rep)[stateCode]) || houseRep;
+    return [...partial, { rep: statewide, area: partial.length ? `Rest of ${getStateName(stateCode)}` : null }];
   }, [reps, houseRep]);
 
+  // For the map: a state is gold if any local rep covers it, even partly
+  const getRep = useCallback((stateCode) => {
+    if (!stateCode) return null;
+    return getStateCoverage(stateCode).find(entry => !entry.rep.isHouse)?.rep || houseRep;
+  }, [getStateCoverage, houseRep]);
+
   const activeState = selectedState || hoveredState;
-  const displayRep = getRep(activeState);
-  const selectedRep = getRep(selectedState);
+  const activeCoverage = getStateCoverage(activeState);
+  const selectedCoverage = getStateCoverage(selectedState);
 
   // Which territories people look up (clicks, not hovers)
   useEffect(() => {
@@ -66,14 +85,19 @@ const FindARepPage = () => {
     mapRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
   };
 
-  const repCard = displayRep && (
+  const renderRepCard = ({ rep: displayRep, area }) => (
     <m.div
-      key={displayRep.id}
+      key={`${displayRep.id}-${area || ''}`}
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
     >
       <Card>
         <div className="text-center mb-6">
+          {area && (
+            <p className="inline-block mb-3 px-3 py-1 rounded-full text-xs font-semibold bg-[#9a7426]/20 border border-[#9a7426]/60 text-primary-300">
+              {area}
+            </p>
+          )}
           <div className="w-24 h-24 bg-dark-700 border-2 border-primary-500 rounded-full mx-auto mb-4 flex items-center justify-center">
             <svg className="w-12 h-12 text-primary-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
@@ -116,8 +140,8 @@ const FindARepPage = () => {
               <p className="text-sm font-medium text-dark-100">Coverage Area</p>
               <p className="text-sm text-dark-200">
                 {displayRep.isHouse
-                  ? `${getStateName(activeState)} is served directly by our main office`
-                  : getRepStates(displayRep).map(getStateName).join(', ')}
+                  ? `${area || getStateName(activeState)} is served directly by our main office`
+                  : getRepStates(displayRep).map(code => formatCoverage(displayRep, code)).join(', ')}
               </p>
             </div>
           </div>
@@ -224,35 +248,38 @@ const FindARepPage = () => {
               {/* Selection summary – on mobile this is the quickest path to contact info */}
               <div className="mt-4 rounded-lg border border-dark-500 bg-dark-700/60 px-4 py-3" aria-live="polite">
                 {selectedState ? (
-                  <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-                    <div className="min-w-0">
-                      <p className="text-base font-semibold text-dark-50">{getStateName(selectedState)}</p>
-                      <p className="text-sm text-dark-100">
-                        {selectedRep.isHouse ? (
-                          'Served directly by our main office'
-                        ) : (
-                          <>Represented by <span className="text-primary-500 font-medium">{selectedRep.name}</span></>
-                        )}
-                      </p>
-                    </div>
-                    <div className="flex gap-2 lg:hidden">
-                      {selectedRep.phone && (
-                        <a
-                          href={`tel:${selectedRep.phone}`}
-                          className="flex-1 sm:flex-none text-center px-4 py-2 rounded-lg bg-primary-500 text-dark-900 font-semibold text-sm"
-                        >
-                          Call
-                        </a>
-                      )}
-                      {selectedRep.email && (
-                        <a
-                          href={`mailto:${selectedRep.email}`}
-                          className="flex-1 sm:flex-none text-center px-4 py-2 rounded-lg border border-primary-500 text-primary-500 font-semibold text-sm"
-                        >
-                          Email
-                        </a>
-                      )}
-                    </div>
+                  <div className="space-y-3">
+                    <p className="text-base font-semibold text-dark-50">{getStateName(selectedState)}</p>
+                    {selectedCoverage.map(({ rep, area }) => (
+                      <div key={`${rep.id}-${area || ''}`} className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+                        <p className="min-w-0 text-sm text-dark-100">
+                          {area && <span className="font-medium text-dark-50">{area}: </span>}
+                          {rep.isHouse ? (
+                            'Served directly by our main office'
+                          ) : (
+                            <>Represented by <span className="text-primary-500 font-medium">{rep.name}</span></>
+                          )}
+                        </p>
+                        <div className="flex gap-2 lg:hidden">
+                          {rep.phone && (
+                            <a
+                              href={`tel:${rep.phone}`}
+                              className="flex-1 sm:flex-none text-center px-4 py-2 rounded-lg bg-primary-500 text-dark-900 font-semibold text-sm"
+                            >
+                              Call
+                            </a>
+                          )}
+                          {rep.email && (
+                            <a
+                              href={`mailto:${rep.email}`}
+                              className="flex-1 sm:flex-none text-center px-4 py-2 rounded-lg border border-primary-500 text-primary-500 font-semibold text-sm"
+                            >
+                              Email
+                            </a>
+                          )}
+                        </div>
+                      </div>
+                    ))}
                   </div>
                 ) : (
                   <p className="text-center text-sm text-dark-100">
@@ -265,18 +292,23 @@ const FindARepPage = () => {
 
           {/* Rep Info Sidebar */}
           <div className="">
-            {displayRep?.isHouse ? (
-              repCard
-            ) : displayRep ? (
-              <EditableWrapper
-                id={`sales-rep-${displayRep.id}`}
-                type="sales-rep"
-                data={displayRep}
-                onSave={(newData) => handleUpdateRep(displayRep.id, newData)}
-                label={`Rep: ${displayRep.name}`}
-              >
-                {repCard}
-              </EditableWrapper>
+            {activeCoverage.length > 0 ? (
+              <div className="space-y-6">
+                {activeCoverage.map((entry) => (entry.rep.isHouse ? (
+                  renderRepCard(entry)
+                ) : (
+                  <EditableWrapper
+                    key={entry.rep.id}
+                    id={`sales-rep-${entry.rep.id}`}
+                    type="sales-rep"
+                    data={entry.rep}
+                    onSave={(newData) => handleUpdateRep(entry.rep.id, newData)}
+                    label={`Rep: ${entry.rep.name}`}
+                  >
+                    {renderRepCard(entry)}
+                  </EditableWrapper>
+                )))}
+              </div>
             ) : (
               <Card className="text-center py-12">
                 <svg className="w-16 h-16 text-dark-300 mx-auto mb-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -333,7 +365,7 @@ const FindARepPage = () => {
             }}
             renderItem={(rep) => {
               const states = getRepStates(rep);
-              const isActive = !selectedRep?.isHouse && selectedRep?.id === rep.id;
+              const isActive = selectedCoverage.some(entry => !entry.rep.isHouse && entry.rep.id === rep.id);
               return (
                 <Card
                   key={rep.id}
@@ -360,7 +392,7 @@ const FindARepPage = () => {
                               : 'bg-[#9a7426]/20 border-[#9a7426]/60 text-primary-300 hover:border-primary-500'
                           }`}
                         >
-                          {getStateName(code)}
+                          {formatCoverage(rep, code)}
                         </button>
                       </li>
                     ))}

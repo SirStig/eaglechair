@@ -627,6 +627,7 @@ class SalesRepresentativeResponse(BaseModel):
     territory: str
     statesCovered: list[str]
     states: list[str]
+    stateAreas: dict[str, str] = {}
     email: Optional[str]
     phone: Optional[str]
     photoUrl: Optional[str]

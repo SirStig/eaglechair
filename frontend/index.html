@@ -12,7 +12,12 @@
     
     <!-- Apple Touch Icon -->
     <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png" />
-    
+
+    <!-- Loading spinner's eagle (a CSS mask, which the browser only requests once
+         the spinner mounts, so it popped in after the ring). Mask images are
+         fetched in CORS mode, hence crossorigin, or the preload isn't reused. -->
+    <link rel="preload" as="image" href="/assets/eagle-mark.png" crossorigin="anonymous" fetchpriority="high" />
+
     <!-- Apple PWA -->
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />

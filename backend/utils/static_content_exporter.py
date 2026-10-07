@@ -502,6 +502,7 @@ async def _build_sales_reps(db: "AsyncSession") -> List[Dict[str, Any]]:
             "name": r.name,
             "territoryName": r.territory_name,
             "statesCovered": r.states_covered,
+            "stateAreas": r.state_areas or {},
             "email": r.email,
             "phone": r.phone,
             "photoUrl": r.photo_url,

@@ -457,6 +457,9 @@ class SalesRepresentative(Base):
     # Territory
     territory_name = Column(String(255), nullable=False)  # e.g., "Southwest Region"
     states_covered = Column(JSON, nullable=False)  # Array of state codes: ["TX", "OK", "AR", "NM", "AZ"]
+    # Optional {state code: area} for states the rep covers only part of,
+    # e.g. {"TN": "Memphis"}. States not listed are covered statewide.
+    state_areas = Column(JSON, nullable=True)
     
     # Additional contact
     mobile_phone = Column(String(20), nullable=True)

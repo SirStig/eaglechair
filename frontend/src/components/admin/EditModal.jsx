@@ -315,6 +315,8 @@ const EditModal = ({ isOpen, onClose, onSave, elementData, elementType, elementI
     const declared = schemaByKey[key]?.type;
     if (declared) return declared;
     if (elementType === 'sales-rep' && (key === 'states_covered' || key === 'statesCovered')) return 'states';
+    // Edited inside the states field
+    if (elementType === 'sales-rep' && (key === 'state_areas' || key === 'stateAreas')) return 'skip';
     if (Array.isArray(value)) return 'skip';
     if (IMAGE_FIELDS.has(key) || TYPE_IMAGE_FIELDS[elementType]?.has(key)) return 'image';
     if (URL_FIELD_PATTERN.test(key)) return 'url';
@@ -402,16 +404,33 @@ const EditModal = ({ isOpen, onClose, onSave, elementData, elementType, elementI
 
     const allStates = Object.values(statesByRegion).flat();
     const currentStates = formData[key] || [];
+    // Partial-state coverage, e.g. { TN: 'Memphis' }; a state without an
+    // entry is covered statewide
+    const areasKey = key === 'states_covered' ? 'state_areas' : 'stateAreas';
+    const currentAreas = formData[areasKey] || {};
+
+    // Areas only make sense for selected states
+    const setStates = (states) => {
+      setField(key, states);
+      const kept = Object.fromEntries(Object.entries(currentAreas).filter(([code]) => states.includes(code)));
+      if (Object.keys(kept).length !== Object.keys(currentAreas).length) setField(areasKey, kept);
+    };
 
     const toggleState = (stateCode) => {
-      const newStates = currentStates.includes(stateCode)
+      setStates(currentStates.includes(stateCode)
         ? currentStates.filter(s => s !== stateCode)
-        : [...currentStates, stateCode];
-      setField(key, newStates);
+        : [...currentStates, stateCode]);
     };
 
     const selectRegion = (states) => {
-      setField(key, states);
+      setStates(states);
+    };
+
+    const setArea = (stateCode, area) => {
+      const next = { ...currentAreas };
+      if (area) next[stateCode] = area;
+      else delete next[stateCode];
+      setField(areasKey, next);
     };
 
     return (
@@ -458,6 +477,34 @@ const EditModal = ({ isOpen, onClose, onSave, elementData, elementType, elementI
             )}
           </div>
         </div>
+
+        {/* Optional area per state, for reps who cover only part of one */}
+        {currentStates.length > 0 && (
+          <div className="bg-dark-700 p-3 rounded-lg space-y-2">
+            <div>
+              <h4 className="text-sm font-semibold text-dark-50">Covers only part of a state?</h4>
+              <p className="text-xs text-dark-200">
+                Enter the area (e.g. Memphis) to limit this rep to it. Leave blank to cover the whole state.
+              </p>
+            </div>
+            <div className="grid gap-2 sm:grid-cols-2 max-h-56 overflow-y-auto pr-1">
+              {[...currentStates].sort().map((stateCode) => (
+                <label key={stateCode} className="flex items-center gap-2">
+                  <span className="w-8 flex-shrink-0 text-xs font-semibold text-dark-100">{stateCode}</span>
+                  <input
+                    type="text"
+                    value={currentAreas[stateCode] ?? ''}
+                    onChange={(e) => setArea(stateCode, e.target.value)}
+                    placeholder="Whole state"
+                    maxLength={255}
+                    aria-label={`Area covered in ${stateCode}`}
+                    className={`${INPUT_CLASS} py-1.5 text-sm`}
+                  />
+                </label>
+              ))}
+            </div>
+          </div>
+        )}
 
         {/* State grid by region */}
         <div className="space-y-3 max-h-80 overflow-y-auto pr-2">

@@ -287,6 +287,18 @@ class HeroSlideUpdate(CMSUrlValidationMixin):
     is_active: bool | None = None
 
 
+def _clean_state_areas(value):
+    """Uppercase state codes, trim areas, drop blank ones (blank = whole state)."""
+    if not value:
+        return None
+    cleaned = {}
+    for state, area in value.items():
+        area = (area or "").strip()[:255]
+        if area:
+            cleaned[str(state).strip().upper()] = area
+    return cleaned or None
+
+
 class SalesRepCreate(CMSUrlValidationMixin):
     """Sales representative creation request"""
     name: str = Field(..., max_length=255)
@@ -294,6 +306,9 @@ class SalesRepCreate(CMSUrlValidationMixin):
     phone: str = Field(..., max_length=20)
     territory_name: str = Field(..., max_length=255, alias='territoryName')
     states_covered: List[str] = Field(..., min_length=1, alias='statesCovered')
+    state_areas: dict[str, str] | None = Field(None, alias='stateAreas')
+
+    _clean_areas = field_validator("state_areas", mode="after")(_clean_state_areas)
     title: str | None = Field(None, max_length=100)
     photo_url: str | None = Field(None, max_length=500, alias='photoUrl')
     bio: str | None = None
@@ -314,6 +329,9 @@ class SalesRepUpdate(CMSUrlValidationMixin):
     phone: str | None = Field(None, max_length=20)
     territory_name: str | None = Field(None, max_length=255, alias='territoryName')
     states_covered: List[str] | None = Field(None, alias='statesCovered')
+    state_areas: dict[str, str] | None = Field(None, alias='stateAreas')
+
+    _clean_areas = field_validator("state_areas", mode="after")(_clean_state_areas)
     title: str | None = Field(None, max_length=100)
     photo_url: str | None = Field(None, max_length=500, alias='photoUrl')
     bio: str | None = None
