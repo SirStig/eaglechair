@@ -19,6 +19,7 @@ const CONTEXT = 'FindARepPage';
 const loadCmsAdmin = () => import('../services/cmsAdminService');
 
 const getRepStates = (rep) => rep.states_covered || rep.statesCovered || rep.states || [];
+const getRepTerritory = (rep) => rep.territoryName || rep.territory_name || rep.territory || '';
 
 const FindARepPage = () => {
   const [selectedState, setSelectedState] = useState(null);
@@ -79,7 +80,7 @@ const FindARepPage = () => {
             </svg>
           </div>
           <h3 className="text-xl font-bold mb-1 text-dark-50">{displayRep.name}</h3>
-          {displayRep.isHouse && <p className="text-sm text-dark-100">{displayRep.territory}</p>}
+          {getRepTerritory(displayRep) && <p className="text-sm text-dark-100">{getRepTerritory(displayRep)}</p>}
         </div>
 
         <div className="space-y-4">
@@ -339,7 +340,10 @@ const FindARepPage = () => {
                   className={`hover:shadow-xl hover:border-primary-500 transition-all cursor-pointer ${isActive ? 'border-primary-500' : ''}`}
                   onClick={() => selectRepTerritory(rep)}
                 >
-                  <h3 className="text-lg font-semibold mb-3 text-dark-50">{rep.name}</h3>
+                  <h3 className={`text-lg font-semibold text-dark-50 ${getRepTerritory(rep) ? 'mb-1' : 'mb-3'}`}>{rep.name}</h3>
+                  {getRepTerritory(rep) && (
+                    <p className="text-sm text-dark-100 mb-3">{getRepTerritory(rep)}</p>
+                  )}
                   <ul className="flex flex-wrap gap-1.5 mb-3" aria-label={`States covered by ${rep.name}`}>
                     {states.map(code => (
                       <li key={code}>

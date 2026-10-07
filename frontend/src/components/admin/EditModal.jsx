@@ -114,6 +114,35 @@ const stableStringify = (value) => {
   }
 };
 
+// Label, help text, character counter and error message around one input.
+// Defined at module level: a component declared inside EditModal would be a
+// new type on every render, remounting the input and dropping focus after
+// each keystroke.
+const FieldShell = ({ def = {}, fieldError, value, inputId, label, children }) => {
+  const length = typeof value === 'string' ? value.length : 0;
+  return (
+    <div className="space-y-1.5">
+      <div className="flex items-baseline justify-between gap-3">
+        <label htmlFor={inputId} className="block text-sm font-medium text-dark-50">
+          {label}
+          {def.required && <span className="ml-0.5 text-red-400" aria-hidden="true">*</span>}
+        </label>
+        {def.maxLength && (
+          <span className={`text-xs tabular-nums ${length > def.maxLength ? 'text-amber-400' : 'text-dark-200'}`}>
+            {length}/{def.maxLength}
+          </span>
+        )}
+      </div>
+      {children}
+      {fieldError ? (
+        <p id={`${inputId}-error`} className="text-xs text-red-300">{fieldError}</p>
+      ) : def.help ? (
+        <p id={`${inputId}-help`} className="text-xs text-dark-200">{def.help}</p>
+      ) : null}
+    </div>
+  );
+};
+
 /**
  * EditModal Component
  *
@@ -477,35 +506,6 @@ const EditModal = ({ isOpen, onClose, onSave, elementData, elementType, elementI
     />
   );
 
-  // Label, help text, character counter and error message around one input
-  const FieldShell = ({ fieldKey, inputId, label, children }) => {
-    const def = schemaByKey[fieldKey] || {};
-    const fieldError = fieldErrors[fieldKey];
-    const value = formData[fieldKey];
-    const length = typeof value === 'string' ? value.length : 0;
-    return (
-      <div className="space-y-1.5">
-        <div className="flex items-baseline justify-between gap-3">
-          <label htmlFor={inputId} className="block text-sm font-medium text-dark-50">
-            {label}
-            {def.required && <span className="ml-0.5 text-red-400" aria-hidden="true">*</span>}
-          </label>
-          {def.maxLength && (
-            <span className={`text-xs tabular-nums ${length > def.maxLength ? 'text-amber-400' : 'text-dark-200'}`}>
-              {length}/{def.maxLength}
-            </span>
-          )}
-        </div>
-        {children}
-        {fieldError ? (
-          <p id={`${inputId}-error`} className="text-xs text-red-300">{fieldError}</p>
-        ) : def.help ? (
-          <p id={`${inputId}-help`} className="text-xs text-dark-200">{def.help}</p>
-        ) : null}
-      </div>
-    );
-  };
-
   const renderField = (key) => {
     const value = initialData[key];
     const fieldDef = schemaByKey[key] || {};
@@ -533,7 +533,7 @@ const EditModal = ({ isOpen, onClose, onSave, elementData, elementType, elementI
         return renderImageField(key, label);
       case 'url':
         return (
-          <FieldShell key={key} fieldKey={key} inputId={inputId} label={label}>
+          <FieldShell key={key} def={fieldDef} fieldError={fieldError} value={formData[key]} inputId={inputId} label={label}>
             <input
               {...common}
               type="text"
@@ -551,7 +551,7 @@ const EditModal = ({ isOpen, onClose, onSave, elementData, elementType, elementI
           ? [{ value: current, label: humanize(current) }, ...options]
           : options;
         return (
-          <FieldShell key={key} fieldKey={key} inputId={inputId} label={label}>
+          <FieldShell key={key} def={fieldDef} fieldError={fieldError} value={formData[key]} inputId={inputId} label={label}>
             <select {...common} value={current}>
               {(!fieldDef.required || !current) && (
                 <option value="">{fieldDef.required ? 'Select…' : 'Default'}</option>
@@ -588,14 +588,14 @@ const EditModal = ({ isOpen, onClose, onSave, elementData, elementType, elementI
         );
       case 'number':
         return (
-          <FieldShell key={key} fieldKey={key} inputId={inputId} label={label}>
+          <FieldShell key={key} def={fieldDef} fieldError={fieldError} value={formData[key]} inputId={inputId} label={label}>
             <input {...common} type="number" value={formData[key] ?? ''} className={`${common.className} sm:max-w-[10rem]`} />
           </FieldShell>
         );
       case 'textarea': {
         const rows = fieldDef.rows || (LONG_TEXT_FIELDS.has(key) ? 12 : 4);
         return (
-          <FieldShell key={key} fieldKey={key} inputId={inputId} label={label}>
+          <FieldShell key={key} def={fieldDef} fieldError={fieldError} value={formData[key]} inputId={inputId} label={label}>
             <textarea
               {...common}
               value={formData[key] ?? ''}
@@ -608,7 +608,7 @@ const EditModal = ({ isOpen, onClose, onSave, elementData, elementType, elementI
       case 'text':
       default:
         return (
-          <FieldShell key={key} fieldKey={key} inputId={inputId} label={label}>
+          <FieldShell key={key} def={fieldDef} fieldError={fieldError} value={formData[key]} inputId={inputId} label={label}>
             <input {...common} type="text" value={formData[key] ?? ''} />
           </FieldShell>
         );
