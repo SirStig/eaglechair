@@ -25,6 +25,7 @@ import {
   History,
   ShieldCheck,
   RotateCcw,
+  Images,
 } from 'lucide-react';
 
 /**
@@ -82,6 +83,7 @@ export const ADMIN_NAV = [
     items: [
       { id: 'catalog-builder', label: 'Catalog Builder', icon: BookOpen, path: '/admin/catalog-builder' },
       { id: 'catalogs', label: 'Virtual Catalogs', icon: Library, path: '/admin/resources/catalogs' },
+      { id: 'media', label: 'Media Library', icon: Images, path: '/admin/media' },
       { id: 'legal-documents', label: 'Legal Documents', icon: Scale, path: '/admin/legal-documents' },
     ],
   },

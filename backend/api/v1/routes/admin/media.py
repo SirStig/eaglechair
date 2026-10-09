@@ -56,7 +56,7 @@ async def list_images(
     used_by_type: str = Query("", max_length=100),
     sort: str = Query("newest", pattern=SORT_PATTERN),
     page: int = Query(1, ge=1),
-    page_size: int = Query(60, ge=1, le=200),
+    page_size: int = Query(50, ge=1, le=500),
     db: AsyncSession = Depends(get_db),
     current_admin=Depends(get_current_admin),
 ):
@@ -77,7 +77,7 @@ async def list_documents(
     used_by_type: str = Query("", max_length=100),
     sort: str = Query("newest", pattern=SORT_PATTERN),
     page: int = Query(1, ge=1),
-    page_size: int = Query(60, ge=1, le=200),
+    page_size: int = Query(50, ge=1, le=500),
     db: AsyncSession = Depends(get_db),
     current_admin=Depends(get_current_admin),
 ):

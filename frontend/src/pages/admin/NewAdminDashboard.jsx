@@ -41,6 +41,7 @@ import AdminManagement from '../../components/admin/sections/AdminManagement';
 import ActivityLog from '../../components/admin/sections/ActivityLog';
 import AccountSecurity from '../../components/admin/sections/AccountSecurity';
 import TimeMachine from '../../components/admin/sections/TimeMachine';
+import MediaManager from '../../components/admin/sections/MediaManager';
 import { useAdminPermissions } from '../../hooks/useAdminPermissions';
 import apiClient from '../../config/apiClient';
 
@@ -214,6 +215,8 @@ const NewAdminDashboardInner = () => {
         return <LaminateManagement />;
       case 'supplier-links':
         return <SupplierLinkManagement />;
+      case 'media':
+        return <MediaManager />;
       case 'catalogs':
         return <CatalogManagement />;
       case 'register':
