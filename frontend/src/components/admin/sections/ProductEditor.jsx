@@ -272,8 +272,18 @@ const ProductEditor = ({ product, onBack }) => {
 
   const fetchUpholsteries = async () => {
     try {
-      const response = await apiClient.get('/api/v1/admin/upholsteries');
-      setUpholsteries(response.items || []);
+      // Endpoint paginates (default 50), so ask for the whole list
+      const response = await apiClient.get('/api/v1/admin/upholsteries?page_size=500');
+      // Active only, plus any inactive ones this product already uses so they don't vanish
+      const inUse = new Set([
+        ...(product?.available_upholsteries || []),
+        ...(product?.variations || []).map((v) => v.upholstery_id).filter(Boolean),
+      ]);
+      setUpholsteries(
+        (response.items || [])
+          .filter((u) => u.is_active || inUse.has(u.id))
+          .map((u) => (u.is_active ? u : { ...u, name: `${u.name} (inactive)` }))
+      );
     } catch (error) {
       console.error('Failed to fetch upholsteries:', error);
       setUpholsteries([]);
