@@ -39,14 +39,14 @@ const ASPECTS = [
 const CANVAS_ASPECTS = ASPECTS.filter((a) => a.id !== 'original').map((a) => (a.id === 'free' ? { ...a, label: 'Fit' } : a));
 
 const ADJUST_SLIDERS = [
-  { key: 'brightness', label: 'Brightness', min: -100, max: 100 },
-  { key: 'contrast', label: 'Contrast', min: -100, max: 100 },
-  { key: 'exposure', label: 'Exposure', min: -100, max: 100 },
-  { key: 'highlights', label: 'Highlights', min: -100, max: 100 },
-  { key: 'shadows', label: 'Shadows', min: -100, max: 100 },
-  { key: 'saturation', label: 'Saturation', min: -100, max: 100 },
-  { key: 'warmth', label: 'Warmth', min: -100, max: 100 },
-  { key: 'sharpen', label: 'Sharpen', min: 0, max: 100 },
+  { field: 'brightness', label: 'Brightness', min: -100, max: 100 },
+  { field: 'contrast', label: 'Contrast', min: -100, max: 100 },
+  { field: 'exposure', label: 'Exposure', min: -100, max: 100 },
+  { field: 'highlights', label: 'Highlights', min: -100, max: 100 },
+  { field: 'shadows', label: 'Shadows', min: -100, max: 100 },
+  { field: 'saturation', label: 'Saturation', min: -100, max: 100 },
+  { field: 'warmth', label: 'Warmth', min: -100, max: 100 },
+  { field: 'sharpen', label: 'Sharpen', min: 0, max: 100 },
 ];
 
 const PRESETS = [
@@ -599,7 +599,7 @@ export default function ImageEditor({ isOpen, onClose, url, filename, folder = '
         </Section>
         <Section title="Light & colour" hint="Double-click a slider to reset it.">
           {ADJUST_SLIDERS.map((s) => (
-            <Slider key={s.key} {...s} value={adjust[s.key]} onChange={(v) => setAdjust((a) => ({ ...a, [s.key]: v }))} />
+            <Slider key={s.field} label={s.label} min={s.min} max={s.max} value={adjust[s.field]} onChange={(v) => setAdjust((a) => ({ ...a, [s.field]: v }))} />
           ))}
           <div className="flex gap-1.5 pt-1">
             <Chip active={adjust.grayscale} onClick={() => setAdjust((a) => ({ ...a, grayscale: !a.grayscale }))}>Black & white</Chip>

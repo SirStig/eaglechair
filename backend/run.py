@@ -25,7 +25,7 @@ if __name__ == "__main__":
         "reload_dirs": ["backend"] if settings.RELOAD else None,
         "log_level": settings.LOG_LEVEL.lower(),
         "access_log": True,
-        "limit_max_requests": 0,  # No request limit
+        "limit_max_requests": None,  # No request limit (0 would mean "exit after 0 requests")
         "timeout_keep_alive": 900,  # 15 minutes for large PDF uploads
         "timeout_graceful_shutdown": 30,  # Graceful shutdown timeout
     }
