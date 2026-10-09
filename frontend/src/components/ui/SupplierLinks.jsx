@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { resolveImageUrl } from '../../utils/apiHelpers';
+import { readSupplier } from '../../utils/productOptions';
 
 const ArrowIcon = ({ className = 'h-4 w-4' }) => (
   <svg className={`${className} flex-shrink-0`} fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
@@ -7,14 +8,6 @@ const ArrowIcon = ({ className = 'h-4 w-4' }) => (
   </svg>
 );
 
-// Accepts both product-API (snake_case) and contentData (camelCase) shapes
-const read = (source) => ({
-  id: source.id,
-  name: source.name,
-  url: source.url,
-  description: source.description,
-  logoUrl: source.logoUrl ?? source.logo_url,
-});
 
 const siteIcon = (url) => {
   try {
@@ -24,15 +17,21 @@ const siteIcon = (url) => {
   }
 };
 
+const ICON_BOXES = {
+  sm: 'h-8 w-8 rounded-lg',
+  lg: 'h-11 w-11 rounded-xl',
+};
+
 /**
  * Supplier mark: the logo uploaded in the admin, else the supplier site's own
- * icon, else a letter badge if that can't be loaded.
+ * icon, else a letter badge if that can't be loaded. `box` overrides the
+ * size/shape classes (e.g. to match a swatch).
  */
-function SupplierIcon({ source, size }) {
+export function SupplierIcon({ source, size = 'sm', box: boxClass }) {
   const candidates = [source.logoUrl && resolveImageUrl(source.logoUrl), siteIcon(source.url)].filter(Boolean);
   const [attempt, setAttempt] = useState(0);
   const src = candidates[attempt];
-  const box = size === 'lg' ? 'h-11 w-11 rounded-xl' : 'h-8 w-8 rounded-lg';
+  const box = boxClass || ICON_BOXES[size] || ICON_BOXES.sm;
 
   return (
     <span className={`${box} flex shrink-0 items-center justify-center overflow-hidden border border-cream-200 bg-white`}>
@@ -64,7 +63,7 @@ function SupplierIcon({ source, size }) {
  * through the data-track-* attributes.
  */
 export default function SupplierLinks({ sources, variant = 'inline', title, productId, className = '' }) {
-  const items = (sources || []).map(read).filter((s) => s.url);
+  const items = (sources || []).map(readSupplier).filter((s) => s.url);
   if (items.length === 0) return null;
 
   const tile = (s, large) => (

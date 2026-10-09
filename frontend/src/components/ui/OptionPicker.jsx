@@ -1,7 +1,8 @@
 import { useState, useRef, useEffect, useLayoutEffect, useMemo, useId } from 'react';
 import { AnimatePresence, m } from 'framer-motion';
 import SwatchImage from './SwatchImage';
-import SupplierLinks from './SupplierLinks';
+import SupplierLinks, { SupplierIcon } from './SupplierLinks';
+import { readSupplier } from '../../utils/productOptions';
 
 // Above this many options a section gets a filter box
 const SEARCH_THRESHOLD = 20;
@@ -23,6 +24,16 @@ const Chevron = ({ className = '' }) => (
   </svg>
 );
 
+const ExternalBadge = () => (
+  <span className="absolute -top-0.5 -right-0.5 flex h-4 w-4 items-center justify-center rounded-full bg-primary-600 text-white shadow-sm">
+    <svg className="h-2.5 w-2.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
+      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M7 17L17 7M9 7h8v8" />
+    </svg>
+  </span>
+);
+
+const suppliersOf = (section) => (section.sources || []).map(readSupplier).filter((s) => s.url);
+
 const Arrow = ({ dir }) => (
   <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d={dir === 'left' ? 'M15 19l-7-7 7-7' : 'M9 5l7 7-7 7'} />
@@ -32,7 +43,7 @@ const Arrow = ({ dir }) => (
 /**
  * Two-row horizontal swatch strip with smooth scrolling and edge arrows.
  */
-const SwatchStrip = ({ section, compact }) => {
+const SwatchStrip = ({ section, compact, productId }) => {
   const scrollerRef = useRef(null);
   const [query, setQuery] = useState('');
   const [edges, setEdges] = useState({ left: false, right: false });
@@ -81,7 +92,9 @@ const SwatchStrip = ({ section, compact }) => {
   // Short lists stay on one row instead of splitting into two half-empty rows
   // "None" leads the strip unless the customer is filtering
   const showNone = !query.trim();
-  const rows = filtered.length + (showNone ? 1 : 0) <= 4 ? 'grid-rows-1' : 'grid-rows-2';
+  // Supplier catalogs sit right after "None" as link icons (hidden while filtering)
+  const suppliers = showNone ? suppliersOf(section) : [];
+  const rows = filtered.length + suppliers.length + (showNone ? 1 : 0) <= 4 ? 'grid-rows-1' : 'grid-rows-2';
   const noneDot = compact ? 'w-8 h-8 sm:w-10 sm:h-10' : 'w-10 h-10 sm:w-12 sm:h-12';
 
   return (
@@ -130,6 +143,26 @@ const SwatchStrip = ({ section, compact }) => {
                 <span className="text-[11px] leading-tight font-medium line-clamp-2 break-words w-full">None</span>
               </button>
             )}
+            {suppliers.map((s) => (
+              <a
+                key={`supplier-${s.id ?? s.name}`}
+                href={s.url}
+                target="_blank"
+                rel="noopener noreferrer"
+                data-track-type="supplier_link"
+                data-track-label={`${s.name} supplier catalog`}
+                data-track-product={productId || undefined}
+                title={s.description ? `${s.name}: ${s.description}` : `Browse ${s.name}'s catalog`}
+                aria-label={`Special order from ${s.name} (opens their website in a new tab)`}
+                className={`${itemWidth} snap-start flex flex-col items-center gap-1.5 p-1.5 rounded-lg border-2 border-dashed border-cream-300 bg-white text-slate-700 hover:border-primary-400 hover:text-primary-800 transition-colors text-center`}
+              >
+                <span className="relative">
+                  <SupplierIcon source={s} box={`${noneDot} rounded-full`} />
+                  <ExternalBadge />
+                </span>
+                <span className="text-[11px] leading-tight font-medium line-clamp-2 break-words w-full">{s.name}</span>
+              </a>
+            ))}
             {filtered.map((opt, idx) => {
               const selected = isSame(section.selected, opt);
               return (
@@ -207,10 +240,14 @@ const OptionPicker = ({ sections, compact = false, className = '', productId }) 
         const selected = section.selected ? normalize(section.selected) : null;
         const panelId = `${baseId}-${section.key}`;
         const optionCount = section.options?.length || 0;
-        const supplierNames = (section.sources || []).map((src) => src.name).join(', ');
+        const suppliers = suppliersOf(section);
+        // Name one or two suppliers; past that the logos carry it and the text just counts
+        const supplierText = suppliers.length <= 2
+          ? suppliers.map((src) => src.name).join(' & ')
+          : `${suppliers.length} supplier catalogs`;
         let subtitle = `${optionCount} option${optionCount === 1 ? '' : 's'}`;
-        if (supplierNames) {
-          subtitle = optionCount ? `${subtitle} · or special order from ${supplierNames}` : `Special order from ${supplierNames}`;
+        if (suppliers.length) {
+          subtitle = optionCount ? `${subtitle} · or special order from ${supplierText}` : `Special order from ${supplierText}`;
         }
         return (
           <div key={section.key} className={compact ? 'px-3' : 'px-3 sm:px-4'}>
@@ -221,11 +258,22 @@ const OptionPicker = ({ sections, compact = false, className = '', productId }) 
               onClick={() => setOpenKey(isOpen ? null : section.key)}
               className={`w-full flex items-center gap-3 text-left ${compact ? 'py-2' : 'py-3'}`}
             >
-              <span className="flex-shrink-0">
+              <span className="min-w-0 flex-1">
                 <span className="block text-sm font-medium text-slate-800">{section.label}</span>
-                <span className="block text-xs text-slate-500">{subtitle}</span>
+                <span className="flex min-w-0 items-center gap-1.5 text-xs text-slate-500">
+                  {suppliers.length > 0 && (
+                    <span className="flex flex-shrink-0 -space-x-1.5" aria-hidden="true">
+                      {suppliers.slice(0, 4).map((src) => (
+                        <SupplierIcon key={src.id ?? src.name} source={src} box="h-5 w-5 rounded-full ring-2 ring-cream-50" />
+                      ))}
+                    </span>
+                  )}
+                  <span className="truncate" title={suppliers.length > 2 ? suppliers.map((src) => src.name).join(', ') : undefined}>
+                    {subtitle}
+                  </span>
+                </span>
               </span>
-              <span className="ml-auto flex items-center gap-2 min-w-0">
+              <span className="ml-auto flex max-w-[50%] flex-shrink-0 items-center gap-2 min-w-0">
                 {selected ? (
                   <>
                     <span className="text-sm text-slate-700 truncate">{selected.name}</span>
@@ -250,14 +298,18 @@ const OptionPicker = ({ sections, compact = false, className = '', productId }) 
                   className="overflow-hidden"
                 >
                   <div className="pb-3 -mt-1">
-                    {optionCount > 0 && <SwatchStrip section={section} compact={compact} />}
-                    {section.sources?.length > 0 && (
-                      <SupplierLinks
-                        sources={section.sources}
-                        productId={productId}
-                        className={optionCount > 0 ? 'mt-3' : 'mt-2'}
-                        title={optionCount > 0 ? 'Or special order' : 'Special order'}
-                      />
+                    {optionCount > 0 ? (
+                      <>
+                        <SwatchStrip section={section} compact={compact} productId={productId} />
+                        {suppliers.length > 0 && (
+                          <p className="mt-2 text-xs text-slate-500">
+                            Dashed icons open supplier catalogs we special order from. Note the pattern name/number in
+                            your quote request.
+                          </p>
+                        )}
+                      </>
+                    ) : (
+                      <SupplierLinks sources={section.sources} productId={productId} className="mt-2" title="Special order" />
                     )}
                   </div>
                 </m.div>

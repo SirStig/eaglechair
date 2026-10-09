@@ -41,3 +41,12 @@ export function sourcesFor(product, variation, type) {
 export function hasAnySources(product, variation) {
   return ['laminate', 'upholstery', 'finish', 'hardware', 'other'].some((t) => sourcesFor(product, variation, t)?.length);
 }
+
+// Supplier link in either product-API (snake_case) or contentData (camelCase) shape
+export const readSupplier = (source) => ({
+  id: source.id,
+  name: source.name,
+  url: source.url,
+  description: source.description,
+  logoUrl: source.logoUrl ?? source.logo_url,
+});
