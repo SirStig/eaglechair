@@ -25,6 +25,7 @@ from backend.api.v1.routes.admin import (
     finishes,
     inquiries,
     material_sources,
+    media,
     pricing_tiers,
     products,
     quotes,
@@ -80,6 +81,7 @@ router.include_router(catalog.router, prefix="/catalog", tags=["Admin - Catalog"
 router.include_router(categories.router, prefix="/categories", tags=["Admin - Categories"])
 router.include_router(pricing_tiers.router, prefix="/pricing-tiers", tags=["Admin - Pricing Tiers"])
 router.include_router(upload.router, prefix="/upload", tags=["Admin - Upload"])
+router.include_router(media.router, prefix="/media", tags=["Admin - Media Library"])
 router.include_router(catalog_builder.router, prefix="/catalog-builder", tags=["Admin - Catalog Builder"])
 router.include_router(exports.router, prefix="/exports", tags=["Admin - Exports"])
 router.include_router(register.router, prefix="/register", tags=["Admin - Product Register"])

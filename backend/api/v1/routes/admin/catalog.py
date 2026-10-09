@@ -74,6 +74,18 @@ CATALOG_THUMBNAIL_MIME_EXTENSIONS = {
 router = APIRouter(tags=["Admin - Catalog"])
 
 
+def _library_file_info(file_url: str) -> tuple[Optional[int], str]:
+    """(size on disk or None, catalog file_type) for a document picked from the library."""
+    from backend.api.v1.routes.admin.upload import UPLOAD_BASE_DIR
+    from backend.services.document_library_service import resolve_document_path
+
+    path = resolve_document_path(file_url, UPLOAD_BASE_DIR)
+    size = path.stat().st_size if path and path.is_file() else None
+    lower = file_url.lower().split("?", 1)[0]
+    file_type = "PDF" if lower.endswith(".pdf") else "ZIP" if lower.endswith(".zip") else "DOCUMENT"
+    return size, file_type
+
+
 class ReorderItem(BaseModel):
     id: int
     display_order: int
@@ -1491,6 +1503,9 @@ async def create_catalog(
     if not final_file_url:
         raise HTTPException(status_code=400, detail="Either file upload or file_url is required")
     
+    if not file and final_file_url:
+        file_size, file_type = _library_file_info(final_file_url)
+
     if not file_type:
         # Infer from file_url extension
         if final_file_url.lower().endswith('.pdf'):
@@ -1637,8 +1652,9 @@ async def update_catalog(
         catalog.file_size = len(content)
         catalog.file_type = "PDF"
         logger.info(f"PDF updated: {catalog.file_url}")
-    elif file_url is not None:
+    elif file_url is not None and file_url != catalog.file_url:
         catalog.file_url = file_url
+        catalog.file_size, catalog.file_type = _library_file_info(file_url)
     
     # Handle thumbnail - either from file upload or URL
     if thumbnail:

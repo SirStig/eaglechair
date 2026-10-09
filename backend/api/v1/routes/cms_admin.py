@@ -287,6 +287,11 @@ class HeroSlideUpdate(CMSUrlValidationMixin):
     is_active: bool | None = None
 
 
+class HeroSlideReorder(BaseModel):
+    """Hero slide ids in their new carousel order"""
+    slide_ids: List[int] = Field(..., min_length=1, max_length=200)
+
+
 def _clean_state_areas(value):
     """Uppercase state codes, trim areas, drop blank ones (blank = whole state)."""
     if not value:
@@ -446,6 +451,29 @@ async def create_hero_slide(
         raise
     except Exception:
         raise _internal_error("create hero slide")
+
+
+@router.post(
+    "/hero-slides/reorder",
+    response_model=CMSWriteResponse,
+    summary="Reorder hero slides",
+    description="Set the carousel order of hero slides in one save and export"
+)
+async def reorder_hero_slides(
+    body: HeroSlideReorder,
+    db: AsyncSession = Depends(get_db),
+    admin: Company = Depends(get_current_admin)
+):
+    """Reorder hero slides and export to static file."""
+    logger.info(f"Admin {admin.id} reordering hero slides: {body.slide_ids}")
+
+    try:
+        exported = await CMSAdminService.reorder_hero_slides(db, body.slide_ids)
+        return _write_response("Hero slides reordered", exported)
+    except (HTTPException, EagleChairException):
+        raise
+    except Exception:
+        raise _internal_error("reorder hero slides")
 
 
 @router.put(

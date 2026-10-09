@@ -3,13 +3,12 @@ import { Link } from 'react-router-dom';
 import Card from '../../ui/Card';
 import Button from '../../ui/Button';
 import apiClient from '../../../config/apiClient';
-import { resolveImageUrl, resolveFileUrl } from '../../../utils/apiHelpers';
+import { resolveImageUrl } from '../../../utils/apiHelpers';
 import { slugify } from '../../../utils/slugify';
-import { FileText, Upload, X } from 'lucide-react';
 import { AdminPage, AdminPageHeader } from '../ui/AdminPage';
 import ResponsiveImage from '../../ui/ResponsiveImage';
-import PdfPreviewButton from '../../ui/PdfPreviewButton';
 import ImagePickerField from '../media/ImagePickerField';
+import DocumentPickerField from '../media/DocumentPickerField';
 import CategoryAssignmentFields from './CategoryAssignmentFields';
 import { withPrimary } from './categoryAssignment';
 
@@ -35,7 +34,6 @@ const FamilyEditor = ({ family, onBack, onSave }) => {
     is_featured: family?.is_featured === true
   });
   const [saving, setSaving] = useState(false);
-  const [uploadingPdf, setUploadingPdf] = useState(false);
   const [members, setMembers] = useState(null);
 
   useEffect(() => {
@@ -58,32 +56,6 @@ const FamilyEditor = ({ family, onBack, onSave }) => {
       return next;
     });
   };
-
-  const handlePdfUpload = async (event) => {
-    const file = event.target.files?.[0];
-    if (!file) return;
-    if (!file.name.toLowerCase().endsWith('.pdf')) {
-      alert('Please select a PDF file');
-      return;
-    }
-    setUploadingPdf(true);
-    try {
-      const formDataUpload = new FormData();
-      formDataUpload.append('file', file);
-      formDataUpload.append('subfolder', 'product-families');
-      const response = await apiClient.post('/api/v1/admin/upload/document', formDataUpload, {
-        headers: { 'Content-Type': 'multipart/form-data' }
-      });
-      handleChange('catalog_pdf_url', response.url);
-    } catch (error) {
-      console.error('Failed to upload PDF:', error);
-      alert(error.response?.data?.detail || 'Failed to upload PDF');
-    } finally {
-      setUploadingPdf(false);
-    }
-  };
-
-  const isUploading = uploadingPdf;
 
   const renderImageControl = (field, label) => (
     <ImagePickerField
@@ -209,7 +181,7 @@ const FamilyEditor = ({ family, onBack, onSave }) => {
         title={family ? `Edit ${family.name}` : 'New Product Family'}
         description={family ? 'Update family details and images' : 'Add a new product family'}
         onBack={onBack}
-        backDisabled={saving || isUploading}
+        backDisabled={saving}
         backLabel="Back to Product Families"
       />
 
@@ -297,57 +269,15 @@ const FamilyEditor = ({ family, onBack, onSave }) => {
               <h3 className="text-lg font-semibold text-dark-50 mb-4 pb-2 border-b border-dark-600">
                 Product Family Catalog PDF
               </h3>
-              <label className="block text-sm font-medium text-dark-200 mb-2">
-                Catalog PDF (optional)
-              </label>
-              {formData.catalog_pdf_url ? (
-                <div className="flex items-center gap-3 p-4 bg-dark-700 border border-dark-600 rounded-lg">
-                  <FileText className="w-8 h-8 text-primary-500 flex-shrink-0" />
-                  <div className="flex-1 min-w-0">
-                    <a
-                      href={resolveFileUrl(formData.catalog_pdf_url)}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="text-primary-400 hover:text-primary-300 truncate block"
-                    >
-                      View catalog PDF
-                    </a>
-                  </div>
-                  <PdfPreviewButton variant="pill" url={formData.catalog_pdf_url} title={`${formData.name || 'Family'} catalog`} />
-                  <button
-                    type="button"
-                    onClick={() => handleChange('catalog_pdf_url', '')}
-                    className="p-2 bg-red-600/20 hover:bg-red-600/40 text-red-400 rounded-lg transition-colors"
-                    title="Remove PDF"
-                  >
-                    <X className="w-4 h-4" />
-                  </button>
-                </div>
-              ) : (
-                <label className="relative block">
-                  <input
-                    type="file"
-                    accept=".pdf,application/pdf"
-                    onChange={handlePdfUpload}
-                    className="sr-only"
-                    disabled={uploadingPdf}
-                  />
-                  <div className={`flex flex-col items-center justify-center border-2 border-dashed border-dark-600 hover:border-primary-500 rounded-lg cursor-pointer transition-all h-32 ${uploadingPdf ? 'opacity-50' : ''}`}>
-                    {uploadingPdf ? (
-                      <>
-                        <div className="w-8 h-8 border-2 border-dark-600 border-t-primary-500 rounded-full animate-spin mb-2" />
-                        <span className="text-sm text-primary-400 font-medium">Uploading PDF...</span>
-                      </>
-                    ) : (
-                      <>
-                        <Upload className="w-10 h-10 text-dark-500 mb-2" />
-                        <span className="text-sm text-dark-400">Click to upload catalog PDF</span>
-                        <span className="text-xs text-dark-500 mt-1">PDF up to 1GB</span>
-                      </>
-                    )}
-                  </div>
-                </label>
-              )}
+              <DocumentPickerField
+                value={formData.catalog_pdf_url}
+                onChange={(url) => handleChange('catalog_pdf_url', url)}
+                subfolder="product-families"
+                label="Catalog PDF (optional)"
+                libraryTitle="Choose the family catalog PDF"
+                previewTitle={`${formData.name || 'Family'} catalog`}
+                disabled={saving}
+              />
             </div>
 
             {/* Categories */}
@@ -410,17 +340,17 @@ const FamilyEditor = ({ family, onBack, onSave }) => {
           <Button
             type="button"
             onClick={onBack}
-            disabled={saving || isUploading}
+            disabled={saving}
             className="bg-dark-600 hover:bg-dark-500 text-dark-200 px-6 py-3"
           >
             Cancel
           </Button>
           <Button
             type="submit"
-            disabled={saving || isUploading || !formData.name || !formData.slug}
+            disabled={saving || !formData.name || !formData.slug}
             className="bg-primary-600 hover:bg-primary-500 px-6 py-3"
           >
-            {isUploading ? 'Uploading...' : saving ? 'Saving...' : family ? 'Update Family' : 'Create Family'}
+            {saving ? 'Saving...' : family ? 'Update Family' : 'Create Family'}
           </Button>
         </div>
       </form>

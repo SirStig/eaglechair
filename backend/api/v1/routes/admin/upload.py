@@ -6,6 +6,7 @@ Handles file uploads (images, documents, etc.)
 
 import logging
 import mimetypes
+import re
 import secrets
 import time
 from pathlib import Path
@@ -18,7 +19,7 @@ from starlette.concurrency import run_in_threadpool
 from backend.api.dependencies import get_current_admin
 from backend.core.config import settings
 from backend.database.base import get_db
-from backend.services import media_library_service, media_service
+from backend.services import document_library_service, media_library_service, media_service
 
 logger = logging.getLogger(__name__)
 
@@ -179,6 +180,100 @@ def unique_stem(base_name: str) -> str:
     return f"{base_name}_{int(time.time())}_{secrets.token_hex(3)}"
 
 
+def stored_base_name(filename: str) -> str:
+    """Upload base name: the original name without extension, path or unsafe characters."""
+    base_name = Path(sanitize_filename(filename or "file")).stem
+    # Drop the timestamp / random suffix an earlier upload added (replacing keeps the name tidy)
+    base_name = re.sub(r"(_\d{9,11})(_[0-9a-f]{6})?$", "", base_name)
+    return "".join(c for c in base_name if c.isalnum() or c in "-_") or "file"
+
+
+async def store_uploaded_image(
+    content: bytes, filename: str, content_type: str | None, subfolder: str, base_name: str | None = None
+) -> tuple[str, int]:
+    """
+    Validate an image upload and store it (full-resolution original plus
+    renditions) under images/<subfolder> with a unique name.
+    Returns (url, bytes written). Raises HTTPException(400) for bad input.
+    """
+    if len(content) < 1:
+        raise HTTPException(status_code=400, detail="File is empty")
+    if len(content) > MAX_FILE_SIZE:
+        raise HTTPException(
+            status_code=400,
+            detail=f"File too large. Maximum size: {MAX_FILE_SIZE / 1024 / 1024}MB"
+        )
+
+    detected_mime = detect_mime_from_content(content, filename)
+    if not detected_mime or detected_mime not in ALLOWED_IMAGE_MIMES:
+        if content_type and content_type.lower() in {m.lower() for m in ALLOWED_IMAGE_MIMES}:
+            detected_mime = content_type.split(";")[0].strip().lower()
+            if detected_mime == "image/jpg":
+                detected_mime = "image/jpeg"
+        else:
+            logger.warning(f"Image upload rejected: len={len(content)}, content_type={content_type}, filename={filename}, first_bytes={content[:16].hex()}")
+            raise HTTPException(
+                status_code=400,
+                detail=f"Invalid file type. Allowed: {', '.join(ALLOWED_IMAGE_EXTENSIONS)}"
+            )
+
+    file_ext = MIME_TO_IMAGE_EXT.get(detected_mime)
+    if not file_ext:
+        file_ext = Path(sanitize_filename(filename or "image")).suffix.lower()
+    if file_ext not in ALLOWED_IMAGE_EXTENSIONS:
+        file_ext = ".png"
+
+    subfolder = sanitize_subfolder(subfolder)
+    base_name = stored_base_name(base_name or filename or "image")
+
+    upload_dir = UPLOAD_BASE_DIR / "images" / subfolder
+    if not upload_dir.resolve().is_relative_to(UPLOAD_BASE_DIR.resolve()):
+        raise HTTPException(status_code=400, detail="Invalid upload path")
+
+    # Keep the full-resolution original and write progressive WebP renditions
+    # (SVG/GIF kept as-is). Pillow is CPU-bound, so keep it off the event loop.
+    file_path, processed_size = await run_in_threadpool(
+        media_service.store_image, content, upload_dir, unique_stem(base_name), file_ext
+    )
+    return f"/uploads/images/{subfolder}/{file_path.name}", processed_size
+
+
+async def store_uploaded_document(
+    content: bytes, filename: str, subfolder: str, base_name: str | None = None
+) -> str:
+    """
+    Validate a document upload and store it under documents/<subfolder> with
+    a unique name. Returns its URL. Raises HTTPException(400) for bad input.
+    """
+    sanitized_filename = sanitize_filename(filename or "")
+    if not sanitized_filename:
+        raise HTTPException(status_code=400, detail="Filename is required")
+    file_ext = Path(sanitized_filename).suffix.lower()
+    if file_ext not in ALLOWED_DOCUMENT_EXTENSIONS:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Invalid file type. Allowed: {', '.join(ALLOWED_DOCUMENT_EXTENSIONS)}"
+        )
+    max_size = MAX_PDF_SIZE if file_ext == ".pdf" else MAX_FILE_SIZE
+    if len(content) > max_size:
+        raise HTTPException(
+            status_code=400,
+            detail=f"File too large. Maximum size: {max_size / 1024 / 1024}MB"
+        )
+    # Validate MIME type matches extension (prevent file type spoofing)
+    if not validate_mime_type(content, ALLOWED_DOCUMENT_MIMES, sanitized_filename):
+        raise HTTPException(status_code=400, detail="File content does not match declared file type")
+
+    subfolder = sanitize_subfolder(subfolder)
+    upload_dir = UPLOAD_BASE_DIR / "documents" / subfolder
+    if not upload_dir.resolve().is_relative_to(UPLOAD_BASE_DIR.resolve()):
+        raise HTTPException(status_code=400, detail="Invalid upload path")
+    upload_dir.mkdir(parents=True, exist_ok=True)
+    name = f"{unique_stem(stored_base_name(base_name or sanitized_filename))}{file_ext}"
+    await run_in_threadpool((upload_dir / name).write_bytes, content)
+    return f"/uploads/documents/{subfolder}/{name}"
+
+
 class DeleteImageRequest(BaseModel):
     """Request to delete an image"""
     url: str
@@ -234,59 +329,17 @@ async def upload_image(
     """
     try:
         content = await file.read()
-        if len(content) < 1:
-            raise HTTPException(status_code=400, detail="File is empty")
-        if len(content) > MAX_FILE_SIZE:
-            raise HTTPException(
-                status_code=400,
-                detail=f"File too large. Maximum size: {MAX_FILE_SIZE / 1024 / 1024}MB"
-            )
-
-        detected_mime = detect_mime_from_content(content, file.filename or "")
-        if not detected_mime or detected_mime not in ALLOWED_IMAGE_MIMES:
-            if file.content_type and file.content_type.lower() in {m.lower() for m in ALLOWED_IMAGE_MIMES}:
-                detected_mime = file.content_type.split(";")[0].strip().lower()
-                if detected_mime == "image/jpg":
-                    detected_mime = "image/jpeg"
-            else:
-                logger.warning(f"Image upload rejected: len={len(content)}, content_type={file.content_type}, filename={file.filename}, first_bytes={content[:16].hex() if len(content) >= 16 else content.hex()}")
-                raise HTTPException(
-                    status_code=400,
-                    detail=f"Invalid file type. Allowed: {', '.join(ALLOWED_IMAGE_EXTENSIONS)}"
-                )
-
-        file_ext = MIME_TO_IMAGE_EXT.get(detected_mime)
-        if not file_ext:
-            file_ext = Path(sanitize_filename(file.filename or "image")).suffix.lower()
-        if file_ext not in ALLOWED_IMAGE_EXTENSIONS:
-            file_ext = ".png"
-
-        subfolder = sanitize_subfolder(subfolder)
-        base_name = Path(sanitize_filename(file.filename or "image")).stem
-        base_name = "".join(c for c in base_name if c.isalnum() or c in "-_") or "image"
-
-        upload_dir = UPLOAD_BASE_DIR / "images" / subfolder
-        upload_dir_resolved = upload_dir.resolve()
-        base_resolved = UPLOAD_BASE_DIR.resolve()
-        if not upload_dir_resolved.is_relative_to(base_resolved):
-            raise HTTPException(status_code=400, detail="Invalid upload path")
-
-        # Keep the full-resolution original and write progressive WebP renditions
-        # (SVG/GIF kept as-is). Pillow is CPU-bound, so keep it off the event loop.
-        file_path, processed_size = await run_in_threadpool(
-            media_service.store_image, content, upload_dir, unique_stem(base_name), file_ext
+        url_path, processed_size = await store_uploaded_image(
+            content, file.filename or "", file.content_type, subfolder
         )
-        filename = file_path.name
+        filename = url_path.rsplit("/", 1)[-1]
 
         original_kb = len(content) // 1024
         processed_kb = processed_size // 1024
         logger.info(
-            f"Image uploaded: /uploads/images/{subfolder}/{filename} "
+            f"Image uploaded: {url_path} "
             f"({original_kb}KB → {processed_kb}KB) by admin {current_admin.id}"
         )
-
-        # Generate URL path
-        url_path = f"/uploads/images/{subfolder}/{filename}"
 
         return {
             "success": True,
@@ -346,6 +399,61 @@ async def delete_image(
         raise HTTPException(status_code=500, detail="Deletion failed")
 
 
+@router.get(
+    "/documents",
+    summary="List uploaded documents",
+    description="Document library: uploaded documents with the records that use them (Admin only)"
+)
+async def list_documents(
+    q: str = Query("", max_length=200, description="Search filename, folder, or the product/record using it"),
+    folder: str = Query("", max_length=100),
+    kind: str = Query("", pattern="^(|pdf|word|zip|cad|spreadsheet|other)$"),
+    usage: str = Query("all", pattern="^(all|used|unused)$"),
+    used_by_type: str = Query("", max_length=100, description="Only documents used by this record type, e.g. Family"),
+    page: int = Query(1, ge=1),
+    page_size: int = Query(60, ge=1, le=200),
+    db: AsyncSession = Depends(get_db),
+    current_admin = Depends(get_current_admin)
+):
+    return await document_library_service.list_documents(
+        db,
+        UPLOAD_BASE_DIR,
+        q=q,
+        folder=sanitize_subfolder(folder) if folder else "",
+        kind=kind,
+        usage=usage,
+        used_by_type=used_by_type,
+        page=page,
+        page_size=page_size,
+    )
+
+
+@router.delete(
+    "/document",
+    summary="Delete a document",
+    description="Delete an uploaded document; refused while a record still uses it (Admin only)"
+)
+async def delete_document(
+    request: DeleteImageRequest,
+    db: AsyncSession = Depends(get_db),
+    current_admin = Depends(get_current_admin)
+):
+    url_path = request.url.strip()
+    file_path = document_library_service.resolve_document_path(url_path, UPLOAD_BASE_DIR)
+    if file_path is None:
+        raise HTTPException(status_code=400, detail="Invalid file path")
+    if not request.force:
+        usages, _ = await document_library_service.find_usages(db)
+        used_by = usages.get(document_library_service.normalize_url(url_path) or "", [])
+        if used_by:
+            labels = ", ".join(f"{u.type} {u.label}" for u in used_by[:5])
+            raise HTTPException(status_code=409, detail=f"Document is still used by: {labels}")
+    if file_path.is_file():
+        file_path.unlink()
+        logger.info(f"Document deleted: {url_path} by admin {current_admin.id}")
+    return {"success": True, "message": "Document deleted successfully"}
+
+
 @router.post(
     "/document",
     summary="Upload a document (PDF, etc.)",
@@ -365,73 +473,10 @@ async def upload_document(
     - **subfolder**: Subfolder to organize documents (e.g., 'catalogs', 'guides')
     """
     try:
-        # Validate filename exists
-        if not file.filename:
-            raise HTTPException(status_code=400, detail="Filename is required")
-        
-        # Sanitize filename to prevent path traversal
-        sanitized_filename = sanitize_filename(file.filename)
-        if not sanitized_filename:
-            raise HTTPException(status_code=400, detail="Invalid filename")
-        
-        # Sanitize subfolder to prevent path traversal
-        subfolder = sanitize_subfolder(subfolder)
-        
-        # Validate file extension
-        file_ext = Path(sanitized_filename).suffix.lower()
-        if file_ext not in ALLOWED_DOCUMENT_EXTENSIONS:
-            raise HTTPException(
-                status_code=400,
-                detail=f"Invalid file type. Allowed: {', '.join(ALLOWED_DOCUMENT_EXTENSIONS)}"
-            )
-        
-        # Read file content
         content = await file.read()
-        
-        # Validate file size (larger limit for PDFs)
-        max_size = MAX_PDF_SIZE if file_ext == ".pdf" else MAX_FILE_SIZE
-        if len(content) > max_size:
-            raise HTTPException(
-                status_code=400,
-                detail=f"File too large. Maximum size: {max_size / 1024 / 1024}MB"
-            )
-        
-        # Validate MIME type matches extension (prevent file type spoofing)
-        if not validate_mime_type(content, ALLOWED_DOCUMENT_MIMES, sanitized_filename):
-            raise HTTPException(
-                status_code=400,
-                detail="File content does not match declared file type"
-            )
-        
-        # Create upload directory
-        upload_dir = UPLOAD_BASE_DIR / "documents" / subfolder
-        upload_dir.mkdir(parents=True, exist_ok=True)
-        
-        # Ensure upload directory path is within UPLOAD_BASE_DIR (security check)
-        upload_dir_resolved = upload_dir.resolve()
-        base_resolved = UPLOAD_BASE_DIR.resolve()
-        if not str(upload_dir_resolved).startswith(str(base_resolved)):
-            raise HTTPException(status_code=400, detail="Invalid upload path")
-        
-        # Generate unique filename with timestamp
-        timestamp = int(time.time())
-        base_name = Path(sanitized_filename).stem
-        # Additional sanitization for base name
-        base_name = "".join(c for c in base_name if c.isalnum() or c in "-_")
-        if not base_name:
-            base_name = "document"
-        filename = f"{base_name}_{timestamp}{file_ext}"
-        
-        # Full file path
-        file_path = upload_dir / filename
-        
-        # Write file
-        with open(file_path, "wb") as f:
-            f.write(content)
-        
-        # Generate URL path
-        url_path = f"/uploads/documents/{subfolder}/{filename}"
-        
+        url_path = await store_uploaded_document(content, file.filename or "", subfolder)
+        filename = url_path.rsplit("/", 1)[-1]
+
         logger.info(f"Document uploaded: {url_path} by admin {current_admin.id}")
         
         return {

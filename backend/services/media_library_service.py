@@ -148,9 +148,12 @@ class Usage:
     type: str
     id: int
     label: str
+    # ORM class name and the columns holding the reference (for detach / edit links)
+    model: str = ""
+    fields: tuple[str, ...] = ()
 
     def as_dict(self) -> dict:
-        return {"type": self.type, "id": self.id, "label": self.label}
+        return {"type": self.type, "id": self.id, "label": self.label, "model": self.model, "fields": list(self.fields)}
 
 
 async def find_usages(db: AsyncSession) -> dict[str, list[Usage]]:
@@ -166,14 +169,19 @@ async def find_usages(db: AsyncSession) -> dict[str, list[Usage]]:
             continue
         type_label = _type_label(cls.__name__)
         for row in result.mappings():
-            urls: set[str] = set()
+            fields_by_url: dict[str, list[str]] = {}
             for c in image_cols:
+                urls: set[str] = set()
                 _collect(row.get(c), urls, c in image_named)
-            if not urls:
+                for u in urls:
+                    fields_by_url.setdefault(u, []).append(c)
+            if not fields_by_url:
                 continue
-            usage = Usage(type=type_label, id=row["id"], label=_row_label(cls.__name__, dict(row)))
-            for u in urls:
-                usages.setdefault(u, []).append(usage)
+            label = _row_label(cls.__name__, dict(row))
+            for u, fields in fields_by_url.items():
+                usages.setdefault(u, []).append(Usage(
+                    type=type_label, id=row["id"], label=label, model=cls.__name__, fields=tuple(fields),
+                ))
     return usages
 
 
@@ -262,7 +270,15 @@ async def list_images(
     used_by_type: str = "",
     page: int = 1,
     page_size: int = 60,
+    sort: str = "newest",
+    versions: dict[str, int] | None = None,
+    hidden: set[str] | frozenset = frozenset(),
 ) -> dict:
+    """
+    `versions` maps a current image URL to its number of earlier versions;
+    `hidden` holds URLs of earlier versions, which stay out of the list
+    unless a record still uses them (see media_manager_service).
+    """
     files = await run_in_threadpool(scan_files, upload_base)
     usages = await find_usages(db)
     on_disk = {f.url for f in files}
@@ -273,7 +289,8 @@ async def list_images(
     for f in referenced:
         f.used_by = usages[f.url]
     referenced.sort(key=lambda f: (f.folder, f.filename.lower()))
-    images = files + referenced
+    images = [f for f in files + referenced if f.used_by or f.url not in hidden]
+    versions = versions or {}
 
     folders: dict[str, int] = {}
     types: dict[str, int] = {}
@@ -291,6 +308,7 @@ async def list_images(
         and (not used_by_type or any(u.type == used_by_type for u in f.used_by))
         and (not tokens or _matches(f, tokens))
     ]
+    sort_files(filtered, sort)
 
     page = max(page, 1)
     start = (page - 1) * page_size
@@ -306,6 +324,7 @@ async def list_images(
                 "modified": f.modified,
                 "on_disk": f.on_disk,
                 "used_by": [u.as_dict() for u in f.used_by],
+                "versions": versions.get(f.url, 0),
             }
             for f in items
         ],
@@ -314,4 +333,34 @@ async def list_images(
         "page_size": page_size,
         "folders": [{"name": k, "count": v} for k, v in sorted(folders.items())],
         "types": [{"name": k, "count": v} for k, v in sorted(types.items())],
+        "summary": summarize(images),
+    }
+
+
+SORTS = ("newest", "oldest", "name", "size", "usage")
+
+
+def sort_files(files: list, sort: str) -> None:
+    """Sort library entries in place; files not on disk (no date/size) go last."""
+    if sort == "oldest":
+        files.sort(key=lambda f: (f.modified is None, f.modified or 0))
+    elif sort == "name":
+        files.sort(key=lambda f: f.filename.lower())
+    elif sort == "size":
+        files.sort(key=lambda f: f.size, reverse=True)
+    elif sort == "usage":
+        files.sort(key=lambda f: len(f.used_by), reverse=True)
+    else:
+        files.sort(key=lambda f: (f.modified is not None, f.modified or 0), reverse=True)
+
+
+def summarize(files: list) -> dict:
+    """Totals for the library header (before filters)."""
+    stored = [f for f in files if f.on_disk]
+    return {
+        "count": len(files),
+        "stored": len(stored),
+        "bytes": sum(f.size for f in stored),
+        "unused": sum(1 for f in stored if not f.used_by),
+        "linked": len(files) - len(stored),
     }

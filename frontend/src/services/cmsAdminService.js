@@ -98,6 +98,11 @@ export const updateHeroSlide = (id, updates) =>
 export const deleteHeroSlide = (id) =>
   run(`Deleting hero slide ${id}`, () => api.delete(`/api/v1/cms-admin/hero-slides/${id}`));
 
+// slideIds in their new carousel order
+export const reorderHeroSlides = (slideIds) =>
+  run('Reordering hero slides', () =>
+    api.post('/api/v1/cms-admin/hero-slides/reorder', { slide_ids: slideIds }));
+
 // ==================== COMPANY INFO ====================
 
 export const createCompanyInfo = (data) =>

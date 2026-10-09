@@ -40,6 +40,9 @@ from backend.models.catalog_project import CatalogProject
 # Time Machine
 from backend.models.history import HistoryChangeSet, HistoryEntry
 
+# Media Library file versions
+from backend.models.media import MediaVersion
+
 # Site analytics
 from backend.models.analytics import AnalyticsEvent
 
@@ -144,6 +147,7 @@ __all__ = [
     # Time Machine
     "HistoryChangeSet",
     "HistoryEntry",
+    "MediaVersion",
     # Site analytics
     "AnalyticsEvent",
 ]

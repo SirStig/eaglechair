@@ -1,5 +1,6 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, lazy, Suspense } from 'react';
 import { Link } from 'react-router-dom';
+// eslint-disable-next-line no-unused-vars
 import { m } from 'framer-motion';
 import Button from './Button';
 import EditableWrapper from '../admin/EditableWrapper';
@@ -7,6 +8,10 @@ import ResponsiveImage from './ResponsiveImage';
 import { ensureResolvedImageUrl } from '../../utils/apiHelpers';
 import { safeHref } from '../../utils/safeUrl';
 import SmartLink from './SmartLink';
+import { useEditMode } from '../../contexts/useEditMode';
+
+// Admin-only; fetched when the slide manager is opened
+const HeroSlidesManager = lazy(() => import('../admin/HeroSlidesManager'));
 
 const SLIDE_DURATION_MS = 9000;
 const FADE_DURATION_MS = 1800;
@@ -14,9 +19,11 @@ const CTA_VARIANTS = new Set(['primary', 'secondary', 'outline']);
 
 const HeroCarousel = ({ slides, onUpdateSlide, loading, renderSkeleton }) => {
   const [currentIndex, setCurrentIndex] = useState(0);
+  const [managerOpen, setManagerOpen] = useState(false);
+  const { isEditMode } = useEditMode();
 
   const goNext = useCallback(() => {
-    setCurrentIndex((prev) => (prev + 1) % slides.length);
+    setCurrentIndex((prev) => (Math.min(prev, slides.length - 1) + 1) % slides.length);
   }, [slides.length]);
 
   // Slides advance when the active dot finishes filling (see onAnimationEnd
@@ -24,17 +31,46 @@ const HeroCarousel = ({ slides, onUpdateSlide, loading, renderSkeleton }) => {
   // also pause in background tabs, unlike timers.
 
   if (loading && renderSkeleton) return renderSkeleton();
-  if (!slides?.length) return null;
 
-  const nextIndex = (currentIndex + 1) % slides.length;
-  const prevIndex = (currentIndex - 1 + slides.length) % slides.length;
+  const manageButton = isEditMode && (
+    <>
+      <button
+        type="button"
+        onClick={() => setManagerOpen(true)}
+        className="absolute right-4 top-[calc(var(--header-height)+1rem)] z-20 inline-flex min-h-[40px] items-center gap-2 rounded-lg border border-editor-400/70 bg-dark-900/90 px-4 text-sm font-medium text-editor-100 shadow-lg backdrop-blur transition-colors hover:border-editor-300 hover:text-white focus:outline-none focus-visible:ring-2 focus-visible:ring-editor-400"
+      >
+        Manage Slides ({slides?.length || 0})
+      </button>
+      {managerOpen && (
+        <Suspense fallback={null}>
+          <HeroSlidesManager isOpen={managerOpen} onClose={() => setManagerOpen(false)} slides={slides || []} />
+        </Suspense>
+      )}
+    </>
+  );
+
+  if (!slides?.length) {
+    // Editors still need a way to add the first slide
+    return isEditMode ? (
+      <div className="relative flex w-full h-screen h-[100dvh] items-center justify-center bg-dark-800 text-dark-200">
+        <p>No hero slides. Use Manage Slides to add one.</p>
+        {manageButton}
+      </div>
+    ) : null;
+  }
+
+  // Stays in range when slides are deleted while one of the last is showing
+  const activeIndex = Math.min(currentIndex, slides.length - 1);
+  const nextIndex = (activeIndex + 1) % slides.length;
+  const prevIndex = (activeIndex - 1 + slides.length) % slides.length;
 
   return (
     <div className="relative w-full h-screen h-[100dvh] overflow-hidden">
+      {manageButton}
       {slides.map((slide, index) => {
         // Only mount the image for the first, current, upcoming and outgoing
         // (still fading) slides, so hidden slides don't all download upfront.
-        const mountImage = index === 0 || index === currentIndex || index === nextIndex || index === prevIndex;
+        const mountImage = index === 0 || index === activeIndex || index === nextIndex || index === prevIndex;
         const imageSrc = slide.background_image_url || slide.image;
         // CMS links only render when they pass the URL policy
         const ctaText = slide.cta_text || slide.ctaText || slide.cta;
@@ -48,9 +84,9 @@ const HeroCarousel = ({ slides, onUpdateSlide, loading, renderSkeleton }) => {
           key={slide.id ?? index}
           className="absolute inset-0"
           style={{
-            opacity: index === currentIndex ? 1 : 0,
-            pointerEvents: index === currentIndex ? 'auto' : 'none',
-            zIndex: index === currentIndex ? 2 : 1,
+            opacity: index === activeIndex ? 1 : 0,
+            pointerEvents: index === activeIndex ? 'auto' : 'none',
+            zIndex: index === activeIndex ? 2 : 1,
             transition: `opacity ${FADE_DURATION_MS}ms cubic-bezier(0.4, 0, 0.2, 1)`,
           }}
         >
@@ -119,7 +155,7 @@ const HeroCarousel = ({ slides, onUpdateSlide, loading, renderSkeleton }) => {
       {slides.length > 1 && (
         <div className="absolute bottom-[8vh] left-1/2 -translate-x-1/2 z-10 flex items-center gap-1">
           {slides.map((slide, index) => {
-            const isActive = index === currentIndex;
+            const isActive = index === activeIndex;
             return (
               <button
                 key={slide.id ?? index}
@@ -137,7 +173,7 @@ const HeroCarousel = ({ slides, onUpdateSlide, loading, renderSkeleton }) => {
                   {isActive && (
                     <span
                       // Re-keyed per index so the fill restarts on every slide change
-                      key={currentIndex}
+                      key={activeIndex}
                       className="hero-dot-fill absolute inset-0 bg-white origin-left"
                       style={{ animation: `heroDotFill ${SLIDE_DURATION_MS}ms linear forwards` }}
                       onAnimationEnd={goNext}

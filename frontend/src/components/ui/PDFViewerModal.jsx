@@ -41,7 +41,7 @@ function useReadingTime(isOpen, title) {
  */
 const IMAGE_FILE = /\.(png|jpe?g|webp|gif|avif|svg)(\?|#|$)/i;
 
-const PDFViewerModal = ({ isOpen, onClose, fileUrl, fileName, fileType = 'PDF' }) => {
+const PDFViewerModal = ({ isOpen, onClose, fileUrl, fileName, fileType = 'PDF', layerClassName = 'z-[10000]' }) => {
   useReadingTime(isOpen, fileName);
 
   useEffect(() => {
@@ -74,7 +74,7 @@ const PDFViewerModal = ({ isOpen, onClose, fileUrl, fileName, fileType = 'PDF' }
   // layout, table rows) can't trap the fixed overlay
   return createPortal(
     <div
-      className="fixed inset-0 z-[10000] flex items-center justify-center bg-black/80 p-2 backdrop-blur-sm sm:p-4"
+      className={`fixed inset-0 ${layerClassName} flex items-center justify-center bg-black/80 p-2 backdrop-blur-sm sm:p-4`}
       onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
       role="dialog"
       aria-modal="true"

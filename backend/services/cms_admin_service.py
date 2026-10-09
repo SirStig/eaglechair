@@ -9,7 +9,7 @@ so routes can tell the admin when a change was saved but not published.
 
 import asyncio
 import logging
-from typing import Any, Dict, Iterable, Optional, Tuple, Type, TypeVar
+from typing import Any, Dict, Iterable, List, Optional, Tuple, Type, TypeVar
 
 from sqlalchemy import JSON, Enum, String, Text, cast, inspect, literal, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -312,6 +312,23 @@ class CMSAdminService:
             db, HeroSlide, slide_id, "Hero Slide", 'heroSlides'
         )
         logger.info(f"Deleted hero slide {slide_id}")
+        return exported
+
+    @staticmethod
+    async def reorder_hero_slides(db: AsyncSession, slide_ids: List[int]) -> bool:
+        """
+        Set display_order to each slide's position in ``slide_ids`` and export
+        once. Slides not listed keep their order; unknown ids are ignored.
+        """
+        result = await db.execute(select(HeroSlide).where(HeroSlide.id.in_(slide_ids)))
+        slides = {s.id: s for s in result.scalars().all()}
+        for position, slide_id in enumerate(slide_ids):
+            slide = slides.get(slide_id)
+            if slide:
+                slide.display_order = position
+        await db.commit()
+        exported = await export_content_after_update('heroSlides', db)
+        logger.info(f"Reordered {len(slides)} hero slides")
         return exported
 
     # ========================================================================

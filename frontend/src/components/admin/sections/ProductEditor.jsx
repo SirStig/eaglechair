@@ -25,6 +25,7 @@ import {
 import { AdminPage, AdminPageHeader } from '../ui/AdminPage';
 import ImagePickerField from '../media/ImagePickerField';
 import ImageListField from '../media/ImageListField';
+import DocumentPickerField from '../media/DocumentPickerField';
 import FamilyPicker from './FamilyPicker';
 import RecordHistoryLink from '../RecordHistoryLink';
 import ProductAnalyticsPanel from '../ProductAnalyticsPanel';
@@ -577,7 +578,7 @@ const ProductEditor = ({ product, onBack }) => {
     { id: 'basic', label: 'Basic Info', icon: FileText },
     { id: 'pricing', label: 'Pricing', icon: DollarSign },
     { id: 'dimensions', label: 'Dimensions', icon: Ruler },
-    { id: 'images', label: 'Images', icon: ImageIcon },
+    { id: 'images', label: 'Images & Docs', icon: ImageIcon },
     { id: 'materials', label: 'Materials', icon: Wrench },
     { id: 'features', label: 'Features', icon: Package },
     { id: 'variations', label: 'Variations', icon: RefreshCw },
@@ -1144,6 +1145,31 @@ const ProductEditor = ({ product, onBack }) => {
                 ))}
               </div>
             )}
+
+            {/* Documents linked from the product page */}
+            <div>
+              <h3 className="text-lg font-semibold text-dark-50 mb-4">Spec Sheet & Drawing</h3>
+              <p className="text-sm text-dark-400 mb-4">PDFs offered for download on the product page</p>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <DocumentPickerField
+                  label="Spec Sheet"
+                  value={formData.spec_sheet_url || ''}
+                  onChange={(url) => handleChange('spec_sheet_url', url || null)}
+                  subfolder="spec-sheets"
+                  libraryTitle="Choose spec sheet"
+                  previewTitle={`${formData.name || 'Product'} spec sheet`}
+                />
+                <DocumentPickerField
+                  label="Dimensional Drawing"
+                  value={formData.dimensional_drawing_url || ''}
+                  onChange={(url) => handleChange('dimensional_drawing_url', url || null)}
+                  subfolder="drawings"
+                  libraryTitle="Choose dimensional drawing"
+                  previewTitle={`${formData.name || 'Product'} dimensional drawing`}
+                />
+              </div>
+            </div>
           </div>
         );
 

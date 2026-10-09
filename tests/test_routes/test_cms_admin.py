@@ -341,6 +341,41 @@ class TestInstallations:
 class TestCMSAdminUpdates:
 
     @pytest.mark.asyncio
+    async def test_reorder_hero_slides_sets_order_and_exports(
+        self, async_client: AsyncClient, db_session: AsyncSession, admin_headers, static_export_dir
+    ):
+        slides = [
+            HeroSlide(title=f"Slide {n}", background_image_url="/uploads/images/hero/x.webp", display_order=n)
+            for n in range(4)
+        ]
+        db_session.add_all(slides)
+        await db_session.commit()
+        new_order = [slides[2].id, slides[0].id, slides[3].id, slides[1].id]
+
+        response = await async_client.post(
+            f"{API}/hero-slides/reorder",
+            json={"slide_ids": [*new_order, 999999]},  # unknown ids are ignored
+            headers=admin_headers,
+        )
+
+        assert response.status_code == 200, response.text
+        assert response.json()["exported"] is True
+        for position, slide_id in enumerate(new_order):
+            slide = await _get(db_session, HeroSlide, id=slide_id)
+            assert slide.display_order == position
+        exported = _exported_content(static_export_dir)["heroSlides"]
+        assert [s["id"] for s in exported] == new_order
+
+    @pytest.mark.asyncio
+    async def test_reorder_hero_slides_requires_ids(
+        self, async_client: AsyncClient, admin_headers
+    ):
+        response = await async_client.post(
+            f"{API}/hero-slides/reorder", json={"slide_ids": []}, headers=admin_headers
+        )
+        assert response.status_code == 422
+
+    @pytest.mark.asyncio
     async def test_update_clears_nullable_field(
         self, async_client: AsyncClient, db_session: AsyncSession, admin_headers
     ):

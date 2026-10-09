@@ -54,9 +54,9 @@ const TEXTAREA_HINTS = ['description', 'content', 'bio', 'full_description', 'fu
  */
 const FIELD_SCHEMAS = {
   'hero-slide': [
-    { key: 'title' },
+    { key: 'title', required: true },
     { key: 'subtitle', type: 'textarea' },
-    { key: 'image', type: 'image', label: 'Background Image' },
+    { key: 'image', type: 'image', label: 'Background Image', required: true },
     { key: 'ctaText', label: 'CTA Text' },
     { key: 'ctaLink', type: 'url', label: 'CTA Link' },
     { key: 'ctaStyle', type: 'select', label: 'CTA Style', options: ['primary', 'secondary', 'outline'] },

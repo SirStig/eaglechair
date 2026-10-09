@@ -2,11 +2,10 @@ import { useState } from 'react';
 import Card from '../../ui/Card';
 import Button from '../../ui/Button';
 import apiClient from '../../../config/apiClient';
-import { Upload, X, FileText } from 'lucide-react';
 import ImagePickerField from '../media/ImagePickerField';
+import DocumentPickerField from '../media/DocumentPickerField';
 import { CATALOG_TYPE_OPTIONS } from '../../../utils/catalogTypes';
 import { AdminPage, AdminPageHeader } from '../ui/AdminPage';
-import PdfPreviewButton from '../../ui/PdfPreviewButton';
 
 /**
  * Catalog Editor Component
@@ -26,24 +25,9 @@ const CatalogEditor = ({ catalog, onBack, onSave }) => {
     thumbnail_url: catalog?.thumbnail_url || ''
   });
   const [saving, setSaving] = useState(false);
-  const [selectedFile, setSelectedFile] = useState(null);
-  const [filePreview, setFilePreview] = useState(null);
 
   const handleChange = (field, value) => {
     setFormData(prev => ({ ...prev, [field]: value }));
-  };
-
-  const handleFileSelect = (event) => {
-    const file = event.target.files?.[0];
-    if (!file) return;
-
-    if (!file.name.toLowerCase().endsWith('.pdf')) {
-      alert('Only PDF files are accepted');
-      return;
-    }
-
-    setSelectedFile(file);
-    setFilePreview(file.name);
   };
 
   const handleSubmit = async (e) => {
@@ -60,8 +44,8 @@ const CatalogEditor = ({ catalog, onBack, onSave }) => {
       return;
     }
     
-    if (!catalog && !selectedFile && !formData.file_url) {
-      alert('Please upload a PDF file');
+    if (!formData.file_url) {
+      alert('Please choose or upload a PDF file');
       return;
     }
     
@@ -87,39 +71,19 @@ const CatalogEditor = ({ catalog, onBack, onSave }) => {
       submitFormData.append('is_active', formData.is_active !== false ? 'true' : 'false');
       submitFormData.append('is_featured', formData.is_featured === true ? 'true' : 'false');
       
-      // File upload - must be included if creating new catalog
-      if (selectedFile) {
-        submitFormData.append('file', selectedFile);
-      } else if (formData.file_url && !formData.file_url.startsWith('/uploads/')) {
-        // Allow existing file_url if provided (for updates)
-        submitFormData.append('file_url', formData.file_url);
-      }
+      // The file itself is uploaded (or picked) through the document library
+      submitFormData.append('file_url', formData.file_url);
       
       // Thumbnail URL - send if we have one (from previous upload or existing)
       if (formData.thumbnail_url) {
         submitFormData.append('thumbnail_url', formData.thumbnail_url);
       }
       
-      // Debug: Log what we're sending
-      console.log('Sending FormData:', {
-        title: formData.title,
-        catalog_type: formData.catalog_type,
-        hasFile: !!selectedFile,
-        file_url: formData.file_url,
-        is_active: formData.is_active,
-        is_featured: formData.is_featured
-      });
-      
       if (catalog) {
         // Update existing catalog
         await apiClient.put(`/api/v1/admin/catalog/catalogs/${catalog.id}`, submitFormData);
       } else {
-        // Create new catalog - file is required
-        if (!selectedFile) {
-          alert('Please upload a PDF file to create a new catalog');
-          setSaving(false);
-          return;
-        }
+        // Create new catalog
         await apiClient.post('/api/v1/admin/catalog/catalogs', submitFormData);
       }
       onSave();
@@ -234,67 +198,15 @@ const CatalogEditor = ({ catalog, onBack, onSave }) => {
               <h3 className="text-lg font-semibold text-dark-50 mb-4 pb-2 border-b border-dark-600">
                 PDF File
               </h3>
-              <div>
-                <label className="block text-sm font-medium text-dark-200 mb-2">
-                  {catalog ? 'Upload New PDF (Optional)' : 'Upload PDF *'}
-                </label>
-                {(filePreview || (formData.file_url && formData.file_url.startsWith('/uploads/'))) ? (
-                  <div className="flex items-center gap-3 p-3 bg-dark-700 rounded-lg border border-dark-600">
-                    <FileText className="w-6 h-6 text-primary-400" />
-                    <div className="flex-1">
-                      <div className="text-sm text-dark-50 font-medium">
-                        {filePreview || formData.file_url.split('/').pop()}
-                      </div>
-                      {formData.file_url && !filePreview && (
-                        <div className="text-xs text-dark-400">
-                          {formData.file_url}
-                        </div>
-                      )}
-                    </div>
-                    {formData.file_url && !filePreview && (
-                      <PdfPreviewButton
-                        variant="pill"
-                        url={formData.file_url}
-                        title={formData.title || 'Catalog'}
-                        fileType={formData.file_type || 'PDF'}
-                      />
-                    )}
-                    {filePreview && (
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setSelectedFile(null);
-                          setFilePreview(null);
-                        }}
-                        className="p-1 text-red-400 hover:bg-red-900/20 rounded"
-                      >
-                        <X className="w-4 h-4" />
-                      </button>
-                    )}
-                  </div>
-                ) : (
-                  <label className="relative block">
-                    <input
-                      type="file"
-                      accept=".pdf"
-                      onChange={handleFileSelect}
-                      className="sr-only"
-                      disabled={saving}
-                      required={!catalog}
-                    />
-                    <div className={`flex flex-col items-center justify-center w-full h-32 border-2 border-dashed border-dark-600 hover:border-primary-500 rounded-lg cursor-pointer transition-all ${saving ? 'opacity-50' : ''}`}>
-                      <Upload className="w-10 h-10 text-dark-500 mb-2" />
-                      <span className="text-sm text-dark-400">Upload PDF</span>
-                      <span className="text-xs text-dark-500 mt-1">PDF only, max 100MB</span>
-                    </div>
-                  </label>
-                )}
-                {catalog && formData.file_url && !filePreview && (
-                  <p className="text-xs text-dark-400 mt-2">
-                    Select a new file to replace the existing one
-                  </p>
-                )}
-              </div>
+              <DocumentPickerField
+                value={formData.file_url}
+                onChange={(url) => handleChange('file_url', url)}
+                subfolder="catalogs"
+                label="Catalog PDF *"
+                libraryTitle="Choose the catalog PDF"
+                previewTitle={formData.title || 'Catalog'}
+                disabled={saving}
+              />
             </div>
 
             {/* Thumbnail Upload */}
@@ -369,7 +281,7 @@ const CatalogEditor = ({ catalog, onBack, onSave }) => {
           </Button>
           <Button
             type="submit"
-            disabled={saving || !formData.title || (!catalog && !selectedFile && !formData.file_url)}
+            disabled={saving || !formData.title || !formData.file_url}
             className="bg-primary-600 hover:bg-primary-500 px-6 py-3"
           >
             {saving ? 'Saving...' : catalog ? 'Update Catalog' : 'Create Catalog'}
