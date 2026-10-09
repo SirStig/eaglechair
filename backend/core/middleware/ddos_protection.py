@@ -11,6 +11,7 @@ from typing import Callable, Dict, Set
 
 from fastapi import Request, Response
 from fastapi.responses import JSONResponse
+from jose import JWTError, jwt
 from starlette.middleware.base import BaseHTTPMiddleware
 
 from backend.core.config import settings
@@ -77,6 +78,13 @@ class DDoSProtectionMiddleware(BaseHTTPMiddleware):
         # budget: one image-heavy page (product grid, media library) loads
         # hundreds of them and would otherwise ban the viewer's IP.
         if self._is_static_path(request.url.path):
+            return await call_next(request)
+
+        # Signed-in admins (verified JWT) work in bursts of many API calls and
+        # often share an office IP; they have their own per-minute limit in
+        # AdvancedRateLimiter, so they neither count toward nor get stopped by
+        # the per-IP ban here.
+        if self._is_verified_admin(request):
             return await call_next(request)
 
         client_ip = self._get_client_ip(request)
@@ -155,6 +163,22 @@ class DDoSProtectionMiddleware(BaseHTTPMiddleware):
     def _is_static_path(self, path: str) -> bool:
         """Static files: served from disk, no auth/DB work, never part of an attack surface we rate."""
         return path.startswith(self.STATIC_PREFIXES) or path in self.STATIC_FILES or path.startswith("/sitemap")
+
+    @staticmethod
+    def _is_verified_admin(request: Request) -> bool:
+        """True when the request carries a validly signed, unexpired admin access token."""
+        token = request.cookies.get("access_token")
+        if not token:
+            auth = request.headers.get("Authorization", "")
+            if auth.lower().startswith("bearer "):
+                token = auth[7:].strip()
+        if not token:
+            return False
+        try:
+            payload = jwt.decode(token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM])
+        except JWTError:
+            return False
+        return payload.get("type") == "admin"
 
     @staticmethod
     def _error_response(exc, retry_after: int | None = None) -> JSONResponse:

@@ -163,8 +163,9 @@ class AdvancedRateLimiter(BaseHTTPMiddleware):
         # Get limits for this endpoint
         max_requests, window = self._get_rate_limit(path, user_type)
 
-        # Check for burst
-        if self._detect_burst(identifier, current_time):
+        # Check for burst (not on admin routes: admin pages fire many calls at
+        # once, and those routes are covered by the per-minute ADMIN_LIMITS)
+        if user_type != "admin" and self._detect_burst(identifier, current_time):
             logger.warning(f"Burst detected from {identifier}")
             return self._create_rate_limit_response(0, window, "Burst traffic detected. Please slow down.")
         
