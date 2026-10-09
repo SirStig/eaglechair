@@ -232,6 +232,7 @@ const Header = ({ isMobileMenuOpen, setIsMobileMenuOpen }) => {
               )}
               contentClassName="w-screen max-w-none !rounded-none shadow-2xl !border-t-0 !border-l-0 !border-r-0"
               align="left"
+              closeOnScroll={150}
               onOpenChange={setIsProductsDropdownOpen}
             >
               <ProductsDropdown />

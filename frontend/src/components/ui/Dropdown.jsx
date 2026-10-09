@@ -10,7 +10,8 @@ const Dropdown = ({
   className,
   contentClassName,
   isFullWidth,
-  onOpenChange
+  onOpenChange,
+  closeOnScroll
 }) => {
   const fullWidth = isFullWidth ?? contentClassName?.includes('w-screen');
   const [isOpen, setIsOpen] = useState(false);
@@ -35,6 +36,19 @@ const Dropdown = ({
     window.addEventListener('resize', measure);
     return () => window.removeEventListener('resize', measure);
   }, [fullWidth, isOpen]);
+
+  // Close once the page has scrolled `closeOnScroll` px (either way) from where
+  // it was when the panel opened; small nudges keep it open.
+  useEffect(() => {
+    if (!closeOnScroll || !isOpen) return;
+    const startY = window.scrollY;
+    const onScroll = () => {
+      if (Math.abs(window.scrollY - startY) > closeOnScroll) setOpen(false);
+    };
+    window.addEventListener('scroll', onScroll, { passive: true });
+    return () => window.removeEventListener('scroll', onScroll);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [closeOnScroll, isOpen]);
 
   useEffect(() => {
     const handleClickOutside = (event) => {
