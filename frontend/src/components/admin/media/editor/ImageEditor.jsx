@@ -143,7 +143,7 @@ function ActionButton({ icon: Icon, children, onClick, disabled, primary = false
 
 const Section = ({ title, children, hint }) => (
   <div className="space-y-2.5 border-b border-dark-600 px-4 py-4 last:border-0">
-    {title && <h3 className="text-[11px] font-semibold uppercase tracking-wider text-dark-300">{title}</h3>}
+    {title && <p className="font-sans text-[11px] font-semibold uppercase tracking-wider text-dark-300">{title}</p>}
     {children}
     {hint && <p className="text-[11px] leading-relaxed text-dark-300">{hint}</p>}
   </div>

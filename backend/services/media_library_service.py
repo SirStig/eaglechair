@@ -32,7 +32,7 @@ _IMAGE_COLUMN_RE = re.compile(r"(image|logo|thumbnail|swatch|photo|banner|backgr
 # (history snapshots, analytics, AI chat) are large and never hold live usages.
 _JSON_SCAN_MODULES = ("backend.models.chair", "backend.models.content", "backend.models.catalog_project")
 
-_LABEL_COLUMNS = ("name", "title", "label", "question", "company_name", "key", "sku", "slug")
+_LABEL_COLUMNS = ("name", "title", "label", "question", "company_name", "key", "section_key", "sku", "slug")
 
 _TYPE_LABELS = {
     "Chair": "Product",

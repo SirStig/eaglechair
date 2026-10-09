@@ -402,7 +402,7 @@ export default function MediaDetailPanel({ kind, url, onClose, onChanged, onEdit
             title={`Delete ${data.filename}?`}
             confirmLabel="Delete"
             busy={busy === 'delete'}
-            disabled={used.length > 0 && !detachToo}
+            disabled={(used.length > 0 && !detachToo) || mentions.length > 0}
             onConfirm={removeFile}
             onCancel={() => setConfirm(null)}
           >
