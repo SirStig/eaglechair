@@ -26,6 +26,7 @@ from backend.api.v1.routes.admin import (
     inquiries,
     material_sources,
     media,
+    models3d,
     pricing_tiers,
     products,
     quotes,
@@ -40,7 +41,7 @@ from backend.services.audit_service import audit_admin_request
 from backend.services.catalog_cache import bump_catalog_version
 
 # Admin sections whose writes never change public catalog data
-_NON_CATALOG_SECTIONS = ("/admins", "/audit-log", "/companies", "/quotes", "/dashboard", "/emails", "/ai", "/catalog-builder", "/exports")
+_NON_CATALOG_SECTIONS = ("/admins", "/audit-log", "/companies", "/quotes", "/dashboard", "/emails", "/ai", "/catalog-builder", "/exports", "/models3d")
 
 
 async def _bump_catalog_version_after_write(conn: HTTPConnection):
@@ -82,6 +83,7 @@ router.include_router(categories.router, prefix="/categories", tags=["Admin - Ca
 router.include_router(pricing_tiers.router, prefix="/pricing-tiers", tags=["Admin - Pricing Tiers"])
 router.include_router(upload.router, prefix="/upload", tags=["Admin - Upload"])
 router.include_router(media.router, prefix="/media", tags=["Admin - Media Library"])
+router.include_router(models3d.router, prefix="/models3d", tags=["Admin - 3D Models"])
 router.include_router(catalog_builder.router, prefix="/catalog-builder", tags=["Admin - Catalog Builder"])
 router.include_router(exports.router, prefix="/exports", tags=["Admin - Exports"])
 router.include_router(register.router, prefix="/register", tags=["Admin - Product Register"])

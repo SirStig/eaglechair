@@ -42,6 +42,7 @@ import ActivityLog from '../../components/admin/sections/ActivityLog';
 import AccountSecurity from '../../components/admin/sections/AccountSecurity';
 import TimeMachine from '../../components/admin/sections/TimeMachine';
 import MediaManager from '../../components/admin/sections/MediaManager';
+import Model3DViewer from '../../components/admin/sections/Model3DViewer';
 import { useAdminPermissions } from '../../hooks/useAdminPermissions';
 import apiClient from '../../config/apiClient';
 
@@ -217,6 +218,8 @@ const NewAdminDashboardInner = () => {
         return <SupplierLinkManagement />;
       case 'media':
         return <MediaManager />;
+      case '3d-viewer':
+        return <Model3DViewer />;
       case 'catalogs':
         return <CatalogManagement />;
       case 'register':
