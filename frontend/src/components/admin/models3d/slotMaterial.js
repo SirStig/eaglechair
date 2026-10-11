@@ -41,6 +41,7 @@ export function optionKind(slot, item) {
 // The neutral grain maps average about this bright; colours are scaled up to
 // match so a swatch's colour comes out at its own brightness.
 const ALBEDO_MEAN = { wood: 0.8, fabric: 0.86, leather: 0.86 };
+const FABRIC_SHEEN = 0.5;   // matches chairkit.SHEEN
 const ROUGHNESS = { wood: 0.55, fabric: 1, leather: 0.75, metal: 0.3 };
 
 const textureCache = new Map();
@@ -82,6 +83,8 @@ function original(material) {
       roughnessMap: material.roughnessMap,
       roughness: material.roughness,
       metalness: material.metalness,
+      sheen: material.sheen ?? 0,
+      sheenColor: material.sheenColor?.clone(),
       repeat: material.map?.repeat.clone() ?? new THREE.Vector2(1, 1),
     };
   }
@@ -122,6 +125,10 @@ export async function applySlotOption(materials, option, settings = {}, { base =
       material.color.copy(orig.color);
       material.roughness = orig.roughness;
       material.metalness = orig.metalness;
+      if ('sheen' in material) {
+        material.sheen = orig.sheen;
+        if (orig.sheenColor) material.sheenColor.copy(orig.sheenColor);
+      }
       for (const key of ['map', 'normalMap', 'roughnessMap']) {
         material[key]?.repeat.copy(orig.repeat).multiplyScalar(1 / grain);
       }
@@ -133,6 +140,12 @@ export async function applySlotOption(materials, option, settings = {}, { base =
       if (ALBEDO_MEAN[kind]) color.multiplyScalar(1 / ALBEDO_MEAN[kind]);
       material.color.copy(color);
       material.metalness = kind === 'metal' ? 1 : 0;
+      // Cloth sheen only on fabric, tinted by the fabric's own colour (white
+      // sheen washes colours out)
+      if ('sheen' in material) {
+        material.sheen = kind === 'fabric' ? 1 : 0;
+        material.sheenColor.copy(color).multiplyScalar(FABRIC_SHEEN);
+      }
       // A roughness map scales material.roughness, so leave it at 1 when there is one
       material.roughness = material.roughnessMap ? 1 : ROUGHNESS[kind];
     }
