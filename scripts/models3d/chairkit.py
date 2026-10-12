@@ -182,6 +182,201 @@ def fillet(z0, z1, a, b, steps=5):
     return out
 
 
+# ---- sweeps ---------------------------------------------------------------------
+def sweep(part, path, w, h, r, closed=False, up=(0, 0, 1), n=5, tile=16, caps=True):
+    """Sweep a w x h rounded-rectangle section (r = w/2 = h/2 for a round
+    tube) along `path` (list of Vector, inches): footrings, tube frames,
+    seat bands. Grain/UV length runs along the path."""
+    path = [Vector(p) for p in path]
+    up = Vector(up)
+    m = len(path)
+    rings, lengths, acc = [], [], 0.0
+    for i, p in enumerate(path):
+        if closed:
+            t = path[(i + 1) % m] - path[i - 1]
+        else:
+            t = path[min(i + 1, m - 1)] - path[max(i - 1, 0)]
+        t.normalize()
+        side = up.cross(t)
+        if side.length < 1e-6:
+            side = Vector((1, 0, 0)).cross(t)
+        side.normalize()
+        nrm = t.cross(side)
+        rings.append([p + side * a + nrm * b for a, b in rrect(0, 0, w, h, r, n)])
+        if i:
+            acc += (path[i] - path[i - 1]).length
+        lengths.append(acc)
+    if closed:
+        rings.append(rings[0])
+        lengths.append(acc + (path[0] - path[-1]).length)
+        vrings = part.rings(rings, lengths, tile, cap_start=False, cap_end=False, length_on_u=True)
+        return vrings
+    return part.rings(rings, lengths, tile, cap_start=caps, cap_end=caps, length_on_u=True)
+
+
+def squircle_path(cx, cy, z, rx, ry, p=3.0, segs=72):
+    """Superellipse |x/rx|^p + |y/ry|^p = 1 (p=2 ellipse, larger = squarer)."""
+    out = []
+    for k in range(segs):
+        t = 2 * math.pi * k / segs
+        c, s_ = math.cos(t), math.sin(t)
+        out.append(Vector((cx + rx * math.copysign(abs(c) ** (2 / p), c),
+                           cy + ry * math.copysign(abs(s_) ** (2 / p), s_), z)))
+    return out
+
+
+def ellipse_path(cx, cy, z, rx, ry, segs=64):
+    import math as _m
+    return [Vector((cx + rx * _m.cos(2 * _m.pi * k / segs), cy + ry * _m.sin(2 * _m.pi * k / segs), z))
+            for k in range(segs)]
+
+
+# ---- shells ---------------------------------------------------------------------
+def _inside(pt, poly):
+    x, y = pt
+    inside = False
+    for i in range(len(poly)):
+        x1, y1 = poly[i]
+        x2, y2 = poly[(i + 1) % len(poly)]
+        if (y1 > y) != (y2 > y) and x < x1 + (y - y1) * (x2 - x1) / (y2 - y1):
+            inside = not inside
+    return inside
+
+
+def _nearest_on(pt, polys):
+    best, bd = pt, float("inf")
+    px, py = pt
+    for poly in polys:
+        for i in range(len(poly)):
+            ax, ay = poly[i]
+            bx, by = poly[(i + 1) % len(poly)]
+            dx, dy = bx - ax, by - ay
+            L2 = dx * dx + dy * dy or 1e-12
+            t = max(0.0, min(1.0, ((px - ax) * dx + (py - ay) * dy) / L2))
+            qx, qy = ax + t * dx, ay + t * dy
+            d = (qx - px) ** 2 + (qy - py) ** 2
+            if d < bd:
+                best, bd = (qx, qy), d
+    return best
+
+
+def rounded_poly(points, radius, segs=6):
+    """Fillet every corner of a 2D polygon with `radius` (inches)."""
+    out = []
+    m = len(points)
+    for i in range(m):
+        p0, p1, p2 = Vector(points[i - 1]), Vector(points[i]), Vector(points[(i + 1) % m])
+        a, b = (p0 - p1), (p2 - p1)
+        la, lb = a.length, b.length
+        if la < 1e-6 or lb < 1e-6:
+            continue
+        a.normalize(); b.normalize()
+        ang = math.acos(max(-1.0, min(1.0, a.dot(b))))
+        if ang > math.radians(179):
+            out.append(tuple(p1))
+            continue
+        r = min(radius, la * 0.45 * math.tan(ang / 2), lb * 0.45 * math.tan(ang / 2))
+        d = r / math.tan(ang / 2)
+        s, e = p1 + a * d, p1 + b * d
+        bis = (a + b).normalized()
+        c = p1 + bis * (r / math.sin(ang / 2))
+        a0 = math.atan2(s.y - c.y, s.x - c.x)
+        a1 = math.atan2(e.y - c.y, e.x - c.x)
+        da = (a1 - a0 + math.pi) % (2 * math.pi) - math.pi
+        for k in range(segs + 1):
+            t = a0 + da * k / segs
+            out.append((c.x + r * math.cos(t), c.y + r * math.sin(t)))
+    return out
+
+
+def shell(part, outline, holes, thickness, to_world, step=0.3, rim_steps=6, tile=16):
+    """A bent sheet (plywood back, stamped steel seat). outline and holes are
+    2D polygons in the sheet's own (s, z) coordinates (inches along the
+    surface); to_world(s, z, d) -> Vector places a point at depth d through
+    the sheet (0 = outer face, thickness = inner face). The edge is a
+    half-round roll. Grain (texture U) runs along z."""
+    import itertools
+    xs = [p[0] for p in outline]
+    zs = [p[1] for p in outline]
+    s0, s1, z0, z1 = min(xs), max(xs), min(zs), max(zs)
+    ni, nj = int((s1 - s0) / step) + 2, int((z1 - z0) / step) + 2
+
+    def cell_in(i, j):
+        c = (s0 + (i + 0.5) * step, z0 + (j + 0.5) * step)
+        return _inside(c, outline) and not any(_inside(c, h) for h in holes)
+
+    cells = {(i, j) for i in range(ni) for j in range(nj) if cell_in(i, j)}
+    # boundary edges of the cell set, as directed corner pairs (CCW around cells)
+    bedges = []
+    for i, j in cells:
+        if (i, j - 1) not in cells: bedges.append(((i, j), (i + 1, j)))
+        if (i + 1, j) not in cells: bedges.append(((i + 1, j), (i + 1, j + 1)))
+        if (i, j + 1) not in cells: bedges.append(((i + 1, j + 1), (i, j + 1)))
+        if (i - 1, j) not in cells: bedges.append(((i, j + 1), (i, j)))
+    nxt = {}
+    for a, b in bedges:
+        nxt.setdefault(a, []).append(b)
+    loops, used = [], set()
+    for a, b in bedges:
+        if (a, b) in used:
+            continue
+        loop, cur, prev = [a], b, a
+        used.add((a, b))
+        while cur != a:
+            cand = [c for c in nxt[cur] if (cur, c) not in used]
+            c = cand[0]
+            used.add((cur, c))
+            loop.append(cur)
+            prev, cur = cur, c
+        loops.append(loop)
+    # corner positions in (s, z); boundary corners snap onto the true outline
+    pos = {}
+    for i, j in cells:
+        for c in ((i, j), (i + 1, j), (i, j + 1), (i + 1, j + 1)):
+            pos[c] = (s0 + c[0] * step, z0 + c[1] * step)
+    polys = [outline] + list(holes)
+    for loop in loops:
+        for c in loop:
+            pos[c] = _nearest_on(pos[c], polys)
+
+    bm = part.bm
+    top, bot = {}, {}
+    for c, (s_, z_) in pos.items():
+        top[c] = bm.verts.new(to_world(s_, z_, 0.0))
+        bot[c] = bm.verts.new(to_world(s_, z_, thickness))
+    uv = lambda c: (pos[c][1] / tile, pos[c][0] / tile)
+    for i, j in cells:
+        q = [(i, j), (i + 1, j), (i + 1, j + 1), (i, j + 1)]
+        part.face([top[c] for c in q], [uv(c) for c in q])
+        part.face([bot[c] for c in q[::-1]], [uv(c) for c in q[::-1]])
+    # half-round rim around every loop
+    r = thickness / 2
+    for loop in loops:
+        m = len(loop)
+        normals = []
+        for k, c in enumerate(loop):
+            pa, pb = Vector(pos[loop[k - 1]]), Vector(pos[loop[(k + 1) % m]])
+            t = (pb - pa)
+            t = t.normalized() if t.length > 1e-9 else Vector((1, 0))
+            normals.append(Vector((t.y, -t.x)))      # outward for CCW cell-boundary loops
+        ringverts = [[top[c] for c in loop]]
+        for st in range(1, rim_steps):
+            phi = math.pi * st / rim_steps
+            ring = []
+            for c, nv in zip(loop, normals):
+                s_, z_ = pos[c]
+                ring.append(bm.verts.new(to_world(s_ + nv.x * r * math.sin(phi), z_ + nv.y * r * math.sin(phi),
+                                                  r - r * math.cos(phi))))
+            ringverts.append(ring)
+        ringverts.append([bot[c] for c in loop])
+        for a_, b_ in zip(ringverts, ringverts[1:]):
+            for k in range(m):
+                k1 = (k + 1) % m
+                part.face([a_[k1], a_[k], b_[k], b_[k1]],
+                          [(k1 / 8, 0), (k / 8, 0), (k / 8, 0.1), (k1 / 8, 0.1)])
+    return part
+
+
 # ---- upholstery ------------------------------------------------------------------
 def pillow(part, w, h, corner_r, edge, crown, to_world, tile=9, n=8, inner_rings=16, cap_base=True):
     """Upholstered pad: concentric rounded-rectangle rings from the outline in.
@@ -234,7 +429,7 @@ def pillow(part, w, h, corner_r, edge, crown, to_world, tile=9, n=8, inner_rings
 
 
 def subd_pad(name, slot, material, w, h, t, to_world, edge_r=1.0, bottom_r=0.3, tuck=0.0,
-             bulge=0.0, crown=0.0, levels=3, tile=8, inner=6):
+             bulge=0.0, crown=0.0, levels=3, tile=8, inner=6, round_front=0.0, round_back=0.0):
     """Upholstered pad modelled the furniture way: a box cage with support
     loops, Catmull-Clark subdivided. The top is a clean quad grid (no
     diagonal creases), edges and corners roll over with radius ~edge_r.
@@ -242,7 +437,9 @@ def subd_pad(name, slot, material, w, h, t, to_world, edge_r=1.0, bottom_r=0.3, 
     w x h is the pad's footprint in its local (a, b) plane, t its thickness;
     tuck pulls the bottom edge in, bulge pushes the sides out, crown domes
     the top. to_world(a, b, height) -> Vector (inches). UVs lay the top flat
-    and unfold the sides outward, so the weave runs one way everywhere."""
+    and unfold the sides outward, so the weave runs one way everywhere.
+    round_front / round_back (0..1) round the plan toward a disc on the -b /
+    +b half: 0 keeps the rounded rectangle, 1 makes a full semicircle."""
     def cuts(L, e):
         half = L / 2
         inner_pts = [-half + e + (L - 2 * e) * k / inner for k in range(1, inner)]
@@ -299,8 +496,16 @@ def subd_pad(name, slot, material, w, h, t, to_world, edge_r=1.0, bottom_r=0.3, 
         if nh.length > 1e-3:
             nh.normalize()
         uv.data[loop.index].uv = ((co.x + nh.x * out) / tile, (co.y + nh.y * out) / tile)
+    hw, hh = w / 2, h / 2
     for v, co in zip(me.vertices, local):
-        v.co = to_world(co.x, co.y, co.z) * IN
+        a, b = co.x, co.y
+        k = round_front if b < 0 else round_back
+        if k:
+            # blend the square toward a disc (Fong's square-to-disc map)
+            ua, ub = max(-1, min(1, a / hw)), max(-1, min(1, b / hh))
+            a = a * (1 - k) + k * hw * ua * math.sqrt(max(0.0, 1 - ub * ub / 2))
+            b = b * (1 - k) + k * hh * ub * math.sqrt(max(0.0, 1 - ua * ua / 2))
+        v.co = to_world(a, b, co.z) * IN
     bm = bmesh.new()
     bm.from_mesh(me)
     bmesh.ops.recalc_face_normals(bm, faces=bm.faces)
@@ -388,6 +593,34 @@ def pbr_material(name, slot, kind, tint, normal_strength=0.8):
         bsdf.inputs["Sheen Roughness"].default_value = 0.5
         bsdf.inputs["Sheen Tint"].default_value = (*tint, 1.0)
     return m
+
+
+def plain_material(name, color, metallic=0.0, roughness=0.5):
+    """Untextured material, not configurable in the viewer (hardware: bolts,
+    glides, chrome caps)."""
+    m = bpy.data.materials.new(name)
+    bsdf = m.node_tree.nodes["Principled BSDF"]
+    bsdf.inputs["Base Color"].default_value = (*color, 1.0)
+    bsdf.inputs["Metallic"].default_value = metallic
+    bsdf.inputs["Roughness"].default_value = roughness
+    return m
+
+
+def dome(part, centre, normal, radius, height, segs=16, rings=5):
+    """A small dome (bolt cap, glide) sitting on a surface."""
+    c, n = Vector(centre), Vector(normal).normalized()
+    t = n.cross(Vector((0, 0, 1)))
+    if t.length < 1e-6:
+        t = n.cross(Vector((1, 0, 0)))
+    t.normalize()
+    b = n.cross(t)
+    grid = []
+    for k in range(rings + 1):
+        phi = (math.pi / 2) * k / rings
+        rr, hh = radius * math.cos(phi), height * math.sin(phi)
+        grid.append([c + n * hh + (t * math.cos(2 * math.pi * j / segs) + b * math.sin(2 * math.pi * j / segs)) * rr
+                     for j in range(segs)])
+    part.rings(grid, [k for k in range(rings + 1)], 4, cap_start=True, cap_end=False)
 
 
 # ---- assembly / export --------------------------------------------------------------

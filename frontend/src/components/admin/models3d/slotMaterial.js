@@ -1,105 +1,132 @@
 /**
- * Configurable 3D product materials.
+ * Dressing a model's configurable parts in library materials.
  *
- * A model marks its parts through glTF material extras (three.js puts them in
- * material.userData): ec_slot = 'upholstery' | 'frame', and ec_kind = the
- * material its maps show ('wood', 'fabric', 'leather'). Models without extras
- * fall back to matching the material name.
+ * A library material (materialKinds.js BUILTIN_MATERIALS, or an upload) is a
+ * set of PBR maps plus look settings. Neutral maps are tinted with the
+ * catalog option's colour (its hex, or its swatch's average colour); real
+ * textures (a laminate scan, a glTF material) are shown as they are.
  *
- * Parts carry neutral, tileable PBR maps (grain, normal, roughness), so an
- * option is applied by setting the material colour (the option's hex, or its
- * swatch's average colour) and, when the option is a different material type
- * (vinyl on a fabric seat, metal on a wood frame), swapping the map set from
- * /materials3d (CC0 textures from ambientCG).
+ * Every map is cloned per part so texture scale can differ between parts;
+ * clones share the image, so the GPU holds each texture once.
  */
 import * as THREE from 'three';
+import { getGltfLoader, loadTexture, textureMean } from './loaders';
 
-export const SLOTS = ['upholstery', 'frame'];
+export const MAP_KEYS = ['map', 'normalMap', 'roughnessMap', 'metalnessMap', 'aoMap'];
 
-const NAME_HINTS = {
-  upholstery: /uphol|fabric|vinyl|leather|seat|cushion|pad|back_?panel/i,
-  frame: /frame|wood|finish|leg|metal|base/i,
-};
-
-/** Which configurable slot a material belongs to, or null. */
-export function materialSlot(material) {
-  const tagged = material?.userData?.ec_slot;
-  if (SLOTS.includes(tagged)) return tagged;
-  const name = material?.name || '';
-  return SLOTS.find((slot) => NAME_HINTS[slot].test(name)) || null;
+/**
+ * Upgrade a glTF material to MeshPhysicalMaterial (in place on its meshes is
+ * the caller's job) so sheen, clear coat and anisotropy are available.
+ */
+export function toPhysical(material) {
+  if (material.isMeshPhysicalMaterial || !material.isMeshStandardMaterial) return material;
+  const physical = new THREE.MeshPhysicalMaterial();
+  THREE.MeshStandardMaterial.prototype.copy.call(physical, material);
+  physical.name = material.name;
+  return physical;
 }
 
-/** Map set for a catalog option: upholstery material_type / finish finish_type. */
-export function optionKind(slot, item) {
-  if (!item) return null;
-  if (slot === 'upholstery') {
-    return /vinyl|leather|naugahyde|poly/i.test(`${item.material_type || ''} ${item.name || ''}`) ? 'leather' : 'fabric';
+const lookCache = new Map();
+
+function mapsFromMaterial(m) {
+  const maps = {};
+  for (const key of MAP_KEYS) {
+    if (m[key]) {
+      m[key].wrapS = m[key].wrapT = THREE.RepeatWrapping;
+      m[key].needsUpdate = true;
+      maps[key] = m[key];
+    }
   }
-  return /metal|chrome|powder|aluminum|steel/i.test(item.finish_type || '') ? 'metal' : 'wood';
+  return maps;
 }
 
-// The neutral grain maps average about this bright; colours are scaled up to
-// match so a swatch's colour comes out at its own brightness.
-const ALBEDO_MEAN = { wood: 0.8, fabric: 0.86, leather: 0.86 };
-const FABRIC_SHEEN = 0.5;   // matches chairkit.SHEEN
-const ROUGHNESS = { wood: 0.55, fabric: 1, leather: 0.75, metal: 0.3 };
+function paramsFromMaterial(m) {
+  const p = {
+    color: `#${m.color.getHexString()}`,
+    roughness: m.roughness,
+    metalness: m.metalness,
+    normalScale: Math.abs(m.normalScale?.x ?? 1),
+  };
+  if (m.isMeshPhysicalMaterial) {
+    Object.assign(p, {
+      sheen: m.sheen, sheenRoughness: m.sheenRoughness, clearcoat: m.clearcoat,
+      clearcoatRoughness: m.clearcoatRoughness, anisotropy: m.anisotropy,
+    });
+  }
+  return p;
+}
 
-const textureCache = new Map();
-const loader = new THREE.TextureLoader();
+async function loadGlbLook(url) {
+  const gltf = await getGltfLoader().loadAsync(url);
+  let found = null;
+  gltf.scene.traverse((obj) => {
+    if (!found && obj.isMesh) found = Array.isArray(obj.material) ? obj.material[0] : obj.material;
+  });
+  if (!found) throw new Error('The material file has no mesh material');
+  return { maps: mapsFromMaterial(found), params: paramsFromMaterial(found) };
+}
 
-function loadMap(url, srgb) {
-  if (!textureCache.has(url)) {
-    textureCache.set(url, loader.loadAsync(url).then((tex) => {
-      tex.colorSpace = srgb ? THREE.SRGBColorSpace : THREE.NoColorSpace;
-      tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
-      tex.flipY = false;   // glTF UV convention, like the model's own maps
-      tex.anisotropy = 8;
-      return tex;
-    }).catch((err) => {
-      textureCache.delete(url);
+async function loadMapUrls(urls) {
+  const entries = await Promise.all(Object.entries(urls || {}).map(async ([key, url]) => (
+    [key, await loadTexture(url, { srgb: key === 'map' })]
+  )));
+  return Object.fromEntries(entries);
+}
+
+/**
+ * Loaded maps and base params for a library material. `swatchUrl` is used
+ * by the "swatch image as texture" material.
+ */
+export function loadLook(libMaterial, { swatchUrl = null } = {}) {
+  const key = `${libMaterial.id}|${libMaterial.url || ''}|${libMaterial.swatch ? swatchUrl : ''}`;
+  if (!lookCache.has(key)) {
+    let promise;
+    if (libMaterial.url) promise = loadGlbLook(libMaterial.url);
+    else if (libMaterial.swatch) {
+      promise = swatchUrl
+        ? loadMapUrls({ map: swatchUrl }).then((maps) => ({ maps, params: {} }))
+        : Promise.resolve({ maps: {}, params: {} });
+    } else promise = loadMapUrls(libMaterial.maps).then((maps) => ({ maps, params: {} }));
+    lookCache.set(key, promise.catch((err) => {
+      lookCache.delete(key);
       throw err;
     }));
   }
-  return textureCache.get(url);
-}
-
-async function mapSet(kind, base) {
-  if (kind === 'metal') return null;
-  const [map, normalMap, roughnessMap] = await Promise.all([
-    loadMap(`${base}/${kind}_albedo.jpg`, true),
-    loadMap(`${base}/${kind}_normal.jpg`, false),
-    loadMap(`${base}/${kind}_rough.jpg`, false),
-  ]);
-  return { map, normalMap, roughnessMap };
+  return lookCache.get(key);
 }
 
 /** Remember what the model shipped with, so "Original" can restore it. */
 function original(material) {
   if (!material.userData.ecOriginal) {
-    material.userData.ecOriginal = {
+    const o = {
       color: material.color.clone(),
-      map: material.map,
-      normalMap: material.normalMap,
-      roughnessMap: material.roughnessMap,
       roughness: material.roughness,
       metalness: material.metalness,
-      sheen: material.sheen ?? 0,
-      sheenColor: material.sheenColor?.clone(),
-      repeat: material.map?.repeat.clone() ?? new THREE.Vector2(1, 1),
+      normalScale: material.normalScale?.clone(),
+      aoMapIntensity: material.aoMapIntensity,
+      envMapIntensity: material.envMapIntensity,
+      repeat: material.map?.repeat.clone() ?? material.normalMap?.repeat.clone() ?? new THREE.Vector2(1, 1),
     };
+    for (const key of MAP_KEYS) o[key] = material[key];
+    for (const key of ['sheen', 'sheenRoughness', 'clearcoat', 'clearcoatRoughness', 'anisotropy']) {
+      if (key in material) o[key] = material[key];
+    }
+    if (material.sheenColor) o.sheenColor = material.sheenColor.clone();
+    material.userData.ecOriginal = o;
   }
   return material.userData.ecOriginal;
 }
 
-function setMaps(material, maps, grain, baseRepeat) {
-  for (const key of ['map', 'normalMap', 'roughnessMap']) {
-    const tex = maps?.[key] ?? null;
+function setMaps(material, maps, repeat) {
+  const orig = material.userData.ecOriginal;
+  for (const key of MAP_KEYS) {
+    const current = material[key];
+    if (current && current !== orig[key]) current.dispose();
+    const tex = maps[key];
     if (tex) {
-      // Textures are shared between materials; clone so grain scale is per part
       const own = tex.clone();
-      own.repeat.copy(baseRepeat).multiplyScalar(1 / grain);
+      own.repeat.copy(repeat);
       own.needsUpdate = true;
-      if (material[key] && material[key] !== material.userData.ecOriginal?.[key]) material[key].dispose();
       material[key] = own;
     } else {
       material[key] = null;
@@ -107,70 +134,76 @@ function setMaps(material, maps, grain, baseRepeat) {
   }
 }
 
+function restore(material, grain) {
+  const orig = original(material);
+  setMaps(material, orig, orig.repeat.clone().divideScalar(grain));
+  material.color.copy(orig.color);
+  material.roughness = orig.roughness;
+  material.metalness = orig.metalness;
+  if (orig.normalScale) material.normalScale.copy(orig.normalScale);
+  material.aoMapIntensity = orig.aoMapIntensity;
+  material.envMapIntensity = orig.envMapIntensity;
+  for (const key of ['sheen', 'sheenRoughness', 'clearcoat', 'clearcoatRoughness', 'anisotropy']) {
+    if (key in orig) material[key] = orig[key];
+  }
+  if (orig.sheenColor) material.sheenColor.copy(orig.sheenColor);
+}
+
 /**
- * Apply an option to a slot's materials. `option`: null for the model's own
- * look, or { colorHex, kind }. `settings`: { grain } (texture scale, 1 = as
- * modelled).
+ * Dress `materials` (one slot's parts) in a library material.
+ *
+ * libMaterial: null for the model's own look, else a library material.
+ * color: the catalog option's colour ('#rrggbb') for tintable materials.
+ * grain: the model's texture scale for this slot (1 = as modelled).
+ * swatchUrl: the option's swatch image (for the swatch-texture material).
  */
-export async function applySlotOption(materials, option, settings = {}, { base = '/materials3d' } = {}) {
-  const grain = settings.grain || 1;
-  const maps = option && option.kind !== materials[0]?.userData?.ec_kind ? await mapSet(option.kind, base) : undefined;
+export async function applyMaterial(materials, libMaterial, { color = null, grain = 1, swatchUrl = null } = {}) {
+  if (!materials?.length) return;
+  grain = grain || 1;
+  if (!libMaterial) {
+    for (const material of materials) {
+      restore(material, grain);
+      material.needsUpdate = true;
+    }
+    return;
+  }
+
+  const ownMaps = (m) => Boolean(libMaterial.mapSet) && libMaterial.mapSet === m.userData.ec_kind;
+  const look = materials.every(ownMaps) && !libMaterial.url
+    ? { maps: {}, params: {} }
+    : await loadLook(libMaterial, { swatchUrl });
+  const p = { ...look.params, ...(libMaterial.settings || {}) };
+
   for (const material of materials) {
     const orig = original(material);
-    if (!option) {
-      for (const key of ['map', 'normalMap', 'roughnessMap']) {
-        if (material[key] && material[key] !== orig[key]) material[key].dispose();
-        material[key] = orig[key];
-      }
-      material.color.copy(orig.color);
-      material.roughness = orig.roughness;
-      material.metalness = orig.metalness;
-      if ('sheen' in material) {
-        material.sheen = orig.sheen;
-        if (orig.sheenColor) material.sheenColor.copy(orig.sheenColor);
-      }
-      for (const key of ['map', 'normalMap', 'roughnessMap']) {
-        material[key]?.repeat.copy(orig.repeat).multiplyScalar(1 / grain);
-      }
-    } else {
-      const kind = option.kind;
-      // Same material type as modelled: keep the model's maps, else swap the set
-      setMaps(material, maps === undefined ? orig : maps, grain, orig.repeat);
-      const color = new THREE.Color(option.colorHex || '#888888');
-      if (ALBEDO_MEAN[kind]) color.multiplyScalar(1 / ALBEDO_MEAN[kind]);
-      material.color.copy(color);
-      material.metalness = kind === 'metal' ? 1 : 0;
-      // Cloth sheen only on fabric, tinted by the fabric's own colour (white
-      // sheen washes colours out)
-      if ('sheen' in material) {
-        material.sheen = kind === 'fabric' ? 1 : 0;
-        material.sheenColor.copy(color).multiplyScalar(FABRIC_SHEEN);
-      }
-      // A roughness map scales material.roughness, so leave it at 1 when there is one
-      material.roughness = material.roughnessMap ? 1 : ROUGHNESS[kind];
+    const own = ownMaps(material);
+    // The model's embedded copy of the same map set keeps its UV scale
+    const maps = own ? { map: orig.map, normalMap: orig.normalMap, roughnessMap: orig.roughnessMap } : look.maps;
+    setMaps(material, maps, orig.repeat.clone().divideScalar((p.scale || 1) * grain));
+
+    const tint = libMaterial.tint && color;
+    const c = new THREE.Color(tint ? color : (p.color || '#ffffff'));
+    if (tint && material.map) {
+      const mean = libMaterial.albedoMean ?? textureMean(maps.map);
+      c.multiplyScalar(1 / mean);
+    }
+    material.color.copy(c);
+    material.metalness = p.metalness ?? (material.metalnessMap ? 1 : 0);
+    // A roughness map scales material.roughness, so it defaults to 1 with one
+    material.roughness = p.roughness ?? (material.roughnessMap ? 1 : 0.6);
+    const n = p.normalScale ?? 1;
+    if (material.normalScale) material.normalScale.set(n, n * Math.sign(orig.normalScale?.y || 1));
+    material.aoMapIntensity = p.aoIntensity ?? 1;
+    material.envMapIntensity = p.envIntensity ?? 1;
+    if (material.isMeshPhysicalMaterial) {
+      material.sheen = p.sheen ?? 0;
+      material.sheenRoughness = p.sheenRoughness ?? 0.8;
+      // Cloth sheen tinted by the fabric's own colour (white sheen washes colours out)
+      material.sheenColor.copy(c).multiplyScalar(0.5);
+      material.clearcoat = p.clearcoat ?? 0;
+      material.clearcoatRoughness = p.clearcoatRoughness ?? 0.3;
+      material.anisotropy = p.anisotropy ?? 0;
     }
     material.needsUpdate = true;
   }
-}
-
-/** Average colour of an image, as '#rrggbb' (used when a swatch has no hex). */
-export async function averageColor(url) {
-  const img = await new Promise((resolve, reject) => {
-    const el = new Image();
-    el.crossOrigin = 'anonymous';
-    el.onload = () => resolve(el);
-    el.onerror = reject;
-    el.src = url;
-  });
-  const canvas = document.createElement('canvas');
-  canvas.width = canvas.height = 16;
-  const ctx = canvas.getContext('2d');
-  // Centre crop: swatch photos often have labels or borders at the edges
-  const w = img.naturalWidth, h = img.naturalHeight;
-  ctx.drawImage(img, w * 0.2, h * 0.2, w * 0.6, h * 0.6, 0, 0, 16, 16);
-  const data = ctx.getImageData(0, 0, 16, 16).data;
-  let r = 0, g = 0, b = 0;
-  for (let i = 0; i < data.length; i += 4) { r += data[i]; g += data[i + 1]; b += data[i + 2]; }
-  const n = data.length / 4;
-  return `#${[r, g, b].map((v) => Math.round(v / n).toString(16).padStart(2, '0')).join('')}`;
 }
