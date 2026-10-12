@@ -8,7 +8,7 @@ import logging
 import re
 from typing import Any, Dict, List, Optional
 
-from sqlalchemy import and_, case, cast, func, or_, select, update
+from sqlalchemy import and_, case, cast, false, func, or_, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 from sqlalchemy.orm.attributes import set_committed_value
@@ -522,7 +522,9 @@ class ProductService:
             is_ada_compliant: Filter ADA compliant products
             max_lead_time_days: Maximum lead time in days
             in_stock_only: Show only in-stock products
-            exclude_variations: Exclude product variations, show only base products
+            exclude_variations: Ignored. Variations are ProductVariation rows,
+                so every Chair is a base product, suffixed or not; kept so
+                existing callers still work
             smart_sort: Use smart sorting (new → with image → popular → rest)
             sort: Explicit sort order (recommended, model, name-asc, name-desc,
                 featured); ignored when smart_sort is True. recommended is model
@@ -582,12 +584,6 @@ class ProductService:
 
         if is_new is not None:
             query = query.where(Chair.is_new == is_new)
-
-        # Exclude variations (show only base products)
-        if exclude_variations:
-            query = query.where(
-                or_(Chair.model_suffix.is_(None), Chair.model_suffix == "")
-            )
 
         # Finish / upholstery / color filters — these are stored as JSON id
         # arrays on Chair (available_finishes/available_upholsteries/
@@ -667,10 +663,22 @@ class ProductService:
         if search_query:
             search_term = f"%{search_query}%"
             keyword_match = cast(Chair.keywords, String).ilike(search_term)
+            # Full model numbers ("6246WB.P", "6246 WB.P", "6246-wbp") match the
+            # number and suffix run together, ignoring spaces, dashes and dots
+            model_term = re.sub(r"[\s.\-]+", "", search_query).lower()
+            full_model = func.replace(
+                func.lower(
+                    func.coalesce(Chair.model_number, "")
+                    + func.coalesce(Chair.model_suffix, "")
+                ),
+                ".",
+                "",
+            )
             query = query.where(
                 or_(
                     Chair.name.ilike(search_term),
                     Chair.model_number.ilike(search_term),
+                    full_model.like(f"%{model_term}%") if model_term else false(),
                     Chair.short_description.ilike(search_term),
                     Chair.full_description.ilike(search_term),
                     keyword_match,

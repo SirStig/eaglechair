@@ -434,7 +434,7 @@ async def get_products(
     ada_compliant: Optional[bool] = Query(None, description="Filter ADA compliant products"),
     max_lead_time: Optional[int] = Query(None, description="Maximum lead time in days"),
     in_stock_only: bool = Query(False, description="Show only in-stock products"),
-    exclude_variations: bool = Query(False, description="Exclude variations, show only base products"),
+    exclude_variations: bool = Query(False, description="Ignored; variations are separate records, so every product is a base product"),
     smart_sort: bool = Query(False, description="Use smart sorting (new→with image→popular)"),
     sort: Optional[str] = Query(None, description="Sort order: recommended, model, name-asc, name-desc, featured (ignored when smart_sort=true)"),
     featured_first: bool = Query(False, description="Featured products first, then the sort order"),

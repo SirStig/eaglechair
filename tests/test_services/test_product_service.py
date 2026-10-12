@@ -354,6 +354,36 @@ class TestProductService:
         assert pages == [["6005", "6100"], ["4000", "300"]]
 
     @pytest.mark.asyncio
+    async def test_search_finds_suffixed_models(self, db_session: AsyncSession):
+        """Suffixed products stay listed and match their full model number."""
+        from backend.utils.pagination import PaginationParams
+
+        category = await create_category(db_session)
+        await create_chair(
+            db_session, category_id=category.id, name="Abruzzo Barstool",
+            model_number="5246", model_suffix="WB.P",
+        )
+        await create_chair(
+            db_session, category_id=category.id, name="Modena Chair",
+            model_number="6242",
+        )
+
+        async def search(term):
+            result = await ProductService.get_products(
+                db_session,
+                pagination=PaginationParams(page=1, per_page=50),
+                category_id=category.id,
+                search_query=term,
+                exclude_variations=True,
+                include_inactive=True,
+            )
+            return [p.model_number for p in result["items"]]
+
+        for term in ["5246", "5246WB.P", "5246 wb.p", "5246-WBP", "Abruzzo"]:
+            assert await search(term) == ["5246"], term
+        assert await search("6242") == ["6242"]
+
+    @pytest.mark.asyncio
     async def test_filter_by_overall_height(self, db_session: AsyncSession):
         """min_height / max_height filter on overall height, not seat height."""
         from backend.utils.pagination import PaginationParams
