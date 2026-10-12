@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { Link } from 'react-router-dom';
 import { clsx } from 'clsx';
 import Button from '../../ui/Button';
 import apiClient from '../../../config/apiClient';
@@ -377,9 +378,8 @@ const DashboardOverview = ({ onNavigate, inquiryUnread = 0 }) => {
             <ul className="divide-y divide-white/[0.06]">
               {recentQuotes.map((quote) => (
                 <li key={quote.id}>
-                  <button
-                    type="button"
-                    onClick={() => onNavigate('quotes')}
+                  <Link
+                    to={`/admin/quotes?quote=${quote.id}`}
                     className="flex w-full items-center gap-4 px-5 py-3 text-left transition-colors hover:bg-white/[0.03]"
                   >
                     <div className="min-w-0 flex-1">
@@ -392,7 +392,7 @@ const DashboardOverview = ({ onNavigate, inquiryUnread = 0 }) => {
                       </p>
                     </div>
                     <StatusBadge status={quote.status} styles={QUOTE_STATUS_STYLES} />
-                  </button>
+                  </Link>
                 </li>
               ))}
             </ul>

@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { Link } from 'react-router-dom';
 import Card from '../../ui/Card';
 import Button from '../../ui/Button';
 import Input from '../../ui/Input';
@@ -286,6 +287,14 @@ const AdminCompanyDetailView = ({ companyId, onBack, onUpdated }) => {
         actions={!isEditing ? (
           <div className="flex items-center gap-2">
             <RecordHistoryLink resourceType="companies" resourceId={company?.id} />
+            {company?.id && (
+              <Link
+                to={`/admin/quotes?company=${company.id}`}
+                className="inline-flex min-h-[40px] items-center gap-1.5 rounded-lg px-3 text-sm text-dark-100 transition-colors hover:bg-dark-700 hover:text-dark-50"
+              >
+                <FileText className="h-4 w-4" aria-hidden="true" /> Quotes
+              </Link>
+            )}
             <Button onClick={() => setIsEditing(true)} className="flex items-center gap-2">
               <Edit2 className="w-4 h-4" />
               Edit

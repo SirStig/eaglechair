@@ -6,6 +6,7 @@
  * are the ones that catch regressions that make the editor laggy.
  */
 import { Profiler } from 'react';
+import { BrowserRouter } from 'react-router-dom';
 import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -65,17 +66,20 @@ const commits = [];
 const onRender = (_id, phase, actualDuration) => commits.push({ phase, actualDuration });
 
 const mount = () => render(
-  <ToastProvider>
-    <Profiler id="editor" onRender={onRender}>
-      <CatalogBuilderEditor project={bigProject()} onBack={() => {}} />
-    </Profiler>
-  </ToastProvider>,
+  <BrowserRouter>
+    <ToastProvider>
+      <Profiler id="editor" onRender={onRender}>
+        <CatalogBuilderEditor project={bigProject()} onBack={() => {}} />
+      </Profiler>
+    </ToastProvider>
+  </BrowserRouter>,
 );
 
 const previewCallsFor = (index) => service.previewPage.mock.calls.filter(([, i]) => i === index).length;
 const sleep = (ms) => act(() => new Promise((r) => setTimeout(r, ms)));
 
 beforeEach(() => {
+  window.history.replaceState(null, '', '/');
   clearPreviewCache();
   vi.clearAllMocks();
   sortableRenders.count = 0;

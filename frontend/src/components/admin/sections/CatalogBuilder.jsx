@@ -1,10 +1,11 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { BookOpen, Copy, FilePlus2, Loader2, Sparkles, Trash2 } from 'lucide-react';
 import Card from '../../ui/Card';
 import Button from '../../ui/Button';
 import Modal from '../../ui/Modal';
 import { useToast } from '../../../contexts/ToastContext';
 import { useAdminRefresh } from '../../../contexts/AdminRefreshContext';
+import { useSetUrlParams, useUrlState } from '../../../hooks/useUrlState';
 import {
   createProject, createSampleProject, deleteProject, duplicateProject, getProject, listProjects,
 } from '../../../services/catalogToolsService';
@@ -26,7 +27,11 @@ const CatalogBuilder = () => {
   const refreshKey = refreshKeys['catalog-builder'];
   const [projects, setProjects] = useState([]);
   const [loading, setLoading] = useState(true);
+  // Open catalog id (?catalog=) is in the URL; the loaded project is local
+  const [openId, setOpenId] = useUrlState('catalog', null, { type: 'number', push: true });
+  const setParams = useSetUrlParams();
   const [open, setOpen] = useState(null);
+  const fetchingId = useRef(null);
   const [opening, setOpening] = useState(null);
   const [creating, setCreating] = useState(false);
   const [newName, setNewName] = useState('');
@@ -43,21 +48,42 @@ const CatalogBuilder = () => {
     }
   }, [toastError]);
 
-  // Clicking the sidebar entry again returns to the list
   useEffect(() => {
-    setOpen(null);
     load();
   }, [load, refreshKey]);
 
-  const openProject = async (id) => {
-    setOpening(id);
-    try {
-      setOpen(await getProject(id));
-    } catch (error) {
-      toast.error(error?.response?.data?.detail || 'Could not open the catalog');
-    } finally {
-      setOpening(null);
+  // Load the project named in the URL (deep link, Back / Forward)
+  useEffect(() => {
+    if (openId == null) {
+      fetchingId.current = null;
+      setOpen(null);
+      return;
     }
+    if (open?.id === openId || fetchingId.current === openId) return;
+    fetchingId.current = openId;
+    setOpening(openId);
+    getProject(openId)
+      .then((project) => { if (fetchingId.current === openId) setOpen(project); })
+      .catch((error) => {
+        toastError(error?.response?.data?.detail || 'Could not open the catalog');
+        setParams({ catalog: null, page: null, tab: null });
+      })
+      .finally(() => {
+        if (fetchingId.current === openId) fetchingId.current = null;
+        setOpening(null);
+      });
+  }, [openId, open?.id, toastError, setParams]);
+
+  const openProject = (id) => setOpenId(id);
+
+  const showProject = (project) => {
+    setOpen(project);
+    setOpenId(project.id);
+  };
+
+  const closeProject = () => {
+    setParams({ catalog: null, page: null, tab: null }, { push: true });
+    load();
   };
 
   const create = async () => {
@@ -70,7 +96,7 @@ const CatalogBuilder = () => {
       });
       setCreating(false);
       setNewName('');
-      setOpen(project);
+      showProject(project);
     } catch (error) {
       toast.error(error?.response?.data?.detail || 'Could not create the catalog');
     }
@@ -81,7 +107,7 @@ const CatalogBuilder = () => {
     try {
       const project = await createSampleProject();
       setCreating(false);
-      setOpen(project);
+      showProject(project);
     } catch (error) {
       toast.error(error?.response?.data?.detail || 'Could not build the sample catalog');
     } finally {
@@ -110,12 +136,12 @@ const CatalogBuilder = () => {
     }
   };
 
-  if (open) {
+  if (open && open.id === openId) {
     return (
       <CatalogBuilderEditor
         key={open.id}
         project={open}
-        onBack={() => { setOpen(null); load(); }}
+        onBack={closeProject}
       />
     );
   }

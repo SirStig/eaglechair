@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useMemo } from 'react';
 import { Spool, SearchX } from 'lucide-react';
 import EmptyResults from '../components/ui/EmptyResults';
 import { useCatalogs, useUpholsteries , useMaterialSources } from '../hooks/useContent';
@@ -11,6 +11,8 @@ import { upholsteryDetail } from '../components/knowledge/materialDetails';
 import DocumentList from '../components/knowledge/DocumentList';
 import { UPHOLSTERY_GUIDE_TYPES, filterByTypes } from '../utils/catalogTypes';
 import { useTrackedQuery } from '../hooks/useMaterialInterest';
+import { useUrlState } from '../hooks/useUrlState';
+import useMaterialDetailParam from '../hooks/useMaterialDetailParam';
 
 // Section heading for a material: the mill/brand when known, otherwise its grade, otherwise its type.
 const groupOf = (u) => u.manufacturer || (u.grade ? `${u.grade} ${u.materialType || ''}`.trim() : u.materialType || 'Other');
@@ -19,10 +21,9 @@ const UpholsteryPage = () => {
   const { data: upholsteries = [], loading } = useUpholsteries();
   const { data: suppliers = [] } = useMaterialSources('upholstery');
   const { data: catalogs = [] } = useCatalogs();
-  const [query, setQuery] = useState('');
+  const [query, setQuery] = useUrlState('q', '');
   useTrackedQuery('Upholstery search', query);
-  const [type, setType] = useState('all');
-  const [detail, setDetail] = useState(null); // { items, index } while the overlay is open
+  const [type, setType] = useUrlState('type', 'all');
 
   const active = useMemo(() => (upholsteries || []).filter((u) => u.isActive !== false), [upholsteries]);
   const types = useMemo(() => [...new Set(active.map((u) => u.materialType).filter(Boolean))], [active]);
@@ -46,6 +47,9 @@ const UpholsteryPage = () => {
       });
     return [...map.entries()];
   }, [active, query, type]);
+
+  const detailGroups = useMemo(() => groups.map(([, items]) => ({ items, toDetail: upholsteryDetail })), [groups]);
+  const { openDetail, overlayProps } = useMaterialDetailParam('upholstery', detailGroups);
 
   const guides = filterByTypes(catalogs, UPHOLSTERY_GUIDE_TYPES);
 
@@ -99,10 +103,10 @@ const UpholsteryPage = () => {
             <section key={group}>
               <h2 className="text-2xl font-bold text-slate-800 mb-4">{group}</h2>
               <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 xl:grid-cols-6 gap-3 sm:gap-4">
-                {items.map((u, i) => (
+                {items.map((u) => (
                   <SwatchCard
                     key={u.id}
-                    onOpen={() => setDetail({ items: items.map(upholsteryDetail), index: i })}
+                    onOpen={() => openDetail(u)}
                     item={u}
                     kind="fabric"
                     title={u.name}
@@ -125,10 +129,7 @@ const UpholsteryPage = () => {
         </section>
       )}
       <MaterialDetailOverlay
-        items={detail?.items}
-        index={detail?.index}
-        onIndexChange={(index) => setDetail((d) => ({ ...d, index }))}
-        onClose={() => setDetail(null)}
+        {...overlayProps}
       />
     </KnowledgePageLayout>
   );

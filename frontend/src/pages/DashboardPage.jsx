@@ -23,6 +23,7 @@ import AccountSettings from '../components/account/AccountSettings';
 import { useAuthStore } from '../store/authStore';
 import { useCartStore } from '../store/cartStore';
 import apiClient from '../config/apiClient';
+import { useUrlState } from '../hooks/useUrlState';
 
 const DashboardPage = () => {
   const navigate = useNavigate();
@@ -47,8 +48,8 @@ const DashboardPage = () => {
   const [dashboardData, setDashboardData] = useState(null);
   const [quotesData, setQuotesData] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [quoteFilter, setQuoteFilter] = useState('all');
-  const [selectedQuoteId, setSelectedQuoteId] = useState(null);
+  const [quoteFilter, setQuoteFilter] = useUrlState('status', 'all');
+  const [selectedQuoteId, setSelectedQuoteId] = useUrlState('quote', null, { type: 'number', push: true });
 
   // Update active tab when URL changes
   useEffect(() => {
@@ -373,7 +374,7 @@ const DashboardPage = () => {
                 {selectedQuoteId ? (
                   <QuoteDetailsView 
                     quoteId={selectedQuoteId} 
-                    onBack={() => setSelectedQuoteId(null)}
+                    onBack={() => setSelectedQuoteId(null, { push: false })}
                   />
                 ) : (
                   <div className="space-y-6">

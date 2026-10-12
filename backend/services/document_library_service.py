@@ -23,6 +23,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from starlette.concurrency import run_in_threadpool
 
 from backend.database.base import Base
+from backend.services import pdf_cover_service
 from backend.services.media_library_service import _LABEL_COLUMNS, Usage, _row_label, _type_label, sort_files, summarize
 
 logger = logging.getLogger(__name__)
@@ -288,6 +289,8 @@ async def list_documents(
                 "modified": f.modified,
                 "on_disk": f.on_disk,
                 "cover_url": covers.get(f.url),
+                # Rendered first page: shown when there's no cover, or the cover image fails to load
+                "preview_url": pdf_cover_service.cover_url(f.url, f.modified) if f.on_disk else None,
                 "used_by": [u.as_dict() for u in f.used_by],
                 "versions": versions.get(f.url, 0),
             }

@@ -5,6 +5,7 @@ import Button from '../../ui/Button';
 import PaginationBar from '../PaginationBar';
 import apiClient from '../../../config/apiClient';
 import { AdminPage, AdminPageHeader } from '../ui/AdminPage';
+import { useUrlState } from '../../../hooks/useUrlState';
 
 const BASE = '/api/v1/admin/audit-log';
 const PAGE_SIZE = 100;
@@ -262,7 +263,7 @@ const ActivityLog = () => {
   const navigate = useNavigate();
   const filters = useMemo(() => readFilters(location.search), [location.search]);
   const [search, setSearch] = useState(filters.q);
-  const [page, setPage] = useState(1);
+  const [page, setPage] = useUrlState('page', 1);
   const [data, setData] = useState({ items: [], total: 0 });
   const [options, setOptions] = useState({ admins: [], resource_types: [], actions: [] });
   const [loading, setLoading] = useState(true);
@@ -277,12 +278,17 @@ const ActivityLog = () => {
         if (v === '' || v == null) params.delete(k);
         else params.set(k, String(v));
       });
+      params.delete('page');
       const qs = params.toString();
       navigate(`${location.pathname}${qs ? `?${qs}` : ''}`, { replace: true });
-      setPage(1);
     },
     [location.pathname, location.search, navigate]
   );
+
+  // URL -> search box (Back, cleared params), keeping in-progress typing
+  useEffect(() => {
+    setSearch((prev) => (prev.trim() === filters.q ? prev : filters.q));
+  }, [filters.q]);
 
   // Debounced search box -> URL
   useEffect(() => {

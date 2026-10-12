@@ -1,9 +1,9 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { Check, Eye, File, FileArchive, FileSpreadsheet, FileText, Loader2, Search, Trash2, Upload, X } from 'lucide-react';
-import { resolveImageUrl } from '../../../utils/apiHelpers';
 import { deleteDocument, listDocuments, uploadDocument } from '../../../services/documentLibraryService';
 import PDFViewerModal from '../../ui/PDFViewerModal';
+import DocumentCover from './DocumentCover';
 
 const PAGE_SIZE = 60;
 
@@ -448,22 +448,18 @@ const DocumentLibraryModal = ({
                       }`}
                     >
                       <div className="relative flex aspect-[3/4] items-center justify-center bg-dark-900">
-                        {item.cover_url ? (
-                          <img
-                            src={resolveImageUrl(item.cover_url)}
-                            alt=""
-                            loading="lazy"
-                            decoding="async"
-                            className="h-full w-full object-cover"
-                          />
-                        ) : (
-                          <span className="flex flex-col items-center gap-2 text-dark-300">
-                            <Icon className="h-10 w-10" />
-                            <span className="rounded bg-dark-700 px-1.5 py-0.5 text-[11px] font-semibold tracking-wide text-dark-100">
-                              {extensionOf(item.filename) || 'FILE'}
+                        <DocumentCover
+                          item={item}
+                          className="h-full w-full object-cover object-top"
+                          fallback={(
+                            <span className="flex flex-col items-center gap-2 text-dark-300">
+                              <Icon className="h-10 w-10" />
+                              <span className="rounded bg-dark-700 px-1.5 py-0.5 text-[11px] font-semibold tracking-wide text-dark-100">
+                                {extensionOf(item.filename) || 'FILE'}
+                              </span>
                             </span>
-                          </span>
-                        )}
+                          )}
+                        />
                         {isSelected && (
                           <span className="absolute right-1.5 top-1.5 flex h-6 w-6 items-center justify-center rounded-full bg-primary-500 text-white">
                             <Check className="h-4 w-4" />

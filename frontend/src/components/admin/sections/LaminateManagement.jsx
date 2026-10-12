@@ -16,6 +16,7 @@ import { useToast } from '../../../contexts/ToastContext';
 import { useAdminRefresh } from '../../../contexts/AdminRefreshContext';
 import ResponsiveImage from '../../ui/ResponsiveImage';
 import DeleteGate from '../DeleteGate';
+import { useUrlState } from '../../../hooks/useUrlState';
 
 
 // Pick-list options from the distinct non-empty values of `field` in the loaded rows
@@ -32,9 +33,10 @@ const LaminateManagement = () => {
   const { refreshKeys } = useAdminRefresh();
   const [laminates, setLaminates] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [editingLaminate, setEditingLaminate] = useState(null);
-  const [filterBrand, setFilterBrand] = useState('');
-  const [tab, setTab] = useState('active');
+  const [editingId, setEditingId] = useUrlState('laminate', null);
+  const [fetchedLaminate, setFetchedLaminate] = useState(null);
+  const [filterBrand, setFilterBrand] = useUrlState('brand', '');
+  const [tab, setTab] = useUrlState('status', 'active');
   const [activeTotal, setActiveTotal] = useState(0);
   const [archivedTotal, setArchivedTotal] = useState(0);
   const [permDeleteTarget, setPermDeleteTarget] = useState(null);
@@ -78,20 +80,46 @@ const LaminateManagement = () => {
     fetchCounts();
   }, [fetchLaminates, fetchCounts, refreshKeys.laminates]);
 
+  const listedLaminate = editingId && editingId !== 'new'
+    ? laminates.find((l) => String(l.id) === editingId)
+    : null;
+  const editingLaminate = editingId === 'new'
+    ? 'new'
+    : listedLaminate || (fetchedLaminate && String(fetchedLaminate.id) === editingId ? fetchedLaminate : null);
+
+  // Deep link to a laminate outside the current tab/filter: look it up in the full list.
+  const isListed = !!listedLaminate;
+  useEffect(() => {
+    if (!editingId || editingId === 'new' || loading || isListed) return undefined;
+    let cancelled = false;
+    apiClient.get('/api/v1/admin/catalog/laminates')
+      .then((response) => {
+        if (cancelled) return;
+        const found = (response || []).find((l) => String(l.id) === editingId);
+        if (found) setFetchedLaminate(found);
+        else {
+          toast.error('Laminate not found');
+          setEditingId(null);
+        }
+      })
+      .catch((error) => console.error('Failed to fetch laminate:', error));
+    return () => { cancelled = true; };
+  }, [editingId, loading, isListed, toast, setEditingId]);
+
   const handleCreate = () => {
-    setEditingLaminate('new');
+    setEditingId('new', { push: true });
   };
 
   const handleEdit = (laminate) => {
-    setEditingLaminate(laminate);
+    setEditingId(String(laminate.id), { push: true });
   };
 
   const handleBack = () => {
-    setEditingLaminate(null);
+    setEditingId(null);
   };
 
   const handleSave = () => {
-    setEditingLaminate(null);
+    setEditingId(null);
     toast.success(editingLaminate === 'new' ? 'Laminate created' : 'Laminate updated');
     fetchLaminates();
   };
@@ -144,7 +172,8 @@ const LaminateManagement = () => {
     setFilterBrand('');
   };
 
-  const uniqueBrands = [...new Set(laminates.map(l => l.brand).filter(Boolean))];
+  // Keep a deep-linked brand selectable even when it matches no rows
+  const uniqueBrands = [...new Set([...laminates.map(l => l.brand), filterBrand].filter(Boolean))];
   const sortedLaminates = useMemo(
     () => [...(laminates || [])].sort((a, b) => (a.display_order ?? 0) - (b.display_order ?? 0)),
     [laminates]
@@ -177,9 +206,18 @@ const LaminateManagement = () => {
   );
 
   // Show editor if editing/creating
+  if (editingId && !editingLaminate) {
+    return (
+      <div className="flex justify-center py-12">
+        <div className="w-8 h-8 border-4 border-dark-600 border-t-primary-500 rounded-full animate-spin" />
+      </div>
+    );
+  }
+
   if (editingLaminate) {
     return (
       <LaminateEditor
+        key={editingId}
         laminate={editingLaminate === 'new' ? null : editingLaminate}
         onBack={handleBack}
         onSave={handleSave}
@@ -253,6 +291,7 @@ const LaminateManagement = () => {
           </div>
         ) : (
           <ReorderableTable
+            urlSort
             onRowClick={handleEdit}
             items={sortedLaminates}
             setItems={(next) => setLaminates(next.map((item, i) => ({ ...item, display_order: i })))}

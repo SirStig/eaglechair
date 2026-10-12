@@ -5,6 +5,7 @@ import ConfirmModal from '../../ui/ConfirmModal';
 import Button from '../../ui/Button';
 import apiClient from '../../../config/apiClient';
 import { useToast } from '../../../contexts/ToastContext';
+import { useUrlState } from '../../../hooks/useUrlState';
 import TableSortHead, { compareValues } from '../TableSortHead';
 import { LEGAL_DOCUMENT_TYPES, legalDocumentTypeLabel } from '../legalDocumentTypes';
 import { AdminPage, AdminPageHeader } from '../ui/AdminPage';
@@ -54,12 +55,14 @@ const LegalDocumentManagement = () => {
   const [documents, setDocuments] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-  const [editing, setEditing] = useState(null);
+  // New-document drafts stay local; an existing document's editor is ?doc=<id>
+  const [draft, setDraft] = useState(null);
+  const [editId, setEditId] = useUrlState('doc', null, { type: 'number', push: true });
   const [pendingDelete, setPendingDelete] = useState(null);
-  const [searchTerm, setSearchTerm] = useState('');
-  const [filterType, setFilterType] = useState('all');
-  const [sortBy, setSortBy] = useState('display_order');
-  const [sortDir, setSortDir] = useState('asc');
+  const [searchTerm, setSearchTerm] = useUrlState('q', '');
+  const [filterType, setFilterType] = useUrlState('type', 'all');
+  const [sortBy, setSortBy] = useUrlState('sort', 'display_order');
+  const [sortDir, setSortDir] = useUrlState('dir', 'asc');
   const [togglingId, setTogglingId] = useState(null);
 
   const fetchDocuments = useCallback(async () => {
@@ -94,7 +97,7 @@ const LegalDocumentManagement = () => {
   const handleSort = useCallback((key) => {
     setSortBy(key);
     setSortDir((d) => (key === sortBy ? (d === 'asc' ? 'desc' : 'asc') : 'asc'));
-  }, [sortBy]);
+  }, [sortBy, setSortBy, setSortDir]);
 
   const usedTypes = useMemo(() => new Set(documents.map((d) => d.documentType)), [documents]);
   const selection = useBulkSelection(visibleDocuments);
@@ -113,7 +116,7 @@ const LegalDocumentManagement = () => {
 
   const handleCreate = () => {
     const firstFree = LEGAL_DOCUMENT_TYPES.find((t) => !usedTypes.has(t.value))?.value || '';
-    setEditing({
+    setDraft({
       title: '',
       documentType: firstFree,
       content: '',
@@ -128,22 +131,33 @@ const LegalDocumentManagement = () => {
     });
   };
 
-  const handleEdit = (doc) => {
-    setEditing({
-      id: doc.id,
-      title: doc.title || '',
-      documentType: doc.documentType,
-      content: doc.content || '',
-      shortDescription: doc.shortDescription || '',
-      slug: doc.slug || '',
-      version: doc.version || '1.0',
-      effectiveDate: doc.effectiveDate || '',
-      metaTitle: doc.metaTitle || '',
-      metaDescription: doc.metaDescription || '',
-      displayOrder: doc.displayOrder ?? 0,
-      isActive: doc.isActive ?? true,
-    });
+  const handleEdit = (doc) => setEditId(doc.id);
+
+  const editedDoc = editId != null ? documents.find((d) => d.id === editId) : null;
+  const editing = useMemo(() => (editedDoc ? {
+    id: editedDoc.id,
+    title: editedDoc.title || '',
+    documentType: editedDoc.documentType,
+    content: editedDoc.content || '',
+    shortDescription: editedDoc.shortDescription || '',
+    slug: editedDoc.slug || '',
+    version: editedDoc.version || '1.0',
+    effectiveDate: editedDoc.effectiveDate || '',
+    metaTitle: editedDoc.metaTitle || '',
+    metaDescription: editedDoc.metaDescription || '',
+    displayOrder: editedDoc.displayOrder ?? 0,
+    isActive: editedDoc.isActive ?? true,
+  } : draft), [editedDoc, draft]);
+
+  const closeEditor = () => {
+    setDraft(null);
+    if (editId != null) setEditId(null);
   };
+
+  // A deep link to a document that no longer exists
+  useEffect(() => {
+    if (!loading && editId != null && !editedDoc) setEditId(null, { push: false });
+  }, [loading, editId, editedDoc, setEditId]);
 
   const handleSave = async (data) => {
     // Backend schemas expect snake_case; empty optional strings are sent as null
@@ -171,7 +185,7 @@ const LegalDocumentManagement = () => {
       await apiClient.post('/api/v1/cms-admin/legal-documents', payload);
     }
     toast.success(editing?.id ? 'Document saved' : 'Document created');
-    setEditing(null);
+    closeEditor();
     await fetchDocuments();
   };
 
@@ -396,7 +410,7 @@ const LegalDocumentManagement = () => {
       {editing && (
         <EditModal
           isOpen
-          onClose={() => setEditing(null)}
+          onClose={closeEditor}
           onSave={handleSave}
           elementData={editing}
           elementType="legal-document"

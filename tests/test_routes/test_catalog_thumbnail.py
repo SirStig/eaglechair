@@ -38,7 +38,7 @@ class TestCatalogPdfThumbnail:
         response = await async_client.get(f"/api/v1/content/catalogs/{guide.id}/pdf-thumbnail")
 
         assert response.status_code == 200
-        assert response.headers["content-type"] == "image/png"
+        assert response.headers["content-type"] == "image/webp"
 
     async def test_rejects_path_outside_uploads(
         self, async_client: AsyncClient, db_session: AsyncSession, tmp_path, monkeypatch

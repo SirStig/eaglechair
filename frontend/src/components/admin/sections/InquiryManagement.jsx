@@ -11,6 +11,7 @@ import BulkActionBar from '../bulk/BulkActionBar';
 import { booleanAction, retiredBy } from '../bulk/bulkActions';
 import { SelectAllCheckbox, RowCheckbox } from '../bulk/SelectCheckbox';
 import DeleteGate from '../DeleteGate';
+import { useUrlState } from '../../../hooks/useUrlState';
 
 const BASE = '/api/v1/admin/inquiries';
 const PAGE_SIZE = 100;
@@ -57,15 +58,16 @@ const formatWhen = (iso) => {
  */
 const InquiryManagement = ({ onUnreadChange }) => {
   const toast = useToast();
-  const [status, setStatus] = useState('all');
-  const [search, setSearch] = useState('');
-  const [debouncedSearch, setDebouncedSearch] = useState('');
-  const [page, setPage] = useState(1);
+  const [status, setStatus] = useUrlState('status', 'all');
+  const [search, setSearch] = useUrlState('q', '');
+  const [debouncedSearch, setDebouncedSearch] = useState(() => search.trim());
+  const [page, setPage] = useUrlState('page', 1);
   const [data, setData] = useState({ items: [], total: 0, unread: 0 });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-  const [selectedId, setSelectedId] = useState(null);
+  const [selectedId, setSelectedId] = useUrlState('inquiry', null, { type: 'number', push: true });
   const [notes, setNotes] = useState('');
+  const [notesForId, setNotesForId] = useState(null);
   const [savingNotes, setSavingNotes] = useState(false);
   const [pendingDelete, setPendingDelete] = useState(null);
   const requestSeq = useRef(0);
@@ -96,11 +98,12 @@ const InquiryManagement = ({ onUnreadChange }) => {
     load();
   }, [load]);
 
-  useEffect(() => {
-    setPage(1);
-  }, [status, debouncedSearch]);
-
   const selected = data.items.find((i) => i.id === selectedId) || null;
+  // Seed the notes draft whenever a different inquiry opens (incl. deep links)
+  if (selected && notesForId !== selected.id) {
+    setNotesForId(selected.id);
+    setNotes(selected.admin_notes || '');
+  }
   const selection = useBulkSelection(data.items);
 
   const patch = async (id, body) => {
@@ -116,8 +119,7 @@ const InquiryManagement = ({ onUnreadChange }) => {
   };
 
   const openInquiry = (item) => {
-    setSelectedId(item.id);
-    setNotes(item.admin_notes || '');
+    setSelectedId(item.id, { push: !selectedId });
     if (!item.is_read) {
       patch(item.id, { is_read: true }).catch(() => {});
     }
@@ -135,7 +137,7 @@ const InquiryManagement = ({ onUnreadChange }) => {
   const markUnread = async () => {
     try {
       await patch(selected.id, { is_read: false, is_responded: false });
-      setSelectedId(null);
+      setSelectedId(null, { push: false });
     } catch (err) {
       toast.error(`Couldn't update inquiry: ${err.message}`);
     }
@@ -159,7 +161,7 @@ const InquiryManagement = ({ onUnreadChange }) => {
     try {
       await apiClient.delete(`${BASE}/${item.id}`);
       toast.success('Inquiry deleted');
-      if (selectedId === item.id) setSelectedId(null);
+      if (selectedId === item.id) setSelectedId(null, { push: false });
       await load();
     } catch (err) {
       toast.error(`Couldn't delete inquiry: ${err.message}`);
@@ -193,7 +195,7 @@ const InquiryManagement = ({ onUnreadChange }) => {
               type="button"
               role="tab"
               aria-selected={status === tab.value}
-              onClick={() => { setStatus(tab.value); setSelectedId(null); }}
+              onClick={() => { setStatus(tab.value); setPage(1); setSelectedId(null, { push: false }); }}
               className={`rounded-md px-3 py-1.5 text-sm font-medium transition-colors ${
                 status === tab.value ? 'bg-dark-600 text-dark-50' : 'text-dark-100 hover:text-dark-50'
               }`}
@@ -209,7 +211,7 @@ const InquiryManagement = ({ onUnreadChange }) => {
             aria-label="Search inquiries"
             placeholder="Search name, email, company, message…"
             value={search}
-            onChange={(e) => setSearch(e.target.value)}
+            onChange={(e) => { setSearch(e.target.value); setPage(1); }}
             className="w-full rounded-lg border border-dark-500 bg-dark-800 py-2.5 pl-10 pr-4 text-dark-50 placeholder-dark-200 focus:border-primary-500 focus:outline-none focus:ring-2 focus:ring-primary-500/50"
           />
         </div>
@@ -296,7 +298,7 @@ const InquiryManagement = ({ onUnreadChange }) => {
               <header className="border-b border-dark-600 px-5 py-4">
                 <button
                   type="button"
-                  onClick={() => setSelectedId(null)}
+                  onClick={() => setSelectedId(null, { push: false })}
                   className="mb-3 inline-flex items-center gap-1 text-sm text-dark-100 hover:text-dark-50 lg:hidden"
                 >
                   <ArrowLeft className="h-4 w-4" aria-hidden="true" /> All inquiries

@@ -11,6 +11,7 @@ import { useSalesReps, useSiteSettings } from '../hooks/useContent';
 import logger from '../utils/logger';
 import { getStateName } from '../utils/usStates';
 import { trackRepSearch } from '../utils/analytics';
+import { useUrlState } from '../hooks/useUrlState';
 import { salesContact, telHref, mailtoHref } from '../utils/contactLinks';
 
 const CONTEXT = 'FindARepPage';
@@ -28,7 +29,7 @@ const formatCoverage = (rep, code) => {
 };
 
 const FindARepPage = () => {
-  const [selectedState, setSelectedState] = useState(null);
+  const [selectedState, setSelectedState] = useUrlState('state', null);
   const [hoveredState, setHoveredState] = useState(null);
   const mapRef = useRef(null);
   const { data: salesReps } = useSalesReps();

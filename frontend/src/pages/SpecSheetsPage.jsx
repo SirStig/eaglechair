@@ -1,4 +1,5 @@
-import { useMemo, useState } from 'react';
+import { useMemo } from 'react';
+import { useUrlState } from '../hooks/useUrlState';
 import { FileText, SearchX } from 'lucide-react';
 import EmptyResults from '../components/ui/EmptyResults';
 import { useCatalogs } from '../hooks/useContent';
@@ -20,8 +21,8 @@ const letterOf = (title = '') => {
 
 const SpecSheetsPage = () => {
   const { data: catalogs = [], loading } = useCatalogs();
-  const [tab, setTab] = useState('all');
-  const [query, setQuery] = useState('');
+  const [tab, setTab] = useUrlState('tab', 'all');
+  const [query, setQuery] = useUrlState('q', '');
 
   const library = useMemo(() => filterByTypes(catalogs, SPEC_LIBRARY_TYPES), [catalogs]);
   const counts = useMemo(() => {

@@ -14,6 +14,7 @@ import {
 import Button from '../../../ui/Button';
 import Modal from '../../../ui/Modal';
 import { useToast } from '../../../../contexts/ToastContext';
+import { useUrlState } from '../../../../hooks/useUrlState';
 import {
   exportCatalog, getProductsByIds, saveBlob, saveProject, suggestPages,
 } from '../../../../services/catalogToolsService';
@@ -106,13 +107,25 @@ const CatalogBuilderEditor = ({ project, onBack, onSaved }) => {
   const { document, set, undo, redo, canUndo, canRedo } = useHistory(initial);
 
   const [name, setName] = useState(project.name);
-  const [pageIndex, setPageIndex] = useState(initial.pages.length ? 0 : null);
+  // Selected page (1-based ?page=) and inspector tab (?tab=) live in the URL
+  const [pageParam, setPageParam] = useUrlState('page', 1);
+  const [tab, setTabParam] = useUrlState('tab', 'page');
+  const pageCount = document.pages.length;
+  const pageIndex = pageCount ? Math.min(Math.max(Math.round(pageParam), 1), pageCount) - 1 : null;
+  // The URL setters change identity on every navigation; keep the callbacks below stable
+  const urlSetters = useRef(null);
+  urlSetters.current = { setPageParam, setTabParam, pageIndex };
+  const setPageIndex = useCallback((next) => {
+    const { setPageParam: setParam, pageIndex: currentIndex } = urlSetters.current;
+    const value = typeof next === 'function' ? next(currentIndex) : next;
+    setParam(value == null ? 1 : value + 1);
+  }, []);
+  const setTab = useCallback((next) => urlSetters.current.setTabParam(next), []);
   const [selectedItem, setSelectedItem] = useState(null);
   const [products, setProducts] = useState({});
   const [saveState, setSaveState] = useState('saved');
   const [busy, setBusy] = useState(null);
   const [addDialog, setAddDialog] = useState(false);
-  const [tab, setTab] = useState('page');
   const [familyPicker, setFamilyPicker] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [pdfUrl, setPdfUrl] = useState(null);
@@ -191,13 +204,6 @@ const CatalogBuilderEditor = ({ project, onBack, onSaved }) => {
     return () => window.removeEventListener('keydown', onKey);
   }, [undo, redo]);
 
-  // Keep the selection valid after undo / deletes
-  useEffect(() => {
-    if (pageIndex != null && pageIndex >= document.pages.length) {
-      setPageIndex(document.pages.length ? document.pages.length - 1 : null);
-    }
-  }, [document.pages.length, pageIndex]);
-
   // ---- page operations (stable callbacks: they read the latest state from refs)
   const setPages = useCallback(
     (updater, key) => set((doc) => ({ ...doc, pages: updater(doc.pages) }), key),
@@ -222,20 +228,20 @@ const CatalogBuilderEditor = ({ project, onBack, onSaved }) => {
     setPages((pages) => [...pages.slice(0, at), ...newPages, ...pages.slice(at)]);
     setPageIndex(at);
     setSelectedItem(null);
-  }, [setPages]);
+  }, [setPages, setPageIndex]);
 
   const addPage = useCallback((type) => insertPages([newPage(type)]), [insertPages]);
 
   const selectPage = useCallback((index) => {
     setPageIndex(index);
     setSelectedItem(null);
-  }, []);
+  }, [setPageIndex]);
 
   // Clicking a photo on the preview opens it in the Products tab
   const selectItem = useCallback((index) => {
     setSelectedItem(index);
     if (index != null && latest.current.page?.type !== 'photo') setTab('products');
-  }, []);
+  }, [setTab]);
 
   const hasContentPages = document.pages.some((p) => p.type === 'product' || p.type === 'gallery');
 
@@ -261,12 +267,12 @@ const CatalogBuilderEditor = ({ project, onBack, onSaved }) => {
     setPages((pages) => pages.filter((_, i) => i !== index));
     setSelectedItem(null);
     setPageIndex((current) => (current != null && index < current ? current - 1 : current));
-  }, [setPages]);
+  }, [setPages, setPageIndex]);
 
   const duplicateAt = useCallback((index) => {
     setPages((pages) => [...pages.slice(0, index + 1), duplicatePage(pages[index]), ...pages.slice(index + 1)]);
     setPageIndex(index + 1);
-  }, [setPages]);
+  }, [setPages, setPageIndex]);
 
   // Constant options: new ones each render would rebuild the sensors and
   // re-render every sortable row on every keystroke
@@ -282,7 +288,7 @@ const CatalogBuilderEditor = ({ project, onBack, onSaved }) => {
     const reordered = arrayMove(doc.pages, ids.indexOf(active.id), ids.indexOf(over.id));
     setPages(() => reordered);
     if (current) setPageIndex(reordered.findIndex((p) => p.id === current.id));
-  }, [setPages]);
+  }, [setPages, setPageIndex]);
 
   // ---- photo adjustments from the preview (photo pages keep them on the page itself)
   const getAdjust = useCallback((index) => {

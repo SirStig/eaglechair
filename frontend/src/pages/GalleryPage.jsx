@@ -1,4 +1,4 @@
-import { useState, useMemo, lazy, Suspense } from 'react';
+import { useMemo, lazy, Suspense } from 'react';
 // eslint-disable-next-line no-unused-vars
 import { m } from 'framer-motion';
 import SEOHead from '../components/SEOHead';
@@ -11,6 +11,7 @@ import { useInstallations } from '../hooks/useContent';
 import { runCmsBatch } from '../utils/cmsContentStore';
 import LoadingSpinner from '../components/ui/LoadingSpinner';
 import logger from '../utils/logger';
+import { useUrlState } from '../hooks/useUrlState';
 
 const CONTEXT = 'GalleryPage';
 
@@ -47,8 +48,9 @@ const applySubsetMove = (fullList, reorderedSubset, movedItem) => {
 };
 
 const GalleryPage = () => {
-  const [lightboxIndex, setLightboxIndex] = useState(null);
-  const [filter, setFilter] = useState('all');
+  const [filter, setFilter] = useUrlState('category', 'all');
+  // Open photo is ?photo=<installation id> so a link opens it in the viewer
+  const [photoId, setPhotoId] = useUrlState('photo', null);
   const { data: installations, loading } = useInstallations();
 
   // Use API data
@@ -61,6 +63,11 @@ const GalleryPage = () => {
     : images.filter(img => categoryOf(img) === filter)), [images, filter]);
 
   const lightboxImages = useMemo(() => filteredImages.map(imageUrlOf), [filteredImages]);
+  const lightboxIndex = useMemo(() => {
+    if (photoId == null) return null;
+    const idx = filteredImages.findIndex((img) => String(img.id) === photoId);
+    return idx >= 0 ? idx : null;
+  }, [photoId, filteredImages]);
 
   // Handlers for CRUD operations
   const handleUpdateInstallation = async (id, updates) => {
@@ -238,7 +245,7 @@ const GalleryPage = () => {
                   animate={{ opacity: 1, scale: 1 }}
                   transition={{ delay: index * 0.05 }}
                   className="relative group cursor-pointer overflow-hidden rounded-xl shadow-md hover:shadow-2xl transition-shadow"
-                  onClick={() => setLightboxIndex(Math.max(0, filteredImages.findIndex((img) => img.id === image.id)))}
+                  onClick={() => setPhotoId(String(image.id), { push: true })}
                 >
                   <ResponsiveImage
                     src={imageUrl}
@@ -270,7 +277,8 @@ const GalleryPage = () => {
             <ImageLightboxModal
               isOpen
               dark
-              onClose={() => setLightboxIndex(null)}
+              onClose={() => setPhotoId(null)}
+              onIndexChange={(i) => { if (filteredImages[i]) setPhotoId(String(filteredImages[i].id)); }}
               images={lightboxImages}
               initialIndex={lightboxIndex}
             />

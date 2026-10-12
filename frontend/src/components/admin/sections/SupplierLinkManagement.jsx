@@ -15,6 +15,7 @@ import ReorderableTable from '../ReorderableTable';
 import StatusTabs from '../StatusTabs';
 import PermanentDeleteModal from '../PermanentDeleteModal';
 import { useToast } from '../../../contexts/ToastContext';
+import { useUrlState } from '../../../hooks/useUrlState';
 
 const BULK_ACTIONS = [
   ...ACTIVE_ACTIONS,
@@ -38,9 +39,9 @@ const SupplierLinkManagement = () => {
   const toast = useToast();
   const [sources, setSources] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [editing, setEditing] = useState(null);
-  const [filterType, setFilterType] = useState('');
-  const [tab, setTab] = useState('active');
+  const [editingId, setEditingId] = useUrlState('link', null);
+  const [filterType, setFilterType] = useUrlState('type', '');
+  const [tab, setTab] = useUrlState('status', 'active');
   const [permDeleteTarget, setPermDeleteTarget] = useState(null);
   const [permDeleting, setPermDeleting] = useState(false);
 
@@ -74,6 +75,23 @@ const SupplierLinkManagement = () => {
     [byType, tab]
   );
   const selection = useBulkSelection(rows);
+
+  // The list holds every link, so the open editor resolves straight from it
+  const editing = editingId === 'new'
+    ? 'new'
+    : (editingId && sources.find((s) => String(s.id) === editingId)) || null;
+
+  useEffect(() => {
+    if (editingId && editingId !== 'new' && !loading && !editing) {
+      toast.error('Supplier link not found');
+      setEditingId(null);
+    }
+  }, [editingId, loading, editing, toast, setEditingId]);
+
+  const setEditing = (source) => {
+    if (!source) setEditingId(null);
+    else setEditingId(source === 'new' ? 'new' : String(source.id), { push: true });
+  };
 
   const handleSave = () => {
     toast.success(editing === 'new' ? 'Supplier link added' : 'Supplier link updated');
@@ -131,9 +149,18 @@ const SupplierLinkManagement = () => {
     [fetchSources, toast]
   );
 
+  if (editingId && !editing) {
+    return (
+      <div className="flex justify-center py-12">
+        <div className="w-8 h-8 border-4 border-dark-600 border-t-primary-500 rounded-full animate-spin" />
+      </div>
+    );
+  }
+
   if (editing) {
     return (
       <SupplierLinkEditor
+        key={editingId}
         source={editing === 'new' ? null : editing}
         onBack={() => setEditing(null)}
         onSave={handleSave}
@@ -205,6 +232,7 @@ const SupplierLinkManagement = () => {
           </div>
         ) : (
           <ReorderableTable
+            urlSort
             onRowClick={setEditing}
             items={rows}
             setItems={(next) => {

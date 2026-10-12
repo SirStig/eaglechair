@@ -1,4 +1,5 @@
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
+import { useNavigate } from 'react-router-dom';
 import {
   DndContext,
   closestCenter,
@@ -22,6 +23,7 @@ import { resolveImageUrl } from '../../../utils/apiHelpers';
 import ResponsiveImage from '../../ui/ResponsiveImage';
 import { Edit2, Trash2, FolderTree, GripVertical, ChevronUp, ChevronDown, RotateCcw } from 'lucide-react';
 import CategoryEditor from './CategoryEditor';
+import { useUrlState, useSetUrlParams } from '../../../hooks/useUrlState';
 import StatusTabs from '../StatusTabs';
 import PermanentDeleteModal from '../PermanentDeleteModal';
 import { AdminPage, AdminPageHeader } from '../ui/AdminPage';
@@ -288,9 +290,16 @@ const CategoryManagement = () => {
   const { refreshKeys } = useAdminRefresh();
   const [categories, setCategories] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [editingCategory, setEditingCategory] = useState(null);
+  const navigate = useNavigate();
+  const setUrlParams = useSetUrlParams();
+  // Editor is URL-addressable: ?category=<id|new>, ?subcategory=<id> or
+  // ?subcategory=new&parent=<categoryId> (categories and product subcategories are separate tables)
+  const [categoryParam] = useUrlState('category', null);
+  const [subcategoryParam] = useUrlState('subcategory', null);
+  const [parentParam] = useUrlState('parent', null, { type: 'number' });
+  const openedFromList = useRef(false);
   const [expandedCategories, setExpandedCategories] = useState(new Set());
-  const [tab, setTab] = useState('active');
+  const [tab, setTab] = useUrlState('tab', 'active');
   const [permDeleteTarget, setPermDeleteTarget] = useState(null); // { type: 'category'|'subcategory', id, name }
   const [permDeleting, setPermDeleting] = useState(false);
 
@@ -314,20 +323,32 @@ const CategoryManagement = () => {
     }
   };
 
+  const EDITOR_KEYS = { category: null, subcategory: null, parent: null };
+  const openEditor = (updates) => {
+    openedFromList.current = true;
+    setUrlParams({ ...EDITOR_KEYS, ...updates }, { push: true });
+  };
+
   const handleEdit = (category) => {
-    setEditingCategory(category);
+    if (category.type === 'subcategory') openEditor({ subcategory: category.id });
+    else openEditor({ category: category.id });
   };
 
   const handleCreate = () => {
-    setEditingCategory({});
+    openEditor({ category: 'new' });
   };
 
   const handleBack = () => {
-    setEditingCategory(null);
+    if (openedFromList.current) {
+      openedFromList.current = false;
+      navigate(-1);
+    } else {
+      setUrlParams(EDITOR_KEYS);
+    }
   };
 
   const handleSave = (message) => {
-    setEditingCategory(null);
+    handleBack();
     toast.success(message || (editingCategory?.id ? 'Category updated' : 'Category created'));
     fetchCategories();
   };
@@ -403,6 +424,23 @@ const CategoryManagement = () => {
     }
   };
 
+  const editingCategory = useMemo(() => {
+    if (categoryParam === 'new') return {};
+    if (subcategoryParam === 'new') return parentParam != null ? { parent_id: parentParam } : null;
+    const children = categories.flatMap((c) => c.subcategories || []);
+    if (categoryParam != null) {
+      const id = Number(categoryParam);
+      return categories.find((c) => c.id === id)
+        || children.find((c) => c.type === 'category' && c.id === id)
+        || null;
+    }
+    if (subcategoryParam != null) {
+      const id = Number(subcategoryParam);
+      return children.find((c) => c.type !== 'category' && c.id === id) || null;
+    }
+    return null;
+  }, [categories, categoryParam, subcategoryParam, parentParam]);
+
   // Locate the row being edited within the tree so the editor knows whether it
   // is a top-level category, a nested category, or a product subcategory.
   const editingChildEntry = editingCategory?.id
@@ -442,11 +480,11 @@ const CategoryManagement = () => {
   };
 
   const handleCreateSubcategory = (parentCategory) => {
-    setEditingCategory({ parent_id: parentCategory.id });
+    openEditor({ subcategory: 'new', parent: parentCategory.id });
   };
 
-  const [sortBy, setSortBy] = useState('display_order');
-  const [sortDir, setSortDir] = useState('asc');
+  const [sortBy, setSortBy] = useUrlState('sort', 'display_order');
+  const [sortDir, setSortDir] = useUrlState('dir', 'asc');
 
   const allTopLevelCategories = useMemo(
     () => [...(categories || [])].filter(c => !c.parent_id).sort((a, b) => (a.display_order ?? 0) - (b.display_order ?? 0)),
@@ -491,7 +529,7 @@ const CategoryManagement = () => {
   const handleSort = useCallback((key) => {
     setSortBy(key);
     setSortDir((d) => (key === sortBy ? (d === 'asc' ? 'desc' : 'asc') : 'asc'));
-  }, [sortBy]);
+  }, [sortBy, setSortBy, setSortDir]);
 
   const dragDisabled = sortBy !== 'display_order';
 
@@ -573,6 +611,10 @@ const CategoryManagement = () => {
     },
     [sortBy, topLevelCategories, sortedTopLevel, handleReorder, fetchCategories]
   );
+
+  if (loading && (categoryParam != null || subcategoryParam != null) && editingCategory === null) {
+    return <div className="py-20 text-center text-sm text-dark-300">Loading category…</div>;
+  }
 
   if (editingCategory !== null) {
     return (

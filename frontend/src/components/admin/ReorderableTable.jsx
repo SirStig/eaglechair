@@ -18,6 +18,7 @@ import { CSS } from '@dnd-kit/utilities';
 import { GripVertical, ChevronUp, ChevronDown } from 'lucide-react';
 import { SelectAllCheckbox, SelectCell } from './bulk/SelectCheckbox';
 import { openOnRowClick } from './bulk/rowClick';
+import { useUrlState } from '../../hooks/useUrlState';
 
 const ORDER_COLUMN_KEY = 'display_order';
 
@@ -93,10 +94,19 @@ export default function ReorderableTable({
   selection = null,
   // Optional: clicking a row (outside its controls) opens the item
   onRowClick = null,
+  // Optional: keep the column sort in the URL (?sort=&dir=) so it survives
+  // opening a record and shared links
+  urlSort = false,
 }) {
   const [saving, setSaving] = useState(false);
-  const [sortBy, setSortBy] = useState(ORDER_COLUMN_KEY);
-  const [sortDir, setSortDir] = useState('asc');
+  const [localSortBy, setLocalSortBy] = useState(ORDER_COLUMN_KEY);
+  const [localSortDir, setLocalSortDir] = useState('asc');
+  const [urlSortBy, setUrlSortBy] = useUrlState('sort', ORDER_COLUMN_KEY);
+  const [urlSortDir, setUrlSortDir] = useUrlState('dir', 'asc');
+  const sortBy = urlSort ? urlSortBy : localSortBy;
+  const sortDir = urlSort ? urlSortDir : localSortDir;
+  const setSortBy = urlSort ? setUrlSortBy : setLocalSortBy;
+  const setSortDir = urlSort ? setUrlSortDir : setLocalSortDir;
 
   const sortedItems = useMemo(() => {
     if (!columns) return items;
@@ -113,7 +123,7 @@ export default function ReorderableTable({
   const handleSort = useCallback((key) => {
     setSortBy(key);
     setSortDir((d) => (d === 'asc' && key === sortBy ? 'desc' : 'asc'));
-  }, [sortBy]);
+  }, [sortBy, setSortBy, setSortDir]);
 
   const sensors = useSensors(
     useSensor(PointerSensor, {

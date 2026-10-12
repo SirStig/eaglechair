@@ -6,6 +6,7 @@ import PaginationBar from '../PaginationBar';
 import apiClient from '../../../config/apiClient';
 import { useToast } from '../../../contexts/ToastContext';
 import { AdminPage, AdminPageHeader } from '../ui/AdminPage';
+import { useUrlState } from '../../../hooks/useUrlState';
 import ChangeFields from '../timeMachine/ChangeFields';
 import RestoreDialog from '../timeMachine/RestoreDialog';
 import {
@@ -281,7 +282,7 @@ const TimeMachine = () => {
   const toast = useToast();
   const params = useMemo(() => readParams(location.search), [location.search]);
   const [search, setSearch] = useState(params.q);
-  const [page, setPage] = useState(1);
+  const [page, setPage] = useUrlState('page', 1);
   const [data, setData] = useState({ items: [], total: 0 });
   const [summary, setSummary] = useState(null);
   const [admins, setAdmins] = useState([]);
@@ -299,13 +300,19 @@ const TimeMachine = () => {
         if (v === '' || v == null) next.delete(k);
         else next.set(k, String(v));
       });
+      const opening = Boolean(changes.table);
+      // Changing a filter resets the list page; opening/closing a record keeps it
+      if (!('table' in changes)) next.delete('page');
       const qs = next.toString();
       // Opening a record is a real navigation, so Back returns to the list
-      navigate(`${location.pathname}${qs ? `?${qs}` : ''}`, { replace: !('table' in changes) });
-      setPage(1);
+      navigate(`${location.pathname}${qs ? `?${qs}` : ''}`, { replace: !opening });
     },
     [location.pathname, location.search, navigate]
   );
+
+  useEffect(() => {
+    setSearch((prev) => (prev.trim() === params.q ? prev : params.q));
+  }, [params.q]);
 
   useEffect(() => {
     const t = setTimeout(() => {
@@ -399,7 +406,7 @@ const TimeMachine = () => {
           table={params.table}
           rowKey={params.key}
           reloadKey={reloadKey}
-          onBack={() => navigate(-1)}
+          onBack={() => (window.history.state?.idx > 0 ? navigate(-1) : setParams({ table: '', key: '' }))}
           onRewind={(entry, label) => setRestoreTarget({ entryId: entry.id, label })}
         />
         {dialog}

@@ -33,7 +33,7 @@ from starlette.concurrency import run_in_threadpool
 
 from backend.database.base import Base
 from backend.models.media import MediaVersion
-from backend.services import document_library_service, media_library_service, media_service
+from backend.services import document_library_service, media_library_service, media_service, pdf_cover_service
 from backend.services.media_library_service import Usage, _LABEL_COLUMNS, _row_label, _type_label
 
 logger = logging.getLogger(__name__)
@@ -412,6 +412,7 @@ async def details(db: AsyncSession, kind: str, url: str, upload_base: Path) -> d
         "filename": key.rsplit("/", 1)[-1],
         "folder": folder_of(kind, key),
         "thumbnail_url": media_library_service._thumbnail(key) if kind == "image" else None,
+        "preview_url": pdf_cover_service.cover_url(key, facts.get("modified")) if kind == "document" and facts.get("on_disk") else None,
         "renditions": renditions if renditions and renditions.get("sizes") else None,
         "info": info,
         "used_by": [u.as_dict() for u in used_by],
@@ -473,6 +474,91 @@ async def restore_version(db: AsyncSession, version_id: int, upload_base: Path, 
         await run_in_threadpool(_ensure_renditions, path)
     touched = await replace(db, kind, current, target, action="restored", admin_id=admin_id)
     return target, touched
+
+
+def clean_name(name: str) -> str:
+    """A new base name as typed (extension, path and unsafe characters dropped), or ''."""
+    stem = Path((name or "").strip().replace("\\", "/").rsplit("/", 1)[-1]).stem.strip()
+    stem = "".join(c if c.isalnum() or c in "-_" else "-" if c in " ." else "" for c in stem)
+    return "-".join(p for p in stem.split("-") if p)[:120]
+
+
+def _file_set(kind: str, path: Path) -> list[Path]:
+    """The original plus (for images) every rendition derived from it."""
+    return [path, *media_service.variant_paths(path)] if kind == "image" else [path]
+
+
+def move_files(kind: str, src: Path, dst: Path) -> list[tuple[Path, Path]]:
+    """Move a file and its renditions; returns the (from, to) pairs moved. Blocking."""
+    moved = []
+    try:
+        for a, b in zip(_file_set(kind, src), _file_set(kind, dst)):
+            if a.is_file() and a != b:
+                a.replace(b)
+                moved.append((a, b))
+    except OSError:
+        undo_moves(moved)
+        raise
+    return moved
+
+
+def undo_moves(moved: list[tuple[Path, Path]]) -> None:
+    for a, b in reversed(moved):
+        try:
+            b.replace(a)
+        except OSError as exc:
+            logger.error(f"Could not move {b} back to {a}: {exc}")
+
+
+async def rename(db: AsyncSession, kind: str, url: str, new_name: str, upload_base: Path) -> dict:
+    """
+    Rename an uploaded file in place (same folder and extension) and point
+    every record field, free-text mention and version entry at the new URL.
+    Files are moved before returning; the caller commits and, if that fails,
+    passes result["moved"] to undo_moves.
+    """
+    old_key = library_key(kind, url)
+    if not old_key or not old_key.startswith("/uploads/"):
+        raise MediaError("Only files stored in the uploads folder can be renamed", 400)
+    path = resolve_path(kind, old_key, upload_base)
+    if path is None or not path.is_file():
+        raise MediaError("The file isn't on the server", 404)
+    if kind == "image" and media_service.is_variant_path(path):
+        raise MediaError("That's a generated size of another image; rename the original", 400)
+    stem = clean_name(new_name)
+    if not stem:
+        raise MediaError("Enter a name using letters, numbers, dashes or underscores", 400)
+    new_path = path.with_name(f"{stem}{path.suffix}")
+    if new_path == path:
+        raise MediaError("That's already its name", 400)
+    new_key = old_key.rsplit("/", 1)[0] + "/" + new_path.name
+    # A case-only rename on a case-insensitive disk finds "itself" here
+    taken = [b for a, b in zip(_file_set(kind, path), _file_set(kind, new_path)) if b.exists() and not (a.exists() and a.samefile(b))]
+    if taken or await _is_known(db, kind, new_key):
+        raise MediaError(f"{new_path.name} already exists in this folder")
+
+    touched = await rewrite_references(db, kind, old_key, replacement=new_key)
+    touched += await _rewrite_mentions(db, old_key, new_key, {(t["model"], t["id"]) for t in touched})
+    folder = old_key.rsplit("/", 1)[0]
+    for a, b in zip(_file_set(kind, path)[1:], _file_set(kind, new_path)[1:]):
+        # Rendition URLs pasted into text (srcset etc.)
+        touched += await _rewrite_mentions(db, f"{folder}/{a.name}", f"{folder}/{b.name}", set())
+    await db.execute(update(MediaVersion).where(MediaVersion.kind == kind, MediaVersion.url == old_key).values(url=new_key))
+    await db.execute(update(MediaVersion).where(MediaVersion.kind == kind, MediaVersion.version_url == old_key).values(version_url=new_key))
+    await db.flush()
+
+    moved = await run_in_threadpool(move_files, kind, path, new_path)
+    unique = list({(t["model"], t["id"]): t for t in touched}.values())
+    return {"url": new_key, "previous_url": old_key, "updated": unique, "moved": moved}
+
+
+async def _is_known(db: AsyncSession, kind: str, key: str) -> bool:
+    """True when records or versions already point at `key` (e.g. a file deleted from disk)."""
+    if (await _usages(db, kind)).get(key):
+        return True
+    return (await db.execute(
+        select(MediaVersion.id).where(MediaVersion.kind == kind, or_(MediaVersion.url == key, MediaVersion.version_url == key)).limit(1)
+    )).first() is not None
 
 
 def _ensure_renditions(path: Path) -> None:

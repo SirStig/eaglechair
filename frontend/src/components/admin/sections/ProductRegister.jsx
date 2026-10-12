@@ -1,5 +1,5 @@
 import { Fragment, useCallback, useEffect, useMemo, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import {
   AlertTriangle, ChevronDown, ChevronRight, Download, Edit, FileSpreadsheet,
   FileText, Loader2, Search, X,
@@ -21,6 +21,7 @@ import { SelectAllCheckbox, SelectCell } from '../bulk/SelectCheckbox';
 import { openOnRowClick } from '../bulk/rowClick';
 import { ACTIVE_ACTIONS, retiredBy } from '../bulk/bulkActions';
 import { productBulkActions, variationBulkActions } from './productBulkActions';
+import { useUrlState } from '../../../hooks/useUrlState';
 
 const PAGE_SIZE = 100;
 const INPUT = 'px-3 py-2 bg-dark-700 border border-dark-600 rounded-lg text-sm text-dark-50 focus:border-primary-500 focus:ring-1 focus:ring-primary-500 outline-none';
@@ -81,12 +82,20 @@ const ProductRegister = () => {
 
   const [data, setData] = useState({ products: [], families: [], issue_labels: {} });
   const [loading, setLoading] = useState(true);
-  const [search, setSearch] = useState('');
-  const [status, setStatus] = useState('all');
-  const [familyFilter, setFamilyFilter] = useState('');
-  const [categoryFilter, setCategoryFilter] = useState('');
-  const [issueFilter, setIssueFilter] = useState('');
-  const [page, setPage] = useState(0);
+  const [search, setSearchParam] = useUrlState('q', '');
+  const [status, setStatusParam] = useUrlState('status', 'all');
+  const [familyFilter, setFamilyParam] = useUrlState('family', '');
+  const [categoryFilter, setCategoryParam] = useUrlState('category', '');
+  const [issueFilter, setIssueParam] = useUrlState('issue', '');
+  const [pageNum, setPageNum] = useUrlState('page', 1);
+  const page = Math.max(0, pageNum - 1);
+  // Filter changes go back to the first page (in the handler, not an effect, so a deep-linked page survives load)
+  const withPageReset = (setter) => (value) => { setter(value); setPageNum(1); };
+  const setSearch = withPageReset(setSearchParam);
+  const setStatus = withPageReset(setStatusParam);
+  const setFamilyFilter = withPageReset(setFamilyParam);
+  const setCategoryFilter = withPageReset(setCategoryParam);
+  const setIssueFilter = withPageReset(setIssueParam);
   const [expanded, setExpanded] = useState(() => new Set());
   const [categoryRows, setCategoryRows] = useState([]);
   const [subcategoryRows, setSubcategoryRows] = useState([]);
@@ -114,7 +123,6 @@ const ProductRegister = () => {
       .then((r) => setSupplierLinks((r || []).filter((s) => s.is_active)))
       .catch(() => {});
   }, []);
-  useEffect(() => { setPage(0); }, [search, status, familyFilter, categoryFilter, issueFilter]);
 
   const categories = useMemo(
     () => [...new Set(data.products.map(categoryLabel).filter(Boolean))].sort(),
@@ -389,21 +397,20 @@ const ProductRegister = () => {
                         </div>
                       </td>
                       <td className="p-3">
-                        <button
-                          type="button"
+                        <Link
+                          to={`/admin/catalog?edit=${p.id}`}
                           title="Open in product editor"
-                          onClick={() => navigate(`/admin/catalog?edit=${p.id}`)}
                           className="text-dark-300 hover:text-primary-400"
                         >
                           <Edit className="w-4 h-4" />
-                        </button>
+                        </Link>
                       </td>
                     </tr>
                     {open && p.variations.map((v) => (
                       <tr
                         key={`v${v.id}`}
                         className={`cursor-pointer text-xs ${variationSelection.isSelected(v.id) ? 'bg-primary-500/10' : 'bg-dark-900/40'}`}
-                        onClick={openOnRowClick(() => navigate(`/admin/catalog?edit=${p.id}`))}
+                        onClick={openOnRowClick(() => navigate(`/admin/catalog?edit=${p.id}&etab=variations&variation=${v.id}`))}
                       >
                         <SelectCell
                           selection={variationSelection}
@@ -456,9 +463,9 @@ const ProductRegister = () => {
         <div className="flex items-center justify-between p-3 border-t border-dark-700 text-sm text-dark-300">
           <span>{filtered.length} products</span>
           <div className="flex items-center gap-2">
-            <Button size="xs" variant="ghost" disabled={page === 0} onClick={() => setPage((n) => n - 1)}>Previous</Button>
+            <Button size="xs" variant="ghost" disabled={page === 0} onClick={() => setPageNum(page)}>Previous</Button>
             <span>Page {page + 1} of {pageCount}</span>
-            <Button size="xs" variant="ghost" disabled={page >= pageCount - 1} onClick={() => setPage((n) => n + 1)}>Next</Button>
+            <Button size="xs" variant="ghost" disabled={page >= pageCount - 1} onClick={() => setPageNum(page + 2)}>Next</Button>
           </div>
         </div>
       </Card>

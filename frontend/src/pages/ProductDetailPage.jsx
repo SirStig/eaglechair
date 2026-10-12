@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useMemo, lazy, Suspense } from 'react';
-import { useParams, useNavigate, Link, useSearchParams } from 'react-router-dom';
+import { useParams, useNavigate, Link } from 'react-router-dom';
 import { AnimatePresence, m } from 'framer-motion';
 import Button from '../components/ui/Button';
 import Tag from '../components/ui/Tag';
@@ -19,6 +19,7 @@ import ResponsiveImage from '../components/ui/ResponsiveImage';
 import SpecSymbols, { SpecIcon } from '../components/ui/SpecSymbols';
 import CustomOptionsNote from '../components/ui/CustomOptionsNote';
 import useSpecProfile from '../hooks/useSpecProfile';
+import { useUrlState, useSetUrlParams } from '../hooks/useUrlState';
 import { trackDownload, trackProductInteraction, trackProductView } from '../utils/analytics';
 import { getSpecItems, getFeatureSymbol } from '../utils/specSymbols';
 
@@ -38,9 +39,15 @@ const CONTEXT = 'ProductDetailPage';
 // Zoom lightbox (react-zoom-pan-pinch) is fetched the first time it's opened
 const ImageLightboxModal = lazy(() => import('../components/ui/ImageLightboxModal'));
 
+// Picked options live in the URL by id (or name for plain-string options)
+const optionUrlKey = (opt) => (opt && typeof opt === 'object' ? (opt.id ?? opt.name) : opt);
+const findOption = (options, raw) => {
+  if (raw == null || !Array.isArray(options)) return null;
+  return options.find((opt) => String(optionUrlKey(opt)) === raw) || null;
+};
+
 const ProductDetailPage = () => {
   const { id, productSlug } = useParams();
-  const [searchParams] = useSearchParams();
   const navigate = useNavigate();
   const { addItem } = useCartStore();
   const customizeRef = useRef(null);
@@ -54,15 +61,35 @@ const ProductDetailPage = () => {
   const [product, setProduct] = useState(null);
   const [relatedProducts, setRelatedProducts] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [selectedImage, setSelectedImage] = useState(0);
+  // Picked variation / options / hero photo are in the URL so a rep can link a configuration
+  const [selectedImage, setSelectedImage] = useUrlState('image', 0);
   const [customizeImageIndex, setCustomizeImageIndex] = useState(0);
   const [quantity, setQuantity] = useState(1);
-  const [selectedFinish, setSelectedFinish] = useState(null);
-  const [selectedUpholstery, setSelectedUpholstery] = useState(null);
-  const [selectedLaminate, setSelectedLaminate] = useState(null);
+  const [finishParam] = useUrlState('finish', null);
+  const [colorParam] = useUrlState('color', null);
+  const [upholsteryParam, setUpholsteryParam] = useUrlState('upholstery', null);
+  const [laminateParam, setLaminateParam] = useUrlState('laminate', null);
+  const setParams = useSetUrlParams();
   const [showSuccessMessage, setShowSuccessMessage] = useState(false);
   const [variations, setVariations] = useState([]);
-  const [selectedVariation, setSelectedVariation] = useState(null);
+  const [variationId] = useUrlState('variation', null, { type: 'number' });
+  const selectedVariation = useMemo(
+    () => (variationId == null ? null : variations.find((v) => v.id === variationId) || null),
+    [variations, variationId]
+  );
+  const customizations = product?.customizations;
+  const selectedFinish = useMemo(
+    () => findOption(customizations?.finishes, finishParam) || findOption(customizations?.colors, colorParam),
+    [customizations, finishParam, colorParam]
+  );
+  const selectedUpholstery = useMemo(() => findOption(customizations?.fabrics, upholsteryParam), [customizations, upholsteryParam]);
+  const selectedLaminate = useMemo(() => findOption(customizations?.laminates, laminateParam), [customizations, laminateParam]);
+  // Finish and color share one selection slot
+  const setSelectedFinish = (opt) => setParams({ finish: opt ? optionUrlKey(opt) : null, color: null });
+  const setSelectedColor = (opt) => setParams({ color: opt ? optionUrlKey(opt) : null, finish: null });
+  const setSelectedUpholstery = (opt) => setUpholsteryParam(opt ? optionUrlKey(opt) : null);
+  const setSelectedLaminate = (opt) => setLaminateParam(opt ? optionUrlKey(opt) : null);
+  const setSelectedVariation = (v) => setParams({ variation: v ? v.id : null, image: null });
   // Analytics: options picked on this page (user clicks only, not defaults)
   const trackOption = (kind, label) => trackProductInteraction(product?.id, kind, label);
   const variationLabel = (v) => (v ? v.name || v.sku || [v.finish?.name, v.upholstery?.name].filter(Boolean).join(' / ') || `Variation ${v.id}` : 'Base model');
@@ -90,13 +117,6 @@ const ProductDetailPage = () => {
     loadProduct();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [productId]);
-
-  // Reset image index when variation changes
-  useEffect(() => {
-    if (selectedVariation) {
-      setSelectedImage(0);
-    }
-  }, [selectedVariation]);
 
   // Dynamic "More from this Family": driven by selectedVariation's families, fallback to product.family_id
   useEffect(() => {
@@ -225,11 +245,7 @@ const ProductDetailPage = () => {
 
         logger.info(CONTEXT, `Successfully loaded product: ${response.data.name}`);
 
-        // Options start unselected; the customer picks only what they care about
-        setSelectedFinish(null);
-        setSelectedUpholstery(null);
-        setSelectedLaminate(null);
-
+        // Options start unselected unless the link carries them (?finish=, ?variation=, ...)
         // Fetch variations
         if (response.data.id) {
           setLoadingVariations(true);
@@ -237,14 +253,7 @@ const ProductDetailPage = () => {
           productService.getProductVariations(response.data.id)
             .then((vars) => {
               logger.info(CONTEXT, `Loaded ${vars?.length || 0} variations`, vars);
-              const list = vars || [];
-              setVariations(list);
-              const variationIdParam = searchParams.get('variation');
-              if (variationIdParam && list.length > 0) {
-                const vid = parseInt(variationIdParam, 10);
-                const match = list.find((v) => v.id === vid);
-                if (match) setSelectedVariation(match);
-              }
+              setVariations(vars || []);
             })
             .catch((error) => {
               logger.error(CONTEXT, 'Failed to load variations', error);
@@ -563,7 +572,6 @@ const ProductDetailPage = () => {
                       onClick={() => {
                         trackOption('variation', 'Base model');
                         setSelectedVariation(null);
-                        setSelectedImage(0);
                       }}
                       className={`w-full flex items-center gap-3 p-2.5 rounded-lg text-left transition-colors border-2 ${selectedVariation === null ? 'border-primary-500 bg-primary-50/50' : 'border-transparent bg-white hover:bg-cream-100 hover:border-cream-300'}`}
                     >
@@ -598,7 +606,6 @@ const ProductDetailPage = () => {
                           onClick={() => {
                             trackOption('variation', variationLabel(variation));
                             setSelectedVariation(variation);
-                            setSelectedImage(0);
                           }}
                           className={`w-full flex items-center gap-3 p-2.5 rounded-lg text-left transition-colors border-2 ${isSelected ? 'border-primary-500 bg-primary-50/50' : 'border-transparent bg-white hover:bg-cream-100 hover:border-cream-300'} ${collapsed ? 'max-lg:hidden' : ''}`}
                         >
@@ -908,7 +915,6 @@ const ProductDetailPage = () => {
                         setSelectedVariation(variation || null);
                         if (variation) trackOption('variation', variationLabel(variation));
                       }
-                      setSelectedImage(0);
                     }}
                     className="w-full px-4 py-3 text-base border-2 border-cream-300 bg-white text-slate-800 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
                     disabled={loadingVariations}
@@ -1029,7 +1035,7 @@ const ProductDetailPage = () => {
                     label: 'Color',
                     options: optionsIfEnabled(product, selectedVariation, 'colors', product.customizations?.colors),
                     selected: selectedFinish,
-                    onSelect: (c) => { setSelectedFinish(c); if (c) trackOption('color', c.name); },
+                    onSelect: (c) => { setSelectedColor(c); if (c) trackOption('color', c.name); },
                   },
                 ]}
               />

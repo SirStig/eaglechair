@@ -20,10 +20,10 @@ import logging
 from pathlib import Path
 from typing import Optional
 
-import fitz
 from fastapi import APIRouter, Depends, Header, HTTPException, Query, Request
-from fastapi.responses import Response
+from fastapi.responses import FileResponse, Response
 from sqlalchemy.ext.asyncio import AsyncSession
+from starlette.concurrency import run_in_threadpool
 
 from backend.api.v1.routes.admin.upload import UPLOAD_BASE_DIR
 
@@ -41,6 +41,7 @@ from backend.api.v1.schemas.content import (
 )
 from backend.database.base import get_db
 from backend.models.company import Company
+from backend.services import pdf_cover_service
 from backend.services.content_service import ContentService
 from backend.services.email_service import EmailService
 
@@ -330,6 +331,34 @@ async def get_catalog(
     return catalog
 
 
+def _cover_response(cover: Path, if_none_match: str | None, versioned: bool) -> Response:
+    """Serve a cached PDF cover; versioned URLs (?v=mtime) never change, others revalidate hourly."""
+    etag = f'"{cover.stem}"'
+    headers = {
+        "Cache-Control": "public, max-age=31536000, immutable" if versioned else "public, max-age=3600",
+        "ETag": etag,
+    }
+    if if_none_match and etag in if_none_match:
+        return Response(status_code=304, headers=headers)
+    return FileResponse(cover, media_type="image/webp", headers=headers)
+
+
+@router.get(
+    "/document-cover",
+    summary="Get a PDF's first page as a cover image",
+    description="Renders (and caches) the first page of an uploaded PDF under /uploads/documents as WebP"
+)
+async def get_document_cover(
+    url: str = Query(..., max_length=1000, description="Document URL (/uploads/documents/...)"),
+    v: Optional[int] = Query(None, description="Cache-busting version (PDF modification time)"),
+    if_none_match: str | None = Header(None, alias="If-None-Match"),
+):
+    cover = await run_in_threadpool(pdf_cover_service.get_cover, url, Path(UPLOAD_BASE_DIR))
+    if cover is None:
+        raise HTTPException(status_code=404, detail="No cover available for this document")
+    return _cover_response(cover, if_none_match, versioned=v is not None)
+
+
 @router.get(
     "/catalogs/{catalog_id}/pdf-thumbnail",
     summary="Get PDF first page as thumbnail",
@@ -341,43 +370,15 @@ async def get_catalog_pdf_thumbnail(
     db: AsyncSession = Depends(get_db)
 ):
     catalog = await ContentService.get_catalog_by_id(db=db, catalog_id=catalog_id)
-    file_url = catalog.file_url or ""
-    if not file_url.lower().endswith(".pdf"):
-        raise HTTPException(status_code=404, detail="Catalog is not a PDF")
-    if file_url.startswith("http"):
-        raise HTTPException(status_code=404, detail="External PDF URLs not supported for thumbnail")
-    filename = Path(file_url).name
-    # Documents live in several upload folders (catalogs, guides, spec-sheets, drawings):
-    # resolve from the stored URL, staying inside the uploads root.
-    uploads_root = Path(UPLOAD_BASE_DIR).resolve()
-    rel = file_url.split("/uploads/", 1)[1] if "/uploads/" in file_url else f"documents/catalogs/{filename}"
-    file_path = (uploads_root / rel).resolve()
-    if not file_path.is_relative_to(uploads_root) or not file_path.exists():
-        raise HTTPException(status_code=404, detail="PDF file not found")
-    mtime = file_path.stat().st_mtime
-    etag = f'"{filename}-{int(mtime)}"'
-    if if_none_match and etag in if_none_match:
-        return Response(status_code=304, headers={"Cache-Control": "public, max-age=31536000"})
-    try:
-        doc = fitz.open(str(file_path))
-        if len(doc) == 0:
-            raise HTTPException(status_code=404, detail="PDF has no pages")
-        page = doc[0]
-        mat = fitz.Matrix(1.5, 1.5)
-        pix = page.get_pixmap(matrix=mat, alpha=False)
-        png_bytes = pix.pil_tobytes("PNG")
-        doc.close()
-        return Response(
-            content=png_bytes,
-            media_type="image/png",
-            headers={
-                "Cache-Control": "public, max-age=31536000",
-                "ETag": etag,
-            }
-        )
-    except Exception as e:
-        logger.exception("Failed to render PDF thumbnail: %s", e)
-        raise HTTPException(status_code=500, detail="Failed to render PDF thumbnail")
+    file_url = (catalog.file_url or "").strip()
+    cover = await run_in_threadpool(pdf_cover_service.get_cover, file_url, Path(UPLOAD_BASE_DIR))
+    if cover is None and file_url and "/uploads/" not in file_url:
+        # Legacy rows store a bare filename for files in the catalogs folder
+        legacy = f"/uploads/documents/catalogs/{Path(file_url).name}"
+        cover = await run_in_threadpool(pdf_cover_service.get_cover, legacy, Path(UPLOAD_BASE_DIR))
+    if cover is None:
+        raise HTTPException(status_code=404, detail="No cover available for this catalog")
+    return _cover_response(cover, if_none_match, versioned=False)
 
 
 @router.get(

@@ -5,13 +5,20 @@ import { TransformWrapper, TransformComponent } from 'react-zoom-pan-pinch';
 import VariationImageDisclaimer from './VariationImageDisclaimer';
 import ResponsiveImage from './ResponsiveImage';
 
-const ImageLightboxModal = ({ isOpen, onClose, images = [], initialIndex = 0, showDisclaimer = false, dark = false }) => {
+const ImageLightboxModal = ({ isOpen, onClose, images = [], initialIndex = 0, showDisclaimer = false, dark = false, onIndexChange }) => {
   const transformRef = useRef(null);
   const [index, setIndex] = useState(initialIndex);
+  const onIndexChangeRef = useRef(onIndexChange);
+  onIndexChangeRef.current = onIndexChange;
 
   useEffect(() => {
     if (isOpen) setIndex(Math.min(Math.max(0, initialIndex), Math.max(0, images.length - 1)));
   }, [isOpen, initialIndex, images.length]);
+
+  // Lets the page keep the shown image in the URL
+  useEffect(() => {
+    if (isOpen) onIndexChangeRef.current?.(index);
+  }, [isOpen, index]);
 
   useEffect(() => {
     if (!isOpen) return;

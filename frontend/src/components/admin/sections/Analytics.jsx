@@ -26,6 +26,7 @@ import {
 import apiClient from '../../../config/apiClient';
 import { resolveImageUrl } from '../../../utils/apiHelpers';
 import { AdminPage, AdminPageHeader } from '../ui/AdminPage';
+import { useSetUrlParams, useUrlState } from '../../../hooks/useUrlState';
 import ProductAnalyticsPanel from '../ProductAnalyticsPanel';
 import { CsvButton, Delta, EmptyRow, Funnel, Panel, RankedList, Segmented } from '../analyticsUi';
 import {
@@ -207,14 +208,15 @@ const PAGE_VIEWS = {
 };
 
 const Analytics = () => {
-  const [days, setDays] = useState(30);
-  const [metric, setMetric] = useState('visitors');
-  const [includeStaff, setIncludeStaff] = useState(false);
-  const [pagesView, setPagesView] = useState('top');
-  const [searchView, setSearchView] = useState('all');
-  const [locationView, setLocationView] = useState('countries');
-  const [leadsView, setLeadsView] = useState('reps');
-  const [drawerProduct, setDrawerProduct] = useState(null);
+  const [days, setDays] = useUrlState('days', 30);
+  const [metric, setMetric] = useUrlState('metric', 'visitors');
+  const [includeStaff, setIncludeStaff] = useUrlState('staff', false);
+  const [pagesView, setPagesView] = useUrlState('pages', 'top');
+  const [searchView, setSearchView] = useUrlState('searches', 'all');
+  const [locationView, setLocationView] = useUrlState('locations', 'countries');
+  const [leadsView, setLeadsView] = useUrlState('leads', 'reps');
+  const [drawerProductId, setDrawerProductId] = useUrlState('product', null, { type: 'number', push: true });
+  const setParams = useSetUrlParams();
   const [showDigest, setShowDigest] = useState(false);
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -244,7 +246,8 @@ const Analytics = () => {
     load();
   }, [load]);
 
-  const closeDrawer = useCallback(() => setDrawerProduct(null), []);
+  const setDrawerProduct = (p) => setDrawerProductId(p?.product_id ?? null);
+  const closeDrawer = useCallback(() => setParams({ product: null, pdays: null, pmetric: null }), [setParams]);
   const closeDigest = useCallback(() => setShowDigest(false), []);
 
   const totals = data?.totals || {};
@@ -257,6 +260,10 @@ const Analytics = () => {
   const weights = data?.interest_weights;
   const pageView = PAGE_VIEWS[pagesView];
   const pagesData = data?.[pageView.key] || [];
+  const drawerProduct = drawerProductId == null
+    ? null
+    : [...(data?.top_products || []), ...(gaps?.missing_files || [])].find((p) => p.product_id === drawerProductId)
+      || { product_id: drawerProductId, name: 'Product' };
   const searchData = (searchView === 'all' ? data?.top_searches : data?.zero_result_searches) || [];
 
   return (

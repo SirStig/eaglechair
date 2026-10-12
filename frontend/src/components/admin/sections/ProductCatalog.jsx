@@ -21,6 +21,7 @@ import { ACTIVE_ACTIONS, retiredBy } from '../bulk/bulkActions';
 import { productBulkActions } from './productBulkActions';
 import PdfPreviewButton from '../../ui/PdfPreviewButton';
 import DeleteGate from '../DeleteGate';
+import { useUrlState } from '../../../hooks/useUrlState';
 
 /**
  * Product Catalog Management
@@ -36,21 +37,21 @@ const ProductCatalog = ({ onEdit }) => {
   const { refreshKeys } = useAdminRefresh();
   const [products, setProducts] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [search, setSearch] = useState('');
-  const [categoryFilter, setCategoryFilter] = useState('');
-  const [tab, setTab] = useState('active');
+  const [search, setSearch] = useUrlState('q', '');
+  const [categoryFilter, setCategoryFilter] = useUrlState('category', '');
+  const [tab, setTab] = useUrlState('tab', 'active');
   const [activeTotal, setActiveTotal] = useState(0);
   const [archivedTotal, setArchivedTotal] = useState(0);
-  const [page, setPage] = useState(1);
-  const [pageSize, setPageSize] = useState(100);
+  const [page, setPage] = useUrlState('page', 1);
+  const [pageSize, setPageSize] = useUrlState('size', 100);
   const [totalPages, setTotalPages] = useState(1);
   const [total, setTotal] = useState(0);
   const [categories, setCategories] = useState([]);
   const [subcategories, setSubcategories] = useState([]);
   const [families, setFamilies] = useState([]);
   const [supplierLinks, setSupplierLinks] = useState([]);
-  const [sortBy, setSortBy] = useState('name');
-  const [sortDir, setSortDir] = useState('asc');
+  const [sortBy, setSortBy] = useUrlState('sort', 'name');
+  const [sortDir, setSortDir] = useUrlState('dir', 'asc');
   const [permDeleteTarget, setPermDeleteTarget] = useState(null); // { id, name } | { bulk: [...ids] }
   const [permDeleting, setPermDeleting] = useState(false);
   const selection = useBulkSelection(products);
@@ -66,7 +67,7 @@ const ProductCatalog = ({ onEdit }) => {
     setSortBy(key);
     setSortDir((d) => (key === sortBy ? (d === 'asc' ? 'desc' : 'asc') : 'asc'));
     setPage(1);
-  }, [sortBy]);
+  }, [sortBy, setSortBy, setSortDir, setPage]);
 
   useEffect(() => {
     fetchProducts();

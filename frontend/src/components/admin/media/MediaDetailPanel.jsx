@@ -11,6 +11,7 @@ import {
 } from '../../../services/mediaManagerService';
 import { errorMessage, formatDate, formatSize, isEditableImage } from './mediaFormat';
 import { fieldLabel, recordLink } from './recordLinks';
+import DocumentCover from './DocumentCover';
 
 const fileUrl = (kind, url) => (kind === 'image' ? resolveImageUrl(url) : resolveFileUrl(url));
 
@@ -210,8 +211,12 @@ export default function MediaDetailPanel({ kind, url, onClose, onChanged, onEdit
                     }} />
                   </a>
                 ) : (
-                  <a href={fileUrl(kind, data.url)} target="_blank" rel="noreferrer" className="flex flex-col items-center gap-2 py-6 text-dark-100 hover:text-primary-300">
-                    <FileText className="h-16 w-16" />
+                  <a href={fileUrl(kind, data.url)} target="_blank" rel="noreferrer" className="flex flex-col items-center gap-2 py-2 text-dark-100 hover:text-primary-300">
+                    <DocumentCover
+                      item={data}
+                      className="max-h-[42vh] w-auto max-w-full object-contain shadow-lg"
+                      fallback={<FileText className="my-4 h-16 w-16" />}
+                    />
                     <span className="text-sm">Open document</span>
                   </a>
                 )}

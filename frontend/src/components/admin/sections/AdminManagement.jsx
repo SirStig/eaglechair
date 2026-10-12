@@ -8,6 +8,7 @@ import apiClient from '../../../config/apiClient';
 import { useToast } from '../../../contexts/ToastContext';
 import { useAuthStore } from '../../../store/authStore';
 import { AdminPage, AdminPageHeader } from '../ui/AdminPage';
+import { useUrlState } from '../../../hooks/useUrlState';
 
 const BASE = '/api/v1/admin/admins';
 
@@ -339,7 +340,8 @@ const AdminManagement = () => {
   const [data, setData] = useState({ items: [], roles: [], permissions: [] });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-  const [editing, setEditing] = useState(null); // admin, 'new' or null
+  const [editId, setEditId] = useUrlState('admin', null, { type: 'number', push: true });
+  const [creating, setCreating] = useState(false);
   const [passwordFor, setPasswordFor] = useState(null);
   const [pending, setPending] = useState(null); // { kind, admin }
 
@@ -357,6 +359,12 @@ const AdminManagement = () => {
   useEffect(() => {
     load();
   }, [load]);
+
+  const editing = creating ? 'new' : (editId != null && data.items.find((a) => a.id === editId)) || null;
+  const setEditing = (admin) => {
+    setCreating(admin === 'new');
+    setEditId(admin && admin !== 'new' ? admin.id : null, { push: Boolean(admin && admin !== 'new') });
+  };
 
   const roleLabel = (value) => data.roles.find((r) => r.value === value)?.label || value;
   const permissionLabel = (value) => data.permissions.find((p) => p.value === value)?.label || value;

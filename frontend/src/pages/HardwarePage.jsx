@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useMemo } from 'react';
 import { Link } from 'react-router-dom';
 import { Cog, SearchX } from 'lucide-react';
 import EmptyResults from '../components/ui/EmptyResults';
@@ -10,6 +10,8 @@ import ResponsiveImage from '../components/ui/ResponsiveImage';
 import ImagePlaceholder from '../components/ui/ImagePlaceholder';
 import { resolveImageUrl } from '../utils/apiHelpers';
 import { useMaterialInterest, useTrackedQuery } from '../hooks/useMaterialInterest';
+import { useUrlState } from '../hooks/useUrlState';
+import useMaterialDetailParam from '../hooks/useMaterialDetailParam';
 import MaterialDetailOverlay from '../components/knowledge/MaterialDetailOverlay';
 import { hardwareDetail } from '../components/knowledge/materialDetails';
 import { trackFilter } from '../utils/analytics';
@@ -81,10 +83,9 @@ const HardwareCard = ({ item, onOpen }) => {
 const HardwarePage = () => {
   const { data: hardware = [], loading } = useHardware();
   const { data: suppliers = [] } = useMaterialSources('hardware');
-  const [query, setQuery] = useState('');
+  const [query, setQuery] = useUrlState('q', '');
   useTrackedQuery('Hardware search', query);
-  const [category, setCategory] = useState('all');
-  const [detail, setDetail] = useState(null); // { items, index } while the overlay is open
+  const [category, setCategory] = useUrlState('category', 'all');
 
   const active = useMemo(() => (hardware || []).filter((h) => h.isActive !== false), [hardware]);
   const categories = useMemo(() => {
@@ -106,6 +107,9 @@ const HardwarePage = () => {
       .map((c) => [c, matches.filter((h) => (h.category || 'Other Hardware') === c)])
       .filter(([, items]) => items.length > 0);
   }, [active, categories, category, query]);
+
+  const detailGroups = useMemo(() => groups.map(([, items]) => ({ items, toDetail: hardwareDetail })), [groups]);
+  const { openDetail, overlayProps } = useMaterialDetailParam('hardware', detailGroups);
 
   return (
     <KnowledgePageLayout
@@ -163,8 +167,8 @@ const HardwarePage = () => {
             <section key={cat}>
               <h2 className="text-2xl font-bold text-slate-800 mb-4">{cat}</h2>
               <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3 sm:gap-4">
-                {items.map((h, i) => (
-                  <HardwareCard key={h.id} item={h} onOpen={() => setDetail({ items: items.map(hardwareDetail), index: i })} />
+                {items.map((h) => (
+                  <HardwareCard key={h.id} item={h} onOpen={() => openDetail(h)} />
                 ))}
               </div>
             </section>
@@ -179,10 +183,7 @@ const HardwarePage = () => {
         </Link>
       </p>
       <MaterialDetailOverlay
-        items={detail?.items}
-        index={detail?.index}
-        onIndexChange={(index) => setDetail((d) => ({ ...d, index }))}
-        onClose={() => setDetail(null)}
+        {...overlayProps}
       />
     </KnowledgePageLayout>
   );

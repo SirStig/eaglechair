@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useMemo } from 'react';
 import { Palette, SearchX } from 'lucide-react';
 import EmptyResults from '../components/ui/EmptyResults';
 import { useCatalogs, useFinishes , useMaterialSources } from '../hooks/useContent';
@@ -11,6 +11,8 @@ import { finishDetail } from '../components/knowledge/materialDetails';
 import DocumentList from '../components/knowledge/DocumentList';
 import { FINISH_GUIDE_TYPES, filterByTypes } from '../utils/catalogTypes';
 import { useTrackedQuery } from '../hooks/useMaterialInterest';
+import { useUrlState } from '../hooks/useUrlState';
+import useMaterialDetailParam from '../hooks/useMaterialDetailParam';
 
 const GRADE_ORDER = ['Standard', 'Premium', 'Premium Plus', 'Artisan'];
 // Metal frame finishes live in the same table; they get their own sections.
@@ -21,9 +23,8 @@ const WoodFinishesPage = () => {
   const { data: finishes = [], loading } = useFinishes();
   const { data: suppliers = [] } = useMaterialSources('finish');
   const { data: catalogs = [] } = useCatalogs();
-  const [query, setQuery] = useState('');
+  const [query, setQuery] = useUrlState('q', '');
   useTrackedQuery('Wood finish search', query);
-  const [detail, setDetail] = useState(null); // { items, index } while the overlay is open
 
   const { groups, metalGroups } = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -47,6 +48,12 @@ const WoodFinishesPage = () => {
         .filter((g) => g.items.length > 0),
     };
   }, [finishes, query]);
+
+  const detailGroups = useMemo(() => [
+    ...groups.map((g) => ({ items: g.items, toDetail: (x) => finishDetail(x) })),
+    ...metalGroups.map((g) => ({ items: g.items, toDetail: (x) => finishDetail(x, { metal: true }) })),
+  ], [groups, metalGroups]);
+  const { openDetail, overlayProps } = useMaterialDetailParam('finish', detailGroups);
 
   const guides = filterByTypes(catalogs, FINISH_GUIDE_TYPES);
 
@@ -97,10 +104,10 @@ const WoodFinishesPage = () => {
             <section key={g.grade} id={`grade-${g.grade.replace(/\s+/g, '-')}`} className="scroll-mt-24">
               <h2 className="text-2xl font-bold text-slate-800 mb-4">{g.grade}</h2>
               <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 xl:grid-cols-6 gap-3 sm:gap-4">
-                {g.items.map((f, i) => (
+                {g.items.map((f) => (
                   <SwatchCard
                     key={f.id}
-                    onOpen={() => setDetail({ items: g.items.map((x) => finishDetail(x)), index: i })}
+                    onOpen={() => openDetail(f)}
                     item={f}
                     kind="wood"
                     title={f.name}
@@ -125,10 +132,10 @@ const WoodFinishesPage = () => {
                 <section key={g.type} id={`metal-${g.type.replace(/\s+/g, '-')}`} className="scroll-mt-24">
                   <h3 className="text-xl font-semibold text-slate-800 mb-4">{g.type}</h3>
                   <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 xl:grid-cols-6 gap-3 sm:gap-4">
-                    {g.items.map((f, i) => (
+                    {g.items.map((f) => (
                       <SwatchCard
                         key={f.id}
-                        onOpen={() => setDetail({ items: g.items.map((x) => finishDetail(x, { metal: true })), index: i })}
+                        onOpen={() => openDetail(f)}
                         item={f}
                         kind="metal"
                         title={f.name}
@@ -153,10 +160,7 @@ const WoodFinishesPage = () => {
         </section>
       )}
       <MaterialDetailOverlay
-        items={detail?.items}
-        index={detail?.index}
-        onIndexChange={(index) => setDetail((d) => ({ ...d, index }))}
-        onClose={() => setDetail(null)}
+        {...overlayProps}
       />
     </KnowledgePageLayout>
   );

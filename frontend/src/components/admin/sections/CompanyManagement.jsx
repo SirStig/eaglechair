@@ -1,4 +1,5 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
+import { useNavigate } from 'react-router-dom';
 import Card from '../../ui/Card';
 import Button from '../../ui/Button';
 import Input from '../../ui/Input';
@@ -11,6 +12,7 @@ import TableSortHead from '../TableSortHead';
 import PaginationBar from '../PaginationBar';
 import { AdminPage, AdminPageHeader } from '../ui/AdminPage';
 import useBulkSelection from '../../../hooks/useBulkSelection';
+import { useUrlState } from '../../../hooks/useUrlState';
 import BulkActionBar from '../bulk/BulkActionBar';
 import { retiredBy } from '../bulk/bulkActions';
 import { SelectAllCheckbox, SelectCell } from '../bulk/SelectCheckbox';
@@ -21,19 +23,21 @@ const CompanyManagement = () => {
   const toast = useToast();
   const [companies, setCompanies] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [page, setPage] = useState(1);
-  const [pageSize, setPageSize] = useState(100);
+  const [page, setPage] = useUrlState('page', 1);
+  const [pageSize, setPageSize] = useUrlState('size', 100);
   const [totalPages, setTotalPages] = useState(1);
   const [total, setTotal] = useState(0);
-  const [selectedCompanyId, setSelectedCompanyId] = useState(null);
+  const [selectedCompanyId, setSelectedCompanyId] = useUrlState('company', null, { type: 'number', push: true });
+  const navigate = useNavigate();
+  const openedFromListRef = useRef(false);
   const [isInviteModalOpen, setIsInviteModalOpen] = useState(false);
   const [inviteFormData, setInviteFormData] = useState({ company_name: '', email: '' });
   const [inviteErrors, setInviteErrors] = useState({});
   const [inviteLoading, setInviteLoading] = useState(false);
   const [inviteSuccess, setInviteSuccess] = useState(false);
 
-  const [sortBy, setSortBy] = useState('company_name');
-  const [sortDir, setSortDir] = useState('asc');
+  const [sortBy, setSortBy] = useUrlState('sort', 'company_name');
+  const [sortDir, setSortDir] = useUrlState('dir', 'asc');
 
   useEffect(() => {
     if (!selectedCompanyId) {
@@ -45,7 +49,7 @@ const CompanyManagement = () => {
     setSortBy(key);
     setSortDir((d) => (key === sortBy ? (d === 'asc' ? 'desc' : 'asc') : 'asc'));
     setPage(1);
-  }, [sortBy]);
+  }, [sortBy, setSortBy, setSortDir, setPage]);
 
   const fetchCompanies = async () => {
     setLoading(true);
@@ -91,11 +95,18 @@ const CompanyManagement = () => {
   ];
 
   const handleViewCompany = (companyId) => {
+    openedFromListRef.current = true;
     setSelectedCompanyId(companyId);
   };
 
+  // Opened from this list: step back so history stays clean. Deep link: drop the param.
   const handleBackToList = () => {
-    setSelectedCompanyId(null);
+    if (openedFromListRef.current) {
+      openedFromListRef.current = false;
+      navigate(-1);
+      return;
+    }
+    setSelectedCompanyId(null, { push: false });
   };
 
   const handleCompanyUpdated = () => {

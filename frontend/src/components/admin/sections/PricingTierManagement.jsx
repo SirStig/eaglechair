@@ -1,4 +1,5 @@
-import { useState, useEffect, useMemo, useCallback } from 'react';
+import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
+import { useNavigate } from 'react-router-dom';
 import Card from '../../ui/Card';
 import Button from '../../ui/Button';
 import Badge from '../../ui/Badge';
@@ -15,6 +16,7 @@ import { ACTIVE_ACTIONS, retiredBy } from '../bulk/bulkActions';
 import { SelectAllCheckbox, SelectCell } from '../bulk/SelectCheckbox';
 import { openOnRowClick } from '../bulk/rowClick';
 import DeleteGate from '../DeleteGate';
+import { useUrlState } from '../../../hooks/useUrlState';
 
 /**
  * Pricing Tier Management Component
@@ -26,10 +28,33 @@ const PricingTierManagement = () => {
   const { refreshKeys } = useAdminRefresh();
   const [tiers, setTiers] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [editingTier, setEditingTier] = useState(null);
-  const [includeInactive, setIncludeInactive] = useState(false);
-  const [sortBy, setSortBy] = useState('pricing_tier_name');
-  const [sortDir, setSortDir] = useState('asc');
+  // ?tier=<id|new> opens the editor
+  const [tierParam, setTierParam] = useUrlState('tier', null, { push: true });
+  const [fetchedTier, setFetchedTier] = useState(null);
+  const [includeInactive, setIncludeInactive] = useUrlState('inactive', false);
+  const [sortBy, setSortBy] = useUrlState('sort', 'pricing_tier_name');
+  const [sortDir, setSortDir] = useUrlState('dir', 'asc');
+  const navigate = useNavigate();
+  const openedFromListRef = useRef(false);
+
+  const listTier = tierParam && tierParam !== 'new'
+    ? tiers.find((t) => String(t.id) === tierParam)
+    : null;
+  const editingTier = !tierParam
+    ? null
+    : tierParam === 'new'
+      ? {}
+      : listTier || (fetchedTier && String(fetchedTier.id) === tierParam ? fetchedTier : null);
+
+  // Deep link to a tier that isn't in the loaded list (e.g. inactive)
+  useEffect(() => {
+    if (!tierParam || tierParam === 'new' || loading || listTier) return;
+    let cancelled = false;
+    apiClient.get(`/api/v1/admin/pricing-tiers/${tierParam}`)
+      .then((tier) => { if (!cancelled) setFetchedTier(tier); })
+      .catch(() => { if (!cancelled) toast.error('Pricing tier not found'); });
+    return () => { cancelled = true; };
+  }, [tierParam, loading, listTier, toast]);
 
   const sortedTiers = useMemo(() => {
     return [...(tiers || [])].sort((a, b) => {
@@ -44,7 +69,7 @@ const PricingTierManagement = () => {
   const handleSort = useCallback((key) => {
     setSortBy(key);
     setSortDir((d) => (key === sortBy ? (d === 'asc' ? 'desc' : 'asc') : 'asc'));
-  }, [sortBy]);
+  }, [sortBy, setSortBy, setSortDir]);
 
   useEffect(() => {
     fetchTiers();
@@ -66,20 +91,28 @@ const PricingTierManagement = () => {
   };
 
   const handleEdit = (tier) => {
-    setEditingTier(tier);
+    openedFromListRef.current = true;
+    setTierParam(String(tier.id));
   };
 
   const handleCreate = () => {
-    setEditingTier({});
+    openedFromListRef.current = true;
+    setTierParam('new');
   };
 
+  // Opened from this list: step back so history stays clean. Deep link: drop the param.
   const handleBack = () => {
-    setEditingTier(null);
+    if (openedFromListRef.current) {
+      openedFromListRef.current = false;
+      navigate(-1);
+      return;
+    }
+    setTierParam(null, { push: false });
   };
 
   const handleSave = () => {
-    setEditingTier(null);
-    toast.success(editingTier?.id ? 'Pricing tier updated' : 'Pricing tier created');
+    toast.success(tierParam !== 'new' ? 'Pricing tier updated' : 'Pricing tier created');
+    handleBack();
     fetchTiers();
   };
 
@@ -110,9 +143,13 @@ const PricingTierManagement = () => {
   };
 
   // Show editor if editing/creating
-  if (editingTier !== null) {
+  if (tierParam) {
+    if (!editingTier) {
+      return <div className="py-20 text-center text-sm text-dark-300">Loading pricing tier…</div>;
+    }
     return (
       <PricingTierEditor
+        key={tierParam}
         tier={editingTier.id ? editingTier : null}
         onBack={handleBack}
         onSave={handleSave}

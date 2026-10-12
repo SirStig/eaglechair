@@ -1,4 +1,5 @@
-import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { RotateCcw, Trash2 } from 'lucide-react';
 import Card from '../../ui/Card';
 import Button from '../../ui/Button';
@@ -19,6 +20,7 @@ import { deletePermanently } from '../bulk/permanentDelete';
 import { booleanAction, idAction, retiredBy } from '../bulk/bulkActions';
 import PdfPreviewButton from '../../ui/PdfPreviewButton';
 import DeleteGate from '../DeleteGate';
+import { useUrlState, useSetUrlParams } from '../../../hooks/useUrlState';
 
 /**
  * Product Family Management with Full CRUD
@@ -29,14 +31,20 @@ const FamilyManagement = () => {
   const [families, setFamilies] = useState([]);
   const [categories, setCategories] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [editingFamily, setEditingFamily] = useState(null);
-  const [showEditor, setShowEditor] = useState(false);
-  const [filterCategory, setFilterCategory] = useState('');
-  const [tab, setTab] = useState('active');
+  const navigate = useNavigate();
+  const setUrlParams = useSetUrlParams();
+  // Editor is URL-addressable: ?family=<id|new>
+  const [familyParam] = useUrlState('family', null);
+  const familyId = familyParam && familyParam !== 'new' && Number.isFinite(Number(familyParam)) ? Number(familyParam) : null;
+  const showEditor = familyParam === 'new' || familyId != null;
+  const [fetchedFamily, setFetchedFamily] = useState(null);
+  const openedFromList = useRef(false);
+  const [filterCategory, setFilterCategory] = useUrlState('category', '');
+  const [tab, setTab] = useUrlState('tab', 'active');
   const [activeTotal, setActiveTotal] = useState(0);
   const [archivedTotal, setArchivedTotal] = useState(0);
-  const [page, setPage] = useState(1);
-  const [pageSize, setPageSize] = useState(100);
+  const [page, setPage] = useUrlState('page', 1);
+  const [pageSize, setPageSize] = useUrlState('size', 100);
   const [permDeleteTarget, setPermDeleteTarget] = useState(null); // { id, name } | { bulk: [...ids] }
   const [permDeleting, setPermDeleting] = useState(false);
 
@@ -94,26 +102,46 @@ const FamilyManagement = () => {
     }
   };
 
-  const handleCreate = () => {
-    setEditingFamily(null);
-    setShowEditor(true);
+  const listedFamily = familyId != null ? families.find((f) => f.id === familyId) || null : null;
+  const isListed = !!listedFamily;
+  // Deep link to a family outside the current filter/tab: load it directly
+  useEffect(() => {
+    if (familyId == null || loading || isListed) return undefined;
+    let cancelled = false;
+    apiClient
+      .get(`/api/v1/admin/families/${familyId}`)
+      .then((f) => { if (!cancelled) setFetchedFamily(f); })
+      .catch(() => {
+        if (cancelled) return;
+        toast.error('Family not found');
+        setUrlParams({ family: null });
+      });
+    return () => { cancelled = true; };
+  }, [familyId, loading, isListed]); // eslint-disable-line react-hooks/exhaustive-deps
+  const editingFamily = listedFamily || (fetchedFamily?.id === familyId ? fetchedFamily : null);
+
+  const openEditor = (value) => {
+    openedFromList.current = true;
+    setUrlParams({ family: value }, { push: true });
   };
 
-  const handleEdit = (family) => {
-    setEditingFamily(family);
-    setShowEditor(true);
+  const handleCreate = () => openEditor('new');
+
+  const handleEdit = (family) => openEditor(family.id);
+
+  const handleCancel = () => {
+    if (openedFromList.current) {
+      openedFromList.current = false;
+      navigate(-1);
+    } else {
+      setUrlParams({ family: null });
+    }
   };
 
   const handleSave = () => {
-    setShowEditor(false);
-    setEditingFamily(null);
+    handleCancel();
     toast.success(editingFamily ? 'Family updated' : 'Family created');
     fetchFamilies();
-  };
-
-  const handleCancel = () => {
-    setShowEditor(false);
-    setEditingFamily(null);
   };
 
   const handleDelete = async (familyId) => {
@@ -226,8 +254,12 @@ const FamilyManagement = () => {
 
   // Show editor if editing or creating
   if (showEditor) {
+    if (familyId != null && !editingFamily) {
+      return <div className="py-20 text-center text-sm text-dark-300">Loading family…</div>;
+    }
     return (
       <FamilyEditor
+        key={familyParam}
         family={editingFamily}
         categories={categories}
         onBack={handleCancel}
@@ -299,6 +331,7 @@ const FamilyManagement = () => {
               position="top"
             />
             <ReorderableTable
+              urlSort
               onRowClick={handleEdit}
               items={paginatedFamilies}
               setItems={(next) => {

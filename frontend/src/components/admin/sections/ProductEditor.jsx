@@ -34,6 +34,7 @@ import BulkActionBar from '../bulk/BulkActionBar';
 import FloatingDock from '../bulk/FloatingDock';
 import FitLabel from '../bulk/FitLabel';
 import ProductVariationsTab from './ProductVariationsTab';
+import { useUrlState, useSetUrlParams } from '../../../hooks/useUrlState';
 import { groupSupplierLinks } from './supplierLinkTypes';
 import {
   OPTION_GROUP_SWITCHES,
@@ -96,7 +97,15 @@ const DOCK_BUTTON =
 
 const ProductEditor = ({ product, onBack }) => {
   const toast = useToast();
-  const [activeTab, setActiveTab] = useState('basic');
+  const [activeTab, setActiveTab] = useUrlState('etab', 'basic');
+  const setUrlParams = useSetUrlParams();
+  // Closing the editor drops ?edit=; clear the editor's own keys with it so
+  // they don't linger on the list URL. (Still-present ?edit= = remount/StrictMode.)
+  useEffect(() => () => {
+    if (!new URLSearchParams(window.location.search).has('edit')) {
+      setUrlParams({ etab: null, vq: null, variation: null });
+    }
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
   const [formData, setFormData] = useState({
     name: '',
     model_number: '',
@@ -389,11 +398,15 @@ const ProductEditor = ({ product, onBack }) => {
   };
 
   // ---- Variations: filter, open cards, selection and batch edits ----
-  const [variationFilter, setVariationFilter] = useState('');
-  const [expandedVariations, setExpandedVariations] = useState(() =>
-    variations.length <= OPEN_ALL_UP_TO ? new Set(variations.map(variationKey)) : new Set()
-  );
-  const [scrollToVariation, setScrollToVariation] = useState(null);
+  const [variationFilter, setVariationFilter] = useUrlState('vq', '');
+  // ?variation=<id> deep-links one saved variation: opened and scrolled to on load
+  const [linkedVariation, setLinkedVariation] = useUrlState('variation', null, { type: 'number' });
+  const [expandedVariations, setExpandedVariations] = useState(() => {
+    const open = variations.length <= OPEN_ALL_UP_TO ? new Set(variations.map(variationKey)) : new Set();
+    if (linkedVariation != null) open.add(linkedVariation);
+    return open;
+  });
+  const [scrollToVariation, setScrollToVariation] = useState(linkedVariation);
   const { rows: variationRows, names: variationNames } = useVariationRows(variations, variationFilter, {
     finishes,
     upholsteries,
@@ -407,16 +420,21 @@ const ProductEditor = ({ product, onBack }) => {
     setScrollToVariation(null);
   }, [scrollToVariation, variations, expandedVariations]);
 
-  const toggleVariation = (key) =>
+  const toggleVariation = (key) => {
+    const opening = !expandedVariations.has(key);
     setExpandedVariations((prev) => {
       const next = new Set(prev);
       if (next.has(key)) next.delete(key);
       else next.add(key);
       return next;
     });
+    if (opening && typeof key === 'number') setLinkedVariation(key);
+    else if (!opening && key === linkedVariation) setLinkedVariation(null);
+  };
   const jumpToVariation = (key) => {
     setExpandedVariations((prev) => new Set(prev).add(key));
     setScrollToVariation(key);
+    setLinkedVariation(typeof key === 'number' ? key : null);
   };
   const updateVariation = (index, patch) =>
     setVariations((prev) => prev.map((v, i) => (i === index ? { ...v, ...patch } : v)));

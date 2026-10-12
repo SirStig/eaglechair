@@ -16,6 +16,7 @@ import { useToast } from '../../../contexts/ToastContext';
 import { useAdminRefresh } from '../../../contexts/AdminRefreshContext';
 import ResponsiveImage from '../../ui/ResponsiveImage';
 import DeleteGate from '../DeleteGate';
+import { useUrlState } from '../../../hooks/useUrlState';
 
 const FINISH_TYPE_OPTIONS = [{ value: 'Wood Stain', label: 'Wood Stain' }, { value: 'Paint', label: 'Paint' }, { value: 'Metal', label: 'Metal' }, { value: 'Powder Coat', label: 'Powder Coat' }, { value: 'Lacquer', label: 'Lacquer' }, { value: 'Veneer', label: 'Veneer' }, { value: 'Chrome', label: 'Chrome' }];
 const FINISH_GRADE_OPTIONS = [{ value: 'Standard', label: 'Standard' }, { value: 'Premium', label: 'Premium' }, { value: 'Premium Plus', label: 'Premium Plus' }, { value: 'Artisan', label: 'Artisan' }];
@@ -29,10 +30,11 @@ const FinishManagement = () => {
   const [finishes, setFinishes] = useState([]);
   const [colors, setColors] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [editingFinish, setEditingFinish] = useState(null);
-  const [filterType, setFilterType] = useState('');
-  const [filterGrade, setFilterGrade] = useState('');
-  const [tab, setTab] = useState('active');
+  const [editingId, setEditingId] = useUrlState('finish', null);
+  const [fetchedFinish, setFetchedFinish] = useState(null);
+  const [filterType, setFilterType] = useUrlState('type', '');
+  const [filterGrade, setFilterGrade] = useUrlState('grade', '');
+  const [tab, setTab] = useUrlState('status', 'active');
   const [activeTotal, setActiveTotal] = useState(0);
   const [archivedTotal, setArchivedTotal] = useState(0);
   const [permDeleteTarget, setPermDeleteTarget] = useState(null);
@@ -88,20 +90,46 @@ const FinishManagement = () => {
     }
   };
 
+  const listedFinish = editingId && editingId !== 'new'
+    ? finishes.find((f) => String(f.id) === editingId)
+    : null;
+  const editingFinish = editingId === 'new'
+    ? 'new'
+    : listedFinish || (fetchedFinish && String(fetchedFinish.id) === editingId ? fetchedFinish : null);
+
+  // Deep link to a finish outside the current tab/filters: look it up in the full list.
+  const isListed = !!listedFinish;
+  useEffect(() => {
+    if (!editingId || editingId === 'new' || loading || isListed) return undefined;
+    let cancelled = false;
+    apiClient.get('/api/v1/admin/catalog/finishes')
+      .then((response) => {
+        if (cancelled) return;
+        const found = (response || []).find((f) => String(f.id) === editingId);
+        if (found) setFetchedFinish(found);
+        else {
+          toast.error('Finish not found');
+          setEditingId(null);
+        }
+      })
+      .catch((error) => console.error('Failed to fetch finish:', error));
+    return () => { cancelled = true; };
+  }, [editingId, loading, isListed, toast, setEditingId]);
+
   const handleCreate = () => {
-    setEditingFinish('new');
+    setEditingId('new', { push: true });
   };
 
   const handleEdit = (finish) => {
-    setEditingFinish(finish);
+    setEditingId(String(finish.id), { push: true });
   };
 
   const handleBack = () => {
-    setEditingFinish(null);
+    setEditingId(null);
   };
 
   const handleSave = () => {
-    setEditingFinish(null);
+    setEditingId(null);
     toast.success(editingFinish === 'new' ? 'Finish created' : 'Finish updated');
     fetchFinishes();
   };
@@ -190,9 +218,18 @@ const FinishManagement = () => {
   );
 
   // Show editor if editing/creating
+  if (editingId && !editingFinish) {
+    return (
+      <div className="flex justify-center py-12">
+        <div className="w-8 h-8 border-4 border-dark-600 border-t-primary-500 rounded-full animate-spin" />
+      </div>
+    );
+  }
+
   if (editingFinish) {
     return (
       <FinishEditor
+        key={editingId}
         finish={editingFinish === 'new' ? null : editingFinish}
         onBack={handleBack}
         onSave={handleSave}
@@ -292,6 +329,7 @@ const FinishManagement = () => {
           </div>
         ) : (
           <ReorderableTable
+            urlSort
             onRowClick={handleEdit}
             items={sortedFinishes}
             setItems={(next) => setFinishes(next.map((item, i) => ({ ...item, display_order: i })))}

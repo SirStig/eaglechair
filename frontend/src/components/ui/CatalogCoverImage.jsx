@@ -1,3 +1,4 @@
+import { useEffect, useState } from 'react';
 import { resolveApiUrl, resolveImageUrl } from '../../utils/apiHelpers';
 import ResponsiveImage from './ResponsiveImage';
 import ImagePlaceholder from './ImagePlaceholder';
@@ -20,13 +21,27 @@ const FallbackCover = ({ title, className = '', compact = false }) => compact ? 
   </ImagePlaceholder>
 );
 
+// Rendered first page of the PDF: by file URL for uploads, by catalog id for
+// legacy rows that store only a filename.
+const pdfCoverUrl = (catalog, fileUrl) => {
+  if (!fileUrl?.split('?')[0].toLowerCase().endsWith('.pdf')) return null;
+  if (fileUrl.includes('/uploads/documents/')) {
+    return resolveApiUrl(`/api/v1/content/document-cover?url=${encodeURIComponent(fileUrl)}`);
+  }
+  return catalog.id ? resolveApiUrl(`/api/v1/content/catalogs/${catalog.id}/pdf-thumbnail`) : null;
+};
+
 const CatalogCoverImage = ({ catalog, className = 'aspect-[3/4]', imgClassName = '', compact = false }) => {
   const coverUrl = catalog.coverImageUrl || catalog.thumbnailUrl || catalog.thumbnail_url;
   const fileUrl = catalog.fileUrl || catalog.file_url;
-  const isPdf = fileUrl?.toLowerCase().endsWith('.pdf');
-  const hasCover = coverUrl || (catalog.id && isPdf);
+  // Uploaded cover first, then the rendered PDF page, then the stand-in cover
+  const sources = [coverUrl && resolveImageUrl(coverUrl), pdfCoverUrl(catalog, fileUrl)].filter(Boolean);
+  const sourcesKey = sources.join('|');
+  const [index, setIndex] = useState(0);
+  useEffect(() => setIndex(0), [sourcesKey]);
+  const src = sources[index];
 
-  if (!hasCover) {
+  if (!src) {
     return (
       <div className={`${className} overflow-hidden`}>
         <FallbackCover title={catalog.title} compact={compact} />
@@ -40,13 +55,14 @@ const CatalogCoverImage = ({ catalog, className = 'aspect-[3/4]', imgClassName =
         <FallbackCover title={catalog.title} compact={compact} />
       </div>
       <ResponsiveImage
-        src={coverUrl ? resolveImageUrl(coverUrl) : resolveApiUrl(`/api/v1/content/catalogs/${catalog.id}/pdf-thumbnail`)}
+        key={src}
+        src={src}
         sizes={compact ? '48px' : '(min-width: 1024px) 400px, (min-width: 640px) 50vw, 100vw'}
         alt={catalog.title}
-        className={`relative z-10 w-full h-full object-cover group-hover:scale-105 transition-transform duration-300 ${imgClassName}`}
+        className={`relative z-10 w-full h-full object-cover object-top group-hover:scale-105 transition-transform duration-300 ${imgClassName}`}
         loading="lazy"
         decoding="async"
-        onError={(e) => { e.target.style.visibility = 'hidden'; }}
+        onError={() => setIndex((i) => i + 1)}
       />
     </div>
   );

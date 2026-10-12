@@ -1,10 +1,10 @@
-import { useState } from 'react';
 import { Eye, Download } from 'lucide-react';
 import CatalogCoverImage from '../ui/CatalogCoverImage';
 import PDFViewerModal from '../ui/PDFViewerModal';
 import { formatFileSize, resolveFileUrl } from '../../utils/apiHelpers';
 import { formatCatalogType, getCatalogType } from '../../utils/catalogTypes';
 import { trackDownload } from '../../utils/analytics';
+import { useUrlState } from '../../hooks/useUrlState';
 
 const fileUrlOf = (doc) => doc.fileUrl || doc.file_url;
 const isPdf = (doc) =>
@@ -58,7 +58,10 @@ const metaLine = (doc, showType) =>
  * `variant="list"` for long libraries — compact rows with a small cover.
  */
 const DocumentList = ({ documents, variant = 'list', showType = false }) => {
-  const [viewing, setViewing] = useState(null);
+  // Open document is ?doc=<id> so a link opens it in the viewer
+  const [docId, setDocId] = useUrlState('doc', null);
+  const viewing = docId == null ? null : documents.find((d) => String(d.id) === docId) || null;
+  const setViewing = (doc) => setDocId(doc ? String(doc.id) : null, { push: !!doc });
 
   return (
     <>

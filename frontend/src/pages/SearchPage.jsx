@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { trackSearch } from '../utils/analytics';
 import { useSearchParams, useNavigate, Link } from 'react-router-dom';
+import { useSetUrlParams } from '../hooks/useUrlState';
 import SEOHead from '../components/SEOHead';
 import { SEO } from '../config/seoConfig';
 import { Filter, X, ChevronDown, ChevronUp, ArrowUpDown, Search as SearchIcon, Grid3x3 } from 'lucide-react';
@@ -20,7 +21,10 @@ const SearchPage = () => {
   const navigate = useNavigate();
   const urlQuery = searchParams.get('q') || '';
   
-  const [searchQuery, setSearchQuery] = useState(urlQuery);
+  const setUrlParams = useSetUrlParams();
+  // The search box writes ?q= as you type (results already update live)
+  const searchQuery = urlQuery;
+  const setSearchQuery = (value) => setUrlParams({ q: value, page: null });
   const [products, setProducts] = useState([]);
   const [categories, setCategories] = useState([]);
   const [quickViewProduct, setQuickViewProduct] = useState(null);
@@ -50,7 +54,6 @@ const SearchPage = () => {
   const debouncedQuery = useDebounce(searchQuery, 300);
   
   useEffect(() => {
-    setSearchQuery(urlQuery);
     setFilters({
       category_id: searchParams.get('category_id') || '',
       sortBy: searchParams.get('sort') || 'relevance',
@@ -59,7 +62,7 @@ const SearchPage = () => {
       ...prev,
       page: Math.max(1, parseInt(searchParams.get('page') || '1', 10) || 1),
     }));
-  }, [urlQuery, searchParams]);
+  }, [searchParams]);
 
   // Load categories on mount
   useEffect(() => {
@@ -193,7 +196,6 @@ const SearchPage = () => {
     e.preventDefault();
     if (searchQuery.trim()) {
       setSearchQuery(searchQuery.trim());
-      updateURLParams(filters, 1);
     }
   };
 

@@ -1,5 +1,4 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { useLocation, useNavigate } from 'react-router-dom';
 import {
   Check, FileText, History, Image as ImageIcon, Images, LayoutGrid, List, Loader2, Pencil, Search, Trash2,
   Upload, X,
@@ -15,6 +14,8 @@ import { deleteMediaFiles, listMedia } from '../../../services/mediaManagerServi
 import { uploadDocument } from '../../../services/documentLibraryService';
 import { uploadImage } from '../../../utils/imageUpload';
 import { resolveImageUrl } from '../../../utils/apiHelpers';
+import { useSetUrlParams, useUrlState } from '../../../hooks/useUrlState';
+import DocumentCover from '../media/DocumentCover';
 
 const TABS = [
   { id: 'image', label: 'Images', icon: ImageIcon },
@@ -35,7 +36,8 @@ const SORTS = [
   { value: 'usage', label: 'Most used' },
 ];
 
-const DEFAULT_FILTERS = { q: '', folder: '', usage: 'all', usedByType: '', docKind: '', sort: 'newest' };
+// Query keys of the list view (filters, paging); cleared when switching tabs
+const LIST_KEYS = { q: null, folder: null, usage: null, usedby: null, filetype: null, sort: null, page: null, size: null };
 
 const SELECT =
   'min-w-0 rounded-lg border border-dark-500 bg-dark-800 px-3 py-2 text-sm text-dark-50 focus:border-primary-500 focus:outline-none focus:ring-1 focus:ring-primary-500';
@@ -57,13 +59,17 @@ const readView = () => {
 function Thumb({ item, kind, className = '' }) {
   const [failed, setFailed] = useState(false);
   if (kind === 'document') {
-    return item.cover_url && !failed ? (
-      <img src={resolveImageUrl(item.cover_url)} alt="" loading="lazy" className={`h-full w-full object-cover ${className}`} onError={() => setFailed(true)} />
-    ) : (
-      <div className={`flex h-full w-full flex-col items-center justify-center gap-1 text-dark-300 ${className}`}>
-        <FileText className="h-8 w-8" />
-        <span className="text-[10px] font-semibold uppercase tracking-wider">{DOC_KIND_LABELS[item.kind] || item.filename.split('.').pop()}</span>
-      </div>
+    return (
+      <DocumentCover
+        item={item}
+        className={`h-full w-full object-cover object-top ${className}`}
+        fallback={(
+          <div className={`flex h-full w-full flex-col items-center justify-center gap-1 text-dark-300 ${className}`}>
+            <FileText className="h-8 w-8" />
+            <span className="text-[10px] font-semibold uppercase tracking-wider">{DOC_KIND_LABELS[item.kind] || item.filename.split('.').pop()}</span>
+          </div>
+        )}
+      />
     );
   }
   return (
@@ -95,28 +101,39 @@ function StatPill({ label, value, onClick, active }) {
 /**
  * Admin Media Library: every uploaded image and document, where each is used,
  * search / filters, bulk delete, replace with version history, and the
- * built-in image editor. Deep links: ?type=document&file=<url>.
+ * built-in image editor. Deep links: ?type=document&file=<url>, plus the
+ * filters (q, folder, usage, usedby, filetype, sort), page, size and view.
  */
 export default function MediaManager() {
-  const location = useLocation();
-  const navigate = useNavigate();
   const toast = useToast();
   const { can } = useAdminPermissions();
   const canEdit = can(PERMISSIONS.EDIT_CATALOG);
   const canDelete = can(PERMISSIONS.DELETE);
 
-  const params = new URLSearchParams(location.search);
-  const kind = params.get('type') === 'document' ? 'document' : 'image';
-  const openUrl = params.get('file');
+  const setParams = useSetUrlParams();
+  const [type] = useUrlState('type', 'image');
+  const kind = type === 'document' ? 'document' : 'image';
+  const [openUrl] = useUrlState('file', null);
 
-  const [filters, setFilters] = useState(DEFAULT_FILTERS);
-  const [query, setQuery] = useState('');
-  const [page, setPage] = useState(1);
-  const [pageSize, setPageSize] = useState(50);
+  const [q] = useUrlState('q', '');
+  const [folder] = useUrlState('folder', '');
+  const [usage] = useUrlState('usage', 'all');
+  const [usedByType] = useUrlState('usedby', '');
+  const [docKind] = useUrlState('filetype', '');
+  const [sort] = useUrlState('sort', 'newest');
+  const filters = useMemo(
+    () => ({ q, folder, usage, usedByType, docKind, sort }),
+    [q, folder, usage, usedByType, docKind, sort],
+  );
+  const [query, setQuery] = useState(q);
+  const typedQ = useRef(q);
+  const [page, setPage] = useUrlState('page', 1);
+  const [pageSize] = useUrlState('size', 50);
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
-  const [view, setView] = useState(readView);
+  const [viewParam, setViewParam] = useUrlState('view', '');
+  const view = viewParam === 'list' || viewParam === 'grid' ? viewParam : readView();
   const [selected, setSelected] = useState(() => new Set());
   const [uploadFolder, setUploadFolder] = useState('general');
   const [uploads, setUploads] = useState([]);
@@ -130,27 +147,25 @@ export default function MediaManager() {
   const dragDepth = useRef(0);
   const seq = useRef(0);
 
-  const setParams = useCallback((changes, replace = false) => {
-    const next = new URLSearchParams(location.search);
-    Object.entries(changes).forEach(([k, v]) => (v ? next.set(k, v) : next.delete(k)));
-    const search = next.toString();
-    navigate({ pathname: location.pathname, search: search ? `?${search}` : '' }, { replace });
-  }, [location.pathname, location.search, navigate]);
-
-  // Debounced search
+  // Debounced search into ?q= (resets to page 1 only when the term changes)
   useEffect(() => {
     const t = setTimeout(() => {
-      setFilters((f) => (f.q === query.trim() ? f : { ...f, q: query.trim() }));
-      setPage(1);
+      if (query.trim() === q) return;
+      typedQ.current = query.trim();
+      setParams({ q: query.trim(), page: null });
     }, 250);
     return () => clearTimeout(t);
-  }, [query]);
+  }, [query, q, setParams]);
 
-  // New tab: fresh filters and selection
+  // Back / Forward or a cleared filter: show the URL's term in the box
   useEffect(() => {
-    setFilters(DEFAULT_FILTERS);
-    setQuery('');
-    setPage(1);
+    if (q === typedQ.current) return;
+    typedQ.current = q;
+    setQuery(q);
+  }, [q]);
+
+  // New tab: fresh selection and upload folder (filters are cleared by the tab switch)
+  useEffect(() => {
     setSelected(new Set());
     setUploadFolder(kind === 'image' ? 'general' : 'catalogs');
   }, [kind]);
@@ -173,13 +188,20 @@ export default function MediaManager() {
     load();
   }, [load]);
 
+  const FILTER_KEYS = { folder: 'folder', usage: 'usage', usedByType: 'usedby', docKind: 'filetype', sort: 'sort' };
+  const FILTER_DEFAULTS = { usage: 'all', sort: 'newest' };
   const setFilter = (key, value) => {
-    setFilters((f) => ({ ...f, [key]: value }));
-    setPage(1);
+    const urlKey = FILTER_KEYS[key];
+    setParams({ [urlKey]: value === FILTER_DEFAULTS[urlKey] ? null : value, page: null });
+  };
+
+  const clearFilters = () => {
+    setQuery('');
+    setParams({ q: null, folder: null, usage: null, usedby: null, filetype: null, sort: null, page: null });
   };
 
   const changeView = (v) => {
-    setView(v);
+    setViewParam(v);
     try {
       localStorage.setItem(VIEW_KEY, v);
     } catch {
@@ -248,10 +270,9 @@ export default function MediaManager() {
     }));
     if (done) {
       toast.success(`Uploaded ${done} file${done === 1 ? '' : 's'} to ${uploadFolder}`);
-      setFilters(DEFAULT_FILTERS);
-      setQuery('');
-      setPage(1);
-      load();
+      const unchanged = !filtered && filters.sort === 'newest' && page === 1;
+      clearFilters();
+      if (unchanged) load();
     }
   };
 
@@ -275,13 +296,13 @@ export default function MediaManager() {
   };
 
   // ---- panel / editor -------------------------------------------------------
-  const openFile = (url) => setParams({ file: url });
-  const closePanel = useCallback(() => setParams({ file: null }), [setParams]);
+  const openFile = (url) => setParams({ file: url }, { push: true });
+  const closePanel = useCallback(() => setParams({ file: null }, { push: true }), [setParams]);
 
   const onPanelChanged = ({ type, url, newUrl }) => {
     load();
     if (type === 'deleted') closePanel();
-    else if (newUrl && newUrl !== url) setParams({ file: newUrl }, true);
+    else if (newUrl && newUrl !== url) setParams({ file: newUrl });
     else setPanelKey((k) => k + 1);
   };
 
@@ -293,7 +314,7 @@ export default function MediaManager() {
         : `Saved a copy.${note ? ` ${note}` : ''}`,
     );
     load();
-    setParams({ file: newUrl }, true);
+    setParams({ file: newUrl });
   };
 
   const editFolder = (url) => url.replace(/^\/uploads\/images\//, '').split('/').slice(0, -1)[0] || 'general';
@@ -360,7 +381,11 @@ export default function MediaManager() {
               type="button"
               role="tab"
               aria-selected={kind === t.id}
-              onClick={() => setParams({ type: t.id === 'image' ? null : t.id, file: null })}
+              onClick={() => {
+                if (t.id === kind) return;
+                setQuery('');
+                setParams({ ...LIST_KEYS, type: t.id === 'image' ? null : t.id, file: null }, { push: true });
+              }}
               className={`inline-flex items-center gap-2 rounded-md px-4 py-2 text-sm font-medium transition-colors ${kind === t.id ? 'bg-dark-600 text-dark-50' : 'text-dark-300 hover:text-dark-100'}`}
             >
               <t.icon className="h-4 w-4" /> {t.label}
@@ -476,7 +501,7 @@ export default function MediaManager() {
             {kind === 'image' ? <ImageIcon className="h-10 w-10 text-dark-400" /> : <FileText className="h-10 w-10 text-dark-400" />}
             <p className="text-sm text-dark-200">{filtered ? 'Nothing matches these filters.' : `No ${kind === 'image' ? 'images' : 'documents'} yet.`}</p>
             {filtered && (
-              <button type="button" onClick={() => { setFilters(DEFAULT_FILTERS); setQuery(''); }} className="rounded-lg bg-dark-600 px-3 py-2 text-sm text-dark-50 hover:bg-dark-500">Clear filters</button>
+              <button type="button" onClick={clearFilters} className="rounded-lg bg-dark-600 px-3 py-2 text-sm text-dark-50 hover:bg-dark-500">Clear filters</button>
             )}
           </div>
         )}
@@ -587,7 +612,7 @@ export default function MediaManager() {
               total={total}
               pageSize={pageSize}
               onPageChange={(p) => { setPage(p); window.scrollTo({ top: 0, behavior: 'smooth' }); }}
-              onPageSizeChange={(s) => { setPageSize(s); setPage(1); }}
+              onPageSizeChange={(s) => setParams({ size: s === 50 ? null : s, page: null })}
               position="bottom"
             />
           </div>

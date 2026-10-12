@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { Link } from 'react-router-dom';
 import Card from '../../ui/Card';
 import Button from '../../ui/Button';
 import Input from '../../ui/Input';
@@ -919,7 +920,16 @@ const AdminQuoteDetailView = ({ quoteId, onBack, onUpdated }) => {
             <div className="space-y-3">
               <div>
                 <p className="text-sm text-dark-400 mb-1">Company Name</p>
-                <p className="text-dark-50 font-medium">{quote?.company_name || 'N/A'}</p>
+                {quote?.company_id ? (
+                  <Link
+                    to={`/admin/companies?company=${quote.company_id}`}
+                    className="text-dark-50 font-medium hover:text-accent-500 hover:underline"
+                  >
+                    {quote.company_name}
+                  </Link>
+                ) : (
+                  <p className="text-dark-50 font-medium">{quote?.company_name || 'N/A'}</p>
+                )}
               </div>
               {isEditing ? (
                 <>

@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useMemo } from 'react';
 import { Link } from 'react-router-dom';
 import { Layers, SearchX } from 'lucide-react';
 import EmptyResults from '../components/ui/EmptyResults';
@@ -11,13 +11,14 @@ import MaterialDetailOverlay from '../components/knowledge/MaterialDetailOverlay
 import { laminateDetail } from '../components/knowledge/materialDetails';
 import { safeHref } from '../utils/safeUrl';
 import { useTrackedQuery } from '../hooks/useMaterialInterest';
+import { useUrlState } from '../hooks/useUrlState';
+import useMaterialDetailParam from '../hooks/useMaterialDetailParam';
 
 const LaminatesPage = () => {
   const { data: laminates = [], loading } = useLaminates();
   const { data: suppliers = [] } = useMaterialSources('laminate');
-  const [query, setQuery] = useState('');
+  const [query, setQuery] = useUrlState('q', '');
   useTrackedQuery('Laminate search', query);
-  const [detail, setDetail] = useState(null); // { items, index } while the overlay is open
 
   const groups = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -38,6 +39,9 @@ const LaminatesPage = () => {
       });
     return [...map.entries()];
   }, [laminates, query]);
+
+  const detailGroups = useMemo(() => groups.map(([, items]) => ({ items, toDetail: laminateDetail })), [groups]);
+  const { openDetail, overlayProps } = useMaterialDetailParam('laminate', detailGroups);
 
   return (
     <KnowledgePageLayout
@@ -80,10 +84,10 @@ const LaminatesPage = () => {
                   )}
                 </div>
                 <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 xl:grid-cols-6 gap-3 sm:gap-4">
-                  {items.map((l, i) => (
+                  {items.map((l) => (
                     <SwatchCard
                       key={l.id}
-                      onOpen={() => setDetail({ items: items.map(laminateDetail), index: i })}
+                      onOpen={() => openDetail(l)}
                       item={l}
                       kind="laminate"
                       title={l.patternName}
@@ -107,10 +111,7 @@ const LaminatesPage = () => {
         </Link>
       </p>
       <MaterialDetailOverlay
-        items={detail?.items}
-        index={detail?.index}
-        onIndexChange={(index) => setDetail((d) => ({ ...d, index }))}
-        onClose={() => setDetail(null)}
+        {...overlayProps}
       />
     </KnowledgePageLayout>
   );

@@ -14,6 +14,7 @@ import { resolveFileUrl, resolveImageUrl } from '../utils/apiHelpers';
 import logger from '../utils/logger';
 import { trackDownload } from '../utils/analytics';
 import PdfPreviewButton from '../components/ui/PdfPreviewButton';
+import { useUrlState } from '../hooks/useUrlState';
 
 const CONTEXT = 'ProductFamilyDetailPage';
 
@@ -34,7 +35,7 @@ const ProductFamilyDetailPage = () => {
   const [products, setProducts] = useState([]);
   const [loading, setLoading] = useState(true);
   const [quickViewProduct, setQuickViewProduct] = useState(null);
-  const [viewMode, setViewMode] = useState('grid'); // 'grid' or 'list'
+  const [viewMode, setViewMode] = useUrlState('view', 'grid'); // 'grid' or 'list'
 
   useEffect(() => {
     if (familySlug) {

@@ -12,6 +12,7 @@ import AdminTopbar from '../../components/admin/layout/AdminTopbar';
 import AdminCommandPalette from '../../components/admin/layout/AdminCommandPalette';
 import { getAdminNavItem, sectionFromPath } from '../../components/admin/adminNav';
 import { useStackedTables } from '../../components/admin/useStackedTables';
+import { applySearchUpdates } from '../../hooks/useUrlState';
 
 // Import admin sections
 import DashboardOverview from '../../components/admin/sections/DashboardOverview';
@@ -80,7 +81,7 @@ const NewAdminDashboardInner = () => {
   const showBottomNav = isStandalone && isTabletOrSmaller;
   // Tablets (md) always get the icon rail; desktop (lg+) honours the collapse toggle
   const isDesktop = useMediaQuery('(min-width: 1024px)');
-  const [selectedProduct, setSelectedProduct] = useState(null);
+  const [loadedProduct, setLoadedProduct] = useState(null);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(readCollapsed);
   const railCollapsed = !isDesktop || sidebarCollapsed;
 
@@ -97,11 +98,13 @@ const NewAdminDashboardInner = () => {
   const contentRef = useRef(null);
   useStackedTables(contentRef);
 
+  // ?edit=<id|new> opens the product editor over the catalog; the catalog's
+  // own filter params stay in the URL so Back returns to the same list
+  const editParam = new URLSearchParams(location.search).get('edit');
   const activeSection = useMemo(() => {
-    // Deep links like /admin/dashboard?edit=12 open the product editor
-    if (new URLSearchParams(location.search).get('edit')) return 'catalog';
+    if (editParam) return 'catalog';
     return sectionFromPath(location.pathname);
-  }, [location.pathname, location.search]);
+  }, [location.pathname, editParam]);
   const activeItem = getAdminNavItem(activeSection);
 
   // Unread contact-form inquiries for the nav badge
@@ -112,18 +115,24 @@ const NewAdminDashboardInner = () => {
   }, []);
 
   useEffect(() => {
-    const editId = new URLSearchParams(location.search).get('edit');
-    if (!editId) return;
-    const pid = parseInt(editId, 10);
-    if (isNaN(pid)) return;
+    const pid = parseInt(editParam, 10);
+    if (!editParam || editParam === 'new' || isNaN(pid)) return;
+    let cancelled = false;
     apiClient.get(`/api/v1/admin/products/${pid}`)
-      .then((product) => setSelectedProduct(product))
+      .then((product) => { if (!cancelled) setLoadedProduct(product); })
       .catch(() => {});
-  }, [location.pathname, location.search]);
+    return () => { cancelled = true; };
+  }, [editParam]);
+
+  const selectedProduct = !editParam
+    ? null
+    : editParam === 'new'
+      ? { _isNew: true }
+      : (loadedProduct && String(loadedProduct.id) === editParam ? loadedProduct : null);
 
   useEffect(() => {
     window.scrollTo({ top: 0 });
-  }, [activeSection, selectedProduct]);
+  }, [activeSection, editParam]);
 
   useEffect(() => {
     try {
@@ -150,7 +159,6 @@ const NewAdminDashboardInner = () => {
   const handleNavigate = useCallback((path, sectionId) => {
     invalidate(sectionId);
     navigate(path);
-    setSelectedProduct(null);
     setIsMobileMenuOpen(false);
   }, [invalidate, navigate]);
 
@@ -173,22 +181,39 @@ const NewAdminDashboardInner = () => {
     return <Navigate to="/" replace />;
   }
 
+  const openProductEditor = (product) => {
+    navigate(
+      { pathname: location.pathname, search: applySearchUpdates(location.search, { edit: product?._isNew ? 'new' : product?.id }) },
+      { state: { editorFromList: true } }
+    );
+  };
+
   const handleBackFromEditor = () => {
     invalidate('catalog');
-    setSelectedProduct(null);
-    if (location.search.includes('edit=')) navigate(activeItem.path, { replace: true });
+    // Opened from the list in this tab: step back so history stays clean.
+    // Deep link / new tab: drop the edit param in place.
+    if (location.state?.editorFromList) {
+      navigate(-1);
+      return;
+    }
+    const pathname = location.pathname.startsWith('/admin/catalog') ? location.pathname : activeItem.path;
+    navigate({ pathname, search: applySearchUpdates(location.search, { edit: null }) }, { replace: true });
   };
 
   const crumbs = [
     { label: activeItem.group },
-    { label: activeItem.label, onClick: selectedProduct ? handleBackFromEditor : undefined },
-    ...(selectedProduct ? [{ label: selectedProduct.name || 'Edit product' }] : []),
+    { label: activeItem.label, onClick: editParam ? handleBackFromEditor : undefined },
+    ...(editParam ? [{ label: selectedProduct?.name || (editParam === 'new' ? 'New product' : 'Edit product') }] : []),
   ];
 
   const renderSection = () => {
-    if (selectedProduct) {
+    if (editParam) {
+      if (!selectedProduct) {
+        return <div className="py-20 text-center text-sm text-dark-300">Loading product…</div>;
+      }
       return (
         <ProductEditor
+          key={editParam}
           product={selectedProduct}
           onBack={handleBackFromEditor}
         />
@@ -201,7 +226,7 @@ const NewAdminDashboardInner = () => {
       case 'analytics':
         return <Analytics />;
       case 'catalog':
-        return <ProductCatalog onEdit={setSelectedProduct} />;
+        return <ProductCatalog onEdit={openProductEditor} />;
       case 'categories':
         return <CategoryManagement />;
       case 'families':
@@ -310,7 +335,7 @@ const NewAdminDashboardInner = () => {
         />
 
         <div ref={contentRef} className="flex-1 overflow-x-clip">
-          <div key={selectedProduct ? 'editor' : activeSection} className="animate-admin-in">
+          <div key={editParam ? 'editor' : activeSection} className="animate-admin-in">
             {renderSection()}
           </div>
           {showBottomNav && <div className="h-nav-spacer flex-shrink-0" />}

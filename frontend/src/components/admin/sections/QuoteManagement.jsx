@@ -1,4 +1,5 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
+import { Link, useNavigate } from 'react-router-dom';
 import Card from '../../ui/Card';
 import Button from '../../ui/Button';
 import apiClient from '../../../config/apiClient';
@@ -9,6 +10,7 @@ import TableSortHead from '../TableSortHead';
 import PaginationBar from '../PaginationBar';
 import { AdminPage, AdminPageHeader } from '../ui/AdminPage';
 import useBulkSelection from '../../../hooks/useBulkSelection';
+import { useUrlState } from '../../../hooks/useUrlState';
 import BulkActionBar from '../bulk/BulkActionBar';
 import { retiredBy } from '../bulk/bulkActions';
 import { SelectAllCheckbox, SelectCell } from '../bulk/SelectCheckbox';
@@ -30,20 +32,23 @@ const QuoteManagement = () => {
   const toast = useToast();
   const [quotes, setQuotes] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [searchTerm, setSearchTerm] = useState('');
-  const [statusFilter, setStatusFilter] = useState('all');
-  const [selectedQuoteId, setSelectedQuoteId] = useState(null);
-  const [page, setPage] = useState(1);
-  const [pageSize, setPageSize] = useState(100);
+  const [searchTerm, setSearchTerm] = useUrlState('q', '');
+  const [statusFilter, setStatusFilter] = useUrlState('status', 'all');
+  const [companyFilter, setCompanyFilter] = useUrlState('company', null, { type: 'number' });
+  const [selectedQuoteId, setSelectedQuoteId] = useUrlState('quote', null, { type: 'number', push: true });
+  const [page, setPage] = useUrlState('page', 1);
+  const [pageSize, setPageSize] = useUrlState('size', 100);
   const [total, setTotal] = useState(0);
   const [totalPages, setTotalPages] = useState(0);
 
-  const [sortBy, setSortBy] = useState('created_at');
-  const [sortDir, setSortDir] = useState('desc');
+  const [sortBy, setSortBy] = useUrlState('sort', 'created_at');
+  const [sortDir, setSortDir] = useUrlState('dir', 'desc');
+  const navigate = useNavigate();
+  const openedFromListRef = useRef(false);
 
   useEffect(() => {
     fetchQuotes();
-  }, [page, pageSize, statusFilter, sortBy, sortDir, refreshKeys.quotes]);
+  }, [page, pageSize, statusFilter, companyFilter, sortBy, sortDir, refreshKeys.quotes]);
 
   const filteredQuotes = quotes.filter(quote => {
     if (!searchTerm) return true;
@@ -70,6 +75,9 @@ const QuoteManagement = () => {
       if (statusFilter !== 'all') {
         params.status = statusFilter;
       }
+      if (companyFilter) {
+        params.company_id = companyFilter;
+      }
 
       const response = await apiClient.get('/api/v1/admin/quotes', { params });
       setQuotes(response.items || []);
@@ -80,7 +88,7 @@ const QuoteManagement = () => {
     } finally {
       setLoading(false);
     }
-  }, [page, pageSize, statusFilter, sortBy, sortDir]);
+  }, [page, pageSize, statusFilter, companyFilter, sortBy, sortDir]);
 
   // Status changes go through the per-quote endpoint (history, notifications)
   const setStatus = (status) => async (ids) => {
@@ -127,7 +135,7 @@ const QuoteManagement = () => {
     setSortBy(key);
     setSortDir((d) => (key === sortBy ? (d === 'asc' ? 'desc' : 'asc') : key === 'created_at' ? 'desc' : 'asc'));
     setPage(1);
-  }, [sortBy]);
+  }, [sortBy, setSortBy, setSortDir, setPage]);
 
   const handleStatusChange = async (quoteId, newStatus) => {
     try {
@@ -142,11 +150,18 @@ const QuoteManagement = () => {
   };
 
   const handleViewQuote = (quoteId) => {
+    openedFromListRef.current = true;
     setSelectedQuoteId(quoteId);
   };
 
+  // Opened from this list: step back so history stays clean. Deep link: drop the param.
   const handleBackToList = () => {
-    setSelectedQuoteId(null);
+    if (openedFromListRef.current) {
+      openedFromListRef.current = false;
+      navigate(-1);
+      return;
+    }
+    setSelectedQuoteId(null, { push: false });
   };
 
   const handleQuoteUpdated = () => {
@@ -213,6 +228,24 @@ const QuoteManagement = () => {
             </select>
           </div>
         </div>
+        {companyFilter && (
+          <div className="mt-4 flex items-center gap-2 text-sm text-dark-200">
+            <Building2 className="w-4 h-4 text-dark-400" />
+            <span>
+              Showing quotes for{' '}
+              <Link to={`/admin/companies?company=${companyFilter}`} className="text-dark-50 hover:text-accent-500 hover:underline">
+                {quotes[0]?.company_name || `company #${companyFilter}`}
+              </Link>
+            </span>
+            <button
+              type="button"
+              onClick={() => { setCompanyFilter(null); setPage(1); }}
+              className="ml-1 inline-flex items-center gap-1 rounded px-2 py-0.5 text-dark-300 hover:bg-dark-600 hover:text-dark-50"
+            >
+              <XCircle className="w-3.5 h-3.5" /> Clear
+            </button>
+          </div>
+        )}
       </Card>
 
       {/* Quotes List */}
@@ -277,7 +310,16 @@ const QuoteManagement = () => {
                     <td className="px-3 sm:p-4 py-3">
                       <div className="flex items-center gap-1 sm:gap-2">
                         <Building2 className="w-3 h-3 sm:w-4 sm:h-4 text-dark-400 flex-shrink-0" />
-                        <span className="text-xs sm:text-sm text-dark-50 truncate">{quote.company_name || 'N/A'}</span>
+                        {quote.company_id ? (
+                          <Link
+                            to={`/admin/companies?company=${quote.company_id}`}
+                            className="text-xs sm:text-sm text-dark-50 truncate hover:text-accent-500 hover:underline"
+                          >
+                            {quote.company_name}
+                          </Link>
+                        ) : (
+                          <span className="text-xs sm:text-sm text-dark-50 truncate">{quote.company_name || 'N/A'}</span>
+                        )}
                       </div>
                     </td>
                     <td className="px-3 sm:p-4 py-3 text-xs sm:text-sm text-dark-200">

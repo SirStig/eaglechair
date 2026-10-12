@@ -85,6 +85,7 @@ class RouteConfig:
         "/api/v1/content/about",
         "/api/v1/content/contact/locations",
         "/api/v1/content/catalogs",
+        "/api/v1/content/document-cover",  # Rendered PDF first pages (uploads are public)
         "/api/v1/content/laminates",
         "/api/v1/content/hardware",
         "/api/v1/content/installations",  # Installation guides from content.py

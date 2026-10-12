@@ -9,6 +9,7 @@ import {
   deleteModel, listFinishes, listModels, listUpholsteries, searchProducts, updateModel, uploadModel,
 } from '../../../services/models3dService';
 import { averageColor, optionKind } from '../models3d/slotMaterial';
+import { useSetUrlParams, useUrlState } from '../../../hooks/useUrlState';
 
 // three.js is large; only load it when this page opens
 const ChairViewer = lazy(() => import('../models3d/ChairViewer'));
@@ -27,22 +28,45 @@ export default function Model3DViewer() {
   const viewerRef = useRef(null);
   const fileRef = useRef(null);
   const [models, setModels] = useState([]);
-  const [selectedId, setSelectedId] = useState(null);
   const [uploading, setUploading] = useState(false);
   const [catalog, setCatalog] = useState({ upholstery: [], frame: [] });
   const [slots, setSlots] = useState([]);
-  const [picked, setPicked] = useState({ upholstery: null, frame: null });
   const [settings, setSettings] = useState({});
-  const [search, setSearch] = useState({ upholstery: '', frame: '' });
   const [avgColors, setAvgColors] = useState({});
-  const [dark, setDark] = useState(false);
+  // View state in the URL: ?model=, picked ?upholstery= / ?finish=, swatch searches ?uq= / ?fq=, ?bg=dark
+  const setParams = useSetUrlParams();
+  const [modelParam] = useUrlState('model', null);
+  const [upholsteryParam] = useUrlState('upholstery', null);
+  const [finishParam] = useUrlState('finish', null);
+  const [upholsterySearch] = useUrlState('uq', '');
+  const [frameSearch] = useUrlState('fq', '');
+  const [bg, setBg] = useUrlState('bg', 'light');
+  const dark = bg === 'dark';
+  const search = { upholstery: upholsterySearch, frame: frameSearch };
 
-  const selected = models.find((m) => m.id === selectedId) || null;
+  const selected = models.find((m) => String(m.id) === modelParam) || models[0] || null;
+  const selectedId = selected?.id ?? null;
+  const setSelectedId = (id) => {
+    if (id === selectedId) return;
+    setParams({ model: id, upholstery: null, finish: null }, { push: true });
+  };
+
+  const pickedUpholstery = useMemo(
+    () => catalog.upholstery.find((i) => String(i.id) === upholsteryParam) || null,
+    [catalog.upholstery, upholsteryParam],
+  );
+  const pickedFrame = useMemo(
+    () => catalog.frame.find((i) => String(i.id) === finishParam) || null,
+    [catalog.frame, finishParam],
+  );
+  const picked = useMemo(() => ({ upholstery: pickedUpholstery, frame: pickedFrame }), [pickedUpholstery, pickedFrame]);
+  const SLOT_KEYS = { upholstery: { pick: 'upholstery', search: 'uq' }, frame: { pick: 'finish', search: 'fq' } };
+  const setPick = (slot, item) => setParams({ [SLOT_KEYS[slot].pick]: item ? item.id : null });
+  const setSearch = (slot, q) => setParams({ [SLOT_KEYS[slot].search]: q });
 
   const refresh = useCallback(async () => {
     const res = await listModels();
     setModels(res.models || []);
-    setSelectedId((id) => (res.models || []).some((m) => m.id === id) ? id : res.models?.[0]?.id ?? null);
   }, []);
 
   useEffect(() => {
@@ -59,7 +83,6 @@ export default function Model3DViewer() {
     setSettings(Object.fromEntries(Object.keys(SLOT_INFO).map((slot) => [slot, {
       grain: saved[slot]?.grain ?? 1,
     }])));
-    setPicked({ upholstery: null, frame: null });
   }, [selected]);
 
   // Options without a hex use their swatch image's average colour
@@ -105,6 +128,7 @@ export default function Model3DViewer() {
     if (!window.confirm(`Delete "${model.name}"? This removes the file.`)) return;
     try {
       await deleteModel(model.id);
+      if (model.id === selectedId) setParams({ model: null, upholstery: null, finish: null });
       await refresh();
       toast.success('Model deleted');
     } catch (err) {
@@ -199,7 +223,7 @@ export default function Model3DViewer() {
             <div className="flex flex-wrap items-center gap-2 px-1 pt-2">
               <Button variant="outline" size="sm" onClick={() => viewerRef.current?.resetView()}><RotateCcw className="mr-1 h-4 w-4" />Reset view</Button>
               <Button variant="outline" size="sm" onClick={snapshot}><Camera className="mr-1 h-4 w-4" />Snapshot</Button>
-              <Button variant="outline" size="sm" onClick={() => setDark((d) => !d)}>{dark ? 'Light' : 'Dark'} backdrop</Button>
+              <Button variant="outline" size="sm" onClick={() => setBg(dark ? 'light' : 'dark')}>{dark ? 'Light' : 'Dark'} backdrop</Button>
               <a href={resolveImageUrl(selected.url)} download className="ml-auto inline-flex items-center text-sm text-dark-200 hover:text-dark-50">
                 <Download className="mr-1 h-4 w-4" />.glb
               </a>
@@ -220,9 +244,9 @@ export default function Model3DViewer() {
               slot={slot}
               items={catalog[slot]}
               picked={picked[slot]}
-              onPick={(item) => setPicked((p) => ({ ...p, [slot]: item }))}
+              onPick={(item) => setPick(slot, item)}
               search={search[slot]}
-              onSearch={(q) => setSearch((s) => ({ ...s, [slot]: q }))}
+              onSearch={(q) => setSearch(slot, q)}
               value={settings[slot] || {}}
               onChange={(v) => setSettings((s) => ({ ...s, [slot]: { ...s[slot], ...v } }))}
             />

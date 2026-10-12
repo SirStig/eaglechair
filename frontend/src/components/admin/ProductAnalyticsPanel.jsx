@@ -3,6 +3,7 @@ import { clsx } from 'clsx';
 import { Area, AreaChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
 import { AlertTriangle, Download, Eye, Flame, MousePointerClick, ShoppingCart, FileText } from 'lucide-react';
 import apiClient from '../../config/apiClient';
+import { useUrlState } from '../../hooks/useUrlState';
 import { Delta, Panel, RankedList, Segmented } from './analyticsUi';
 import { INTERACTION_LABELS, RESOURCE_TYPE_LABELS, formatNumber, missingFilesPhrase } from './analyticsFormat';
 
@@ -33,8 +34,8 @@ const formatDay = (value) => {
  * from the Analytics page.
  */
 const ProductAnalyticsPanel = ({ productId, initialDays = 30 }) => {
-  const [days, setDays] = useState(initialDays);
-  const [metric, setMetric] = useState('views');
+  const [days, setDays] = useUrlState('pdays', initialDays);
+  const [metric, setMetric] = useUrlState('pmetric', 'views');
   const [data, setData] = useState(null);
   const [error, setError] = useState(null);
   const [loading, setLoading] = useState(true);

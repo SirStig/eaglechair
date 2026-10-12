@@ -17,6 +17,7 @@ import StatusTabs from '../StatusTabs';
 import PermanentDeleteModal from '../PermanentDeleteModal';
 import ResponsiveImage from '../../ui/ResponsiveImage';
 import DeleteGate from '../DeleteGate';
+import { useUrlState } from '../../../hooks/useUrlState';
 
 const MATERIAL_TYPE_OPTIONS = [{ value: 'Vinyl', label: 'Vinyl' }, { value: 'Fabric', label: 'Fabric' }, { value: 'Leather', label: 'Leather' }, { value: 'Faux Leather', label: 'Faux Leather' }, { value: 'Mesh', label: 'Mesh' }];
 const UPHOLSTERY_GRADE_OPTIONS = [{ value: 'A', label: 'Grade A' }, { value: 'B', label: 'Grade B' }, { value: 'C', label: 'Grade C' }, { value: 'Premium', label: 'Premium' }, { value: 'Luxury', label: 'Luxury' }];
@@ -30,10 +31,11 @@ const UpholsteryManagement = () => {
   const [upholsteries, setUpholsteries] = useState([]);
   const [colors, setColors] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [editingUpholstery, setEditingUpholstery] = useState(null);
-  const [filterType, setFilterType] = useState('');
-  const [filterGrade, setFilterGrade] = useState('');
-  const [tab, setTab] = useState('active');
+  const [editingId, setEditingId] = useUrlState('upholstery', null);
+  const [fetchedUpholstery, setFetchedUpholstery] = useState(null);
+  const [filterType, setFilterType] = useUrlState('type', '');
+  const [filterGrade, setFilterGrade] = useUrlState('grade', '');
+  const [tab, setTab] = useUrlState('status', 'active');
   const [activeTotal, setActiveTotal] = useState(0);
   const [archivedTotal, setArchivedTotal] = useState(0);
   const [confirmModal, setConfirmModal] = useState({ isOpen: false, onConfirm: null, message: '', title: '' });
@@ -90,20 +92,45 @@ const UpholsteryManagement = () => {
     }
   };
 
+  const listedUpholstery = editingId && editingId !== 'new'
+    ? upholsteries.find((u) => String(u.id) === editingId)
+    : null;
+  const editingUpholstery = editingId === 'new'
+    ? 'new'
+    : listedUpholstery || (fetchedUpholstery && String(fetchedUpholstery.id) === editingId ? fetchedUpholstery : null);
+
+  // Deep link to an upholstery outside the current tab/filters: fetch it directly.
+  const isListed = !!listedUpholstery;
+  useEffect(() => {
+    if (!editingId || editingId === 'new' || loading || isListed) return undefined;
+    let cancelled = false;
+    apiClient.get(`/api/v1/admin/upholsteries/${encodeURIComponent(editingId)}`)
+      .then((response) => {
+        if (!cancelled) setFetchedUpholstery(response);
+      })
+      .catch((error) => {
+        if (cancelled) return;
+        console.error('Failed to fetch upholstery:', error);
+        toast.error('Upholstery not found');
+        setEditingId(null);
+      });
+    return () => { cancelled = true; };
+  }, [editingId, loading, isListed, toast, setEditingId]);
+
   const handleCreate = () => {
-    setEditingUpholstery('new');
+    setEditingId('new', { push: true });
   };
 
   const handleEdit = (upholstery) => {
-    setEditingUpholstery(upholstery);
+    setEditingId(String(upholstery.id), { push: true });
   };
 
   const handleBack = () => {
-    setEditingUpholstery(null);
+    setEditingId(null);
   };
 
   const handleSave = () => {
-    setEditingUpholstery(null);
+    setEditingId(null);
     toast.success(editingUpholstery === 'new' ? 'Upholstery created' : 'Upholstery updated');
     fetchUpholsteries();
   };
@@ -196,9 +223,18 @@ const UpholsteryManagement = () => {
   );
 
   // Show editor if editing/creating
+  if (editingId && !editingUpholstery) {
+    return (
+      <div className="flex justify-center py-12">
+        <div className="w-8 h-8 border-4 border-dark-600 border-t-primary-500 rounded-full animate-spin" />
+      </div>
+    );
+  }
+
   if (editingUpholstery) {
     return (
       <UpholsteryEditor
+        key={editingId}
         upholstery={editingUpholstery === 'new' ? null : editingUpholstery}
         onBack={handleBack}
         onSave={handleSave}
@@ -297,6 +333,7 @@ const UpholsteryManagement = () => {
           </div>
         ) : (
           <ReorderableTable
+            urlSort
             onRowClick={handleEdit}
             items={sortedUpholsteries}
             setItems={(next) => setUpholsteries(next.map((item, i) => ({ ...item, display_order: i })))}

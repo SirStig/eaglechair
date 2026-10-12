@@ -16,6 +16,7 @@ import useBulkSelection from '../../../hooks/useBulkSelection';
 import BulkActionBar from '../bulk/BulkActionBar';
 import { ACTIVE_ACTIONS, retiredBy } from '../bulk/bulkActions';
 import DeleteGate from '../DeleteGate';
+import { useUrlState } from '../../../hooks/useUrlState';
 
 const COLOR_CATEGORY_OPTIONS = [{ value: 'wood', label: 'Wood' }, { value: 'metal', label: 'Metal' }, { value: 'fabric', label: 'Fabric' }, { value: 'paint', label: 'Paint' }, { value: 'leather', label: 'Leather' }, { value: 'vinyl', label: 'Vinyl' }];
 
@@ -33,9 +34,10 @@ const ColorManagement = () => {
   const { refreshKeys } = useAdminRefresh();
   const [colors, setColors] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [editingColor, setEditingColor] = useState(null);
-  const [filterCategory, setFilterCategory] = useState('');
-  const [tab, setTab] = useState('active');
+  const [editingId, setEditingId] = useUrlState('color', null);
+  const [fetchedColor, setFetchedColor] = useState(null);
+  const [filterCategory, setFilterCategory] = useUrlState('category', '');
+  const [tab, setTab] = useUrlState('status', 'active');
   const [activeTotal, setActiveTotal] = useState(0);
   const [archivedTotal, setArchivedTotal] = useState(0);
   const [permDeleteTarget, setPermDeleteTarget] = useState(null);
@@ -79,20 +81,46 @@ const ColorManagement = () => {
     }
   };
 
+  const listedColor = editingId && editingId !== 'new'
+    ? (colors || []).find((c) => String(c.id) === editingId)
+    : null;
+  const editingColor = editingId === 'new'
+    ? {}
+    : listedColor || (fetchedColor && String(fetchedColor.id) === editingId ? fetchedColor : null);
+
+  // Deep link to a color outside the current tab/filter: look it up in the full list.
+  const isListed = !!listedColor;
+  useEffect(() => {
+    if (!editingId || editingId === 'new' || loading || isListed) return undefined;
+    let cancelled = false;
+    apiClient.get('/api/v1/admin/colors')
+      .then((response) => {
+        if (cancelled) return;
+        const found = (response || []).find((c) => String(c.id) === editingId);
+        if (found) setFetchedColor(found);
+        else {
+          toast.error('Color not found');
+          setEditingId(null);
+        }
+      })
+      .catch((error) => console.error('Failed to fetch color:', error));
+    return () => { cancelled = true; };
+  }, [editingId, loading, isListed, toast, setEditingId]);
+
   const handleEdit = (color) => {
-    setEditingColor(color);
+    setEditingId(String(color.id), { push: true });
   };
 
   const handleCreate = () => {
-    setEditingColor({});
+    setEditingId('new', { push: true });
   };
 
   const handleBack = () => {
-    setEditingColor(null);
+    setEditingId(null);
   };
 
   const handleSave = () => {
-    setEditingColor(null);
+    setEditingId(null);
     toast.success(editingColor?.id ? 'Color updated' : 'Color created');
     fetchColors();
   };
@@ -163,9 +191,18 @@ const ColorManagement = () => {
   );
 
   // Show editor if editing/creating
-  if (editingColor !== null) {
+  if (editingId && !editingColor) {
+    return (
+      <div className="flex justify-center py-12">
+        <div className="w-8 h-8 border-4 border-dark-600 border-t-primary-500 rounded-full animate-spin" />
+      </div>
+    );
+  }
+
+  if (editingColor) {
     return (
       <ColorEditor
+        key={editingId}
         color={editingColor.id ? editingColor : null}
         onBack={handleBack}
         onSave={handleSave}
@@ -250,6 +287,7 @@ const ColorManagement = () => {
           </div>
         ) : (
           <ReorderableTable
+            urlSort
             onRowClick={handleEdit}
             items={sortedColors}
             setItems={(next) => setColors(next.map((item, i) => ({ ...item, display_order: i })))}

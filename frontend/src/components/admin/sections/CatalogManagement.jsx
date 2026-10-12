@@ -7,6 +7,7 @@ import CatalogEditor from './CatalogEditor';
 import ReorderableTable from '../ReorderableTable';
 import { useToast } from '../../../contexts/ToastContext';
 import { useAdminRefresh } from '../../../contexts/AdminRefreshContext';
+import { useUrlState } from '../../../hooks/useUrlState';
 import { CATALOG_TYPE_OPTIONS, formatCatalogType } from '../../../utils/catalogTypes';
 import { AdminPage, AdminPageHeader } from '../ui/AdminPage';
 import useBulkSelection from '../../../hooks/useBulkSelection';
@@ -29,9 +30,11 @@ const CatalogManagement = () => {
   const { refreshKeys } = useAdminRefresh();
   const [catalogs, setCatalogs] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [editingCatalog, setEditingCatalog] = useState(null);
-  const [filterType, setFilterType] = useState('');
-  const [filterActive, setFilterActive] = useState('all');
+  // ?catalog=<id|new> opens the editor; filters are ?type= and ?status=
+  const [editId, setEditId] = useUrlState('catalog', null, { push: true });
+  const [filterType, setFilterType] = useUrlState('type', '');
+  const [filterActive, setFilterActive] = useUrlState('status', 'all');
+  const [fallbackCatalog, setFallbackCatalog] = useState(null);
 
   const fetchCatalogs = useCallback(async () => {
     try {
@@ -52,21 +55,45 @@ const CatalogManagement = () => {
     fetchCatalogs();
   }, [fetchCatalogs, refreshKeys.catalogs]);
 
+  const listedCatalog = editId && editId !== 'new'
+    ? catalogs.find((c) => String(c.id) === editId)
+    : null;
+  const editingCatalog = editId === 'new'
+    ? 'new'
+    : listedCatalog || (fallbackCatalog && String(fallbackCatalog.id) === editId ? fallbackCatalog : null);
+
+  const resolved = !!editingCatalog;
+
+  // Deep link to a catalog hidden by the current filters: look it up in the full list
+  useEffect(() => {
+    if (!editId || loading || resolved) return undefined;
+    let cancelled = false;
+    apiClient.get('/api/v1/admin/catalog/catalogs')
+      .then((all) => {
+        if (cancelled) return;
+        const found = (all || []).find((c) => String(c.id) === editId);
+        if (found) setFallbackCatalog(found);
+        else setEditId(null);
+      })
+      .catch(() => {});
+    return () => { cancelled = true; };
+  }, [editId, loading, resolved, setEditId]);
+
   const handleCreate = () => {
-    setEditingCatalog('new');
+    setEditId('new');
   };
 
   const handleEdit = (catalog) => {
-    setEditingCatalog(catalog);
+    setEditId(String(catalog.id));
   };
 
   const handleBack = () => {
-    setEditingCatalog(null);
+    setEditId(null);
   };
 
   const handleSave = () => {
-    setEditingCatalog(null);
-    toast.success(editingCatalog === 'new' ? 'Catalog created' : 'Catalog updated');
+    setEditId(null);
+    toast.success(editId === 'new' ? 'Catalog created' : 'Catalog updated');
     fetchCatalogs();
   };
 
@@ -113,6 +140,7 @@ const CatalogManagement = () => {
   if (editingCatalog) {
     return (
       <CatalogEditor
+        key={editId}
         catalog={editingCatalog === 'new' ? null : editingCatalog}
         onBack={handleBack}
         onSave={handleSave}
@@ -196,6 +224,7 @@ const CatalogManagement = () => {
           </div>
         ) : (
           <ReorderableTable
+            urlSort
             onRowClick={handleEdit}
             items={sortedCatalogs}
             setItems={(next) => setCatalogs(next.map((item, i) => ({ ...item, display_order: i })))}

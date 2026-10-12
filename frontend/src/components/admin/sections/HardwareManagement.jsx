@@ -16,6 +16,7 @@ import { useToast } from '../../../contexts/ToastContext';
 import { useAdminRefresh } from '../../../contexts/AdminRefreshContext';
 import ResponsiveImage from '../../ui/ResponsiveImage';
 import DeleteGate from '../DeleteGate';
+import { useUrlState } from '../../../hooks/useUrlState';
 
 
 // Pick-list options from the distinct non-empty values of `field` in the loaded rows
@@ -32,9 +33,10 @@ const HardwareManagement = () => {
   const { refreshKeys } = useAdminRefresh();
   const [hardware, setHardware] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [editingHardware, setEditingHardware] = useState(null);
-  const [filterCategory, setFilterCategory] = useState('');
-  const [tab, setTab] = useState('active');
+  const [editingId, setEditingId] = useUrlState('hardware', null);
+  const [fetchedHardware, setFetchedHardware] = useState(null);
+  const [filterCategory, setFilterCategory] = useUrlState('category', '');
+  const [tab, setTab] = useUrlState('status', 'active');
   const [activeTotal, setActiveTotal] = useState(0);
   const [archivedTotal, setArchivedTotal] = useState(0);
   const [permDeleteTarget, setPermDeleteTarget] = useState(null);
@@ -78,20 +80,46 @@ const HardwareManagement = () => {
     fetchCounts();
   }, [fetchHardware, fetchCounts, refreshKeys.hardware]);
 
+  const listedHardware = editingId && editingId !== 'new'
+    ? hardware.find((h) => String(h.id) === editingId)
+    : null;
+  const editingHardware = editingId === 'new'
+    ? 'new'
+    : listedHardware || (fetchedHardware && String(fetchedHardware.id) === editingId ? fetchedHardware : null);
+
+  // Deep link to hardware outside the current tab/filter: look it up in the full list.
+  const isListed = !!listedHardware;
+  useEffect(() => {
+    if (!editingId || editingId === 'new' || loading || isListed) return undefined;
+    let cancelled = false;
+    apiClient.get('/api/v1/admin/catalog/hardware')
+      .then((response) => {
+        if (cancelled) return;
+        const found = (response || []).find((h) => String(h.id) === editingId);
+        if (found) setFetchedHardware(found);
+        else {
+          toast.error('Hardware not found');
+          setEditingId(null);
+        }
+      })
+      .catch((error) => console.error('Failed to fetch hardware:', error));
+    return () => { cancelled = true; };
+  }, [editingId, loading, isListed, toast, setEditingId]);
+
   const handleCreate = () => {
-    setEditingHardware('new');
+    setEditingId('new', { push: true });
   };
 
   const handleEdit = (item) => {
-    setEditingHardware(item);
+    setEditingId(String(item.id), { push: true });
   };
 
   const handleBack = () => {
-    setEditingHardware(null);
+    setEditingId(null);
   };
 
   const handleSave = () => {
-    setEditingHardware(null);
+    setEditingId(null);
     toast.success(editingHardware === 'new' ? 'Hardware created' : 'Hardware updated');
     fetchHardware();
   };
@@ -144,7 +172,8 @@ const HardwareManagement = () => {
     setFilterCategory('');
   };
 
-  const uniqueCategories = [...new Set(hardware.map(h => h.category).filter(Boolean))];
+  // Keep a deep-linked category selectable even when it matches no rows
+  const uniqueCategories = [...new Set([...hardware.map(h => h.category), filterCategory].filter(Boolean))];
   const sortedHardware = useMemo(
     () => [...(hardware || [])].sort((a, b) => (a.display_order ?? 0) - (b.display_order ?? 0)),
     [hardware]
@@ -172,9 +201,18 @@ const HardwareManagement = () => {
   );
 
   // Show editor if editing/creating
+  if (editingId && !editingHardware) {
+    return (
+      <div className="flex justify-center py-12">
+        <div className="w-8 h-8 border-4 border-dark-600 border-t-primary-500 rounded-full animate-spin" />
+      </div>
+    );
+  }
+
   if (editingHardware) {
     return (
       <HardwareEditor
+        key={editingId}
         hardware={editingHardware === 'new' ? null : editingHardware}
         onBack={handleBack}
         onSave={handleSave}
@@ -248,6 +286,7 @@ const HardwareManagement = () => {
           </div>
         ) : (
           <ReorderableTable
+            urlSort
             onRowClick={handleEdit}
             items={sortedHardware}
             setItems={(next) => setHardware(next.map((item, i) => ({ ...item, display_order: i })))}

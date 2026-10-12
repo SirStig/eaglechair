@@ -6,6 +6,7 @@ import Modal from '../../ui/Modal';
 import ConfirmModal from '../../ui/ConfirmModal';
 import apiClient from '../../../config/apiClient';
 import { useToast } from '../../../contexts/ToastContext';
+import { useSetUrlParams, useUrlState } from '../../../hooks/useUrlState';
 import { AdminPage, AdminPageHeader } from '../ui/AdminPage';
 import useBulkSelection from '../../../hooks/useBulkSelection';
 import BulkActionBar from '../bulk/BulkActionBar';
@@ -47,7 +48,10 @@ const EmailTemplateManagement = () => {
   const [loadError, setLoadError] = useState(null);
   const [selectedTemplate, setSelectedTemplate] = useState(null);
   const [editorOpen, setEditorOpen] = useState(false);
-  const [bodyView, setBodyView] = useState('code');
+  // An existing template's editor is ?template=<id> (&body=preview); new-template drafts stay local
+  const [templateId] = useUrlState('template', null, { type: 'number' });
+  const [bodyView, setBodyView] = useUrlState('body', 'code');
+  const setParams = useSetUrlParams();
   const [formData, setFormData] = useState(EMPTY_FORM);
   const [formError, setFormError] = useState(null);
   const [saving, setSaving] = useState(false);
@@ -86,6 +90,14 @@ const EmailTemplateManagement = () => {
   const setField = (key, value) => setFormData((prev) => ({ ...prev, [key]: value }));
 
   const openEditor = (template) => {
+    if (template && template.id !== templateId) {
+      setParams({ template: template.id, body: null }, { push: true });
+      return;
+    }
+    showEditor(template);
+  };
+
+  const showEditor = (template) => {
     setSelectedTemplate(template);
     setFormData(template ? {
       template_type: template.template_type,
@@ -97,14 +109,34 @@ const EmailTemplateManagement = () => {
       available_variables: template.available_variables || {},
     } : EMPTY_FORM);
     setFormError(null);
-    setBodyView('code');
+    if (!template) setBodyView('code');
     setEditorOpen(true);
+  };
+
+  const hideEditor = () => {
+    setEditorOpen(false);
+    setParams({ template: null, body: null }, { push: templateId != null });
   };
 
   const closeEditor = () => {
     if (saving) return;
-    setEditorOpen(false);
+    hideEditor();
   };
+
+  // Open / close the editor from the URL (deep link, Back / Forward)
+  useEffect(() => {
+    if (loading) return;
+    if (templateId == null) {
+      if (selectedTemplate) setEditorOpen(false);
+      return;
+    }
+    if (editorOpen && selectedTemplate?.id === templateId) return;
+    const template = templates.find((t) => t.id === templateId);
+    if (template) showEditor(template);
+    else setParams({ template: null, body: null });
+    // showEditor is recreated each render; templateId / templates drive this
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [templateId, templates, loading]);
 
   // Insert {{ variable }} at the cursor in the body editor
   const insertVariable = (name) => {
@@ -142,7 +174,7 @@ const EmailTemplateManagement = () => {
         await apiClient.post('/api/v1/admin/emails', payload);
       }
       toast.success(selectedTemplate ? 'Template saved' : 'Template created');
-      setEditorOpen(false);
+      hideEditor();
       await loadTemplates();
     } catch (err) {
       setFormError(errorMessage(err, 'Failed to save template'));
