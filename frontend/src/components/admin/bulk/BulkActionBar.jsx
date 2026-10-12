@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { X, Loader2, ChevronLeft, ChevronUp, Search, Trash2 } from 'lucide-react';
+import { X, Loader2, ChevronLeft, ChevronUp, Search, Trash2, Check } from 'lucide-react';
 import { useToast } from '../../../contexts/ToastContext';
 import { bulkEdit } from '../../../services/bulkService';
 import FloatingDock from './FloatingDock';
@@ -31,6 +31,8 @@ const SEARCH_AFTER = 8;
  * actions: array of
  *   { label, changes, tone? }                         one-click change set
  *   { label, options: [{value, label}], toChanges }    pick a value, confirm, apply
+ *   { label, options, multiple: true, toChanges }      tick several values; toChanges
+ *                                                      gets the array of values
  *   { label, input: {type, placeholder, step}, toChanges }  type a value, apply
  *   { label, run: async (ids, value) => {...}, tone? } custom handler; may also
  *                                                      take options or input;
@@ -69,6 +71,8 @@ export default function BulkActionBar({
   const [panel, setPanel] = useState(null);
   const [query, setQuery] = useState('');
   const [inputValue, setInputValue] = useState('');
+  // Ticked values while a `multiple` pick list is open
+  const [picked, setPicked] = useState([]);
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const { can, permissions } = useAdminPermissions();
@@ -96,7 +100,15 @@ export default function BulkActionBar({
     setPanel(null);
     setQuery('');
     setInputValue('');
+    setPicked([]);
   };
+
+  // From a multi-pick confirm, step back to the ticked list instead of closing
+  const back = () =>
+    panel?.step === 'confirm' && panel.action.multiple ? setPanel({ action: panel.action, step: 'pick' }) : close();
+
+  const togglePicked = (value) =>
+    setPicked((prev) => (prev.includes(value) ? prev.filter((v) => v !== value) : [...prev, value]));
 
   const apply = async (action, value) => {
     setBusy(true);
@@ -152,8 +164,14 @@ export default function BulkActionBar({
     }
   };
 
-  const valueLabel = (action, value) =>
+  const optionLabel = (action, value) =>
     action.options?.find((o) => String(o.value) === String(value))?.label ?? value;
+  const valueLabel = (action, value) => {
+    if (!Array.isArray(value)) return optionLabel(action, value);
+    const labels = value.map((v) => optionLabel(action, v));
+    return labels.length > 4 ? `${labels.slice(0, 3).join(', ')} +${labels.length - 3} more` : labels.join(', ');
+  };
+  const allVisiblePicked = visibleOptions.length > 0 && visibleOptions.every((o) => picked.includes(o.value));
 
   return (
     <FloatingDock label={`Batch edit ${pluralNoun || pluralize(noun)}`}>
@@ -161,7 +179,7 @@ export default function BulkActionBar({
         {panel ? (
           <button
             type="button"
-            onClick={close}
+            onClick={back}
             disabled={busy}
             className="inline-flex items-center gap-1 rounded-lg px-2 py-1 text-sm text-dark-200 hover:bg-dark-700"
           >
@@ -245,19 +263,50 @@ export default function BulkActionBar({
                 />
               </label>
             )}
-            <div className={OPTION_GRID}>
-              {visibleOptions.map((o) => (
+            {panel.action.multiple && (
+              <div className="flex flex-wrap items-center gap-2 px-1 text-sm">
                 <button
-                  key={o.value}
                   type="button"
-                  disabled={busy}
-                  onClick={() => choose(panel.action, o.value)}
-                  className={`${TILE} ${TONES.default}`}
-                  title={o.label}
+                  onClick={() =>
+                    setPicked((prev) =>
+                      allVisiblePicked
+                        ? prev.filter((v) => !visibleOptions.some((o) => o.value === v))
+                        : [...new Set([...prev, ...visibleOptions.map((o) => o.value)])]
+                    )
+                  }
+                  className="rounded-lg px-2 py-1 text-dark-200 hover:bg-dark-700"
                 >
-                  <FitLabel text={String(o.label)} />
+                  {allVisiblePicked ? 'Unselect shown' : `Select all shown (${visibleOptions.length})`}
                 </button>
-              ))}
+                <span className="text-dark-400">{picked.length} picked</span>
+                <button
+                  type="button"
+                  disabled={busy || picked.length === 0}
+                  onClick={() => choose(panel.action, picked)}
+                  className="ml-auto rounded-lg bg-primary-600 px-4 py-1.5 font-medium text-white hover:bg-primary-500 disabled:opacity-50"
+                >
+                  Continue
+                </button>
+              </div>
+            )}
+            <div className={OPTION_GRID}>
+              {visibleOptions.map((o) => {
+                const on = panel.action.multiple && picked.includes(o.value);
+                return (
+                  <button
+                    key={o.value}
+                    type="button"
+                    disabled={busy}
+                    aria-pressed={panel.action.multiple ? on : undefined}
+                    onClick={() => (panel.action.multiple ? togglePicked(o.value) : choose(panel.action, o.value))}
+                    className={`${TILE} ${on ? 'border-primary-500 bg-primary-900/30 text-dark-50' : TONES.default}`}
+                    title={o.label}
+                  >
+                    {on && <Check className="h-3.5 w-3.5 shrink-0 text-primary-300" aria-hidden="true" />}
+                    <FitLabel text={String(o.label)} />
+                  </button>
+                );
+              })}
               {visibleOptions.length === 0 && <p className="px-1 py-2 text-sm text-dark-400">No matches</p>}
             </div>
           </div>
@@ -309,7 +358,7 @@ export default function BulkActionBar({
             <button
               type="button"
               disabled={busy}
-              onClick={close}
+              onClick={back}
               className="rounded-lg px-3 py-2 text-dark-300 hover:bg-dark-700"
             >
               Cancel

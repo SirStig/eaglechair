@@ -72,16 +72,27 @@ export const productService = {
    * @param {string|number} id - Product ID or slug
    * @returns {Promise<Object>} Product details
    */
-  getProductById: async (id) => {
-    // Determine if ID is numeric or a slug
-    const isNumericId = !isNaN(parseInt(id)) && parseInt(id).toString() === id.toString();
+  getProductById: async (id, { preferSlug = false } = {}) => {
+    const value = String(id);
+    const isNumericId = /^\d+$/.test(value);
+    const byId = () => api.get(`/api/v1/products/${value}`);
+    const bySlug = () => api.get(`/api/v1/products/slug/${encodeURIComponent(value)}`);
 
-    // Use appropriate endpoint
-    const endpoint = isNumericId
-      ? `/api/v1/products/${id}`
-      : `/api/v1/products/slug/${id}`;
-
-    const response = await api.get(endpoint);
+    // Some slugs are bare model numbers ("7427"), so a numeric URL segment is
+    // looked up as a slug first and only then as a database id.
+    let response;
+    if (!isNumericId) {
+      response = await bySlug();
+    } else if (preferSlug) {
+      try {
+        response = await bySlug();
+      } catch (error) {
+        if (error?.status !== 404) throw error;
+        response = await byId();
+      }
+    } else {
+      response = await byId();
+    }
 
     // Backend returns ChairDetailResponse directly (not wrapped)
     // ChairDetailResponse includes: product data + category + related_products

@@ -119,6 +119,14 @@ PRODUCT_LIST_OPS = {
 # Supplier catalog links ride on the same list machinery
 PRODUCT_LIST_OPS["add_material_sources"] = ("material_sources", True)
 PRODUCT_LIST_OPS["remove_material_sources"] = ("material_sources", False)
+# Model each list holds IDs of, so "add" ops can reject unknown IDs
+PRODUCT_LIST_MODELS = {
+    "available_finishes": Finish,
+    "available_upholsteries": Upholstery,
+    "available_colors": Color,
+    "available_laminates": Laminate,
+    "material_sources": MaterialSource,
+}
 PRODUCT_CATEGORY_OPS = ("add_category_id", "remove_category_id")
 # Family membership: on products, add sets the main family when there is none
 # and a secondary family otherwise; remove takes it off either way.
@@ -218,6 +226,15 @@ async def _bulk_update_products(db: AsyncSession, ids: list[int], changes: dict[
         if isinstance(value, bool) or not isinstance(value, int):
             raise HTTPException(status_code=400, detail=f"{op} must be a category ID")
         await _check_foreign_key(db, Chair, "category_id", value)
+    for op, option_ids in list_ops.items():
+        attr, add = PRODUCT_LIST_OPS[op]
+        if not add or not option_ids:
+            continue
+        model = PRODUCT_LIST_MODELS[attr]
+        found = set((await db.execute(select(model.id).where(model.id.in_(option_ids)))).scalars().all())
+        unknown = [i for i in option_ids if i not in found]
+        if unknown:
+            raise HTTPException(status_code=400, detail=f"{op}: not found: {', '.join(map(str, unknown))}")
     family_ops = await _family_ops(db, family_changes)
     if "family_id" in fields and family_ops:
         raise HTTPException(status_code=400, detail="Set family_id or add/remove a family, not both")

@@ -15,6 +15,7 @@ import { useSiteSettings } from '../../hooks/useContent';
 import productService from '../../services/productService';
 import logger from '../../utils/logger';
 import {
+  buildProductUrl,
   getProductImage,
   ensureResolvedImageUrl,
   getImageSrcSet,
@@ -366,7 +367,7 @@ const Header = ({ isMobileMenuOpen, setIsMobileMenuOpen }) => {
                       {searchResults.map((product, idx) => (
                         <Link
                           key={product.id}
-                          to={`/products/${product.slug}`}
+                          to={buildProductUrl(product)}
                           onClick={handleResultClick}
                           className="w-full px-4 py-3 flex items-center gap-3 hover:bg-cream-100 transition-colors text-left"
                         >

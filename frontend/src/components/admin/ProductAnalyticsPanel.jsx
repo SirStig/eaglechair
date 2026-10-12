@@ -3,6 +3,7 @@ import { clsx } from 'clsx';
 import { Area, AreaChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
 import { AlertTriangle, Download, Eye, Flame, MousePointerClick, ShoppingCart, FileText } from 'lucide-react';
 import apiClient from '../../config/apiClient';
+import { buildProductUrl } from '../../utils/apiHelpers';
 import { useUrlState } from '../../hooks/useUrlState';
 import { Delta, Panel, RankedList, Segmented } from './analyticsUi';
 import { INTERACTION_LABELS, RESOURCE_TYPE_LABELS, formatNumber, missingFilesPhrase } from './analyticsFormat';
@@ -90,7 +91,7 @@ const ProductAnalyticsPanel = ({ productId, initialDays = 30 }) => {
           {product.slug && (
             <>
               {' · '}
-              <a href={`/products/${product.slug}`} target="_blank" rel="noopener noreferrer" className="text-primary-400 hover:text-primary-300">
+              <a href={buildProductUrl(product)} target="_blank" rel="noopener noreferrer" className="text-primary-400 hover:text-primary-300">
                 View page
               </a>
             </>

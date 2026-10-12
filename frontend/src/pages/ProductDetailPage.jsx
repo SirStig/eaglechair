@@ -234,7 +234,8 @@ const ProductDetailPage = () => {
       logger.info(CONTEXT, `Loading product with ID/slug: ${productId}`);
 
       // Use productService which handles both demo and real API modes
-      const response = await productService.getProductById(productId);
+      // URL segment is a slug (possibly all digits) or a legacy numeric id
+      const response = await productService.getProductById(productId, { preferSlug: true });
 
       logger.debug(CONTEXT, 'Product service response:', response);
 
@@ -266,15 +267,16 @@ const ProductDetailPage = () => {
           logger.warn(CONTEXT, 'Product has no ID, cannot fetch variations');
         }
       } else {
+        // Falls through to the "Product Not Found" screen; redirecting to the
+        // catalog made a bad link look like the page just reloaded
         logger.warn(CONTEXT, `Product not found: ${productId}`, response);
-        navigate('/products');
+        setProduct(null);
       }
     } catch (error) {
       logger.error(CONTEXT, `Error loading product ${productId}:`, error);
-      // Don't navigate away immediately if it's just a network error
-      // Only navigate if product truly doesn't exist (404)
+      // A 404 shows the "Product Not Found" screen below
       if (error.status === 404 || error.message?.includes('not found')) {
-        navigate('/products');
+        setProduct(null);
       }
     } finally {
       setLoading(false);

@@ -18,6 +18,7 @@ import { deletePermanently } from '../bulk/permanentDelete';
 import { SelectAllCheckbox, SelectCell } from '../bulk/SelectCheckbox';
 import RowLink from '../bulk/RowLink';
 import { ACTIVE_ACTIONS, retiredBy } from '../bulk/bulkActions';
+import useMaterialLists from '../../../hooks/useMaterialLists';
 import { productBulkActions } from './productBulkActions';
 import PdfPreviewButton from '../../ui/PdfPreviewButton';
 import DeleteGate from '../DeleteGate';
@@ -58,6 +59,7 @@ const ProductCatalog = ({ onEdit }) => {
   const [permDeleting, setPermDeleting] = useState(false);
   const selection = useBulkSelection(products);
   const { clear: clearSelection } = selection;
+  const materials = useMaterialLists(selection.count > 0);
 
   const handleTabChange = (newTab) => {
     setTab(newTab);
@@ -242,12 +244,12 @@ const ProductCatalog = ({ onEdit }) => {
   const bulkActions = useMemo(() => (
     tab === 'active'
       ? [
-          ...productBulkActions({ categories, subcategories, families, supplierLinks }),
+          ...productBulkActions({ categories, subcategories, families, supplierLinks, materials }),
           ...ACTIVE_ACTIONS,
           { label: 'Archive', run: archiveSelected, tone: 'danger' },
         ]
       : [{ label: 'Restore', changes: { is_active: true } }]
-  ), [tab, categories, subcategories, families, supplierLinks]);
+  ), [tab, categories, subcategories, families, supplierLinks, materials]);
 
   return (
     <AdminPage>

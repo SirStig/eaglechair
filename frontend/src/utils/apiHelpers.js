@@ -576,19 +576,21 @@ export const buildProductUrl = (product, variationId) => {
 
   let path;
   const categoryObj = typeof product.category === 'object' ? product.category : null;
+  // Slugs are model numbers too ("6246WB.P"), so keep the segment URL-safe
+  const productSegment = encodeURIComponent(product.slug || product.id);
 
   if (categoryObj) {
     if (categoryObj.parent_id && categoryObj.parent_slug) {
-      path = `/products/${categoryObj.parent_slug}/${categoryObj.slug}/${product.slug || product.id}`;
+      path = `/products/${categoryObj.parent_slug}/${categoryObj.slug}/${productSegment}`;
     } else if (categoryObj.slug) {
-      path = `/products/${categoryObj.slug}/uncategorized/${product.slug || product.id}`;
+      path = `/products/${categoryObj.slug}/uncategorized/${productSegment}`;
     } else {
-      path = `/products/${product.slug || product.id}`;
+      path = `/products/${productSegment}`;
     }
   } else if (product.parentCategorySlug && product.categorySlug) {
-    path = `/products/${product.parentCategorySlug}/${product.categorySlug}/${product.slug || product.id}`;
+    path = `/products/${product.parentCategorySlug}/${product.categorySlug}/${productSegment}`;
   } else {
-    path = `/products/${product.slug || product.id}`;
+    path = `/products/${productSegment}`;
   }
 
   if (variationId) {

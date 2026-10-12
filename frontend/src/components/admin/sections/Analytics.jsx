@@ -24,7 +24,7 @@ import {
   X,
 } from 'lucide-react';
 import apiClient from '../../../config/apiClient';
-import { resolveImageUrl } from '../../../utils/apiHelpers';
+import { buildProductUrl, resolveImageUrl } from '../../../utils/apiHelpers';
 import { AdminPage, AdminPageHeader } from '../ui/AdminPage';
 import { useSetUrlParams, useUrlState } from '../../../hooks/useUrlState';
 import ProductAnalyticsPanel from '../ProductAnalyticsPanel';
@@ -582,7 +582,7 @@ const Analytics = () => {
                                   {p.model_number && <span className="text-xs text-dark-200">#{p.model_number}</span>}
                                   {p.slug && (
                                     <a
-                                      href={`/products/${p.slug}`}
+                                      href={buildProductUrl(p)}
                                       target="_blank"
                                       rel="noopener noreferrer"
                                       className="text-xs text-dark-300 hover:text-primary-400"

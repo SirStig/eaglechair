@@ -14,10 +14,12 @@ from tests.factories import (
     create_category,
     create_chair,
     create_color,
+    create_finish,
     create_product_family,
     create_product_variation,
     create_quote,
     create_quote_item,
+    create_upholstery,
 )
 
 UA = {"User-Agent": "Mozilla/5.0 (X11; Linux x86_64) test", "X-Session-Token": "s", "X-Admin-Token": "a"}
@@ -164,6 +166,33 @@ class TestBulkEdit:
         product = await _reload(db_session, Chair, product.id)
         assert product.available_colors == [blue.id]
         assert product.laminates_enabled is False
+
+    async def test_products_add_and_remove_finishes_and_upholsteries(self, async_client, as_role, db_session):
+        as_role()
+        oak, walnut, cherry = [await create_finish(db_session) for _ in range(3)]
+        vinyl = await create_upholstery(db_session)
+        first = await create_chair(db_session, available_finishes=[oak.id, walnut.id])
+        second = await create_chair(db_session, available_finishes=None)
+        ids = [first.id, second.id]
+        response = await async_client.post(
+            f"{BASE}/products",
+            json={"ids": ids, "changes": {"add_finishes": [cherry.id, walnut.id], "remove_finishes": [oak.id], "add_upholsteries": [vinyl.id]}},
+            headers=UA,
+        )
+        assert response.status_code == 200, response.text
+        first, second = [await _reload(db_session, Chair, i) for i in ids]
+        assert first.available_finishes == [walnut.id, cherry.id]
+        assert second.available_finishes == [cherry.id, walnut.id]
+        assert first.available_upholsteries == second.available_upholsteries == [vinyl.id]
+
+    async def test_products_add_rejects_unknown_material(self, async_client, as_role, db_session):
+        as_role()
+        product = await create_chair(db_session)
+        response = await async_client.post(
+            f"{BASE}/products", json={"ids": [product.id], "changes": {"add_finishes": [999999]}}, headers=UA
+        )
+        assert response.status_code == 400
+        assert "999999" in response.text
 
     async def test_variations_switches_and_family(self, async_client, as_role, db_session):
         as_role()

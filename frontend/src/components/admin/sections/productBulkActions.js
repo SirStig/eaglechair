@@ -12,8 +12,51 @@ const stockAction = {
 
 const shownAction = (label, field) => booleanAction(label, field, 'Shown', 'Hidden');
 
-/** Product bulk actions (POST /admin/bulk/products) for the catalog and register */
-export function productBulkActions({ categories = [], subcategories = [], families = [], supplierLinks = [] }) {
+const withCode = (name, code) => (code ? `${name} (${code})` : name);
+const inactive = (row, label) => (row.is_active === false ? `${label} (inactive)` : label);
+
+// Option lists a product can offer: [group (also the add_/remove_ op suffix), row label]
+const MATERIAL_GROUPS = [
+  ['finishes', (f) => withCode(f.name, f.finish_code)],
+  ['upholsteries', (u) => withCode(u.name, u.material_code)],
+  ['colors', (c) => c.name],
+  ['laminates', (l) => withCode([l.brand, l.pattern_name].filter(Boolean).join(' '), l.pattern_code)],
+];
+
+/** Add / Remove pickers (several at once) for each material list on a product */
+const materialActions = (materials) =>
+  MATERIAL_GROUPS.flatMap(([group, label]) => {
+    const rows = materials[group] || [];
+    const options = (list) => list.map((r) => ({ value: r.id, label: inactive(r, label(r)) }));
+    return [
+      {
+        label: `Add ${group}`,
+        multiple: true,
+        // Only offer active ones to add; removing can still clear out retired ones
+        options: options(rows.filter((r) => r.is_active !== false)),
+        toChanges: (ids) => ({ [`add_${group}`]: ids }),
+      },
+      {
+        label: `Remove ${group}`,
+        multiple: true,
+        options: options(rows),
+        toChanges: (ids) => ({ [`remove_${group}`]: ids }),
+      },
+    ];
+  });
+
+/**
+ * Product bulk actions (POST /admin/bulk/products) for the catalog and register.
+ * `materials` ({ finishes, upholsteries, colors, laminates }, see
+ * hooks/useMaterialLists) adds the add/remove material pickers.
+ */
+export function productBulkActions({
+  categories = [],
+  subcategories = [],
+  families = [],
+  supplierLinks = [],
+  materials = {},
+}) {
   const categoryName = (id) => categories.find((c) => c.id === id)?.name;
   return [
     idAction('Move to category', 'category_id', categories),
@@ -46,6 +89,7 @@ export function productBulkActions({ categories = [], subcategories = [], famili
     shownAction('Colors', 'colors_enabled'),
     shownAction('Laminates', 'laminates_enabled'),
     stockAction,
+    ...materialActions(materials),
     // Outside catalogs the product can be ordered with (Supplier Links)
     {
       label: 'Add supplier link',

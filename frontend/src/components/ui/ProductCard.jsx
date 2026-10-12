@@ -126,7 +126,7 @@ const ProductCard = ({ product, onQuickView, darkMode = false, compact = false, 
 
   return (
     <div
-      className="group flex flex-col h-full bg-transparent"
+      className="group relative flex flex-col h-full bg-transparent"
       onMouseEnter={handleMouseEnter}
       onMouseLeave={() => setIsHovered(false)}
     >
@@ -229,7 +229,9 @@ const ProductCard = ({ product, onQuickView, darkMode = false, compact = false, 
           </p>
         )}
 
-        <Link to={productUrl} className="block">
+        {/* Stretched over the whole card so a tap anywhere (description,
+            swatches, blank space) opens the product, not just the image/title */}
+        <Link to={productUrl} className="block after:absolute after:inset-0">
           <h3 className={`text-[15px] sm:text-base font-semibold leading-snug ${textTitle} ${textTitleHover} transition-colors line-clamp-2`}>
             {product.name}
           </h3>
@@ -282,7 +284,7 @@ const ProductCard = ({ product, onQuickView, darkMode = false, compact = false, 
                 onClick={openQuickView}
                 aria-label={`Quick view ${product.name}`}
                 title="Quick view"
-                className={`inline-flex items-center justify-center w-8 h-8 rounded-full ${textMuted} hover:text-primary-700 hover:bg-cream-100 transition-colors`}
+                className={`relative z-10 inline-flex items-center justify-center w-8 h-8 rounded-full ${textMuted} hover:text-primary-700 hover:bg-cream-100 transition-colors`}
               >
                 <Eye className="w-4 h-4" />
               </button>

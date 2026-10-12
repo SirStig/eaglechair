@@ -20,6 +20,7 @@ import BulkActionBar from '../bulk/BulkActionBar';
 import { SelectAllCheckbox, SelectCell } from '../bulk/SelectCheckbox';
 import { openOnRowClick, openRowInNewTab } from '../bulk/rowClick';
 import { ACTIVE_ACTIONS, retiredBy } from '../bulk/bulkActions';
+import useMaterialLists from '../../../hooks/useMaterialLists';
 import { productBulkActions, variationBulkActions } from './productBulkActions';
 import { useUrlState } from '../../../hooks/useUrlState';
 
@@ -200,10 +201,11 @@ const ProductRegister = () => {
   const variationSelection = useBulkSelection(filteredVariations);
   useExclusiveSelections(selection, variationSelection);
 
+  const materials = useMaterialLists(selection.count > 0);
   const productActions = useMemo(() => [
-    ...productBulkActions({ categories: categoryRows, subcategories: subcategoryRows, families: data.families, supplierLinks }),
+    ...productBulkActions({ categories: categoryRows, subcategories: subcategoryRows, families: data.families, supplierLinks, materials }),
     ...ACTIVE_ACTIONS,
-  ], [categoryRows, subcategoryRows, data.families, supplierLinks]);
+  ], [categoryRows, subcategoryRows, data.families, supplierLinks, materials]);
   const variationActions = useMemo(() => variationBulkActions({ families: data.families }), [data.families]);
 
   const runExport = async (kind) => {
