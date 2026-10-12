@@ -16,7 +16,6 @@ import useBulkSelection from '../../../hooks/useBulkSelection';
 import BulkActionBar from '../bulk/BulkActionBar';
 import { deletePermanently } from '../bulk/permanentDelete';
 import { SelectAllCheckbox, SelectCell } from '../bulk/SelectCheckbox';
-import { openOnRowClick, openRowInNewTab } from '../bulk/rowClick';
 import RowLink from '../bulk/RowLink';
 import { ACTIVE_ACTIONS, retiredBy } from '../bulk/bulkActions';
 import { productBulkActions } from './productBulkActions';
@@ -348,18 +347,23 @@ const ProductCatalog = ({ onEdit }) => {
                 {products.map((product) => (
                   <tr
                     key={product.id}
-                    className={`border-b border-dark-700 hover:bg-dark-700/50 transition-colors cursor-pointer ${selection.isSelected(product.id) ? 'bg-primary-900/10' : ''}`}
-                    onClick={openOnRowClick(() => onEdit(product), editorHref(product))}
-                    onAuxClick={openRowInNewTab(editorHref(product))}
+                    className={`relative border-b border-dark-700 hover:bg-dark-700/50 transition-colors cursor-pointer ${selection.isSelected(product.id) ? 'bg-primary-900/10' : ''}`}
                   >
                     <SelectCell
                       selection={selection}
                       id={product.id}
                       label={`Select ${product.name}`}
-                      className="px-4 py-4"
+                      className="px-4 py-4 relative z-10"
                     />
                     <td className="px-4 py-4">
-                      <RowLink to={editorHref(product)} onOpen={() => onEdit(product)} className="block w-16" tabIndex={-1}>
+                      {/* Covers the whole row so right-click / Cmd-click anywhere acts on a real link */}
+                      <RowLink
+                        to={editorHref(product)}
+                        onOpen={() => onEdit(product)}
+                        className="absolute inset-0"
+                        tabIndex={-1}
+                        aria-hidden="true"
+                      />
                       {product.primary_image_url ? (
                         <ResponsiveImage
                           sizes="64px"
@@ -373,12 +377,9 @@ const ProductCatalog = ({ onEdit }) => {
                           <Package className="w-8 h-8 text-dark-400" />
                         </div>
                       )}
-                      </RowLink>
                     </td>
                     <td className="px-4 py-4">
-                      <RowLink to={editorHref(product)} onOpen={() => onEdit(product)} className="font-medium text-dark-50 hover:text-primary-400 hover:underline">
-                        {product.name}
-                      </RowLink>
+                      <p className="font-medium text-dark-50">{product.name}</p>
                       <p className="text-sm text-dark-400">
                         {product.short_description?.substring(0, 50)}...
                       </p>
@@ -405,7 +406,7 @@ const ProductCatalog = ({ onEdit }) => {
                         {product.is_active ? 'Active' : 'Inactive'}
                       </span>
                     </td>
-                    <td className="px-4 py-4" data-no-select onClick={(e) => e.stopPropagation()}>
+                    <td className="px-4 py-4 relative z-10" data-no-select onClick={(e) => e.stopPropagation()}>
                       <div className="flex items-center justify-end gap-2">
                         <PdfPreviewButton url={product.spec_sheet_url} title={`${product.name} spec sheet`} />
                         <RowLink
