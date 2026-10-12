@@ -151,6 +151,19 @@ const ProductCatalog = ({ onEdit }) => {
     }
   };
 
+  // Each cell carries its own link to the editor (the cell is the positioning
+  // box), so right-click / Cmd-click works across the whole row in any browser.
+  // Plain left-click still goes through onEdit.
+  const rowCellLink = (product) => (
+    <RowLink
+      to={editorHref(product)}
+      onOpen={() => onEdit(product)}
+      className="absolute inset-0"
+      tabIndex={-1}
+      aria-hidden="true"
+    />
+  );
+
   const handleDelete = async (productId) => {
     const product = products.find(p => p.id === productId);
     if (!confirm(`Move "${product?.name}" to Archived? It will be hidden from the active list but can be restored or permanently deleted later.`)) return;
@@ -347,7 +360,7 @@ const ProductCatalog = ({ onEdit }) => {
                 {products.map((product) => (
                   <tr
                     key={product.id}
-                    className={`relative border-b border-dark-700 hover:bg-dark-700/50 transition-colors cursor-pointer ${selection.isSelected(product.id) ? 'bg-primary-900/10' : ''}`}
+                    className={`border-b border-dark-700 hover:bg-dark-700/50 transition-colors cursor-pointer ${selection.isSelected(product.id) ? 'bg-primary-900/10' : ''}`}
                   >
                     <SelectCell
                       selection={selection}
@@ -355,15 +368,8 @@ const ProductCatalog = ({ onEdit }) => {
                       label={`Select ${product.name}`}
                       className="px-4 py-4 relative z-10"
                     />
-                    <td className="px-4 py-4">
-                      {/* Covers the whole row so right-click / Cmd-click anywhere acts on a real link */}
-                      <RowLink
-                        to={editorHref(product)}
-                        onOpen={() => onEdit(product)}
-                        className="absolute inset-0"
-                        tabIndex={-1}
-                        aria-hidden="true"
-                      />
+                    <td className="relative px-4 py-4">
+                      {rowCellLink(product)}
                       {product.primary_image_url ? (
                         <ResponsiveImage
                           sizes="64px"
@@ -378,24 +384,29 @@ const ProductCatalog = ({ onEdit }) => {
                         </div>
                       )}
                     </td>
-                    <td className="px-4 py-4">
+                    <td className="relative px-4 py-4">
+                      {rowCellLink(product)}
                       <p className="font-medium text-dark-50">{product.name}</p>
                       <p className="text-sm text-dark-400">
                         {product.short_description?.substring(0, 50)}...
                       </p>
                     </td>
-                    <td className="px-4 py-4 text-dark-200">{product.model_number}</td>
-                    <td className="px-4 py-4 text-dark-200">{product.category?.name || 'N/A'}</td>
-                    <td className="px-4 py-4 text-dark-200">
+                    <td className="relative px-4 py-4 text-dark-200">{rowCellLink(product)}{product.model_number}</td>
+                    <td className="relative px-4 py-4 text-dark-200">{rowCellLink(product)}{product.category?.name || 'N/A'}</td>
+                    <td className="relative px-4 py-4 text-dark-200">
+                      {rowCellLink(product)}
                       ${(product.base_price / 100).toFixed(2)}
                     </td>
-                    <td className="px-4 py-4 text-center">
+                    <td className="relative px-4 py-4 text-center">
+                      {rowCellLink(product)}
                       <span className="text-dark-200 font-medium">{product.view_count || 0}</span>
                     </td>
-                    <td className="px-4 py-4 text-center">
+                    <td className="relative px-4 py-4 text-center">
+                      {rowCellLink(product)}
                       <span className="text-dark-200 font-medium">{product.quote_count || 0}</span>
                     </td>
-                    <td className="px-4 py-4">
+                    <td className="relative px-4 py-4">
+                      {rowCellLink(product)}
                       <span className={`
                         px-2 py-1 rounded text-xs font-medium
                         ${product.is_active

@@ -447,6 +447,15 @@ const ProductEditor = ({ product, onBack }) => {
     const picked = new Set(keys);
     setVariations((prev) => prev.filter((v, i) => !picked.has(variationKey(v, i))));
   };
+  // Swaps a variation with its neighbour; array order is the display order
+  const moveVariation = (index, direction) =>
+    setVariations((prev) => {
+      const target = index + direction;
+      if (target < 0 || target >= prev.length) return prev;
+      const next = [...prev];
+      [next[index], next[target]] = [next[target], next[index]];
+      return next;
+    });
   const removeVariation = (key) => {
     const variation = variations.find((v, i) => variationKey(v, i) === key);
     if (variation?.sku && !confirm(`Remove variation ${variation.sku}? This takes effect when you save the product.`)) return;
@@ -565,7 +574,8 @@ const ProductEditor = ({ product, onBack }) => {
         subcategory_ids: dedupe([formData.subcategory_id, ...(formData.subcategory_ids || [])]),
         hover_images: hoverImages,
         images,
-        variations,
+        // Saved order is the list order shown in the editor
+        variations: variations.map((v, i) => ({ ...v, display_order: i })),
         available_finishes: selectedFinishes,
         available_upholsteries: selectedUpholsteries,
         available_colors: selectedColors,
@@ -1216,6 +1226,7 @@ const ProductEditor = ({ product, onBack }) => {
               names={variationNames}
               onChange={updateVariation}
               onRemove={removeVariation}
+              onMove={moveVariation}
               selection={variationSelection}
               expanded={expandedVariations}
               onToggle={toggleVariation}

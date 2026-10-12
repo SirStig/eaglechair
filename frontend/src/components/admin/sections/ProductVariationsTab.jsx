@@ -1,4 +1,4 @@
-import { ChevronDown, Search, Trash2, Layers, AlertTriangle } from 'lucide-react';
+import { ChevronDown, ChevronUp, Search, Trash2, Layers, AlertTriangle } from 'lucide-react';
 import { formatStockStatus } from '../../../utils/apiHelpers';
 import { SelectAllCheckbox, RowCheckbox } from '../bulk/SelectCheckbox';
 import { OPTION_GROUP_SWITCHES, STOCK_STATUS_OPTIONS, variationAnchor } from './productVariations';
@@ -57,6 +57,9 @@ function VariationCard({
   onToggle,
   onChange,
   onRemove,
+  onMove,
+  canMoveUp,
+  canMoveDown,
   selection,
   order,
   names,
@@ -120,6 +123,28 @@ function VariationCard({
           </span>
           <ChevronDown className={`h-5 w-5 shrink-0 text-dark-400 transition-transform ${expanded ? 'rotate-180' : ''}`} />
         </button>
+        <div className="flex shrink-0 flex-col">
+          <button
+            type="button"
+            onClick={() => onMove(index, -1)}
+            disabled={!canMoveUp}
+            className="rounded-t-lg p-1 text-dark-400 transition-colors hover:bg-dark-700 hover:text-dark-100 disabled:cursor-not-allowed disabled:opacity-30 disabled:hover:bg-transparent"
+            title="Move up"
+            aria-label={`Move variation ${variation.sku || index + 1} up`}
+          >
+            <ChevronUp className="h-4 w-4" />
+          </button>
+          <button
+            type="button"
+            onClick={() => onMove(index, 1)}
+            disabled={!canMoveDown}
+            className="rounded-b-lg p-1 text-dark-400 transition-colors hover:bg-dark-700 hover:text-dark-100 disabled:cursor-not-allowed disabled:opacity-30 disabled:hover:bg-transparent"
+            title="Move down"
+            aria-label={`Move variation ${variation.sku || index + 1} down`}
+          >
+            <ChevronDown className="h-4 w-4" />
+          </button>
+        </div>
         <button
           type="button"
           onClick={() => onRemove(rowKey)}
@@ -279,6 +304,7 @@ export default function ProductVariationsTab({
   names,
   onChange,
   onRemove,
+  onMove,
   selection,
   expanded,
   onToggle,
@@ -368,6 +394,9 @@ export default function ProductVariationsTab({
             onToggle={onToggle}
             onChange={onChange}
             onRemove={onRemove}
+            onMove={onMove}
+            canMoveUp={!filter.trim() && index > 0}
+            canMoveDown={!filter.trim() && index < variations.length - 1}
             selection={selection}
             order={order}
             names={names}
