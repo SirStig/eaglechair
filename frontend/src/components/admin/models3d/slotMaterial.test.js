@@ -66,6 +66,14 @@ describe('resolveMaterial', () => {
     expect(resolveMaterial('finish:9', 'chrome', config, index).id).toBe('builtin:chrome');
   });
 
+  it('tiles a laminate\'s own scan when no default is set', () => {
+    expect(resolveMaterial('laminate:5', 'laminate_wood', {}, index, { hasSwatch: true }).id).toBe('builtin:swatch');
+    expect(resolveMaterial('laminate:5', 'laminate_wood', {}, index).id).toBe('builtin:laminate_wood');
+    expect(resolveMaterial('finish:5', 'wood', {}, index, { hasSwatch: true }).id).toBe('builtin:wood');
+    const config = { defaults: { laminate_wood: 'scan_1' } };
+    expect(resolveMaterial('laminate:5', 'laminate_wood', config, index, { hasSwatch: true }).id).toBe('scan_1');
+  });
+
   it('skips assignments to deleted materials', () => {
     const config = { assignments: { 'laminate:3': 'gone' } };
     expect(resolveMaterial('laminate:3', 'laminate', config, index).id).toBe('builtin:laminate');

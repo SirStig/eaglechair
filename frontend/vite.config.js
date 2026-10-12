@@ -19,7 +19,8 @@ const serveUploadsDirectory = () => ({
       if (req.url.startsWith('/uploads/')) {
         // Point to root/uploads directory (one level up from frontend folder)
         const uploadsRoot = resolve(__dirname, '..', 'uploads');
-        const filePath = resolve(uploadsRoot, req.url.replace('/uploads/', ''));
+        // Query strings are cache-busters (?v=), not part of the file name
+        const filePath = resolve(uploadsRoot, decodeURIComponent(req.url.split('?')[0]).replace('/uploads/', ''));
         
         // Security check: ensure file is within uploads directory
         if (!filePath.startsWith(uploadsRoot)) {

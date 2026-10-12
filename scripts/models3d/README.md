@@ -1,15 +1,32 @@
 # Configurable 3D product models
 
-Models for the admin **3D Viewer** (`/admin/3d-viewer`) are binary glTF
-(`.glb`) files built in Blender from a per-chair spec. The viewer swaps
-upholstery and finishes on any model whose materials carry glTF extras:
+Models for the admin **3D Studio** (`/admin/3d-viewer`) are binary glTF
+(`.glb`) files built in Blender from a per-chair spec. The studio dresses any
+model whose materials carry glTF extras (Blender custom properties, exported
+with "Include > Custom Properties"):
 
-- `ec_slot`: `upholstery` or `frame` (the part an option applies to)
-- `ec_kind`: `fabric`, `leather` or `wood` (the maps the model ships with)
+- `ec_slot`: the part a catalog option applies to: `upholstery`, `frame`
+  (wood finishes), `metal` (metal finishes) or `top` (table-top laminates)
+- `ec_kind`: the maps the model ships with (`fabric`, `leather`, `wood`, ...)
 
-Each part uses neutral, tileable PBR maps (grain, normal, roughness) tinted
-through its base colour, so an option only supplies a colour and, when needed,
-a different map set from `frontend/public/materials3d/`.
+Untagged models fall back to material names (`seat`, `frame`, `chrome_base`,
+`table_top`, ...), and any part can be reassigned in the studio's Part tab
+(saved per model).
+
+Each catalog option renders as a material **kind** (fabric, vinyl, leather,
+wood stain, painted, metal, chrome, brushed, powder coat, solid / woodgrain
+laminate). Each kind has a default material: a built-in one (neutral CC0 maps
+in `frontend/public/materials3d/`, tinted with the option's colour) or one
+uploaded to the studio's Materials library: a glTF material (`.glb`), loose
+PBR maps, or an ambientCG / Poly Haven `.zip` (maps are recognised by name:
+`Color`, `NormalGL` / `NormalDX`, `Roughness`, `Metalness`, `AO`, `arm`).
+Single options can be assigned their own material, and laminates with a
+swatch scan tile the scan by default.
+
+Uploaded models and materials have their embedded textures downscaled to
+2048 px and re-encoded on upload. The viewer also reads Draco / meshopt /
+KTX2 compressed files (decoders in `frontend/public/libs/`, copied from
+`three/examples/jsm/libs`), so `gltf-transform optimize` output works as is.
 
 ## The kit
 
@@ -24,9 +41,21 @@ a different map set from `frontend/public/materials3d/`.
     tuck, bulge and crown. (Concentric-ring pads crease along the corner
     diagonals, which shows as an X in the viewer's reflections.)
   - `welt`: piping around a panel
+  - `sweep`: a section swept along a path, open or closed: footrings,
+    bent-tube frames, seat bands, rods; `channel_profile` for folded
+    sheet-metal legs. `squircle_path` / `ellipse_path` for rings.
+  - `shell`: a bent sheet (plywood back, stamped steel seat or skirt) with
+    an exact outline, cut-outs (hand slots, drain holes) and a rolled edge
+  - `subd_pad(..., round_front, round_back)`: round or horseshoe seats
+  - `metal_material`, `plain_material`, `dome`: steel frames; hardware
+    (bolts, glides, brass kick plates) that stays as modelled
   - `pbr_material`, `finish`: materials with the viewer's extras (fabric
     gets cloth sheen tinted by its colour), join per slot, export
-- `build_<model>.py`: one per chair: measurements (inches) and parts
+- `build_<model>.py`: one per chair: measurements (inches) and parts.
+  A family member can import another spec and override it
+  (`build_5246.py` is the 6246 chair raised to bar height).
+  Built so far: 6430 Empire State, 6246 Abruzzo, 5246 Abruzzo Barstool,
+  3550 Normandie.
 - `compare.py`: renders the model from each product photo's viewpoint and
   pairs photo | render, the check that a model matches the real chair
 - `render_views.py`: quick turntable renders
@@ -47,7 +76,7 @@ blender -b -P scripts/models3d/compare.py -- "$PWD/6430.glb" "$PWD/cmp" \
 `AZ:EL` per photo: camera direction around the chair (-90 front, 90 back,
 0 = the chair's +x side) and height, in degrees.
 
-4. Check it in the admin 3D Viewer with several upholsteries and finishes,
+4. Check it in the admin 3D Studio with several upholsteries and finishes,
    then upload the `.glb` there.
 
 AI image-to-3D (TRELLIS.2) was tried first and rejected: it produces one

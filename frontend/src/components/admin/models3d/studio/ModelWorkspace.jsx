@@ -161,9 +161,9 @@ export default function ModelWorkspace({ models, setModels, refreshModels, libra
       if (item) {
         const source = SLOTS[slot].source;
         const key = optionKey(source, item);
-        lib = resolveMaterial(key, optionKind(source, item), library.config, index);
-        color = item.color_hex || avgColors[key];
         swatchUrl = optionImage(item) ? resolveImageUrl(optionImage(item)) : null;
+        lib = resolveMaterial(key, optionKind(source, item), library.config, index, { hasSwatch: Boolean(swatchUrl) });
+        color = item.color_hex || avgColors[key];
         // Wait for the swatch's colour rather than flashing grey
         if (lib.tint && !color) continue;
       }
@@ -358,7 +358,7 @@ export default function ModelWorkspace({ models, setModels, refreshModels, libra
         <div className="flex items-center gap-2 border-b border-white/[0.06] px-3 py-2">
           <Segmented value={tab} onChange={setTab} options={TABS} size="md" className="w-full [&>button]:flex-1 [&>button]:justify-center" />
         </div>
-        <div className="min-h-0 flex-1 overflow-y-auto">
+        <div className="min-h-0 flex-1 overflow-y-auto pb-20">
           {!model ? (
             <p className="p-4 text-sm text-dark-200">No model selected.</p>
           ) : tab === 'configure' ? (
@@ -440,7 +440,8 @@ function SlotOptions({ slot, items, picked, onPick, grain, onGrain, library, ind
   const visible = items.filter((i) => (group === 'all' || KINDS[kinds.get(i.id)].group === group) && (!q || optionText(i).includes(q)));
   const key = picked ? optionKey(source, picked) : null;
   const kind = picked ? kinds.get(picked.id) : null;
-  const rendered = picked ? resolveMaterial(key, kind, library.config, index) : null;
+  const hasSwatch = Boolean(optionImage(picked));
+  const rendered = picked ? resolveMaterial(key, kind, library.config, index, { hasSwatch }) : null;
   const assigned = key ? library.config.assignments[key] : null;
 
   const assign = (materialId) => {
@@ -508,11 +509,11 @@ function SlotOptions({ slot, items, picked, onPick, grain, onGrain, library, ind
           </p>
           <Field label="Rendered with">
             <select value={assigned || ''} onChange={(e) => assign(e.target.value || null)} className={inputClass}>
-              <option value="">{`${KINDS[kind].label} default (${resolveMaterial(null, kind, library.config, index).name})`}</option>
+              <option value="">{`${KINDS[kind].label} default (${resolveMaterial(null, kind, library.config, index, { hasSwatch }).name})`}</option>
               {candidates.map((m) => <option key={m.id} value={m.id}>{m.name}{m.builtin ? '' : ' · uploaded'}</option>)}
             </select>
           </Field>
-          {rendered?.swatch && !optionImage(picked) && (
+          {rendered?.swatch && !hasSwatch && (
             <p className="mt-1 text-[11px] text-amber-300">This option has no swatch image to use as a texture.</p>
           )}
         </div>

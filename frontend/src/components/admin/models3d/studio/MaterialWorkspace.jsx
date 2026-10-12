@@ -293,7 +293,7 @@ export default function MaterialWorkspace({ library, setLibrary, refreshLibrary,
 
       {/* Right: inspector */}
       <aside className="flex min-h-0 flex-col border-white/[0.06] bg-dark-900 lg:border-l">
-        <div className="min-h-0 flex-1 overflow-y-auto">
+        <div className="min-h-0 flex-1 overflow-y-auto pb-20">
           {selected && draft && (
             <>
               <Section title="Material">

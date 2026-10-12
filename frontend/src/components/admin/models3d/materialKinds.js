@@ -139,14 +139,19 @@ export function materialIndex(uploaded = [], overrides = {}) {
 /** The built-in material's shipped settings (for "reset"). */
 export const builtinDefaults = (id) => BUILTIN_BY_ID[id]?.settings || {};
 
+const SCAN_KINDS = new Set(['laminate', 'laminate_wood']);
+
 /**
  * The material a catalog option is shown in: its own assignment, else its
- * kind's default, else the built-in for its kind.
+ * kind's default, else the built-in for its kind. Laminate swatches are flat
+ * manufacturer scans, so with no default set a laminate that has one tiles
+ * its own scan (`hasSwatch`).
  */
-export function resolveMaterial(key, kind, config, index) {
+export function resolveMaterial(key, kind, config, index, { hasSwatch = false } = {}) {
   const pick = (id) => (id && index[id]) || null;
   return pick(config?.assignments?.[key])
     || pick(config?.defaults?.[kind])
+    || (hasSwatch && SCAN_KINDS.has(kind) ? index['builtin:swatch'] : null)
     || pick(`builtin:${kind}`)
     || BUILTIN_BY_ID['builtin:other'];
 }
