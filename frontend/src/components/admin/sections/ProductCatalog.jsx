@@ -16,7 +16,8 @@ import useBulkSelection from '../../../hooks/useBulkSelection';
 import BulkActionBar from '../bulk/BulkActionBar';
 import { deletePermanently } from '../bulk/permanentDelete';
 import { SelectAllCheckbox, SelectCell } from '../bulk/SelectCheckbox';
-import { openOnRowClick } from '../bulk/rowClick';
+import { openOnRowClick, openRowInNewTab } from '../bulk/rowClick';
+import RowLink from '../bulk/RowLink';
 import { ACTIVE_ACTIONS, retiredBy } from '../bulk/bulkActions';
 import { productBulkActions } from './productBulkActions';
 import PdfPreviewButton from '../../ui/PdfPreviewButton';
@@ -32,6 +33,8 @@ import { useUrlState } from '../../../hooks/useUrlState';
  * - Quick actions
  * - Bulk operations
  */
+const editorHref = (product) => `/admin/catalog?edit=${product.id}`;
+
 const ProductCatalog = ({ onEdit }) => {
   const toast = useToast();
   const { refreshKeys } = useAdminRefresh();
@@ -346,7 +349,8 @@ const ProductCatalog = ({ onEdit }) => {
                   <tr
                     key={product.id}
                     className={`border-b border-dark-700 hover:bg-dark-700/50 transition-colors cursor-pointer ${selection.isSelected(product.id) ? 'bg-primary-900/10' : ''}`}
-                    onClick={openOnRowClick(() => onEdit(product))}
+                    onClick={openOnRowClick(() => onEdit(product), editorHref(product))}
+                    onAuxClick={openRowInNewTab(editorHref(product))}
                   >
                     <SelectCell
                       selection={selection}
@@ -355,6 +359,7 @@ const ProductCatalog = ({ onEdit }) => {
                       className="px-4 py-4"
                     />
                     <td className="px-4 py-4">
+                      <RowLink to={editorHref(product)} onOpen={() => onEdit(product)} className="block w-16" tabIndex={-1}>
                       {product.primary_image_url ? (
                         <ResponsiveImage
                           sizes="64px"
@@ -368,9 +373,12 @@ const ProductCatalog = ({ onEdit }) => {
                           <Package className="w-8 h-8 text-dark-400" />
                         </div>
                       )}
+                      </RowLink>
                     </td>
                     <td className="px-4 py-4">
-                      <p className="font-medium text-dark-50">{product.name}</p>
+                      <RowLink to={editorHref(product)} onOpen={() => onEdit(product)} className="font-medium text-dark-50 hover:text-primary-400 hover:underline">
+                        {product.name}
+                      </RowLink>
                       <p className="text-sm text-dark-400">
                         {product.short_description?.substring(0, 50)}...
                       </p>
@@ -400,13 +408,14 @@ const ProductCatalog = ({ onEdit }) => {
                     <td className="px-4 py-4" data-no-select onClick={(e) => e.stopPropagation()}>
                       <div className="flex items-center justify-end gap-2">
                         <PdfPreviewButton url={product.spec_sheet_url} title={`${product.name} spec sheet`} />
-                        <button
-                          onClick={() => onEdit(product)}
+                        <RowLink
+                          to={editorHref(product)}
+                          onOpen={() => onEdit(product)}
                           className="p-2 text-primary-500 hover:bg-primary-900/20 rounded-lg transition-colors"
                           title="Edit"
                         >
                           <Edit2 className="w-4 h-4" />
-                        </button>
+                        </RowLink>
                         {tab === 'active' ? (
                           <DeleteGate>
                           <button

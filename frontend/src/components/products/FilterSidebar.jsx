@@ -420,11 +420,16 @@ const FilterSidebar = ({
             aria-label="Sort products"
             className={`${inputClass} py-2.5`}
           >
-            <option value="smart">Sort: Recommended</option>
-            <option value="featured">Sort: Featured first</option>
+            <option value="recommended">Sort: Recommended</option>
+            <option value="model">Sort: Model number</option>
             <option value="name-asc">Sort: Name A–Z</option>
             <option value="name-desc">Sort: Name Z–A</option>
           </select>
+          <CheckRow
+            label="Featured first"
+            checked={!!filters.featuredFirst}
+            onChange={(e) => updateFilter('featuredFirst', e.target.checked)}
+          />
         </div>
 
         <div className="py-4 border-b border-cream-200">

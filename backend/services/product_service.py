@@ -5,6 +5,7 @@ Handles product catalog operations (chairs, categories, finishes, upholstery)
 """
 
 import logging
+import re
 from typing import Any, Dict, List, Optional
 
 from sqlalchemy import and_, case, cast, func, or_, select, update
@@ -158,6 +159,53 @@ def _has_displayable_image_rank():
             1,
         ),
         else_=0,
+    )
+
+
+# The recommended catalog order starts at the 6000-series chairs instead of
+# the low numbers, which are tables. It runs 6000 and up, then 1000-5999,
+# then the sub-1000 tables, then lettered models such as the T- bases.
+RECOMMENDED_START_MODEL = 6000
+_TABLE_MODEL_CEILING = 1000
+_LEADING_NUMBER = re.compile(r"\s*(\d+)(.*)")
+
+
+def model_number_sort_key(model_number: Optional[str], start: Optional[int] = None):
+    """Natural sort key for a model number ("6020A" sorts as 6020, then "A").
+
+    With ``start``, numbers from ``start`` up come first; see
+    RECOMMENDED_START_MODEL.
+    """
+    text = (model_number or "").strip()
+    match = _LEADING_NUMBER.match(text)
+    if not match:
+        return (3, 0, text.upper())
+    number, rest = int(match.group(1)), match.group(2).upper()
+    if start is None or number >= start:
+        group = 0
+    elif number >= _TABLE_MODEL_CEILING:
+        group = 1
+    else:
+        group = 2
+    return (group, number, rest)
+
+
+async def _model_number_rank(db: AsyncSession, query, start: Optional[int]):
+    """SQL rank putting the query's products in model number order.
+
+    Model numbers mix digits and letters, which SQL can't sort naturally
+    the same way on MySQL, PostgreSQL and SQLite, so the order is worked out
+    here and handed back as a CASE on the product id.
+    """
+    sub = query.order_by(None).subquery()
+    rows = (await db.execute(select(sub.c.id, sub.c.model_number))).all()
+    rows.sort(key=lambda row: (model_number_sort_key(row.model_number, start), row.id))
+    if not rows:
+        return Chair.id
+    return case(
+        {row.id: rank for rank, row in enumerate(rows)},
+        value=Chair.id,
+        else_=len(rows),
     )
 
 
@@ -443,6 +491,7 @@ class ProductService:
         exclude_variations: bool = False,
         smart_sort: bool = False,
         sort: Optional[str] = None,
+        featured_first: bool = False,
         include_inactive: bool = False,
     ) -> Dict[str, Any]:
         """
@@ -475,7 +524,11 @@ class ProductService:
             in_stock_only: Show only in-stock products
             exclude_variations: Exclude product variations, show only base products
             smart_sort: Use smart sorting (new → with image → popular → rest)
-            sort: Explicit sort order (name-asc, name-desc, featured); ignored when smart_sort is True
+            sort: Explicit sort order (recommended, model, name-asc, name-desc,
+                featured); ignored when smart_sort is True. recommended is model
+                number order starting at RECOMMENDED_START_MODEL.
+            featured_first: Put featured products ahead of the rest, then
+                apply the sort
             include_inactive: Include inactive products
 
         Returns:
@@ -625,6 +678,8 @@ class ProductService:
             )
 
         has_image = _has_displayable_image_rank()
+        if featured_first:
+            query = query.order_by(Chair.is_featured.desc())
         if smart_sort:
             query = query.order_by(
                 Chair.is_new.desc(),
@@ -633,6 +688,9 @@ class ProductService:
                 Chair.display_order,
                 Chair.name,
             )
+        elif sort in ("recommended", "model"):
+            start = RECOMMENDED_START_MODEL if sort == "recommended" else None
+            query = query.order_by(await _model_number_rank(db, query, start), Chair.id)
         elif sort == "name-asc":
             query = query.order_by(Chair.name.asc())
         elif sort == "name-desc":

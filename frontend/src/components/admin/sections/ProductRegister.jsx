@@ -18,7 +18,7 @@ import { AdminPage, AdminPageHeader } from '../ui/AdminPage';
 import useBulkSelection, { useExclusiveSelections } from '../../../hooks/useBulkSelection';
 import BulkActionBar from '../bulk/BulkActionBar';
 import { SelectAllCheckbox, SelectCell } from '../bulk/SelectCheckbox';
-import { openOnRowClick } from '../bulk/rowClick';
+import { openOnRowClick, openRowInNewTab } from '../bulk/rowClick';
 import { ACTIVE_ACTIONS, retiredBy } from '../bulk/bulkActions';
 import { productBulkActions, variationBulkActions } from './productBulkActions';
 import { useUrlState } from '../../../hooks/useUrlState';
@@ -328,11 +328,13 @@ const ProductRegister = () => {
             <tbody className="divide-y divide-dark-700">
               {visible.map((p) => {
                 const open = expanded.has(p.id);
+                const href = `/admin/catalog?edit=${p.id}`;
                 return (
                   <Fragment key={p.id}>
                     <tr
                       className={`cursor-pointer hover:bg-dark-700/40 ${selection.isSelected(p.id) ? 'bg-primary-500/5' : ''}`}
-                      onClick={openOnRowClick(() => navigate(`/admin/catalog?edit=${p.id}`))}
+                      onClick={openOnRowClick(() => navigate(href), href)}
+                      onAuxClick={openRowInNewTab(href)}
                     >
                       <SelectCell
                         selection={selection}
@@ -342,6 +344,7 @@ const ProductRegister = () => {
                         className="p-3"
                       />
                       <td className="p-2">
+                        <Link to={href} tabIndex={-1} className="block w-10">
                         {p.default_image ? (
                           <ResponsiveImage
                             sizes="40px"
@@ -353,6 +356,7 @@ const ProductRegister = () => {
                         ) : (
                           <div className="w-10 h-10 rounded bg-dark-700" />
                         )}
+                        </Link>
                       </td>
                       <td className="p-3 font-mono text-dark-50 whitespace-nowrap">
                         <EditableText value={p.model_number} onSave={(v) => saveProduct(p, { model_number: v })} />
@@ -398,7 +402,7 @@ const ProductRegister = () => {
                       </td>
                       <td className="p-3">
                         <Link
-                          to={`/admin/catalog?edit=${p.id}`}
+                          to={href}
                           title="Open in product editor"
                           className="text-dark-300 hover:text-primary-400"
                         >
@@ -406,11 +410,14 @@ const ProductRegister = () => {
                         </Link>
                       </td>
                     </tr>
-                    {open && p.variations.map((v) => (
+                    {open && p.variations.map((v) => {
+                      const variationHref = `${href}&etab=variations&variation=${v.id}`;
+                      return (
                       <tr
                         key={`v${v.id}`}
                         className={`cursor-pointer text-xs ${variationSelection.isSelected(v.id) ? 'bg-primary-500/10' : 'bg-dark-900/40'}`}
-                        onClick={openOnRowClick(() => navigate(`/admin/catalog?edit=${p.id}&etab=variations&variation=${v.id}`))}
+                        onClick={openOnRowClick(() => navigate(variationHref), variationHref)}
+                        onAuxClick={openRowInNewTab(variationHref)}
                       >
                         <SelectCell
                           selection={variationSelection}
@@ -421,7 +428,9 @@ const ProductRegister = () => {
                         />
                         <td className="p-2">
                           {v.default_image && (
-                            <ResponsiveImage sizes="32px" fullResolution={false} src={resolveImageUrl(v.default_image)} alt="" className="w-8 h-8 object-contain rounded bg-dark-700 ml-1" />
+                            <Link to={variationHref} tabIndex={-1} className="block w-8 ml-1">
+                              <ResponsiveImage sizes="32px" fullResolution={false} src={resolveImageUrl(v.default_image)} alt="" className="w-8 h-8 object-contain rounded bg-dark-700" />
+                            </Link>
                           )}
                         </td>
                         <td className="p-2 font-mono text-dark-100">
@@ -446,9 +455,14 @@ const ProductRegister = () => {
                           </button>
                         </td>
                         <td className="p-2 text-dark-400 hidden md:table-cell">{formatStockStatus(v.stock_status)}</td>
-                        <td />
+                        <td className="p-2 pl-3">
+                          <Link to={variationHref} title="Open variation in product editor" className="text-dark-300 hover:text-primary-400">
+                            <Edit className="w-3.5 h-3.5" />
+                          </Link>
+                        </td>
                       </tr>
-                    ))}
+                      );
+                    })}
                   </Fragment>
                 );
               })}

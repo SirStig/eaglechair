@@ -61,6 +61,7 @@ const FILTER_FACETS = {
   featured: 'Featured',
   new: 'New',
   sortBy: 'Sort',
+  featuredFirst: 'Featured first',
 };
 
 function trackFilterChanges(prev, next, { families, upholsteries, colors }) {
@@ -234,6 +235,7 @@ const ProductCatalogPage = () => {
     filters.featured,
     filters.new,
     filters.sortBy,
+    filters.featuredFirst,
     filters.per_page,
     page,
   ]);
@@ -394,10 +396,12 @@ const ProductCatalogPage = () => {
         params.new = true;
       }
 
-      if (filters.sortBy === 'smart') {
-        params.smart_sort = true;
-      } else if (filters.sortBy) {
+      if (filters.sortBy) {
         params.sort = filters.sortBy;
+      }
+
+      if (filters.featuredFirst) {
+        params.featured_first = true;
       }
 
       const response = await productService.getProducts(params);
@@ -550,7 +554,8 @@ const ProductCatalogPage = () => {
     filters.stock_status ||
     filters.featured ||
     filters.new ||
-    filters.sortBy !== 'smart';
+    filters.sortBy !== DEFAULT_CATALOG_FILTERS.sortBy ||
+    !filters.featuredFirst;
 
   const showUpholsteryFilter =
     !filters.category_id || ['Chairs', 'Booths', 'Bar Stools'].includes(activeCategory?.name);

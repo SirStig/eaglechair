@@ -294,6 +294,66 @@ class TestProductService:
         assert ids.index(popular.id) < ids.index(featured.id)
 
     @pytest.mark.asyncio
+    async def test_model_number_sorts(self, db_session: AsyncSession):
+        """model is natural model number order; recommended starts at 6000."""
+        from backend.utils.pagination import PaginationParams
+
+        category = await create_category(db_session)
+        models = ["T-3030", "8305", "210", "6020", "5308", "6020A", "100", "7011"]
+        chairs = {}
+        for model in models:
+            chairs[model] = await create_chair(
+                db_session,
+                category_id=category.id,
+                name=f"Chair {model}",
+                model_number=model,
+                is_featured=(model == "5308"),
+            )
+
+        async def order(**kwargs):
+            result = await ProductService.get_products(
+                db_session,
+                pagination=PaginationParams(page=1, per_page=50),
+                category_id=category.id,
+                include_inactive=True,
+                **kwargs,
+            )
+            return [p.model_number for p in result["items"]]
+
+        assert await order(sort="model") == [
+            "100", "210", "5308", "6020", "6020A", "7011", "8305", "T-3030",
+        ]
+        assert await order(sort="recommended") == [
+            "6020", "6020A", "7011", "8305", "5308", "100", "210", "T-3030",
+        ]
+        assert await order(sort="recommended", featured_first=True) == [
+            "5308", "6020", "6020A", "7011", "8305", "100", "210", "T-3030",
+        ]
+
+    @pytest.mark.asyncio
+    async def test_model_number_sort_paginates(self, db_session: AsyncSession):
+        """The model number order holds across pages."""
+        from backend.utils.pagination import PaginationParams
+
+        category = await create_category(db_session)
+        for model in ["300", "6100", "4000", "6005"]:
+            await create_chair(
+                db_session, category_id=category.id, model_number=model, name=model
+            )
+
+        pages = []
+        for page in (1, 2):
+            result = await ProductService.get_products(
+                db_session,
+                pagination=PaginationParams(page=page, per_page=2),
+                category_id=category.id,
+                sort="recommended",
+                include_inactive=True,
+            )
+            pages.append([p.model_number for p in result["items"]])
+        assert pages == [["6005", "6100"], ["4000", "300"]]
+
+    @pytest.mark.asyncio
     async def test_filter_by_overall_height(self, db_session: AsyncSession):
         """min_height / max_height filter on overall height, not seat height."""
         from backend.utils.pagination import PaginationParams

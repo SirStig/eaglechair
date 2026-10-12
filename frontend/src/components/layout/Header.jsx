@@ -161,10 +161,9 @@ const Header = ({ isMobileMenuOpen, setIsMobileMenuOpen }) => {
     }
   };
 
-  const handleResultClick = (productSlug) => {
+  const handleResultClick = () => {
     setShowSearchResults(false);
     setSearchQuery('');
-    navigate(`/products/${productSlug}`);
   };
 
   const showHeaderBackground = isScrolled || isProductsDropdownOpen || isMobileMenuOpen;
@@ -361,14 +360,14 @@ const Header = ({ isMobileMenuOpen, setIsMobileMenuOpen }) => {
                     animate={{ opacity: 1, y: 0 }}
                     exit={{ opacity: 0, y: -10 }}
                     transition={{ duration: 0.2 }}
-                    className="absolute top-full right-0 mt-2 w-64 xl:w-72 bg-white border border-cream-200 rounded-lg shadow-xl max-h-96 overflow-y-auto z-50 [&_button]:!text-slate-800"
+                    className="absolute top-full right-0 mt-2 w-64 xl:w-72 bg-white border border-cream-200 rounded-lg shadow-xl max-h-96 overflow-y-auto z-50 [&_button]:!text-slate-800 [&_a]:!text-slate-800"
                   >
                     <div className="py-2">
                       {searchResults.map((product, idx) => (
-                        <button
+                        <Link
                           key={product.id}
-                          type="button"
-                          onClick={() => handleResultClick(product.slug)}
+                          to={`/products/${product.slug}`}
+                          onClick={handleResultClick}
                           className="w-full px-4 py-3 flex items-center gap-3 hover:bg-cream-100 transition-colors text-left"
                         >
                             <span className="w-10 shrink-0 aspect-[4/5] overflow-hidden rounded bg-cream-100">
@@ -392,7 +391,7 @@ const Header = ({ isMobileMenuOpen, setIsMobileMenuOpen }) => {
                               {product.category || 'Product'}
                             </p>
                           </div>
-                        </button>
+                        </Link>
                       ))}
                       <button
                         type="button"

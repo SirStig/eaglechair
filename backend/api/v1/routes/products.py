@@ -436,7 +436,8 @@ async def get_products(
     in_stock_only: bool = Query(False, description="Show only in-stock products"),
     exclude_variations: bool = Query(False, description="Exclude variations, show only base products"),
     smart_sort: bool = Query(False, description="Use smart sorting (new→with image→popular)"),
-    sort: Optional[str] = Query(None, description="Sort order: name-asc, name-desc, featured (ignored when smart_sort=true)"),
+    sort: Optional[str] = Query(None, description="Sort order: recommended, model, name-asc, name-desc, featured (ignored when smart_sort=true)"),
+    featured_first: bool = Query(False, description="Featured products first, then the sort order"),
     company: Optional[Company] = Depends(get_optional_company),
     db: AsyncSession = Depends(get_db)
 ):
@@ -462,6 +463,11 @@ async def get_products(
     4. Then by display order and name
 
     Default ordering (smart_sort=false) also deprioritizes products without images.
+
+    **Model number sorts:** sort=model is natural model number order;
+    sort=recommended is the same but starts at the 6000-series chairs
+    (tables and bases last). featured_first=true puts featured products
+    ahead of any sort.
     """
     # Company pricing tiers change prices, so only anonymous responses are cached
     cacheable = company is None
@@ -511,6 +517,7 @@ async def get_products(
         exclude_variations=exclude_variations,
         smart_sort=smart_sort,
         sort=sort,
+        featured_first=featured_first,
         include_inactive=False
     )
     
