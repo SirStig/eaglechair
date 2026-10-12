@@ -182,13 +182,15 @@ async def test_material_map_zip_config_and_delete(async_client, admin_headers, s
 
     r = await async_client.put(f"{MATS}/config", headers=admin_headers,
                                json={"defaults": {"laminate_wood": mat["id"], "fabric": "builtin:fabric"},
-                                     "assignments": {"laminate:4": mat["id"]}})
+                                     "assignments": {"laminate:4": mat["id"]},
+                                     "overrides": {"builtin:vinyl": {"roughness": 0.5}}})
     assert r.status_code == 200, r.text
     r = await async_client.get(MATS, headers=admin_headers)
     assert r.json()["config"]["assignments"] == {"laminate:4": mat["id"]}
+    assert r.json()["config"]["overrides"] == {"builtin:vinyl": {"roughness": 0.5}}
 
     for bad in ({"defaults": {"lava": "builtin:fabric"}}, {"assignments": {"chair:1": mat["id"]}},
-                {"assignments": {"finish:1": "missing_1"}}):
+                {"assignments": {"finish:1": "missing_1"}}, {"overrides": {mat["id"]: {"roughness": 1}}}):
         assert (await async_client.put(f"{MATS}/config", headers=admin_headers, json=bad)).status_code in (400, 404)
 
     assert (await async_client.delete(f"{MATS}/{mat['id']}", headers=admin_headers)).status_code == 409

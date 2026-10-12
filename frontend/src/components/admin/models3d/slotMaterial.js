@@ -121,8 +121,14 @@ function setMaps(material, maps, repeat) {
   const orig = material.userData.ecOriginal;
   for (const key of MAP_KEYS) {
     const current = material[key];
-    if (current && current !== orig[key]) current.dispose();
     const tex = maps[key];
+    if (tex && tex === orig[key] && repeat.equals(orig.repeat)) {
+      // The model's own map at its own scale: no copy needed
+      if (current && current !== tex) current.dispose();
+      material[key] = tex;
+      continue;
+    }
+    if (current && current !== orig[key]) current.dispose();
     if (tex) {
       const own = tex.clone();
       own.repeat.copy(repeat);
@@ -162,6 +168,8 @@ export async function applyMaterial(materials, libMaterial, { color = null, grai
   grain = grain || 1;
   if (!libMaterial) {
     for (const material of materials) {
+      // Never dressed and at its modelled scale: already original
+      if (!material.userData.ecOriginal && grain === 1) continue;
       restore(material, grain);
       material.needsUpdate = true;
     }

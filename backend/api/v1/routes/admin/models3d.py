@@ -15,8 +15,9 @@ its maps show). Settings can remap parts to slots for models without extras.
 Materials: uploads/materials3d/<stem>.json, plus either <stem>.glb (a glTF
 material, e.g. from Poly Haven) or a <stem>/ folder of texture maps (an
 ambientCG / Poly Haven map download). uploads/materials3d/.library.json holds
-the library config: the default material per material kind, and materials
-assigned to specific catalog options ("finish:12", "laminate:3", ...).
+the library config: the default material per material kind, materials
+assigned to specific catalog options ("finish:12", "laminate:3", ...), and
+look tweaks to the built-in materials (which live in the frontend).
 """
 
 import json
@@ -72,9 +73,10 @@ class Material3DUpdate(BaseModel):
 
 
 class LibraryConfig(BaseModel):
-    """Default material per kind, and per catalog option overrides"""
+    """Default material per kind, per catalog option assignments, and look tweaks to built-in materials"""
     defaults: dict[str, str] = Field(default_factory=dict)
     assignments: dict[str, str] = Field(default_factory=dict)
+    overrides: dict[str, dict] = Field(default_factory=dict)
 
 
 def _read_json(path: Path) -> dict:
@@ -271,7 +273,11 @@ async def list_materials(current_admin=Depends(get_current_admin)):
     config = _read_json(MATERIALS_DIR / LIBRARY_FILE)
     return {
         "materials": materials,
-        "config": {"defaults": config.get("defaults") or {}, "assignments": config.get("assignments") or {}},
+        "config": {
+            "defaults": config.get("defaults") or {},
+            "assignments": config.get("assignments") or {},
+            "overrides": config.get("overrides") or {},
+        },
     }
 
 
@@ -345,6 +351,8 @@ async def save_library_config(data: LibraryConfig, current_admin=Depends(get_cur
             raise HTTPException(status_code=400, detail=f"Invalid catalog option: {key}")
         if not material_id.startswith("builtin:"):
             _material_meta_path(material_id)
+    if any(not key.startswith("builtin:") for key in data.overrides):
+        raise HTTPException(status_code=400, detail="Only built-in materials take overrides; edit uploads directly")
     MATERIALS_DIR.mkdir(parents=True, exist_ok=True)
     config = data.model_dump()
     await run_in_threadpool(_write_json, MATERIALS_DIR / LIBRARY_FILE, config)

@@ -128,10 +128,16 @@ export const BUILTIN_MATERIALS = [
 
 const BUILTIN_BY_ID = Object.fromEntries(BUILTIN_MATERIALS.map((m) => [m.id, m]));
 
-/** All materials by id: built-ins plus the uploaded library. */
-export function materialIndex(uploaded = []) {
-  return { ...BUILTIN_BY_ID, ...Object.fromEntries(uploaded.map((m) => [m.id, m])) };
+/** All materials by id: built-ins (with saved look tweaks) plus the uploaded library. */
+export function materialIndex(uploaded = [], overrides = {}) {
+  const builtins = Object.fromEntries(BUILTIN_MATERIALS.map((m) => [
+    m.id, overrides[m.id] ? { ...m, settings: { ...m.settings, ...overrides[m.id] } } : m,
+  ]));
+  return { ...builtins, ...Object.fromEntries(uploaded.map((m) => [m.id, m])) };
 }
+
+/** The built-in material's shipped settings (for "reset"). */
+export const builtinDefaults = (id) => BUILTIN_BY_ID[id]?.settings || {};
 
 /**
  * The material a catalog option is shown in: its own assignment, else its

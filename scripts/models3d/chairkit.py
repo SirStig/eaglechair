@@ -183,10 +183,12 @@ def fillet(z0, z1, a, b, steps=5):
 
 
 # ---- sweeps ---------------------------------------------------------------------
-def sweep(part, path, w, h, r, closed=False, up=(0, 0, 1), n=5, tile=16, caps=True):
+def sweep(part, path, w, h, r, closed=False, up=(0, 0, 1), n=5, tile=16, caps=True, section=None):
     """Sweep a w x h rounded-rectangle section (r = w/2 = h/2 for a round
     tube) along `path` (list of Vector, inches): footrings, tube frames,
-    seat bands. Grain/UV length runs along the path."""
+    seat bands. Grain/UV length runs along the path. `section(i, t)` may
+    return a custom closed profile [(a, b)] for point i (t = 0..1 along the
+    path), e.g. a folded sheet-metal channel that tapers."""
     path = [Vector(p) for p in path]
     up = Vector(up)
     m = len(path)
@@ -202,7 +204,8 @@ def sweep(part, path, w, h, r, closed=False, up=(0, 0, 1), n=5, tile=16, caps=Tr
             side = Vector((1, 0, 0)).cross(t)
         side.normalize()
         nrm = t.cross(side)
-        rings.append([p + side * a + nrm * b for a, b in rrect(0, 0, w, h, r, n)])
+        prof = section(i, i / max(1, m - 1)) if section else rrect(0, 0, w, h, r, n)
+        rings.append([p + side * a + nrm * b for a, b in prof])
         if i:
             acc += (path[i] - path[i - 1]).length
         lengths.append(acc)
@@ -593,6 +596,33 @@ def pbr_material(name, slot, kind, tint, normal_strength=0.8):
         bsdf.inputs["Sheen Roughness"].default_value = 0.5
         bsdf.inputs["Sheen Tint"].default_value = (*tint, 1.0)
     return m
+
+
+def metal_material(name, slot, kind, tint, roughness=0.35):
+    """Untextured configurable metal (steel frames): glTF extras like
+    pbr_material, metallic base colour = tint."""
+    m = bpy.data.materials.new(name)
+    m["ec_slot"] = slot
+    m["ec_kind"] = kind
+    bsdf = m.node_tree.nodes["Principled BSDF"]
+    bsdf.inputs["Base Color"].default_value = (*tint, 1.0)
+    bsdf.inputs["Metallic"].default_value = 1.0
+    bsdf.inputs["Roughness"].default_value = roughness
+    return m
+
+
+def channel_profile(width, depth, thickness, segs=10):
+    """Folded sheet-metal leg section: a shallow U (arc) of `width` and
+    `depth`, open toward +b, as a closed outline of the sheet."""
+    outer, inner = [], []
+    for k in range(segs + 1):
+        t = -1 + 2 * k / segs
+        a = t * width / 2
+        b = depth * (t * t)                      # parabola: the fold
+        outer.append((a, b))
+    for a, b in reversed(outer):
+        inner.append((a, b + thickness))
+    return outer + inner
 
 
 def plain_material(name, color, metallic=0.0, roughness=0.5):

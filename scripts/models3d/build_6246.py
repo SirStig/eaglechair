@@ -151,7 +151,8 @@ def main(extra_frame=None, extra_hardware=None):
     hparts = [bolts]
     if extra_hardware:
         extra_hardware(hparts)
-    hardware = [p.to_object(chrome) for p in hparts]
+    # extras may come as (Part, material), e.g. a brass kick plate
+    hardware = [p[0].to_object(p[1]) if isinstance(p, tuple) else p.to_object(chrome) for p in hparts]
     z0 = RING_Z0 + RING_H - 0.15
     pad = ck.subd_pad("seat", "upholstery", uph_mat, 2 * SEAT_RX - 0.2, 2 * SEAT_RY - 0.2, PAD_T,
                       lambda a, b, h: Vector((a, SEAT_CY + b, z0 + h)), crown=PAD_CROWN, **PAD_SHAPE)

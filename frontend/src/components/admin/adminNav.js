@@ -85,7 +85,7 @@ export const ADMIN_NAV = [
       { id: 'catalog-builder', label: 'Catalog Builder', icon: BookOpen, path: '/admin/catalog-builder' },
       { id: 'catalogs', label: 'Virtual Catalogs', icon: Library, path: '/admin/resources/catalogs' },
       { id: 'media', label: 'Media Library', icon: Images, path: '/admin/media' },
-      { id: '3d-viewer', label: '3D Viewer', icon: Box, path: '/admin/3d-viewer' },
+      { id: '3d-viewer', label: '3D Studio', icon: Box, path: '/admin/3d-viewer' },
       { id: 'legal-documents', label: 'Legal Documents', icon: Scale, path: '/admin/legal-documents' },
     ],
   },

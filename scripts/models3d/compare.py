@@ -38,7 +38,10 @@ sc.view_settings.view_transform = "Standard"
 world = bpy.data.worlds.new("w")
 sc.world = world
 world.use_nodes = True
-world.node_tree.nodes["Background"].inputs[1].default_value = 0.9
+# a grey world: product studios are dark around the set, and metal
+# mirrors its surroundings (a white world turns steel white)
+world.node_tree.nodes["Background"].inputs[0].default_value = (0.35, 0.35, 0.36, 1)
+world.node_tree.nodes["Background"].inputs[1].default_value = 1.0
 for loc, energy in [((1.5, -3, 3), 500), ((-3, -2, 2), 250), ((0, 3, 3), 200)]:
     light = bpy.data.objects.new("l", bpy.data.lights.new("l", "AREA"))
     light.data.energy, light.data.size = energy, 3
