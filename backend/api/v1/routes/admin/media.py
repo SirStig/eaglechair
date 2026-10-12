@@ -3,8 +3,8 @@ Media Library Routes - API v1
 
 Admin Media Library page: browse every uploaded image and document, see
 where each is used, take files off records, replace them (keeping the old
-file as a version), restore or delete versions, delete files, and the image
-editor's server-side helpers. See backend/services/media_manager_service.py.
+file as a version), rename them, restore or delete versions, delete files,
+and the image editor's server-side helpers. See backend/services/media_manager_service.py.
 """
 
 import logging
@@ -41,11 +41,21 @@ def _http(err: MediaError) -> HTTPException:
 
 
 async def _export_site_content(db: AsyncSession, touched: list[dict]) -> None:
-    """Changed CMS rows reach the public site through contentData.json."""
+    """
+    Changed CMS rows reach the public site through contentData.json; changed
+    catalog rows through the product cache, which must drop the old URLs.
+    """
     if media_manager_service.touches_site_content(touched):
         from backend.utils.static_content_exporter import export_all_content_types
 
         await export_all_content_types(db)
+    if media_manager_service.touches_catalog(touched):
+        try:
+            from backend.services.cache_service import cache_service
+
+            await cache_service.invalidate_all_products()
+        except Exception as e:  # the change already committed; cache is best effort
+            logger.warning(f"Product cache invalidation after media change failed: {e}")
 
 
 @router.get("/images", summary="Media library: images")
@@ -157,6 +167,32 @@ async def replace_file(
     await _export_site_content(db, touched)
     logger.info(f"Media {action}: {old_key} -> {new_url} ({len(touched)} records) by admin {current_admin.id}")
     return {"url": new_url, "previous_url": old_key, "updated": touched}
+
+
+class RenameRequest(BaseModel):
+    kind: Kind
+    url: str = Field(..., max_length=1000)
+    # New base name; the folder and extension stay
+    name: str = Field(..., min_length=1, max_length=200)
+
+
+@router.post("/rename", summary="Rename a file and update every record using it")
+async def rename_file(body: RenameRequest, db: AsyncSession = Depends(get_db), current_admin=Depends(get_current_admin)):
+    try:
+        result = await media_manager_service.rename(db, body.kind, body.url, body.name, _base())
+    except MediaError as e:
+        await db.rollback()
+        raise _http(e)
+    moved = result.pop("moved")
+    try:
+        await db.commit()
+    except Exception:
+        await db.rollback()
+        await run_in_threadpool(media_manager_service.undo_moves, moved)
+        raise
+    await _export_site_content(db, result["updated"])
+    logger.info(f"Media renamed: {result['previous_url']} -> {result['url']} ({len(result['updated'])} records) by admin {current_admin.id}")
+    return result
 
 
 class Target(BaseModel):

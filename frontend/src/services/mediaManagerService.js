@@ -43,6 +43,9 @@ export const replaceMedia = (kind, url, file, { action = 'replaced', note, filen
   return api.post(`${BASE}/replace`, form, { timeout: 600000, retry: 0 });
 };
 
+/** Rename a file (same folder and extension); every record using it follows. `name`: new base name. */
+export const renameMedia = (kind, url, name) => api.post(`${BASE}/rename`, { kind, url, name });
+
 /** Take a file off records. `targets`: [{model, id}], or null for every record. */
 export const detachMedia = (kind, url, targets = null) => api.post(`${BASE}/detach`, { kind, url, targets });
 
@@ -68,6 +71,7 @@ export default {
   getMediaCapabilities,
   fetchImageBlob,
   replaceMedia,
+  renameMedia,
   detachMedia,
   restoreMediaVersion,
   deleteMediaVersion,

@@ -276,3 +276,76 @@ async def test_viewer_can_browse_but_not_change(async_client, db_session, as_vie
     assert (await _replace(async_client)).status_code == 403
     res = await async_client.request("DELETE", f"{BASE}/files", headers=UA, json={"kind": "image", "urls": [OLD]})
     assert res.status_code == 403
+
+
+async def _rename(async_client, name, url=OLD, kind="image"):
+    return await async_client.post(f"{BASE}/rename", headers=UA, json={"kind": kind, "url": url, "name": name})
+
+
+@pytest.mark.integration
+@pytest.mark.admin
+async def test_rename_image_moves_files_and_updates_records(async_client, db_session, as_admin, uploads, exports):
+    from backend.models.content import PageContent
+    from backend.services import media_service
+
+    chair = await _chair(db_session)
+    second = (await _replace(async_client)).json()["url"]  # OLD becomes a version of `second`
+    rendition = media_service.rendition_urls(second)["sizes"][1]["url"]
+    page = PageContent(page_slug="about", section_key="story", content=f'<img src="{second}" srcset="{rendition} 640w">')
+    db_session.add(page)
+    await db_session.commit()
+
+    res = await _rename(async_client, "Bistro Side.png", url=second)
+    assert res.status_code == 200, res.text
+    new_url = res.json()["url"]
+    assert new_url == "/uploads/images/products/Bistro-Side.png"
+    assert (uploads / "images/products/Bistro-Side.png").is_file()
+    assert (uploads / "images/products/Bistro-Side.w640.webp").is_file()
+    assert not (uploads / second.removeprefix("/uploads/")).exists()
+
+    await db_session.refresh(chair)
+    await db_session.refresh(page)
+    assert chair.primary_image_url == new_url
+    assert chair.images[0]["url"] == new_url
+    assert "Bistro-Side.png" in page.content and "Bistro-Side.w640.webp" in page.content
+    assert exports
+
+    details = (await async_client.get(f"{BASE}/details", params={"kind": "image", "url": new_url}, headers=UA)).json()
+    assert [v["url"] for v in details["versions"]] == [OLD]  # history follows the file
+
+
+@pytest.mark.integration
+@pytest.mark.admin
+async def test_rename_refuses_taken_names_and_bad_input(async_client, db_session, as_admin, uploads, exports):
+    _write_png(uploads / "images/products/taken.png")
+    assert (await _rename(async_client, "taken")).status_code == 409
+    assert (await _rename(async_client, "bistro_1")).status_code == 400
+    assert (await _rename(async_client, "../..")).status_code == 400
+    assert (await _rename(async_client, "x", url="/uploads/images/products/missing.png")).status_code == 404
+    assert (uploads / "images/products/bistro_1.png").is_file()
+
+
+@pytest.mark.integration
+@pytest.mark.admin
+async def test_rename_document(async_client, db_session, as_admin, uploads, exports):
+    from backend.models.chair import ProductFamily
+
+    (uploads / "documents/catalogs").mkdir(parents=True)
+    (uploads / "documents/catalogs/spring_2024_1712345678_abc123.pdf").write_bytes(b"%PDF-1.4")
+    old = "/uploads/documents/catalogs/spring_2024_1712345678_abc123.pdf"
+    family = ProductFamily(name="Spring", slug="spring", catalog_pdf_url=f"https://eaglechair.com{old}")
+    db_session.add(family)
+    await db_session.commit()
+
+    res = await _rename(async_client, "spring-catalog-2024", url=old, kind="document")
+    assert res.status_code == 200, res.text
+    assert res.json()["url"] == "/uploads/documents/catalogs/spring-catalog-2024.pdf"
+    assert (uploads / "documents/catalogs/spring-catalog-2024.pdf").is_file()
+    await db_session.refresh(family)
+    assert family.catalog_pdf_url == "/uploads/documents/catalogs/spring-catalog-2024.pdf"
+
+
+@pytest.mark.integration
+@pytest.mark.admin
+async def test_viewer_cannot_rename(async_client, as_viewer, uploads):
+    assert (await _rename(async_client, "nope")).status_code == 403

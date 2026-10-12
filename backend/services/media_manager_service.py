@@ -10,6 +10,7 @@ listing and the scan of which records use each file) and adds:
   - detach: take a file off one, some or all of the records using it
   - replace: store a new file (an upload or the image editor's output), point
     every record at it and keep the old file as a version (models/media.py)
+  - rename: move a file to a new name and point every record at it
   - restore / delete versions, delete files (to the upload trash while the
     Time Machine is on)
   - background removal for the image editor
@@ -370,6 +371,12 @@ def touches_site_content(touched: list[dict]) -> bool:
         getattr(models.get(t["model"]), "__module__", "").startswith(("backend.models.content", "backend.models.legal"))
         for t in touched
     )
+
+
+def touches_catalog(touched: list[dict]) -> bool:
+    """True when a changed record is a catalog row, so cached product responses are stale."""
+    models = _models()
+    return any(getattr(models.get(t["model"]), "__module__", "").startswith("backend.models.chair") for t in touched)
 
 
 # ---------------------------------------------------------------------------

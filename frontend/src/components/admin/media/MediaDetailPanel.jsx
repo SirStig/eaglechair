@@ -2,12 +2,12 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { Link } from 'react-router-dom';
 import {
-  AlertTriangle, ClipboardCopy, Download, ExternalLink, FileText, History, Loader2, Pencil, Replace,
+  AlertTriangle, ClipboardCopy, Download, ExternalLink, FileText, History, Loader2, Pencil, PenLine, Replace,
   RotateCcw, Trash2, Unlink, X,
 } from 'lucide-react';
 import { resolveFileUrl, resolveImageUrl } from '../../../utils/apiHelpers';
 import {
-  deleteMediaFiles, deleteMediaVersion, detachMedia, getMediaDetails, replaceMedia, restoreMediaVersion,
+  deleteMediaFiles, deleteMediaVersion, detachMedia, getMediaDetails, renameMedia, replaceMedia, restoreMediaVersion,
 } from '../../../services/mediaManagerService';
 import { errorMessage, formatDate, formatSize, isEditableImage } from './mediaFormat';
 import { fieldLabel, recordLink } from './recordLinks';
@@ -64,10 +64,10 @@ function UsageRow({ usage, action }) {
 
 /**
  * Side panel for one library file: preview, facts, where it's used (with
- * per-record "remove"), versions (restore / delete), replace, edit, delete.
+ * per-record "remove"), versions (restore / delete), replace, rename, edit, delete.
  *
  * onChanged({ type, url, newUrl }) after anything changed, so the list can
- * refresh; type is replaced | restored | detached | deleted | version-deleted.
+ * refresh; type is replaced | renamed | restored | detached | deleted | version-deleted.
  */
 export default function MediaDetailPanel({ kind, url, onClose, onChanged, onEdit, canEdit, canDelete, toast }) {
   const [data, setData] = useState(null);
@@ -76,6 +76,7 @@ export default function MediaDetailPanel({ kind, url, onClose, onChanged, onEdit
   const [busy, setBusy] = useState(null);
   const [confirm, setConfirm] = useState(null);
   const [detachToo, setDetachToo] = useState(false);
+  const [newName, setNewName] = useState('');
   const replaceInput = useRef(null);
   const seq = useRef(0);
 
@@ -126,6 +127,13 @@ export default function MediaDetailPanel({ kind, url, onClose, onChanged, onEdit
     const res = await replaceMedia(kind, data.url, file);
     toast.success(`Replaced. ${res.updated?.length ? `${recordCount(res.updated.length)} now use the new file.` : 'Nothing was using it yet.'}`);
     onChanged({ type: 'replaced', url: data.url, newUrl: res.url });
+  });
+
+  const renameFile = () => act('rename', async () => {
+    const res = await renameMedia(kind, data.url, newName);
+    toast.success(`Renamed. ${res.updated?.length ? `${recordCount(res.updated.length)} updated to the new name.` : 'Nothing was using it yet.'}`);
+    setConfirm(null);
+    onChanged({ type: 'renamed', url: data.url, newUrl: res.url });
   });
 
   const detachOne = (usage) => act(`detach-${usage.model}-${usage.id}`, async () => {
@@ -254,6 +262,16 @@ export default function MediaDetailPanel({ kind, url, onClose, onChanged, onEdit
                       }}
                     />
                   </>
+                )}
+                {canEdit && data.on_disk && data.url.startsWith('/uploads/') && (
+                  <button
+                    type="button"
+                    onClick={() => { setNewName(data.filename.replace(/\.[^.]+$/, '')); setConfirm({ type: 'rename' }); }}
+                    disabled={Boolean(busy)}
+                    className="inline-flex min-h-[40px] items-center gap-2 rounded-lg bg-dark-600 px-3 text-sm font-medium text-dark-50 hover:bg-dark-500 disabled:opacity-50"
+                  >
+                    <PenLine className="h-4 w-4" /> Rename
+                  </button>
                 )}
                 {data.on_disk && (
                   <a href={fileUrl(kind, data.url)} download={data.filename} className="inline-flex min-h-[40px] items-center gap-2 rounded-lg bg-dark-600 px-3 text-sm font-medium text-dark-50 hover:bg-dark-500">
@@ -419,6 +437,35 @@ export default function MediaDetailPanel({ kind, url, onClose, onChanged, onEdit
               </label>
             )}
             {mentions.length > 0 && <p className="text-amber-300">It also appears inside page text, so it can’t be deleted until that text is edited.</p>}
+          </Confirm>
+        )}
+        {confirm?.type === 'rename' && (
+          <Confirm
+            title={`Rename ${data.filename}`}
+            confirmLabel="Rename"
+            danger={false}
+            busy={busy === 'rename'}
+            disabled={!newName.trim() || newName.trim() === data.filename.replace(/\.[^.]+$/, '')}
+            onConfirm={renameFile}
+            onCancel={() => setConfirm(null)}
+          >
+            <form onSubmit={(e) => { e.preventDefault(); if (newName.trim() && !busy) renameFile(); }} className="flex items-center gap-1">
+              <input
+                autoFocus
+                value={newName}
+                onChange={(e) => setNewName(e.target.value)}
+                onFocus={(e) => e.target.select()}
+                maxLength={120}
+                aria-label="New file name"
+                className="min-w-0 flex-1 rounded-lg border border-dark-500 bg-dark-800 px-3 py-2 text-sm text-dark-50 focus:border-primary-500 focus:outline-none"
+              />
+              <span className="text-dark-300">.{data.filename.split('.').pop()}</span>
+            </form>
+            <p className="text-xs text-dark-300">
+              Letters, numbers, dashes and underscores; spaces become dashes.
+              {used.length + mentions.length > 0 && ` The ${recordCount(used.length + mentions.length)} using it will point at the new name.`}
+              {' '}Links to the old name outside this site (emails, bookmarks) will stop working.
+            </p>
           </Confirm>
         )}
         {confirm?.type === 'detach-all' && (
