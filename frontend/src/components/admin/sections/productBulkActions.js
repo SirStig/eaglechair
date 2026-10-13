@@ -23,7 +23,10 @@ const MATERIAL_GROUPS = [
   ['laminates', (l) => withCode([l.brand, l.pattern_name].filter(Boolean).join(' '), l.pattern_code)],
 ];
 
-/** Add / Remove pickers (several at once) for each material list on a product */
+/** One-click change that empties something; asks first */
+const clearAction = (label, changes) => ({ label, changes, confirm: true, tone: 'danger' });
+
+/** Add / Remove pickers (several at once) and Clear for each material list on a product */
 const materialActions = (materials) =>
   MATERIAL_GROUPS.flatMap(([group, label]) => {
     const rows = materials[group] || [];
@@ -42,13 +45,15 @@ const materialActions = (materials) =>
         options: options(rows),
         toChanges: (ids) => ({ [`remove_${group}`]: ids }),
       },
+      clearAction(`Clear ${group}`, { [`clear_${group}`]: true }),
     ];
   });
 
 /**
  * Product bulk actions (POST /admin/bulk/products) for the catalog and register.
- * `materials` ({ finishes, upholsteries, colors, laminates }, see
- * hooks/useMaterialLists) adds the add/remove material pickers.
+ * `categories` / `subcategories` come from hooks/useProductTaxonomy (labelled
+ * "Parent › Child"). `materials` ({ finishes, upholsteries, colors, laminates },
+ * see hooks/useMaterialLists) adds the add/remove/clear material pickers.
  */
 export function productBulkActions({
   categories = [],
@@ -57,19 +62,17 @@ export function productBulkActions({
   supplierLinks = [],
   materials = {},
 }) {
-  const categoryName = (id) => categories.find((c) => c.id === id)?.name;
+  const getLabel = (r) => r.label || r.name;
   return [
-    idAction('Move to category', 'category_id', categories),
-    idAction('Also list under', 'add_category_id', categories),
-    idAction('Remove from category', 'remove_category_id', categories),
+    idAction('Move to category', 'category_id', categories, { getLabel }),
+    idAction('Also list under', 'add_category_id', categories, { getLabel }),
+    idAction('Remove from category', 'remove_category_id', categories, { getLabel }),
+    clearAction('Clear extra categories', { clear_categories: true }),
     {
       label: 'Set subcategory',
       options: [
         { value: 'none', label: 'No subcategory' },
-        ...subcategories.map((sc) => ({
-          value: String(sc.id),
-          label: categoryName(sc.category_id) ? `${categoryName(sc.category_id)} › ${sc.name}` : sc.name,
-        })),
+        ...subcategories.map((sc) => ({ value: String(sc.id), label: getLabel(sc) })),
       ],
       // A subcategory also moves the product to its parent category
       toChanges: (v) => {
@@ -80,9 +83,13 @@ export function productBulkActions({
           : { subcategory_id: Number(v) };
       },
     },
+    idAction('Add subcategory', 'add_subcategory_id', subcategories, { getLabel }),
+    idAction('Remove subcategory', 'remove_subcategory_id', subcategories, { getLabel }),
+    clearAction('Clear subcategories', { subcategory_id: null }),
     idAction('Add to family', 'add_family_id', families),
     idAction('Remove from family', 'remove_family_id', families),
     idAction('Set main family', 'family_id', families, { none: 'No family' }),
+    clearAction('Clear families', { clear_families: true }),
     booleanAction('Featured', 'is_featured', 'Featured', 'Not featured'),
     booleanAction('New', 'is_new', 'Mark new', 'Not new'),
     shownAction('Upholstery', 'upholstery_enabled'),
@@ -101,6 +108,7 @@ export function productBulkActions({
       options: supplierLinkOptions(supplierLinks),
       toChanges: (v) => ({ remove_material_sources: [Number(v)] }),
     },
+    clearAction('Clear supplier links', { clear_material_sources: true }),
   ];
 }
 

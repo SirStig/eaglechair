@@ -95,6 +95,7 @@ def product_dict(chair: Chair) -> dict:
         "category_id": chair.category_id,
         "category_name": category.name if category else None,
         "parent_category_name": category.parent.name if category and category.parent else None,
+        "subcategory_id": chair.subcategory_id,
         "subcategory_name": chair.subcategory.name if chair.subcategory else None,
         "spec_profile": spec_profile(chair),
         "images": images,

@@ -16,6 +16,7 @@ from tests.factories import (
     create_color,
     create_finish,
     create_product_family,
+    create_product_subcategory,
     create_product_variation,
     create_quote,
     create_quote_item,
@@ -129,6 +130,78 @@ class TestBulkEdit:
         product = await _product(db_session, product.id)
         assert product.category_id == new.id
         assert {c.id for c in product.categories} == {new.id, extra.id}
+
+    async def test_subcategory_ops_and_clearing_categories(self, async_client, as_role, db_session):
+        as_role()
+        tables, chairs = await create_category(db_session), await create_category(db_session)
+        bar, dining = [await create_product_subcategory(db_session, category_id=tables.id) for _ in range(2)]
+        product = await create_chair(db_session, category_id=chairs.id)
+        pid = product.id
+
+        added = await async_client.post(
+            f"{BASE}/products", json={"ids": [pid], "changes": {"add_subcategory_id": bar.id}}, headers=UA
+        )
+        assert added.status_code == 200, added.text
+        product = await _product(db_session, pid)
+        await db_session.refresh(product, ["subcategories"])
+        # Listing under a subcategory also lists the product under its category
+        assert {c.id for c in product.categories} == {chairs.id, tables.id}
+        assert product.subcategory_id == bar.id
+
+        await async_client.post(
+            f"{BASE}/products", json={"ids": [pid], "changes": {"add_subcategory_id": dining.id}}, headers=UA
+        )
+        removed = await async_client.post(
+            f"{BASE}/products", json={"ids": [pid], "changes": {"remove_subcategory_id": bar.id}}, headers=UA
+        )
+        assert removed.status_code == 200, removed.text
+        product = await _product(db_session, pid)
+        await db_session.refresh(product, ["subcategories"])
+        assert product.subcategory_id == dining.id
+        assert [s.id for s in product.subcategories] == [dining.id]
+
+        cleared = await async_client.post(
+            f"{BASE}/products", json={"ids": [pid], "changes": {"clear_categories": True}}, headers=UA
+        )
+        assert cleared.status_code == 200, cleared.text
+        product = await _product(db_session, pid)
+        await db_session.refresh(product, ["subcategories"])
+        # Only the primary category is left, and subcategories outside it go too
+        assert [c.id for c in product.categories] == [chairs.id]
+        assert product.subcategory_id is None
+        assert product.subcategories == []
+
+    async def test_remove_last_category_is_kept_with_a_note(self, async_client, as_role, db_session):
+        as_role()
+        only = await create_category(db_session)
+        product = await create_chair(db_session, category_id=only.id)
+        response = await async_client.post(
+            f"{BASE}/products", json={"ids": [product.id], "changes": {"remove_category_id": only.id}}, headers=UA
+        )
+        assert response.status_code == 200, response.text
+        assert "only one" in response.json()["note"]
+        assert (await _product(db_session, product.id)).category_id == only.id
+
+    async def test_clear_families_and_material_lists(self, async_client, as_role, db_session):
+        as_role()
+        category = await create_category(db_session)
+        main, other = [await create_product_family(db_session, category_id=category.id) for _ in range(2)]
+        red = await create_color(db_session)
+        product = await create_chair(db_session, category_id=category.id, family_id=main.id, available_colors=[red.id])
+        pid = product.id
+        await async_client.post(f"{BASE}/products", json={"ids": [pid], "changes": {"add_family_id": other.id}}, headers=UA)
+
+        response = await async_client.post(
+            f"{BASE}/products", json={"ids": [pid], "changes": {"clear_families": True, "clear_colors": True}}, headers=UA
+        )
+        assert response.status_code == 200, response.text
+        product = await _product(db_session, pid)
+        assert product.family_id is None
+        assert product.secondary_families == []
+        assert product.available_colors == []
+
+        bad = await async_client.post(f"{BASE}/products", json={"ids": [pid], "changes": {"clear_colors": 1}}, headers=UA)
+        assert bad.status_code == 400
 
     async def test_products_add_and_remove_family(self, async_client, as_role, db_session):
         as_role()

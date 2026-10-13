@@ -29,7 +29,8 @@ const SEARCH_AFTER = 8;
  * Batch-edit bar pinned to the bottom of the window while rows are selected.
  *
  * actions: array of
- *   { label, changes, tone? }                         one-click change set
+ *   { label, changes, tone?, confirm? }               one-click change set
+ *                                                      (confirm: ask first)
  *   { label, options: [{value, label}], toChanges }    pick a value, confirm, apply
  *   { label, options, multiple: true, toChanges }      tick several values; toChanges
  *                                                      gets the array of values
@@ -122,6 +123,7 @@ export default function BulkActionBar({
         const result = await bulkEdit(resource, ids, changes);
         const updated = result?.updated ?? ids.length;
         if (!quiet) toast.success(`Updated ${updated} ${nounFor(updated)}`);
+        if (result?.note) toast.warning(result.note, 10000);
       }
       close();
       selection.clear();
@@ -142,6 +144,7 @@ export default function BulkActionBar({
     if (action.onClick) return action.onClick(ids);
     if (action.options) return setPanel({ action, step: 'pick' });
     if (action.input) return setPanel({ action, step: 'input' });
+    if (action.confirm && confirm) return setPanel({ action, step: 'confirm' });
     return apply(action);
   };
 
@@ -343,7 +346,13 @@ export default function BulkActionBar({
         {panel?.step === 'confirm' && (
           <div className="flex flex-wrap items-center gap-3 px-1 py-1 text-sm text-dark-100">
             <span className="min-w-0 flex-1">
-              {panel.action.label}: <strong className="text-dark-50">{valueLabel(panel.action, panel.value)}</strong>{' '}
+              {panel.value === undefined ? (
+                <strong className="text-dark-50">{panel.action.label}</strong>
+              ) : (
+                <>
+                  {panel.action.label}: <strong className="text-dark-50">{valueLabel(panel.action, panel.value)}</strong>
+                </>
+              )}{' '}
               for {plural}?
             </span>
             <button
@@ -353,7 +362,7 @@ export default function BulkActionBar({
               className="inline-flex items-center gap-1.5 rounded-lg bg-primary-600 px-4 py-2 font-medium text-white hover:bg-primary-500 disabled:opacity-60"
             >
               {busy && <Loader2 className="h-4 w-4 animate-spin" />}
-              Apply
+              {panel.action.tone === 'danger' && panel.value === undefined ? panel.action.label : 'Apply'}
             </button>
             <button
               type="button"

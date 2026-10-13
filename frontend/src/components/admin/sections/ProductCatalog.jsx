@@ -23,17 +23,21 @@ import { productBulkActions } from './productBulkActions';
 import PdfPreviewButton from '../../ui/PdfPreviewButton';
 import DeleteGate from '../DeleteGate';
 import { useUrlState } from '../../../hooks/useUrlState';
+import useProductTaxonomy from '../../../hooks/useProductTaxonomy';
+import ProductTaxonomyFilters from './ProductTaxonomyFilters';
 
 /**
  * Product Catalog Management
  * 
  * Comprehensive product list with:
- * - Search and filtering
+ * - Search and filtering (category incl. nested, subcategory, family)
  * - Pagination
  * - Quick actions
  * - Bulk operations
  */
 const editorHref = (product) => `/admin/catalog?edit=${product.id}`;
+// Filter value -> API param ('none' is sent as 0 = "has none")
+const idParam = (value) => (value === 'none' ? 0 : value || undefined);
 
 const ProductCatalog = ({ onEdit }) => {
   const toast = useToast();
@@ -42,6 +46,8 @@ const ProductCatalog = ({ onEdit }) => {
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useUrlState('q', '');
   const [categoryFilter, setCategoryFilter] = useUrlState('category', '');
+  const [subcategoryFilter, setSubcategoryFilter] = useUrlState('subcategory', '');
+  const [familyFilter, setFamilyFilter] = useUrlState('family', '');
   const [tab, setTab] = useUrlState('tab', 'active');
   const [activeTotal, setActiveTotal] = useState(0);
   const [archivedTotal, setArchivedTotal] = useState(0);
@@ -49,17 +55,38 @@ const ProductCatalog = ({ onEdit }) => {
   const [pageSize, setPageSize] = useUrlState('size', 100);
   const [totalPages, setTotalPages] = useState(1);
   const [total, setTotal] = useState(0);
-  const [categories, setCategories] = useState([]);
-  const [subcategories, setSubcategories] = useState([]);
+  const taxonomy = useProductTaxonomy();
+  const { categories, subcategories } = taxonomy;
   const [families, setFamilies] = useState([]);
   const [supplierLinks, setSupplierLinks] = useState([]);
   const [sortBy, setSortBy] = useUrlState('sort', 'name');
   const [sortDir, setSortDir] = useUrlState('dir', 'asc');
   const [permDeleteTarget, setPermDeleteTarget] = useState(null); // { id, name } | { bulk: [...ids] }
   const [permDeleting, setPermDeleting] = useState(false);
-  const selection = useBulkSelection(products);
-  const { clear: clearSelection } = selection;
+  const pageSelection = useBulkSelection(products);
+  const { clear: clearPageSelection } = pageSelection;
+  // Every product matching the filters (all pages), once "Select all N matching" is clicked
+  const [matchingIds, setMatchingIds] = useState(null);
+  const [selectingMatching, setSelectingMatching] = useState(false);
+  const clearSelection = useCallback(() => {
+    setMatchingIds(null);
+    clearPageSelection();
+  }, [clearPageSelection]);
+  // The batch bar acts on the matching set when there is one
+  const selection = useMemo(
+    () => (matchingIds
+      ? { ...pageSelection, selectedIds: matchingIds, count: matchingIds.length, clear: clearSelection }
+      : pageSelection),
+    [pageSelection, matchingIds, clearSelection]
+  );
   const materials = useMaterialLists(selection.count > 0);
+
+  const filterParams = {
+    search: search || undefined,
+    category_id: categoryFilter || undefined,
+    subcategory_id: idParam(subcategoryFilter),
+    family_id: idParam(familyFilter),
+  };
 
   const handleTabChange = (newTab) => {
     setTab(newTab);
@@ -75,19 +102,37 @@ const ProductCatalog = ({ onEdit }) => {
 
   useEffect(() => {
     fetchProducts();
-    fetchCategories();
-    fetchSubcategories();
     fetchFamilies();
     apiClient
       .get('/api/v1/admin/material-sources')
       .then((r) => setSupplierLinks((r || []).filter((s) => s.is_active)))
       .catch(() => {});
     fetchCounts();
-  }, [page, pageSize, search, categoryFilter, tab, sortBy, sortDir, refreshKeys.catalog]);
+  }, [page, pageSize, search, categoryFilter, subcategoryFilter, familyFilter, tab, sortBy, sortDir, refreshKeys.catalog]);
 
   useEffect(() => {
     clearSelection();
-  }, [page, clearSelection]);
+  }, [page, search, categoryFilter, subcategoryFilter, familyFilter, tab, clearSelection]);
+
+  // Unticking a row on the page drops back to a page selection
+  useEffect(() => {
+    if (matchingIds && !pageSelection.allSelected) setMatchingIds(null);
+  }, [matchingIds, pageSelection.allSelected]);
+
+  const selectAllMatching = async () => {
+    setSelectingMatching(true);
+    try {
+      const response = await apiClient.get('/api/v1/admin/products/ids', {
+        params: { ...filterParams, is_active: tab === 'active' },
+      });
+      setMatchingIds(response.ids || []);
+    } catch (error) {
+      console.error('Failed to select matching products:', error);
+      toast.error('Failed to select all matching products');
+    } finally {
+      setSelectingMatching(false);
+    }
+  };
 
   const fetchProducts = async () => {
     setLoading(true);
@@ -96,8 +141,7 @@ const ProductCatalog = ({ onEdit }) => {
         params: {
           page,
           page_size: pageSize,
-          search: search || undefined,
-          category_id: categoryFilter || undefined,
+          ...filterParams,
           is_active: tab === 'active',
           sort_by: sortBy || undefined,
           sort_dir: sortDir,
@@ -116,22 +160,13 @@ const ProductCatalog = ({ onEdit }) => {
   const fetchCounts = async () => {
     try {
       const [activeRes, archivedRes] = await Promise.all([
-        apiClient.get('/api/v1/admin/products', { params: { page: 1, page_size: 1, search: search || undefined, category_id: categoryFilter || undefined, is_active: true } }),
-        apiClient.get('/api/v1/admin/products', { params: { page: 1, page_size: 1, search: search || undefined, category_id: categoryFilter || undefined, is_active: false } }),
+        apiClient.get('/api/v1/admin/products', { params: { page: 1, page_size: 1, ...filterParams, is_active: true } }),
+        apiClient.get('/api/v1/admin/products', { params: { page: 1, page_size: 1, ...filterParams, is_active: false } }),
       ]);
       setActiveTotal(activeRes.total ?? 0);
       setArchivedTotal(archivedRes.total ?? 0);
     } catch (error) {
       console.error('Failed to fetch product counts:', error);
-    }
-  };
-
-  const fetchCategories = async () => {
-    try {
-      const response = await apiClient.get('/api/v1/categories');
-      setCategories(response || []);
-    } catch (error) {
-      console.error('Failed to fetch categories:', error);
     }
   };
 
@@ -141,15 +176,6 @@ const ProductCatalog = ({ onEdit }) => {
       setFamilies(Array.isArray(response) ? response : response?.items || []);
     } catch (error) {
       console.error('Failed to fetch families:', error);
-    }
-  };
-
-  const fetchSubcategories = async () => {
-    try {
-      const response = await apiClient.get('/api/v1/admin/subcategories');
-      setSubcategories(response?.items || []);
-    } catch (error) {
-      console.error('Failed to fetch subcategories:', error);
     }
   };
 
@@ -272,7 +298,7 @@ const ProductCatalog = ({ onEdit }) => {
 
       {/* Filters */}
       <Card>
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3 sm:gap-4">
           <div>
             <label className="block text-sm font-medium text-dark-200 mb-2">
               Search Products
@@ -289,24 +315,21 @@ const ProductCatalog = ({ onEdit }) => {
             />
           </div>
 
-          <div>
-            <label className="block text-sm font-medium text-dark-200 mb-2">
-              Category
-            </label>
-            <select
-              value={categoryFilter}
-              onChange={(e) => {
-                setCategoryFilter(e.target.value);
-                setPage(1);
-              }}
-              className="w-full px-4 py-2 bg-dark-700 border border-dark-600 rounded-lg text-dark-50 focus:border-primary-500 focus:ring-1 focus:ring-primary-500 outline-none"
-            >
-              <option value="">All Categories</option>
-              {categories.map(cat => (
-                <option key={cat.id} value={cat.id}>{cat.name}</option>
-              ))}
-            </select>
-          </div>
+          <ProductTaxonomyFilters
+            labelled
+            taxonomy={taxonomy}
+            families={families}
+            category={categoryFilter}
+            subcategory={subcategoryFilter}
+            family={familyFilter}
+            onChange={(next) => {
+              if ('category' in next) setCategoryFilter(next.category);
+              if ('subcategory' in next) setSubcategoryFilter(next.subcategory);
+              if ('family' in next) setFamilyFilter(next.family);
+              setPage(1);
+            }}
+            selectClassName="w-full px-4 py-2 bg-dark-700 border border-dark-600 rounded-lg text-dark-50 focus:border-primary-500 focus:ring-1 focus:ring-primary-500 outline-none"
+          />
 
           <div className="flex items-end">
             <Button
@@ -314,6 +337,8 @@ const ProductCatalog = ({ onEdit }) => {
               onClick={() => {
                 setSearch('');
                 setCategoryFilter('');
+                setSubcategoryFilter('');
+                setFamilyFilter('');
                 setPage(1);
               }}
               className="w-full"
@@ -340,12 +365,36 @@ const ProductCatalog = ({ onEdit }) => {
         ) : (
           <>
             {paginationBar('top')}
+            {pageSelection.allSelected && total > products.length && (
+              <div className="mb-3 flex flex-wrap items-center justify-center gap-2 rounded-lg border border-primary-500/30 bg-primary-900/10 px-4 py-2 text-sm text-dark-100">
+                {matchingIds ? (
+                  <>
+                    <span>All <strong>{matchingIds.length}</strong> matching products are selected.</span>
+                    <button type="button" onClick={clearSelection} className="font-medium text-primary-400 hover:underline">
+                      Clear selection
+                    </button>
+                  </>
+                ) : (
+                  <>
+                    <span>All {products.length} products on this page are selected.</span>
+                    <button
+                      type="button"
+                      onClick={selectAllMatching}
+                      disabled={selectingMatching}
+                      className="font-medium text-primary-400 hover:underline disabled:opacity-60"
+                    >
+                      {selectingMatching ? 'Selecting…' : `Select all ${total} matching products`}
+                    </button>
+                  </>
+                )}
+              </div>
+            )}
             <div className="overflow-x-auto -mx-4 sm:mx-0">
             <table className="w-full min-w-[1000px]">
               <thead>
                 <tr className="border-b border-dark-600">
                   <th className="px-3 sm:px-4 py-3 text-left">
-                    <SelectAllCheckbox selection={selection} label="Select all products on this page" />
+                    <SelectAllCheckbox selection={pageSelection} label="Select all products on this page" />
                   </th>
                   <th className="px-3 sm:px-4 py-3 text-left text-xs sm:text-sm font-medium text-dark-300">Image</th>
                   <TableSortHead label="Product" sortKey="name" activeSortBy={sortBy} sortDir={sortDir} onSort={handleSort} className="px-3 sm:px-4 py-3 text-left text-xs sm:text-sm font-medium text-dark-300" />
@@ -362,10 +411,10 @@ const ProductCatalog = ({ onEdit }) => {
                 {products.map((product) => (
                   <tr
                     key={product.id}
-                    className={`border-b border-dark-700 hover:bg-dark-700/50 transition-colors cursor-pointer ${selection.isSelected(product.id) ? 'bg-primary-900/10' : ''}`}
+                    className={`border-b border-dark-700 hover:bg-dark-700/50 transition-colors cursor-pointer ${pageSelection.isSelected(product.id) ? 'bg-primary-900/10' : ''}`}
                   >
                     <SelectCell
-                      selection={selection}
+                      selection={pageSelection}
                       id={product.id}
                       label={`Select ${product.name}`}
                       className="px-4 py-4 relative z-10"
@@ -473,7 +522,9 @@ const ProductCatalog = ({ onEdit }) => {
       </Card>
 
       <BulkActionBar
-        selection={selection} permanentDelete={{ isRetired: retiredBy(products) }}
+        selection={selection}
+        // Off-page rows of a "select all matching" aren't loaded; the tab says whether they're archived
+        permanentDelete={{ isRetired: matchingIds ? () => tab !== 'active' : retiredBy(products) }}
         resource="products"
         noun="product"
         actions={bulkActions}

@@ -155,6 +155,35 @@ class TestAdminRoutes:
         assert data["total"] == 2
     
     @pytest.mark.asyncio
+    async def test_filter_products_by_taxonomy_and_matching_ids(self, async_client: AsyncClient, admin_headers, db_session: AsyncSession):
+        """Category filter covers nested categories; subcategory / family filters; /ids spans all pages."""
+        from tests.factories import create_product_family, create_product_subcategory
+
+        chairs = await create_category(db_session)
+        wood = await create_category(db_session, parent_id=chairs.id)
+        tables = await create_category(db_session)
+        sub = await create_product_subcategory(db_session, category_id=wood.id)
+        family = await create_product_family(db_session, category_id=wood.id)
+        wood_chair = await create_chair(db_session, category_id=wood.id, subcategory_id=sub.id, family_id=family.id)
+        plain_chair = await create_chair(db_session, category_id=chairs.id)
+        table = await create_chair(db_session, category_id=tables.id)
+
+        async def ids(query):
+            response = await async_client.get(f"/api/v1/admin/products?page_size=1&{query}", headers=admin_headers)
+            assert response.status_code == 200, response.text
+            matching = await async_client.get(f"/api/v1/admin/products/ids?{query}", headers=admin_headers)
+            assert matching.status_code == 200, matching.text
+            assert response.json()["total"] == len(matching.json()["ids"])
+            return set(matching.json()["ids"])
+
+        assert await ids(f"category_id={chairs.id}") == {wood_chair.id, plain_chair.id}
+        assert await ids(f"category_id={wood.id}") == {wood_chair.id}
+        assert await ids(f"subcategory_id={sub.id}") == {wood_chair.id}
+        assert await ids(f"category_id={chairs.id}&subcategory_id=0") == {plain_chair.id}
+        assert await ids(f"family_id={family.id}") == {wood_chair.id}
+        assert {plain_chair.id, table.id} <= await ids("family_id=0")
+
+    @pytest.mark.asyncio
     async def test_create_product_admin_success(self, async_client: AsyncClient, admin_headers, db_session: AsyncSession):
         """Test successful admin product creation."""
         # Create test category using factory

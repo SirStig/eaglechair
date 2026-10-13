@@ -27,6 +27,7 @@ from backend.models.chair import (
     ProductVariation,
     Upholstery,
     chair_categories,
+    chair_secondary_families,
     chair_subcategories,
     variation_families,
 )
@@ -45,16 +46,88 @@ from backend.models.quote import Quote, QuoteItem, QuoteStatus
 logger = logging.getLogger(__name__)
 
 
-def _chair_in_category(category_id: int):
-    """Match products whose primary or additional categories include this category."""
+def _chair_in_category_tree(category_id: int):
+    """
+    Match products whose primary or additional categories include this
+    category or one of its nested (child) categories.
+    """
+    tree = select(Category.id).where(or_(Category.id == category_id, Category.parent_id == category_id))
     return or_(
-        Chair.category_id == category_id,
+        Chair.category_id.in_(tree),
+        Chair.id.in_(select(chair_categories.c.chair_id).where(chair_categories.c.category_id.in_(tree))),
+    )
+
+
+def _chair_in_subcategory(subcategory_id: int):
+    """Match products whose primary or additional subcategories include this subcategory."""
+    return or_(
+        Chair.subcategory_id == subcategory_id,
         Chair.id.in_(
-            select(chair_categories.c.chair_id).where(
-                chair_categories.c.category_id == category_id
+            select(chair_subcategories.c.chair_id).where(
+                chair_subcategories.c.subcategory_id == subcategory_id
             )
         ),
     )
+
+
+def _chair_has_no_subcategory():
+    return and_(
+        Chair.subcategory_id.is_(None),
+        Chair.id.not_in(select(chair_subcategories.c.chair_id)),
+    )
+
+
+def _chair_in_family(family_id: int):
+    """Match products whose main or secondary family is this family."""
+    return or_(
+        Chair.family_id == family_id,
+        Chair.id.in_(
+            select(chair_secondary_families.c.chair_id).where(
+                chair_secondary_families.c.family_id == family_id
+            )
+        ),
+    )
+
+
+def _chair_has_no_family():
+    return and_(
+        Chair.family_id.is_(None),
+        Chair.id.not_in(select(chair_secondary_families.c.chair_id)),
+    )
+
+
+def admin_product_filters(
+    search: Optional[str] = None,
+    category_id: Optional[int] = None,
+    subcategory_id: Optional[int] = None,
+    family_id: Optional[int] = None,
+    is_active: Optional[bool] = None,
+) -> list:
+    """
+    WHERE clauses for the admin product list (and its "all matching IDs").
+
+    category_id also matches the category's nested categories; subcategory_id
+    and family_id use 0 for "has none".
+    """
+    filters = []
+    if search:
+        filters.append(
+            or_(
+                Chair.name.ilike(f"%{search}%"),
+                Chair.short_description.ilike(f"%{search}%"),
+                Chair.full_description.ilike(f"%{search}%"),
+                Chair.model_number.ilike(f"%{search}%"),
+            )
+        )
+    if category_id:
+        filters.append(_chair_in_category_tree(category_id))
+    if subcategory_id is not None:
+        filters.append(_chair_in_subcategory(subcategory_id) if subcategory_id else _chair_has_no_subcategory())
+    if family_id is not None:
+        filters.append(_chair_in_family(family_id) if family_id else _chair_has_no_family())
+    if is_active is not None:
+        filters.append(Chair.is_active == is_active)
+    return filters
 
 
 # Allowed company status transitions. Intentionally permissive - only blocks
@@ -129,6 +202,8 @@ class AdminService:
         is_active: Optional[bool] = None,
         sort_by: Optional[str] = None,
         sort_dir: Optional[str] = None,
+        subcategory_id: Optional[int] = None,
+        family_id: Optional[int] = None,
     ) -> Tuple[List[Chair], int]:
         """
         Get all products with pagination, filtering and sorting.
@@ -146,36 +221,9 @@ class AdminService:
             selectinload(Chair.variations).selectinload(ProductVariation.families),
         )
 
-        if search:
-            query = query.where(
-                or_(
-                    Chair.name.ilike(f"%{search}%"),
-                    Chair.short_description.ilike(f"%{search}%"),
-                    Chair.full_description.ilike(f"%{search}%"),
-                    Chair.model_number.ilike(f"%{search}%"),
-                )
-            )
-
-        if category_id:
-            query = query.where(_chair_in_category(category_id))
-
-        if is_active is not None:
-            query = query.where(Chair.is_active == is_active)
-
-        count_query = select(func.count(Chair.id))
-        if search:
-            count_query = count_query.where(
-                or_(
-                    Chair.name.ilike(f"%{search}%"),
-                    Chair.short_description.ilike(f"%{search}%"),
-                    Chair.full_description.ilike(f"%{search}%"),
-                    Chair.model_number.ilike(f"%{search}%"),
-                )
-            )
-        if category_id:
-            count_query = count_query.where(_chair_in_category(category_id))
-        if is_active is not None:
-            count_query = count_query.where(Chair.is_active == is_active)
+        filters = admin_product_filters(search, category_id, subcategory_id, family_id, is_active)
+        query = query.where(*filters)
+        count_query = select(func.count(Chair.id)).where(*filters)
 
         total_result = await db.execute(count_query)
         total_count = total_result.scalar()

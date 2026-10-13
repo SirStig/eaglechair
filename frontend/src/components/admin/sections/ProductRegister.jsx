@@ -23,6 +23,8 @@ import { ACTIVE_ACTIONS, retiredBy } from '../bulk/bulkActions';
 import useMaterialLists from '../../../hooks/useMaterialLists';
 import { productBulkActions, variationBulkActions } from './productBulkActions';
 import { useUrlState } from '../../../hooks/useUrlState';
+import useProductTaxonomy, { categoryTreeIds } from '../../../hooks/useProductTaxonomy';
+import ProductTaxonomyFilters from './ProductTaxonomyFilters';
 
 const PAGE_SIZE = 100;
 const INPUT = 'px-3 py-2 bg-dark-700 border border-dark-600 rounded-lg text-sm text-dark-50 focus:border-primary-500 focus:ring-1 focus:ring-primary-500 outline-none';
@@ -87,6 +89,7 @@ const ProductRegister = () => {
   const [status, setStatusParam] = useUrlState('status', 'all');
   const [familyFilter, setFamilyParam] = useUrlState('family', '');
   const [categoryFilter, setCategoryParam] = useUrlState('category', '');
+  const [subcategoryFilter, setSubcategoryParam] = useUrlState('subcategory', '');
   const [issueFilter, setIssueParam] = useUrlState('issue', '');
   const [pageNum, setPageNum] = useUrlState('page', 1);
   const page = Math.max(0, pageNum - 1);
@@ -94,12 +97,15 @@ const ProductRegister = () => {
   const withPageReset = (setter) => (value) => { setter(value); setPageNum(1); };
   const setSearch = withPageReset(setSearchParam);
   const setStatus = withPageReset(setStatusParam);
-  const setFamilyFilter = withPageReset(setFamilyParam);
-  const setCategoryFilter = withPageReset(setCategoryParam);
+  const setTaxonomyFilters = (next) => {
+    if ('category' in next) setCategoryParam(next.category);
+    if ('subcategory' in next) setSubcategoryParam(next.subcategory);
+    if ('family' in next) setFamilyParam(next.family);
+    setPageNum(1);
+  };
   const setIssueFilter = withPageReset(setIssueParam);
   const [expanded, setExpanded] = useState(() => new Set());
-  const [categoryRows, setCategoryRows] = useState([]);
-  const [subcategoryRows, setSubcategoryRows] = useState([]);
+  const taxonomy = useProductTaxonomy();
   const [supplierLinks, setSupplierLinks] = useState([]);
   const [busy, setBusy] = useState(null);
   const [includeInactive, setIncludeInactive] = useState(true);
@@ -115,28 +121,28 @@ const ProductRegister = () => {
   }, [toastError]);
 
   useEffect(() => { load(); }, [load, refreshKeys.register]);
-  // Category / subcategory lists for the bulk "move" pickers
   useEffect(() => {
-    apiClient.get('/api/v1/categories').then((r) => setCategoryRows(Array.isArray(r) ? r : r?.items || [])).catch(() => {});
-    apiClient.get('/api/v1/admin/subcategories').then((r) => setSubcategoryRows(r?.items || [])).catch(() => {});
     apiClient
       .get('/api/v1/admin/material-sources')
       .then((r) => setSupplierLinks((r || []).filter((s) => s.is_active)))
       .catch(() => {});
   }, []);
 
-  const categories = useMemo(
-    () => [...new Set(data.products.map(categoryLabel).filter(Boolean))].sort(),
-    [data.products]
+  // Category matches the product's primary or extra listings, nested categories included
+  const categoryIds = useMemo(
+    () => (Number(categoryFilter) ? categoryTreeIds(taxonomy.categories, Number(categoryFilter)) : null),
+    [categoryFilter, taxonomy.categories]
   );
 
   const filtered = useMemo(() => {
     const term = search.trim().toLowerCase();
+    const listed = (ids, filter) => (filter === 'none' ? !ids.length : ids.includes(Number(filter)));
     return data.products.filter((p) => {
       if (status === 'active' && !p.is_active) return false;
       if (status === 'inactive' && p.is_active) return false;
-      if (familyFilter === 'none' ? p.family_id : familyFilter && String(p.family_id) !== familyFilter) return false;
-      if (categoryFilter && categoryLabel(p) !== categoryFilter) return false;
+      if (familyFilter && !listed(p.family_ids || [], familyFilter)) return false;
+      if (categoryIds && !(p.category_ids || []).some((id) => categoryIds.has(id))) return false;
+      if (subcategoryFilter && !listed(p.subcategory_ids || [], subcategoryFilter)) return false;
       if (issueFilter === 'any' ? !p.issues.length : issueFilter && !p.issues.includes(issueFilter)) return false;
       if (!term) return true;
       return (
@@ -146,7 +152,7 @@ const ProductRegister = () => {
         || p.variations.some((v) => (v.sku || '').toLowerCase().includes(term) || (v.name || '').toLowerCase().includes(term))
       );
     });
-  }, [data.products, search, status, familyFilter, categoryFilter, issueFilter]);
+  }, [data.products, search, status, familyFilter, categoryIds, subcategoryFilter, issueFilter]);
 
   const stats = useMemo(() => ({
     products: data.products.length,
@@ -203,9 +209,9 @@ const ProductRegister = () => {
 
   const materials = useMaterialLists(selection.count > 0);
   const productActions = useMemo(() => [
-    ...productBulkActions({ categories: categoryRows, subcategories: subcategoryRows, families: data.families, supplierLinks, materials }),
+    ...productBulkActions({ ...taxonomy, families: data.families, supplierLinks, materials }),
     ...ACTIVE_ACTIONS,
-  ], [categoryRows, subcategoryRows, data.families, supplierLinks, materials]);
+  ], [taxonomy, data.families, supplierLinks, materials]);
   const variationActions = useMemo(() => variationBulkActions({ families: data.families }), [data.families]);
 
   const runExport = async (kind) => {
@@ -265,7 +271,7 @@ const ProductRegister = () => {
       />
 
       <Card className="bg-dark-800 border-dark-700">
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-6 gap-3">
           <div className="relative lg:col-span-2">
             <Search className="w-4 h-4 text-dark-400 absolute left-3 top-1/2 -translate-y-1/2" />
             <input
@@ -280,15 +286,15 @@ const ProductRegister = () => {
             <option value="active">Active</option>
             <option value="inactive">Inactive</option>
           </select>
-          <select className={INPUT} value={familyFilter} onChange={(e) => setFamilyFilter(e.target.value)} aria-label="Family">
-            <option value="">All families</option>
-            <option value="none">No family</option>
-            {data.families.map((f) => <option key={f.id} value={String(f.id)}>{f.name}</option>)}
-          </select>
-          <select className={INPUT} value={categoryFilter} onChange={(e) => setCategoryFilter(e.target.value)} aria-label="Category">
-            <option value="">All categories</option>
-            {categories.map((c) => <option key={c} value={c}>{c}</option>)}
-          </select>
+          <ProductTaxonomyFilters
+            taxonomy={taxonomy}
+            families={data.families}
+            category={categoryFilter}
+            subcategory={subcategoryFilter}
+            family={familyFilter}
+            onChange={setTaxonomyFilters}
+            selectClassName={INPUT}
+          />
         </div>
         <div className="flex flex-wrap gap-2 mt-3">
           {[['', 'All'], ['any', 'Any missing data'], ...Object.entries(data.issue_labels)].map(([key, label]) => (

@@ -17,7 +17,13 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from backend.api.dependencies import get_current_admin
 from backend.core.exceptions import ResourceNotFoundError
 from backend.database.base import get_db
-from backend.models.chair import ProductFamily, ProductVariation
+from backend.models.chair import (
+    ProductFamily,
+    ProductVariation,
+    chair_categories,
+    chair_secondary_families,
+    chair_subcategories,
+)
 from backend.models.company import AdminUser
 from backend.services.admin_service import AdminService
 from backend.services.catalog_pdf.data import load_products
@@ -58,6 +64,20 @@ async def get_register(
     db: AsyncSession = Depends(get_db),
 ):
     products = await load_products(db, include_inactive=True)
+    # Every category / subcategory / family a product is listed under, for the filters
+    links = {}
+    for table, column, key in (
+        (chair_categories, "category_id", "category_ids"),
+        (chair_subcategories, "subcategory_id", "subcategory_ids"),
+        (chair_secondary_families, "family_id", "family_ids"),
+    ):
+        for chair_id, linked_id in (await db.execute(select(table.c.chair_id, table.c[column]))).all():
+            links.setdefault((chair_id, key), set()).add(linked_id)
+
+    def linked(p, key, primary):
+        ids = links.get((p["id"], key), set()) | ({primary} if primary else set())
+        return sorted(ids)
+
     rows = []
     for p in products:
         rows.append({
@@ -74,6 +94,9 @@ async def get_register(
             "category_name": p["category_name"],
             "parent_category_name": p["parent_category_name"],
             "subcategory_name": p["subcategory_name"],
+            "category_ids": linked(p, "category_ids", p["category_id"]),
+            "subcategory_ids": linked(p, "subcategory_ids", p["subcategory_id"]),
+            "family_ids": linked(p, "family_ids", p["family_id"]),
             "default_image": p["default_image"],
             "updated_at": p["updated_at"],
             "issues": _issues(p),

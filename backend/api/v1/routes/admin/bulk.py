@@ -128,6 +128,11 @@ PRODUCT_LIST_MODELS = {
     "material_sources": MaterialSource,
 }
 PRODUCT_CATEGORY_OPS = ("add_category_id", "remove_category_id")
+PRODUCT_SUBCATEGORY_OPS = ("add_subcategory_id", "remove_subcategory_id")
+# "Clear" ops take `true`: op -> Chair list attribute emptied (families and
+# extra categories are handled separately, they also touch the primary)
+PRODUCT_CLEAR_OPS = {f"clear_{attr.removeprefix('available_')}": attr for attr in PRODUCT_LIST_MODELS}
+PRODUCT_CLEAR_OPS_SPECIAL = ("clear_categories", "clear_families")
 # Family membership: on products, add sets the main family when there is none
 # and a secondary family otherwise; remove takes it off either way.
 FAMILY_OPS = ("add_family_id", "remove_family_id")
@@ -141,6 +146,8 @@ class BulkEditRequest(BaseModel):
 class BulkEditResponse(BaseModel):
     updated: int
     missing: list[int] = []
+    # Shown to the admin when part of the change couldn't be applied
+    note: Optional[str] = None
 
 
 def _coerce(model, field: str, value: Any) -> Any:
@@ -215,6 +222,13 @@ def _id_list(op: str, value: Any) -> list[int]:
 async def _bulk_update_products(db: AsyncSession, ids: list[int], changes: dict[str, Any]) -> BulkEditResponse:
     list_ops = {op: _id_list(op, changes.pop(op)) for op in list(changes) if op in PRODUCT_LIST_OPS}
     category_ops = {op: changes.pop(op) for op in list(changes) if op in PRODUCT_CATEGORY_OPS}
+    subcategory_ops = {op: changes.pop(op) for op in list(changes) if op in PRODUCT_SUBCATEGORY_OPS}
+    clear_ops = set()
+    for op in list(changes):
+        if op in PRODUCT_CLEAR_OPS or op in PRODUCT_CLEAR_OPS_SPECIAL:
+            if changes.pop(op) is not True:
+                raise HTTPException(status_code=400, detail=f"{op} must be true")
+            clear_ops.add(op)
     family_changes = {op: changes.pop(op) for op in list(changes) if op in FAMILY_OPS}
     fields = _validated_changes(Chair, PRODUCT_FIELDS, changes)
     if "category_id" in fields and fields["category_id"] is None:
@@ -226,6 +240,14 @@ async def _bulk_update_products(db: AsyncSession, ids: list[int], changes: dict[
         if isinstance(value, bool) or not isinstance(value, int):
             raise HTTPException(status_code=400, detail=f"{op} must be a category ID")
         await _check_foreign_key(db, Chair, "category_id", value)
+    for op, value in subcategory_ops.items():
+        if isinstance(value, bool) or not isinstance(value, int):
+            raise HTTPException(status_code=400, detail=f"{op} must be a subcategory ID")
+        await _check_foreign_key(db, Chair, "subcategory_id", value)
+    if "subcategory_id" in fields and subcategory_ops:
+        raise HTTPException(status_code=400, detail="Set subcategory_id or add/remove a subcategory, not both")
+    if "category_id" in fields and "clear_categories" in clear_ops:
+        raise HTTPException(status_code=400, detail="Move to a category or clear extra categories, not both")
     for op, option_ids in list_ops.items():
         attr, add = PRODUCT_LIST_OPS[op]
         if not add or not option_ids:
@@ -238,7 +260,9 @@ async def _bulk_update_products(db: AsyncSession, ids: list[int], changes: dict[
     family_ops = await _family_ops(db, family_changes)
     if "family_id" in fields and family_ops:
         raise HTTPException(status_code=400, detail="Set family_id or add/remove a family, not both")
-    if not (fields or list_ops or category_ops or family_ops):
+    if "clear_families" in clear_ops and ("family_id" in fields or family_ops):
+        raise HTTPException(status_code=400, detail="Clear families or set one, not both")
+    if not (fields or list_ops or category_ops or subcategory_ops or family_ops or clear_ops):
         raise HTTPException(status_code=400, detail="Nothing to change")
 
     from backend.services.cache_service import cache_service
@@ -255,11 +279,12 @@ async def _bulk_update_products(db: AsyncSession, ids: list[int], changes: dict[
     products = {p.id: p for p in result.scalars().all()}
 
     subcategory_parent = {}
-    if "category_id" in fields or "remove_category_id" in category_ops:
+    if "category_id" in fields or "remove_category_id" in category_ops or subcategory_ops or "clear_categories" in clear_ops:
         rows = await db.execute(select(ProductSubcategory.id, ProductSubcategory.category_id))
         subcategory_parent = dict(rows.all())
 
     updated = 0
+    only_category = []  # products that kept a category because it was their last one
     for product_id in ids:
         product = products.get(product_id)
         if product is None:
@@ -281,8 +306,20 @@ async def _bulk_update_products(db: AsyncSession, ids: list[int], changes: dict[
             category_ids.append(add_id)
             categories_changed = True
         remove_id = category_ops.get("remove_category_id")
-        if remove_id is not None and remove_id in category_ids and len(category_ids) > 1:
-            category_ids.remove(remove_id)
+        if remove_id is not None and remove_id in category_ids:
+            if len(category_ids) > 1:
+                category_ids.remove(remove_id)
+                categories_changed = True
+            else:
+                only_category.append(product_id)
+        if "clear_categories" in clear_ops and len(category_ids) > 1:
+            # Keep only the primary listing
+            category_ids = [product.category_id] if product.category_id in category_ids else category_ids[:1]
+            categories_changed = True
+        add_sub = subcategory_ops.get("add_subcategory_id")
+        if add_sub is not None and subcategory_parent.get(add_sub) not in (None, *category_ids):
+            # Listing under a subcategory also lists under its category
+            category_ids.append(subcategory_parent[add_sub])
             categories_changed = True
         if categories_changed:
             update["category_ids"] = category_ids
@@ -302,6 +339,25 @@ async def _bulk_update_products(db: AsyncSession, ids: list[int], changes: dict[
                 if new_sub
                 else []
             )
+        if subcategory_ops:
+            subs = list(update.get("subcategory_ids", subcategory_ids))
+            add_sub = subcategory_ops.get("add_subcategory_id")
+            if add_sub is not None and add_sub not in subs:
+                subs.append(add_sub)
+            remove_sub = subcategory_ops.get("remove_subcategory_id")
+            if remove_sub is not None:
+                subs = [s for s in subs if s != remove_sub]
+            if subs != subcategory_ids or "subcategory_ids" in update:
+                update["subcategory_ids"] = subs
+                current_primary = update.get("subcategory_id", product.subcategory_id)
+                if current_primary not in subs:
+                    update["subcategory_id"] = subs[0] if subs else None
+
+        if "clear_families" in clear_ops:
+            if product.family_id is not None:
+                update["family_id"] = None
+            if product.secondary_families:
+                update["secondary_family_ids"] = []
 
         if family_ops:
             primary = product.family_id
@@ -331,6 +387,9 @@ async def _bulk_update_products(db: AsyncSession, ids: list[int], changes: dict[
             else:
                 current = [i for i in current if i not in option_ids]
             update[attr] = current
+        for op in clear_ops:
+            if op in PRODUCT_CLEAR_OPS:
+                update[PRODUCT_CLEAR_OPS[op]] = []
 
         try:
             await AdminService.update_product(db=db, product_id=product_id, update_data=update)
@@ -341,7 +400,14 @@ async def _bulk_update_products(db: AsyncSession, ids: list[int], changes: dict[
         await cache_service.invalidate_product(product_id)
         updated += 1
 
-    return BulkEditResponse(updated=updated, missing=[i for i in ids if i not in products])
+    note = None
+    if only_category:
+        n = len(only_category)
+        note = (
+            f"{n} product{'s' if n != 1 else ''} kept that category because it was "
+            f"{'their' if n != 1 else 'its'} only one; move {'them' if n != 1 else 'it'} to another category instead"
+        )
+    return BulkEditResponse(updated=updated, missing=[i for i in ids if i not in products], note=note)
 
 
 async def _family_ops(db: AsyncSession, changes: dict[str, Any]) -> dict[str, int]:
@@ -381,7 +447,9 @@ async def _apply_variation_family_ops(db: AsyncSession, variation_ids: list[int]
             await db.execute(insert(variation_families), rows)
 
 
-@router.post("/{resource}", response_model=BulkEditResponse, summary="Bulk edit admin rows")
+@router.post(
+    "/{resource}", response_model=BulkEditResponse, response_model_exclude_none=True, summary="Bulk edit admin rows"
+)
 async def bulk_edit(
     resource: str,
     body: BulkEditRequest,

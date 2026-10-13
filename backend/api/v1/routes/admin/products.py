@@ -31,7 +31,7 @@ from backend.models.chair import (
     chair_subcategories,
 )
 from backend.models.company import AdminRole, AdminUser
-from backend.services.admin_service import AdminService
+from backend.services.admin_service import AdminService, admin_product_filters
 from backend.utils.serializers import orm_list_to_dict_list, orm_to_dict
 
 logger = logging.getLogger(__name__)
@@ -101,7 +101,9 @@ async def get_all_products(
     page: int = Query(1, ge=1, description="Page number"),
     page_size: int = Query(100, ge=1, le=500, description="Items per page"),
     search: Optional[str] = Query(None, description="Search term"),
-    category_id: Optional[int] = Query(None, description="Filter by category"),
+    category_id: Optional[int] = Query(None, description="Filter by category (includes its nested categories)"),
+    subcategory_id: Optional[int] = Query(None, description="Filter by subcategory; 0 = no subcategory"),
+    family_id: Optional[int] = Query(None, description="Filter by family; 0 = no family"),
     is_active: Optional[bool] = Query(None, description="Filter by active status"),
     sort_by: Optional[str] = Query(None, description="Sort column: name, model_number, base_price, view_count, quote_count, is_active, created_at, category"),
     sort_dir: Optional[str] = Query("asc", description="Sort direction: asc, desc"),
@@ -124,6 +126,8 @@ async def get_all_products(
         is_active=is_active,
         sort_by=sort_by,
         sort_dir=sort_dir,
+        subcategory_id=subcategory_id,
+        family_id=family_id,
     )
 
     # Convert ORM objects to dicts
@@ -187,6 +191,25 @@ async def get_all_products(
     }
 
     return response_data
+
+
+@router.get(
+    "/ids",
+    summary="IDs of all matching products (Admin)",
+    description="Every product ID matching the list filters, across all pages (for select-all-matching)",
+)
+async def get_matching_product_ids(
+    search: Optional[str] = Query(None),
+    category_id: Optional[int] = Query(None),
+    subcategory_id: Optional[int] = Query(None),
+    family_id: Optional[int] = Query(None),
+    is_active: Optional[bool] = Query(None),
+    admin: AdminUser = Depends(get_current_admin),
+    db: AsyncSession = Depends(get_db),
+):
+    filters = admin_product_filters(search, category_id, subcategory_id, family_id, is_active)
+    result = await db.execute(select(Product.id).where(*filters).order_by(Product.id))
+    return {"ids": list(result.scalars().all())}
 
 
 @router.post(

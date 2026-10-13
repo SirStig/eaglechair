@@ -231,7 +231,7 @@ const ProductCard = ({ product, onQuickView, darkMode = false, compact = false, 
 
         {/* Stretched over the whole card so a tap anywhere (description,
             swatches, blank space) opens the product, not just the image/title */}
-        <Link to={productUrl} className="block after:absolute after:inset-0">
+        <Link to={productUrl} className="block after:absolute after:inset-0 after:z-[1]">
           <h3 className={`text-[15px] sm:text-base font-semibold leading-snug ${textTitle} ${textTitleHover} transition-colors line-clamp-2`}>
             {product.name}
           </h3>
