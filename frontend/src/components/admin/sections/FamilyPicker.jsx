@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react';
 import { Check, Search, Star, X } from 'lucide-react';
 import { resolveImageUrl } from '../../../utils/apiHelpers';
+import SelectAllToggle from './SelectAllToggle';
 
 const Thumb = ({ url }) =>
   url ? (
@@ -72,6 +73,21 @@ const FamilyPicker = ({
     ...selectedIds.filter((id) => !(withPrimary && id === primaryId)),
   ];
 
+  const applyAll = (ids) => {
+    if (!withPrimary) {
+      onSelectedChange(ids);
+      return;
+    }
+    if (!ids.length) {
+      onSelectedChange([]);
+      onPrimaryChange(null);
+      return;
+    }
+    const primary = ids.includes(primaryId) ? primaryId : ids[0];
+    onPrimaryChange(primary);
+    onSelectedChange(ids.filter((id) => id !== primary));
+  };
+
   if (!families.length) return <p className="text-sm text-dark-400">{emptyText}</p>;
 
   return (
@@ -124,8 +140,8 @@ const FamilyPicker = ({
 
       {/* Search + list */}
       <div className="overflow-hidden rounded-lg border border-dark-600 bg-dark-700">
-        <div className="flex items-center gap-2 border-b border-dark-600 p-2">
-          <label className="relative flex-1">
+        <div className="flex flex-wrap items-center gap-2 border-b border-dark-600 p-2">
+          <label className="relative min-w-[12rem] flex-1">
             <span className="sr-only">Search families</span>
             <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-dark-300" />
             <input
@@ -147,6 +163,12 @@ const FamilyPicker = ({
               className="w-full rounded-md border border-dark-500 bg-dark-800 py-1.5 pl-9 pr-3 text-sm text-dark-50 placeholder:text-dark-300 focus:border-primary-500 focus:outline-none"
             />
           </label>
+          <SelectAllToggle
+            ids={families.map((family) => family.id)}
+            selectedIds={chips}
+            onChange={applyAll}
+            group="families"
+          />
           <div className="flex shrink-0 rounded-md border border-dark-500 bg-dark-800 p-0.5 text-xs" role="group" aria-label="Show">
             {[[false, 'All'], [true, `Selected (${chips.length})`]].map(([value, text]) => (
               <button

@@ -4,6 +4,13 @@ import { m, AnimatePresence } from 'framer-motion';
 import Button from './ui/Button';
 import Card from './ui/Card';
 
+// Safari: "Importing a module script failed."
+// Chrome: "Failed to fetch dynamically imported module"
+// Firefox: "error loading dynamically imported module"
+const isChunkLoadError = (error) =>
+  /Importing a module script failed|Failed to fetch dynamically imported module|error loading dynamically imported module/i
+    .test(error?.message || '');
+
 class ErrorBoundary extends React.Component {
   constructor(props) {
     super(props);
@@ -23,7 +30,24 @@ class ErrorBoundary extends React.Component {
   componentDidCatch(error, errorInfo) {
     // Log error to console for debugging
     console.error('ErrorBoundary caught an error:', error, errorInfo);
-    
+
+    // A lazy route chunk failed to load (stale tab after a deploy, or a
+    // network blip). Browsers cache the failed import for the page's lifetime,
+    // so only a full reload recovers. At most one reload per 30s to avoid loops.
+    if (isChunkLoadError(error)) {
+      const key = 'chunk-reload-at';
+      try {
+        const last = Number(sessionStorage.getItem(key)) || 0;
+        if (Date.now() - last > 30000) {
+          sessionStorage.setItem(key, String(Date.now()));
+          window.location.reload();
+          return;
+        }
+      } catch {
+        // sessionStorage unavailable; fall through to the error UI
+      }
+    }
+
     // Update state with error details
     this.setState({
       error,

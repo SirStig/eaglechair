@@ -27,6 +27,7 @@ import ImagePickerField from '../media/ImagePickerField';
 import ImageListField from '../media/ImageListField';
 import DocumentPickerField from '../media/DocumentPickerField';
 import FamilyPicker from './FamilyPicker';
+import SelectAllToggle from './SelectAllToggle';
 import RecordHistoryLink from '../RecordHistoryLink';
 import ProductAnalyticsPanel from '../ProductAnalyticsPanel';
 import useBulkSelection from '../../../hooks/useBulkSelection';
@@ -68,22 +69,25 @@ const mergeImageList = (items, urls) =>
  */
 // Section label with a switch that shows or hides the whole option group on
 // the storefront. Turning it off keeps the selections below.
-const OptionGroupHeading = ({ label, enabled, onChange }) => (
-  <div className="flex items-center justify-between gap-3 mb-2">
+const OptionGroupHeading = ({ label, enabled, onChange, extra }) => (
+  <div className="mb-2 flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
     <span className="text-sm font-medium text-dark-200">{label}</span>
-    <label className="flex items-center gap-2 cursor-pointer text-xs text-dark-300">
-      <span>{enabled ? 'Shown on site' : 'Hidden on site'}</span>
-      <button
-        type="button"
-        role="switch"
-        aria-checked={enabled}
-        aria-label={`Show ${label} on site`}
-        onClick={() => onChange(!enabled)}
-        className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors ${enabled ? 'bg-primary-600' : 'bg-dark-600'}`}
-      >
-        <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${enabled ? 'translate-x-4' : 'translate-x-0.5'}`} />
-      </button>
-    </label>
+    <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
+      {extra}
+      <label className="flex items-center gap-2 cursor-pointer text-xs text-dark-300">
+        <span>{enabled ? 'Shown on site' : 'Hidden on site'}</span>
+        <button
+          type="button"
+          role="switch"
+          aria-checked={enabled}
+          aria-label={`Show ${label} on site`}
+          onClick={() => onChange(!enabled)}
+          className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors ${enabled ? 'bg-primary-600' : 'bg-dark-600'}`}
+        >
+          <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${enabled ? 'translate-x-4' : 'translate-x-0.5'}`} />
+        </button>
+      </label>
+    </div>
   </div>
 );
 
@@ -395,6 +399,24 @@ const ProductEditor = ({ product, onBack }) => {
           : [...current, subcategoryId],
       };
     });
+  };
+
+  // Select-all hands back either every id or none. The primary stays checked.
+  const replaceAssignedIds = (key, primaryKey) => (ids) => {
+    setFormData((prev) => {
+      const primary = prev[primaryKey];
+      return { ...prev, [key]: primary ? [primary, ...ids.filter((id) => id !== primary)] : ids };
+    });
+  };
+
+  const setMaterialSources = (ids) => setFormData((prev) => ({ ...prev, material_sources: ids }));
+
+  const setSupplierGroup = (groupIds, next) => {
+    const inGroup = new Set(groupIds);
+    setFormData((prev) => ({
+      ...prev,
+      material_sources: [...(prev.material_sources || []).filter((id) => !inGroup.has(id)), ...next],
+    }));
   };
 
   // ---- Variations: filter, open cards, selection and batch edits ----
@@ -725,9 +747,17 @@ const ProductEditor = ({ product, onBack }) => {
               </div>
 
               <div className="md:col-span-2">
-                <label className="block text-sm font-medium text-dark-200 mb-2">
-                  Categories
-                </label>
+                <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+                  <span className="text-sm font-medium text-dark-200">
+                    Categories
+                  </span>
+                  <SelectAllToggle
+                    ids={categories.filter((cat) => cat.id !== formData.category_id).map((cat) => cat.id)}
+                    selectedIds={(formData.category_ids || []).filter((id) => id !== formData.category_id)}
+                    onChange={replaceAssignedIds('category_ids', 'category_id')}
+                    group="categories"
+                  />
+                </div>
                 <p className="mb-2 text-xs text-dark-400">
                   A product can be listed under several categories. The primary category is always included.
                 </p>
@@ -760,9 +790,17 @@ const ProductEditor = ({ product, onBack }) => {
               </div>
 
               <div className="md:col-span-2">
-                <label className="block text-sm font-medium text-dark-200 mb-2">
-                  Subcategories
-                </label>
+                <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+                  <span className="text-sm font-medium text-dark-200">
+                    Subcategories
+                  </span>
+                  <SelectAllToggle
+                    ids={subcategories.filter((sub) => sub.id !== formData.subcategory_id).map((sub) => sub.id)}
+                    selectedIds={(formData.subcategory_ids || []).filter((id) => id !== formData.subcategory_id)}
+                    onChange={replaceAssignedIds('subcategory_ids', 'subcategory_id')}
+                    group="subcategories"
+                  />
+                </div>
                 <p className="mb-2 text-xs text-dark-400">
                   Subcategories of the selected categories. The primary subcategory is always included.
                 </p>
@@ -1277,9 +1315,17 @@ const ProductEditor = ({ product, onBack }) => {
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-dark-200 mb-2">
-                Available Finishes
-              </label>
+              <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+                <span className="text-sm font-medium text-dark-200">
+                  Available Finishes
+                </span>
+                <SelectAllToggle
+                  ids={finishes.map((finish) => finish.id)}
+                  selectedIds={selectedFinishes}
+                  onChange={setSelectedFinishes}
+                  group="finishes"
+                />
+              </div>
               <div className="grid grid-cols-2 md:grid-cols-4 gap-3 p-4 bg-dark-700 rounded-lg max-h-64 overflow-y-auto">
                 {finishes.map(finish => (
                   <label key={finish.id} className="flex items-center gap-2 cursor-pointer hover:bg-dark-600 p-2 rounded">
@@ -1324,6 +1370,14 @@ const ProductEditor = ({ product, onBack }) => {
                 label="Available Upholsteries"
                 enabled={formData.upholstery_enabled !== false}
                 onChange={(on) => handleChange('upholstery_enabled', on)}
+                extra={
+                  <SelectAllToggle
+                    ids={upholsteries.map((item) => item.id)}
+                    selectedIds={selectedUpholsteries}
+                    onChange={setSelectedUpholsteries}
+                    group="upholsteries"
+                  />
+                }
               />
               {supplierHint('upholstery')}
               <div className="grid grid-cols-2 md:grid-cols-4 gap-3 p-4 bg-dark-700 rounded-lg max-h-64 overflow-y-auto">
@@ -1352,6 +1406,14 @@ const ProductEditor = ({ product, onBack }) => {
                 label="Available Laminates (table tops)"
                 enabled={formData.laminates_enabled !== false}
                 onChange={(on) => handleChange('laminates_enabled', on)}
+                extra={
+                  <SelectAllToggle
+                    ids={laminates.map((item) => item.id)}
+                    selectedIds={selectedLaminates}
+                    onChange={setSelectedLaminates}
+                    group="laminates"
+                  />
+                }
               />
               {supplierHint('laminate')}
               <div className="grid grid-cols-2 md:grid-cols-3 gap-3 p-4 bg-dark-700 rounded-lg max-h-64 overflow-y-auto">
@@ -1380,6 +1442,14 @@ const ProductEditor = ({ product, onBack }) => {
                 label="Available Colors"
                 enabled={formData.colors_enabled !== false}
                 onChange={(on) => handleChange('colors_enabled', on)}
+                extra={
+                  <SelectAllToggle
+                    ids={colors.map((item) => item.id)}
+                    selectedIds={selectedColors}
+                    onChange={setSelectedColors}
+                    group="colors"
+                  />
+                }
               />
               <div className="grid grid-cols-2 md:grid-cols-4 gap-3 p-4 bg-dark-700 rounded-lg max-h-64 overflow-y-auto">
                 {colors.map(color => (
@@ -1411,11 +1481,19 @@ const ProductEditor = ({ product, onBack }) => {
             </div>
 
             <div>
-              <div className="mb-2 flex flex-wrap items-baseline justify-between gap-2">
+              <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
                 <span className="text-sm font-medium text-dark-200">Order from supplier catalogs</span>
-                <a href="/admin/supplier-links" target="_blank" rel="noopener noreferrer" className="text-xs text-primary-400 hover:text-primary-300">
-                  Manage supplier links
-                </a>
+                <div className="flex flex-wrap items-center gap-4">
+                  <SelectAllToggle
+                    ids={supplierLinks.map((link) => link.id)}
+                    selectedIds={formData.material_sources || []}
+                    onChange={setMaterialSources}
+                    group="supplier catalogs"
+                  />
+                  <a href="/admin/supplier-links" target="_blank" rel="noopener noreferrer" className="text-xs text-primary-400 hover:text-primary-300">
+                    Manage supplier links
+                  </a>
+                </div>
               </div>
               <p className="mb-3 text-xs text-dark-400">
                 Outside catalogs this product can be ordered with (e.g. any Wilsonart laminate). Ticked links show on the
@@ -1429,7 +1507,15 @@ const ProductEditor = ({ product, onBack }) => {
                 <div className="space-y-3 rounded-lg bg-dark-700 p-4">
                   {groupSupplierLinks(supplierLinks).map((group) => (
                     <div key={group.type}>
-                      <p className="mb-1.5 text-xs font-semibold uppercase tracking-wider text-dark-400">{group.label}</p>
+                      <div className="mb-1.5 flex flex-wrap items-center justify-between gap-2">
+                        <p className="text-xs font-semibold uppercase tracking-wider text-dark-400">{group.label}</p>
+                        <SelectAllToggle
+                          ids={group.links.map((link) => link.id)}
+                          selectedIds={formData.material_sources || []}
+                          onChange={(ids) => setSupplierGroup(group.links.map((link) => link.id), ids)}
+                          group={`${group.label} supplier catalogs`}
+                        />
+                      </div>
                       <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 md:grid-cols-3">
                         {group.links.map((link) => (
                           <label key={link.id} className="flex cursor-pointer items-start gap-2 rounded p-2 hover:bg-dark-600">
