@@ -39,11 +39,6 @@ class ReorderBody(BaseModel):
     order: List[ReorderItem]
 
 
-# ============================================================================
-# Serialization helpers
-# ============================================================================
-
-
 def _category_dict(category: Category, children: List[dict]) -> dict:
     """Serialize a top-level category with its children for the admin UI."""
     return {
@@ -134,10 +129,6 @@ async def _load_category_children(db: AsyncSession, category_id: int) -> List[di
     children.sort(key=lambda c: (c["display_order"] or 0, c["name"] or ""))
     return children
 
-
-# ============================================================================
-# Category Management
-# ============================================================================
 
 @router.get(
     "",

@@ -387,11 +387,6 @@ async def delete_product(
         raise HTTPException(status_code=404, detail=str(e))
 
 
-# ============================================================================
-# Product Variation Management (NEW)
-# ============================================================================
-
-
 @router.get(
     "/{product_id}/variations",
     summary="Get product variations (Admin)",
@@ -615,11 +610,6 @@ async def delete_product_variation(
     return MessageResponse(
         message=f"Variation {variation_id} has been {'permanently deleted' if hard_delete else 'deactivated'}"
     )
-
-
-# ============================================================================
-# Product Image Management (NEW)
-# ============================================================================
 
 
 @router.get(

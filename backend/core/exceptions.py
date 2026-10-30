@@ -52,10 +52,6 @@ class EagleChairException(BaseAppException):
         return response
 
 
-# ============================================================================
-# Authentication & Authorization Exceptions
-# ============================================================================
-
 class AuthenticationError(EagleChairException):
     """User authentication failed"""
 
@@ -110,10 +106,6 @@ class InsufficientPermissionsError(AuthorizationError):
         super().__init__(message=message, **kwargs)
 
 
-# ============================================================================
-# Resource Exceptions
-# ============================================================================
-
 class ResourceNotFoundError(EagleChairException):
     """Requested resource not found"""
 
@@ -163,10 +155,6 @@ class ResourceConflictError(EagleChairException):
         super().__init__(message=message, **kwargs)
 
 
-# ============================================================================
-# Validation Exceptions
-# ============================================================================
-
 class ValidationError(EagleChairException):
     """Data validation failed"""
 
@@ -212,10 +200,6 @@ class MissingRequiredFieldError(ValidationError):
             **kwargs
         )
 
-
-# ============================================================================
-# Business Logic Exceptions
-# ============================================================================
 
 class BusinessLogicError(EagleChairException):
     """Business logic validation failed"""
@@ -286,10 +270,6 @@ class AccountNotVerifiedError(BusinessLogicError):
         )
 
 
-# ============================================================================
-# Rate Limiting & Security Exceptions
-# ============================================================================
-
 class RateLimitExceededError(EagleChairException):
     """Rate limit exceeded"""
 
@@ -340,10 +320,6 @@ class SuspiciousActivityError(EagleChairException):
         )
 
 
-# ============================================================================
-# Request Exceptions
-# ============================================================================
-
 class RequestTooLargeError(EagleChairException):
     """Request payload too large"""
 
@@ -386,10 +362,6 @@ class UnsupportedMediaTypeError(EagleChairException):
         super().__init__(message=message, details=details, **kwargs)
 
 
-# ============================================================================
-# Database Exceptions
-# ============================================================================
-
 class DatabaseError(EagleChairException):
     """Database operation failed"""
 
@@ -409,10 +381,6 @@ class DatabaseConnectionError(DatabaseError):
             **kwargs
         )
 
-
-# ============================================================================
-# External Service Exceptions
-# ============================================================================
 
 class ExternalServiceError(EagleChairException):
     """External service error"""
@@ -455,10 +423,6 @@ class PaymentProcessingError(ExternalServiceError):
             **kwargs
         )
 
-
-# ============================================================================
-# Admin Exceptions
-# ============================================================================
 
 class AdminAccessDeniedError(AuthorizationError):
     """Admin access denied"""

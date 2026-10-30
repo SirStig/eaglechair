@@ -50,10 +50,6 @@ _HEADLINE_ENTRIES = 4
 _HEADLINE_CANDIDATES = 50
 
 
-# ---------------------------------------------------------------------------
-# Serialization
-# ---------------------------------------------------------------------------
-
 def _utc(value: Optional[datetime]) -> Optional[str]:
     """Naive UTC -> ISO with offset, so browsers convert to local time"""
     return value.replace(tzinfo=timezone.utc).isoformat() if value else None
@@ -199,10 +195,6 @@ def _headline(entries: list[HistoryEntry]) -> list[HistoryEntry]:
 
     return sorted(entries, key=rank)[:_HEADLINE_ENTRIES]
 
-
-# ---------------------------------------------------------------------------
-# Reads
-# ---------------------------------------------------------------------------
 
 @router.get("/summary", summary="Time Machine retention and size")
 async def summary(
@@ -387,10 +379,6 @@ async def record_history(
         ],
     }
 
-
-# ---------------------------------------------------------------------------
-# Preview + restore
-# ---------------------------------------------------------------------------
 
 class RestoreTarget(BaseModel):
     change_set_id: Optional[str] = Field(None, max_length=32)

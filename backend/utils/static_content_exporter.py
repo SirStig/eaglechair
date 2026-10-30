@@ -361,9 +361,7 @@ def get_exporter() -> StaticContentExporter:
     return _exporter_instance
 
 
-# ============================================================================
 # Section builders: query the database and return one contentData.json section
-# ============================================================================
 
 
 async def _build_site_settings(db: "AsyncSession") -> Dict[str, Any]:

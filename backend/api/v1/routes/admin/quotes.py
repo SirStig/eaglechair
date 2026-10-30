@@ -528,11 +528,6 @@ async def assign_quote(
         raise HTTPException(status_code=404, detail=str(e))
 
 
-# ============================================================================
-# Quote Item Management Endpoints
-# ============================================================================
-
-
 @router.post(
     "/{quote_id}/items",
     response_model=QuoteItemResponse,
@@ -776,10 +771,6 @@ async def delete_quote_item(
     except ResourceNotFoundError as e:
         raise HTTPException(status_code=404, detail=str(e))
 
-
-# ============================================================================
-# Quote Shipping Destinations & Allocations (Admin)
-# ============================================================================
 
 class QuoteDestinationInput(BaseModel):
     label: Optional[str] = None

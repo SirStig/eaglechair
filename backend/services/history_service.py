@@ -98,9 +98,7 @@ def table(name: str) -> Optional[Table]:
     return Base.metadata.tables.get(name)
 
 
-# ---------------------------------------------------------------------------
 # Values: DB value <-> JSON, decoded by the column's type
-# ---------------------------------------------------------------------------
 
 def encode_value(value: Any) -> Any:
     if value is None or isinstance(value, (bool, int, float, str)):
@@ -151,10 +149,6 @@ def decode_row(tbl: Table, values: dict) -> dict:
     return {name: decode_value(tbl.c[name], v) for name, v in values.items() if name in tbl.c}
 
 
-# ---------------------------------------------------------------------------
-# Row identity
-# ---------------------------------------------------------------------------
-
 def identity_columns(tbl: Table) -> list:
     """Primary key columns, or every column for a table without one"""
     return list(tbl.primary_key.columns) or list(tbl.columns)
@@ -193,10 +187,6 @@ def references(tbl: Table) -> Iterable[tuple[Table, Any, Any, str]]:
             if fk.column.table is tbl:
                 yield other, fk.parent, fk.column, (fk.ondelete or "").upper()
 
-
-# ---------------------------------------------------------------------------
-# Recorder
-# ---------------------------------------------------------------------------
 
 class HistoryRecorder:
     """
@@ -664,10 +654,6 @@ def _column_value(obj, column) -> Any:
     return state.dict.get(prop.key)
 
 
-# ---------------------------------------------------------------------------
-# Retention
-# ---------------------------------------------------------------------------
-
 PURGE_BATCH = 5000
 PURGE_INTERVAL_SECONDS = 6 * 3600
 _PURGE_KEY = "history:purged:{day}"
@@ -727,9 +713,7 @@ async def purge_loop() -> None:
         await asyncio.sleep(PURGE_INTERVAL_SECONDS)
 
 
-# ---------------------------------------------------------------------------
 # Upload trash: deleted images wait here so a restore can bring them back
-# ---------------------------------------------------------------------------
 
 def upload_trash_dir(upload_base: Path) -> Path:
     if settings.UPLOAD_TRASH_DIR:

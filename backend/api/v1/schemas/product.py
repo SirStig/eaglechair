@@ -18,9 +18,6 @@ from backend.api.v1.schemas.media import (
 )
 from backend.core.config import settings
 
-# ============================================================================
-# Category Schemas
-# ============================================================================
 
 # Spec symbol set shown on product pages (backend/models/chair.py SPEC_PROFILES);
 # None inherits from the parent category.
@@ -149,11 +146,6 @@ class CategoryWithChildren(CategoryResponse):
     has_products: bool = True
 
 
-# ============================================================================
-# Product Subcategory Schemas
-# ============================================================================
-
-
 class ProductSubcategoryBase(BaseModel):
     """Base product subcategory schema"""
 
@@ -173,11 +165,6 @@ class ProductSubcategoryResponse(ProductSubcategoryBase, TimestampSchema):
 
     class Config:
         from_attributes = True
-
-
-# ============================================================================
-# Product Family Schemas
-# ============================================================================
 
 
 class ProductFamilyBase(BaseModel):
@@ -222,11 +209,6 @@ class ProductFamilyResponse(ProductFamilyBase, TimestampSchema):
         return image_renditions(self.banner_image_url)
 
 
-# ============================================================================
-# Color Schemas
-# ============================================================================
-
-
 class ColorBase(BaseModel):
     """Base color schema"""
 
@@ -251,11 +233,6 @@ class ColorResponse(ColorBase, TimestampSchema):
     @property
     def image_renditions(self) -> Optional[ImageRenditions]:
         return image_renditions(self.image_url)
-
-
-# ============================================================================
-# Finish Schemas
-# ============================================================================
 
 
 class FinishBase(BaseModel):
@@ -310,11 +287,6 @@ class FinishResponse(FinishBase, TimestampSchema):
     @property
     def image_renditions(self) -> Optional[ImageRenditions]:
         return image_renditions(self.image_url)
-
-
-# ============================================================================
-# Upholstery Schemas
-# ============================================================================
 
 
 class UpholsteryBase(BaseModel):
@@ -388,11 +360,6 @@ class UpholsteryResponse(UpholsteryBase, TimestampSchema):
     @property
     def swatch_image_renditions(self) -> Optional[ImageRenditions]:
         return image_renditions(self.swatch_image_url)
-
-
-# ============================================================================
-# Chair/Product Schemas
-# ============================================================================
 
 
 class ProductImageItem(BaseModel):
@@ -695,11 +662,6 @@ class ChairDetailResponse(ChairResponse):
     related_products: Optional[list[ChairResponse]] = None
 
 
-# ============================================================================
-# Product Relation Schemas
-# ============================================================================
-
-
 class ProductRelationBase(BaseModel):
     """Base product relation schema"""
 
@@ -722,11 +684,6 @@ class ProductRelationResponse(ProductRelationBase):
 
     class Config:
         from_attributes = True
-
-
-# ============================================================================
-# List Response Schemas
-# ============================================================================
 
 
 class CategoryListResponse(BaseModel):

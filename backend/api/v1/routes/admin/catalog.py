@@ -95,10 +95,6 @@ class ReorderBody(BaseModel):
     order: List[ReorderItem]
 
 
-# ============================================================================
-# Color Management
-# ============================================================================
-
 @router.get(
     "/colors",
     summary="List all colors (Admin)",
@@ -251,10 +247,6 @@ async def delete_color(
         message=f"Color '{color.name}' {'deleted' if hard_delete else 'deactivated'} successfully"
     )
 
-
-# ============================================================================
-# Finish Management
-# ============================================================================
 
 @router.get(
     "/finishes",
@@ -457,10 +449,6 @@ async def delete_finish(
         message=f"Finish '{finish.name}' {'deleted' if hard_delete else 'deactivated'} successfully"
     )
 
-
-# ============================================================================
-# Upholstery Management
-# ============================================================================
 
 @router.get(
     "/upholsteries",
@@ -701,10 +689,6 @@ async def delete_upholstery(
     )
 
 
-# ============================================================================
-# Custom Options Management
-# ============================================================================
-
 @router.get(
     "/custom-options",
     summary="List all custom options (Admin)",
@@ -869,10 +853,6 @@ async def delete_custom_option(
     )
 
 
-# ============================================================================
-# Product Families Management
-# ============================================================================
-
 @router.get(
     "/families",
     summary="List all families (Admin)",
@@ -1028,10 +1008,6 @@ async def delete_family(
     )
 
 
-# ============================================================================
-# Subcategories Management
-# ============================================================================
-
 @router.get(
     "/subcategories",
     summary="List all subcategories (Admin)",
@@ -1156,10 +1132,6 @@ async def delete_subcategory(
         message=f"Subcategory '{subcategory.name}' {'deleted' if hard_delete else 'deactivated'} successfully"
     )
 
-
-# ============================================================================
-# Laminate Management
-# ============================================================================
 
 @router.get(
     "/laminates",
@@ -1334,10 +1306,6 @@ async def delete_laminate(
         message=f"Laminate '{laminate.brand} - {laminate.pattern_name}' {'deleted' if hard_delete else 'deactivated'} successfully"
     )
 
-
-# ============================================================================
-# Catalog Management
-# ============================================================================
 
 @router.get(
     "/catalogs",
@@ -1750,10 +1718,6 @@ async def delete_catalog(
         message=f"Catalog '{catalog.title}' {'deleted' if hard_delete else 'deactivated'} successfully"
     )
 
-
-# ============================================================================
-# Hardware Management
-# ============================================================================
 
 @router.get(
     "/hardware",

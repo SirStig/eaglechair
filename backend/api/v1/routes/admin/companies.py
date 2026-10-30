@@ -351,10 +351,6 @@ async def suspend_company(
         raise HTTPException(status_code=404, detail=str(e))
 
 
-# ============================================================================
-# Company Pricing Tier Management (NEW)
-# ============================================================================
-
 @router.get(
     "/{company_id}/pricing-tier",
     summary="Get company pricing tier (Admin)",

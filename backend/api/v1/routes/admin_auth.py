@@ -195,10 +195,6 @@ async def admin_setup_status(
     }
 
 
-# ============================================================================
-# Step-up confirmation (backend/services/admin_confirmation.py)
-# ============================================================================
-
 async def _has_passkey(db: AsyncSession, admin: AdminUser) -> bool:
     result = await db.execute(
         select(AdminPasskeyCredential.id).where(AdminPasskeyCredential.admin_user_id == admin.id)
@@ -275,10 +271,6 @@ async def confirm_identity(
     )
     return {"confirmedUntil": expires_at}
 
-
-# ============================================================================
-# Device sessions (backend/services/admin_session_service.py)
-# ============================================================================
 
 @router.get(
     "/sessions",

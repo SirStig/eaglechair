@@ -62,10 +62,6 @@ router = APIRouter(
 SLUG_PATTERN = r"^[a-z0-9][a-z0-9_-]{0,99}$"
 
 
-# ============================================================================
-# Response helpers
-# ============================================================================
-
 def _write_response(action: str, exported: bool) -> CMSWriteResponse:
     """
     Build the response for a CMS write.
@@ -100,10 +96,6 @@ def _no_updates() -> HTTPException:
         detail="No updates provided"
     )
 
-
-# ============================================================================
-# Request/Response Schemas
-# ============================================================================
 
 # Features
 class FeatureCreate(CMSUrlValidationMixin):
@@ -382,10 +374,6 @@ class InstallationUpdate(CMSUrlValidationMixin):
     is_featured: bool | None = None
 
 
-# ============================================================================
-# Site Settings Endpoints
-# ============================================================================
-
 @router.put(
     "/site-settings",
     response_model=CMSWriteResponse,
@@ -424,10 +412,6 @@ async def update_site_settings(
     except Exception:
         raise _internal_error("update site settings")
 
-
-# ============================================================================
-# Hero Slides Endpoints
-# ============================================================================
 
 @router.post(
     "/hero-slides",
@@ -533,10 +517,6 @@ async def delete_hero_slide(
         raise _internal_error("delete hero slide")
 
 
-# ============================================================================
-# Sales Representatives Endpoints
-# ============================================================================
-
 @router.post(
     "/sales-reps",
     response_model=CMSWriteResponse,
@@ -618,10 +598,6 @@ async def delete_sales_rep(
         raise _internal_error("delete sales rep")
 
 
-# ============================================================================
-# Gallery/Installation Endpoints
-# ============================================================================
-
 @router.post(
     "/gallery",
     response_model=CMSWriteResponse,
@@ -701,10 +677,6 @@ async def delete_installation(
         raise _internal_error("delete installation")
 
 
-# ============================================================================
-# Page Content Endpoints
-# ============================================================================
-
 @router.patch(
     "/page-content/{page_slug}/{section_key}",
     response_model=dict,
@@ -746,10 +718,6 @@ async def update_page_content(
         raise _internal_error("update page content")
 
 
-# ============================================================================
-# Utility Endpoints
-# ============================================================================
-
 @router.post(
     "/export-all",
     response_model=CMSWriteResponse,
@@ -779,10 +747,6 @@ async def export_all_content(
         exported=False,
     )
 
-
-# ============================================================================
-# Features Endpoints
-# ============================================================================
 
 @router.post(
     "/features",
@@ -859,10 +823,6 @@ async def delete_feature(
         raise _internal_error("delete feature")
 
 
-# ============================================================================
-# Client Logos Endpoints
-# ============================================================================
-
 @router.post(
     "/client-logos",
     response_model=CMSWriteResponse,
@@ -937,10 +897,6 @@ async def delete_client_logo(
     except Exception:
         raise _internal_error("delete client logo")
 
-
-# ============================================================================
-# Testimonials Endpoints
-# ============================================================================
 
 @router.post(
     "/testimonials",
@@ -1017,10 +973,6 @@ async def delete_testimonial(
         raise _internal_error("delete testimonial")
 
 
-# ============================================================================
-# Team Members Endpoints
-# ============================================================================
-
 @router.post(
     "/team-members",
     response_model=CMSWriteResponse,
@@ -1096,10 +1048,6 @@ async def delete_team_member(
         raise _internal_error("delete team member")
 
 
-# ============================================================================
-# Company Values Endpoints
-# ============================================================================
-
 @router.post(
     "/company-values",
     response_model=CMSWriteResponse,
@@ -1174,10 +1122,6 @@ async def delete_company_value(
     except Exception:
         raise _internal_error("delete company value")
 
-
-# ============================================================================
-# Company Milestones Endpoints
-# ============================================================================
 
 @router.post(
     "/company-milestones",
@@ -1258,10 +1202,6 @@ async def delete_company_milestone(
         raise _internal_error("delete company milestone")
 
 
-# ============================================================================
-# Contact Locations Endpoints
-# ============================================================================
-
 @router.post(
     "/contact-locations",
     response_model=CMSWriteResponse,
@@ -1341,10 +1281,6 @@ async def delete_contact_location(
         raise _internal_error("delete contact location")
 
 
-# ============================================================================
-# Company Info Endpoints
-# ============================================================================
-
 @router.post(
     "/company-info",
     response_model=CMSWriteResponse,
@@ -1419,10 +1355,6 @@ async def delete_company_info(
     except Exception:
         raise _internal_error("delete company info")
 
-
-# ============================================================================
-# Legal Documents Management
-# ============================================================================
 
 class LegalDocumentCreate(BaseModel):
     """Legal document creation request"""
@@ -1647,10 +1579,6 @@ async def admin_delete_legal_document(
     except Exception:
         raise _internal_error("delete legal document")
 
-
-# ============================================================================
-# Warranty Information Management
-# ============================================================================
 
 @router.get(
     "/warranties",

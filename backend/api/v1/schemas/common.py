@@ -11,10 +11,6 @@ from pydantic import BaseModel, Field, field_validator
 from backend.utils.validators import validate_cms_image_url, validate_cms_link
 
 
-# ============================================================================
-# CMS URL Validation
-# ============================================================================
-
 # Link fields: http(s), mailto:, tel: or a site-relative "/path"
 CMS_LINK_FIELDS = (
     "cta_link",
@@ -70,10 +66,6 @@ class CMSUrlValidationMixin(BaseModel):
         return v
 
 
-# ============================================================================
-# Base Schemas with Timestamps
-# ============================================================================
-
 class TimestampSchema(BaseModel):
     """Base schema with timestamps"""
     created_at: datetime
@@ -82,10 +74,6 @@ class TimestampSchema(BaseModel):
     class Config:
         from_attributes = True
 
-
-# ============================================================================
-# Generic Response Schemas
-# ============================================================================
 
 class MessageResponse(BaseModel):
     """Generic message response"""
@@ -127,10 +115,6 @@ class HealthCheckResponse(BaseModel):
     cache: str = "connected"
 
 
-# ============================================================================
-# Pagination Schemas
-# ============================================================================
-
 class PaginationParams(BaseModel):
     """Pagination query parameters"""
     page: int = Field(1, ge=1, description="Page number")
@@ -150,10 +134,6 @@ class PaginatedResponse(BaseModel):
         return (total + page_size - 1) // page_size
 
 
-# ============================================================================
-# File/Media Schemas
-# ============================================================================
-
 class FileInfo(BaseModel):
     """File information schema"""
     filename: str
@@ -172,10 +152,6 @@ class ImageInfo(BaseModel):
     alt_text: Optional[str] = None
 
 
-# ============================================================================
-# Search & Filter Schemas
-# ============================================================================
-
 class SearchParams(BaseModel):
     """Search query parameters"""
     q: Optional[str] = Field(None, description="Search query")
@@ -187,10 +163,6 @@ class SortParams(BaseModel):
     sort_by: Optional[str] = Field(None, description="Field to sort by")
     sort_order: Optional[str] = Field("asc", description="Sort order: asc or desc")
 
-
-# ============================================================================
-# Address Schema
-# ============================================================================
 
 class AddressBase(BaseModel):
     """Base address schema"""

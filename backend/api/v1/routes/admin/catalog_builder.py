@@ -67,11 +67,6 @@ async def _get_project(db: AsyncSession, project_id: int) -> CatalogProject:
     return project
 
 
-# ---------------------------------------------------------------------------
-# Projects
-# ---------------------------------------------------------------------------
-
-
 @router.get("/projects", summary="List catalog projects")
 async def list_projects(
     admin: AdminUser = Depends(get_current_admin),
@@ -203,11 +198,6 @@ async def delete_project(
     return {"message": "Catalog project deleted"}
 
 
-# ---------------------------------------------------------------------------
-# Rendering
-# ---------------------------------------------------------------------------
-
-
 @router.post("/preview", summary="Render one page as PNG")
 async def preview_page(
     body: PreviewRequest,
@@ -267,11 +257,6 @@ async def export_catalog(
         media_type="application/pdf",
         headers={"Content-Disposition": f'attachment; filename="{filename}"', "Cache-Control": "no-store"},
     )
-
-
-# ---------------------------------------------------------------------------
-# Pickers
-# ---------------------------------------------------------------------------
 
 
 @router.post("/suggest-pages", summary="Starter pages for families / products")

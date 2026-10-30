@@ -60,10 +60,6 @@ def _company_profile(company: Company) -> dict:
     return {field: getattr(company, field, None) for field in CompanyResponse.model_fields}
 
 
-# ============================================================================
-# Company Authentication
-# ============================================================================
-
 @router.post(
     "/auth/register",
     status_code=201,
@@ -296,10 +292,6 @@ async def refresh_token(
     return tokens_for_response_body(request, tokens)
 
 
-# ============================================================================
-# Admin Authentication
-# ============================================================================
-
 @router.post(
     "/auth/admin/login",
     summary="Admin login",
@@ -377,10 +369,6 @@ async def login_admin(
     }
 
 
-# ============================================================================
-# Email Verification
-# ============================================================================
-
 @router.post(
     "/auth/verify-email",
     response_model=MessageResponse,
@@ -454,10 +442,6 @@ async def resend_verification(
         detail="If an account exists with this email and is not yet verified, you will receive a verification email."
     )
 
-
-# ============================================================================
-# Password Management
-# ============================================================================
 
 @router.post(
     "/auth/password/change",
@@ -632,10 +616,6 @@ async def reset_password(
         detail="Your password has been reset. You can now log in with your new password."
     )
 
-
-# ============================================================================
-# Profile Endpoints
-# ============================================================================
 
 @router.get(
     "/auth/me",

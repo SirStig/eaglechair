@@ -63,10 +63,6 @@ FETCH_TIMEOUT_SECONDS = 10
 FETCH_MAX_BYTES = 15 * 1024 * 1024
 
 
-# ---------------------------------------------------------------------------
-# Fonts and text
-# ---------------------------------------------------------------------------
-
 @lru_cache(maxsize=64)
 def _font(family: str, weight: str, size: int) -> ImageFont.FreeTypeFont:
     """Brand font at a named weight (Merriweather / Inter variable fonts, OFL)."""
@@ -133,10 +129,6 @@ def _draw_tracked(draw: ImageDraw.ImageDraw, xy, text: str, font, fill, tracking
 def _tracked_width(text: str, font, tracking: float) -> float:
     return sum(font.getlength(ch) + tracking for ch in text) - tracking if text else 0
 
-
-# ---------------------------------------------------------------------------
-# Source images
-# ---------------------------------------------------------------------------
 
 def _allowed_remote_hosts() -> set[str]:
     hosts = set()
@@ -254,10 +246,6 @@ def _logo(height: int) -> Optional[Image.Image]:
     width = round(logo.width * height / logo.height)
     return logo.resize((width, height), Image.LANCZOS)
 
-
-# ---------------------------------------------------------------------------
-# Card layouts
-# ---------------------------------------------------------------------------
 
 def _brand_text(
     card: Image.Image,

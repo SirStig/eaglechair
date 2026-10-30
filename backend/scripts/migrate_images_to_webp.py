@@ -36,9 +36,7 @@ from PIL import Image
 from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 
-# ---------------------------------------------------------------------------
 # Project path setup (so this runs from any cwd)
-# ---------------------------------------------------------------------------
 PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
 sys.path.insert(0, str(PROJECT_ROOT))
 
@@ -71,9 +69,6 @@ from backend.models.content import (  # noqa: E402
     TeamMember,
 )
 
-# ---------------------------------------------------------------------------
-# Logging
-# ---------------------------------------------------------------------------
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s  %(levelname)-8s  %(message)s",
@@ -81,16 +76,9 @@ logging.basicConfig(
 )
 log = logging.getLogger("migrate_webp")
 
-# ---------------------------------------------------------------------------
-# Constants
-# ---------------------------------------------------------------------------
 CONVERTIBLE_SUFFIXES = {".jpg", ".jpeg", ".png"}
 MAX_DIMENSION = 2000
 
-
-# ---------------------------------------------------------------------------
-# Image conversion
-# ---------------------------------------------------------------------------
 
 def convert_to_webp(src: Path, dry_run: bool) -> Path | None:
     """
@@ -148,10 +136,6 @@ def convert_to_webp(src: Path, dry_run: bool) -> Path | None:
         return None
 
 
-# ---------------------------------------------------------------------------
-# Filesystem scan
-# ---------------------------------------------------------------------------
-
 def scan_uploads(uploads_dir: Path, dry_run: bool) -> dict[str, str]:
     """
     Walk *uploads_dir*, convert all eligible images to WebP, and return a
@@ -205,10 +189,6 @@ def scan_uploads(uploads_dir: Path, dry_run: bool) -> dict[str, str]:
     return url_mapping
 
 
-# ---------------------------------------------------------------------------
-# URL replacement helpers
-# ---------------------------------------------------------------------------
-
 def remap_url(url: Any, mapping: dict[str, str]) -> str | None:
     """Return the new URL if *url* is in *mapping*, else None."""
     if not isinstance(url, str):
@@ -249,10 +229,6 @@ def remap_json_list(items: Any, mapping: dict[str, str]) -> tuple[Any, bool]:
 
     return result, changed
 
-
-# ---------------------------------------------------------------------------
-# Database updates
-# ---------------------------------------------------------------------------
 
 async def update_db(session: AsyncSession, mapping: dict[str, str], dry_run: bool) -> int:
     """
@@ -396,10 +372,6 @@ async def update_db(session: AsyncSession, mapping: dict[str, str], dry_run: boo
     return total_updated
 
 
-# ---------------------------------------------------------------------------
-# Delete originals
-# ---------------------------------------------------------------------------
-
 def delete_originals(url_mapping: dict[str, str], uploads_dir: Path, dry_run: bool):
     """Delete original JPEG/PNG files that were successfully converted."""
     deleted = 0
@@ -425,10 +397,6 @@ def delete_originals(url_mapping: dict[str, str], uploads_dir: Path, dry_run: bo
 
     log.info("Originals deleted: %d", deleted)
 
-
-# ---------------------------------------------------------------------------
-# Entry point
-# ---------------------------------------------------------------------------
 
 async def main(uploads_dir: Path, dry_run: bool, delete_originals_flag: bool):
     log.info("=" * 60)

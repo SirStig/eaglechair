@@ -258,10 +258,6 @@ async def _apply_pricing_tiers_to_products(
                     product.pricing_tier_name = pricing_tier_name
 
 
-# ============================================================================
-# Category Endpoints
-# ============================================================================
-
 @router.get(
     "/categories",
     response_model=list[CategoryWithChildren],
@@ -381,11 +377,6 @@ async def get_category_by_slug(
     )
     
     return category
-
-
-# ============================================================================
-# Product Endpoints
-# ============================================================================
 
 
 async def _increment_view_count(db: AsyncSession, *conditions) -> None:
@@ -705,10 +696,6 @@ async def get_product_by_model(
     return product
 
 
-# ============================================================================
-# Finish Endpoints
-# ============================================================================
-
 @router.get(
     "/finishes",
     response_model=list[FinishResponse],
@@ -762,10 +749,6 @@ async def get_finish(
     return finish
 
 
-# ============================================================================
-# Upholstery Endpoints
-# ============================================================================
-
 @router.get(
     "/upholsteries",
     response_model=list[UpholsteryResponse],
@@ -816,10 +799,6 @@ async def get_upholstery(
     
     return upholstery
 
-
-# ============================================================================
-# Product Families & Subcategories
-# ============================================================================
 
 @router.get(
     "/families",
@@ -1201,10 +1180,6 @@ async def get_subcategories(
     return [child for items in children.values() for child in items]
 
 
-# ============================================================================
-# Colors
-# ============================================================================
-
 @router.get(
     "/colors",
     response_model=list[ColorResponse],
@@ -1241,10 +1216,6 @@ async def get_colors(
     logger.info(f"Retrieved {len(colors)} colors")
     return list(colors)
 
-
-# ============================================================================
-# Product Families & Subcategories (NEW)
-# ============================================================================
 
 @router.get(
     "/products/{product_id}/variations",
@@ -1405,10 +1376,6 @@ async def get_related_products(
     return related
 
 
-# ============================================================================
-# Pricing (NEW - Company-Specific Pricing)
-# ============================================================================
-
 @router.get(
     "/products/{product_id}/price",
     summary="Calculate product price",
@@ -1487,10 +1454,6 @@ async def get_product_price_range(
 
     return price_range
 
-
-# ============================================================================
-# Cache Management
-# ============================================================================
 
 @router.get(
     "/cache/timestamps",

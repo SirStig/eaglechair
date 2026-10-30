@@ -30,10 +30,6 @@ logger = logging.getLogger(__name__)
 router = APIRouter(tags=["Legal & Terms"])
 
 
-# ============================================================================
-# Legal Documents
-# ============================================================================
-
 @router.get(
     "/legal/documents",
     response_model=list[LegalDocumentResponse],
@@ -196,10 +192,6 @@ async def get_legal_document_by_type(
     }
 
 
-# ============================================================================
-# Warranties
-# ============================================================================
-
 @router.get(
     "/legal/warranties",
     response_model=list[WarrantyResponse],
@@ -278,10 +270,6 @@ async def get_warranty(
         "displayOrder": warranty.display_order
     }
 
-
-# ============================================================================
-# Shipping Policies
-# ============================================================================
 
 @router.get(
     "/legal/shipping-policies",

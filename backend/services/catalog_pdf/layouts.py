@@ -69,11 +69,6 @@ class Ctx:
     slots: list = field(default_factory=list)
 
 
-# ---------------------------------------------------------------------------
-# Items
-# ---------------------------------------------------------------------------
-
-
 def resolve_item(item: dict, data: CatalogData) -> tuple[Optional[dict], Optional[dict]]:
     """(product, variation) for a page item; either may be None."""
     variation = data.variations.get(item.get("variation_id"))
@@ -110,11 +105,6 @@ def _tweaks(item: dict) -> tuple[float, float, float]:
     except (TypeError, ValueError):
         return 0.0, 0.0, 1.0
     return dx, dy, scale
-
-
-# ---------------------------------------------------------------------------
-# Drawing primitives
-# ---------------------------------------------------------------------------
 
 
 def _layer(page: fitz.Page, ctx: Ctx, name: str, rect: fitz.Rect = PAGE_RECT, clip=None) -> None:
@@ -327,10 +317,6 @@ def _place_spec_column(rect: fitz.Rect, side: str, rows: int, pitch: float, bott
     return x, y
 
 
-# ---------------------------------------------------------------------------
-# Page types
-# ---------------------------------------------------------------------------
-
 # Everything below the title starts at y >= CONTENT_TOP
 CONTENT_TOP = 122.0
 CONTENT_LEFT, CONTENT_RIGHT = 14.0, 598.0
@@ -444,7 +430,6 @@ def draw_product(page: fitz.Page, ctx: Ctx, spec: dict) -> None:
     for rect, blocks, size in _panel_columns(spec, text_top, text_bottom):
         _html_box(page, rect, blocks, size=size)
     _footer(page, ctx)
-
 
 
 def _grid(count: int, cols: int, top: float, bottom: float, left=24, right=588, gap=18, caption=34) -> list[fitz.Rect]:
@@ -571,9 +556,7 @@ def _banner(page: fitz.Page, ctx: Ctx, tagline: str) -> None:
         )
 
 
-# ---------------------------------------------------------------------------
 # Seat / upholstery options: seat close-ups in ovals with a code + description
-# ---------------------------------------------------------------------------
 
 MAX_SEAT_ITEMS = 10
 SEAT_TAGLINE = (
@@ -681,9 +664,7 @@ def draw_seats(page: fitz.Page, ctx: Ctx, spec: dict) -> None:
     _footer(page, ctx)
 
 
-# ---------------------------------------------------------------------------
 # Table bases: many small captioned bases, a sizes / weights table in the panel
-# ---------------------------------------------------------------------------
 
 MAX_BASE_ITEMS = 12
 KG_PER_LB = 0.45359237
@@ -760,9 +741,7 @@ def draw_bases(page: fitz.Page, ctx: Ctx, spec: dict) -> None:
     _footer(page, ctx)
 
 
-# ---------------------------------------------------------------------------
 # Chart: a ruled table (table top / base compatibility), split in two halves
-# ---------------------------------------------------------------------------
 
 MAX_CHART_ROWS = 120
 CHART_TAGLINE = "Please contact the factory if you are uncertain of the base sizes needed for your project."

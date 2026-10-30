@@ -11,10 +11,6 @@ from enum import Enum
 from backend.api.v1.schemas.common import TimestampSchema
 
 
-# ============================================================================
-# Enums
-# ============================================================================
-
 class LegalDocumentTypeEnum(str, Enum):
     """Legal document type enumeration"""
     PRICE_LIST = "price_list"
@@ -44,10 +40,6 @@ class LegalDocumentTypeEnum(str, Enum):
     PRIVACY_POLICY = "privacy_policy"
     OTHER = "other"
 
-
-# ============================================================================
-# Legal Document Schemas
-# ============================================================================
 
 class LegalDocumentBase(BaseModel):
     """Base legal document schema"""
@@ -90,10 +82,6 @@ class LegalDocumentResponse(LegalDocumentBase, TimestampSchema):
         from_attributes = True
 
 
-# ============================================================================
-# Warranty Schemas
-# ============================================================================
-
 class WarrantyBase(BaseModel):
     """Base warranty schema"""
     warranty_type: str = Field(..., max_length=100)
@@ -133,10 +121,6 @@ class WarrantyResponse(WarrantyBase, TimestampSchema):
         from_attributes = True
 
 
-# ============================================================================
-# Shipping Policy Schemas
-# ============================================================================
-
 class ShippingPolicyBase(BaseModel):
     """Base shipping policy schema"""
     policy_name: str = Field(..., max_length=255)
@@ -171,10 +155,6 @@ class ShippingPolicyResponse(ShippingPolicyBase, TimestampSchema):
     class Config:
         from_attributes = True
 
-
-# ============================================================================
-# List Response Schemas
-# ============================================================================
 
 class LegalDocumentListResponse(BaseModel):
     """Schema for paginated legal document list"""

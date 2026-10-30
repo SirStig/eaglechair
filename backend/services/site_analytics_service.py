@@ -115,9 +115,7 @@ def normalize_path(path: Optional[str]) -> Optional[str]:
     return path[:512] or "/"
 
 
-# ----------------------------------------------------------------------
 # Location (country / region only; the IP is never stored)
-# ----------------------------------------------------------------------
 
 _COUNTRY_HEADERS = ("cf-ipcountry", "cloudfront-viewer-country", "x-country-code", "x-geo-country")
 _geo_reader = None
@@ -171,10 +169,6 @@ def resolve_location(headers: Mapping[str, str], ip: Optional[str]) -> Tuple[Opt
     except Exception:
         return None, None
 
-
-# ----------------------------------------------------------------------
-# Query helpers
-# ----------------------------------------------------------------------
 
 def _count_of(event_type: str):
     return func.sum(case((AnalyticsEvent.event_type == event_type, 1), else_=0))

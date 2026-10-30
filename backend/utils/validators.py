@@ -72,11 +72,6 @@ def normalize_phone(phone: str) -> Optional[str]:
     return f"{digits[:3]}-{digits[3:6]}-{digits[6:]}"
 
 
-
-# ============================================================================
-# CMS URL validation
-# ============================================================================
-
 _WEB_SCHEMES = ("http://", "https://")
 _LINK_ONLY_SCHEMES = ("mailto:", "tel:")
 

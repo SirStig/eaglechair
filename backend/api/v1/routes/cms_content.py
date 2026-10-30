@@ -64,10 +64,6 @@ logger = logging.getLogger(__name__)
 router = APIRouter(tags=["CMS Content"])
 
 
-# ============================================================================
-# Site Settings
-# ============================================================================
-
 @router.get(
     "/site-settings",
     summary="Get site settings",
@@ -125,10 +121,6 @@ async def get_site_settings(db: AsyncSession = Depends(get_db)):
     }
 
 
-# ============================================================================
-# Hero Slides
-# ============================================================================
-
 @router.get(
     "/hero-slides",
     response_model=list[HeroSlideResponse],
@@ -182,10 +174,6 @@ async def get_hero_slides(db: AsyncSession = Depends(get_db)):
         for slide in slides
     ]
 
-
-# ============================================================================
-# Features (Why Choose Us)
-# ============================================================================
 
 @router.get(
     "/features",
@@ -247,10 +235,6 @@ async def get_features(
     ]
 
 
-# ============================================================================
-# Client Logos
-# ============================================================================
-
 @router.get(
     "/client-logos",
     response_model=list[ClientLogoResponse],
@@ -283,10 +267,6 @@ async def get_client_logos(db: AsyncSession = Depends(get_db)):
         for logo in logos
     ]
 
-
-# ============================================================================
-# Testimonials
-# ============================================================================
 
 @router.get(
     "/testimonials",
@@ -323,10 +303,6 @@ async def get_testimonials(db: AsyncSession = Depends(get_db)):
         for t in testimonials
     ]
 
-
-# ============================================================================
-# Company Values
-# ============================================================================
 
 @router.get(
     "/company-values",
@@ -377,10 +353,6 @@ async def get_company_values(db: AsyncSession = Depends(get_db)):
     ]
 
 
-# ============================================================================
-# Company Milestones
-# ============================================================================
-
 @router.get(
     "/company-milestones",
     response_model=list[CompanyMilestoneResponse],
@@ -420,10 +392,6 @@ async def get_company_milestones(db: AsyncSession = Depends(get_db)):
         for milestone in milestones
     ]
 
-
-# ============================================================================
-# Sales Representatives
-# ============================================================================
 
 @router.get(
     "/sales-reps",
@@ -472,10 +440,6 @@ async def get_sales_reps(
         for rep in reps
     ]
 
-
-# ============================================================================
-# Installations (Gallery)
-# ============================================================================
 
 def _product_ids(raw) -> list[int]:
     """Product ids shown in an installation photo (stored as a JSON list)."""
@@ -536,10 +500,6 @@ async def get_installations(
         for installation in installations
     ]
 
-
-# ============================================================================
-# Page Content
-# ============================================================================
 
 @router.get(
     "/page-content/{page_slug}",
@@ -627,10 +587,6 @@ async def get_page_content(
     ]
 
 
-# ============================================================================
-# Featured Products
-# ============================================================================
-
 class FeaturedProductResponse(BaseModel):
     """Featured product card (camelCase, as returned by /content/featured-products)"""
     id: int
@@ -694,10 +650,6 @@ async def get_featured_products(
         for product in products
     ]
 
-
-# ============================================================================
-# Legal Documents (Static Data)
-# ============================================================================
 
 @router.get(
     "/legal-documents",

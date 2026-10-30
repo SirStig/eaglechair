@@ -81,10 +81,6 @@ _TAG_RE = re.compile(r"<[^>]+>")
 _SPACE_RE = re.compile(r"\s+")
 
 
-# ---------------------------------------------------------------------------
-# Paths and URLs
-# ---------------------------------------------------------------------------
-
 def web_root() -> Path:
     """Directory holding the built frontend (index.html)."""
     if settings.FRONTEND_PATH and Path(settings.FRONTEND_PATH).is_absolute():
@@ -140,10 +136,6 @@ def _is_safe_path(path: str) -> bool:
     segments = path.strip("/").split("/")
     return bool(segments) and all(_SAFE_SEGMENT.match(s) for s in segments)
 
-
-# ---------------------------------------------------------------------------
-# Text helpers
-# ---------------------------------------------------------------------------
 
 def clean_text(value: Any) -> str:
     if not value or not isinstance(value, str):
@@ -202,10 +194,6 @@ def _e(value: Any) -> str:
 def _plural(n: int, word: str) -> str:
     return f"{n} {word}{'' if n == 1 else 's'}"
 
-
-# ---------------------------------------------------------------------------
-# Page model and HTML
-# ---------------------------------------------------------------------------
 
 @dataclass
 class PageMeta:
@@ -287,9 +275,7 @@ def _breadcrumb_html(items: list[tuple[str, str]]) -> str:
     return f'<nav aria-label="Breadcrumb">{links}</nav>'
 
 
-# ---------------------------------------------------------------------------
 # Catalog snapshot (plain dicts: rendering runs in a worker thread)
-# ---------------------------------------------------------------------------
 
 def image_urls(images: Any) -> list[str]:
     out = []
@@ -441,10 +427,6 @@ async def catalog_signature(db: AsyncSession) -> str:
     return "|".join(parts)
 
 
-# ---------------------------------------------------------------------------
-# Share cards
-# ---------------------------------------------------------------------------
-
 def _footer_domain() -> str:
     host = settings.SITE_URL.split("://", 1)[-1].strip("/")
     return host[4:] if host.startswith("www.") else host
@@ -517,10 +499,6 @@ class _Cards:
         tmp.write_text(json.dumps(self.keep, sort_keys=True), encoding="utf-8")
         os.replace(tmp, self.manifest_path)
 
-
-# ---------------------------------------------------------------------------
-# Page builders
-# ---------------------------------------------------------------------------
 
 def _model_label(p: dict) -> str:
     return f"{p['model_number'] or ''}{p['model_suffix'] or ''}".strip()
@@ -825,10 +803,6 @@ def build_static_page(page: dict, hero_image: Optional[str], cards: _Cards) -> O
     )
 
 
-# ---------------------------------------------------------------------------
-# Sitemap
-# ---------------------------------------------------------------------------
-
 # Used when the build's seo-pages.json is unavailable.
 # Keep in sync with frontend/src/config/seoConfig.js
 FALLBACK_PAGES = (
@@ -914,10 +888,6 @@ def render_sitemap(snapshot: dict) -> str:
     lines.append("</urlset>")
     return "\n".join(lines)
 
-
-# ---------------------------------------------------------------------------
-# Build
-# ---------------------------------------------------------------------------
 
 def _read_json(path: Path) -> Any:
     try:

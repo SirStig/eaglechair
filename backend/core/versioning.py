@@ -32,10 +32,6 @@ class APIVersionInfo(BaseModel):
     documentation_url: str
 
 
-# ============================================================================
-# Version Registry
-# ============================================================================
-
 API_VERSIONS = {
     "v1": APIVersionInfo(
         version="1.0.0",

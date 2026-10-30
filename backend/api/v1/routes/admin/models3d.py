@@ -120,10 +120,6 @@ async def _optimized_glb(content: bytes, optimize: bool) -> tuple[bytes, dict, d
     return content, glb_service.summarize(gltf), report
 
 
-# ---------------------------------------------------------------------------
-# Models
-# ---------------------------------------------------------------------------
-
 def _model_path(stem: str) -> Path:
     _check_stem(stem)
     path = MODELS_DIR / f"{stem}.glb"
@@ -210,10 +206,6 @@ async def delete_model(model_id: str, current_admin=Depends(get_current_admin)):
     logger.info(f"3D model deleted: {path.name} by admin {current_admin.id}")
     return {"success": True}
 
-
-# ---------------------------------------------------------------------------
-# Materials
-# ---------------------------------------------------------------------------
 
 LIBRARY_FILE = ".library.json"
 

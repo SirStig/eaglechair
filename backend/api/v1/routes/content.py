@@ -50,10 +50,6 @@ logger = logging.getLogger(__name__)
 router = APIRouter(tags=["Content"])
 
 
-# ============================================================================
-# FAQ Endpoints
-# ============================================================================
-
 @router.get(
     "/faq/categories",
     response_model=list[FAQCategoryResponse],
@@ -135,10 +131,6 @@ async def get_faq(
     return faq
 
 
-# ============================================================================
-# Team Endpoints
-# ============================================================================
-
 @router.get(
     "/team",
     response_model=list[TeamMemberResponse],
@@ -188,10 +180,6 @@ async def get_team_member(
     return member
 
 
-# ============================================================================
-# About/Company Info Endpoints
-# ============================================================================
-
 @router.get(
     "/about",
     response_model=CompanyInfoResponse,
@@ -224,10 +212,6 @@ async def get_company_info(
     
     return company_info
 
-
-# ============================================================================
-# Contact Endpoints
-# ============================================================================
 
 @router.get(
     "/contact/locations",
@@ -277,10 +261,6 @@ async def get_contact_location(
     
     return location
 
-
-# ============================================================================
-# Catalog Endpoints
-# ============================================================================
 
 @router.get(
     "/catalogs",
@@ -401,9 +381,6 @@ async def get_hardware(db: AsyncSession = Depends(get_db)):
     return hardware
 
 
-# ============================================================================
-# Installation Guide Endpoints
-# ============================================================================
 # The installation list (GET /installations, with project_type filter) lives in
 # cms_content.py and returns the same shape as galleryImages in contentData.json.
 
@@ -431,10 +408,6 @@ async def get_installation_guide(
     
     return guide
 
-
-# ============================================================================
-# Feedback Endpoints
-# ============================================================================
 
 @router.post(
     "/feedback",

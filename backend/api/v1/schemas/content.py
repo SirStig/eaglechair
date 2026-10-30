@@ -12,9 +12,6 @@ from pydantic import BaseModel, EmailStr, Field, field_validator
 from backend.api.v1.schemas.common import CMSUrlValidationMixin, TimestampSchema
 from backend.utils.serializers import parse_json_list
 
-# ============================================================================
-# Enums
-# ============================================================================
 
 class CatalogTypeEnum(str, Enum):
     """Catalog type enumeration"""
@@ -29,10 +26,6 @@ class CatalogTypeEnum(str, Enum):
     TECHNICAL_DRAWING = "technical_drawing"
     OTHER = "other"
 
-
-# ============================================================================
-# Team Member Schemas
-# ============================================================================
 
 class TeamMemberBase(BaseModel):
     """Base team member schema"""
@@ -75,10 +68,6 @@ class TeamMemberResponse(TeamMemberBase, TimestampSchema):
         from_attributes = True
 
 
-# ============================================================================
-# Company Info Schemas
-# ============================================================================
-
 class CompanyInfoBase(BaseModel):
     """Base company info schema"""
     section_key: str = Field(..., max_length=100)
@@ -110,10 +99,6 @@ class CompanyInfoResponse(CompanyInfoBase, TimestampSchema):
     class Config:
         from_attributes = True
 
-
-# ============================================================================
-# FAQ Category Schemas
-# ============================================================================
 
 class FAQCategoryBase(BaseModel):
     """Base FAQ category schema"""
@@ -149,10 +134,6 @@ class FAQCategoryResponse(FAQCategoryBase, TimestampSchema):
     class Config:
         from_attributes = True
 
-
-# ============================================================================
-# FAQ Schemas
-# ============================================================================
 
 class FAQBase(BaseModel):
     """Base FAQ schema"""
@@ -192,10 +173,6 @@ class FAQResponse(FAQBase, TimestampSchema):
     class Config:
         from_attributes = True
 
-
-# ============================================================================
-# Catalog Schemas
-# ============================================================================
 
 class CatalogBase(BaseModel):
     """Base catalog schema"""
@@ -244,10 +221,6 @@ class CatalogResponse(CatalogBase, TimestampSchema):
     class Config:
         from_attributes = True
 
-
-# ============================================================================
-# Installation Schemas
-# ============================================================================
 
 class InstallationBase(BaseModel):
     """Base installation schema"""
@@ -331,10 +304,6 @@ class InstallationListItemResponse(BaseModel):
     productsUsed: List[int] = []
 
 
-# ============================================================================
-# Contact Location Schemas
-# ============================================================================
-
 class ContactLocationBase(BaseModel):
     """Base contact location schema"""
     location_name: str = Field(..., max_length=255)
@@ -394,10 +363,6 @@ class ContactLocationResponse(ContactLocationBase, TimestampSchema):
         from_attributes = True
 
 
-# ============================================================================
-# Feedback Schemas
-# ============================================================================
-
 class FeedbackBase(BaseModel):
     """Base feedback schema"""
     name: str = Field(..., max_length=255)
@@ -432,10 +397,6 @@ class FeedbackUpdate(BaseModel):
     is_responded: Optional[bool] = None
     admin_notes: Optional[str] = None
 
-
-# ============================================================================
-# Page Content Schemas
-# ============================================================================
 
 class PageContentBase(BaseModel):
     """Base page content schema"""
@@ -482,10 +443,6 @@ class PageContentResponse(PageContentBase, TimestampSchema):
         from_attributes = True
 
 
-# ============================================================================
-# List Response Schemas
-# ============================================================================
-
 class TeamMemberListResponse(BaseModel):
     """Schema for paginated team member list"""
     items: list[TeamMemberResponse]
@@ -531,10 +488,6 @@ class FeedbackListResponse(BaseModel):
     total_pages: int
 
 
-# ============================================================================
-# Hero Slide Schemas
-# ============================================================================
-
 class HeroSlideResponse(BaseModel):
     """Schema for hero slide response"""
     id: int
@@ -546,10 +499,6 @@ class HeroSlideResponse(BaseModel):
     displayOrder: int
 
 
-# ============================================================================
-# Feature Schemas
-# ============================================================================
-
 class FeatureResponse(BaseModel):
     """Schema for feature response"""
     id: int
@@ -560,10 +509,6 @@ class FeatureResponse(BaseModel):
     displayOrder: int
 
 
-# ============================================================================
-# Client Logo Schemas
-# ============================================================================
-
 class ClientLogoResponse(BaseModel):
     """Schema for client logo response"""
     id: int
@@ -572,10 +517,6 @@ class ClientLogoResponse(BaseModel):
     websiteUrl: Optional[str]
     displayOrder: int
 
-
-# ============================================================================
-# Testimonial Schemas
-# ============================================================================
 
 class TestimonialResponse(BaseModel):
     """Schema for testimonial response"""
@@ -589,10 +530,6 @@ class TestimonialResponse(BaseModel):
     displayOrder: int
 
 
-# ============================================================================
-# Company Value Schemas
-# ============================================================================
-
 class CompanyValueResponse(BaseModel):
     """Schema for company value response"""
     id: int
@@ -602,10 +539,6 @@ class CompanyValueResponse(BaseModel):
     displayOrder: int
 
 
-# ============================================================================
-# Company Milestone Schemas
-# ============================================================================
-
 class CompanyMilestoneResponse(BaseModel):
     """Schema for company milestone response"""
     id: int
@@ -614,10 +547,6 @@ class CompanyMilestoneResponse(BaseModel):
     description: Optional[str]
     displayOrder: int
 
-
-# ============================================================================
-# Sales Representative Schemas
-# ============================================================================
 
 class SalesRepresentativeResponse(BaseModel):
     """Schema for sales representative response"""
@@ -633,10 +562,6 @@ class SalesRepresentativeResponse(BaseModel):
     photoUrl: Optional[str]
     displayOrder: int
 
-
-# ============================================================================
-# Page Content Schemas
-# ============================================================================
 
 class PageContentItemResponse(BaseModel):
     """Schema for page content item"""

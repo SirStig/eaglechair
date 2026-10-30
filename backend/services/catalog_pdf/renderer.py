@@ -197,9 +197,7 @@ def render_preview(document: dict, data: CatalogData, images: ImageLoader, index
         )
 
 
-# ---------------------------------------------------------------------------
 # Product index (admin export): every product grouped by category and family
-# ---------------------------------------------------------------------------
 
 _INDEX_CSS = """
 * {font-family: sans-serif; color: #221f1f;}

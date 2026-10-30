@@ -12,10 +12,6 @@ from backend.api.v1.schemas.product import SpecProfile
 from backend.models.company import CompanyStatus
 from backend.models.quote import QuoteStatus
 
-# ============================================================================
-# Dashboard Schemas
-# ============================================================================
-
 
 class DashboardStatsResponse(BaseModel):
     """Dashboard statistics response"""
@@ -25,11 +21,6 @@ class DashboardStatsResponse(BaseModel):
     quotes: Dict[str, int] = Field(..., description="Quote statistics")
     recent_quotes: List[Dict[str, Any]] = Field(..., description="Recent quotes")
     recent_companies: List[Dict[str, Any]] = Field(..., description="Recent companies")
-
-
-# ============================================================================
-# Company Management Schemas
-# ============================================================================
 
 
 class CompanyStatusUpdate(BaseModel):
@@ -58,11 +49,6 @@ class CompanyListResponse(BaseModel):
     pages: int = Field(..., description="Total number of pages")
 
 
-# ============================================================================
-# Quote Management Schemas
-# ============================================================================
-
-
 class QuoteStatusUpdate(BaseModel):
     """Update quote status request"""
 
@@ -81,11 +67,6 @@ class QuoteListResponse(BaseModel):
     page: int = Field(..., description="Current page number")
     page_size: int = Field(..., description="Items per page")
     pages: int = Field(..., description="Total number of pages")
-
-
-# ============================================================================
-# Email Template Management Schemas
-# ============================================================================
 
 
 class EmailTemplateCreate(BaseModel):
@@ -146,11 +127,6 @@ class EmailTestRequest(BaseModel):
     context: Optional[Dict[str, Any]] = Field(
         default_factory=dict, description="Template context variables"
     )
-
-
-# ============================================================================
-# Product Management Schemas
-# ============================================================================
 
 
 class ProductCreate(BaseModel):
@@ -468,11 +444,6 @@ class ProductListResponse(BaseModel):
     pages: int = Field(..., description="Total number of pages")
 
 
-# ============================================================================
-# Catalog Management Schemas (Families, Subcategories, etc.)
-# ============================================================================
-
-
 class FamilyCreate(BaseModel):
     """Create product family request"""
 
@@ -567,11 +538,6 @@ class SubcategoryUpdate(BaseModel):
     )
 
 
-# ============================================================================
-# Finish Management Schemas
-# ============================================================================
-
-
 class FinishCreate(BaseModel):
     """Create finish request"""
 
@@ -624,11 +590,6 @@ class FinishUpdate(BaseModel):
     is_active: Optional[bool] = Field(None, description="Is active")
     is_custom: Optional[bool] = Field(None, description="Is custom finish")
     is_to_match: Optional[bool] = Field(None, description="Is to-match finish")
-
-
-# ============================================================================
-# Upholstery Management Schemas
-# ============================================================================
 
 
 class UpholsteryCreate(BaseModel):
@@ -723,11 +684,6 @@ class UpholsteryUpdate(BaseModel):
     grade_c_cost: Optional[int] = Field(None, ge=0, description="Grade C cost in cents")
     premium_cost: Optional[int] = Field(None, ge=0, description="Premium cost in cents")
     display_order: Optional[int] = Field(None, ge=0, description="Display order")
-
-
-# ============================================================================
-# Laminate Management Schemas
-# ============================================================================
 
 
 class LaminateCreate(BaseModel):
@@ -832,11 +788,6 @@ class LaminateUpdate(BaseModel):
     is_active: Optional[bool] = Field(None, description="Is active")
     is_featured: Optional[bool] = Field(None, description="Is featured")
     is_popular: Optional[bool] = Field(None, description="Is popular")
-
-
-# ============================================================================
-# Hardware Management Schemas
-# ============================================================================
 
 
 class HardwareCreate(BaseModel):

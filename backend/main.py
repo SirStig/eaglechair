@@ -330,9 +330,6 @@ register_exception_handlers(app)
 setup_middleware(app)
 
 
-# ============================================================================
-# CRITICAL FIX: Handle OPTIONS for CMS admin routes BEFORE FastAPI routing
-# ============================================================================
 @app.middleware("http")
 async def cms_options_handler(request: Request, call_next):
     """
@@ -397,9 +394,6 @@ app.include_router(
 #     prefix=settings.API_V2_PREFIX,
 # )
 
-# ============================================================================
-# Static File Serving
-# ============================================================================
 
 # Mount uploads directory for user-uploaded files (images, documents, etc.).
 # Use the same directory the upload routes write to (FRONTEND_PATH/uploads in
@@ -432,10 +426,6 @@ async def root_old():
 
     return get_api_docs_html()
 
-
-# ============================================================================
-# Frontend SPA Serving
-# ============================================================================
 
 # Use FRONTEND_PATH from config
 # In production: FRONTEND_PATH points to the built frontend root (already contains dist contents)

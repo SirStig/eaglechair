@@ -37,11 +37,6 @@ logger = logging.getLogger(__name__)
 router = APIRouter(tags=["Quotes & Cart"])
 
 
-# ============================================================================
-# Cart Endpoints
-# ============================================================================
-
-
 @router.get(
     "/cart",
     response_model=CartResponse,
@@ -336,11 +331,6 @@ async def merge_guest_cart(
     )
 
     return cart
-
-
-# ============================================================================
-# Quote Request Endpoints
-# ============================================================================
 
 
 @router.post(

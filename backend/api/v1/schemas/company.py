@@ -11,9 +11,6 @@ from pydantic import BaseModel, EmailStr, Field, validator
 
 from backend.api.v1.schemas.common import TimestampSchema
 
-# ============================================================================
-# Enums
-# ============================================================================
 
 class CompanyStatusEnum(str, Enum):
     """Company status enumeration"""
@@ -30,10 +27,6 @@ class AdminRoleEnum(str, Enum):
     EDITOR = "editor"
     VIEWER = "viewer"
 
-
-# ============================================================================
-# Company Schemas
-# ============================================================================
 
 class CompanyBase(BaseModel):
     """Base company schema"""
@@ -209,10 +202,6 @@ class CompanyLoginRequest(BaseModel):
     two_factor_code: Optional[str] = None
 
 
-# ============================================================================
-# Admin User Schemas
-# ============================================================================
-
 class AdminUserBase(BaseModel):
     """Base admin user schema"""
     username: str = Field(..., min_length=3, max_length=50)
@@ -281,10 +270,6 @@ class AdminTokenResponse(BaseModel):
     token_type: str = "bearer"
 
 
-# ============================================================================
-# Auth Schemas
-# ============================================================================
-
 class TokenResponse(BaseModel):
     """Schema for authentication token response"""
     access_token: str
@@ -331,10 +316,6 @@ class PasswordReset(BaseModel):
         return v
 
 
-# ============================================================================
-# Audit Log Schemas
-# ============================================================================
-
 class AdminAuditLogBase(BaseModel):
     """Base admin audit log schema"""
     action: str = Field(..., max_length=255)
@@ -354,10 +335,6 @@ class AdminAuditLogResponse(AdminAuditLogBase):
     class Config:
         from_attributes = True
 
-
-# ============================================================================
-# List Response Schemas
-# ============================================================================
 
 class CompanyListResponse(BaseModel):
     """Schema for paginated company list"""

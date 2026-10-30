@@ -13,9 +13,6 @@ from pydantic import BaseModel, EmailStr, Field, field_validator
 
 from backend.api.v1.schemas.common import TimestampSchema
 
-# ============================================================================
-# Enums
-# ============================================================================
 
 class QuoteStatusEnum(str, Enum):
     """Quote status enumeration"""
@@ -27,10 +24,6 @@ class QuoteStatusEnum(str, Enum):
     DECLINED = "declined"
     EXPIRED = "expired"
 
-
-# ============================================================================
-# Quote Schemas
-# ============================================================================
 
 class QuoteBase(BaseModel):
     """Base quote schema"""
@@ -153,10 +146,6 @@ class QuoteResponse(QuoteBase, TimestampSchema):
         from_attributes = True
 
 
-# ============================================================================
-# Quote Item Schemas
-# ============================================================================
-
 class QuoteItemBase(BaseModel):
     """Base quote item schema"""
     product_id: int
@@ -243,10 +232,6 @@ class QuoteWithItems(QuoteResponse):
     shipping_destinations: list[QuoteShippingDestinationResponse] = []
 
 
-# ============================================================================
-# Cart Schemas
-# ============================================================================
-
 class CartResponse(TimestampSchema):
     """Schema for cart response"""
     id: int
@@ -262,10 +247,6 @@ class CartResponse(TimestampSchema):
     class Config:
         from_attributes = True
 
-
-# ============================================================================
-# Cart Item Schemas
-# ============================================================================
 
 class CartItemProductInfo(BaseModel):
     """Product information embedded in cart item - comprehensive for display"""
@@ -407,10 +388,6 @@ class CartWithItems(CartResponse):
     items: list[CartItemResponse] = []
 
 
-# ============================================================================
-# Saved Configuration Schemas
-# ============================================================================
-
 class SavedConfigurationBase(BaseModel):
     """Base saved configuration schema"""
     product_id: int
@@ -443,10 +420,6 @@ class SavedConfigurationResponse(SavedConfigurationBase, TimestampSchema):
     class Config:
         from_attributes = True
 
-
-# ============================================================================
-# Convert Cart to Quote
-# ============================================================================
 
 class ShippingDestinationInput(BaseModel):
     """One shipping destination (address) for a quote request"""
@@ -524,10 +497,6 @@ class ConvertCartToQuoteRequest(BaseModel):
     rush_order: bool = False
 
 
-# ============================================================================
-# List Response Schemas
-# ============================================================================
-
 class QuoteListResponse(BaseModel):
     """Schema for paginated quote list"""
     items: list[QuoteResponse]
@@ -545,10 +514,6 @@ class SavedConfigurationListResponse(BaseModel):
     page_size: int
     total_pages: int
 
-
-# ============================================================================
-# Dashboard Schemas
-# ============================================================================
 
 class DashboardStatsResponse(BaseModel):
     """Schema for dashboard statistics"""
@@ -593,10 +558,6 @@ class DashboardQuotesResponse(BaseModel):
     quotes: list[DashboardQuoteResponse]
     count: int
 
-
-# ============================================================================
-# Model Rebuild - Resolve Forward References
-# ============================================================================
 
 # Rebuild models to resolve forward references (CartItemResponse in CartResponse)
 # This is done lazily to avoid blocking imports - only rebuilds when first accessed

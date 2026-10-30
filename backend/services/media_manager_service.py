@@ -62,10 +62,6 @@ class MediaError(Exception):
         self.status = status
 
 
-# ---------------------------------------------------------------------------
-# Keys and paths
-# ---------------------------------------------------------------------------
-
 def library_key(kind: str, url: str) -> str | None:
     """The form the library lists a file under (uploads URLs collapse to their path)."""
     if kind == "image":
@@ -108,10 +104,6 @@ def _key_fn(kind: str, cls: type, column: str):
         return lambda v: media_library_service.library_key(v, image_named)
     return document_library_service.library_key
 
-
-# ---------------------------------------------------------------------------
-# Versions
-# ---------------------------------------------------------------------------
 
 async def version_index(db: AsyncSession, kind: str) -> tuple[dict[str, int], set[str]]:
     """(number of earlier versions per current URL, every earlier-version URL)."""
@@ -166,10 +158,6 @@ async def list_versions(db: AsyncSession, kind: str, url: str, upload_base: Path
     return out
 
 
-# ---------------------------------------------------------------------------
-# Free-text mentions
-# ---------------------------------------------------------------------------
-
 def _text_columns(cls: type) -> list[str]:
     return [
         c.key for c in cls.__mapper__.columns
@@ -220,10 +208,6 @@ async def find_mentions(db: AsyncSession, key: str, exclude: set[tuple[str, int]
             ))
     return found
 
-
-# ---------------------------------------------------------------------------
-# Rewriting references
-# ---------------------------------------------------------------------------
 
 def _transform(value, matches, replacement, remove: bool, json_column: bool):
     """
@@ -378,10 +362,6 @@ def touches_catalog(touched: list[dict]) -> bool:
     models = _models()
     return any(getattr(models.get(t["model"]), "__module__", "").startswith("backend.models.chair") for t in touched)
 
-
-# ---------------------------------------------------------------------------
-# Details, replace, restore, delete
-# ---------------------------------------------------------------------------
 
 def image_info(path: Path) -> dict | None:
     """Pixel facts for an image file (None for SVG / unreadable files)."""
@@ -645,10 +625,6 @@ async def delete_file(db: AsyncSession, kind: str, url: str, upload_base: Path, 
             await run_in_threadpool(media_service.delete_image_files, p, upload_base)
     return {"url": key, "detached": touched, "files_removed": len(paths)}
 
-
-# ---------------------------------------------------------------------------
-# Background removal (image editor)
-# ---------------------------------------------------------------------------
 
 AI_MODEL = "isnet-general-use"
 _ai_session = None

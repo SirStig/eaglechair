@@ -86,11 +86,6 @@ async def _redis_call(fn) -> Any:
         return None
 
 
-# ---------------------------------------------------------------------------
-# Version counter
-# ---------------------------------------------------------------------------
-
-
 async def get_remote_version() -> Optional[int]:
     """Shared (Redis) catalog version, or None when Redis is unavailable."""
     raw = await _redis_call(lambda c: c.get(CATALOG_VERSION_KEY))
@@ -112,11 +107,6 @@ async def bump_catalog_version() -> None:
     global _local_version
     _local_version += 1
     await _redis_call(lambda c: c.incr(CATALOG_VERSION_KEY))
-
-
-# ---------------------------------------------------------------------------
-# Public response cache
-# ---------------------------------------------------------------------------
 
 
 def _cache_key(request: Request, version: int) -> str:

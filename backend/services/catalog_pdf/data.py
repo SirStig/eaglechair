@@ -157,9 +157,7 @@ async def load_catalog_data(db: AsyncSession, document: dict) -> CatalogData:
     return data
 
 
-# ---------------------------------------------------------------------------
 # Page suggestions ("add family" in the Catalog Builder)
-# ---------------------------------------------------------------------------
 
 
 def new_page_id() -> str:
@@ -240,9 +238,7 @@ def suggest_pages(products: list[dict], families: dict[int, ProductFamily], incl
     return pages
 
 
-# ---------------------------------------------------------------------------
 # Sample catalog (a ready-made template built from live data)
-# ---------------------------------------------------------------------------
 
 SAMPLE_FAMILY_COUNT = 6
 

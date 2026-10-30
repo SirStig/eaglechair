@@ -107,10 +107,6 @@ class Plan:
         return [s for s in self.steps if s.status in (OK, CONFLICT)]
 
 
-# ---------------------------------------------------------------------------
-# What to undo
-# ---------------------------------------------------------------------------
-
 async def entries_for_change_set(db: AsyncSession, set_id: str) -> list[HistoryEntry]:
     return list((await db.execute(
         select(HistoryEntry).where(HistoryEntry.change_set_id == set_id).order_by(HistoryEntry.id)
@@ -233,10 +229,6 @@ async def entries_for_record(db: AsyncSession, entry: HistoryEntry) -> list[Hist
             picked[e.id] = e
     return sorted(picked.values(), key=lambda e: e.id)
 
-
-# ---------------------------------------------------------------------------
-# Planning
-# ---------------------------------------------------------------------------
 
 _TABLE_ORDER = {t.name: i for i, t in enumerate(Base.metadata.sorted_tables)}
 
@@ -389,10 +381,6 @@ async def plan(db: AsyncSession, entries: list[HistoryEntry]) -> Plan:
             world.set(step.table, step.key, None)
     return Plan(steps)
 
-
-# ---------------------------------------------------------------------------
-# Applying
-# ---------------------------------------------------------------------------
 
 async def apply(db: AsyncSession, the_plan: Plan, force: bool = False) -> dict:
     """
