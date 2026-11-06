@@ -3,6 +3,8 @@
  * REST API calls for AI chat management (non-streaming operations)
  */
 
+import { encodeFormData, prepareOutgoingBody } from '../utils/requestEnvelope';
+
 const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL || '').replace(/\/+$/, '');
 const API_BASE = API_BASE_URL ? `${API_BASE_URL}/api/v1/admin/ai` : '/api/v1/admin/ai';
 // The WebSocket can be served from a different host than the REST API
@@ -36,8 +38,14 @@ async function parseJsonOrThrow(res, fallbackMessage) {
 }
 
 async function apiFetch(path, options = {}) {
+  const method = options.method || 'GET';
+  const prepared = prepareOutgoingBody(method, options.body);
+  const body = prepared === options.body || typeof prepared === 'string'
+    ? prepared
+    : JSON.stringify(prepared);
   const res = await fetch(`${API_BASE}${path}`, {
     ...options,
+    body,
     ...WITH_CREDENTIALS,
     headers: {
       'Content-Type': 'application/json',
@@ -94,7 +102,7 @@ export async function uploadFileToChat(sessionId, file) {
   const res = await fetch(`${API_BASE}/chats/${sessionId}/upload`, {
     method: 'POST',
     ...WITH_CREDENTIALS,
-    body: formData,
+    body: encodeFormData(formData),
   });
 
   if (!res.ok) {
@@ -136,7 +144,7 @@ export async function uploadTrainingDoc(file, name, description = '', tags = '')
   const res = await fetch(`${API_BASE}/training`, {
     method: 'POST',
     ...WITH_CREDENTIALS,
-    body: formData,
+    body: encodeFormData(formData),
   });
 
   if (!res.ok) {

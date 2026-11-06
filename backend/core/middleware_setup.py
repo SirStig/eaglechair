@@ -25,6 +25,7 @@ from backend.core.middleware.csrf import CSRFOriginMiddleware
 from backend.core.middleware.ddos_protection import DDoSProtectionMiddleware
 from backend.core.middleware.input_sanitizer import InputSanitizerMiddleware
 from backend.core.middleware.rate_limiter import AdvancedRateLimiter
+from backend.core.middleware.request_envelope import RequestEnvelopeMiddleware
 from backend.core.middleware.request_validator import RequestValidationMiddleware
 from backend.core.middleware.route_protection import RouteProtectionMiddleware
 from backend.core.middleware.session_manager import SessionManager
@@ -364,6 +365,11 @@ def setup_middleware(app):
     # Error handling
     app.add_middleware(ErrorHandlingMiddleware)
     logger.info("[OK] Error handling enabled")
+
+    # Inside CORS, outside every other layer, so packed writes are restored
+    # before validation and routes, and a rejected body still gets CORS headers.
+    app.add_middleware(RequestEnvelopeMiddleware)
+    logger.info("[OK] Request envelope decoding enabled")
 
     # ========================================================================
     # Layer 6: CORS (OUTERMOST — added last)

@@ -1,6 +1,7 @@
 /* global __BUILD_TIMESTAMP__ */
 import axios from 'axios';
 import logger from '../utils/logger';
+import { prepareOutgoingConfig } from '../utils/requestEnvelope';
 import { notifyAdminWrite } from '../utils/cmsContentStore';
 import { isReauthRequired, requestIdentityConfirmation } from '../services/identityConfirmation';
 
@@ -92,7 +93,7 @@ apiClient.interceptors.request.use(
     logger.debug(CONTEXT, `${config.method?.toUpperCase()} ${config.url}`, {
       params: config.params
     });
-    return config;
+    return prepareOutgoingConfig(config);
   },
   (error) => {
     logger.error(CONTEXT, 'Request interceptor error', error);

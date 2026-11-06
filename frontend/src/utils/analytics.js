@@ -10,6 +10,7 @@
  */
 
 import { isPublicPage, normalizePath } from './analyticsRoutes';
+import { prepareOutgoingBody } from './requestEnvelope';
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || '';
 const ENDPOINT = `${API_BASE_URL}/api/v1/analytics/events`;
@@ -101,7 +102,7 @@ const flush = () => {
       fetch(ENDPOINT, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ events }),
+        body: JSON.stringify(prepareOutgoingBody('POST', { events })),
         credentials: 'include',
         keepalive: true,
       }).catch(() => {});
